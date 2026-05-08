@@ -72,6 +72,12 @@ logger = logging.getLogger(__name__)
 
 _LEGACY_DEVICE_NAME = "handtracking"
 
+# Module-level set of pending replay-driver tasks. The asyncio event loop only
+# keeps weak references to tasks, so a task that is not referenced elsewhere
+# may be garbage-collected before it completes. The completion callback below
+# discards the task again once it finishes.
+_PENDING_REPLAY_TASKS: set[asyncio.Future] = set()
+
 
 def _prepare_env_cfg(task: str, num_envs: int, device: str) -> ManagerBasedRLEnvCfg:
     """Build and tweak an env config suitable for non-interactive replay."""
@@ -120,6 +126,35 @@ def _create_replay_teleop_device(
     return teleop_interface
 
 
+def _on_replay_driver_done(future: asyncio.Future) -> None:
+    """Surface replay-driver failures so the CI process does not hang.
+
+    When :func:`start_xcr_replay` raises before reaching ``post_quit`` (e.g.
+    :class:`FileNotFoundError`, an ``omni.kit`` import failure, or a Kit
+    runtime error) the exception sits silently on the discarded future and
+    Python only emits a ``Future exception was never retrieved`` warning on
+    GC. The main loop would then keep spinning forever because nothing ever
+    flips ``simulation_app.is_running()`` to ``False``.
+
+    This callback retrieves the exception, logs it with traceback, and asks
+    Kit to quit so the host process exits cleanly. It also drops the task
+    from :data:`_PENDING_REPLAY_TASKS` now that it is done.
+    """
+    _PENDING_REPLAY_TASKS.discard(future)
+    if future.cancelled():
+        return
+    exc = future.exception()
+    if exc is None:
+        return
+    logger.error("XCR replay driver failed", exc_info=exc)
+    try:
+        import omni.kit.app
+
+        omni.kit.app.get_app().post_quit()
+    except Exception:
+        logger.exception("Failed to post_quit after replay driver failure")
+
+
 def _schedule_replay_driver(replay_file: str, start_delay_s: float) -> None:
     """Schedule the replay driver coroutine on the running asyncio loop.
 
@@ -130,7 +165,11 @@ def _schedule_replay_driver(replay_file: str, start_delay_s: float) -> None:
     """
     from isaaclab_teleop.automation import XcrReplayConfig, start_xcr_replay
 
-    asyncio.ensure_future(start_xcr_replay(XcrReplayConfig(replay_file=replay_file, start_delay_s=start_delay_s)))
+    future = asyncio.ensure_future(
+        start_xcr_replay(XcrReplayConfig(replay_file=replay_file, start_delay_s=start_delay_s))
+    )
+    _PENDING_REPLAY_TASKS.add(future)
+    future.add_done_callback(_on_replay_driver_done)
 
 
 def main() -> None:
@@ -150,49 +189,58 @@ def main() -> None:
     runtime is silent and the device's :meth:`advance` would otherwise
     return a default zero pose for both wrists, which stepping the env
     with would drive Pink IK toward the world origin.
+
+    Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
+    always runs, even when device construction or any subsequent setup
+    raises -- otherwise the USD stage would leak across CI runs.
     """
-    env_cfg = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
-    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    env: gym.Env | None = None
+    try:
+        env_cfg = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
+        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    # Single-element list so the closure can mutate it without ``nonlocal``.
-    teleop_active = [False]
+        # Single-element list so the closure can mutate it without ``nonlocal``.
+        teleop_active = [False]
 
-    def _on_start() -> None:
-        if not teleop_active[0]:
-            teleop_active[0] = True
-            print("Teleop START received from XCR replay; forwarding actions to env.step().")
+        def _on_start() -> None:
+            if not teleop_active[0]:
+                teleop_active[0] = True
+                print("Teleop START received from XCR replay; forwarding actions to env.step().")
 
-    def _on_stop() -> None:
-        if teleop_active[0]:
-            teleop_active[0] = False
-            print("Teleop STOP received from XCR replay; pausing env.step().")
+        def _on_stop() -> None:
+            if teleop_active[0]:
+                teleop_active[0] = False
+                print("Teleop STOP received from XCR replay; pausing env.step().")
 
-    callbacks: dict[str, Callable[[], None]] = {"START": _on_start, "STOP": _on_stop}
+        callbacks: dict[str, Callable[[], None]] = {"START": _on_start, "STOP": _on_stop}
 
-    teleop_interface = _create_replay_teleop_device(env_cfg, args_cli.task, callbacks)
-    print(f"Using teleop device: {teleop_interface}")
+        teleop_interface = _create_replay_teleop_device(env_cfg, args_cli.task, callbacks)
+        print(f"Using teleop device: {teleop_interface}")
 
-    env.reset()
-    teleop_interface.reset()
+        env.reset()
+        teleop_interface.reset()
 
-    print(f"Replay agent started; replay will begin in {args_cli.replay_start_delay_s:.1f} seconds.")
-    _schedule_replay_driver(args_cli.replay_file, args_cli.replay_start_delay_s)
+        print(f"Replay agent started; replay will begin in {args_cli.replay_start_delay_s:.1f} seconds.")
+        _schedule_replay_driver(args_cli.replay_file, args_cli.replay_start_delay_s)
 
-    while simulation_app.is_running():
-        try:
-            with torch.inference_mode():
-                action = teleop_interface.advance()
-                if action is None or not teleop_active[0]:
-                    env.sim.render()
-                    continue
-                actions = action.repeat(env.num_envs, 1)
-                env.step(actions)
-        except Exception as e:
-            logger.error(f"Error during simulation step: {e}")
-            break
-
-    env.close()
-    print("Environment closed")
+        while simulation_app.is_running():
+            try:
+                with torch.inference_mode():
+                    action = teleop_interface.advance()
+                    if action is None or not teleop_active[0]:
+                        env.sim.render()
+                        continue
+                    actions = action.repeat(env.num_envs, 1)
+                    env.step(actions)
+            except Exception:
+                # ``logger.exception`` preserves the full traceback; bare
+                # ``logger.error`` would only log the message.
+                logger.exception("Error during simulation step")
+                break
+    finally:
+        if env is not None:
+            env.close()
+            print("Environment closed")
 
 
 if __name__ == "__main__":
