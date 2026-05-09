@@ -1033,7 +1033,13 @@ class AppLauncher:
         if self._sim_experience_file == "":
             # check if the headless flag is set
             # xr rendering overrides camera rendering settings
-            if deterministic_mode and self._headless and not self._livestream and not self._xr:
+            if deterministic_mode and (not self._enable_cameras or not self._headless or self._livestream or self._xr):
+                logger.warning(
+                    "--deterministic has no effect when not in headless mode or "
+                    "when cameras are disabled or  when livestreaming or XR is enabled."
+                    "Use --enable_cameras --headless --deterministic for deterministic rendering."
+                )
+            if deterministic_mode and self._enable_cameras and self._headless and not self._livestream and not self._xr:
                 self._sim_experience_file = os.path.join(
                     isaaclab_app_exp_path, "isaaclab.python.headless.determinism.kit"
                 )

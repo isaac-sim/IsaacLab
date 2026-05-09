@@ -33,13 +33,14 @@ still honor ``--seed`` / agent configuration for the environment; use
 :meth:`~isaaclab.utils.seed.configure_seed` from your own entry point if you need the same PyTorch-wide
 behavior elsewhere.
 
-To enable deterministic rendering/app settings, launch workflows with ``--deterministic``:
+To enable deterministic rendering/app settings, launch workflows with ``--deterministic``
+**and** ``--enable_cameras`` **and** ``--headless`` (without livestream/XR):
 
 .. code-block:: bash
 
   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
     --task Isaac-Cartpole-v0 \
-    --deterministic
+    --enable_cameras --headless --deterministic
 
 You can still pass ``--experience isaaclab.python.headless.determinism.kit`` explicitly if you prefer.
 
