@@ -175,6 +175,7 @@ class LeappDeploymentEnv:
         self._leapp_yaml_path = leapp_yaml_path
         self._step_count = 0
         self._sim_step_counter = 0
+        self.extras: dict = {}
 
         # ── Simulation + scene ────────────────────────────────────
         self.sim = SimulationContext(cfg.sim)
