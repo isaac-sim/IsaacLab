@@ -40,6 +40,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _flatten_metadata(values) -> list:
+    """Return Newton contact sensor metadata as a flat Python list."""
+    if values is None:
+        return []
+    if isinstance(values, wp.array):
+        values = values.numpy()
+    flat_values = np.asarray(values, dtype=object).reshape(-1).tolist()
+    if flat_values and isinstance(flat_values[0], list | tuple | np.ndarray):
+        return [
+            value
+            for nested_values in flat_values
+            for value in np.asarray(nested_values, dtype=object).reshape(-1).tolist()
+        ]
+    return flat_values
+
+
+def _broadcast_metadata_kind(kind_values, count: int) -> list:
+    """Broadcast scalar Newton metadata kinds to match per-object indices."""
+    flat_values = _flatten_metadata(kind_values)
+    if len(flat_values) == 1 and count > 1:
+        return flat_values * count
+    return flat_values
+
+
 class ContactSensor(BaseContactSensor):
     """A contact reporting sensor.
 
@@ -349,6 +373,7 @@ class ContactSensor(BaseContactSensor):
         def get_name(idx, kind):
             kind_name = getattr(kind, "name", None)
             kind_value = getattr(kind, "value", kind)
+<<<<<<< Updated upstream
             if kind_name == "BODY" or kind_value == 2:
                 return body_labels[idx].split("/")[-1]
             if kind_name == "SHAPE" or kind_value == 1:
@@ -360,6 +385,32 @@ class ContactSensor(BaseContactSensor):
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
         flat_counterparts = [obj for world_objs in self.contact_view.counterparts for obj in world_objs]
+=======
+            kind_value_str = kind_value.lower() if isinstance(kind_value, str) else None
+            if kind_name == "BODY" or kind_value == 2 or kind_value_str == "body":
+                return body_labels[int(idx)].split("/")[-1]
+            if kind_name == "SHAPE" or kind_value == 1 or kind_value_str == "shape":
+                return shape_labels[int(idx)].split("/")[-1]
+            return "MATCH_ANY"
+
+        sensing_indices = _flatten_metadata(self.contact_view.sensing_obj_idx)
+        flat_sensing = list(
+            zip(
+                sensing_indices,
+                _broadcast_metadata_kind(self.contact_view.sensing_obj_type, len(sensing_indices)),
+            )
+        )
+        self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
+        # Assumes the environments are processed in order.
+        self._sensor_names = self._sensor_names[: self._num_sensors]
+        counterpart_indices = _flatten_metadata(self.contact_view.counterpart_indices)
+        flat_counterparts = list(
+            zip(
+                counterpart_indices,
+                _broadcast_metadata_kind(self.contact_view.counterpart_type, len(counterpart_indices)),
+            )
+        )
+>>>>>>> Stashed changes
         self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
 
         # Number of filter objects (counterparts minus the total column)

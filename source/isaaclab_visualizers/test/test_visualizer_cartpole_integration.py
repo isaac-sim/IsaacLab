@@ -456,24 +456,26 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
 @pytest.mark.parametrize(
     "backend_kind",
     [
-        # xfail: Kit visualizer + PhysX only (Newton backend uses skip below — separate CUDA issue).
-        pytest.param(
-            "physx",
-            marks=pytest.mark.xfail(
-                reason=("Kit visualizer + PhysX: TODO remove xfail when stale Fabric transforms bug in Kit is fixed"),
-                strict=False,
-            ),
-        ),
-        pytest.param(
-            "newton",
-            marks=pytest.mark.skip(
-                reason=(
-                    "TODO: Kit visualizer + Newton physics + Isaac RTX tiled camera can hit CUDA illegal access "
-                    "or bad GPU state. Repro: rl_games train Isaac-Cartpole-Camera-Presets-Direct-v0 "
-                    "--enable_cameras presets=newton_mjwarp --viz kit. Re-enable when fixed."
-                )
-            ),
-        ),
+        # # xfail: Kit visualizer + PhysX only (Newton backend uses skip below — separate CUDA issue).
+        # pytest.param(
+        #     "physx",
+        #     marks=pytest.mark.xfail(
+        #         reason=("Kit visualizer + PhysX: TODO remove xfail when stale Fabric transforms bug in Kit is fixed"),
+        #         strict=False,
+        #     ),
+        # ),
+        # pytest.param(
+        #     "newton",
+        #     marks=pytest.mark.skip(
+        #         reason=(
+        #             "TODO: Kit visualizer + Newton physics + Isaac RTX tiled camera can hit CUDA illegal access "
+        #             "or bad GPU state. Repro: rl_games train Isaac-Cartpole-Camera-Presets-Direct-v0 "
+        #             "--enable_cameras presets=newton_mjwarp --viz kit. Re-enable when fixed."
+        #         )
+        #     ),
+        # ),
+        "physx",
+        "newton",
     ],
 )
 def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
