@@ -20,18 +20,28 @@ simulation results are reproducible across different runs. The seed is set into 
 parameters :attr:`isaaclab.envs.ManagerBasedEnvCfg.seed` or :attr:`isaaclab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
-.. note::
+App-level deterministic experience selection is exposed through ``AppLauncher``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   **App-level deterministic experience selection is exposed through ``AppLauncher``.**
-   The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
-   When used with the default experience selection logic in a compatible headless launch, AppLauncher
-   automatically selects ``isaaclab.python.headless.determinism.kit``.
+The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
+When used with the default experience selection logic in a compatible headless launch, AppLauncher
+automatically selects ``isaaclab.python.headless.determinism.kit``.
 
-   **Strict PyTorch determinism** (calling :meth:`~isaaclab.utils.seed.configure_seed` with
-   ``torch_deterministic=True``) is wired into the **RL-Games** training script only. Other frameworks
-   still honor ``--seed`` / agent configuration for the environment; use
-   :meth:`~isaaclab.utils.seed.configure_seed` from your own entry point if you need the same PyTorch-wide
-   behavior elsewhere.
+**Strict PyTorch determinism** (calling :meth:`~isaaclab.utils.seed.configure_seed` with
+``torch_deterministic=True``) is wired into the **RL-Games** training script only. Other frameworks
+still honor ``--seed`` / agent configuration for the environment; use
+:meth:`~isaaclab.utils.seed.configure_seed` from your own entry point if you need the same PyTorch-wide
+behavior elsewhere.
+
+To enable deterministic rendering/app settings, launch workflows with ``--deterministic``:
+
+.. code-block:: bash
+
+  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
+    --task Isaac-Cartpole-v0 \
+    --deterministic
+
+You can still pass ``--experience isaaclab.python.headless.determinism.kit`` explicitly if you prefer.
 
 Gymnasium registry (``gym.register``) and training scripts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -50,18 +60,6 @@ was registered **without** that key—for example ``Isaac-Cartpole-RGB-v0`` curr
 ``rl_games_cfg_entry_point``—you will get a ``ValueError`` such as “Could not find configuration …
 ``sb3_cfg_entry_point``”. To use another framework you must either pick a task that registers that entry
 point or extend ``gym.register(..., kwargs={...})`` for that task with matching agent YAML/Python configs.
-
-To enable deterministic rendering/app settings, launch workflows with ``--deterministic``:
-
-.. code-block:: bash
-
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
-    --task Isaac-Cartpole-v0 \
-    --deterministic
-
-You can still pass ``--experience isaaclab.python.headless.determinism.kit`` explicitly if you prefer.
-
-.. _reproducibility-training-regression-test:
 
 Regression test for training scripts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
