@@ -121,6 +121,7 @@ Guidelines for modifications:
 * Louis Le Lay
 * Lukas Fröhlich
 * Manuel Schweiger
+* Marco Alesiani
 * Masoud Moghani
 * Mateo Guaman Castro
 * Maurice Rahme
