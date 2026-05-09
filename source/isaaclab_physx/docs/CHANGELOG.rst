@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.6.2 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.Articulation` joint friction docs to distinguish legacy coefficients from
+  PhysX 5 static and dynamic friction efforts.
+* Fixed PhysX backend tests to use current contact sensor and asset API names,
+  removing deprecation warnings from scoped test runs.
+
+
 0.6.1 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 

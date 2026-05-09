@@ -30,6 +30,8 @@ import numpy as np
 import torch
 import warp as wp
 
+import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
+
 # The ovrtx C library links to its own version of the USD libraries. Having
 # the pxr Python package available can cause the C library to load an
 # incompatible version of libusd, potentially leading to undefined behavior.
