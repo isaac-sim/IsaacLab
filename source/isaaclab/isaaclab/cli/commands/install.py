@@ -163,7 +163,7 @@ def _maybe_uninstall_prebundled_torch(
 # via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
 # ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
-_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.7.2")
+_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.8.5")
 
 
 def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
@@ -197,7 +197,9 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
         [
             python_exe,
             "-c",
-            "import pinocchio, daqp, qpsolvers; assert 'daqp' in qpsolvers.available_solvers",
+            "import inspect, pinocchio, daqp, qpsolvers; "
+            "assert 'daqp' in qpsolvers.available_solvers; "
+            "assert 'primal_start' in inspect.signature(daqp.solve).parameters",
         ],
         env=probe_env,
         check=False,
@@ -216,7 +218,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
         print_warning(
             "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
             f"{install_result.returncode}). The pink IK controller and its tests will not be"
-            " usable until ``pin pin-pink==3.1.0 daqp==0.7.2`` is installed manually."
+            " usable until ``pin pin-pink==3.1.0 daqp==0.8.5`` is installed manually."
         )
 
 

@@ -244,6 +244,19 @@ class PinkIKController:
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
 
+        def _return_current_joint_positions(error: Exception) -> torch.Tensor:
+            if self.cfg.show_ik_warnings:
+                print(
+                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
+                    f" positions.\nError: {error}"
+                )
+
+            if self.cfg.xr_enabled:
+                from isaaclab.ui.xr_widgets import XRVisualization
+
+                XRVisualization.push_event("ik_error", {"error": error})
+            return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
+
         # Solve IK using Pink's solver
         try:
             velocity = solve_ik(
@@ -258,21 +271,18 @@ class PinkIKController:
         except SolverNotFound as e:
             raise RuntimeError(
                 f"Pink IK requires the '{_QP_SOLVER}' QP solver. Install the Pink IK stack with "
-                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.7.2``."
+                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.8.5``."
             ) from e
+        except TypeError as e:
+            if "primal_start" in str(e):
+                raise RuntimeError(
+                    "Pink IK requires a DAQP version compatible with qpsolvers warm-start arguments. "
+                    "Install the Pink IK stack with ``./isaaclab.sh -i`` or manually install "
+                    "``pin pin-pink==3.1.0 daqp==0.8.5``."
+                ) from e
+            return _return_current_joint_positions(e)
         except (AssertionError, Exception) as e:
-            # Print warning and return the current joint positions as the target
-            if self.cfg.show_ik_warnings:
-                print(
-                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
-                    f" positions.\nError: {e}"
-                )
-
-            if self.cfg.xr_enabled:
-                from isaaclab.ui.xr_widgets import XRVisualization
-
-                XRVisualization.push_event("ik_error", {"error": e})
-            return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
+            return _return_current_joint_positions(e)
 
         # Reorder the joint angle changes back to Isaac Lab conventions
         joint_vel_isaac_lab = torch.tensor(
