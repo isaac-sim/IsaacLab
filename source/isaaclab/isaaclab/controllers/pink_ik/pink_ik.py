@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from pink import solve_ik
 from pink.tasks import Task
+from qpsolvers.exceptions import SolverNotFound
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.controllers import utils as controller_utils
@@ -80,7 +81,6 @@ class PinkIKController:
 
         # Validate consistency between controlled_joint_indices and configuration
         self._validate_consistency(cfg, controlled_joint_indices)
-        self._validate_solver_available()
 
         # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
         if cfg.urdf_path is None and cfg.usd_path is not None:
@@ -169,27 +169,6 @@ class PinkIKController:
                     + "\n".join(mismatches)
                 )
 
-    def _validate_solver_available(self) -> None:
-        """Validate that the configured QP solver is available.
-
-        Raises:
-            RuntimeError: If the QP solver dependency required by Pink IK is unavailable.
-        """
-        try:
-            from qpsolvers import available_solvers
-        except ImportError as exc:
-            raise RuntimeError(
-                "Pink IK requires the qpsolvers package. Install the Pink IK stack with "
-                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.7.2``."
-            ) from exc
-
-        if _QP_SOLVER not in available_solvers:
-            raise RuntimeError(
-                f"Pink IK requires the '{_QP_SOLVER}' QP solver, but qpsolvers reports available solvers: "
-                f"{available_solvers}. Install the Pink IK stack with ``./isaaclab.sh -i`` or manually install "
-                "``pin pin-pink==3.1.0 daqp==0.7.2``."
-            )
-
     def _setup_joint_ordering_mappings(self):
         """Setup joint ordering mappings between Isaac Lab and Pink conventions."""
         pink_joint_names = self.pink_configuration.all_joint_names_pinocchio_order
@@ -276,6 +255,11 @@ class PinkIKController:
             )
             assert not np.isnan(velocity).any(), "Solution to IK contains NaN."
             joint_angle_changes = velocity * dt
+        except SolverNotFound as e:
+            raise RuntimeError(
+                f"Pink IK requires the '{_QP_SOLVER}' QP solver. Install the Pink IK stack with "
+                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.7.2``."
+            ) from e
         except (AssertionError, Exception) as e:
             # Print warning and return the current joint positions as the target
             if self.cfg.show_ik_warnings:
