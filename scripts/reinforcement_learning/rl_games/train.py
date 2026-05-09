@@ -209,6 +209,8 @@ def main():
         else:
             runner = Runner(IsaacAlgoObserver())
 
+        # configure_seed must be called after Runner() so that PyTorch deterministic settings
+        # do not interfere with Runner's internal initialization.
         configure_seed(env_cfg.seed, args_cli.deterministic)
 
         runner.load(agent_cfg)

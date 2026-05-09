@@ -127,7 +127,7 @@ def _run_train_once(
         "--seed",
         "42",
         "--max_iterations",
-        "20",
+        "50",
     ]
     if deterministic:
         cmd.append("--deterministic")
