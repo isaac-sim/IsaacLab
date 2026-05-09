@@ -11,8 +11,22 @@ The unified reinforcement learning entrypoints can be launched with the Isaac La
    ./isaaclab.sh train --library <framework> --task <task-name>
    ./isaaclab.sh play --library <framework> --task <task-name>
 
-These commands are resolved by the Isaac Lab CLI. When running Python directly
-from an activated environment, use the full script path.
+These commands are resolved by the Isaac Lab CLI. From a source checkout, ``uv`` can also
+create and sync the environment automatically:
+
+.. code:: bash
+
+   uv run train --help
+   uv run train --library rsl_rl \
+      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
+   uv run play --library rsl_rl \
+      --task <task-name> --checkpoint <checkpoint>
+
+The default ``uv run`` environment includes the RSL-RL, tasks, and Newton dependency
+stacks. Add extras such as ``ov`` or ``rtx`` only when a workflow needs them.
+Isaac Sim Kit workflows, including PhysX, should use the existing full installation
+path. When running Python directly from an activated environment, use the full
+script path.
 
 Newton Backend
 --------------

@@ -28,6 +28,28 @@ There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab. Fo
 **without Isaac Sim** (Newton backend only), see the :ref:`kitless-installation` section of the
 installation guide — just clone the repo and run ``./isaaclab.sh -i``.
 
+If you are using ``uv`` from a source checkout, you can also let ``uv`` create and sync the
+environment directly from the command you want to run:
+
+.. code-block:: bash
+
+   git clone https://github.com/isaac-sim/IsaacLab.git
+   cd IsaacLab
+
+   # Default environment, useful for checking entrypoints
+   uv run train --help
+
+   # Newton backend training without Isaac Sim
+   uv run train --library rsl_rl \
+      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
+
+   # Add OVRTX/OVPhysX extras only when the workflow needs them
+   uv run --extra ov --extra rtx train --library rsl_rl \
+      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
+
+The default ``uv`` environment includes the RSL-RL, tasks, and Newton dependency stacks.
+Isaac Sim Kit workflows, including PhysX, should use the existing full installation path.
+
 For the full pip-based installation (recommended for most users), we use **uv** as the preferred
 package manager. To begin, create a virtual environment:
 

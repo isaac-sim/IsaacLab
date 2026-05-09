@@ -3,7 +3,8 @@
 Quick Installation
 =======================
 
-``./isaaclab.sh -i`` installs everything needed to run with Newton Physics out of the box.
+The fastest path from a fresh clone is to let ``uv`` create and sync the environment for
+the command you are running:
 
 .. code-block:: bash
 
@@ -14,16 +15,20 @@ Quick Installation
    git clone https://github.com/isaac-sim/IsaacLab.git
    cd IsaacLab
 
-   # Create environment and install
-   uv venv --python 3.12 --seed env_isaaclab
-   source env_isaaclab/bin/activate
-   ./isaaclab.sh -i
+   # Check the unified training entrypoint
+   uv run train --help
 
-   # Run training (MJWarp on the Newton backend, 16 envs)
-    ./isaaclab.sh train --library rsl_rl \
+   # Run training with the default RSL-RL + Newton stack
+   uv run train --library rsl_rl \
      --task=Isaac-Cartpole-Direct-v0 \
      --num_envs=16 --max_iterations=10 \
      presets=newton_mjwarp --visualizer newton
+
+The default ``uv`` environment includes the RSL-RL, tasks, and Newton dependency
+stacks. Add extras such as ``ov`` or ``rtx`` only when a workflow needs them.
+Isaac Sim Kit workflows, including PhysX, should use the existing full installation
+path. The ``./isaaclab.sh -i`` installer remains available for users who prefer an
+explicit virtual environment setup.
 
 
 Running Tasks
@@ -40,7 +45,7 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
      presets=newton_mjwarp \
      --visualizer newton
 
-   # PhysX (Kit — requires Isaac Sim)
+   # PhysX (Kit — requires Isaac Sim from the full installation path)
     ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \

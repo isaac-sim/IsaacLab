@@ -13,7 +13,7 @@ from unittest import mock
 
 import pytest
 
-from isaaclab.cli import cli
+from isaaclab.cli import cli, play, train
 from isaaclab.cli.utils import (
     ISAACLAB_ROOT,
     determine_python_version,
@@ -69,6 +69,27 @@ class TestGetPipCommand:
         ):
             result = get_pip_command(python_exe=fake_python)
             assert result == ["uv", "pip"]
+
+    def test_returns_uv_pip_for_target_venv_without_activation(self, tmp_path):
+        """When the target Python is in a venv, use uv pip even if the venv is not activated."""
+        venv_python = _python_in_venv(tmp_path / ".venv")
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+        (tmp_path / ".venv" / "pyvenv.cfg").touch()
+
+        env = os.environ.copy()
+        env.pop("CONDA_PREFIX", None)
+        env.pop("VIRTUAL_ENV", None)
+        env.pop("UV_PYTHON", None)
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
+            mock.patch.object(sys, "prefix", "/usr"),
+            mock.patch.object(sys, "base_prefix", "/usr"),
+        ):
+            result = get_pip_command(python_exe=str(venv_python))
+            assert result == ["uv", "pip"]
+            assert os.environ["UV_PYTHON"] == str(venv_python)
 
     def test_returns_python_pip_without_uv(self, tmp_path):
         """When uv is not installed, always return python -m pip."""
@@ -192,6 +213,34 @@ class TestCli:
             check=True,
         )
 
+    def test_train_console_script_runs_unified_train_script(self):
+        """Should dispatch the train console script to the unified reinforcement learning training script."""
+        with (
+            mock.patch.object(sys, "argv", ["train", "--library", "rsl_rl"]),
+            mock.patch("isaaclab.cli.run_python_command") as run_python_command_mock,
+        ):
+            train()
+
+        run_python_command_mock.assert_called_once_with(
+            ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+            ["--library", "rsl_rl"],
+            check=True,
+        )
+
+    def test_play_console_script_runs_unified_play_script(self):
+        """Should dispatch the play console script to the unified reinforcement learning play script."""
+        with (
+            mock.patch.object(sys, "argv", ["play", "--library", "rsl_rl"]),
+            mock.patch("isaaclab.cli.run_python_command") as run_python_command_mock,
+        ):
+            play()
+
+        run_python_command_mock.assert_called_once_with(
+            ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
+            ["--library", "rsl_rl"],
+            check=True,
+        )
+
 
 # ---------------------------------------------------------------------------
 # extract_python_exe
@@ -223,6 +272,42 @@ class TestExtractPythonExe:
         with mock.patch.dict(os.environ, env, clear=True):
             result = extract_python_exe()
             assert Path(result) == conda_python
+
+    def test_uses_current_python_when_running_in_virtualenv_without_env_var(self, tmp_path):
+        """Should return the current interpreter when the process is already inside a virtual environment."""
+        venv_python = _python_in_venv(tmp_path)
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+
+        env = os.environ.copy()
+        env.pop("CONDA_PREFIX", None)
+        env.pop("VIRTUAL_ENV", None)
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch.object(sys, "prefix", str(tmp_path)),
+            mock.patch.object(sys, "base_prefix", "/usr"),
+            mock.patch.object(sys, "executable", str(venv_python)),
+        ):
+            result = extract_python_exe()
+            assert Path(result) == venv_python
+
+    def test_uses_repo_dot_venv_when_no_environment_is_active(self, tmp_path):
+        """Should return the repo-local .venv Python before falling back to system Python."""
+        venv_python = _python_in_venv(tmp_path / ".venv")
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+
+        env = os.environ.copy()
+        env.pop("CONDA_PREFIX", None)
+        env.pop("VIRTUAL_ENV", None)
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.ISAACLAB_ROOT", tmp_path),
+            mock.patch.object(sys, "prefix", "/usr"),
+            mock.patch.object(sys, "base_prefix", "/usr"),
+        ):
+            result = extract_python_exe()
+            assert Path(result) == venv_python
 
 
 # ---------------------------------------------------------------------------
