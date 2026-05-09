@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+4.8.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Pink IK task-space action base link frame lookup to read direct
+  body link pose data instead of slicing packed body link state. No user
+  migration is required.
+* Added :mod:`filelock` to ``isaaclab`` install requirements.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.assets.Articulation` joint friction API docs to clarify backend-specific semantics.
+* Fixed :class:`~isaaclab.envs.mdp.actions.PinkInverseKinematicsAction`
+  base link pose reads to avoid deprecated body link state access.
+* Fixed the sensor overview documentation to include
+  :class:`~isaaclab.sensors.Pva` and
+  :class:`~isaaclab.sensors.JointWrenchSensor`.
+* Fixed the PVA sensor demo to align front-foot sensor names with their prim
+  paths.
+* Fixed Sphinx docs build failing due to ``https://nvidia.github.io/warp/objects.inv`` returning 404.
+  Pinned the ``warp`` intersphinx mapping to ``/stable/``, which is where the inventory now lives.
+* Fixed the sensor prim-deletion callback guard so the OvPhysX backend is not
+  treated as the Kit PhysX backend.
+* Relaxed the ``starlette`` pin in :mod:`isaaclab` from ``==0.49.1`` to
+  ``>=0.46.0,<0.50`` so installs of ``isaaclab[isaacsim,all]==3.0.0``
+  alongside ``isaacsim==6.0.0.0`` resolve cleanly. The transitive pin
+  from ``isaacsim-kernel`` -> ``fastapi==0.117.1`` requires
+  ``starlette<0.49.0``; the previous exact pin was mutually exclusive.
+* Fixed :mod:`isaaclab.sim.spawners.from_files` failing to import on Windows
+  due to an unconditional ``import fcntl`` (Unix-only). The distributed-rank
+  USD spawn lock now uses :class:`filelock.FileLock`, which works on both
+  Windows and POSIX.
+* Certain functions in test_math were failing non deterministically. This was caused by not setting seed values.
+
+
 4.8.0 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 
