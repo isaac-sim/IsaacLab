@@ -71,8 +71,6 @@ The file ``source/isaaclab_tasks/test/test_train_scripts_deterministic.py`` chec
 * (optional, heavy) for RL-Games on ``Isaac-Cartpole-RGB-v0``, two runs **without** ``--deterministic`` diverge
   in logged ``rewards/iter``, while two runs **with** ``--deterministic`` match.
 
-Training scripts use ``--max_iterations`` (plural); ``--max_iteration`` is not a valid CLI flag.
-
 Run all tests in that file from the repository root:
 
 .. code-block:: bash
