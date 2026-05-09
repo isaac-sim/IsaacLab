@@ -327,4 +327,4 @@ def sync_newton_transforms_kernel(
     i = wp.tid()
     body_idx = newton_body_indices[i]
     transform = newton_body_q[body_idx]
-    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))

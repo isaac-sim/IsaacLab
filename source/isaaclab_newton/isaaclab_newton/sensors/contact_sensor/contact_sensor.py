@@ -346,17 +346,17 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError(self._init_error) from err
 
     def _create_buffers(self):
-        # Get Newton sensor shape: (n_sensors * n_envs, n_counterparts)
-        newton_shape = self.contact_view.shape
+        # Get Newton sensor count from total force: (n_sensors * n_envs)
+        total_sensor_count = self.contact_view.total_force.shape[0]
 
         # resolve the true count of sensors
-        self._num_sensors = newton_shape[0] // self._num_envs
+        self._num_sensors = total_sensor_count // self._num_envs
 
         # Check that number of sensors is an integer
-        if newton_shape[0] % self._num_envs != 0:
+        if total_sensor_count % self._num_envs != 0:
             raise RuntimeError(
                 "Number of sensors is not an integer multiple of the number of environments. Received:"
-                f" {newton_shape[0]} sensors across {self._num_envs} environments."
+                f" {total_sensor_count} sensors across {self._num_envs} environments."
             )
         if self._num_sensors == 0:
             raise RuntimeError(
@@ -373,19 +373,6 @@ class ContactSensor(BaseContactSensor):
         def get_name(idx, kind):
             kind_name = getattr(kind, "name", None)
             kind_value = getattr(kind, "value", kind)
-<<<<<<< Updated upstream
-            if kind_name == "BODY" or kind_value == 2:
-                return body_labels[idx].split("/")[-1]
-            if kind_name == "SHAPE" or kind_value == 1:
-                return shape_labels[idx].split("/")[-1]
-            return "MATCH_ANY"
-
-        flat_sensing = [obj for world_objs in self.contact_view.sensing_objs for obj in world_objs]
-        self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
-        # Assumes the environments are processed in order.
-        self._sensor_names = self._sensor_names[: self._num_sensors]
-        flat_counterparts = [obj for world_objs in self.contact_view.counterparts for obj in world_objs]
-=======
             kind_value_str = kind_value.lower() if isinstance(kind_value, str) else None
             if kind_name == "BODY" or kind_value == 2 or kind_value_str == "body":
                 return body_labels[int(idx)].split("/")[-1]
@@ -410,16 +397,17 @@ class ContactSensor(BaseContactSensor):
                 _broadcast_metadata_kind(self.contact_view.counterpart_type, len(counterpart_indices)),
             )
         )
->>>>>>> Stashed changes
         self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
 
-        # Number of filter objects (counterparts minus the total column)
-        self._num_filter_objects = max(newton_shape[1] - 1, 0)
+        force_matrix = self.contact_view.force_matrix
+        force_matrix_shape = force_matrix.shape if force_matrix is not None else (total_sensor_count, 0)
+        # Number of filter objects.
+        self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
 
-        # Store reshaped Newton net_force view for copying data
-        # Newton net_force shape: (n_sensors * n_envs, n_counterparts)
-        # Reshaped to: (n_envs, n_sensors, n_counterparts)
-        self._newton_forces_view = self.contact_view.net_force.reshape((self._num_envs, self._num_sensors, -1))
+        # Store flat Newton force views for copying data. These may be non-contiguous
+        # views, so the copy kernel indexes them without reshaping.
+        self._newton_total_force_view = self.contact_view.total_force
+        self._newton_force_matrix_view = force_matrix if self._num_filter_objects > 0 else None
 
         # prepare data buffers
         logger.info(
@@ -464,7 +452,9 @@ class ContactSensor(BaseContactSensor):
             dim=(self._num_envs, self._num_sensors, max(self._num_filter_objects, 1)),
             inputs=[
                 env_mask,
-                self._newton_forces_view,
+                self._num_sensors,
+                self._newton_total_force_view,
+                self._newton_force_matrix_view,
             ],
             outputs=[
                 self._data._net_forces_w,
