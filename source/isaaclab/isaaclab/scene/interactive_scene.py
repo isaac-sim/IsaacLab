@@ -198,8 +198,8 @@ class InteractiveScene:
             self._add_entities_from_cfg()
         else:
             self._clone_plan = cloner.ClonePlan(
-                sources=[self.env_fmt.format(0)],
-                destinations=[self.env_fmt],
+                sources=(self.env_fmt.format(0),),
+                destinations=(self.env_fmt,),
                 clone_mask=torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool),
             )
 
@@ -216,7 +216,10 @@ class InteractiveScene:
                 self.filter_collisions(self._global_prim_paths)
 
     def _build_clone_plan_from_cfg(self) -> cloner.ClonePlan | None:
-        """Build a clone plan from scene cfg spawn variants and write planned spawn paths."""
+        """Build a clone plan from scene cfg spawn variants and write planned spawn paths.
+
+        Returns ``None`` when the cfg has no env-scoped spawned assets.
+        """
 
         def num_variants(spawn_cfg) -> int:
             if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
@@ -259,8 +262,8 @@ class InteractiveScene:
             for spawn_cfg, destination, _ in groups:
                 set_spawn_paths(spawn_cfg, [destination.format(0)])
             return cloner.ClonePlan(
-                sources=[self.env_fmt.format(0)],
-                destinations=[self.env_fmt],
+                sources=(self.env_fmt.format(0),),
+                destinations=(self.env_fmt,),
                 clone_mask=torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool),
             )
 
@@ -274,6 +277,7 @@ class InteractiveScene:
 
         # Move each planned source row to the first environment that actually uses it.
         row = 0
+        sources = list(plan.sources)
         for spawn_cfg, destination, count in groups:
             mask = plan.clone_mask[row : row + count]
             env_ids = mask.to(torch.int).argmax(dim=1).tolist()
@@ -281,10 +285,11 @@ class InteractiveScene:
             paths = [destination.format(env_id) if is_active else None for env_id, is_active in zip(env_ids, active)]
             for i, path in zip(range(row, row + count), paths):
                 if path is not None:
-                    plan.sources[i] = path
+                    sources[i] = path
             set_spawn_paths(spawn_cfg, paths)
             row += count
 
+        plan = cloner.ClonePlan(sources=tuple(sources), destinations=plan.destinations, clone_mask=plan.clone_mask)
         logger.debug("Built heterogeneous ClonePlan with %d source rows.", len(plan.sources))
         return plan
 
@@ -322,7 +327,12 @@ class InteractiveScene:
                     device=self.cloner_cfg.device,
                 )
             if self.cloner_cfg.clone_usd:
-                usd_positions = self._default_env_origins if plan.destinations == [self.env_fmt] else None
+                is_env_root_plan = (
+                    len(plan.sources) == 1
+                    and plan.sources[0] == self.env_fmt.format(0)
+                    and plan.destinations == (self.env_fmt,)
+                )
+                usd_positions = self._default_env_origins if is_env_root_plan else None
                 cloner.usd_replicate(self.stage, *replicate_args, positions=usd_positions)
 
         # Publish to ``SimulationContext`` (the canonical owner). The :attr:`clone_plan`

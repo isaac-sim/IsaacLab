@@ -9,7 +9,7 @@ import contextlib
 import itertools
 import logging
 import math
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import torch
 
@@ -99,8 +99,8 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
 
 
 def make_clone_plan(
-    sources: list[list[str]],
-    destinations: list[str],
+    sources: Sequence[Sequence[str]],
+    destinations: Sequence[str],
     num_clones: int,
     clone_strategy: callable,
     device: str = "cpu",
@@ -122,10 +122,17 @@ def make_clone_plan(
         A :class:`ClonePlan` whose ``sources`` and ``destinations`` are flattened per-source rows and
         whose ``clone_mask`` is a ``[num_src, num_clones]`` boolean tensor.
     """
-    # 1) Flatten into src and dest lists
-    src = [p for group in sources for p in group]
-    dest = [dst for dst, group in zip(destinations, sources) for _ in group]
+    if len(sources) != len(destinations):
+        raise ValueError(f"Expected one destination per source group, got {len(destinations)} and {len(sources)}.")
+    if not sources:
+        raise ValueError("Expected at least one source group.")
     group_sizes = [len(group) for group in sources]
+    if any(size == 0 for size in group_sizes):
+        raise ValueError("Source groups must not be empty.")
+
+    # 1) Flatten into src and dest lists
+    src = tuple(p for group in sources for p in group)
+    dest = tuple(dst for dst, group in zip(destinations, sources) for _ in group)
 
     # 2) Enumerate all combinations of "one prototype per group"
     #    all_combos: list of tuples (g0_idx, g1_idx, ..., g_{G-1}_idx)
@@ -148,8 +155,8 @@ def make_clone_plan(
 
 def usd_replicate(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mask: torch.Tensor | None = None,
     positions: torch.Tensor | None = None,

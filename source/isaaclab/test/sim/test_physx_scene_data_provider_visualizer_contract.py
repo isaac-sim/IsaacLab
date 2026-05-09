@@ -90,12 +90,12 @@ def test_build_from_clone_plan_populates_provider_state(stub_provider, newton_st
         articulation_label=["/World/envs/env_0/Robot"],
     )
     plan = ClonePlan(
-        sources=[
+        sources=(
             "/World/envs/env_0/Object",
             "/World/envs/env_1/Object",
             "/World/envs/env_0/Robot",
-        ],
-        destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object", "/World/envs/env_{}/Robot"],
+        ),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object", "/World/envs/env_{}/Robot"),
         # object 0 -> env 0, 2 ; object 1 -> env 1, 3 ; robot -> all envs
         clone_mask=torch.tensor(
             [[True, False, True, False], [False, True, False, True], [True, True, True, True]], dtype=torch.bool
@@ -145,8 +145,8 @@ def test_build_from_clone_plan_skips_unused_source_rows(stub_provider, newton_st
     """
     # 3 prototypes, 2 envs, sequential: env 0 → proto 0, env 1 → proto 1, proto 2 unused.
     plan = ClonePlan(
-        sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_0/Object"],
-        destinations=["/World/envs/env_{}/Object"] * 3,
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_0/Object"),
+        destinations=("/World/envs/env_{}/Object",) * 3,
         clone_mask=torch.tensor([[True, False], [False, True], [False, False]], dtype=torch.bool),
     )
     stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
@@ -174,8 +174,8 @@ def test_build_from_clone_plan_uses_destination_template_for_env_lookup(stub_pro
         return SimpleNamespace(IsValid=lambda: False)
 
     plan = ClonePlan(
-        sources=["/Stage/scenes/env_0/Object"],
-        destinations=["/Stage/scenes/env_{}/Object"],
+        sources=("/Stage/scenes/env_0/Object",),
+        destinations=("/Stage/scenes/env_{}/Object",),
         clone_mask=torch.ones((1, 3), dtype=torch.bool),
     )
     stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
@@ -190,10 +190,10 @@ def test_build_from_clone_plan_uses_destination_template_for_env_lookup(stub_pro
 def test_clone_plan_carries_flat_replication_contract():
     """``ClonePlan`` contains only sources, destinations, and the clone mask."""
     plan = ClonePlan(
-        sources=["/World/envs/env_0/Object"],
-        destinations=["/World/envs/env_{}/Object"],
+        sources=("/World/envs/env_0/Object",),
+        destinations=("/World/envs/env_{}/Object",),
         clone_mask=torch.ones((1, 4), dtype=torch.bool),
     )
-    assert plan.sources == ["/World/envs/env_0/Object"]
-    assert plan.destinations == ["/World/envs/env_{}/Object"]
+    assert plan.sources == ("/World/envs/env_0/Object",)
+    assert plan.destinations == ("/World/envs/env_{}/Object",)
     assert plan.clone_mask.shape == (1, 4)

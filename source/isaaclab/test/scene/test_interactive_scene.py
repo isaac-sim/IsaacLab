@@ -157,8 +157,8 @@ def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: p
     scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
     scene._default_env_origins = torch.zeros((3, 3), dtype=torch.float32)
     scene._clone_plan = ClonePlan(
-        sources=[scene.env_fmt.format(0)],
-        destinations=[scene.env_fmt],
+        sources=(scene.env_fmt.format(0),),
+        destinations=(scene.env_fmt,),
         clone_mask=torch.ones((1, scene.num_envs), dtype=torch.bool),
     )
     # Avoid binding this unit test to global SimulationContext singleton state.
@@ -200,8 +200,8 @@ def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: p
     assert len(set_plan_calls) == 1
     plan = set_plan_calls[-1]
     assert isinstance(plan, ClonePlan)
-    assert plan.sources == [scene.env_fmt.format(0)]
-    assert plan.destinations == [scene.env_fmt]
+    assert plan.sources == (scene.env_fmt.format(0),)
+    assert plan.destinations == (scene.env_fmt,)
     assert plan.clone_mask.shape == (1, scene.num_envs)
     assert scene.clone_plan is plan
 
@@ -239,8 +239,8 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
     scene._ALL_INDICES = torch.arange(2, dtype=torch.long)
     scene._default_env_origins = torch.ones((2, 3), dtype=torch.float32)
     scene._clone_plan = ClonePlan(
-        sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
-        destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"],
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
         clone_mask=torch.tensor([[True, False], [False, True]], dtype=torch.bool),
     )
 
@@ -303,16 +303,16 @@ def test_build_clone_plan_from_cfg_plans_multi_and_single_spawners(monkeypatch: 
     plan = scene._build_clone_plan_from_cfg()
 
     assert plan is not None
-    assert plan.sources == [
+    assert plan.sources == (
         "/World/envs/env_0/Object",
         "/World/envs/env_1/Object",
         "/World/envs/env_0/Robot",
-    ]
-    assert plan.destinations == [
+    )
+    assert plan.destinations == (
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Robot",
-    ]
+    )
     assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
     assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
     assert scene.cfg.object.prim_path == "{ENV_REGEX_NS}/Object"
@@ -339,8 +339,8 @@ def test_build_clone_plan_from_cfg_defaults_to_env0_plan(monkeypatch: pytest.Mon
     plan = scene._build_clone_plan_from_cfg()
 
     assert plan is not None
-    assert plan.sources == ["/World/envs/env_0"]
-    assert plan.destinations == [scene.env_fmt]
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == (scene.env_fmt,)
     assert plan.clone_mask.shape == (1, scene.num_envs)
     assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
 

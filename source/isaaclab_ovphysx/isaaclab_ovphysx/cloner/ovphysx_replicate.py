@@ -20,6 +20,8 @@ environments entirely inside the physics runtime without touching USD.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 
 from pxr import Usd
@@ -27,8 +29,8 @@ from pxr import Usd
 
 def ovphysx_replicate(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,

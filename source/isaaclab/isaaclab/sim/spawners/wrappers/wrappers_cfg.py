@@ -52,10 +52,9 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     spawn_paths: list[str | None] | None = None
     """Optional concrete spawn paths, one per asset configuration.
 
-    When provided, :func:`spawn_multi_asset` spawns each variant at the matching
-    path instead of deriving sibling paths from the input ``prim_path``. ``None``
-    entries are skipped, which lets clone planning omit variants unused by any
-    environment.
+    When set, :func:`spawn_multi_asset` uses these paths instead of deriving
+    sibling paths from the input ``prim_path``. Entries set to ``None`` are
+    skipped.
     """
 
     random_choice: bool = True
@@ -87,7 +86,12 @@ class MultiUsdFileCfg(UsdFileCfg):
     """Path or a list of paths to the USD files to spawn asset from."""
 
     spawn_paths: list[str | None] | None = None
-    """Optional concrete spawn paths, one per USD path. ``None`` entries are skipped."""
+    """Optional concrete spawn paths, one per USD path.
+
+    When set, :func:`spawn_multi_usd_file` uses these paths instead of deriving
+    sibling paths from the input ``prim_path``. Entries set to ``None`` are
+    skipped.
+    """
 
     random_choice: bool = True
     """Whether to randomly select an asset configuration. Default is True.

@@ -21,10 +21,10 @@ class ClonePlan:
     populated from that source.
     """
 
-    sources: list[str]
+    sources: tuple[str, ...]
     """Source prim paths used for replication."""
 
-    destinations: list[str]
+    destinations: tuple[str, ...]
     """Destination path templates, one per source path."""
 
     clone_mask: torch.Tensor

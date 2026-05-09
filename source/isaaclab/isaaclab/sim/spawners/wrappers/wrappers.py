@@ -31,9 +31,6 @@ def spawn_multi_asset(
 
     Assets are created in the order they appear in ``cfg.assets_cfg`` using the base name in ``prim_path``,
     which must contain ``.*`` (for example, ``/World/Env_0/asset_.*`` spawns ``asset_0``, ``asset_1``, ...).
-    The prefix portion of ``prim_path`` may also include ``.*`` (for example, ``/World/env_.*/asset_.*``);
-    in this case, assets are spawned under the first match (``env_0``) and that structure is cloned to
-    other matching environments by the scene's cloner.
 
     Args:
         prim_path: The prim path to spawn the assets.
@@ -52,7 +49,7 @@ def spawn_multi_asset(
                 f"Expected spawn_paths to match assets_cfg length, got {len(cfg.spawn_paths)} and"
                 f" {len(cfg.assets_cfg)}."
             )
-        proto_prim_paths = list(cfg.spawn_paths)
+        asset_prim_paths = list(cfg.spawn_paths)
     else:
         split_path = prim_path.split("/")
         prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
@@ -61,7 +58,7 @@ def spawn_multi_asset(
                 f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"
                 " the path each individual multiple-asset to be spawned."
             )
-        proto_prim_paths = [f"{prefix_path}/{base_name.replace('.*', str(i))}" for i in range(len(cfg.assets_cfg))]
+        asset_prim_paths = [f"{prefix_path}/{base_name.replace('.*', str(i))}" for i in range(len(cfg.assets_cfg))]
 
     if cfg.random_choice:
         logger.warning(
@@ -70,8 +67,8 @@ def spawn_multi_asset(
         )
 
     spawned_prim_paths: list[str] = []
-    for proto_prim_path, asset_cfg in zip(proto_prim_paths, cfg.assets_cfg):
-        if proto_prim_path is None:
+    for asset_prim_path, asset_cfg in zip(asset_prim_paths, cfg.assets_cfg):
+        if asset_prim_path is None:
             continue
         # append semantic tags if specified
         if cfg.semantic_tags is not None:
@@ -87,16 +84,16 @@ def spawn_multi_asset(
                 setattr(asset_cfg, attr_name, attr_value)
 
         asset_cfg.func(
-            proto_prim_path,
+            asset_prim_path,
             asset_cfg,
             translation=translation,
             orientation=orientation,
             clone_in_fabric=clone_in_fabric,
             replicate_physics=replicate_physics,
         )
-        spawned_prim_paths.append(proto_prim_path)
+        spawned_prim_paths.append(asset_prim_path)
     if not spawned_prim_paths:
-        raise ValueError("No multi-asset variants were spawned. At least one spawn path must be active.")
+        raise ValueError("No assets were spawned. At least one spawn path must be active.")
     return sim_utils.find_first_matching_prim(spawned_prim_paths[0])
 
 

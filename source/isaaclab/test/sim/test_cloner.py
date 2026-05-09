@@ -231,8 +231,8 @@ def test_make_clone_plan_returns_flat_source_rows(sim):
         device=sim.cfg.device,
     )
 
-    assert plan.sources == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
-    assert plan.destinations == ["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"]
+    assert plan.sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
+    assert plan.destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
     assert plan.clone_mask.shape == (2, 4)
     assert plan.clone_mask.dtype == torch.bool
     assert torch.all(plan.clone_mask.sum(dim=0) == 1)
