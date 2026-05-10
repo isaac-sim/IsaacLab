@@ -56,13 +56,29 @@ def _extract_task_from_argv(argv: list[str]) -> str | None:
 
     Used before argparse parses, so we can pre-load the task's env config
     (which transitively imports its backends and populates the registry)
-    in time for ``--help`` enrichment and validation. Returns the LAST
-    occurrence to match argparse's last-wins semantics for repeated
-    single-value flags -- this matters for ``--help``, which exits before
-    the post-parse reload path runs.
+    in time for ``--help`` enrichment and validation. Mirrors argparse's
+    semantics in the cases that matter for the pre-load:
+
+    * Returns the LAST occurrence to match argparse's last-wins behavior
+      for repeated single-value flags. This matters for ``--help``, which
+      exits before the post-parse reload path runs.
+    * Stops scanning at the ``--`` end-of-options marker so a task name
+      after ``--`` (which argparse leaves as a positional) doesn't pre-empt
+      one before it.
+
+    Limitation: argparse's default ``allow_abbrev=True`` accepts unambiguous
+    prefixes (e.g. ``--tas Foo``), but the pre-scan only recognizes the
+    literal ``--task`` / ``--task=``. The non-help path covers this
+    automatically -- the post-parse reload reads ``args.task`` and reloads
+    when it differs from ``pre_task`` -- but ``--help`` exits before that
+    runs, so ``train.py --tas Foo --help`` shows generic help (no
+    task-specific variants). Use the full ``--task`` in ``--help``
+    invocations, or pass ``allow_abbrev=False`` to your parser.
     """
     last: str | None = None
     for i, token in enumerate(argv):
+        if token == "--":
+            break
         if token == "--task" and i + 1 < len(argv):
             last = argv[i + 1]
         elif token.startswith("--task="):

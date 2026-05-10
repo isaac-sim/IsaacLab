@@ -494,12 +494,11 @@ def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launche
     assert "class_only" not in seen
 
 
-def test_typed_flag_rejects_when_second_task_load_fails(stub_app_launcher, monkeypatch):
-    """When ``--task`` is repeated (or appears in a subparser), argparse
-    keeps the LAST value while the pre-scan picks the FIRST. If the
-    parsed task differs from the pre-scan task and reloading the parsed
-    task fails, ``task_variants`` must be cleared so the typed flag is
-    not validated against the previous task's variant set.
+def test_typed_flag_rejects_when_task_load_fails(stub_app_launcher, monkeypatch):
+    """When the selected task's env-cfg fails to load, ``task_variants``
+    stays empty and a typed flag asking for a variant is rejected rather
+    than silently passing. Both the pre-scan load and the post-parse
+    reload (if it differs) must agree to leave variants cleared on failure.
     """
     from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
@@ -518,16 +517,40 @@ def test_typed_flag_rejects_when_second_task_load_fails(stub_app_launcher, monke
         raise ImportError(f"cannot load {task_name!r}")
 
     monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", loader)
-    # Pre-scan returns 'Isaac-TaskA' (first); argparse keeps 'Isaac-TaskB' (last).
+    # Both pre-scan (LAST-wins) and argparse keep 'Isaac-TaskB'. The TaskB
+    # load fails -> task_variants stays empty -> 'taskA_only' has nowhere
+    # to validate against and is rejected.
     monkeypatch.setattr(
         "sys.argv",
         ["train.py", "--task", "Isaac-TaskA", "--task", "Isaac-TaskB", "--renderer", "taskA_only"],
     )
 
-    # TaskB load raises -> task_variants must be reset to empty so
-    # 'taskA_only' is no longer accepted as a variant.
     with pytest.raises(SystemExit, match="not a recognized renderer preset"):
         setup_cli(_make_parser())
+
+
+def test_extract_task_from_argv_stops_at_double_dash():
+    """``_extract_task_from_argv`` must stop at the ``--`` end-of-options
+    marker so a ``--task`` token treated as a positional argument by
+    argparse (anything after ``--``) doesn't override the real one.
+    """
+    from isaaclab_tasks.utils.preset_cli import _extract_task_from_argv
+
+    assert _extract_task_from_argv(["--task=Isaac-TaskA", "--", "--task=Isaac-Bogus"]) == "Isaac-TaskA"
+    assert _extract_task_from_argv(["--task", "Isaac-TaskA", "--", "--task", "Isaac-Bogus"]) == "Isaac-TaskA"
+    # No --task at all -> None.
+    assert _extract_task_from_argv(["--", "--task=Isaac-Bogus"]) is None
+
+
+def test_extract_task_from_argv_returns_last_occurrence():
+    """``_extract_task_from_argv`` mirrors argparse's last-wins semantics
+    for repeated single-value flags so ``--help`` (which exits before the
+    post-parse reload) sees the same task name argparse would have used.
+    """
+    from isaaclab_tasks.utils.preset_cli import _extract_task_from_argv
+
+    assert _extract_task_from_argv(["--task=Isaac-TaskA", "--task=Isaac-TaskB"]) == "Isaac-TaskB"
+    assert _extract_task_from_argv(["--task", "Isaac-TaskA", "--task", "Isaac-TaskB"]) == "Isaac-TaskB"
 
 
 def test_variant_without_canonical_anchor_rejected(stub_app_launcher, monkeypatch):
