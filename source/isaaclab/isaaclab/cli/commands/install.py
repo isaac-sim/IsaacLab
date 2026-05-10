@@ -324,9 +324,8 @@ def _install_isaacsim() -> None:
     extra_urls_env = os.environ.get("ISAACSIM_EXTRA_INDEX_URLS", "").split()
     if extra_urls_env:
         # Prepend the two internal registries so they are tried before pypi.org.
-        for url in _INTERNAL_ISAACSIM_INDEX_URLS:
-            if url not in extra_index_urls:
-                extra_index_urls.insert(0, url)
+        prepend_urls = [url for url in _INTERNAL_ISAACSIM_INDEX_URLS if url not in extra_index_urls]
+        extra_index_urls = prepend_urls + extra_index_urls
         for url in extra_urls_env:
             if url not in extra_index_urls:
                 extra_index_urls.append(url)

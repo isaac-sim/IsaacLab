@@ -79,17 +79,6 @@ jobs:
             done
           }
 
-          any_match() {
-            local files="$1" entry regex
-            for entry in "${patterns[@]}"; do
-              IFS=$'\t' read -r regex _ <<< "$entry"
-              if printf '%s\n' "$files" | grep -qE "$regex"; then
-                return 0
-              fi
-            done
-            return 1
-          }
-
           summarize() {
             local files="${1:-}"
             {
@@ -151,7 +140,7 @@ jobs:
     name: Installation Tests (conda)
     needs: [changes]
     runs-on: [self-hosted, gpu]
-    timeout-minutes: 120
+    timeout-minutes: 160
     steps:
       - name: Checkout
         uses: actions/checkout@v6  # v6

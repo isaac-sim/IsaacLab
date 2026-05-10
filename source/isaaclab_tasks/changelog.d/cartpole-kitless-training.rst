@@ -1,3 +1,9 @@
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.cfg_ref` for lazy preset references to
+  optional backend config classes.
+
 Fixed
 ^^^^^
 

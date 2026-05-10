@@ -20,6 +20,7 @@ from isaaclab_tasks.utils.hydra import (
     PresetCfg,
     _format_unknown_presets_error,
     apply_overrides,
+    cfg_ref,
     collect_presets,
     parse_overrides,
     preset,
@@ -44,6 +45,12 @@ class NewtonCfg:
     dt: float = 0.002
     substeps: int = 4
     solver_iterations: int = 8
+
+
+@configclass
+class LazyBackendCfg:
+    backend: str = "lazy"
+    dt: float = 0.01
 
 
 @configclass
@@ -103,6 +110,18 @@ class ObsModeCfg(PresetCfg):
 class PolicyModeCfg(PresetCfg):
     default: SmallPolicyCfg = SmallPolicyCfg()
     fast: FastPolicyCfg = FastPolicyCfg()
+
+
+@configclass
+class LazyBackendPresetCfg(PresetCfg):
+    default = cfg_ref(f"{__name__}:LazyBackendCfg")
+    newton_mjwarp: NewtonCfg = NewtonCfg()
+    missing_backend = cfg_ref("missing_backend_package.physics:MissingCfg")
+
+
+@configclass
+class LazyPresetEnvCfg:
+    backend: LazyBackendPresetCfg = LazyBackendPresetCfg()
 
 
 @configclass
@@ -333,6 +352,31 @@ def test_collect_presets_class_style():
     assert set(presets["backend"].keys()) == {"default", "newton_mjwarp"}
     assert isinstance(presets["backend"]["default"], PhysxCfg)
     assert isinstance(presets["backend"]["newton_mjwarp"], NewtonCfg)
+
+
+def test_cfg_ref_collects_without_importing_target():
+    """Lazy config references are discoverable without importing the selected backend."""
+    presets = collect_presets(LazyPresetEnvCfg())
+    assert "backend" in presets
+    assert set(presets["backend"].keys()) == {"default", "newton_mjwarp", "missing_backend"}
+
+
+def test_cfg_ref_resolves_selected_target():
+    """A lazy config reference resolves when its preset is selected."""
+    env_cfg = resolve_presets(LazyPresetEnvCfg())
+    assert isinstance(env_cfg.backend, LazyBackendCfg)
+
+
+def test_cfg_ref_does_not_import_unselected_target():
+    """Unavailable lazy references do not fail when another preset is selected."""
+    env_cfg = resolve_presets(LazyPresetEnvCfg(), {"newton_mjwarp"})
+    assert isinstance(env_cfg.backend, NewtonCfg)
+
+
+def test_cfg_ref_reports_missing_backend_package():
+    """Selecting a missing lazy backend reports which package is required."""
+    with pytest.raises(ModuleNotFoundError, match="requires package 'missing_backend_package'"):
+        resolve_presets(LazyPresetEnvCfg(), {"missing_backend"})
 
 
 def test_legacy_newton_attribute_alias_warns():

@@ -187,21 +187,20 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         default_pytest_args = ["--tb=short"]
         timeout_seconds = 5400  # 90 min (existing behaviour)
 
-    def _build(df: object, tag: str, extra_build_args: list[str] | None = None) -> int:
+    def _build(df: object, tag: str, build_args: list[tuple[str, str]] | None = None) -> int:
         """Build a single Docker image and return the exit code."""
         cmd = [
             "docker",
             "build",
-            "--build-arg",
-            f"BASE_IMAGE={args.base_image}",
             "-f",
             str(df),
             "-t",
             tag,
             "--progress=plain",
         ]
-        if extra_build_args:
-            cmd.extend(extra_build_args)
+        if build_args:
+            for key, value in build_args:
+                cmd.extend(["--build-arg", f"{key}={value}"])
         if args.no_cache:
             cmd.append("--no-cache")
         cmd.append(str(repo_root))
@@ -213,7 +212,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     # Always build the uv base image first.
     # For non-conda mode this is the only image we need.
     # For conda mode it becomes the base layer for the conda image.
-    ret = _build(uv_dockerfile, uv_image_tag)
+    ret = _build(uv_dockerfile, uv_image_tag, build_args=[("BASE_IMAGE", args.base_image)])
     if ret != 0:
         return ret
     print(f"Docker image built successfully: {uv_image_tag}")
@@ -224,7 +223,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         ret = _build(
             dockerfile,
             image_tag,
-            extra_build_args=["--build-arg", f"UV_IMAGE={uv_image_tag}"],
+            build_args=[("UV_IMAGE", uv_image_tag)],
         )
         if ret != 0:
             return ret

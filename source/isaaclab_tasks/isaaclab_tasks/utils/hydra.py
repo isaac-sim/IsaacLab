@@ -25,6 +25,7 @@ Example usage::
 """
 
 import functools
+import importlib
 import sys
 import warnings
 from collections.abc import Callable, Mapping
@@ -134,6 +135,51 @@ class PresetCfg:
             )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
+
+
+class CfgRef:
+    """Lazy reference to a config class or object.
+
+    This keeps task config modules importable when an unselected backend package
+    is not installed. The reference is resolved only after preset selection.
+    """
+
+    def __init__(self, entry_point: str):
+        if ":" not in entry_point:
+            raise ValueError(f"CfgRef entry point must be '<module>:<attribute>', got: {entry_point!r}")
+        self.entry_point = entry_point
+        self.module_name, self.attr_name = entry_point.split(":", 1)
+        self.package_name = self.module_name.split(".", 1)[0]
+
+    def resolve(self):
+        """Import and instantiate the referenced config class."""
+        try:
+            module = sys.modules.get(self.module_name)
+            if module is None:
+                module = importlib.import_module(self.module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name == self.package_name:
+                raise ModuleNotFoundError(
+                    f"Preset '{self.entry_point}' requires package '{self.package_name}' to be installed."
+                ) from exc
+            raise
+        target = getattr(module, self.attr_name)
+        return target() if callable(target) else target
+
+    def __repr__(self) -> str:
+        return f"cfg_ref({self.entry_point!r})"
+
+
+def cfg_ref(entry_point: str) -> CfgRef:
+    """Create a lazy reference to a config class.
+
+    Args:
+        entry_point: Import path in ``"module:attribute"`` form.
+
+    Returns:
+        A lazy config reference resolved during preset selection.
+    """
+    return CfgRef(entry_point)
 
 
 def preset(**options) -> PresetCfg:
@@ -259,13 +305,18 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
     for name in selected:
         name = _normalize_preset_name(name, field_names)
         if name in fields:
-            return fields[name]
+            return _resolve_cfg_ref(fields[name])
     if "default" in fields:
-        return fields["default"]
+        return _resolve_cfg_ref(fields["default"])
     raise ValueError(
         f"PresetCfg {type(preset_obj).__name__} at '{path}' has no 'default' field "
         f"and none of the selected presets {selected} match its fields {set(fields.keys())}."
     )
+
+
+def _resolve_cfg_ref(value):
+    """Resolve lazy config references and leave regular preset values unchanged."""
+    return value.resolve() if isinstance(value, CfgRef) else value
 
 
 def resolve_presets(cfg, selected: set[str] = frozenset()):
@@ -287,6 +338,9 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         The resolved ``cfg`` (possibly a different object if the root itself
         was a PresetCfg).
     """
+    if isinstance(cfg, CfgRef):
+        return cfg.resolve()
+
     if isinstance(cfg, PresetCfg):
         seen: set[int] = {id(cfg)}
         replacement = _pick_alternative(cfg, selected, path="<root>")
@@ -621,7 +675,7 @@ def apply_overrides(
     for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
-            node = presets[sec][path][name]
+            node = _resolve_cfg_ref(presets[sec][path][name])
             node_dict = (
                 node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
             )
