@@ -79,7 +79,9 @@ def _extract_task_from_argv(argv: list[str]) -> str | None:
     for i, token in enumerate(argv):
         if token == "--":
             break
-        if token == "--task" and i + 1 < len(argv):
+        # ``--task --`` is a syntax error to argparse (no value); don't
+        # consume ``--`` as the value here.
+        if token == "--task" and i + 1 < len(argv) and argv[i + 1] != "--":
             last = argv[i + 1]
         elif token.startswith("--task="):
             last = token[len("--task=") :]

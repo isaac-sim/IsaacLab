@@ -540,6 +540,10 @@ def test_extract_task_from_argv_stops_at_double_dash():
     assert _extract_task_from_argv(["--task", "Isaac-TaskA", "--", "--task", "Isaac-Bogus"]) == "Isaac-TaskA"
     # No --task at all -> None.
     assert _extract_task_from_argv(["--", "--task=Isaac-Bogus"]) is None
+    # ``--task --`` is a syntax error to argparse: the pre-scan must not
+    # consume ``--`` as the task value (which would preload a bogus name
+    # before argparse reports the real error).
+    assert _extract_task_from_argv(["--task", "--", "--task=Isaac-Bogus"]) is None
 
 
 def test_extract_task_from_argv_returns_last_occurrence():
