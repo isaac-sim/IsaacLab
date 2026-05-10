@@ -78,35 +78,33 @@ def test_get_newton_model_returns_model_when_sync_enabled(stub_provider):
     assert stub_provider.get_newton_model() == "full-model"
 
 
-def test_build_from_clone_plans_populates_provider_state(stub_provider, newton_stub):
-    """Building from per-group clone plans sets model, state, and rigid-body paths.
+def test_build_from_clone_plan_populates_provider_state(stub_provider, newton_stub):
+    """Building from a flat clone plan sets model, state, and rigid-body paths.
 
-    Asserts the provider derives its own (sources, destinations, mask) from the plans
-    without consulting any auxiliary spec object: representative source paths are recovered
-    from ``dest_template.format(<first env using each prototype>)``, masks are concatenated
-    along the prototype axis, and per-env positions are read from stage xforms.
+    Asserts the provider consumes the single source-of-truth ``(sources,
+    destinations, mask)`` contract directly and reads per-env positions from stage
+    xforms.
     """
     newton_stub.model = SimpleNamespace(
         body_label=["/World/envs/env_0/Object/A"],
         articulation_label=["/World/envs/env_0/Robot"],
     )
-    plans = {
-        "/World/envs/env_{}/Object": ClonePlan(
-            dest_template="/World/envs/env_{}/Object",
-            prototype_paths=["/World/template/Object/proto_0", "/World/template/Object/proto_1"],
-            # proto 0 → env 0, 2 ; proto 1 → env 1, 3
-            clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]], dtype=torch.bool),
+    plan = ClonePlan(
+        sources=(
+            "/World/envs/env_0/Object",
+            "/World/envs/env_1/Object",
+            "/World/envs/env_0/Robot",
         ),
-        "/World/envs/env_{}/Robot": ClonePlan(
-            dest_template="/World/envs/env_{}/Robot",
-            prototype_paths=["/World/template/Robot/proto_0"],
-            clone_mask=torch.ones((1, 4), dtype=torch.bool),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object", "/World/envs/env_{}/Robot"),
+        # object 0 -> env 0, 2 ; object 1 -> env 1, 3 ; robot -> all envs
+        clone_mask=torch.tensor(
+            [[True, False, True, False], [False, True, False, True], [True, True, True, True]], dtype=torch.bool
         ),
-    }
-    stub_provider._simulation_context = SimpleNamespace(get_clone_plans=lambda: plans)
+    )
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
     stub_provider._stage = _silent_stage()
 
-    stub_provider._build_newton_model_from_clone_plans()
+    stub_provider._build_newton_model_from_clone_plan()
 
     assert stub_provider._newton_model is newton_stub.model
     assert stub_provider._newton_state is newton_stub.state_obj
@@ -116,7 +114,6 @@ def test_build_from_clone_plans_populates_provider_state(stub_provider, newton_s
     assert stub_provider._last_newton_model_build_source == "built"
 
     kw = newton_stub.calls[-1]
-    # Source recovery picks the first-env user per prototype.
     assert kw["sources"] == [
         "/World/envs/env_0/Object",
         "/World/envs/env_1/Object",
@@ -127,41 +124,35 @@ def test_build_from_clone_plans_populates_provider_state(stub_provider, newton_s
     assert kw["positions"].shape == (4, 3)
 
 
-def test_build_from_clone_plans_missing_sets_error_state(stub_provider):
-    """When no clone plans are published, model/state stay unset."""
-    stub_provider._simulation_context = SimpleNamespace(get_clone_plans=lambda: {})
+def test_build_from_clone_plan_missing_sets_error_state(stub_provider):
+    """When no clone plan is published, model/state stay unset."""
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: None)
     stub_provider._stage = object()
 
-    stub_provider._build_newton_model_from_clone_plans()
+    stub_provider._build_newton_model_from_clone_plan()
 
     assert stub_provider._last_newton_model_build_source == "missing"
     assert stub_provider._newton_model is None
     assert stub_provider._newton_state is None
 
 
-def test_build_from_clone_plans_skips_unused_prototype_rows(stub_provider, newton_stub):
-    """A prototype row with no assigned env (all-False mask row) is dropped, not raised on.
+def test_build_from_clone_plan_skips_unused_source_rows(stub_provider, newton_stub):
+    """A source row with no assigned env (all-False mask row) is dropped, not raised on.
 
     When ``num_prototypes > num_envs`` under a sequential strategy (or any strategy that
-    leaves some prototypes unused), ``clone_mask[row].nonzero()[0]`` would otherwise raise
-    ``IndexError``. The provider must filter unused rows out of sources/destinations/mask.
+    leaves some prototypes unused), the provider must filter unused rows out of
+    sources/destinations/mask.
     """
     # 3 prototypes, 2 envs, sequential: env 0 → proto 0, env 1 → proto 1, proto 2 unused.
-    plans = {
-        "/World/envs/env_{}/Object": ClonePlan(
-            dest_template="/World/envs/env_{}/Object",
-            prototype_paths=[
-                "/World/template/Object/proto_0",
-                "/World/template/Object/proto_1",
-                "/World/template/Object/proto_2",
-            ],
-            clone_mask=torch.tensor([[True, False], [False, True], [False, False]], dtype=torch.bool),
-        )
-    }
-    stub_provider._simulation_context = SimpleNamespace(get_clone_plans=lambda: plans)
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_0/Object"),
+        destinations=("/World/envs/env_{}/Object",) * 3,
+        clone_mask=torch.tensor([[True, False], [False, True], [False, False]], dtype=torch.bool),
+    )
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
     stub_provider._stage = _silent_stage()
 
-    stub_provider._build_newton_model_from_clone_plans()
+    stub_provider._build_newton_model_from_clone_plan()
 
     assert stub_provider._last_newton_model_build_source == "built"
     kw = newton_stub.calls[-1]
@@ -170,8 +161,8 @@ def test_build_from_clone_plans_skips_unused_prototype_rows(stub_provider, newto
     assert kw["mapping"].shape == (2, 2)
 
 
-def test_build_from_clone_plans_uses_dest_template_for_env_lookup(stub_provider, newton_stub):
-    """Env-origin lookup uses the per-plan ``dest_template`` prefix, not a hardcoded path.
+def test_build_from_clone_plan_uses_destination_template_for_env_lookup(stub_provider, newton_stub):
+    """Env-origin lookup uses the plan's destination prefix, not a hardcoded path.
 
     A scene with a non-default env path (``/Stage/scenes/env_<i>``) should still have its
     xform translates read correctly. Replaces the prior hardcoded ``/World/envs/env_<i>``.
@@ -182,40 +173,27 @@ def test_build_from_clone_plans_uses_dest_template_for_env_lookup(stub_provider,
         visited.append(path)
         return SimpleNamespace(IsValid=lambda: False)
 
-    plans = {
-        "/Stage/scenes/env_{}/Object": ClonePlan(
-            dest_template="/Stage/scenes/env_{}/Object",
-            prototype_paths=["/Stage/template/Object/proto_0"],
-            clone_mask=torch.ones((1, 3), dtype=torch.bool),
-        )
-    }
-    stub_provider._simulation_context = SimpleNamespace(get_clone_plans=lambda: plans)
+    plan = ClonePlan(
+        sources=("/Stage/scenes/env_0/Object",),
+        destinations=("/Stage/scenes/env_{}/Object",),
+        clone_mask=torch.ones((1, 3), dtype=torch.bool),
+    )
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
     stub_provider._stage = SimpleNamespace(GetPrimAtPath=_get_prim)
 
-    stub_provider._build_newton_model_from_clone_plans()
+    stub_provider._build_newton_model_from_clone_plan()
 
     assert {f"/Stage/scenes/env_{i}" for i in range(3)} <= set(visited)
     assert not any(p.startswith("/World/envs/") for p in visited)
 
 
-def test_clone_plan_is_hashable_with_unhashable_fields():
-    """``ClonePlan`` must hash despite carrying a tensor and a list.
-
-    With ``field(hash=False)`` on the unhashable members, hashing operates on
-    ``dest_template`` only — the natural identity (it is the dict key in
-    :meth:`SimulationContext.get_clone_plans`).
-    """
-    plan_a = ClonePlan(
-        dest_template="/World/envs/env_{}/Object",
-        prototype_paths=["/World/template/Object/proto_0"],
+def test_clone_plan_carries_flat_replication_contract():
+    """``ClonePlan`` contains only sources, destinations, and the clone mask."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object",),
+        destinations=("/World/envs/env_{}/Object",),
         clone_mask=torch.ones((1, 4), dtype=torch.bool),
     )
-    plan_b = ClonePlan(
-        dest_template="/World/envs/env_{}/Object",
-        prototype_paths=["/World/template/Object/proto_99"],
-        clone_mask=torch.zeros((1, 4), dtype=torch.bool),
-    )
-    assert isinstance(hash(plan_a), int)
-    # Equality folds in only dest_template, so two plans with the same destination compare
-    # equal regardless of prototype/mask differences.
-    assert plan_a == plan_b
+    assert plan.sources == ("/World/envs/env_0/Object",)
+    assert plan.destinations == ("/World/envs/env_{}/Object",)
+    assert plan.clone_mask.shape == (1, 4)
