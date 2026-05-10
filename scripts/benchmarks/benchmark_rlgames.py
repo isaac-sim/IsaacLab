@@ -103,13 +103,9 @@ from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     get_backend_type,
     get_preset_string,
-    get_success_rate_log,
     log_app_start_time,
-    log_convergence,
     log_python_imports_time,
-    log_rl_policy_episode_lengths,
-    log_rl_policy_rewards,
-    log_rl_policy_success_rates,
+    log_rl_training_metrics,
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
@@ -288,33 +284,17 @@ def main(
         log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
-
-        rewards = log_data.get("rewards/iter")
-        episode_lengths = log_data.get("episode_lengths/iter")
-        if rewards:
-            log_rl_policy_rewards(benchmark, rewards)
-        else:
-            print("[WARNING] TensorBoard log is missing 'rewards/iter'; skipping reward benchmark metrics.")
-        if episode_lengths:
-            log_rl_policy_episode_lengths(benchmark, episode_lengths)
-        else:
-            print("[WARNING] TensorBoard log is missing 'episode_lengths/iter'; skipping episode-length metrics.")
-
-        success_rates = get_success_rate_log(log_data)
-        if success_rates is not None:
-            log_rl_policy_success_rates(benchmark, success_rates)
-        if rewards:
-            log_convergence(
-                benchmark,
-                rewards,
-                args_cli.task,
-                workflow="rl_games",
-                should_check_convergence=args_cli.check_convergence,
-                reward_threshold=args_cli.reward_threshold,
-                convergence_config=args_cli.convergence_config,
-            )
-        elif args_cli.check_convergence:
-            print("[WARNING] Cannot check convergence because 'rewards/iter' was not logged.")
+        log_rl_training_metrics(
+            benchmark,
+            log_data,
+            reward_tag="rewards/iter",
+            episode_length_tag="episode_lengths/iter",
+            task=args_cli.task,
+            workflow="rl_games",
+            should_check_convergence=args_cli.check_convergence,
+            reward_threshold=args_cli.reward_threshold,
+            convergence_config=args_cli.convergence_config,
+        )
 
         tracker = get_success_tracker(args_cli, observer.tracker, log_data)
         log_success(benchmark, tracker, framework_iteration_count=observer.framework_iteration_count)
