@@ -203,6 +203,7 @@ autodoc_mock_imports = [
     "toml",
     "pink",
     "pinocchio",
+    "qpsolvers",
     "nvidia.srl",
     "flatdict",
     "filelock",
