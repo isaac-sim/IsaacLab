@@ -299,6 +299,34 @@ def test_unknown_variant_rejected(stub_app_launcher, monkeypatch):
         setup_cli(_make_parser())
 
 
+def test_variant_without_canonical_anchor_rejected(stub_app_launcher, monkeypatch):
+    """Strict-anchor rule: a PresetCfg with only variants (no canonical-named
+    sibling) does NOT make those variants selectable via ``--renderer``.
+
+    The user wrote ``my_variant_a: NewtonWarpRendererCfg`` and
+    ``my_variant_b: NewtonWarpRendererCfg`` without ever using the canonical
+    field name ``newton_renderer``. Treating ``my_variant_a`` as valid would
+    legitimize a drifted PresetCfg at the CLI surface; the cross-env drift
+    lint already flags the same task on a separate run, so the two
+    messages would diverge. The CLI mirrors the lint and rejects.
+    """
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    renderer_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        my_variant_a=NewtonWarpRendererCfg(),
+        my_variant_b=NewtonWarpRendererCfg(enable_shadows=True),
+    )
+    _patch_load_with(monkeypatch, {"renderer": renderer_preset})
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer", "my_variant_a"])
+
+    with pytest.raises(SystemExit, match="not a recognized renderer preset"):
+        setup_cli(_make_parser())
+
+
 # ---------------------------------------------------------------------------
 # --help enrichment: argparse help= strings list valid preset names
 # ---------------------------------------------------------------------------
@@ -369,15 +397,33 @@ def _canonical_for(value: object) -> str | None:
 
 
 def _drift_violations(preset_obj) -> list[str]:
-    """Loose drift check: every group of fields holding values of the same
-    registered class must include at least one field named after the class's
-    canonical preset name. Other fields in the group are accepted as variants.
+    """Drift checks for one :class:`PresetCfg` instance.
+
+    Two rules:
+
+    1. **Name/type match.** A field named after a registered canonical
+       (e.g. ``physx``) must hold a value of the class registered under
+       that name. ``physx: OvrtxRendererCfg`` is drift because ``physx``
+       is reserved for the ``PhysxCfg``-class anchor.
+    2. **Anchor present.** Fields holding values of the same registered
+       class are grouped by that canonical name; each group must include
+       at least one field named after the canonical. Other fields in the
+       group are accepted as variants.
 
     Returns a list of human-readable violation messages (empty on pass).
     Field ``"default"`` is excluded because it holds the active selection,
     not an alternative.
     """
+    from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
+
+    # All canonical names across all targets. Used to detect when a field
+    # name claims a canonical identity its value class doesn't earn.
+    all_registered_names = {name for target in PresetTarget for name in PresetRegistry.names_for(target)}
+
     by_canonical: dict[str, list[str]] = {}
+    violations: list[str] = []
+    cls_name = type(preset_obj).__name__
+
     for fname in preset_obj.__dataclass_fields__:
         if fname == "default":
             continue
@@ -385,12 +431,27 @@ def _drift_violations(preset_obj) -> list[str]:
         if value is None:
             continue
         canonical = _canonical_for(value)
+
+        # Rule 1: when a field name is itself a registered canonical AND its
+        # value's class is registered under a DIFFERENT canonical, both sides
+        # claim canonical identities that disagree -- drift. Only fires when
+        # both are registered: the IsaacLab PresetCfg pattern legitimately
+        # uses canonical names ('physx', 'newton_mjwarp') as preset keys
+        # dispatching arbitrary unrelated types (ArticulationCfg, etc.) per
+        # active backend, where the value isn't itself a registered preset.
+        if fname in all_registered_names and canonical is not None and canonical != fname:
+            violations.append(
+                f"{cls_name}.{fname} holds {type(value).__name__} (canonical={canonical!r}) "
+                f"but field name {fname!r} is reserved for the class registered under that name; "
+                f"name and value class must match."
+            )
+            continue
+
         if canonical is None:
             continue
         by_canonical.setdefault(canonical, []).append(fname)
 
-    violations: list[str] = []
-    cls_name = type(preset_obj).__name__
+    # Rule 2: each group needs an anchor.
     for canonical, fnames in by_canonical.items():
         if canonical not in fnames:
             violations.append(
@@ -415,6 +476,48 @@ def test_drift_lint_rejects_only_variants():
     violations = _drift_violations(bad_preset)
     assert len(violations) == 1
     assert "newton_renderer" in violations[0]
+
+
+def test_drift_lint_catches_name_type_mismatch():
+    """A field named after a registered canonical must hold a value of that
+    canonical's class. Naming a field ``physx`` while assigning a renderer
+    cfg there shadows the real anchor and is reported as drift.
+    """
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+    from isaaclab_physx.physics.physx_manager_cfg import PhysxCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+
+    # 'physx' is the registered PHYSICS canonical; here we (wrongly) assign
+    # a renderer cfg, so the value's canonical resolves to 'newton_renderer'.
+    bad_preset = preset(
+        default=PhysxCfg(),
+        physx=NewtonWarpRendererCfg(),
+    )
+    violations = _drift_violations(bad_preset)
+    assert any("name and value class must match" in v for v in violations), violations
+
+
+def test_drift_lint_allows_canonical_name_with_unregistered_value():
+    """The IsaacLab PresetCfg dispatch pattern uses canonical names like
+    ``physx`` / ``newton_mjwarp`` as preset KEYS that hold arbitrary
+    backend-tuned values (e.g. an ``ArticulationCfg`` whose tuning is
+    physx-flavored). The value's class isn't itself a registered preset;
+    the field name is just selecting which value to use when ``physx`` is
+    the active preset. This is legitimate and must not trigger drift.
+    """
+
+    from isaaclab_tasks.utils.hydra import preset
+
+    class _PlainArticulationCfg:
+        pass
+
+    ok_preset = preset(
+        default=_PlainArticulationCfg(),
+        physx=_PlainArticulationCfg(),  # canonical name + unregistered value: dispatch pattern
+        newton_mjwarp=_PlainArticulationCfg(),
+    )
+    assert _drift_violations(ok_preset) == []
 
 
 def test_drift_lint_accepts_canonical_plus_variants():

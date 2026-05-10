@@ -97,18 +97,48 @@ def _load_task_env_cfg(task_name: str) -> object | None:
     return env_cfg
 
 
+def _canonical_and_target(value: object) -> tuple[str | None, PresetTarget | None]:
+    """Look up the canonical preset name + target for *value*'s class.
+
+    Walks the MRO for ``_preset_name`` / ``_preset_target`` (stamped by
+    :func:`register`). Falls back to ``value.solver_cfg`` so wrappers like
+    ``NewtonCfg`` (which holds a registered solver-cfg) still resolve.
+    Returns ``(None, None)`` when nothing in the chain is decorated.
+    """
+    for klass in type(value).__mro__:
+        if "_preset_name" in klass.__dict__:
+            return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
+    inner = getattr(value, "solver_cfg", None)
+    if inner is not None:
+        for klass in type(inner).__mro__:
+            if "_preset_name" in klass.__dict__:
+                return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
+    return None, None
+
+
 def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
-    """Walk *env_cfg* and harvest field names from every :class:`PresetCfg`.
+    """Walk *env_cfg* and harvest variant field names from every :class:`PresetCfg`.
 
-    Returns ``{target: set[name]}`` where *target* comes from each field
-    value's ``_preset_target`` (set by :func:`register`) and *name* is the
-    field name in the parent ``PresetCfg``. Field ``"default"`` is skipped
-    because it holds the active selection rather than an alternative.
+    Returns ``{target: set[name]}``. Field ``"default"`` is skipped because
+    it holds the active selection rather than an alternative.
 
-    These names are the ones the user wrote on their ``PresetCfg``, so they
-    are always valid CLI choices for that task even when not in the global
-    registry. ``setup_cli`` unions them with :meth:`PresetRegistry.names_for`
-    when validating typed flags and rendering ``--help``.
+    Strict-anchor rule: within a single ``PresetCfg``, fields are grouped
+    by the canonical name of their value's class. A group is accepted only
+    when at least one of its field names *is* the canonical name; that
+    field anchors the group and other fields in the group are accepted
+    as variants. A group with no canonical anchor is dropped from the
+    variants set, so e.g.::
+
+        @configclass
+        class PhysicsCfg(PresetCfg):
+            default: ... = MISSING
+            newton_mjwarp2: MjwarpCfg = MjwarpCfg(...)  # variant only, no anchor
+
+    does *not* make ``--physics newton_mjwarp2`` selectable. The user
+    must add a sibling ``newton_mjwarp: MjwarpCfg = ...`` field to anchor
+    the group; then ``newton_mjwarp2`` is accepted alongside it. This
+    matches the cross-env drift lint, so the CLI surface and the lint
+    agree on what counts as a valid variant.
     """
     from isaaclab_tasks.utils.hydra import PresetCfg
 
@@ -116,18 +146,27 @@ def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
 
     def _visit(node: object) -> None:
         if isinstance(node, PresetCfg):
+            # canonical -> [(fname, target), ...]
+            by_canonical: dict[str, list[tuple[str, PresetTarget]]] = {}
             for fname in node.__dataclass_fields__:
                 if fname == "default":
                     continue
                 value = getattr(node, fname, None)
                 if value is None:
                     continue
-                target = None
-                for klass in type(value).__mro__:
-                    if "_preset_target" in klass.__dict__:
-                        target = klass.__dict__["_preset_target"]
-                        break
-                if target is not None:
+                canonical, target = _canonical_and_target(value)
+                if canonical is None or target is None:
+                    continue
+                by_canonical.setdefault(canonical, []).append((fname, target))
+
+            for canonical, entries in by_canonical.items():
+                fnames = [fname for fname, _ in entries]
+                if canonical not in fnames:
+                    # No anchor: drop the whole group. The cross-env drift
+                    # lint flags this; the CLI must not legitimize it by
+                    # accepting the variant names.
+                    continue
+                for fname, target in entries:
                     variants.setdefault(target, set()).add(fname)
 
         # Recurse: dataclasses, dicts, and PresetCfg children.
