@@ -287,21 +287,34 @@ def main(
         log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
-        log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])
-        log_rl_policy_episode_lengths(benchmark, log_data["Train/mean_episode_length"])
+
+        rewards = log_data.get("Train/mean_reward")
+        episode_lengths = log_data.get("Train/mean_episode_length")
+        if rewards:
+            log_rl_policy_rewards(benchmark, rewards)
+        else:
+            print("[WARNING] TensorBoard log is missing 'Train/mean_reward'; skipping reward benchmark metrics.")
+        if episode_lengths:
+            log_rl_policy_episode_lengths(benchmark, episode_lengths)
+        else:
+            print("[WARNING] TensorBoard log is missing 'Train/mean_episode_length'; skipping episode-length metrics.")
+
         success_rates = get_success_rate_log(log_data)
         if success_rates is not None:
             log_rl_policy_success_rates(benchmark, success_rates)
 
-        log_convergence(
-            benchmark,
-            log_data["Train/mean_reward"],
-            args_cli.task,
-            workflow="rsl_rl",
-            should_check_convergence=args_cli.check_convergence,
-            reward_threshold=args_cli.reward_threshold,
-            convergence_config=args_cli.convergence_config,
-        )
+        if rewards:
+            log_convergence(
+                benchmark,
+                rewards,
+                args_cli.task,
+                workflow="rsl_rl",
+                should_check_convergence=args_cli.check_convergence,
+                reward_threshold=args_cli.reward_threshold,
+                convergence_config=args_cli.convergence_config,
+            )
+        elif args_cli.check_convergence:
+            print("[WARNING] Cannot check convergence because 'Train/mean_reward' was not logged.")
 
         tracker = get_success_tracker(args_cli, early_stop_ctx.tracker, log_data)
         log_success(benchmark, tracker, framework_iteration_count=early_stop_ctx.framework_iteration_count)

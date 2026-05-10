@@ -288,20 +288,33 @@ def main(
         log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
-        log_rl_policy_rewards(benchmark, log_data["rewards/iter"])
-        log_rl_policy_episode_lengths(benchmark, log_data["episode_lengths/iter"])
+
+        rewards = log_data.get("rewards/iter")
+        episode_lengths = log_data.get("episode_lengths/iter")
+        if rewards:
+            log_rl_policy_rewards(benchmark, rewards)
+        else:
+            print("[WARNING] TensorBoard log is missing 'rewards/iter'; skipping reward benchmark metrics.")
+        if episode_lengths:
+            log_rl_policy_episode_lengths(benchmark, episode_lengths)
+        else:
+            print("[WARNING] TensorBoard log is missing 'episode_lengths/iter'; skipping episode-length metrics.")
+
         success_rates = get_success_rate_log(log_data)
         if success_rates is not None:
             log_rl_policy_success_rates(benchmark, success_rates)
-        log_convergence(
-            benchmark,
-            log_data["rewards/iter"],
-            args_cli.task,
-            workflow="rl_games",
-            should_check_convergence=args_cli.check_convergence,
-            reward_threshold=args_cli.reward_threshold,
-            convergence_config=args_cli.convergence_config,
-        )
+        if rewards:
+            log_convergence(
+                benchmark,
+                rewards,
+                args_cli.task,
+                workflow="rl_games",
+                should_check_convergence=args_cli.check_convergence,
+                reward_threshold=args_cli.reward_threshold,
+                convergence_config=args_cli.convergence_config,
+            )
+        elif args_cli.check_convergence:
+            print("[WARNING] Cannot check convergence because 'rewards/iter' was not logged.")
 
         tracker = get_success_tracker(args_cli, observer.tracker, log_data)
         log_success(benchmark, tracker, framework_iteration_count=observer.framework_iteration_count)
