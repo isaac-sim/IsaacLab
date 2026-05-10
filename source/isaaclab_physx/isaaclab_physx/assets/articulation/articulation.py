@@ -28,6 +28,7 @@ try:
         NewtonActuatorAdapter,
         PhysxActuatorWrapper,
         build_implicit_dof_mask,
+        build_newton_actuator_defaults,
     )
     from isaaclab_newton.actuators import kernels as actuator_kernels
 
@@ -36,10 +37,6 @@ except ImportError:
     _HAS_NEWTON_ACTUATORS = False
 
 
-@wp.kernel(enable_backward=False)
-def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    i = wp.tid()
-    mask[indices[i]] = True
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -243,6 +240,10 @@ class Articulation(BaseArticulation):
         # reset actuators (including Newton-native adapter which owns its states)
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
+        # Reset Newton-actuator per-env states (delay queues, neural hidden state, etc.).
+        # The adapter is per-articulation on PhysX and is not part of ``self.actuators``.
+        if self._has_newton_actuators and self.newton_actuator_adapter is not None:
+            self.newton_actuator_adapter.reset(env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -1206,50 +1207,85 @@ class Articulation(BaseArticulation):
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
 
-    """
-    Operations - Newton Actuator Parameter Writers.
-
-    Mirror of the writers on :class:`isaaclab_newton.assets.Articulation`.
-    Required so that domain randomization terms (``randomize_actuator_gains``)
-    propagate kp/kd updates to explicit Newton actuators on the PhysX backend.
-    """
-
     def write_actuator_stiffness_to_sim(
         self,
         *,
-        stiffness: torch.Tensor | wp.array | float,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        stiffness: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
     ) -> None:
-        """Write actuator stiffness (``kp``) into this articulation's Newton controllers.
+        """Write actuator kp at the (env_ids, joint_ids) sub-grid and propagate to controllers.
+
+        Iterates the per-articulation adapter's Newton actuators and uses
+        :data:`patch_actuator_param_kernel` to overwrite each
+        controller's ``kp`` array at the ``(env_ids × joint_ids)``
+        cells. DOFs not owned by an actuator are skipped by the kernel's
+        per-slot index mapping.
+
+        Args:
+            stiffness: Sub-grid of new kp values, shape ``(len(env_ids), len(joint_ids))``.
+            env_ids: 1D torch tensor of env indices.
+            joint_ids: 1D torch tensor of articulation-local joint indices.
 
         No-op when no Newton actuators are registered for this articulation.
         """
-        adapter = self.actuators.get("newton")
-        if adapter is None:
-            return
-        env_ids = self._resolve_env_ids(env_ids)
-        env_mask = self._env_ids_to_mask(env_ids)
-        adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask)
+        self._write_actuator_param("kp", stiffness, env_ids, joint_ids)
 
     def write_actuator_damping_to_sim(
         self,
         *,
-        damping: torch.Tensor | wp.array | float,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        damping: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
     ) -> None:
-        """Write actuator damping (``kd``) into this articulation's Newton controllers."""
-        adapter = self.actuators.get("newton")
+        """Write actuator kd at the (env_ids, joint_ids) sub-grid and propagate to controllers."""
+        self._write_actuator_param("kd", damping, env_ids, joint_ids)
+
+    def _write_actuator_param(
+        self,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Shared body for :meth:`write_actuator_stiffness_to_sim` / :meth:`write_actuator_damping_to_sim`."""
+        adapter = self.newton_actuator_adapter
         if adapter is None:
             return
-        env_ids = self._resolve_env_ids(env_ids)
-        env_mask = self._env_ids_to_mask(env_ids)
-        adapter.write_damping_to_sim(damping, env_ids, env_mask)
 
-    def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
-        """Convert warp ``env_ids`` to a boolean Warp mask of length ``num_instances``."""
-        mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(_build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
-        return mask
+        env_id_pos = torch.full(
+            (self.num_instances,), -1, dtype=torch.int32, device=self.device,
+        )
+        env_id_pos[env_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            env_ids.shape[0], dtype=torch.int32, device=self.device,
+        )
+        joint_id_pos = torch.full(
+            (self.num_joints,), -1, dtype=torch.int32, device=self.device,
+        )
+        joint_id_pos[joint_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            joint_ids.shape[0], dtype=torch.int32, device=self.device,
+        )
+
+        values_wp = wp.from_torch(
+            values.to(self.device, dtype=torch.float32).contiguous(), dtype=wp.float32,
+        )
+        env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
+        joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
+
+        for act in adapter.actuators:
+            ctrl = act.controller
+            if not hasattr(ctrl, attr):
+                continue
+            wp.launch(
+                actuator_kernels.patch_actuator_param_kernel,
+                dim=act.indices.shape[0],
+                inputs=[
+                    act.indices, env_id_pos_wp, joint_id_pos_wp, values_wp,
+                    0, self.num_joints,
+                ],
+                outputs=[getattr(ctrl, attr)],
+                device=self.device,
+            )
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -3808,13 +3844,21 @@ class Articulation(BaseArticulation):
         # create actuators
         self.actuators = dict()
         self._physx_actuator_wrapper = None
+        # Per-articulation Newton actuator adapter and the frozen kp/kd
+        # snapshot consumed by ``randomize_actuator_gains``. ``None`` for
+        # articulations not on the Newton fast path or with only implicit
+        # Lab actuators.
+        self.newton_actuator_adapter: NewtonActuatorAdapter | None = None
+        self.newton_default_stiffness: torch.Tensor | None = None
+        self.newton_default_damping: torch.Tensor | None = None
+        self.newton_managed_local_joints: torch.Tensor | slice | None = None
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
         self._has_newton_actuators = False
         # Per-DOF implicit/explicit mask consumed by the
-        # ``synch_torque_and_apply_implicit_feedforwards`` kernel. ``None``
-        # when no Newton fast path is active.
+        # ``sync_torque_telemetry`` kernel. ``None`` when no Newton fast path
+        # is active.
         self._implicit_dof_mask: wp.array | None = None
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
@@ -3868,9 +3912,19 @@ class Articulation(BaseArticulation):
                 w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
                 w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
                 w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
-                adapter.finalize()
-                adapter.set_kernel_propagator()
-                self.actuators["newton"] = adapter
+                adapter.finalize(w)
+                self.newton_actuator_adapter = adapter
+                (
+                    self.newton_default_stiffness,
+                    self.newton_default_damping,
+                    self.newton_managed_local_joints,
+                ) = build_newton_actuator_defaults(
+                    actuators=adapter.actuators,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    dof_offset=0,
+                    device=self.device,
+                )
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
                 self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
 
@@ -3889,6 +3943,16 @@ class Articulation(BaseArticulation):
             self._implicit_dof_mask = build_implicit_dof_mask(
                 self.actuators, self.num_joints, self.device,
             )
+            # Per-articulation view of the adapter's pre-clamp computed-effort
+            # buffer (or zero fallback when there are no explicit Newton
+            # actuators). Set once here so ``_apply_actuator_model_newton``
+            # passes it straight to ``sync_torque_telemetry``.
+            if self.newton_actuator_adapter is not None:
+                self._data._sim_bind_joint_computed_effort = self.newton_actuator_adapter.computed_effort_2d
+            else:
+                self._data._sim_bind_joint_computed_effort = wp.zeros(
+                    (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device,
+                )
             return
 
         # --- Standard Isaac Lab actuator path ---
@@ -4103,38 +4167,38 @@ class Articulation(BaseArticulation):
             )
 
     def _apply_actuator_model_newton(self):
-        """Step Newton actuators (when present) then route FF + sync telemetry.
+        """Pre-fill effort buffer with FF, step Newton actuators, sync telemetry.
 
-        After ``newton_adapter.step`` (no-op if no explicit Newton actuators
-        exist), ``w.joint_f_2d`` holds the actuator output for explicit DOFs
-        and zero elsewhere. The
-        :func:`synch_torque_and_apply_implicit_feedforwards` kernel then
-        writes the user FF into ``joint_f_2d`` for implicit DOFs and fills
-        ``_data._computed_torque`` / ``_data._applied_torque``. The
-        resulting ``joint_f_2d`` is what gets pushed to PhysX as the
-        actuation force in :meth:`write_data_to_sim`.
+        Pre-fills ``w.joint_f_2d`` with the user's effort target across all
+        DOFs. ``newton_adapter.step`` (no-op if no explicit Newton actuators
+        exist) then zeroes ``joint_f_2d`` at explicit DOFs and overwrites
+        them with each actuator's computed effort, while implicit DOFs keep
+        the FF. The :func:`sync_torque_telemetry` kernel then fills
+        ``_data._computed_torque`` / ``_data._applied_torque`` from the
+        resulting buffer. The final ``joint_f_2d`` is what gets pushed to
+        PhysX as the actuation force in :meth:`write_data_to_sim`.
         """
         w = self._physx_actuator_wrapper
-        newton_adapter = self.actuators.get("newton")
-        if newton_adapter is not None:
-            newton_adapter.step(w, w, SimulationManager.get_physics_dt())
+        w.joint_f_2d.assign(self._data._joint_effort_target)
+        if self.newton_actuator_adapter is not None:
+            self.newton_actuator_adapter.step(w, w, SimulationManager.get_physics_dt())
 
         wp.launch(
-            actuator_kernels.synch_torque_and_apply_implicit_feedforwards,
+            actuator_kernels.sync_torque_telemetry,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self._data.joint_pos.warp,
                 self._data.joint_vel.warp,
                 self._data._joint_pos_target,
                 self._data._joint_vel_target,
-                self._data._joint_effort_target,
                 self._data.joint_stiffness.warp,
                 self._data.joint_damping.warp,
                 self._data.joint_effort_limits.warp,
                 self._implicit_dof_mask,
+                w.joint_f_2d,
+                self._data._sim_bind_joint_computed_effort,
             ],
             outputs=[
-                w.joint_f_2d,
                 self._data._computed_torque,
                 self._data._applied_torque,
             ],

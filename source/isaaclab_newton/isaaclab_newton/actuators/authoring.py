@@ -381,11 +381,12 @@ def _resave_checkpoint_with_metadata(
 
     merged = {**existing_meta, **metadata}
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".pt", delete=False)
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
+        tmp_path = tmp.name
     if is_torchscript:
         extra_out = {"metadata.json": json.dumps(merged)}
-        torch.jit.save(net, tmp.name, _extra_files=extra_out)
+        torch.jit.save(net, tmp_path, _extra_files=extra_out)
     else:
-        torch.save({"model": net, "metadata": merged}, tmp.name)
+        torch.save({"model": net, "metadata": merged}, tmp_path)
 
-    return tmp.name
+    return tmp_path

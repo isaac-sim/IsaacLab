@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pxr import Usd
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils import configclass
@@ -75,7 +77,7 @@ class ArticulationCfg(AssetBaseCfg):
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
 
-    def _post_spawn(self, stage: Any) -> None:
+    def _post_spawn(self, stage: Usd.Stage) -> None:
         """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
 
         Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims

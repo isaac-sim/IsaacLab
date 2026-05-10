@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Any, Literal
+from typing import Literal
+
+from pxr import Usd
 
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils import configclass
@@ -76,7 +78,7 @@ class AssetBaseCfg:
     debug_vis: bool = False
     """Whether to enable debug visualization for the asset. Defaults to ``False``."""
 
-    def _post_spawn(self, stage: Any) -> None:
+    def _post_spawn(self, stage: Usd.Stage) -> None:
         """Hook invoked by :class:`~isaaclab.assets.AssetBase` after the asset's prims are
         spawned and verified to exist on the stage.
 

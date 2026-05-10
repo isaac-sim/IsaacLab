@@ -5,14 +5,19 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
+import torch
 import warp as wp
+
+from isaaclab.actuators import ActuatorBase, ImplicitActuator
 
 
 # ---------------------------------------------------------------------------
-# Adapter-internal kernels: per-DOF zeroing, env-mask building, and gain
-# scatter/gather between the adapter's flat per-env-per-DOF buffer and the
-# per-actuator controller arrays. Used by :class:`NewtonActuatorAdapter`
-# (stepping, finalize, gain DR) and by the kernel-based propagator.
+# Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
+# per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`),
+# and a partial scatter for DR gain updates that overwrites only the cells
+# in a (env_ids × joint_ids) sub-grid of a Newton ``Actuator``'s controller
+# parameter array. Used on the PhysX backend (no Newton view available);
+# the Newton backend uses ``ArticulationView.set_actuator_parameter`` instead.
 # ---------------------------------------------------------------------------
 
 
@@ -31,6 +36,28 @@ def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.in
 
 
 @wp.kernel(enable_backward=False)
+def build_per_dof_env_mask_kernel(
+    indices: wp.array(dtype=wp.uint32),
+    env_mask: wp.array(dtype=wp.bool),
+    dof_offset: int,
+    num_joints: int,
+    out_mask: wp.array(dtype=wp.bool),
+):
+    """Build a per-DOF mask from a per-env mask, for one Newton actuator.
+
+    Newton's :meth:`Actuator.State.reset` expects a mask of length
+    ``num_actuators`` (= ``num_envs * dofs_per_actuator``). Each entry
+    gates the corresponding column of the actuator's state buffers. This
+    kernel maps a per-env boolean mask onto that per-DOF layout via the
+    actuator's flat ``indices``.
+    """
+    i = wp.tid()
+    global_dof = int(indices[i]) - dof_offset
+    env = global_dof // num_joints
+    out_mask[i] = env_mask[env]
+
+
+@wp.kernel(enable_backward=False)
 def scatter_gain_kernel(
     src: wp.array(dtype=wp.float32),
     dst: wp.array(dtype=wp.float32),
@@ -38,7 +65,14 @@ def scatter_gain_kernel(
     dof_offset: int,
     num_joints: int,
 ):
-    """Scatter per-actuator ``src`` values into the adapter's flat per-env-per-DOF ``dst``."""
+    """Scatter per-actuator ``src`` values into a flat per-env-per-DOF ``dst``.
+
+    Used at adapter finalize to snapshot each ``controller.kp`` /
+    ``controller.kd`` into the ``(num_envs, num_joints)`` torch tensor
+    that ``randomize_actuator_gains`` reads as
+    ``actuator.stiffness`` / ``.damping`` for its
+    ``default_joint_stiffness`` / ``default_joint_damping`` baseline.
+    """
     i = wp.tid()
     global_dof = int(indices[i]) - dof_offset
     env = global_dof // num_joints
@@ -47,45 +81,44 @@ def scatter_gain_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def gather_gain_kernel(
-    flat_src: wp.array(dtype=wp.float32),
-    dst: wp.array(dtype=wp.float32),
+def patch_actuator_param_kernel(
     indices: wp.array(dtype=wp.uint32),
-    env_mask: wp.array(dtype=wp.bool),
+    env_id_pos: wp.array(dtype=wp.int32),
+    joint_id_pos: wp.array(dtype=wp.int32),
+    values: wp.array2d(dtype=wp.float32),
     dof_offset: int,
     num_joints: int,
+    dst: wp.array(dtype=wp.float32),
 ):
-    """Gather from the adapter's flat ``(num_envs * num_joints)`` layout into a
-    per-actuator controller array, only for envs where ``env_mask`` is ``True``.
+    """Per-actuator scatter for partial DR gain updates.
+
+    For each slot ``i`` in the actuator's flat env-major ``indices``, derive
+    the (env, local-joint) pair, look it up against the dense position
+    arrays, and — when both axes are in the DR sub-grid — overwrite
+    ``dst[i]`` (the controller parameter) with ``values[e_pos, j_pos]``.
+    Cells outside the sub-grid are left untouched.
+
+    Args:
+        indices: Actuator's flat indices into the (env-major) DOF layout.
+        env_id_pos: ``env_id_pos[env]`` gives the row in ``values`` for
+            envs being updated, ``-1`` otherwise. Length ``num_envs``.
+        joint_id_pos: ``joint_id_pos[joint]`` gives the column in
+            ``values`` for joints being updated, ``-1`` otherwise.
+            Length ``num_joints`` (articulation-local).
+        values: New parameter values shaped ``(len(env_ids), len(joint_ids))``.
+        dof_offset: Offset of this articulation's DOFs in the env-major
+            global index space (``0`` on PhysX, view-dependent on Newton).
+        num_joints: Articulation-local joint count.
+        dst: Per-actuator controller parameter array (e.g. ``controller.kp``).
     """
     i = wp.tid()
     global_dof = int(indices[i]) - dof_offset
     env = global_dof // num_joints
-    if env_mask[env]:
-        local_dof = global_dof % num_joints
-        dst[i] = flat_src[env * num_joints + local_dof]
-
-
-@wp.kernel(enable_backward=False)
-def scatter_gain_at_envs_kernel(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Scatter ``in_data[i, j]`` into ``out_data[env_ids[i], j]`` for all (i, j)."""
-    i, j = wp.tid()
-    out_data[env_ids[i], j] = in_data[i, j]
-
-
-@wp.kernel(enable_backward=False)
-def fill_gain_at_envs_kernel(
-    value: float,
-    env_ids: wp.array(dtype=wp.int32),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Set ``out_data[env_ids[i], j] = value`` for all (i, j)."""
-    i, j = wp.tid()
-    out_data[env_ids[i], j] = value
+    joint = global_dof % num_joints
+    e_pos = env_id_pos[env]
+    j_pos = joint_id_pos[joint]
+    if e_pos >= 0 and j_pos >= 0:
+        dst[i] = values[e_pos, j_pos]
 
 
 # ---------------------------------------------------------------------------
@@ -94,41 +127,32 @@ def fill_gain_at_envs_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def synch_torque_and_apply_implicit_feedforwards(
+def sync_torque_telemetry(
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
     joint_pos_target: wp.array2d(dtype=wp.float32),
     joint_vel_target: wp.array2d(dtype=wp.float32),
-    joint_effort_target: wp.array2d(dtype=wp.float32),
     joint_stiffness: wp.array2d(dtype=wp.float32),
     joint_damping: wp.array2d(dtype=wp.float32),
     effort_limit: wp.array2d(dtype=wp.float32),
     joint_modes: wp.array(dtype=wp.int32),
     sim_bind_joint_effort: wp.array2d(dtype=wp.float32),
+    actuator_computed_effort: wp.array2d(dtype=wp.float32),
     computed: wp.array2d(dtype=wp.float32),
     applied: wp.array2d(dtype=wp.float32),
 ):
-    """In-graph post-actuator hook: route implicit FF and sync telemetry.
+    """In-graph post-actuator hook: fill ``computed`` / ``applied`` torque telemetry.
 
-    For each (env, dof):
-      * Implicit DOF: write user FF to ``joint_f`` (sim integrates it
-        alongside the joint-drive PD), clamp the shadow PD ``kp*err_p +
-        kd*err_v`` to ``±effort_limit``, and write ``computed = applied
-        = PD_clipped + FF``.
-      * Explicit DOF: mirror Newton's post-actuator ``joint_f`` into
-        ``computed`` / ``applied``.
+    For implicit DOFs we compute the shadow PD locally (no Newton actuator
+    runs on these); for explicit DOFs we read the pre-clamp effort the
+    actuators just scatter-added into ``actuator_computed_effort`` and the
+    post-clamp effort already in ``sim_bind_joint_effort`` (= ``joint_f``).
 
-    Limitation: ``effort_limit`` here only clamps the **PD shadow** used
-    for telemetry. The simulator's joint drive applies its max-force
-    only to the PD term, so user feedforward effort can exceed
-    ``effort_limit`` once it lands in ``joint_f``. Limiting the *total*
-    applied effort would require Newton's motor-actuator path
-    (configurable via the Newton team), which may have negative perf
-    implications.
+    Note: ``effort_limit`` clamps only the PD shadow used for implicit-DOF
+    telemetry; the FF written into ``joint_f`` is not bounded by it.
     """
     i, j = wp.tid()
     if joint_modes[j] == 1:
-        sim_bind_joint_effort[i, j] = joint_effort_target[i, j]
         err_p = joint_pos_target[i, j] - joint_pos[i, j]
         err_v = joint_vel_target[i, j] - joint_vel[i, j]
         pd = joint_stiffness[i, j] * err_p + joint_damping[i, j] * err_v
@@ -138,8 +162,28 @@ def synch_torque_and_apply_implicit_feedforwards(
         computed[i, j] = total
         applied[i, j] = total
     else:
-        val = sim_bind_joint_effort[i, j]
-        computed[i, j] = val
-        applied[i, j] = val
+        computed[i, j] = actuator_computed_effort[i, j]
+        applied[i, j] = sim_bind_joint_effort[i, j]
 
+
+def build_implicit_dof_mask(
+    actuators: dict[str, ActuatorBase],
+    num_joints: int,
+    device: str,
+) -> wp.array:
+    """Per-DOF mask consumed by :func:`sync_torque_telemetry`.
+
+    Entry is ``1`` for DOFs covered by an
+    :class:`~isaaclab.actuators.ImplicitActuator` group, ``0`` otherwise.
+    """
+    modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
+    for actuator in actuators.values():
+        if not isinstance(actuator, ImplicitActuator):
+            continue
+        j_ids = actuator.joint_indices
+        if j_ids == slice(None) or j_ids is None:
+            modes[:] = 1
+        else:
+            modes[j_ids.long()] = 1
+    return wp.from_torch(modes, dtype=wp.int32)
 

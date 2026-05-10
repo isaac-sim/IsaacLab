@@ -27,7 +27,7 @@ from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 try:
-    from isaaclab_newton.actuators import NewtonActuatorAdapter, build_implicit_dof_mask
+    from isaaclab_newton.actuators import NewtonActuatorAdapter, build_implicit_dof_mask, build_newton_actuator_defaults
     from isaaclab_newton.actuators import kernels as actuator_kernels
 
     _HAS_NEWTON_ACTUATORS = True
@@ -250,9 +250,16 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset actuators
+        # reset Lab actuators registered on this articulation
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
+        # reset the global Newton actuator adapter (its ``_states_a/_b`` buffers
+        # carry per-env state — delay queues, neural hidden states — that must
+        # be cleared for the resetting envs). The adapter spans the whole model,
+        # so calling reset here resets state for every articulation that shares
+        # this env id; that's correct because env ids are world-scoped.
+        if self._has_newton_actuators and SimulationManager._adapter is not None:
+            SimulationManager._adapter.reset(env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -291,15 +298,17 @@ class Articulation(BaseArticulation):
 
         if self._has_newton_actuators:
             # Raw targets go directly to Newton's control object. Newton PD
-            # consumes them for explicit (Newton-managed) joints; the
+            # consumes ``joint_act`` for explicit (Newton-managed) joints; the
             # solver's built-in joint drive does the PD for implicit joints
-            # (whose stiffness/damping are non-zero in sim). FF for explicit
-            # joints goes to control.joint_act; for implicit joints the
-            # in-graph post-actuator kernel writes the FF directly into
-            # control.joint_f.
+            # (whose stiffness/damping are non-zero in sim) and adds whatever
+            # is in ``joint_f`` as feedforward. We pre-fill ``joint_f`` with
+            # the user's effort target across all DOFs here; the adapter step
+            # will zero it at explicit DOFs and overwrite them with each
+            # actuator's computed effort, while implicit DOFs keep the FF.
             self.data._sim_bind_joint_position_target.assign(self._data._joint_pos_target)
             self.data._sim_bind_joint_velocity_target.assign(self._data._joint_vel_target)
             self.data._sim_bind_joint_act.assign(self._data._joint_effort_target)
+            self.data._sim_bind_joint_effort.assign(self._data._joint_effort_target)
         else:
             # Standard Lab actuator path
             self._apply_actuator_model()
@@ -1422,6 +1431,79 @@ class Articulation(BaseArticulation):
             )
         # tell the physics engine that some of the joint properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+
+    def write_actuator_stiffness_to_sim(
+        self,
+        *,
+        stiffness: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write actuator kp at the (env_ids, joint_ids) sub-grid and propagate to controllers.
+
+        Iterates the global adapter's Newton actuators and uses
+        :meth:`ArticulationView.get_actuator_parameter` /
+        :meth:`~ArticulationView.set_actuator_parameter` to patch each
+        controller's ``kp`` array. Actuators belonging to a different
+        articulation are no-ops because the view's per-DOF mapping
+        returns ``-1`` for DOFs outside this articulation's range.
+
+        Args:
+            stiffness: Sub-grid of new kp values, shape ``(len(env_ids), len(joint_ids))``.
+            env_ids: 1D torch tensor of env indices.
+            joint_ids: 1D torch tensor of articulation-local joint indices.
+
+        No-op when the Newton fast path is not active.
+        """
+        self._write_actuator_param("kp", stiffness, env_ids, joint_ids)
+
+    def write_actuator_damping_to_sim(
+        self,
+        *,
+        damping: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write actuator kd at the (env_ids, joint_ids) sub-grid and propagate to controllers."""
+        self._write_actuator_param("kd", damping, env_ids, joint_ids)
+
+    def _write_actuator_param(
+        self,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Shared body for :meth:`write_actuator_stiffness_to_sim` / :meth:`write_actuator_damping_to_sim`."""
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
+        adapter = self.newton_actuator_adapter
+        if adapter is None:
+            return
+
+        env_ids_wp = wp.from_torch(
+            env_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32,
+        )
+        env_mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
+        wp.launch(
+            actuator_kernels.set_mask_kernel,
+            dim=env_ids_wp.shape[0], inputs=[env_mask, env_ids_wp], device=self.device,
+        )
+
+        env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
+        joint_ids_long = joint_ids.to(self.device, dtype=torch.long).unsqueeze(0)
+
+        for act in adapter.actuators:
+            ctrl = act.controller
+            if not hasattr(ctrl, attr):
+                continue
+            cur_wp = self._root_view.get_actuator_parameter(act, ctrl, attr)
+            cur_torch = wp.to_torch(cur_wp)
+            cur_torch[env_ids_long, joint_ids_long] = values.to(cur_torch.device, dtype=cur_torch.dtype)
+            self._root_view.set_actuator_parameter(
+                actuator=act, component=ctrl, name=attr,
+                values=cur_wp, mask=env_mask,
+            )
 
     def write_joint_position_limit_to_sim_index(
         self,
@@ -3375,9 +3457,16 @@ class Articulation(BaseArticulation):
         self._has_implicit_actuators = False
         self._has_newton_actuators = False
         # Per-DOF implicit/explicit mask consumed by the in-graph kernel
-        # ``synch_torque_and_apply_implicit_feedforwards``. ``None`` when
-        # no Newton fast path is active.
+        # ``sync_torque_telemetry``. ``None`` when no Newton fast path is active.
         self._implicit_dof_mask: wp.array | None = None
+        # Reference to the global Newton actuator adapter (or ``None``
+        # when this articulation has no explicit Newton actuators) and a
+        # per-articulation kp/kd snapshot consumed by
+        # ``randomize_actuator_gains`` to seed its DR baselines.
+        self.newton_actuator_adapter = None
+        self.newton_default_stiffness: torch.Tensor | None = None
+        self.newton_default_damping: torch.Tensor | None = None
+        self.newton_managed_local_joints: torch.Tensor | slice | None = None
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
 
@@ -3393,12 +3482,9 @@ class Articulation(BaseArticulation):
             # Enable the fast path even for all-implicit articulations:
             # the solver runs PD internally; Lab only forwards targets.
             self._has_newton_actuators = True
+            # Opt this articulation into the Newton fast path and (idempotently)
+            # build the single sim-level actuator adapter from ``model.actuators``.
             SimulationManager.activate_newton_actuator_path()
-
-            # Build (or share) the single sim-level actuator adapter. Idempotent —
-            # the first articulation to call this constructs it from
-            # ``model.actuators``; subsequent articulations reuse it.
-            SimulationManager.ensure_global_actuator_adapter(self._root_view)
 
             # Zero the simulator's joint-drive PD on DOFs covered by an explicit
             # Lab actuator config in *this* articulation. The global Newton
@@ -3441,23 +3527,60 @@ class Articulation(BaseArticulation):
             # Run the implicit-DOF FF-routing + telemetry kernel inside the
             # captured graph, right after the actuator step. Closure captures
             # the buffers we need via ``self._data``.
+            from newton import Model as NewtonModel  # noqa: PLC0415
+
+            # Per-articulation view of the global adapter's pre-clamp
+            # computed-effort buffer. Set up once here (the adapter is
+            # already built by ``activate_newton_actuator_path``) so the
+            # callback below has nothing to resolve. Falls back to a zero
+            # buffer for all-implicit scenes where no global adapter
+            # exists — the kernel only reads it on explicit DOFs.
+            adapter = SimulationManager._adapter
+            if adapter is not None:
+                dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+                if dof_layout.slice is not None:
+                    arti_start = dof_layout.slice.start
+                elif dof_layout.indices is not None:
+                    arti_start = int(dof_layout.indices.numpy()[0])
+                else:
+                    arti_start = 0
+                self._data._sim_bind_joint_computed_effort = adapter.computed_effort_2d[
+                    :, arti_start : arti_start + self.num_joints
+                ]
+                self.newton_actuator_adapter = adapter
+                (
+                    self.newton_default_stiffness,
+                    self.newton_default_damping,
+                    self.newton_managed_local_joints,
+                ) = build_newton_actuator_defaults(
+                    actuators=adapter.actuators,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    dof_offset=arti_start,
+                    device=self.device,
+                )
+            else:
+                self._data._sim_bind_joint_computed_effort = wp.zeros(
+                    (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device,
+                )
+
             def _post_actuator() -> None:
                 wp.launch(
-                    actuator_kernels.synch_torque_and_apply_implicit_feedforwards,
+                    actuator_kernels.sync_torque_telemetry,
                     dim=(self.num_instances, self.num_joints),
                     inputs=[
                         self._data.joint_pos.warp,
                         self._data.joint_vel.warp,
                         self._data._joint_pos_target,
                         self._data._joint_vel_target,
-                        self._data._joint_effort_target,
                         self._data.joint_stiffness.warp,
                         self._data.joint_damping.warp,
                         self._data.joint_effort_limits.warp,
                         self._implicit_dof_mask,
+                        self._data._sim_bind_joint_effort,
+                        self._data._sim_bind_joint_computed_effort,
                     ],
                     outputs=[
-                        self._data._sim_bind_joint_effort,
                         self._data._computed_torque,
                         self._data._applied_torque,
                     ],

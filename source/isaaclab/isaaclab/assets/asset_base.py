@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
+from pxr import Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
@@ -69,7 +71,7 @@ class AssetBase(ABC):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # get stage handle
-        self.stage = get_current_stage()
+        self.stage: Usd.Stage = get_current_stage()
 
         # spawn the asset
         # determine path where prims should exist after spawn

@@ -5,18 +5,19 @@
 
 """Newton-actuator adapter shared by the Newton and PhysX backends.
 
-:class:`NewtonActuatorAdapter` manages actuator creation, DOF-to-actuator
-mapping, stepping, reset, and gain reading for domain randomisation.
-Used identically by both Newton and PhysX backends.
+Owns the actuator-state lifecycle, the pre-clamp computed-effort buffer,
+and the per-step ``step`` / ``reset`` / ``finalize`` calls. The
+:meth:`~NewtonActuatorAdapter.from_usd` classmethod parses
+``NewtonActuator`` USD prims on the PhysX backend (Newton populates
+``model.actuators`` itself).
 
-The companion helper :func:`build_implicit_dof_mask` is consumed by the
-in-graph post-actuator kernel
-(:func:`~isaaclab_newton.actuators.kernels.synch_torque_and_apply_implicit_feedforwards`).
+DR gain updates bypass the adapter — the articulation writes straight
+to controller arrays.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -25,16 +26,285 @@ import warp as wp
 
 from newton.actuators import Actuator, Clamping, Delay
 
-from isaaclab.actuators import ActuatorBase, ImplicitActuator
-
 from .kernels import (
-    fill_gain_at_envs_kernel,
-    gather_gain_kernel,
-    scatter_gain_at_envs_kernel,
+    build_per_dof_env_mask_kernel,
     scatter_gain_kernel,
     set_mask_kernel,
     zero_at_indices_kernel,
 )
+
+
+# ---------------------------------------------------------------------------
+# Abstract base — backend-independent logic
+# ---------------------------------------------------------------------------
+
+
+class NewtonActuatorAdapter:
+    """Adapter that wraps a list of :class:`newton.actuators.Actuator`.
+
+    Owns the actuator-state lifecycle, DOF-to-actuator bookkeeping,
+    stepping, reset, and the pre-clamp computed-effort buffer the
+    in-graph telemetry kernel reads on the post-actuator hook.
+    """
+
+    def __init__(
+        self,
+        actuators: list[Actuator],
+        num_envs: int,
+        num_joints: int,
+        dof_offset: int,
+        device: str,
+    ):
+        self.actuators = actuators
+        self.num_joints = num_joints
+
+        self._num_envs = num_envs
+        self._dof_offset = dof_offset
+        self._device = device
+
+        # Collect the set of local DOFs covered by some actuator. Only the
+        # env-0 slice of each actuator's flat ``indices`` array is needed —
+        # later envs are repeats with a constant ``num_joints`` stride.
+        managed: set[int] = set()
+        for act in actuators:
+            all_indices = act.indices.numpy()
+            num_per_act = len(all_indices) // num_envs
+            for global_dof in all_indices[:num_per_act]:
+                local_dof = global_dof - dof_offset
+                if 0 <= local_dof < num_joints:
+                    managed.add(local_dof)
+
+        if len(managed) == num_joints:
+            self.joint_indices: torch.Tensor | slice = slice(None)
+        else:
+            self.joint_indices = torch.tensor(sorted(managed), dtype=torch.int32, device=device)
+
+        self._states_a = [act.state() for act in actuators]
+        self._states_b = [act.state() for act in actuators]
+
+        # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
+        # its raw controller output to ``sim_control.joint_computed_f`` when
+        # ``control_computed_output_attr`` is set; we route that to this
+        # buffer so the post-actuator telemetry kernel can report the actual
+        # computed (pre-clamp) effort instead of mirroring ``joint_f``. The
+        # binding onto ``sim_control`` happens in :meth:`finalize`.
+        self._computed_effort = wp.zeros(
+            num_envs * num_joints, dtype=wp.float32, device=device,
+        )
+        self.computed_effort_2d = self._computed_effort.reshape((num_envs, num_joints))
+        for act in actuators:
+            act.control_computed_output_attr = "joint_computed_f"
+
+    def finalize(self, sim_control: Any) -> None:
+        """Bind the pre-clamp computed-effort buffer onto ``sim_control``.
+
+        Args:
+            sim_control: The ``sim_control`` object that will be passed
+                to :meth:`step` for this adapter's lifetime. Newton's
+                ``Control`` on the Newton backend, an
+                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+                on the PhysX backend.
+        """
+        sim_control.joint_computed_f = self._computed_effort
+
+    def step(self, sim_state: Any, sim_control: Any, dt: float) -> None:
+        """Zero actuated DOFs, step all actuators, and swap state buffers.
+
+        Args:
+            sim_state: Object with ``joint_q``, ``joint_qd``, etc.
+                Newton ``State`` on the Newton backend,
+                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+                on the PhysX backend.
+            sim_control: Object with ``joint_f``, ``joint_target_pos``, etc.
+                Newton ``Control`` on the Newton backend,
+                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+                on the PhysX backend.
+            dt: Physics timestep [s].
+        """
+        # Zero before scatter-add (actuators accumulate into this buffer).
+        self._computed_effort.zero_()
+        for act in self.actuators:
+            wp.launch(
+                zero_at_indices_kernel,
+                dim=act.indices.shape[0],
+                inputs=[sim_control.joint_f, act.indices],
+            )
+        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
+            act.step(sim_state, sim_control, sa, sb, dt=dt)
+        self._states_a, self._states_b = self._states_b, self._states_a
+
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+        """Reset actuator states for the given environments.
+
+        Args:
+            env_ids: Environment indices to reset. ``None`` (or
+                ``slice(None)``, which IsaacLab callers sometimes pass)
+                resets all environments. Otherwise expects a torch tensor
+                or sequence of int indices.
+
+        Newton's :meth:`Actuator.State.reset` expects a per-DOF boolean
+        mask of length ``num_actuators`` (= ``num_envs * dofs_per_actuator``),
+        not a per-env mask — each entry gates the corresponding column of
+        the actuator's state buffers (delay queue, controller integral,
+        etc.). We therefore build a per-actuator per-DOF mask from the
+        env mask before delegating to each state.
+        """
+        if env_ids is None or env_ids == slice(None):
+            for sa, sb in zip(self._states_a, self._states_b):
+                if sa is not None:
+                    sa.reset(None)
+                if sb is not None:
+                    sb.reset(None)
+            return
+
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.numel() == 0:
+                return
+            idx = wp.from_torch(env_ids.to(device=self._device).contiguous().to(torch.int32), dtype=wp.int32)
+        else:
+            if len(env_ids) == 0:
+                return
+            idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
+        env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
+        wp.launch(set_mask_kernel, dim=idx.shape[0], inputs=[env_mask, idx], device=self._device)
+
+        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
+            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
+            wp.launch(
+                build_per_dof_env_mask_kernel,
+                dim=act.indices.shape[0],
+                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                device=self._device,
+            )
+            if sa is not None:
+                sa.reset(per_dof_mask)
+            if sb is not None:
+                sb.reset(per_dof_mask)
+
+    @property
+    def is_all_graphable(self) -> bool:
+        """``True`` when all actuators are CUDA-graph-safe."""
+        return len(self.actuators) > 0 and all(a.is_graphable() for a in self.actuators)
+
+    @classmethod
+    def from_usd(
+        cls,
+        stage: Any,
+        joint_names: list[str],
+        num_envs: int,
+        num_joints: int,
+        device: str,
+        articulation_prim_path: str | None = None,
+    ) -> "NewtonActuatorAdapter":
+        """Build an adapter from ``NewtonActuator`` prims authored on *stage*.
+
+        PhysX-side counterpart of Newton's ``ModelBuilder.add_usd``: reads
+        the same prims and constructs matching
+        :class:`~newton.actuators.Actuator` objects. Joints with the same
+        controller, gains, clamping, and delay are merged into one
+        Actuator with combined indices. Used on the PhysX backend only —
+        Newton populates ``model.actuators`` itself.
+
+        Args:
+            stage: The USD stage containing ``NewtonActuator`` prims.
+            joint_names: All joint names in the articulation.
+            num_envs: Number of environments.
+            num_joints: Joints per environment.
+            device: Warp device string (e.g. ``"cuda:0"``).
+            articulation_prim_path: Root prim path of env 0's
+                articulation. When set, only prims under this subtree are
+                considered; otherwise the whole stage is scanned.
+        """
+        actuators = _create_actuators_from_usd(
+            stage, joint_names, num_envs, num_joints, device,
+            articulation_prim_path=articulation_prim_path,
+        )
+        return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
+
+
+# ---------------------------------------------------------------------------
+# Per-articulation initial-gain snapshot — consumed by
+# ``randomize_actuator_gains`` to seed ``default_joint_*`` baselines.
+# ---------------------------------------------------------------------------
+
+
+def build_newton_actuator_defaults(
+    actuators: list[Actuator],
+    num_envs: int,
+    num_joints: int,
+    dof_offset: int,
+    device: str,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | slice]:
+    """Snapshot the initial kp/kd of every Newton actuator owned by one articulation.
+
+    Filters *actuators* to those whose env-0 DOF lives in
+    ``[dof_offset, dof_offset + num_joints)`` (a no-op on PhysX where the
+    adapter is already per-articulation; meaningful on Newton where the
+    global adapter holds actuators from every articulation), then
+    scatter-gathers their ``controller.kp`` / ``controller.kd`` into
+    contiguous ``(num_envs, num_joints)`` torch tensors and records which
+    articulation-local joints they cover.
+
+    Args:
+        actuators: All Newton actuators visible to this articulation.
+        num_envs: Number of environments.
+        num_joints: Articulation-local joint count.
+        dof_offset: Offset of this articulation's DOFs in the env-major
+            global index space (``0`` on PhysX, view-dependent on Newton).
+        device: Warp device string (e.g. ``"cuda:0"``).
+
+    Returns:
+        Tuple of ``(stiffness, damping, joint_indices)``:
+
+        * ``stiffness``: Initial kp values, ``(num_envs, num_joints)``, articulation-local.
+        * ``damping``: Initial kd values, ``(num_envs, num_joints)``, articulation-local.
+        * ``joint_indices``: Articulation-local joint positions covered by
+          the adapter's actuators. ``slice(None)`` when every joint is
+          covered, otherwise an int32 tensor of column indices.
+    """
+    arti_actuators = [
+        act for act in actuators
+        if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints
+    ]
+
+    managed_local: set[int] = set()
+    for act in arti_actuators:
+        per_act = act.indices.shape[0] // num_envs
+        for global_dof in act.indices.numpy()[:per_act]:
+            local = int(global_dof) - dof_offset
+            if 0 <= local < num_joints:
+                managed_local.add(local)
+    joint_indices: torch.Tensor | slice
+    if len(managed_local) == num_joints:
+        joint_indices = slice(None)
+    else:
+        joint_indices = torch.tensor(sorted(managed_local), dtype=torch.int32, device=device)
+
+    wp_device = wp.get_device(device)
+    flat_stiffness = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
+    flat_damping = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
+    for act in arti_actuators:
+        ctrl = act.controller
+        if hasattr(ctrl, "kp"):
+            wp.launch(
+                scatter_gain_kernel, dim=act.indices.shape[0],
+                inputs=[ctrl.kp, flat_stiffness, act.indices, dof_offset, num_joints],
+                device=wp_device,
+            )
+        if hasattr(ctrl, "kd"):
+            wp.launch(
+                scatter_gain_kernel, dim=act.indices.shape[0],
+                inputs=[ctrl.kd, flat_damping, act.indices, dof_offset, num_joints],
+                device=wp_device,
+            )
+    stiffness = wp.to_torch(flat_stiffness.reshape((num_envs, num_joints)))
+    damping = wp.to_torch(flat_damping.reshape((num_envs, num_joints)))
+    return stiffness, damping, joint_indices
+
+
+# ---------------------------------------------------------------------------
+# PhysX-only USD parsing
+# ---------------------------------------------------------------------------
 
 
 def _actuator_signature(parsed: Any) -> tuple:
@@ -57,376 +327,6 @@ def _actuator_signature(parsed: Any) -> tuple:
     comp_keys.sort(key=lambda t: t[0].__name__)
 
     return (ctrl_key, tuple(comp_keys))
-
-
-def build_implicit_dof_mask(
-    actuators: dict[str, ActuatorBase],
-    num_joints: int,
-    device: str,
-) -> wp.array:
-    """Per-DOF mask consumed by the in-graph implicit-FF kernel.
-
-    Entry is ``1`` for DOFs covered by an
-    :class:`~isaaclab.actuators.ImplicitActuator` group, ``0`` otherwise.
-    """
-    modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
-    for actuator in actuators.values():
-        if not isinstance(actuator, ImplicitActuator):
-            continue
-        j_ids = actuator.joint_indices
-        if j_ids == slice(None) or j_ids is None:
-            modes[:] = 1
-        else:
-            modes[j_ids.long()] = 1
-    return wp.from_torch(modes, dtype=wp.int32)
-
-
-class NewtonActuatorAdapter:
-    """Manages Newton-native actuators for both Newton and PhysX backends.
-
-    Handles actuator creation (from USD or an existing list),
-    DOF-to-actuator mapping, stepping, reset, and gain reading for
-    domain randomisation.
-
-    Construction:
-
-    * **Newton backend** — pass actuators from the Newton model directly::
-
-          adapter = NewtonActuatorAdapter(model.actuators, num_envs,
-                                          num_joints, dof_offset, device)
-
-    * **PhysX backend** — create actuators from USD prims::
-
-          adapter = NewtonActuatorAdapter.from_usd(stage, joint_names,
-                                                    num_envs, num_joints,
-                                                    device)
-
-    Then finalise::
-
-        adapter.finalize()
-
-    After :meth:`finalize`, the adapter exposes ``.stiffness``,
-    ``.damping``, and ``.joint_indices`` for ``randomize_actuator_gains``.
-    """
-
-    def __init__(
-        self,
-        actuators: list[Actuator],
-        num_envs: int,
-        num_joints: int,
-        dof_offset: int,
-        device: str,
-    ):
-        self.actuators = actuators
-        self.num_joints = num_joints
-
-        self._num_envs = num_envs
-        self._dof_offset = dof_offset
-        self._device = device
-        self._dof_to_actuator = self._build_dof_map()
-
-        managed = [i for i, act_idx in enumerate(self._dof_to_actuator) if act_idx >= 0]
-        if len(managed) == num_joints:
-            self.joint_indices: torch.Tensor | slice = slice(None)
-        else:
-            self.joint_indices = torch.tensor(managed, dtype=torch.int32, device=device)
-
-        self._states_a = [act.state() for act in actuators]
-        self._states_b = [act.state() for act in actuators]
-
-        self.stiffness: torch.Tensor | None = None
-        self.damping: torch.Tensor | None = None
-
-        # Per-actuator gain propagator. Configured once at adapter setup time
-        # via :meth:`set_view_propagator` (Newton: simulator-side scatter API)
-        # or :meth:`set_kernel_propagator` (PhysX: local Warp scatter kernel).
-        # Stays ``None`` if gain DR is not used; ``write_*_to_sim`` then
-        # only updates the adapter's gain buffer without pushing to controllers.
-        self._propagator: Callable[[Actuator, Any, str, wp.array, wp.array], None] | None = None
-
-    # -- construction (PhysX path) -------------------------------------------
-
-    @classmethod
-    def from_usd(
-        cls,
-        stage: Any,
-        joint_names: list[str],
-        num_envs: int,
-        num_joints: int,
-        device: str,
-        articulation_prim_path: str | None = None,
-    ) -> "NewtonActuatorAdapter":
-        """Create an adapter by parsing ``NewtonActuator`` prims from USD.
-
-        This is the PhysX-backend counterpart of what Newton's
-        ``ModelBuilder.add_usd`` does for the Newton backend.  Both paths
-        read the same ``NewtonActuator`` USD prims (authored by
-        :func:`~isaaclab_newton.actuators.authoring.author_newton_actuator_prims`)
-        and construct :class:`~newton.actuators.Actuator` objects with
-        matching controllers, clampings, and delays.
-
-        The key difference is that PhysX uses a **flat per-DOF layout**
-        where joint position coordinates and velocity DOFs always have the
-        same count and ordering — there are no free joints or ball joints
-        that cause coordinate/DOF count divergence.  Therefore a single
-        ``indices`` array is used for all index roles (``indices``,
-        ``pos_indices``, ``target_pos_indices``), unlike the Newton
-        builder which computes separate ``pos_indices`` from
-        ``joint_q_start`` and separate ``target_pos_indices`` from
-        ``joint_qd_start`` to handle floating-base articulations.
-
-        Joints whose prims resolve to the same controller type, gains,
-        clamping chain, and delay configuration are merged into a single
-        :class:`Actuator` with combined index arrays, mirroring the
-        grouping the Newton builder performs internally.
-
-        Args:
-            stage: The USD stage containing ``NewtonActuator`` prims.
-            joint_names: All joint names in the articulation.
-            num_envs: Number of environments.
-            num_joints: Joints per environment in the articulation.
-            device: Warp device string (e.g. ``"cuda:0"``).
-            articulation_prim_path: Root prim path of the first
-                environment's articulation (e.g. ``"/World/Env_0/Robot"``).
-                When provided, only ``NewtonActuator`` prims under this
-                subtree are considered — matching the scoped traversal
-                that Newton's ``ModelBuilder.add_usd`` performs.  When
-                ``None``, the entire stage is scanned (legacy behaviour).
-
-        Returns:
-            A fully constructed adapter ready for :meth:`finalize`.
-        """
-        actuators = _create_actuators_from_usd(
-            stage, joint_names, num_envs, num_joints, device,
-            articulation_prim_path=articulation_prim_path,
-        )
-        return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
-
-    # -- public API ----------------------------------------------------------
-
-    def finalize(self) -> None:
-        """Read actuator gains and store as PyTorch tensors for DR."""
-        wp_device = wp.get_device(self._device)
-        flat_stiffness = wp.zeros(self._num_envs * self.num_joints, dtype=wp.float32, device=wp_device)
-        flat_damping = wp.zeros(self._num_envs * self.num_joints, dtype=wp.float32, device=wp_device)
-
-        for act in self.actuators:
-            ctrl = act.controller
-            if hasattr(ctrl, "kp"):
-                wp.launch(
-                    scatter_gain_kernel, dim=act.indices.shape[0],
-                    inputs=[ctrl.kp, flat_stiffness, act.indices, self._dof_offset, self.num_joints],
-                    device=wp_device,
-                )
-            if hasattr(ctrl, "kd"):
-                wp.launch(
-                    scatter_gain_kernel, dim=act.indices.shape[0],
-                    inputs=[ctrl.kd, flat_damping, act.indices, self._dof_offset, self.num_joints],
-                    device=wp_device,
-                )
-
-        self.stiffness = wp.to_torch(flat_stiffness.reshape((self._num_envs, self.num_joints)))
-        self.damping = wp.to_torch(flat_damping.reshape((self._num_envs, self.num_joints)))
-
-    def step(self, sim_state: Any, sim_control: Any, dt: float) -> None:
-        """Zero actuated DOFs, step all actuators, and swap state buffers.
-
-        Args:
-            sim_state: Object with ``joint_q``, ``joint_qd``, etc.
-                Newton ``State`` on the Newton backend,
-                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
-                on the PhysX backend.
-            sim_control: Object with ``joint_f``, ``joint_target_pos``, etc.
-                Newton ``Control`` on the Newton backend,
-                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
-                on the PhysX backend.
-            dt: Physics timestep [s].
-        """
-        for act in self.actuators:
-            wp.launch(
-                zero_at_indices_kernel,
-                dim=act.indices.shape[0],
-                inputs=[sim_control.joint_f, act.indices],
-            )
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            act.step(sim_state, sim_control, sa, sb, dt=dt)
-        self._states_a, self._states_b = self._states_b, self._states_a
-
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
-        """Reset actuator states for the given environments.
-
-        Args:
-            env_ids: Environment indices to reset.  ``None`` or
-                ``slice(None)`` resets all environments. A partial slice
-                (e.g. ``slice(0, 5)``) is materialized to explicit indices.
-        """
-        if env_ids is None or env_ids == slice(None):
-            mask = None
-        else:
-            # Normalize a partial slice to an explicit index list before
-            # building the wp.array — slices aren't iterable.
-            if isinstance(env_ids, slice):
-                env_ids = list(range(*env_ids.indices(self._num_envs)))
-            if isinstance(env_ids, torch.Tensor):
-                if env_ids.numel() == 0:
-                    return
-                idx = wp.from_torch(env_ids.to(device=self._device).contiguous().to(torch.int32), dtype=wp.int32)
-            else:
-                if len(env_ids) == 0:
-                    return
-                idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
-            mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-            wp.launch(set_mask_kernel, dim=idx.shape[0], inputs=[mask, idx], device=self._device)
-
-        for sa, sb in zip(self._states_a, self._states_b):
-            if sa is not None:
-                sa.reset(mask)
-            if sb is not None:
-                sb.reset(mask)
-
-    @property
-    def is_all_graphable(self) -> bool:
-        """``True`` when all actuators are CUDA-graph-safe."""
-        return len(self.actuators) > 0 and all(a.is_graphable() for a in self.actuators)
-
-    def update_gain_at_env_ids(
-        self,
-        gain: str,
-        values: torch.Tensor | wp.array | float,
-        env_ids: wp.array,
-    ) -> wp.array:
-        """Scatter ``values`` into :attr:`stiffness` or :attr:`damping` at *env_ids*.
-
-        Shared backend-independent step used by ``write_*_to_sim`` to
-        keep the kp/kd buffer the adapter exposes for DR in sync with what
-        each Newton actuator's controller will receive.
-
-        Args:
-            gain: ``"stiffness"`` or ``"damping"``.
-            values: Per-env-per-joint values shape ``(len(env_ids), num_joints)``,
-                or a scalar to broadcast to every (env, joint).
-            env_ids: Warp int32 array of env indices to update.
-
-        Returns:
-            Warp view of the updated ``(num_envs, num_joints)`` buffer.
-        """
-        if gain == "stiffness":
-            buf = self.stiffness
-        elif gain == "damping":
-            buf = self.damping
-        else:
-            raise ValueError(f"gain must be 'stiffness' or 'damping', got {gain!r}")
-        buf_wp = wp.from_torch(buf, dtype=wp.float32)
-        if isinstance(values, float):
-            wp.launch(
-                fill_gain_at_envs_kernel,
-                dim=(env_ids.shape[0], self.num_joints),
-                inputs=[values, env_ids],
-                outputs=[buf_wp],
-                device=self._device,
-            )
-        else:
-            wp.launch(
-                scatter_gain_at_envs_kernel,
-                dim=(env_ids.shape[0], self.num_joints),
-                inputs=[values, env_ids],
-                outputs=[buf_wp],
-                device=self._device,
-            )
-        return buf_wp
-
-    def set_view_propagator(self, root_view: Any) -> None:
-        """Configure gain propagation via Newton's simulator-side scatter API.
-
-        Used on the Newton backend, where each per-actuator gain push goes
-        through ``ArticulationView.set_actuator_parameter``. Any one
-        articulation's view works since the call dispatches on the actuator
-        object (model-scoped), not on the view's articulation.
-        """
-        def _push(
-            actuator: Actuator, controller: Any, attr: str,
-            values: wp.array, env_mask: wp.array,
-        ) -> None:
-            root_view.set_actuator_parameter(
-                actuator=actuator, component=controller, name=attr,
-                values=values, mask=env_mask,
-            )
-        self._propagator = _push
-
-    def set_kernel_propagator(self) -> None:
-        """Configure gain propagation via the local ``gather_gain_kernel``.
-
-        Used on the PhysX backend, where there is no simulator-side scatter
-        API. The kernel reads the adapter's per-DOF gain buffer at each
-        actuator's flat indices and writes into ``controller.kp`` /
-        ``controller.kd``.
-        """
-        def _push(
-            actuator: Actuator, controller: Any, attr: str,
-            values: wp.array, env_mask: wp.array,
-        ) -> None:
-            wp.launch(
-                gather_gain_kernel,
-                dim=actuator.indices.shape[0],
-                inputs=[
-                    values.flatten(), getattr(controller, attr), actuator.indices,
-                    env_mask, self._dof_offset, self.num_joints,
-                ],
-                device=self._device,
-            )
-        self._propagator = _push
-
-    def write_stiffness_to_sim(
-        self,
-        stiffness: torch.Tensor | wp.array | float,
-        env_ids: wp.array,
-        env_mask: wp.array,
-    ) -> None:
-        """Update the kp buffer at *env_ids* and push the new values into each Newton controller."""
-        self._write_gain_to_sim("stiffness", "kp", stiffness, env_ids, env_mask)
-
-    def write_damping_to_sim(
-        self,
-        damping: torch.Tensor | wp.array | float,
-        env_ids: wp.array,
-        env_mask: wp.array,
-    ) -> None:
-        """Update the kd buffer at *env_ids* and push the new values into each Newton controller."""
-        self._write_gain_to_sim("damping", "kd", damping, env_ids, env_mask)
-
-    def _write_gain_to_sim(
-        self,
-        gain: str,
-        attr: str,
-        values: torch.Tensor | wp.array | float,
-        env_ids: wp.array,
-        env_mask: wp.array,
-    ) -> None:
-        """Shared body for :meth:`write_stiffness_to_sim` / :meth:`write_damping_to_sim`."""
-        buf = self.update_gain_at_env_ids(gain, values, env_ids)
-        if self._propagator is None:
-            return
-        for newton_act in self.actuators:
-            ctrl = newton_act.controller
-            if hasattr(ctrl, attr):
-                self._propagator(newton_act, ctrl, attr, buf, env_mask)
-
-    # -- private helpers -----------------------------------------------------
-
-    def _build_dof_map(self) -> list[int]:
-        """Build a per-DOF lookup: local DOF index -> actuator list index."""
-        dof_to_actuator: list[int] = [-1] * self.num_joints
-
-        for act_idx, act in enumerate(self.actuators):
-            all_indices = act.indices.numpy()
-            num_per_act = len(all_indices) // self._num_envs
-            env0_indices = all_indices[:num_per_act]
-            for global_dof in env0_indices:
-                local_dof = global_dof - self._dof_offset
-                if 0 <= local_dof < self.num_joints:
-                    dof_to_actuator[local_dof] = act_idx
-
-        return dof_to_actuator
 
 
 def _create_actuators_from_usd(
