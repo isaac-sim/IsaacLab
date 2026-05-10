@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.7.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.assets.Articulation` joint friction docs to identify Newton friction as a force or
+  torque value instead of a unitless coefficient.
+* Fixed :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensor` to use
+  current Newton contact sensor API names, removing deprecation warnings from
+  Newton contact sensor test runs.
+* Fixed stale Newton forward-kinematics state after explicit pose writes so
+  downstream collision queries and :attr:`~isaaclab_newton.assets.RigidObjectData.body_link_pose_w`
+  reads use updated transforms.
+
+
 0.7.0 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 
