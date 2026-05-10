@@ -400,6 +400,51 @@ def test_variant_shadowing_legacy_alias_preserved(stub_app_launcher, monkeypatch
     assert container["physics"].iterations == 999
 
 
+def test_nested_preset_under_class_level_alternative_override(stub_app_launcher, monkeypatch):
+    """When a ``PresetCfg`` declared field is class-level reassigned to a
+    value whose subtree contains a nested ``PresetCfg``, the resolver
+    discovers that nested PresetCfg via ``_preset_fields`` (class-first)
+    + ``_walk_cfg`` (instance-first into the picked alternative). The
+    variant walker must follow the same rules: read alternatives
+    class-first so the override is seen, then recurse instance-first into
+    the override's subtree to find any nested ``PresetCfg`` variants.
+    """
+    from dataclasses import dataclass
+
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab.utils.preset_registry import PresetTarget
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import _collect_task_variants
+
+    # Inner PresetCfg with a uniquely named variant ``q_only`` that we
+    # want to surface only through the class-level override path.
+    inner_q = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        q_only=NewtonWarpRendererCfg(),
+    )
+
+    @dataclass
+    class _Wrapper:
+        nested: object = None
+
+    outer = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+    )
+    # CLASS-LEVEL OVERRIDE of the declared field ``newton_renderer``.
+    # The instance still carries the original ``NewtonWarpRendererCfg``
+    # (set during dataclass ``__init__``), but ``getattr(cls, ...)`` now
+    # returns the wrapper. ``_preset_fields`` reads class-first, so the
+    # resolver would see the wrapper and descend into ``inner_q``.
+    type(outer).newton_renderer = _Wrapper(nested=inner_q)
+
+    variants = _collect_task_variants(outer)
+    assert "q_only" in variants.get(PresetTarget.RENDERER, set())
+
+
 def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launcher, monkeypatch):
     """A class-level reassignment of a parent dataclass field doesn't
     change the *instance's* value -- the dataclass's ``__init__`` already
@@ -545,17 +590,27 @@ def test_help_lists_registered_preset_names(stub_app_launcher, monkeypatch, caps
 def _walk_preset_cfgs(cfg, on_preset, _path=""):
     """Yield every :class:`PresetCfg` node reachable from *cfg*.
 
-    Mirrors :func:`isaaclab_tasks.utils.hydra._walk_cfg` (instance-first
-    via ``getattr``) so the lint walks the same tree shape the resolver
-    walks at runtime. Per-PresetCfg field inspection (in
-    :func:`_drift_violations`) uses :func:`_preset_alternatives_view`
-    instead, matching ``_preset_fields``.
+    Tree recursion outside ``PresetCfg`` mirrors
+    :func:`isaaclab_tasks.utils.hydra._walk_cfg` (instance-first via
+    ``getattr``). When the current node is itself a ``PresetCfg``, the
+    walker recurses through :func:`_preset_alternatives_view` (class-first)
+    instead -- the resolver picks an alternative from that view, then
+    descends via ``_walk_cfg``. A class-level override of an alternative
+    whose value contains nested ``PresetCfg`` variants would otherwise
+    be invisible to the lint.
     """
     from isaaclab_tasks.utils.hydra import PresetCfg
-    from isaaclab_tasks.utils.preset_cli import _walk_cfg_items
+    from isaaclab_tasks.utils.preset_cli import _preset_alternatives_view, _walk_cfg_items
 
     if isinstance(cfg, PresetCfg):
         on_preset(cfg, _path)
+        for key, val in _preset_alternatives_view(cfg).items():
+            if val is None:
+                continue
+            child_path = f"{_path}.{key}" if _path else key
+            if isinstance(val, PresetCfg) or hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
+                _walk_preset_cfgs(val, on_preset, child_path)
+        return
 
     for key, val in _walk_cfg_items(cfg):
         child_path = f"{_path}.{key}" if _path else key

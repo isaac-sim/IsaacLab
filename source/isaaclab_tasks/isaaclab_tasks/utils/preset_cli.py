@@ -56,14 +56,18 @@ def _extract_task_from_argv(argv: list[str]) -> str | None:
 
     Used before argparse parses, so we can pre-load the task's env config
     (which transitively imports its backends and populates the registry)
-    in time for ``--help`` enrichment and validation.
+    in time for ``--help`` enrichment and validation. Returns the LAST
+    occurrence to match argparse's last-wins semantics for repeated
+    single-value flags -- this matters for ``--help``, which exits before
+    the post-parse reload path runs.
     """
+    last: str | None = None
     for i, token in enumerate(argv):
         if token == "--task" and i + 1 < len(argv):
-            return argv[i + 1]
-        if token.startswith("--task="):
-            return token[len("--task=") :]
-    return None
+            last = argv[i + 1]
+        elif token.startswith("--task="):
+            last = token[len("--task=") :]
+    return last
 
 
 def _load_task_env_cfg(task_name: str) -> object | None:
@@ -208,8 +212,9 @@ def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
             # were ever reused across targets. Use the alternatives view
             # (class-first) here -- matches hydra._preset_fields, which
             # is what the resolver uses to read PresetCfg fields.
+            alternatives = _preset_alternatives_view(node)
             by_canonical: dict[tuple[PresetTarget, str], list[str]] = {}
-            for fname, value in _preset_alternatives_view(node).items():
+            for fname, value in alternatives.items():
                 if fname == "default" or value is None:
                     continue
                 canonical, target = _canonical_and_target(value)
@@ -225,9 +230,22 @@ def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
                     continue
                 variants.setdefault(target, set()).update(fnames)
 
-        # Recurse: use the same view hydra._walk_cfg uses (instance-first
-        # via getattr) so we don't advertise nested PresetCfgs the
-        # resolver wouldn't discover.
+            # Recurse into the alternatives we just read (class-first
+            # values), not via _walk_cfg_items (instance-first) -- the
+            # resolver picks one of these class-first alternatives and
+            # only AFTER picking does it descend via _walk_cfg into the
+            # picked one. A class-level override of an alternative whose
+            # value contains nested PresetCfgs would otherwise be missed.
+            for value in alternatives.values():
+                if value is None:
+                    continue
+                if isinstance(value, PresetCfg) or hasattr(value, "__dataclass_fields__") or isinstance(value, dict):
+                    _visit(value)
+            return
+
+        # Non-PresetCfg recursion: instance-first via _walk_cfg_items.
+        # Mirrors hydra._walk_cfg which uses getattr against the cfg
+        # instance, so nothing the resolver wouldn't reach is advertised.
         for _key, val in _walk_cfg_items(node):
             if isinstance(val, PresetCfg) or hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
                 _visit(val)
