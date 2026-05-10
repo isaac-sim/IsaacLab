@@ -116,10 +116,12 @@ def _canonical_and_target(value: object) -> tuple[str | None, PresetTarget | Non
     return None, None
 
 
-def _preset_alternatives_view(preset_obj: object) -> dict[str, object]:
-    """Return ``{field_name: value}`` for every alternative on *preset_obj*.
+def _resolver_view(node: object) -> dict[str, object]:
+    """Return ``{name: value}`` for every alternative the resolver would see.
 
-    Mirrors :func:`isaaclab_tasks.utils.hydra._preset_fields`:
+    Mirrors :func:`isaaclab_tasks.utils.hydra._preset_fields` for declared
+    dataclass fields and :func:`isaaclab_tasks.utils.hydra._walk_cfg` for
+    class-only attrs:
 
     * Class-level values take priority over instance values for declared
       ``__dataclass_fields__`` -- robot-specific cfg modules reassign field
@@ -128,13 +130,17 @@ def _preset_alternatives_view(preset_obj: object) -> dict[str, object]:
       must agree, otherwise the typed-flag layer rejects names the resolver
       would have applied.
     * Picks up class-only attributes (added outside the dataclass mechanism)
-      when they aren't dunder, callable, or already covered.
+      when they aren't dunder, callable, or already covered. The resolver's
+      ``_walk_cfg`` recurses via ``dir(cfg)`` and so naturally includes
+      these; the variant walker has to do the same to stay aligned.
     """
-    cls = type(preset_obj)
+    cls = type(node)
     out: dict[str, object] = {}
-    for fname in preset_obj.__dataclass_fields__:
-        cls_val = getattr(cls, fname, None)
-        out[fname] = cls_val if cls_val is not None else getattr(preset_obj, fname, None)
+    fields = getattr(node, "__dataclass_fields__", None)
+    if fields is not None:
+        for fname in fields:
+            cls_val = getattr(cls, fname, None)
+            out[fname] = cls_val if cls_val is not None else getattr(node, fname, None)
     for attr in vars(cls):
         if attr.startswith("_") or attr in out or callable(getattr(cls, attr, None)):
             continue
@@ -176,7 +182,7 @@ def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
             # as canonical keeps groups cleanly separated even if a name
             # were ever reused across targets.
             by_canonical: dict[tuple[PresetTarget, str], list[str]] = {}
-            for fname, value in _preset_alternatives_view(node).items():
+            for fname, value in _resolver_view(node).items():
                 if fname == "default" or value is None:
                     continue
                 canonical, target = _canonical_and_target(value)
@@ -192,13 +198,14 @@ def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
                     continue
                 variants.setdefault(target, set()).update(fnames)
 
-        # Recurse: dataclasses, dicts, and PresetCfg children.
+        # Recurse: dataclasses, dicts, and PresetCfg children. Use the
+        # same class-over-instance + class-only-attr view so a nested
+        # PresetCfg installed as a class-level override is reachable.
         items: list[tuple[str, object]] = []
         if isinstance(node, dict):
             items = list(node.items())
         elif hasattr(node, "__dataclass_fields__"):
-            for name in node.__dataclass_fields__:
-                items.append((name, getattr(node, name, None)))
+            items = list(_resolver_view(node).items())
         for _key, val in items:
             if val is None:
                 continue
@@ -281,6 +288,7 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     # set are ready when we build help strings and validate.
     pre_task = _extract_task_from_argv(sys.argv[1:])
     env_cfg = _load_task_env_cfg(pre_task) if pre_task else None
+    loaded_task = pre_task if env_cfg is not None else None
     task_variants: dict[PresetTarget, set[str]] = _collect_task_variants(env_cfg) if env_cfg is not None else {}
 
     group = parser.add_argument_group(
@@ -326,12 +334,12 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     if any_typed and not task_name:
         raise SystemExit("error: --physics/--renderer require --task=<task-name> to validate against.")
 
-    # Defensive: if the pre-scan didn't catch the task (unusual --task form,
-    # or env-cfg load failed earlier), retry now using the parsed task name.
-    # Skip the retry when the pre-scan already loaded for the same task,
-    # whether or not it produced any variants -- a successful load with no
-    # variants is legitimate and shouldn't trigger a second load.
-    if any_typed and env_cfg is None and task_name:
+    # Reload when the pre-scan didn't yield an env cfg (unusual --task form
+    # or load failure) OR the parsed task name differs from what we loaded
+    # (subparser layouts, repeated --task flags). A successful load with no
+    # variants for the SAME task does not retrigger -- empty variants is a
+    # legitimate result, not a failure to load.
+    if any_typed and task_name and (env_cfg is None or task_name != loaded_task):
         env_cfg = _load_task_env_cfg(task_name)
         if env_cfg is not None:
             task_variants = _collect_task_variants(env_cfg)
