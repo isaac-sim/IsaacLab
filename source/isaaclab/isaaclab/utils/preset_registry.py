@@ -108,9 +108,23 @@ class PresetRegistry:
 
         The decorated class gains ``_preset_name`` (str) and
         ``_preset_target`` (PresetTarget) attributes for later lookup.
-        First-wins: a subclass that is also decorated keeps the parent's
-        attributes (parent's name is the canonical) so MRO walks resolve
-        to a single value rather than whichever class was decorated last.
+
+        Stamping is per-class -- the guard checks ``target_cls.__dict__``
+        only -- so:
+
+        * **Chained decoration of the same class** (rare, usually a
+          mistake) preserves the *first* binding's canonical attributes.
+          Decorators apply bottom-up, so the inner ``@register`` runs
+          first, sets the attribute, and the outer ``@register`` sees
+          ``__dict__`` already populated and skips stamping. The outer
+          name is still added to the registry so it resolves, but
+          ``cls._preset_name`` reads back to the inner one.
+        * **Decorated subclass** gets its *own* canonical -- the
+          subclass ``__dict__`` doesn't yet contain ``_preset_name``
+          (parent's value is reachable via MRO but not via ``__dict__``),
+          so the stamp succeeds. Decorating a subclass with a different
+          name is a deliberate "new preset" declaration and shadows the
+          parent canonical at the subclass level.
 
         Raises:
             RuntimeError: If ``(target, name)`` is already bound to a different class.
@@ -125,9 +139,10 @@ class PresetRegistry:
                     f" {target_cls.__module__}.{target_cls.__name__}."
                 )
             cls._entries.setdefault(target, {})[name] = target_cls
-            # First-wins: only stamp on the most-derived class that doesn't
-            # already inherit a binding. This prevents a re-decorated subclass
-            # from silently overwriting a parent's canonical attributes.
+            # Stamp only when this exact class doesn't already carry a
+            # canonical of its own. Chained decoration: first one wins.
+            # Decorated subclass: gets its own (parent's value is inherited
+            # but not in this class's __dict__).
             if "_preset_name" not in target_cls.__dict__:
                 target_cls._preset_name = name  # type: ignore[attr-defined]
                 target_cls._preset_target = target  # type: ignore[attr-defined]

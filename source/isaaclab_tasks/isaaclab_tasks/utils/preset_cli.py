@@ -116,6 +116,32 @@ def _canonical_and_target(value: object) -> tuple[str | None, PresetTarget | Non
     return None, None
 
 
+def _preset_alternatives_view(preset_obj: object) -> dict[str, object]:
+    """Return ``{field_name: value}`` for every alternative on *preset_obj*.
+
+    Mirrors :func:`isaaclab_tasks.utils.hydra._preset_fields`:
+
+    * Class-level values take priority over instance values for declared
+      ``__dataclass_fields__`` -- robot-specific cfg modules reassign field
+      values on the class after instances are already constructed, and the
+      Hydra resolver applies those class-level values. The variant walker
+      must agree, otherwise the typed-flag layer rejects names the resolver
+      would have applied.
+    * Picks up class-only attributes (added outside the dataclass mechanism)
+      when they aren't dunder, callable, or already covered.
+    """
+    cls = type(preset_obj)
+    out: dict[str, object] = {}
+    for fname in preset_obj.__dataclass_fields__:
+        cls_val = getattr(cls, fname, None)
+        out[fname] = cls_val if cls_val is not None else getattr(preset_obj, fname, None)
+    for attr in vars(cls):
+        if attr.startswith("_") or attr in out or callable(getattr(cls, attr, None)):
+            continue
+        out[attr] = getattr(cls, attr)
+    return out
+
+
 def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
     """Walk *env_cfg* and harvest variant field names from every :class:`PresetCfg`.
 
@@ -146,28 +172,25 @@ def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
 
     def _visit(node: object) -> None:
         if isinstance(node, PresetCfg):
-            # canonical -> [(fname, target), ...]
-            by_canonical: dict[str, list[tuple[str, PresetTarget]]] = {}
-            for fname in node.__dataclass_fields__:
-                if fname == "default":
-                    continue
-                value = getattr(node, fname, None)
-                if value is None:
+            # (target, canonical) -> [fname, ...]. Keying by target as well
+            # as canonical keeps groups cleanly separated even if a name
+            # were ever reused across targets.
+            by_canonical: dict[tuple[PresetTarget, str], list[str]] = {}
+            for fname, value in _preset_alternatives_view(node).items():
+                if fname == "default" or value is None:
                     continue
                 canonical, target = _canonical_and_target(value)
                 if canonical is None or target is None:
                     continue
-                by_canonical.setdefault(canonical, []).append((fname, target))
+                by_canonical.setdefault((target, canonical), []).append(fname)
 
-            for canonical, entries in by_canonical.items():
-                fnames = [fname for fname, _ in entries]
+            for (target, canonical), fnames in by_canonical.items():
                 if canonical not in fnames:
                     # No anchor: drop the whole group. The cross-env drift
                     # lint flags this; the CLI must not legitimize it by
                     # accepting the variant names.
                     continue
-                for fname, target in entries:
-                    variants.setdefault(target, set()).add(fname)
+                variants.setdefault(target, set()).update(fnames)
 
         # Recurse: dataclasses, dicts, and PresetCfg children.
         items: list[tuple[str, object]] = []
@@ -191,7 +214,10 @@ def _validate_typed_flag(target: PresetTarget, value: str | None, variants: set[
 
     A name is valid when it is in :meth:`PresetRegistry.names_for` for
     *target* (a registered backend) or in *variants* (a field name in the
-    selected task's :class:`PresetCfg` for *target*).
+    selected task's :class:`PresetCfg` for *target*). A task-local variant
+    that happens to share a deprecated alias name (e.g. a real ``newton``
+    field on the task's ``PhysicsCfg``) is preserved as-is and *not*
+    rewritten to the alias's canonical -- the variant shadows the alias.
 
     Returns the canonical name (possibly normalized from a legacy alias)
     or ``None`` when *value* is ``None``. Raises ``SystemExit`` with a
@@ -199,6 +225,10 @@ def _validate_typed_flag(target: PresetTarget, value: str | None, variants: set[
     """
     if value is None:
         return None
+    # Variant shadows alias: a real field named 'newton' on this task's
+    # PresetCfg means the user wants that field, not the deprecated alias.
+    if value in variants:
+        return value
     canonical = target.normalize(value)
     valid = PresetRegistry.names_for(target) | variants
     if canonical not in valid:
@@ -289,14 +319,20 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     typed_values = {target: getattr(args, target.value) for target in PresetTarget if target is not PresetTarget.DOMAIN}
     any_typed = any(value is not None for value in typed_values.values())
 
-    if any_typed and not args.task:
+    # ``args.task`` may not exist when --task is in a subparser or wasn't
+    # added at all -- fall back to the pre-scan value so we still validate.
+    task_name = getattr(args, "task", None) or pre_task
+
+    if any_typed and not task_name:
         raise SystemExit("error: --physics/--renderer require --task=<task-name> to validate against.")
 
-    # Defensive: if the pre-scan didn't catch --task (e.g., it appeared in
-    # an unusual form), or env-cfg load failed and the user fixed it via
-    # some other mechanism, retry now using the parsed args.task.
-    if any_typed and not task_variants and args.task:
-        env_cfg = _load_task_env_cfg(args.task)
+    # Defensive: if the pre-scan didn't catch the task (unusual --task form,
+    # or env-cfg load failed earlier), retry now using the parsed task name.
+    # Skip the retry when the pre-scan already loaded for the same task,
+    # whether or not it produced any variants -- a successful load with no
+    # variants is legitimate and shouldn't trigger a second load.
+    if any_typed and env_cfg is None and task_name:
+        env_cfg = _load_task_env_cfg(task_name)
         if env_cfg is not None:
             task_variants = _collect_task_variants(env_cfg)
 

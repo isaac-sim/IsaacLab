@@ -152,29 +152,47 @@ def test_register_rejects_duplicate_binding():
             pass
 
 
-def test_register_first_wins_on_subclass():
-    """A re-decorated subclass keeps its parent's ``_preset_name`` rather than
-    silently shadowing it. The registry still maps the new name to the subclass
-    (so the new name resolves), but ``MyChild._preset_name`` walks MRO to the
-    parent's canonical name."""
+def test_register_subclass_gets_own_canonical_name():
+    """A decorated subclass gets its OWN ``_preset_name``: subclass
+    ``__dict__`` doesn't yet contain the attribute (the parent's value is
+    only reachable via MRO), so the per-class stamp succeeds. Decorating a
+    subclass with a different name is a deliberate "new preset" declaration
+    and shadows the parent's canonical at the subclass level.
+    """
     from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget, register
 
-    @register(PresetTarget.PHYSICS, "_test_first_parent")
+    @register(PresetTarget.PHYSICS, "_test_sub_parent")
     class _Parent:
         pass
 
-    @register(PresetTarget.PHYSICS, "_test_first_child")
+    @register(PresetTarget.PHYSICS, "_test_sub_child")
     class _Child(_Parent):
         pass
 
-    # Both names resolve, but _Child's class-level _preset_name is its own
-    # (it has the attribute in its __dict__). The first-wins guard kicks in
-    # only when the same class is re-decorated, not when subclassed.
-    assert PresetRegistry.names_for(PresetTarget.PHYSICS) >= {"_test_first_parent", "_test_first_child"}
-    assert _Parent._preset_name == "_test_first_parent"
-    # Subclass with its own decoration gets its own name (decorating a subclass
-    # is a deliberate "new preset" declaration, distinct from chained decoration).
-    assert _Child._preset_name == "_test_first_child"
+    assert PresetRegistry.names_for(PresetTarget.PHYSICS) >= {"_test_sub_parent", "_test_sub_child"}
+    assert _Parent._preset_name == "_test_sub_parent"
+    assert _Child._preset_name == "_test_sub_child"
+
+
+def test_register_first_wins_on_chained_decoration():
+    """Re-decorating the SAME class with a different name keeps the FIRST
+    binding's canonical attributes. Decorators apply bottom-up, so the inner
+    ``@register`` runs first and stamps ``_preset_name``. The outer
+    ``@register`` then sees ``__dict__`` already populated and skips the
+    stamp; its name is still added to the registry so ``names_for`` returns
+    both, but the class-level attribute reflects the inner (first) name.
+    """
+    from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget, register
+
+    @register(PresetTarget.PHYSICS, "_test_chain_outer")
+    @register(PresetTarget.PHYSICS, "_test_chain_inner")
+    class _Chained:
+        pass
+
+    assert PresetRegistry.names_for(PresetTarget.PHYSICS) >= {"_test_chain_inner", "_test_chain_outer"}
+    # Inner decorator ran first and stamped; outer skipped.
+    assert _Chained._preset_name == "_test_chain_inner"
+    assert _Chained._preset_target is PresetTarget.PHYSICS
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +315,65 @@ def test_unknown_variant_rejected(stub_app_launcher, monkeypatch):
 
     with pytest.raises(SystemExit, match="not a recognized renderer preset"):
         setup_cli(_make_parser())
+
+
+def test_variant_picks_up_class_level_override(stub_app_launcher, monkeypatch):
+    """The Hydra resolver reads class-level field values over instance values
+    so robot-specific cfg modules can reassign fields after instantiation.
+    The variant walker must agree -- otherwise the typed-flag layer would
+    reject names the resolver would have applied.
+    """
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    renderer_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+    )
+    # Reassign at class level after the instance was built (the IsaacLab
+    # robot-cfg pattern). The walker must see this and treat
+    # 'newton_renderer_strict' as a valid variant.
+    type(renderer_preset).newton_renderer_strict = NewtonWarpRendererCfg(enable_shadows=True)
+    _patch_load_with(monkeypatch, {"renderer": renderer_preset})
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer", "newton_renderer_strict"])
+
+    setup_cli(_make_parser())
+    assert sys.argv == ["train.py", "presets=newton_renderer_strict"]
+
+
+def test_variant_shadowing_legacy_alias_preserved(stub_app_launcher, monkeypatch):
+    """A task-local field named after a deprecated alias (``newton``) must
+    NOT be rewritten to the alias's canonical (``newton_mjwarp``); the
+    user wrote the field deliberately and the variant should win.
+    """
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    # 'newton' is deprecated for --physics (rewrites to 'newton_mjwarp').
+    # Here we use --renderer instead so the alias semantics on PHYSICS don't
+    # interfere; the parallel renderer canonical anchor is 'newton_renderer'.
+    # Build a PresetCfg whose anchor is 'newton_renderer' and whose variant
+    # is named exactly 'newton' (which would also be a PHYSICS alias). The
+    # CLI sees --renderer newton, which must pass through unchanged.
+    renderer_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        newton=NewtonWarpRendererCfg(enable_shadows=True),  # variant named after alias
+    )
+    _patch_load_with(monkeypatch, {"renderer": renderer_preset})
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer", "newton"])
+
+    # No FutureWarning should fire and the value must pass through as-is.
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)  # any FutureWarning would fail the test
+        setup_cli(_make_parser())
+    assert sys.argv == ["train.py", "presets=newton"]
 
 
 def test_variant_without_canonical_anchor_rejected(stub_app_launcher, monkeypatch):
@@ -574,10 +651,25 @@ def test_no_canonical_vocabulary_drift_in_registered_tasks():
         except BaseException as exc:  # noqa: BLE001
             skipped.append((task_id, f"walk failed: {type(exc).__name__}: {exc}"))
 
-    if skipped:
-        formatted = "\n".join(f"  [{tid}] {reason}" for tid, reason in skipped)
-        sys.stderr.write(f"\nDrift lint skipped {len(skipped)} task(s):\n{formatted}\n")
-
     if violations:
         formatted = "\n".join(f"  [{tid}] {msg}" for tid, msg in violations)
         pytest.fail(f"PresetCfg drift detected:\n{formatted}")
+
+    # Tolerated skip reasons: environment-level imports that aren't available
+    # in headless / CI runs. A broken task config that doesn't match these
+    # patterns still hard-fails the lint so a drift can't hide behind a
+    # bogus skip.
+    tolerated_skip_substrings = (
+        "No module named 'carb'",  # Isaac Sim runtime missing
+    )
+    unexpected_skips = [
+        (tid, reason) for tid, reason in skipped
+        if not any(substr in reason for substr in tolerated_skip_substrings)
+    ]
+    if unexpected_skips:
+        formatted = "\n".join(f"  [{tid}] {reason}" for tid, reason in unexpected_skips)
+        pytest.fail(
+            f"Drift lint could not load {len(unexpected_skips)} task(s); coverage is incomplete.\n"
+            f"{formatted}\n"
+            "Either fix the import or extend ``tolerated_skip_substrings`` in this test."
+        )
