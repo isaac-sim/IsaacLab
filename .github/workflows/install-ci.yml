@@ -30,6 +30,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+
 jobs:
   changes:
     name: Detect Installation Test Changes
@@ -46,10 +47,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Installation tests run only when paths in the patterns table change.
-          # Otherwise the test job skips via `if:` and reports green to branch
-          # protection, which is why we don't use a workflow-level `paths:`
-          # filter (a not-triggered required check would block the PR forever).
+          # This job produces a PR summary showing which paths triggered tests.
+          # The installation test jobs themselves always run regardless of this output.
           patterns=(
             $'^apps/\tStandalone apps'
             $'^tools/\tBuild tooling'
@@ -59,8 +58,9 @@ jobs:
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'(^|/)environment\\.ya?ml$\tConda environment file'
+            $'^docker/Dockerfile\\.installci\tInstall CI Dockerfiles'
           )
-          triggered_jobs="Installation Tests"
+          triggered_jobs="Installation Tests (uv), Installation Tests (conda)"
 
           render_table() {
             local files="$1" entry regex desc count sample
@@ -90,20 +90,12 @@ jobs:
             return 1
           }
 
-          decide() {
-            local decision="$1" reason="$2" files="${3:-}"
-            echo "Decision: run_install_tests=$decision ($reason)"
-            echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
+          summarize() {
+            local files="${1:-}"
             {
               echo "## Installation test gating"
               echo ""
-              if [ "$decision" = "true" ]; then
-                echo "Installation tests will **run**: $reason."
-              else
-                echo "Installation tests will be **skipped**: $reason."
-              fi
-              echo ""
-              echo "Triggered jobs: $triggered_jobs."
+              echo "Installation tests always run. Triggered jobs: $triggered_jobs."
               if [ -n "$files" ]; then
                 echo ""
                 render_table "$files"
@@ -111,45 +103,73 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           }
 
+          # Always run; output is used for the summary only.
+          echo "run_install_tests=true" >> "$GITHUB_OUTPUT"
+
           if [ "$EVENT_NAME" != "pull_request" ]; then
-            decide true "non-PR event ($EVENT_NAME)"
+            summarize
             exit 0
           fi
 
           if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
-            # Fail-safe: a transient API error must not block merge. Default to running.
-            echo "::warning::Could not list changed files; defaulting to running tests"
-            decide true "fail-safe (could not list changed files)"
+            echo "::warning::Could not list changed files"
+            summarize
             exit 0
           fi
 
           printf '%s\n' "$changed_files"
-
-          if any_match "$changed_files"; then
-            decide true "relevant paths changed" "$changed_files"
-          else
-            decide false "no relevant paths changed" "$changed_files"
-          fi
+          summarize "$changed_files"
 
   install-tests:
-    name: Installation Tests
+    name: Installation Tests (uv)
     needs: [changes]
-    if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v6  # v6
-      - name: Run installation tests
+      - name: Run uv installation tests
         env:
           BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
           TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
         run: |
           RUNNER_ARGS="--base-image $BASE_IMAGE"
-          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
+          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results-uv"
           RUNNER_ARGS="$RUNNER_ARGS --gpu"
 
-          PYTEST_EXTRA_ARGS=(-sv)
+          # Always restrict to uv-marked tests so the conda suite does not run
+          # redundantly in this image (Dockerfile.installci has no conda).
+          # TEST_FILTER (-k) narrows further when provided via workflow_dispatch.
+          PYTEST_EXTRA_ARGS=(-sv -m uv)
+          if [ -n "$TEST_FILTER" ]; then
+            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
+          fi
+
+          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
+
+  install-tests-conda:
+    name: Installation Tests (conda)
+    needs: [changes]
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6  # v6
+      - name: Run conda installation tests
+        env:
+          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
+          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
+        run: |
+          RUNNER_ARGS="--conda"
+          RUNNER_ARGS="$RUNNER_ARGS --base-image $BASE_IMAGE"
+          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results-conda"
+          RUNNER_ARGS="$RUNNER_ARGS --gpu"
+
+          # Always restrict to conda-marked tests. The conda image
+          # (Dockerfile.installci-conda) also has uv, so without this filter it
+          # would re-run the entire uv suite redundantly.
+          # TEST_FILTER (-k) narrows further when provided via workflow_dispatch.
+          PYTEST_EXTRA_ARGS=(-sv -m conda)
           if [ -n "$TEST_FILTER" ]; then
             PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
           fi

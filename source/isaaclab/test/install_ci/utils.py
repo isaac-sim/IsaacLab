@@ -107,6 +107,7 @@ def run_cmd(
     *,
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
+    drop_keys: set[str] | None = None,
     timeout: int = 600,
     err_on_err: bool = False,
     stream: bool | None = None,
@@ -117,6 +118,11 @@ def run_cmd(
         args: Command and arguments to run.
         cwd: Working directory for the subprocess.
         env: Extra environment variables merged into the current environment.
+        drop_keys: Set of environment variable names to remove from the
+            subprocess environment after merging.  Useful for suppressing
+            active virtual-environment markers (e.g. ``VIRTUAL_ENV``,
+            ``CONDA_PREFIX``) so that ``isaaclab.sh`` falls through to
+            ``_isaac_sim/python.sh``.
         timeout: Timeout in seconds.
         err_on_err: Raise CalledProcessError on non-zero exit.
         stream: When True, stream stdout/stderr to the console in
@@ -130,6 +136,9 @@ def run_cmd(
     if stream is None:
         stream = stream_output
     merged_env = {**os.environ, **(env or {})}
+    if drop_keys:
+        for key in drop_keys:
+            merged_env.pop(key, None)
     cmd_str = " ".join(str(a) for a in args)
     if stream:
         sys.stdout.write(f"{_MAGENTA}[COMMAND] {cmd_str}{_RESET}\n")
@@ -184,6 +193,92 @@ def run_cmd(
 
 
 _IS_WINDOWS = platform.system() == "Windows"
+
+
+class Conda_Mixin:
+    """Mixin providing conda environment helpers for test classes.
+
+    Each test that uses this mixin should call ``create_conda_env()`` in setup
+    and ``destroy_conda_env()`` in teardown (typically via try/finally).
+    """
+
+    conda_env_name: str
+
+    def create_conda_env(self, isaaclab_root: Path, env_name: str = "") -> None:
+        """Create a conda environment via ``./isaaclab.sh -c <env_name>``.
+
+        Sets ``self.conda_env_name`` for later use by :meth:`run_in_conda_env`
+        and :meth:`destroy_conda_env`.
+
+        Args:
+            isaaclab_root: Path to the IsaacLab repository root.
+            env_name: Name for the conda environment.  A random name is
+                generated when empty.
+        """
+        self.conda_env_name = env_name if env_name else f"_isaaclab_install_ci_{os.urandom(4).hex()}"
+        cli_script = str(isaaclab_root / ("isaaclab.bat" if _IS_WINDOWS else "isaaclab.sh"))
+
+        result = run_cmd([cli_script, "-c", self.conda_env_name], cwd=isaaclab_root, err_on_err=False)
+        assert result.returncode == 0, (
+            f"conda env creation via isaaclab.sh -c failed:\n{result.stdout}\n{result.stderr}"
+        )
+
+    def destroy_conda_env(self) -> None:
+        """Remove the conda environment if it was created."""
+        if not hasattr(self, "conda_env_name"):
+            return
+        run_cmd(
+            ["conda", "env", "remove", "-y", "-n", self.conda_env_name],
+            err_on_err=False,
+        )
+
+    def run_in_conda_env(self, cmd: list[str], cwd: Path | str | None = None, **kwargs) -> subprocess.CompletedProcess:
+        """Run *cmd* inside the conda environment via ``conda run``.
+
+        Uses ``conda run -n <env_name> --no-capture-output`` so that activation
+        hooks written by ``./isaaclab.sh -c`` fire, matching the documented user
+        workflow.
+
+        Args:
+            cmd: Command and arguments to execute inside the environment.
+            cwd: Working directory for the subprocess.
+            **kwargs: Extra keyword arguments forwarded to :func:`run_cmd`.
+        """
+        full_cmd = ["conda", "run", "-n", self.conda_env_name, "--no-capture-output"] + [str(a) for a in cmd]
+        return run_cmd(full_cmd, cwd=cwd, **kwargs)
+
+
+class IsaacSimSource_Mixin:
+    """Mixin for tests that use Isaac Sim pre-installed via the ``_isaac_sim`` symlink.
+
+    No virtual environment is created by this mixin.  Commands are run via
+    ``./isaaclab.sh`` directly, which automatically picks up
+    ``_isaac_sim/python.sh`` as the Python interpreter when the symlink is
+    present and no other environment (venv / conda) is active.
+
+    Use :meth:`run_without_venv` instead of :func:`run_cmd` to guarantee that
+    any ambient ``VIRTUAL_ENV`` or ``CONDA_PREFIX`` inherited from the test
+    runner process does not shadow ``_isaac_sim/python.sh``.
+    """
+
+    @staticmethod
+    def find_isaac_sim_symlink(isaaclab_root: Path) -> Path | None:
+        """Return the ``_isaac_sim`` path if it exists, else ``None``."""
+        p = isaaclab_root / "_isaac_sim"
+        return p if p.exists() else None
+
+    def run_without_venv(self, cmd: list[str], cwd: Path | str | None = None, **kwargs) -> subprocess.CompletedProcess:
+        """Run *cmd* with ``VIRTUAL_ENV`` and ``CONDA_PREFIX`` stripped from the environment.
+
+        This ensures ``isaaclab.sh`` sees no active virtual environment and
+        falls through to ``_isaac_sim/python.sh``.
+
+        Args:
+            cmd: Command and arguments to run.
+            cwd: Working directory for the subprocess.
+            **kwargs: Extra keyword arguments forwarded to :func:`run_cmd`.
+        """
+        return run_cmd(cmd, cwd=cwd, drop_keys={"VIRTUAL_ENV", "CONDA_PREFIX"}, **kwargs)
 
 
 class UV_Mixin:

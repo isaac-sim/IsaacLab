@@ -10,6 +10,8 @@ Modes
 
 ``docker``
     Build a clean-room Docker container and execute pytest inside it.
+    Pass ``--conda`` to build the conda-enabled image (``Dockerfile.installci-conda``)
+    instead of the default uv image (``Dockerfile.installci``).
 ``native``
     Run pytest directly on the host (no Docker).
 
@@ -17,7 +19,7 @@ Examples
 
 .. code-block:: bash
 
-    # Run all tests inside Docker (Ubuntu 24.04)
+    # Run all tests inside Docker (Ubuntu 24.04, uv image)
     tools/run_install_ci.py docker
 
     # Run only pip tests with a custom base image
@@ -41,6 +43,12 @@ Examples
 
     # Pass a pre-built wheel
     tools/run_install_ci.py docker --wheel /tmp/isaaclab-3.0.0-py3-none-any.whl
+
+    # Run the conda image (Dockerfile.installci-conda)
+    tools/run_install_ci.py docker --conda --gpu
+
+    # Collect-only smoke for the conda image
+    tools/run_install_ci.py docker --conda -- --collect-only -q
 """
 
 from __future__ import annotations
@@ -152,36 +160,75 @@ def _find_repo_root() -> Path:
 
 
 def _cmd_docker(args: argparse.Namespace) -> int:
-    """Build the Docker image and run tests inside the container based on *args*."""
+    """Build the Docker image and run tests inside the container based on *args*.
+
+    When ``--conda`` is used, ``Dockerfile.installci`` (the uv image) is built
+    first and then passed as the ``UV_IMAGE`` build-arg to
+    ``Dockerfile.installci-conda``.  This avoids re-running ``apt-get`` in the
+    conda image and prevents network-access failures when the runner cannot
+    reach Ubuntu's package mirrors on port 80.
+    """
 
     repo_root = _find_repo_root()
-    dockerfile = repo_root / "docker" / "Dockerfile.installci"
-    image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
+    safe_base = args.base_image.replace(":", "-").replace("/", "-")
 
-    # Build the Docker image
-    build_cmd = [
-        "docker",
-        "build",
-        "--build-arg",
-        f"BASE_IMAGE={args.base_image}",
-        "-f",
-        str(dockerfile),
-        "-t",
-        image_tag,
-        "--progress=plain",
-    ]
+    uv_dockerfile = repo_root / "docker" / "Dockerfile.installci"
+    uv_image_tag = f"isaaclab-installci:{safe_base}"
 
-    if args.no_cache:
-        build_cmd.append("--no-cache")
+    if args.conda:
+        dockerfile = repo_root / "docker" / "Dockerfile.installci-conda"
+        image_tag = f"isaaclab-installci-conda:{safe_base}"
+        # Default: run only conda-marked tests
+        default_pytest_args = ["-v", "--tb=short", "-m", "conda"]
+        timeout_seconds = 7200  # conda installs are heavier; allow 2 h
+    else:
+        dockerfile = uv_dockerfile
+        image_tag = uv_image_tag
+        default_pytest_args = ["--tb=short"]
+        timeout_seconds = 5400  # 90 min (existing behaviour)
 
-    build_cmd.append(str(repo_root))
-
-    result = run_cmd(build_cmd, check=False, stream=True)
-    if result.returncode != 0:
-        print(f"Docker build failed (exit {result.returncode})")
+    def _build(df: object, tag: str, extra_build_args: list[str] | None = None) -> int:
+        """Build a single Docker image and return the exit code."""
+        cmd = [
+            "docker",
+            "build",
+            "--build-arg",
+            f"BASE_IMAGE={args.base_image}",
+            "-f",
+            str(df),
+            "-t",
+            tag,
+            "--progress=plain",
+        ]
+        if extra_build_args:
+            cmd.extend(extra_build_args)
+        if args.no_cache:
+            cmd.append("--no-cache")
+        cmd.append(str(repo_root))
+        result = run_cmd(cmd, check=False, stream=True)
+        if result.returncode != 0:
+            print(f"Docker build of {tag} failed (exit {result.returncode})")
         return result.returncode
 
-    print(f"Docker image built successfully: {image_tag}")
+    # Always build the uv base image first.
+    # For non-conda mode this is the only image we need.
+    # For conda mode it becomes the base layer for the conda image.
+    ret = _build(uv_dockerfile, uv_image_tag)
+    if ret != 0:
+        return ret
+    print(f"Docker image built successfully: {uv_image_tag}")
+
+    if args.conda:
+        # Build the conda image on top of the uv image; pass UV_IMAGE so
+        # Dockerfile.installci-conda can FROM it and skip apt-get entirely.
+        ret = _build(
+            dockerfile,
+            image_tag,
+            extra_build_args=["--build-arg", f"UV_IMAGE={uv_image_tag}"],
+        )
+        if ret != 0:
+            return ret
+        print(f"Docker image built successfully: {image_tag}")
 
     # Run
     docker_run_cmd: list[str] = [
@@ -220,7 +267,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         docker_run_cmd.extend(["-it", "--entrypoint", "bash", image_tag])
     else:
         # Test execution mode
-        pytest_args = args.pytest_args or ["--tb=short"]
+        pytest_args = args.pytest_args or default_pytest_args
         if args.results_dir:
             pytest_args = ["--junitxml=/tmp/results/results.xml"] + pytest_args
         docker_run_cmd.extend([image_tag] + pytest_args)
@@ -229,9 +276,10 @@ def _cmd_docker(args: argparse.Namespace) -> int:
 
     t0 = time.monotonic()
     try:
-        ret = subprocess.call(docker_run_cmd, timeout=5400)
+        ret = subprocess.call(docker_run_cmd, timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
-        print("Docker run timed out after 90 minutes", file=sys.stderr)
+        minutes = timeout_seconds // 60
+        print(f"Docker run timed out after {minutes} minutes", file=sys.stderr)
         ret = 124
     elapsed = time.monotonic() - t0
     print(f"{_MAGENTA}[{elapsed:.1f}s]{_RESET}")
@@ -278,6 +326,7 @@ def main() -> int:
         epilog="""\
 docker options:
   --base-image IMAGE   Docker base image (default: ubuntu:24.04)
+  --conda              Use the conda image (Dockerfile.installci-conda) instead of the uv image
   --gpu                Pass --gpus all to docker run
   --shell              Drop into interactive bash instead of running tests
   --no-cache           Build Docker image without layer cache
@@ -293,7 +342,8 @@ pytest arguments:
   Pass pytest options after '--'. Without '--', defaults to '-sv --tb=short'.
 
   examples:
-    %(prog)s docker                                          # run all tests in Docker
+    %(prog)s docker                                          # run all uv tests in Docker
+    %(prog)s docker --conda --gpu                            # run conda tests in conda image
     %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
     %(prog)s docker --gpu                                    # GPU support (--gpus all)
     %(prog)s docker -- -m uv                                 # filter by marker
@@ -303,6 +353,7 @@ pytest arguments:
     %(prog)s native -- -vs                                   # run natively (no Docker)
     %(prog)s docker --wheel /tmp/isaaclab.whl                # pass a pre-built wheel
     %(prog)s docker -- --collect-only                        # list tests without running
+    %(prog)s docker --conda -- --collect-only -q             # list conda tests without running
 """,
     )
     sub = parser.add_subparsers(dest="mode")
@@ -313,6 +364,11 @@ pytest arguments:
         "--base-image",
         default="ubuntu:24.04",
         help="Docker base image (default: ubuntu:24.04)",
+    )
+    docker_p.add_argument(
+        "--conda",
+        action="store_true",
+        help="Use the conda image (Dockerfile.installci-conda) and run only conda-marked tests",
     )
     docker_p.add_argument("--gpu", action="store_true", help="Pass --gpus all to docker run")
     docker_p.add_argument(

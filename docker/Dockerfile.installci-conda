@@ -1,0 +1,59 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Conda-enabled container for testing Isaac Lab installation scenarios.
+# Built on top of Dockerfile.installci (the uv image) so that all system
+# dependencies, uv, the repo copy, and pytest are already present.
+# Only Miniconda is added here.
+#
+# The runner script (tools/run_install_ci.py) builds Dockerfile.installci
+# first and then passes the resulting tag as UV_IMAGE when building this file.
+#
+# Manual usage (from repo root):
+#   # 1. Build the uv base image first:
+#   docker build -f docker/Dockerfile.installci -t isaaclab-installci:ubuntu-24.04 .
+#   # 2. Build the conda image on top:
+#   docker build -f docker/Dockerfile.installci-conda \
+#     --build-arg UV_IMAGE=isaaclab-installci:ubuntu-24.04 \
+#     -t isaaclab-installci-conda .
+#   # Run:
+#   docker run --rm --gpus all isaaclab-installci-conda -v --tb=short
+#   # Drop into a shell for debugging:
+#   docker run --rm -it --entrypoint bash isaaclab-installci-conda
+
+ARG UV_IMAGE=isaaclab-installci:ubuntu-24.04
+FROM ${UV_IMAGE}
+
+LABEL description="Container for conda-based installation CI tests."
+
+# Install Miniconda — select the correct installer for the build platform.
+# $(uname -m) returns x86_64 on amd64 and aarch64 on ARM (e.g. DGX Spark),
+# matching Anaconda's naming convention exactly.
+ARG MINICONDA_VERSION=latest
+RUN ARCH="$(uname -m)" && \
+    curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-${ARCH}.sh" \
+        -o /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p /opt/miniconda3 && \
+    rm /tmp/miniconda.sh
+
+ENV PATH="/opt/miniconda3/bin:${PATH}"
+ENV CONDA_AUTO_ACTIVATE_BASE=false
+
+# Accept Anaconda's Terms of Service for the default channels so that
+# non-interactive `conda env create` calls inside tests don't hit
+# CondaToSNonInteractiveError (added in conda ≥ 24.9).
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+# Initialize conda for bash so `conda run` and activation hooks work in subprocesses
+RUN conda init bash && \
+    conda config --set always_yes true && \
+    conda clean --all --yes
+
+# Use the system Python (where pytest is installed by Dockerfile.installci) rather
+# than conda's Python, which does not have pytest. Conda's bin is on PATH for the
+# tests themselves (which run `conda run …` / `conda activate …` in subprocesses).
+ENTRYPOINT ["/usr/bin/python", "-m", "pytest", "-c", "source/isaaclab/test/install_ci/pytest.ini", "source/isaaclab/test/install_ci"]
+CMD ["-v", "--tb=short", "-m", "conda"]

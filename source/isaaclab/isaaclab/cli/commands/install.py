@@ -282,11 +282,54 @@ ISAACSIM_VERSION_SPEC = ">=6.0.0"
 ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
+# Internal NVIDIA PyPI registries used for pre-release / internal builds.
+# Activated when ISAACSIM_EXTRA_INDEX_URLS is set in the environment.
+_INTERNAL_ISAACSIM_INDEX_URLS = [
+    "https://urm.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi/simple",
+    "https://urm.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi/simple",
+]
+
 
 def _install_isaacsim() -> None:
-    """Install Isaac Sim pip package if not already present."""
+    """Install Isaac Sim pip package if not already present.
+
+    The following environment variables override defaults and enable installation
+    from internal NVIDIA registries (e.g. for pre-release builds not yet on
+    ``pypi.nvidia.com``):
+
+    ``ISAACSIM_VERSION_SPEC``
+        pip version specifier, e.g. ``"==6.4.0"`` (default: ``">=6.0.0"``).
+    ``ISAACSIM_EXTRAS``
+        pip extras string, e.g. ``"all,extscache"`` (default: ``"all"``).
+    ``ISAACSIM_EXTRA_INDEX_URLS``
+        Whitespace-separated ``--extra-index-url`` values appended after the
+        default NVIDIA public index.  The two internal NVIDIA Artifactory
+        registries (``sw-isaacsim-pypi`` and ``ct-omniverse-pypi``) are added
+        **automatically** whenever this variable is non-empty so callers only
+        need to supply any additional custom URLs beyond those two.
+    ``ISAACSIM_USE_PRE``
+        Set to ``"1"`` (or ``"true"`` / ``"yes"``) to pass ``--pre`` to pip,
+        which is required for pre-release wheel versions.
+    """
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
+
+    # Resolve settings — env vars win over module-level defaults.
+    version_spec = os.environ.get("ISAACSIM_VERSION_SPEC", ISAACSIM_VERSION_SPEC)
+    extras = os.environ.get("ISAACSIM_EXTRAS", ISAACSIM_EXTRAS)
+    use_pre = os.environ.get("ISAACSIM_USE_PRE", "").strip().lower() in ("1", "true", "yes")
+
+    # Build the extra-index-url list.  Always start with the public NVIDIA index.
+    extra_index_urls: list[str] = [NVIDIA_INDEX_URL]
+    extra_urls_env = os.environ.get("ISAACSIM_EXTRA_INDEX_URLS", "").split()
+    if extra_urls_env:
+        # Prepend the two internal registries so they are tried before pypi.org.
+        for url in _INTERNAL_ISAACSIM_INDEX_URLS:
+            if url not in extra_index_urls:
+                extra_index_urls.insert(0, url)
+        for url in extra_urls_env:
+            if url not in extra_index_urls:
+                extra_index_urls.append(url)
 
     # Check if already installed.
     result = run_command(
@@ -302,22 +345,15 @@ def _install_isaacsim() -> None:
 
     print_info("Installing Isaac Sim...")
     using_uv = pip_cmd[0] == "uv"
-    extra_flags = []
-    if using_uv:
-        # uv needs unsafe-best-match to resolve packages across multiple indexes
-        # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
-        extra_flags = ["--index-strategy", "unsafe-best-match"]
 
-    run_command(
-        pip_cmd
-        + [
-            "install",
-            f"isaacsim[{ISAACSIM_EXTRAS}]{ISAACSIM_VERSION_SPEC}",
-            "--extra-index-url",
-            NVIDIA_INDEX_URL,
-        ]
-        + extra_flags
-    )
+    pre_flags = ["--pre"] if use_pre else []
+    uv_flags = ["--index-strategy", "unsafe-best-match"] if using_uv else []
+
+    extra_idx_args: list[str] = []
+    for url in extra_index_urls:
+        extra_idx_args += ["--extra-index-url", url]
+
+    run_command(pip_cmd + ["install"] + pre_flags + [f"isaacsim[{extras}]{version_spec}"] + extra_idx_args + uv_flags)
 
 
 # Valid Isaac Lab submodule names that can be passed to --install.

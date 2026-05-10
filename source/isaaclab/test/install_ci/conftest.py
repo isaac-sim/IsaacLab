@@ -84,7 +84,12 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "docker: tests that only run inside Docker")
     config.addinivalue_line("markers", "native: tests that only run natively (not in Docker)")
     config.addinivalue_line("markers", "slow: tests that take a long time")
-    config.addinivalue_line("markers", "uv: tests that require the uv package manager")
+    config.addinivalue_line("markers", "uv: tests that exercise the uv installation workflow")
+    config.addinivalue_line("markers", "conda: tests that exercise the conda installation workflow")
+    config.addinivalue_line(
+        "markers",
+        "isaacsim_source: tests that use Isaac Sim pre-installed via the _isaac_sim symlink",
+    )
 
     try:
         config.stash[_EXECUTION_ENVIRONMENT_KEY] = _utils.detect_execution_environment()
