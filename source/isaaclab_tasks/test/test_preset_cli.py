@@ -357,48 +357,132 @@ def test_variant_picks_up_class_level_override(stub_app_launcher, monkeypatch):
 
 
 def test_variant_shadowing_legacy_alias_preserved(stub_app_launcher, monkeypatch):
-    """A task-local field named after a deprecated alias (``newton``) must
-    NOT be rewritten to the alias's canonical (``newton_mjwarp``); the
-    user wrote the field deliberately and the variant should win. End-to-end
-    check: ``resolve_presets`` picks the variant field, not the canonical.
+    """A task-local field named after a deprecated alias on the SAME target
+    (``--physics newton``, where ``newton`` is the alias for ``newton_mjwarp``)
+    must NOT be rewritten to the canonical; the user wrote the field
+    deliberately and the variant should win. End-to-end check: no
+    ``FutureWarning`` fires, ``sys.argv`` carries ``presets=newton``, and
+    ``resolve_presets`` picks the variant field rather than the alias's
+    canonical replacement.
     """
-    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
     from isaaclab_tasks.utils.hydra import preset, resolve_presets
     from isaaclab_tasks.utils.preset_cli import setup_cli
 
-    # 'newton' is deprecated for --physics (rewrites to 'newton_mjwarp').
-    # Here we use --renderer instead so the alias semantics on PHYSICS don't
-    # interfere; the parallel renderer canonical anchor is 'newton_renderer'.
-    # Build a PresetCfg whose anchor is 'newton_renderer' and whose variant
-    # is named exactly 'newton' (which would also be a PHYSICS alias). The
-    # CLI sees --renderer newton, which must pass through unchanged.
-    newton_variant = NewtonWarpRendererCfg(enable_shadows=True)
-    renderer_preset = preset(
-        default=NewtonWarpRendererCfg(),
-        newton_renderer=NewtonWarpRendererCfg(),
-        newton=newton_variant,  # variant named after alias
+    # PHYSICS has the legacy alias 'newton' -> 'newton_mjwarp'. The variant
+    # below is named exactly 'newton' alongside the canonical anchor.
+    newton_variant = MJWarpSolverCfg(iterations=999)
+    physics_preset = preset(
+        default=MJWarpSolverCfg(),
+        newton_mjwarp=MJWarpSolverCfg(),  # canonical anchor
+        newton=newton_variant,  # variant named after the alias
     )
-    _patch_load_with(monkeypatch, {"renderer": renderer_preset})
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer", "newton"])
+    _patch_load_with(monkeypatch, {"physics": physics_preset})
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--physics", "newton"])
 
-    # No FutureWarning should fire and the value must pass through as-is.
+    # No FutureWarning may fire (the alias-rewrite path must not trigger),
+    # and the typed flag must pass through as-is.
     import warnings
 
     with warnings.catch_warnings():
-        warnings.simplefilter("error", FutureWarning)  # any FutureWarning would fail the test
+        warnings.simplefilter("error", FutureWarning)
         setup_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton"]
 
     # Resolver assertion: with selected={'newton'} the variant field wins
-    # (rather than the alias being rewritten to newton_mjwarp before lookup).
-    # The variant has enable_shadows=True; the canonical newton_renderer
-    # field uses the default (False), so this distinguishes them. We assert
-    # by value rather than identity because @configclass may copy mutable
-    # defaults during instantiation.
-    container = {"renderer": renderer_preset}
+    # (rather than 'newton' being rewritten to 'newton_mjwarp' before
+    # lookup). The variant has iterations=999; the canonical default is
+    # 100, so this distinguishes them. Value-based check because
+    # @configclass may copy mutable defaults during instantiation.
+    container = {"physics": physics_preset}
     resolve_presets(container, selected={"newton"})
-    assert container["renderer"].enable_shadows is True
+    assert container["physics"].iterations == 999
+
+
+def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launcher, monkeypatch):
+    """A class-level reassignment of a parent dataclass field doesn't
+    change the *instance's* value -- the dataclass's ``__init__`` already
+    populated the instance attribute. ``resolve_presets`` walks via
+    ``getattr`` (instance-first), so the variant walker must too,
+    otherwise the typed-flag layer advertises variants the resolver
+    will never see.
+
+    Build a parent dataclass whose instance holds ``instance_preset``
+    (with variant ``instance_only``), then reassign the field at class
+    scope to ``class_only_preset`` (with variant ``class_only``). The
+    walker must report ``instance_only`` and NOT ``class_only``.
+    """
+    from dataclasses import dataclass
+
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab.utils.preset_registry import PresetTarget
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import _collect_task_variants
+
+    instance_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        instance_only=NewtonWarpRendererCfg(),
+    )
+    class_only_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        class_only=NewtonWarpRendererCfg(),
+    )
+
+    @dataclass
+    class _Parent:
+        renderer: object = None
+
+    parent = _Parent(renderer=instance_preset)
+    # Class-level reassignment AFTER instance construction. The instance
+    # attribute (set by __init__) shadows the class attribute, so
+    # ``getattr(parent, 'renderer')`` returns ``instance_preset``.
+    _Parent.renderer = class_only_preset
+
+    variants = _collect_task_variants(parent)
+    seen = variants.get(PresetTarget.RENDERER, set())
+    assert "instance_only" in seen
+    assert "class_only" not in seen
+
+
+def test_typed_flag_rejects_when_second_task_load_fails(stub_app_launcher, monkeypatch):
+    """When ``--task`` is repeated (or appears in a subparser), argparse
+    keeps the LAST value while the pre-scan picks the FIRST. If the
+    parsed task differs from the pre-scan task and reloading the parsed
+    task fails, ``task_variants`` must be cleared so the typed flag is
+    not validated against the previous task's variant set.
+    """
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    taskA_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        taskA_only=NewtonWarpRendererCfg(),  # variant unique to TaskA
+    )
+
+    def loader(task_name, _ep):
+        if task_name.endswith("TaskA"):
+            return {"renderer": taskA_preset}
+        raise ImportError(f"cannot load {task_name!r}")
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", loader)
+    # Pre-scan returns 'Isaac-TaskA' (first); argparse keeps 'Isaac-TaskB' (last).
+    monkeypatch.setattr(
+        "sys.argv",
+        ["train.py", "--task", "Isaac-TaskA", "--task", "Isaac-TaskB", "--renderer", "taskA_only"],
+    )
+
+    # TaskB load raises -> task_variants must be reset to empty so
+    # 'taskA_only' is no longer accepted as a variant.
+    with pytest.raises(SystemExit, match="not a recognized renderer preset"):
+        setup_cli(_make_parser())
 
 
 def test_variant_without_canonical_anchor_rejected(stub_app_launcher, monkeypatch):
@@ -461,28 +545,21 @@ def test_help_lists_registered_preset_names(stub_app_launcher, monkeypatch, caps
 def _walk_preset_cfgs(cfg, on_preset, _path=""):
     """Yield every :class:`PresetCfg` node reachable from *cfg*.
 
-    Mirrors the resolver's traversal (class-over-instance values, plus
-    class-only attrs) so the lint sees the same alternatives the resolver
-    would apply. Without this, a class-level PresetCfg installed as an
-    override is invisible to the lint.
+    Mirrors :func:`isaaclab_tasks.utils.hydra._walk_cfg` (instance-first
+    via ``getattr``) so the lint walks the same tree shape the resolver
+    walks at runtime. Per-PresetCfg field inspection (in
+    :func:`_drift_violations`) uses :func:`_preset_alternatives_view`
+    instead, matching ``_preset_fields``.
     """
     from isaaclab_tasks.utils.hydra import PresetCfg
-    from isaaclab_tasks.utils.preset_cli import _resolver_view
+    from isaaclab_tasks.utils.preset_cli import _walk_cfg_items
 
     if isinstance(cfg, PresetCfg):
         on_preset(cfg, _path)
 
-    items: list[tuple[str, object]] = []
-    if isinstance(cfg, dict):
-        items = list(cfg.items())
-    elif hasattr(cfg, "__dataclass_fields__"):
-        items = list(_resolver_view(cfg).items())
-
-    for key, val in items:
-        if val is None:
-            continue
+    for key, val in _walk_cfg_items(cfg):
         child_path = f"{_path}.{key}" if _path else key
-        if hasattr(val, "__dataclass_fields__") or isinstance(val, (dict, PresetCfg)):
+        if isinstance(val, PresetCfg) or hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
             _walk_preset_cfgs(val, on_preset, child_path)
 
 
@@ -524,7 +601,7 @@ def _drift_violations(preset_obj) -> list[str]:
     """
     from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
-    from isaaclab_tasks.utils.preset_cli import _resolver_view
+    from isaaclab_tasks.utils.preset_cli import _preset_alternatives_view
 
     # All canonical names across all targets. Used to detect when a field
     # name claims a canonical identity its value class doesn't earn.
@@ -534,9 +611,9 @@ def _drift_violations(preset_obj) -> list[str]:
     violations: list[str] = []
     cls_name = type(preset_obj).__name__
 
-    # Use the same class-over-instance + class-only-attr view the resolver
-    # walks, so a class-level PresetCfg variant override is also linted.
-    for fname, value in _resolver_view(preset_obj).items():
+    # Use the same class-over-instance + class-only-attr view ``_preset_fields``
+    # uses on a single PresetCfg, so a class-level variant override is linted.
+    for fname, value in _preset_alternatives_view(preset_obj).items():
         if fname == "default" or value is None:
             continue
         canonical = _canonical_for(value)
