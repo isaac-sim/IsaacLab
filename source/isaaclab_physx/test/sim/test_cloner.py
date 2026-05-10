@@ -21,10 +21,9 @@ from isaaclab_physx.cloner import physx_replicate
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
-    TemplateCloneCfg,
     _fabric_notices,
-    clone_from_template,
     disabled_fabric_change_notifies,
+    make_clone_plan,
     sequential,
     usd_replicate,
 )
@@ -242,19 +241,9 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
     assert "/World/envs" in attach_excluded
 
 
-def test_clone_from_template(sim):
-    """Clone prototypes via TemplateCloneCfg and clone_from_template and exercise both USD and PhysX.
-
-    Steps:
-    - Create /World/template and /World/envs/env_0..env_31
-    - Spawn three prototypes under /World/template/Object/proto_asset_.*
-    - Clone using TemplateCloneCfg with random_heterogeneous_cloning=False (modulo mapping)
-    - Verify modulo placement exists; then call sim.reset(), and create PhysX view
-    """
+def test_direct_clone_plan_multi_asset(sim):
+    """Clone representative env sources directly and exercise both USD and PhysX."""
     num_clones = 32
-    clone_cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential)
-    sim_utils.create_prim(clone_cfg.template_root, "Xform")
-    sim_utils.create_prim(f"{clone_cfg.template_root}/Object", "Xform")
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
@@ -282,11 +271,22 @@ def test_clone_from_template(sim):
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
-    prim = cfg.func(f"{clone_cfg.template_root}/Object/{clone_cfg.template_prototype_identifier}_.*", cfg)
+    plan = make_clone_plan(
+        [[f"/World/envs/env_{i}/Object" for i in range(len(cfg.assets_cfg))]],
+        ["/World/envs/env_{}/Object"],
+        num_clones,
+        sequential,
+        sim.cfg.device,
+    )
+    spawn_paths: list[str | None] = list(plan.sources)
+    cfg.spawn_paths = spawn_paths
+    prim = cfg.func("/World/unused", cfg)
     assert prim.IsValid()
 
     stage = sim_utils.get_current_stage()
-    clone_from_template(stage, num_clones=num_clones, template_clone_cfg=clone_cfg)
+    env_ids = torch.arange(num_clones, dtype=torch.long, device=sim.cfg.device)
+    physx_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask, device=sim.cfg.device)
+    usd_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask)
 
     primitive_prims = sim_utils.get_all_matching_child_prims(
         "/World/envs", predicate=lambda prim: prim.GetTypeName() in ["Cone", "Cube", "Sphere"]
@@ -302,27 +302,38 @@ def test_clone_from_template(sim):
             assert primitive_prim.GetTypeName() == "Sphere"
 
     sim.reset()
-    object_view_regex = f"{clone_cfg.clone_regex}/Object".replace(".*", "*")
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
-    physx_view = physics_sim_view.create_rigid_body_view(object_view_regex)
+    physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
     assert physx_view is not None
 
 
 def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_count=False):
     """Shared harness for colocated collision filter checks across devices."""
     num_clones = 32
-    clone_cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential)
-    sim_utils.create_prim(clone_cfg.template_root, "Xform")
-    sim_utils.create_prim(f"{clone_cfg.template_root}/Object", "Xform")
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
 
-    prim = asset_cfg.func(f"{clone_cfg.template_root}/Object/{clone_cfg.template_prototype_identifier}_.*", asset_cfg)
+    num_variants = len(asset_cfg.assets_cfg) if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg) else 1
+    plan = make_clone_plan(
+        [[f"/World/envs/env_{i}/Object" for i in range(num_variants)]],
+        ["/World/envs/env_{}/Object"],
+        num_clones,
+        sequential,
+        sim.cfg.device,
+    )
+    if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg):
+        spawn_paths: list[str | None] = list(plan.sources)
+        asset_cfg.spawn_paths = spawn_paths
+        prim = asset_cfg.func("/World/unused", asset_cfg)
+    else:
+        prim = asset_cfg.func(plan.sources[0], asset_cfg)
     assert prim.IsValid()
 
     stage = sim_utils.get_current_stage()
-    clone_from_template(stage, num_clones=num_clones, template_clone_cfg=clone_cfg)
+    env_ids = torch.arange(num_clones, dtype=torch.long, device=sim.cfg.device)
+    physx_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask, device=sim.cfg.device)
+    usd_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask)
 
     primitive_prims = sim_utils.get_all_matching_child_prims(
         "/World/envs", predicate=lambda prim: prim.GetTypeName() in expected_types
@@ -335,9 +346,8 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         assert primitive_prim.GetTypeName() == expected_types[i % len(expected_types)]
 
     sim.reset()
-    object_view_regex = f"{clone_cfg.clone_regex}/Object".replace(".*", "*")
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
-    physx_view = physics_sim_view.create_rigid_body_view(object_view_regex)
+    physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
     for _ in range(100):
         sim.step()
     transforms = wp.to_torch(physx_view.get_transforms())
