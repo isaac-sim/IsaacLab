@@ -6,8 +6,20 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+
+try:
+    from isaaclab_ovphysx.physics import OvPhysxCfg
+except ModuleNotFoundError as exc:
+    if exc.name != "isaaclab_ovphysx":
+        raise
+    OvPhysxCfg = None
+
+try:
+    from isaaclab_physx.physics import PhysxCfg
+except ModuleNotFoundError as exc:
+    if exc.name != "isaaclab_physx":
+        raise
+    PhysxCfg = None
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -22,8 +34,6 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 @configclass
 class CartpolePhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
-    physx: PhysxCfg = PhysxCfg()
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
@@ -59,7 +69,16 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
+
+
+if PhysxCfg is not None:
+    CartpolePhysicsCfg.default = PhysxCfg()
+    CartpolePhysicsCfg.physx = PhysxCfg()
+else:
+    CartpolePhysicsCfg.default = CartpolePhysicsCfg.newton_mjwarp
+
+if OvPhysxCfg is not None:
+    CartpolePhysicsCfg.ovphysx = OvPhysxCfg()
 
 
 @configclass

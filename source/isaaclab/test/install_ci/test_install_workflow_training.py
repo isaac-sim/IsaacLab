@@ -157,14 +157,6 @@ class Test_UV_Kitless_Training(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-    @pytest.mark.xfail(
-        reason=(
-            "cartpole_env_cfg.py imports isaaclab_ovphysx/isaaclab_physx at module level, "
-            "causing ModuleNotFoundError in kitless envs. "
-            "Tracked for fix separately."
-        ),
-        strict=True,
-    )
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu
@@ -328,14 +320,6 @@ class Test_Conda_Kitless_Training(Conda_Mixin):
         if not shutil.which("conda"):
             pytest.skip("conda is not available")
 
-    @pytest.mark.xfail(
-        reason=(
-            "cartpole_env_cfg.py imports isaaclab_ovphysx/isaaclab_physx at module level, "
-            "causing ModuleNotFoundError in kitless envs. "
-            "Tracked for fix separately."
-        ),
-        strict=True,
-    )
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu
