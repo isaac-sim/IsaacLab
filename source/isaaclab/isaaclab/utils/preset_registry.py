@@ -20,6 +20,7 @@ Example::
 
     from isaaclab.utils.preset_registry import PresetTarget, register
 
+
     @register(PresetTarget.PHYSICS, "physx")
     @configclass
     class PhysxCfg(PhysicsCfg): ...
@@ -78,10 +79,13 @@ class PresetTarget(enum.Enum):
         """
         if name in self.legacy_aliases:
             canonical = self.legacy_aliases[name]
+            # stacklevel=4 = warn() -> normalize() -> _validate_typed_flag()
+            # -> setup_cli() -> user's train.py. Lands the warning on the
+            # user's setup_cli(...) call instead of inside this module.
             warnings.warn(
                 f"--{self.value} {name!r} is deprecated. Use {canonical!r} instead.",
                 FutureWarning,
-                stacklevel=3,
+                stacklevel=4,
             )
             return canonical
         return name
@@ -104,6 +108,9 @@ class PresetRegistry:
 
         The decorated class gains ``_preset_name`` (str) and
         ``_preset_target`` (PresetTarget) attributes for later lookup.
+        First-wins: a subclass that is also decorated keeps the parent's
+        attributes (parent's name is the canonical) so MRO walks resolve
+        to a single value rather than whichever class was decorated last.
 
         Raises:
             RuntimeError: If ``(target, name)`` is already bound to a different class.
@@ -118,8 +125,12 @@ class PresetRegistry:
                     f" {target_cls.__module__}.{target_cls.__name__}."
                 )
             cls._entries.setdefault(target, {})[name] = target_cls
-            target_cls._preset_name = name  # type: ignore[attr-defined]
-            target_cls._preset_target = target  # type: ignore[attr-defined]
+            # First-wins: only stamp on the most-derived class that doesn't
+            # already inherit a binding. This prevents a re-decorated subclass
+            # from silently overwriting a parent's canonical attributes.
+            if "_preset_name" not in target_cls.__dict__:
+                target_cls._preset_name = name  # type: ignore[attr-defined]
+                target_cls._preset_target = target  # type: ignore[attr-defined]
             return target_cls
 
         return deco

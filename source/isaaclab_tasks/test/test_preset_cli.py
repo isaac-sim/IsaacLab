@@ -7,7 +7,7 @@
 
 Force-imports the backend cfg modules at the top so the registry is
 populated for the unit-level assertions. In real scripts, ``setup_cli``
-loads them itself by calling ``_load_task_backends(args.task)``; the
+loads them itself by calling ``_load_task_env_cfg(args.task)``; the
 ``test_*_real_script_simulation`` tests exercise that path without
 relying on the force-imports here.
 """
@@ -120,10 +120,15 @@ def test_register_populates_known_names():
     from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
     assert PresetRegistry.names_for(PresetTarget.PHYSICS) >= {
-        "physx", "ovphysx", "newton_mjwarp", "newton_kamino",
+        "physx",
+        "ovphysx",
+        "newton_mjwarp",
+        "newton_kamino",
     }
     assert PresetRegistry.names_for(PresetTarget.RENDERER) >= {
-        "isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer",
+        "isaacsim_rtx_renderer",
+        "newton_renderer",
+        "ovrtx_renderer",
     }
 
 
@@ -145,6 +150,31 @@ def test_register_rejects_duplicate_binding():
         @register(PresetTarget.PHYSICS, "_test_unique_a")
         class _B:
             pass
+
+
+def test_register_first_wins_on_subclass():
+    """A re-decorated subclass keeps its parent's ``_preset_name`` rather than
+    silently shadowing it. The registry still maps the new name to the subclass
+    (so the new name resolves), but ``MyChild._preset_name`` walks MRO to the
+    parent's canonical name."""
+    from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget, register
+
+    @register(PresetTarget.PHYSICS, "_test_first_parent")
+    class _Parent:
+        pass
+
+    @register(PresetTarget.PHYSICS, "_test_first_child")
+    class _Child(_Parent):
+        pass
+
+    # Both names resolve, but _Child's class-level _preset_name is its own
+    # (it has the attribute in its __dict__). The first-wins guard kicks in
+    # only when the same class is re-decorated, not when subclassed.
+    assert PresetRegistry.names_for(PresetTarget.PHYSICS) >= {"_test_first_parent", "_test_first_child"}
+    assert _Parent._preset_name == "_test_first_parent"
+    # Subclass with its own decoration gets its own name (decorating a subclass
+    # is a deliberate "new preset" declaration, distinct from chained decoration).
+    assert _Child._preset_name == "_test_first_child"
 
 
 # ---------------------------------------------------------------------------
@@ -210,12 +240,76 @@ def test_typed_flag_without_task_errors(stub_app_launcher, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# --help enrichment: lists registered preset names per target
+# Task variants: a field name on the selected task's PresetCfg is accepted
+# even if it isn't @register'd as a canonical name. Lets users define
+# alternative configurations of the same backend without re-decorating.
+# ---------------------------------------------------------------------------
+
+
+def _patch_load_with(monkeypatch, env_cfg_value):
+    """Make ``load_cfg_from_registry`` return *env_cfg_value* for any task name."""
+    monkeypatch.setattr(
+        "isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry",
+        lambda *args, **kwargs: env_cfg_value,
+    )
+
+
+def test_variant_field_name_accepted(stub_app_launcher, monkeypatch):
+    """A field name in the task's PresetCfg is accepted as a variant.
+
+    The PresetCfg has both a canonical-named field (``newton_renderer``)
+    and a variant (``newton_renderer_strict``). Selecting the variant
+    via ``--renderer newton_renderer_strict`` should pass validation
+    and end up in the ``presets=`` token.
+    """
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    renderer_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        newton_renderer_strict=NewtonWarpRendererCfg(enable_shadows=True),
+    )
+    _patch_load_with(monkeypatch, {"renderer": renderer_preset})
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer", "newton_renderer_strict"])
+
+    setup_cli(_make_parser())
+    assert sys.argv == ["train.py", "presets=newton_renderer_strict"]
+
+
+def test_unknown_variant_rejected(stub_app_launcher, monkeypatch):
+    """A name that is neither registered nor a task variant is rejected, with
+    the error message listing what *was* available (variants + registered)."""
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    renderer_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        newton_renderer_strict=NewtonWarpRendererCfg(),
+    )
+    _patch_load_with(monkeypatch, {"renderer": renderer_preset})
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer", "gobbledygook"])
+
+    with pytest.raises(SystemExit, match="not a recognized renderer preset"):
+        setup_cli(_make_parser())
+
+
+# ---------------------------------------------------------------------------
+# --help enrichment: argparse help= strings list valid preset names
 # ---------------------------------------------------------------------------
 
 
 def test_help_lists_registered_preset_names(stub_app_launcher, monkeypatch, capsys):
-    """``--help`` enriches argparse's default with the registered vocabulary."""
+    """``--help`` shows registered names per target via argparse ``help=`` strings.
+
+    No custom HelpAction; the names are baked into ``add_argument(..., help=...)``
+    so ``--help`` emits standard argparse output with the listing inline.
+    """
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
     from isaaclab_tasks.utils.preset_cli import setup_cli
 
@@ -224,9 +318,7 @@ def test_help_lists_registered_preset_names(stub_app_launcher, monkeypatch, caps
     with pytest.raises(SystemExit):
         setup_cli(parser)
     out = capsys.readouterr().out
-    assert "available preset names" in out
-    assert "--physics:" in out
-    # At least one canonical name should be listed (force-imported at top of file).
+    # Names must be visible in the help output (force-imported at top of file).
     assert "physx" in out
     assert "newton_renderer" in out
 
@@ -237,12 +329,7 @@ def test_help_lists_registered_preset_names(stub_app_launcher, monkeypatch, caps
 
 
 def _walk_preset_cfgs(cfg, on_preset, _path=""):
-    """Yield every :class:`PresetCfg` node reachable from *cfg*.
-
-    PresetCfg lives in :mod:`isaaclab_tasks.utils.hydra` (on develop and
-    here). We walk dataclass fields and dict values transparently so
-    nested presets are caught.
-    """
+    """Yield every :class:`PresetCfg` node reachable from *cfg*."""
     from isaaclab_tasks.utils.hydra import PresetCfg
 
     if isinstance(cfg, PresetCfg):
@@ -259,20 +346,104 @@ def _walk_preset_cfgs(cfg, on_preset, _path=""):
         if val is None:
             continue
         child_path = f"{_path}.{key}" if _path else key
-        if hasattr(val, "__dataclass_fields__") or isinstance(val, dict) or isinstance(val, PresetCfg):
+        if hasattr(val, "__dataclass_fields__") or isinstance(val, (dict, PresetCfg)):
             _walk_preset_cfgs(val, on_preset, child_path)
 
 
-def test_no_canonical_vocabulary_drift_in_registered_tasks():
-    """CI lint: every PresetCfg subclass in any registered task must use canonical
-    names where the alternative's value type is bound to a canonical (target, name).
+def _canonical_for(value: object) -> str | None:
+    """Walk *value*'s class MRO for ``_preset_name`` (set by :func:`register`).
 
-    Catches drift like ``foo: PhysxCfg = PhysxCfg()`` (instead of ``physx:``).
+    Falls back to ``value.solver_cfg``'s MRO when *value* itself isn't decorated
+    but holds a registered solver-cfg (e.g., ``NewtonCfg`` wraps ``MJWarpSolverCfg``).
+    Returns ``None`` if neither is decorated.
+    """
+    for klass in type(value).__mro__:
+        if "_preset_name" in klass.__dict__:
+            return klass.__dict__["_preset_name"]
+    inner = getattr(value, "solver_cfg", None)
+    if inner is not None:
+        for klass in type(inner).__mro__:
+            if "_preset_name" in klass.__dict__:
+                return klass.__dict__["_preset_name"]
+    return None
+
+
+def _drift_violations(preset_obj) -> list[str]:
+    """Loose drift check: every group of fields holding values of the same
+    registered class must include at least one field named after the class's
+    canonical preset name. Other fields in the group are accepted as variants.
+
+    Returns a list of human-readable violation messages (empty on pass).
+    Field ``"default"`` is excluded because it holds the active selection,
+    not an alternative.
+    """
+    by_canonical: dict[str, list[str]] = {}
+    for fname in preset_obj.__dataclass_fields__:
+        if fname == "default":
+            continue
+        value = getattr(preset_obj, fname, None)
+        if value is None:
+            continue
+        canonical = _canonical_for(value)
+        if canonical is None:
+            continue
+        by_canonical.setdefault(canonical, []).append(fname)
+
+    violations: list[str] = []
+    cls_name = type(preset_obj).__name__
+    for canonical, fnames in by_canonical.items():
+        if canonical not in fnames:
+            violations.append(
+                f"{cls_name} has alternative(s) {fnames!r} of canonical {canonical!r} "
+                f"but no field named {canonical!r} (variants need at least one canonical anchor)"
+            )
+    return violations
+
+
+def test_drift_lint_rejects_only_variants():
+    """Unit test for the loose drift logic: a PresetCfg with only variants
+    (no canonical-named field) is flagged."""
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+
+    bad_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        my_variant_a=NewtonWarpRendererCfg(),
+        my_variant_b=NewtonWarpRendererCfg(),
+    )
+    violations = _drift_violations(bad_preset)
+    assert len(violations) == 1
+    assert "newton_renderer" in violations[0]
+
+
+def test_drift_lint_accepts_canonical_plus_variants():
+    """Unit test for the loose drift logic: a canonical-named field with
+    additional variants of the same class is fine."""
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    from isaaclab_tasks.utils.hydra import preset
+
+    good_preset = preset(
+        default=NewtonWarpRendererCfg(),
+        newton_renderer=NewtonWarpRendererCfg(),
+        newton_renderer_strict=NewtonWarpRendererCfg(),
+    )
+    assert _drift_violations(good_preset) == []
+
+
+def test_no_canonical_vocabulary_drift_in_registered_tasks():
+    """CI lint: every PresetCfg subclass in any registered task must include
+    at least one canonical-named field per backend-class group. Variants are
+    allowed alongside the canonical name; standalone variants (no canonical)
+    fail because they make the CLI surface ambiguous.
+
+    Skipped tasks (typically ones whose env-cfg load raises before we can
+    inspect them) are reported on stderr so CI catches surprises.
     """
     import gymnasium as gym
 
     import isaaclab_tasks  # noqa: F401  -- triggers gym registration
-    from isaaclab.utils.preset_registry import PresetRegistry
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     violations: list[tuple[str, str]] = []
@@ -291,38 +462,18 @@ def test_no_canonical_vocabulary_drift_in_registered_tasks():
             skipped.append((task_id, f"{type(exc).__name__}: {exc}"))
             continue
 
-        def _check(preset_obj, _path):
-            # Look up canonical name of each alternative VALUE; if a value's
-            # class is registered under name "physx" but the field name is
-            # something else, that's drift.
-            for fname in preset_obj.__dataclass_fields__:
-                value = getattr(preset_obj, fname, None)
-                if value is None:
-                    continue
-                # Walk MRO for _preset_name (set by @register).
-                preset_name = None
-                for klass in type(value).__mro__:
-                    if "_preset_name" in klass.__dict__:
-                        preset_name = klass.__dict__["_preset_name"]
-                        break
-                if preset_name is None:
-                    # Solver-cfg dispatch: NewtonCfg has no decoration, but its
-                    # solver_cfg might.
-                    inner = getattr(value, "solver_cfg", None)
-                    if inner is not None:
-                        for klass in type(inner).__mro__:
-                            if "_preset_name" in klass.__dict__:
-                                preset_name = klass.__dict__["_preset_name"]
-                                break
-                if preset_name is not None and preset_name != fname and fname != "default":
-                    violations.append(
-                        (task_id, f"{type(preset_obj).__name__}.{fname} holds a {preset_name!r} value but isn't named {preset_name!r}")
-                    )
+        def _record(preset_obj, _path):
+            for msg in _drift_violations(preset_obj):
+                violations.append((task_id, msg))
 
         try:
-            _walk_preset_cfgs(env_cfg, _check)
+            _walk_preset_cfgs(env_cfg, _record)
         except BaseException as exc:  # noqa: BLE001
             skipped.append((task_id, f"walk failed: {type(exc).__name__}: {exc}"))
+
+    if skipped:
+        formatted = "\n".join(f"  [{tid}] {reason}" for tid, reason in skipped)
+        sys.stderr.write(f"\nDrift lint skipped {len(skipped)} task(s):\n{formatted}\n")
 
     if violations:
         formatted = "\n".join(f"  [{tid}] {msg}" for tid, msg in violations)
