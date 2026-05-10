@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,8 @@ from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "reset_tray_with_random_rotation",
@@ -38,37 +41,30 @@ def reset_task_stage(
     Args:
         env: The environment instance
         env_ids: Indices of environments to reset
-        print_log: If True, print debug information.
+        print_log: If True, log debug information.
     """
-    if hasattr(env, "_task_stage"):
-        env._task_stage[env_ids] = 0
+    from .rewards import get_assemble_trocar_state
 
-    # Reset all locked reward caches (for dense rewards)
-    if hasattr(env, "_lift_reward_locked"):
-        env._lift_reward_locked[env_ids] = 0
-    if hasattr(env, "_tip_reward_locked"):
-        env._tip_reward_locked[env_ids] = 0
-    if hasattr(env, "_insertion_reward_locked"):
-        env._insertion_reward_locked[env_ids] = 0
-    if hasattr(env, "_placement_reward_locked"):
-        env._placement_reward_locked[env_ids] = 0
+    s = get_assemble_trocar_state(env)
+    s.task_stage[env_ids] = 0
 
-    # Reset all previous stage trackers (for sparse rewards)
-    if hasattr(env, "_prev_stage_lift"):
-        env._prev_stage_lift[env_ids] = 0
-    if hasattr(env, "_prev_stage_tip"):
-        env._prev_stage_tip[env_ids] = 0
-    if hasattr(env, "_prev_stage_insert"):
-        env._prev_stage_insert[env_ids] = 0
-    if hasattr(env, "_prev_stage_place"):
-        env._prev_stage_place[env_ids] = 0
+    # Reset dense-reward locked caches
+    s.lift_reward_locked[env_ids] = 0
+    s.tip_reward_locked[env_ids] = 0
+    s.insertion_reward_locked[env_ids] = 0
+    s.placement_reward_locked[env_ids] = 0
 
-    # Reset debug print tracker
-    if hasattr(env, "_last_debug_print_step"):
-        env._last_debug_print_step = -1
+    # Reset sparse-reward previous-stage trackers
+    s.prev_stage_lift[env_ids] = 0
+    s.prev_stage_tip[env_ids] = 0
+    s.prev_stage_insert[env_ids] = 0
+    s.prev_stage_place[env_ids] = 0
+
+    # Reset debug throttle
+    s.last_debug_print_step = -1
 
     if print_log:
-        print(f"Reset task stage for {len(env_ids)} environment(s)")
+        logger.debug("Reset task stage for %d environment(s)", len(env_ids))
 
 
 def reset_tray_with_random_rotation(
@@ -115,22 +111,20 @@ def reset_tray_with_random_rotation(
     trocar_1 = env.scene[trocar_1_cfg.name]
     trocar_2 = env.scene[trocar_2_cfg.name]
 
-    # Get default states (initial positions from config)
-    # note: default_root_state is the local coordinate relative to the environment origin
-    tray_default_state = tray.data.default_root_state.torch[env_ids].clone()
-    trocar_1_default_state = trocar_1.data.default_root_state.torch[env_ids].clone()
-    trocar_2_default_state = trocar_2.data.default_root_state.torch[env_ids].clone()
+    # Get default poses and velocities (local coordinates relative to env origin)
+    tray_default_pose = tray.data.default_root_pose.torch[env_ids].clone()
+    trocar_1_default_pose = trocar_1.data.default_root_pose.torch[env_ids].clone()
+    trocar_2_default_pose = trocar_2.data.default_root_pose.torch[env_ids].clone()
 
-    # get the world coordinate offset for each environment (multiple environment support)
     env_origins = env.scene.env_origins[env_ids]  # (num_envs, 3)
 
-    # convert local coordinate to world coordinate
-    tray_default_state[:, :3] += env_origins
-    trocar_1_default_state[:, :3] += env_origins
-    trocar_2_default_state[:, :3] += env_origins
+    # Convert local coordinate to world coordinate
+    tray_default_pose[:, :3] += env_origins
+    trocar_1_default_pose[:, :3] += env_origins
+    trocar_2_default_pose[:, :3] += env_origins
 
-    # Tray center position (pivot point for rotation) - now is world coordinate
-    tray_center = tray_default_state[:, :3]  # (num_envs, 3)
+    # Tray center position (pivot point for rotation) - now in world coordinates
+    tray_center = tray_default_pose[:, :3]  # (num_envs, 3)
 
     # Generate yaw angles (in radians)
     # Convert degrees to radians
@@ -159,36 +153,36 @@ def reset_tray_with_random_rotation(
     delta_quat[:, 3] = torch.cos(half_angle)  # w
 
     # Apply rotation to tray quaternion
-    tray_new_quat = quat_mul(delta_quat, tray_default_state[:, 3:7])
+    tray_new_quat = quat_mul(delta_quat, tray_default_pose[:, 3:7])
 
-    # Update tray state
-    tray_new_state = tray_default_state.clone()
-    tray_new_state[:, 3:7] = tray_new_quat
+    # Update tray pose
+    tray_new_pose = tray_default_pose.clone()
+    tray_new_pose[:, 3:7] = tray_new_quat
 
     # Rotate trocar positions around tray center
-    trocar_1_relative_pos = trocar_1_default_state[:, :3] - tray_center
-    trocar_2_relative_pos = trocar_2_default_state[:, :3] - tray_center
+    trocar_1_relative_pos = trocar_1_default_pose[:, :3] - tray_center
+    trocar_2_relative_pos = trocar_2_default_pose[:, :3] - tray_center
 
     # Rotate relative positions using the delta quaternion
     trocar_1_new_relative_pos = quat_apply(delta_quat, trocar_1_relative_pos)
     trocar_2_new_relative_pos = quat_apply(delta_quat, trocar_2_relative_pos)
 
-    # New absolute positions
-    trocar_1_new_state = trocar_1_default_state.clone()
-    trocar_2_new_state = trocar_2_default_state.clone()
+    # New absolute poses
+    trocar_1_new_pose = trocar_1_default_pose.clone()
+    trocar_2_new_pose = trocar_2_default_pose.clone()
 
-    trocar_1_new_state[:, :3] = tray_center + trocar_1_new_relative_pos
-    trocar_2_new_state[:, :3] = tray_center + trocar_2_new_relative_pos
+    trocar_1_new_pose[:, :3] = tray_center + trocar_1_new_relative_pos
+    trocar_2_new_pose[:, :3] = tray_center + trocar_2_new_relative_pos
 
     # Also rotate trocar orientations
-    trocar_1_new_state[:, 3:7] = quat_mul(delta_quat, trocar_1_default_state[:, 3:7])
-    trocar_2_new_state[:, 3:7] = quat_mul(delta_quat, trocar_2_default_state[:, 3:7])
+    trocar_1_new_pose[:, 3:7] = quat_mul(delta_quat, trocar_1_default_pose[:, 3:7])
+    trocar_2_new_pose[:, 3:7] = quat_mul(delta_quat, trocar_2_default_pose[:, 3:7])
 
     zero_velocity = torch.zeros(len(env_ids), 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
 
-    tray.write_root_pose_to_sim_index(root_pose=tray_new_state[:, :7], env_ids=env_ids)
-    trocar_1.write_root_pose_to_sim_index(root_pose=trocar_1_new_state[:, :7], env_ids=env_ids)
-    trocar_2.write_root_pose_to_sim_index(root_pose=trocar_2_new_state[:, :7], env_ids=env_ids)
+    tray.write_root_pose_to_sim_index(root_pose=tray_new_pose, env_ids=env_ids)
+    trocar_1.write_root_pose_to_sim_index(root_pose=trocar_1_new_pose, env_ids=env_ids)
+    trocar_2.write_root_pose_to_sim_index(root_pose=trocar_2_new_pose, env_ids=env_ids)
 
     tray.write_root_velocity_to_sim_index(root_velocity=zero_velocity, env_ids=env_ids)
     trocar_1.write_root_velocity_to_sim_index(root_velocity=zero_velocity, env_ids=env_ids)
@@ -252,7 +246,8 @@ def reset_robot_to_default_joint_positions(
     robot.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
     robot.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
 
-    # Also reset root state
-    default_root_state = robot.data.default_root_state.torch[env_ids].clone()
-    robot.write_root_pose_to_sim_index(root_pose=default_root_state[:, :7], env_ids=env_ids)
-    robot.write_root_velocity_to_sim_index(root_velocity=default_root_state[:, 7:13], env_ids=env_ids)
+    # Also reset root pose and velocity
+    default_root_pose = robot.data.default_root_pose.torch[env_ids].clone()
+    default_root_vel = robot.data.default_root_vel.torch[env_ids].clone()
+    robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+    robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)

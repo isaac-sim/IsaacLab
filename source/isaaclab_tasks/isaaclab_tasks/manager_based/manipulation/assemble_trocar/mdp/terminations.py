@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,6 +17,8 @@ from .rewards import get_task_stage
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+logger = logging.getLogger(__name__)
 
 
 def object_drop_termination(
@@ -53,7 +56,7 @@ def object_drop_termination(
     dropped = dropped_1 | dropped_2
 
     if print_log and dropped.any():
-        print(f"Drop termination triggered for {dropped.sum().item()} environment(s)")
+        logger.debug("Drop termination triggered for %d environment(s)", dropped.sum().item())
 
     return dropped
 
@@ -72,6 +75,6 @@ def task_success_termination(
     task_complete = stage >= success_stage
 
     if print_log and task_complete.any():
-        print(f"Task completed in {task_complete.sum().item()} environment(s)!")
+        logger.info("Task completed in %d environment(s)!", task_complete.sum().item())
 
     return task_complete

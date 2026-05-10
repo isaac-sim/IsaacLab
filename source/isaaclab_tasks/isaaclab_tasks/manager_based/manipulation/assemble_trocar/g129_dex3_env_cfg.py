@@ -248,27 +248,42 @@ class TerminationsCfg:
 class RewardsCfg:
     """Reward configuration for sparse reward mode.
 
-    Each stage gives 1.0 reward on completion → Total reward for full task = 4.0
+    Each stage gives 1.0 reward on completion -> Total reward for full task = 4.0
     This ensures clear reward signal for each stage transition.
+
+    ``update_stage`` runs first (weight=0) to advance the task stage before any
+    reward term reads it, removing implicit ordering dependencies.
     """
 
-    # Stage 0: Lift trocars
-    lift_trocars = RewTerm(
-        func=mdp.lift_trocars_reward,
-        weight=1.0,  # Give 1.0 reward when stage 0->1 completes
+    # Stage machine — weight=0, runs before all reward terms to update task stage
+    update_stage = RewTerm(
+        func=mdp.update_task_stage,
+        weight=0.0,
         params={
-            "table_height": 0.85483,
-            "lift_threshold": 0.15,
             "asset_cfg1": SceneEntityCfg("trocar_1"),
             "asset_cfg2": SceneEntityCfg("trocar_2"),
-            # Stage transition thresholds
-            "tip_align_threshold": 0.015,  # Threshold for tip alignment (m)
+            "table_height": 0.85483,
+            "lift_threshold": 0.15,
+            "tip_align_threshold": 0.015,
             "insertion_dist_threshold": 0.05,
             "insertion_angle_threshold": 0.15,
             "placement_x_min": -1.8,
             "placement_x_max": -1.4,
             "placement_y_min": 1.5,
             "placement_y_max": 1.8,
+            "print_log": False,
+        },
+    )
+
+    # Stage 0: Lift trocars
+    lift_trocars = RewTerm(
+        func=mdp.lift_trocars_reward,
+        weight=1.0,
+        params={
+            "table_height": 0.85483,
+            "lift_threshold": 0.15,
+            "asset_cfg1": SceneEntityCfg("trocar_1"),
+            "asset_cfg2": SceneEntityCfg("trocar_2"),
             "use_sparse_reward": True,
             "print_log": False,
         },
