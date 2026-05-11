@@ -34,6 +34,9 @@ class TestFrameStackBuffer:
         buf = FrameStackBuffer(SINGLE_SHAPE, frame_stack=3, device="cpu")
         assert buf.output_shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
         assert buf.output_channels == CHANNELS * 3
+        # The narrow+copy_ rebuild writes into a single pre-allocated buffer; output must stay contiguous.
+        stacked = buf.update(_make_frame(1))
+        assert stacked.is_contiguous()
 
     def test_init_fills_all_slots_on_first_update(self):
         """First update post-construction fills every history slot with the new frame."""

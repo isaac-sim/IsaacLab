@@ -174,3 +174,47 @@ class TestEnvConstructionEndToEnd:
                 if sim is not None:
                     with contextlib.suppress(Exception):
                         sim.clear_instance()
+
+    def test_buffer_ring_shift_e2e(self):
+        """Verify the buffer's ring shift is wired through the env's obs pipeline.
+
+        Uses an identity that holds regardless of renderer behavior: the frame that was
+        newest at reset must appear at the oldest position after one step. This catches
+        slot-order bugs in the buffer's narrow+copy_ rebuild without depending on the
+        camera producing different content frame-to-frame.
+        """
+        import torch as _torch
+
+        outer = CartpoleCameraPresetsEnvCfg()
+        env_cfg = resolve_presets(outer, selected={"newton_mjwarp", "newton_renderer"})
+        env_cfg.scene.num_envs = 2
+
+        env = None
+        try:
+            env = CartpoleCameraPresetsEnv(cfg=env_cfg)
+            assert env.cfg.frame_stack == 2, "Newton+Warp must auto-resolve to frame_stack=2 for this test"
+
+            c = env_cfg.observation_space[-1] // env.cfg.frame_stack
+            obs, _ = env.reset()
+            reset_newest = obs["policy"][..., -c:].clone()
+
+            action = _torch.zeros(env.num_envs, 1, device=env.device)
+            obs, _, _, _, _ = env.step(action)
+            step_oldest = obs["policy"][..., :c]
+
+            assert _torch.allclose(step_oldest, reset_newest), (
+                "Ring shift broken: the frame that was newest at reset did not appear at the oldest "
+                "position after one step."
+            )
+        finally:
+            if env is not None:
+                env.close()
+            else:
+                import contextlib
+
+                import isaaclab.sim as sim_utils
+
+                sim = sim_utils.SimulationContext.instance()
+                if sim is not None:
+                    with contextlib.suppress(Exception):
+                        sim.clear_instance()
