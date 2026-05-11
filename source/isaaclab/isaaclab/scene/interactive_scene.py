@@ -10,8 +10,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.base_renderer import BaseRenderer
     from isaaclab_physx.assets import DeformableObject, SurfaceGripper
+
+    from isaaclab.renderers.base_renderer import BaseRenderer
 
 import torch
 import warp as wp
