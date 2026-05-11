@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+1.5.36 (2026-05-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added explicit GR1T2 and Unitree G1 pick-place robot link pose and velocity
+  MDP helpers as replacements for packed robot link state observations.
+* Added the ``ovphysx`` physics preset to the cartpole camera presets task.
+
+Changed
+^^^^^^^
+
+* Changed Dexsuite orientation tracking rewards to read root link orientation
+  directly instead of slicing packed root state tensors.
+* Updated task camera configs and environments to use
+  :class:`~isaaclab.sensors.CameraCfg` and :class:`~isaaclab.sensors.Camera`
+  instead of deprecated tiled-camera aliases.
+* Updated task state and write call sites to use explicit state properties and
+  indexed simulation write APIs.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated
+  :func:`~isaaclab_tasks.manager_based.manipulation.pick_place.mdp.observations.get_all_robot_link_state`
+  in favor of
+  :func:`~isaaclab_tasks.manager_based.manipulation.pick_place.mdp.observations.get_all_robot_link_pose`
+  and
+  :func:`~isaaclab_tasks.manager_based.manipulation.pick_place.mdp.observations.get_all_robot_link_velocity`.
+
+
 1.5.35 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~~
 
