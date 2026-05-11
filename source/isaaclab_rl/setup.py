@@ -7,6 +7,7 @@
 
 import itertools
 import os
+import sys
 
 import toml
 from setuptools import setup
@@ -16,11 +17,15 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
+# Pull shared external version pins from the single source of truth.
+sys.path.insert(0, os.path.realpath(os.path.join(EXTENSION_PATH, "..", "..", "tools")))
+from python_deps import TORCH  # noqa: E402
+
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
     "numpy",
-    "torch>=2.10",
+    TORCH,
     "torchvision>=0.25.0",  # ensure compatibility with torch 2.10.0
     "protobuf>=4.25.8,!=5.26.0",
     # configuration management

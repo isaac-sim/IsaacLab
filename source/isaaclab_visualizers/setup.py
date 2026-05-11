@@ -5,7 +5,15 @@
 
 """Installation script for the 'isaaclab_visualizers' python package."""
 
+import os
+import sys
+
 from setuptools import setup
+
+# Pull shared external version pins from the single source of truth.
+_HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.realpath(os.path.join(_HERE, "..", "..", "tools")))
+from python_deps import NEWTON, PYOPENGL_ACCELERATE, WARP_LANG  # noqa: E402
 
 # Base requirements shared across visualizer backends.
 INSTALL_REQUIRES = [
@@ -16,17 +24,17 @@ INSTALL_REQUIRES = [
 EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
-        "warp-lang",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
-        "PyOpenGL-accelerate",
+        WARP_LANG,
+        NEWTON,
+        PYOPENGL_ACCELERATE,
         "imgui-bundle>=1.92.5",
     ],
     "rerun": [
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        NEWTON,
         "rerun-sdk>=0.29.0",
     ],
     "viser": [
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        NEWTON,
         "viser>=1.0.16",
     ],
 }

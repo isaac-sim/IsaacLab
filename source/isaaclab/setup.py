@@ -6,6 +6,7 @@
 """Installation script for the 'isaaclab' python package."""
 
 import os
+import sys
 
 import toml
 from setuptools import setup
@@ -15,13 +16,17 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
+# Pull shared external version pins from the single source of truth.
+sys.path.insert(0, os.path.realpath(os.path.join(EXTENSION_PATH, "..", "..", "tools")))
+from python_deps import NUMPY, PRETTYTABLE, TORCH, WARP_LANG  # noqa: E402
+
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy>=2",
-    "torch>=2.10",
+    NUMPY,
+    TORCH,
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
-    "prettytable==3.3.0",
+    PRETTYTABLE,
     "toml",
     # devices
     "hidapi==0.14.0.post2",
@@ -33,7 +38,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.13.0",
+    WARP_LANG,
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",

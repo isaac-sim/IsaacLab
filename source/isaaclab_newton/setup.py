@@ -7,10 +7,16 @@
 
 import os
 import shutil
+import sys
 
 import toml
 from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
+
+# Pull shared external version pins from the single source of truth.
+_HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.realpath(os.path.join(_HERE, "..", "..", "tools")))
+from python_deps import NEWTON, PRETTYTABLE, PYOPENGL_ACCELERATE  # noqa: E402
 
 
 class build_py(_build_py):
@@ -37,9 +43,9 @@ INSTALL_REQUIRES = []
 
 EXTRAS_REQUIRE = {
     "all": [
-        "prettytable==3.3.0",
-        "PyOpenGL-accelerate==3.1.10",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        PRETTYTABLE,
+        PYOPENGL_ACCELERATE,
+        NEWTON,
     ],
 }
 

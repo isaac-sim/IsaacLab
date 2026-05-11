@@ -6,6 +6,7 @@
 """Installation script for the 'isaaclab_physx' python package."""
 
 import os
+import sys
 
 import toml
 from setuptools import setup
@@ -15,12 +16,16 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
+# Pull shared external version pins from the single source of truth.
+sys.path.insert(0, os.path.realpath(os.path.join(EXTENSION_PATH, "..", "..", "tools")))
+from python_deps import NEWTON  # noqa: E402
+
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = []
 
 EXTRAS_REQUIRE = {
     "newton": [
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        NEWTON,
     ],
 }
 
