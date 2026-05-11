@@ -137,7 +137,17 @@ class _CfgTree:
     :meth:`walk_presets` switches between the two by node kind, and the
     high-level helpers (:meth:`collect_task_variants`, the drift lint)
     are just visitors layered on top.
+
+    Layout:
+
+    * Decoration lookup: :meth:`canonical_and_target`
+    * Per-node views: :meth:`preset_alternatives_view`, :meth:`walk_cfg_items`
+    * Tree traversal: :meth:`walk_presets`, :meth:`collect_task_variants`
     """
+
+    # ------------------------------------------------------------------ #
+    # Decoration lookup                                                  #
+    # ------------------------------------------------------------------ #
 
     @staticmethod
     def canonical_and_target(value: object) -> tuple[str | None, PresetTarget | None]:
@@ -158,6 +168,10 @@ class _CfgTree:
                 if "_preset_name" in klass.__dict__:
                     return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
         return None, None
+
+    # ------------------------------------------------------------------ #
+    # Per-node views (one PresetCfg's alternatives vs. one node's items) #
+    # ------------------------------------------------------------------ #
 
     @staticmethod
     def preset_alternatives_view(node: object) -> dict[str, object]:
@@ -215,6 +229,10 @@ class _CfgTree:
                 continue
             items.append((n, val))
         return items
+
+    # ------------------------------------------------------------------ #
+    # Tree traversal (one primitive + visitors layered on top)           #
+    # ------------------------------------------------------------------ #
 
     @classmethod
     def walk_presets(cls, env_cfg: object, on_preset) -> None:
