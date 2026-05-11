@@ -74,12 +74,11 @@ def _drive_kit_async(coro):
     app = _kit_app()
     if app is None:
         return asyncio.run(coro)
-    try:
-        import omni.kit.async_engine  # noqa: PLC0415
+    # omni.kit.async_engine's observer pumps asyncio on each Kit frame -- scheduling on any
+    # other loop would deadlock the spin below. Fail loudly if a custom kit config drops it.
+    import omni.kit.async_engine  # noqa: PLC0415
 
-        task = omni.kit.async_engine.run_coroutine(coro)
-    except Exception:
-        task = asyncio.ensure_future(coro)
+    task = omni.kit.async_engine.run_coroutine(coro)
     while not task.done():
         app.update()
         time.sleep(0)
