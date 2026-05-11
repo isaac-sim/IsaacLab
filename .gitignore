@@ -1,3 +1,6 @@
+# Project-specific CLAUDE.md (upstream tracks @AGENTS.md include; protect local override)
+/CLAUDE.md
+
 # C++
 **/cmake-build*/
 **/build*/
@@ -88,3 +91,16 @@ _build
 
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
+
+# RAG vector DB (Phase 1: thread-vault semantic search)
+# Chroma persistent store; rebuild from source via scripts/rag_build_vault.py
+/harness-vault/rag-db/
+
+# Local generated payload (regeneratable from runs; provenance via curated
+# manifests + summary JSONs, not raw payload).
+# Source policy: eval_runs/codex_panes_evidence_2026-05-10/gate_repo_hygiene_4_generated_artifact_policy_2026-05-10.md
+# Path-anchored to the repo root; sibling test fixtures named "data" or
+# "env_isaaclab" deeper in the tree are not affected.
+/env_isaaclab/
+/data/
+/thread_isaac_lab/data/

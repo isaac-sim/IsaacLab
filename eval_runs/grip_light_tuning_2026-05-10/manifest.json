@@ -1,0 +1,220 @@
+{
+  "constraints": {
+    "deletion": "no deletion of existing artifacts",
+    "movement": "no movement of existing artifacts in this manifest creation",
+    "track_application": "manifest is policy-input only; git add still requires Rs explicit approval"
+  },
+  "current_canonical": {
+    "class_A_aggregate_summary_json": "results/summary.json",
+    "class_A_aggregate_summary_md": "results/summary.md",
+    "class_A_verification_aggregate_json": "results/verification/verification_summary.json",
+    "class_A_verification_aggregate_md": "results/verification/verification_summary.md",
+    "class_B_design": "design.md",
+    "class_C_canonical_eval_per_scope": {
+      "s0_det_scale0": "results/s0_det_scale0/eval_summary.json",
+      "s1_stoch_scale1": "results/s1_stoch_scale1/eval_summary.json",
+      "s2_stoch_override010": "results/s2_stoch_override010/eval_summary.json",
+      "s3_stoch_override005": "results/s3_stoch_override005/eval_summary.json",
+      "verification_v0_scale0": "results/verification/v0_converge_w256_e5_scale0/eval_summary.json",
+      "verification_v1_scale1": "results/verification/v1_converge_w256_e5_scale1/eval_summary.json",
+      "verification_v2_override010": "results/verification/v2_converge_w256_e5_override010/eval_summary.json",
+      "verification_v3_override005": "results/verification/v3_converge_w256_e5_override005/eval_summary.json"
+    }
+  },
+  "entries": [
+    {
+      "class": "B",
+      "mtime": "2026-05-10T02:10:33.429082Z",
+      "notes": "Static design doc",
+      "path": "design.md",
+      "sha256": "97deddc9a7987ae23aa07b072a4bf69867e92c255c35e2814e55521ad076ac91",
+      "size_bytes": 4394,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T02:28:26.877522Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/s0_det_scale0/eval_summary.json",
+      "sha256": "da6888d688bf4adda2f10efe4fbb73c2b927d1b4fe4b950cb89ac69234c24ddc",
+      "size_bytes": 103896,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T02:28:26.880522Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/s0_det_scale0/run.log",
+      "sha256": "c8bbc1aac2618f2d9babb87425d15571bc540ee925de198fc5b39b112c9d70fa",
+      "size_bytes": 7900,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T02:31:30.956117Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/s1_stoch_scale1/eval_summary.json",
+      "sha256": "9721cef3e087bbf3b9bc5df7e72cd6a994633b15737c71e70a3318b43c2e91f2",
+      "size_bytes": 109640,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T02:31:30.958117Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/s1_stoch_scale1/run.log",
+      "sha256": "f09086d2af3b69b6b3130e5c0ed282269e3c0994001e6a1957c17e80fe9c3841",
+      "size_bytes": 7741,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T02:35:47.568740Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/s2_stoch_override010/eval_summary.json",
+      "sha256": "ea7dee8ae452045a22f04d487ba06f887d9e6bef92389fbdfa7cf5e463338fba",
+      "size_bytes": 110229,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T02:35:47.570740Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/s2_stoch_override010/run.log",
+      "sha256": "822efb9c51a176cd7c4ca57a92a41fc7f2f655f58d0e08a1994b9b243539b9b0",
+      "size_bytes": 7775,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T02:38:45.556611Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/s3_stoch_override005/eval_summary.json",
+      "sha256": "3b8a06fe42bb4bc6e27b08b186c9441aba7b6724103820a6b6b613a212124d8b",
+      "size_bytes": 109972,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T02:38:45.559611Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/s3_stoch_override005/run.log",
+      "sha256": "a1796ca14162d0bf1567f3417dc2cfd9766b981ef905b43ec30fc09170ce1781",
+      "size_bytes": 7781,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "UNKNOWN",
+      "mtime": "2026-05-10T02:41:11.947662Z",
+      "notes": "Unclassified \u2014 owner classification needed",
+      "path": "results/summary.json",
+      "sha256": "c2c499d6f110f18fd8ab81a2548fa2085012ff81a65896f20b5aca677f97e307",
+      "size_bytes": 4889,
+      "track_recommendation": "HOLD"
+    },
+    {
+      "class": "UNKNOWN",
+      "mtime": "2026-05-10T02:41:17.026999Z",
+      "notes": "Unclassified \u2014 owner classification needed",
+      "path": "results/summary.md",
+      "sha256": "a6cce09c71183c813dee222319059cd49bae2afdfceb6394d2b3f7245b94cbfa",
+      "size_bytes": 1361,
+      "track_recommendation": "HOLD"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T03:05:26.311011Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/verification/v0_converge_w256_e5_scale0/eval_summary.json",
+      "sha256": "01e35dd9664bbb365d93b87b7c57b880e05ee18ee0fbf3c5d51ab99437f08ad4",
+      "size_bytes": 538320,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T03:05:26.311011Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/verification/v0_converge_w256_e5_scale0/run.log",
+      "sha256": "17325f6729917c686aa6326b0c2a7c9de2460a4ccd45a79344fd259d01f44ee5",
+      "size_bytes": 10364,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T03:17:25.605114Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/verification/v1_converge_w256_e5_scale1/eval_summary.json",
+      "sha256": "f916643b17ae6f84dedba750e067fb8b17f119ba96767d8ca339f67ef263d364",
+      "size_bytes": 535494,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T03:17:25.605114Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/verification/v1_converge_w256_e5_scale1/run.log",
+      "sha256": "b7eb516b1d81869a314fdd281cf37df24a056f2ea0da9462e592aeec0678cf8b",
+      "size_bytes": 10431,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T03:29:11.043442Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/verification/v2_converge_w256_e5_override010/eval_summary.json",
+      "sha256": "c8473fe9fbfd14465e20abfb9ff4874a8be5ca442d078cb9c9bf723ed61d6b7d",
+      "size_bytes": 538066,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T03:29:11.043442Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/verification/v2_converge_w256_e5_override010/run.log",
+      "sha256": "dcf4b21610a2ef5a5be0025cda94365c6580072487a059d7ff3065f9a6e1de42",
+      "size_bytes": 10468,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T03:40:49.117045Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/verification/v3_converge_w256_e5_override005/eval_summary.json",
+      "sha256": "e4c07db05126c89a9299615b9a5e6abb69a49b46a0a528871219454501eabb15",
+      "size_bytes": 537295,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "D",
+      "mtime": "2026-05-10T03:40:49.117045Z",
+      "notes": "Run log; provenance via ID, not raw log (per #4)",
+      "path": "results/verification/v3_converge_w256_e5_override005/run.log",
+      "sha256": "28dcd609e0c2a9606b2f7eeb174ae8de044e174e0caf0b12396d139fb38c1109",
+      "size_bytes": 10483,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T03:41:41.412174Z",
+      "notes": "Verification phase canonical summary",
+      "path": "results/verification/verification_summary.json",
+      "sha256": "beed88d647bbcc27b997844a9261435a1dcd79626c889b7f1ee8de3eff993888",
+      "size_bytes": 7660,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T03:41:41.412261Z",
+      "notes": "Verification phase canonical summary",
+      "path": "results/verification/verification_summary.md",
+      "sha256": "1188ea50f702ceeaa64f29634c958c6709728ecf1c3cd5bd5c3dbc5ddd82e44c",
+      "size_bytes": 1670,
+      "track_recommendation": "TRACK"
+    }
+  ],
+  "generated_at": "2026-05-10T11:20:29.705480Z",
+  "policy_source": "eval_runs/codex_panes_evidence_2026-05-10/gate_repo_hygiene_5_curated_evidence_policy_2026-05-10.md",
+  "purpose": "GATE-REPO-HYGIENE #6 manifest for grip_light_tuning_2026-05-10/. Track 1 Grip light tuning evidence; aggregate summary (results/summary.{json,md}) is canonical; per-scope eval_summary.json files are class C (track one canonical per scope, others archive).",
+  "schema": "current_revision_manifest.v1",
+  "scope": "/home/rlrk/IsaacLab/eval_runs/grip_light_tuning_2026-05-10"
+}

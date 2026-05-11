@@ -1,0 +1,282 @@
+{
+  "constraints": {
+    "deletion": "no deletion of existing artifacts",
+    "movement": "no movement of existing artifacts in this manifest creation",
+    "track_application": "manifest is policy-input only; git add still requires Rs explicit approval"
+  },
+  "current_canonical": {
+    "class_A_app_launcher_review": "app_launcher_owner_review_2026-05-10.md",
+    "class_A_cr_prerequisite_packet": "cr_prerequisite_packet_2026-05-10.md",
+    "class_A_gate_c1_roadmap": "gate_c1_5skill_integration_roadmap_2026-05-10.md",
+    "class_A_opt_f_smoke": "opt_f_smoke_report_2026-05-10.md",
+    "class_A_phase4_candidate_proposal": "phase4_candidate_proposal_2026-05-10.md",
+    "class_A_phase4_provenance": "phase4_1_provenance_manifest_2026-05-10.md",
+    "class_A_repo_hygiene_3": "gate_repo_hygiene_3_tracked_diff_triage_2026-05-10.md",
+    "class_A_repo_hygiene_4": "gate_repo_hygiene_4_generated_artifact_policy_2026-05-10.md",
+    "class_A_repo_hygiene_5": "gate_repo_hygiene_5_curated_evidence_policy_2026-05-10.md",
+    "class_A_repo_hygiene_6_summary": "gate_repo_hygiene_6_manifest_summary_2026-05-10.md",
+    "class_A_repo_hygiene_triage": "gate_repo_hygiene_triage_2026-05-10.md",
+    "class_A_track3_cr_plan": "track3_cr_retrain_plan.md",
+    "class_F_stage2_baseline_integration": "STAGE2_INTEGRATION_T_ROOT_FORWARD_POLICY.md",
+    "class_F_stage2_forward_policy_revision": "STAGE2_FORWARD_POLICY_REVISION_v8_2026-05-10.md"
+  },
+  "entries": [
+    {
+      "class": "F",
+      "mtime": "2026-05-10T02:10:20.531045Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v2_2026-05-10.md",
+      "sha256": "5f9cdfdf9eafd2c5ec61c7f03347dab19d28bdc6b290313add31fba108e817b7",
+      "size_bytes": 11695,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "F",
+      "mtime": "2026-05-10T02:22:57.562795Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v3_2026-05-10.md",
+      "sha256": "8960da66d719f47fad820ae5b6761354b8253dae1aa5aae9459d21fcab855fb0",
+      "size_bytes": 11095,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "F",
+      "mtime": "2026-05-10T03:58:47.224283Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v4_2026-05-10.md",
+      "sha256": "ac7c82420bc3725369dc65fbd9e5aaa4f65f55f3905c2b211b2903c55aa429da",
+      "size_bytes": 10754,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "F",
+      "mtime": "2026-05-10T04:08:00.332849Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v5_2026-05-10.md",
+      "sha256": "7810f9426b57891a62ca9d583b346ce0108211aa912f0f2707c94c88d4e79099",
+      "size_bytes": 10193,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "F",
+      "mtime": "2026-05-10T04:31:33.219502Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v6_2026-05-10.md",
+      "sha256": "47adb72175a9d23949a419bf245ba0615e4d04200dc9e7ebaf229c3b1082a128",
+      "size_bytes": 14263,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "F",
+      "mtime": "2026-05-10T09:49:45.589900Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v7_2026-05-10.md",
+      "sha256": "dc35e495dd5d9db804ae94ecfec812763337c2ad2d45f3458396c72022944301",
+      "size_bytes": 12420,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "F",
+      "mtime": "2026-05-10T10:19:47.125550Z",
+      "notes": "Multi-revision policy doc (track all + current_canonical pointer)",
+      "path": "STAGE2_FORWARD_POLICY_REVISION_v8_2026-05-10.md",
+      "sha256": "d5b8a0269dc4838fbe2bfc587ef56a13f91ad0a305390268da41f7552b83609a",
+      "size_bytes": 12928,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T01:34:00.812949Z",
+      "notes": "Original Stage 2 integration baseline",
+      "path": "STAGE2_INTEGRATION_T_ROOT_FORWARD_POLICY.md",
+      "sha256": "1eae9c63486e413c6bd9dd2cf3e3ad461193e3a27a8027b7ef6a8df6948f4372",
+      "size_bytes": 9153,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T10:20:38.642580Z",
+      "notes": "Canonical decision / track / gate document",
+      "path": "app_launcher_owner_review_2026-05-10.md",
+      "sha256": "9b743d01fee98cd642a7af6fc7a5f2fa86c024a6eea944af22c72beb5402c323",
+      "size_bytes": 12060,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T04:35:55.787485Z",
+      "notes": "Canonical decision / track / gate document",
+      "path": "cr_prerequisite_packet_2026-05-10.md",
+      "sha256": "7c02ed5de19d660bbe76a924b083619f55c1b57dd6b8f039118ef8778b6717ce",
+      "size_bytes": 25918,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T04:09:36.711665Z",
+      "notes": "Canonical decision / track / gate document",
+      "path": "gate_c1_5skill_integration_roadmap_2026-05-10.md",
+      "sha256": "db40986c47055f2e7ed108e677dc1c983cda622f2576a126a35ab855a6c89c08",
+      "size_bytes": 18512,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T11:15:37.436570Z",
+      "notes": "GATE-REPO-HYGIENE deliverable",
+      "path": "gate_repo_hygiene_3_tracked_diff_triage_2026-05-10.md",
+      "sha256": "858e9d3665aa6e7648e154b693e4ff50f853e384e4c501fdac3921c28710c20c",
+      "size_bytes": 9027,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T11:17:13.909796Z",
+      "notes": "GATE-REPO-HYGIENE deliverable",
+      "path": "gate_repo_hygiene_4_generated_artifact_policy_2026-05-10.md",
+      "sha256": "b2f46101d071548bb8b51eccbdd14dc281876b27bd6a9b5e0227df10adc604a9",
+      "size_bytes": 12051,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T11:18:58.620903Z",
+      "notes": "GATE-REPO-HYGIENE deliverable",
+      "path": "gate_repo_hygiene_5_curated_evidence_policy_2026-05-10.md",
+      "sha256": "154962dcd9a4980343b2a04b2787e405783b8eafc90442f34f6997d44890d49e",
+      "size_bytes": 12692,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T11:21:17.374122Z",
+      "notes": "GATE-REPO-HYGIENE deliverable",
+      "path": "gate_repo_hygiene_6_manifest_summary_2026-05-10.md",
+      "sha256": "c31d26360f2031750fe483e1905edb44a447a82643b0522ef49b2889eaf27005",
+      "size_bytes": 6325,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T09:59:41.349935Z",
+      "notes": "GATE-REPO-HYGIENE deliverable",
+      "path": "gate_repo_hygiene_triage_2026-05-10.md",
+      "sha256": "bf4c6e5803f97be46e58cd2f5938f2e2603044265079532be853fb9d9e3a9148",
+      "size_bytes": 18943,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T11:07:16.924838Z",
+      "notes": "Canonical decision / track / gate document",
+      "path": "opt_f_smoke_report_2026-05-10.md",
+      "sha256": "fe75a8bc882e39bf2951038cdef6bacfa5ce1884af203e413710689b83b8b25f",
+      "size_bytes": 6610,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.162341Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane10_bimodal.txt",
+      "sha256": "2b7c75b9e31ec5174ce9b9c8b6d651796782fb688d596fcf5ce7b96f483295f4",
+      "size_bytes": 21130,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.128339Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane11_skill_inventory.txt",
+      "sha256": "dcd3a05f74d32d6c0a3350fe7a1e3ce828f1e3162449b3a4ef4c22f772b8b2b6",
+      "size_bytes": 25951,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.135339Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane12_ar_redesign_plan.txt",
+      "sha256": "728b3da95abc668d8fa0da0dad3d207e33f7953f37f71bf11de106e5b7e98bb7",
+      "size_bytes": 20985,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.142340Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane13_seed_crosscheck_blocked.txt",
+      "sha256": "8324bee2a8dd885739579dded51900dfc52415a3e585d0a523ffb81d89a5101a",
+      "size_bytes": 20723,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.167341Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane1_codex_relay.txt",
+      "sha256": "c918e1e7683db2edaec9ab081cc7221528ef652a0525dfba318cd491c47a9f51",
+      "size_bytes": 4298,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.174342Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane2_t_skill_ar.txt",
+      "sha256": "3c8d75a13899431980a020e6fc38dfe6ae76f51c80f9c305a1c1af9caf863841",
+      "size_bytes": 13520,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.149340Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane8_bimodal.txt",
+      "sha256": "fa0b2e9d718deefb3d829e5b99a822a7d37330b0ec76f301e7d5dedd9fbe4395",
+      "size_bytes": 20356,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "G",
+      "mtime": "2026-05-10T00:37:01.155341Z",
+      "notes": "Pane chat capture (Opt-g format)",
+      "path": "pane9_bimodal.txt",
+      "sha256": "d8d51adb34b4c63e4b410a64701d51f69a662b1d8e770f168526d5a379ea5077",
+      "size_bytes": 16224,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T09:59:11.327965Z",
+      "notes": "Phase 4 decision/proposal/manifest doc",
+      "path": "phase4_1_provenance_manifest_2026-05-10.md",
+      "sha256": "d5833195776aac4721765502ad6660837fd20745cd4569bea8126b4e9339fec5",
+      "size_bytes": 14997,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T03:58:57.030650Z",
+      "notes": "Phase 4 decision/proposal/manifest doc",
+      "path": "phase4_candidate_proposal_2026-05-10.md",
+      "sha256": "854c9dd1ca151547a608e67083f66d269485bf8e651d984bdf912a68ee1c9894",
+      "size_bytes": 21659,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T02:11:23.561751Z",
+      "notes": "Canonical decision / track / gate document",
+      "path": "track3_cr_retrain_plan.md",
+      "sha256": "214bb2c8bdde66e63d69984198c9b2c3641c80ce7f4ca1e7cc337f3ecf6e0eeb",
+      "size_bytes": 14939,
+      "track_recommendation": "TRACK"
+    }
+  ],
+  "generated_at": "2026-05-10T12:11:52.269154Z",
+  "policy_source": "eval_runs/codex_panes_evidence_2026-05-10/gate_repo_hygiene_5_curated_evidence_policy_2026-05-10.md",
+  "purpose": "GATE-REPO-HYGIENE #6 manifest for codex_panes_evidence_2026-05-10/. Identifies current canonical Stage 2 policy revision (v8) and lists all curated decision documents with class/track classification per policy #5. Updated 2026-05-10 ~20:40 to include #6 summary report.",
+  "schema": "current_revision_manifest.v1",
+  "scope": "/home/rlrk/IsaacLab/eval_runs/codex_panes_evidence_2026-05-10"
+}

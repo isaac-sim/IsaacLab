@@ -1,0 +1,87 @@
+{
+  "constraints": {
+    "deletion": "no deletion of existing artifacts",
+    "movement": "no movement of existing artifacts in this manifest creation",
+    "track_application": "manifest is policy-input only; git add still requires Rs explicit approval"
+  },
+  "current_canonical": {
+    "class_A_terminal_metric_done_samples": "results/terminal_metric_done_samples.json",
+    "class_A_terminal_metric_summary": "results/terminal_metric_summary.json",
+    "class_A_verification_summary": "results/verification_summary.json",
+    "class_B_run_terminal_metric_check": "results/run_terminal_metric_check.py",
+    "class_C_canonical_eval_per_scope": {
+      "grip_parity_det_scale0": "results/grip_parity_det_scale0/eval_summary.json",
+      "grip_parity_stoch_scale1": "results/grip_parity_stoch_scale1/eval_summary.json"
+    }
+  },
+  "entries": [
+    {
+      "class": "E",
+      "mtime": "2026-05-10T04:14:21.960109Z",
+      "notes": "Bytecode residue (already in upstream .gitignore)",
+      "path": "results/__pycache__/run_terminal_metric_check.cpython-311.pyc",
+      "sha256": "a41b39fa72f491a1f960a12d07e5b9d43cccaa30215a9e597d76de2a4b3bd090",
+      "size_bytes": 11756,
+      "track_recommendation": "IGNORE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T04:17:39.338911Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/grip_parity_det_scale0/eval_summary.json",
+      "sha256": "9c7f3bd27e4273e0e40eb32af0066fb6635a3ba8f211b88d0239a3445f128003",
+      "size_bytes": 109010,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "C",
+      "mtime": "2026-05-10T04:20:15.922355Z",
+      "notes": "Raw eval summary; track only one canonical per (skill, mode, date)",
+      "path": "results/grip_parity_stoch_scale1/eval_summary.json",
+      "sha256": "f891b3531867e75cca6f4d70ebd4036f3e0b00555c82d522517f224e81af248c",
+      "size_bytes": 108568,
+      "track_recommendation": "TRACK_ONE_CANONICAL_PER_SCOPE"
+    },
+    {
+      "class": "B",
+      "mtime": "2026-05-10T04:14:17.540178Z",
+      "notes": "Phase 4 #1 measurement script (curated)",
+      "path": "results/run_terminal_metric_check.py",
+      "sha256": "148b23d09be5809efd439d44a4bf0342dffe6a2368c619a6f1995cd3ba950df6",
+      "size_bytes": 7688,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T04:14:58.932343Z",
+      "notes": "Phase 4 #1 Terminal Metric Layer canonical output",
+      "path": "results/terminal_metric_done_samples.json",
+      "sha256": "c33be7dea725b745313b4f6b30d12814bf8e224b59cbe7f9c37f1dce4f91fe98",
+      "size_bytes": 1093,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T04:14:58.932255Z",
+      "notes": "Phase 4 #1 Terminal Metric Layer canonical output",
+      "path": "results/terminal_metric_summary.json",
+      "sha256": "5742dd5eec0fd2f3bdf057d0c92688e81b8bd7da6d611a6254e2ec57d195fb31",
+      "size_bytes": 2438,
+      "track_recommendation": "TRACK"
+    },
+    {
+      "class": "A",
+      "mtime": "2026-05-10T04:20:38.274612Z",
+      "notes": "Verification phase canonical summary",
+      "path": "results/verification_summary.json",
+      "sha256": "a025bce4a0d5201c3ebb3667b5684a43befd56b08caf18c9197fb6cb7dfeed8a",
+      "size_bytes": 2917,
+      "track_recommendation": "TRACK"
+    }
+  ],
+  "generated_at": "2026-05-10T11:20:29.705480Z",
+  "policy_source": "eval_runs/codex_panes_evidence_2026-05-10/gate_repo_hygiene_5_curated_evidence_policy_2026-05-10.md",
+  "purpose": "GATE-REPO-HYGIENE #6 manifest for phase4_terminal_metric_layer_2026-05-10/. Phase 4 #1 Terminal Metric Layer evidence; identifies canonical terminal_metric_*.json + run_terminal_metric_check.py and excludes __pycache__ residue.",
+  "schema": "current_revision_manifest.v1",
+  "scope": "/home/rlrk/IsaacLab/eval_runs/phase4_terminal_metric_layer_2026-05-10"
+}
