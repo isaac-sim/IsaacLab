@@ -84,7 +84,7 @@ class FabricNoticeBindings:
 
         desc = _InterfaceDesc(name=b"omni::fabric::IFabricUsd", version=_Version(1, 0))
 
-        ptr = try_acquire(b"carb.scripting-python.plugin", desc, None)
+        ptr = try_acquire(b"isaaclab.cloner", desc, None)
         if not ptr:
             return False
         self._iface_ptr = ptr
