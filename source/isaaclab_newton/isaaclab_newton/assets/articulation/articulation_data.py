@@ -1430,18 +1430,21 @@ class ArticulationData(BaseArticulationData):
 
         # -- root properties
         self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
-        self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
-        if self._sim_bind_root_com_vel_w is not None:
+        # ``get_root_velocities`` returns ``None`` for fixed-base articulations; the
+        # ``wp.zeros`` fallback set by :meth:`_create_buffers` must survive subsequent
+        # resets, so only overwrite when the solver actually exposes the binding.
+        root_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
+        if root_vel_w is not None:
             if self._root_view.is_fixed_base:
-                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
+                self._sim_bind_root_com_vel_w = root_vel_w[:, 0, 0]
             else:
-                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
+                self._sim_bind_root_com_vel_w = root_vel_w[:, 0]
         # -- body properties
         self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", SimulationManager.get_model())[:, 0]
         self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[:, 0]
-        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())
-        if self._sim_bind_body_com_vel_w is not None:
-            self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
+        body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())
+        if body_com_vel_w is not None:
+            self._sim_bind_body_com_vel_w = body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
         # Newton stores body_inertia as (N, 1, B) mat33f — the [:, 0] removes the padding dim
         # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
