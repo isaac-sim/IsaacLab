@@ -34,4 +34,53 @@ Locally, the schemas are defined in the following files:
 
 from isaaclab.utils.module import lazy_export
 
-lazy_export()
+_stub_getattr, _stub_dir, __all__ = lazy_export()
+
+# Names that moved out of this module into ``isaaclab_physx.sim.schemas``.
+# Resolved lazily on first access so importing ``isaaclab.sim.schemas`` does
+# not require ``isaaclab_physx`` to be installed.
+_PHYSX_FORWARDS = frozenset({
+    "RigidBodyPropertiesCfg",
+    "JointDrivePropertiesCfg",
+    "PhysxRigidBodyPropertiesCfg",
+    "PhysxJointDrivePropertiesCfg",
+    "CollisionPropertiesCfg",
+    "PhysxCollisionPropertiesCfg",
+    "PhysXCollisionPropertiesCfg",
+    "PhysxDeformableCollisionPropertiesCfg",
+    "ArticulationRootPropertiesCfg",
+    "PhysxArticulationRootPropertiesCfg",
+    "MeshCollisionPropertiesCfg",
+    "ConvexHullPropertiesCfg",
+    "ConvexDecompositionPropertiesCfg",
+    "TriangleMeshPropertiesCfg",
+    "TriangleMeshSimplificationPropertiesCfg",
+    "SDFMeshPropertiesCfg",
+    "PhysxConvexHullPropertiesCfg",
+    "PhysxConvexDecompositionPropertiesCfg",
+    "PhysxTriangleMeshPropertiesCfg",
+    "PhysxTriangleMeshSimplificationPropertiesCfg",
+    "PhysxSDFMeshPropertiesCfg",
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
+    "PhysxFixedTendonPropertiesCfg",
+    "PhysxSpatialTendonPropertiesCfg",
+})
+
+
+def __getattr__(name):
+    if name in _PHYSX_FORWARDS:
+        try:
+            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_physx.sim.schemas'."
+                " Install the isaaclab_physx extension or update your import. This forwarding"
+                " shim is scheduled for removal in 5.0."
+            ) from e
+        return getattr(_physx_cfg, name)
+    return _stub_getattr(name)
+
+
+def __dir__():
+    return sorted(set(_stub_dir()) | _PHYSX_FORWARDS)

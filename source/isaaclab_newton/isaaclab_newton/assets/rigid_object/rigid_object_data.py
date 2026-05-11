@@ -76,6 +76,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
+        self._fk_timestamp = 0.0
 
         # Convert to direction vector
         gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
@@ -121,6 +122,9 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
@@ -291,6 +295,9 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._fk_timestamp < self._sim_timestamp:
+            SimulationManager.forward()
+            self._fk_timestamp = self._sim_timestamp
         return self._body_link_pose_w_ta
 
     @property

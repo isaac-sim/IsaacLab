@@ -20,7 +20,7 @@ import torch
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import ClonePlan, TemplateCloneCfg, clone_from_template, sequential, usd_replicate
+from isaaclab.cloner import make_clone_plan, sequential, usd_replicate
 from isaaclab.sim import build_simulation_context
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -221,56 +221,20 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_clone_from_template_returns_clone_plan(sim):
-    """clone_from_template exposes per-group ClonePlan dicts with prototype-to-env masks.
+def test_make_clone_plan_returns_flat_source_rows(sim):
+    """make_clone_plan exposes the flat source-to-env mask used by scene cloning."""
+    plan = make_clone_plan(
+        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
+        ["/World/envs/env_{}/Object"],
+        num_clones=4,
+        clone_strategy=sequential,
+        device=sim.cfg.device,
+    )
 
-    Builds two USD prototypes under one group, clones across four envs with the deterministic
-    sequential strategy, and asserts the returned dict has one entry keyed by the group's
-    destination template, with a ``[2, 4]`` boolean mask whose columns sum to one.
-    """
-    num_clones = 4
-    cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential, clone_physics=False)
-
-    sim_utils.create_prim(cfg.template_root, "Xform")
-    sim_utils.create_prim(f"{cfg.template_root}/Object", "Xform")
-    sim_utils.create_prim(f"{cfg.template_root}/Object/proto_asset_0", "Xform")
-    sim_utils.create_prim(f"{cfg.template_root}/Object/proto_asset_1", "Xform")
-    sim_utils.create_prim("/World/envs", "Xform")
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
-
-    stage = sim_utils.get_current_stage()
-    plans = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
-
-    assert isinstance(plans, dict)
-    assert list(plans.keys()) == ["/World/envs/env_{}/Object"]
-    plan = plans["/World/envs/env_{}/Object"]
-    assert isinstance(plan, ClonePlan)
-    assert plan.dest_template == "/World/envs/env_{}/Object"
-    assert sorted(plan.prototype_paths) == [
-        "/World/template/Object/proto_asset_0",
-        "/World/template/Object/proto_asset_1",
-    ]
-    assert plan.clone_mask.shape == (2, num_clones)
+    assert plan.sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
+    assert plan.destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
+    assert plan.clone_mask.shape == (2, 4)
     assert plan.clone_mask.dtype == torch.bool
-    # Each env gets exactly one prototype (column-sum invariant)
     assert torch.all(plan.clone_mask.sum(dim=0) == 1)
-    # Sequential strategy assigns env i → prototype (i % num_protos)
-    actual_proto_idx = plan.clone_mask.to(torch.int).argmax(dim=0).cpu()
-    assert torch.equal(actual_proto_idx, torch.tensor([0, 1, 0, 1]))
-
-
-def test_clone_from_template_returns_empty_dict_when_no_prototypes(sim):
-    """clone_from_template returns an empty dict when no prototypes match the identifier."""
-    num_clones = 2
-    cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential, clone_physics=False)
-
-    sim_utils.create_prim(cfg.template_root, "Xform")
-    sim_utils.create_prim("/World/envs", "Xform")
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
-
-    stage = sim_utils.get_current_stage()
-    plans = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
-
-    assert plans == {}
+    actual_source_idx = plan.clone_mask.to(torch.int).argmax(dim=0).cpu()
+    assert torch.equal(actual_source_idx, torch.tensor([0, 1, 0, 1]))

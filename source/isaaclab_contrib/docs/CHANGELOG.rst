@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.3.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated TacSL visuotactile sensor camera configuration and examples to use
+  :class:`~isaaclab.sensors.CameraCfg` and :class:`~isaaclab.sensors.Camera`
+  instead of deprecated tiled-camera aliases.
+
+
 0.3.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 

@@ -159,22 +159,22 @@ def _maybe_uninstall_prebundled_torch(
     )
 
 
-# Pinocchio stack required by isaaclab.controllers.pink_ik. Installed via the cmeel
-# ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
+# via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
-# ``cmeel.pth`` hook.
-_PINOCCHIO_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.7.2")
+# ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
+_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.8.5")
 
 
-def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
-    """Ensure ``pinocchio`` is importable, force-installing the cmeel pin stack if not.
+def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
+    """Ensure the Pink IK dependency stack is importable, force-installing it if not.
 
     Recent Isaac Sim base images preinstall ``pin-pink`` into the kit's bundled
     ``site-packages`` without its ``pin`` (cmeel pinocchio) dependency.  Pip then
     treats the ``pin-pink`` requirement as satisfied and never resolves the
-    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This probes
-    for ``pinocchio`` at runtime and force-installs the cmeel stack when needed
-    so the pink IK controller and its tests work out of the box.
+    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This checks
+    the runtime dependencies and force-installs the cmeel stack when needed so
+    the pink IK controller and its tests work out of the box.
 
     Only runs on Linux x86_64 / aarch64 — the same platforms that have
     pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
@@ -194,7 +194,13 @@ def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_en
         return
 
     probe_result = run_command(
-        [python_exe, "-c", "import pinocchio"],
+        [
+            python_exe,
+            "-c",
+            "import inspect, pinocchio, daqp, qpsolvers; "
+            "assert 'daqp' in qpsolvers.available_solvers; "
+            "assert 'primal_start' in inspect.signature(daqp.solve).parameters",
+        ],
         env=probe_env,
         check=False,
         capture_output=True,
@@ -203,19 +209,16 @@ def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_en
     if probe_result.returncode == 0:
         return
 
-    print_info(
-        "``import pinocchio`` failed — the kit-bundled ``pin-pink`` likely shipped without its"
-        " ``pin`` dep. Force-installing the cmeel pinocchio stack."
-    )
+    print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     install_result = run_command(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINOCCHIO_STACK],
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINK_IK_STACK],
         check=False,
     )
     if install_result.returncode != 0:
         print_warning(
-            "Force-installing the cmeel pinocchio stack failed (returncode "
+            "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
             f"{install_result.returncode}). The pink IK controller and its tests will not be"
-            " usable until ``pin pin-pink==3.1.0 daqp==0.7.2`` is installed manually."
+            " usable until ``pin pin-pink==3.1.0 daqp==0.8.5`` is installed manually."
         )
 
 
@@ -735,10 +738,10 @@ def command_install(install_type: str = "all") -> None:
         # Can prevent that from happening.
         _ensure_cuda_torch()
 
-        # Ensure ``pinocchio`` is actually importable.  The kit-bundled ``pin-pink`` in recent
-        # Isaac Sim images ships without its cmeel ``pin`` dependency, so the transitive
-        # requirement from ``pip install -e source/isaaclab`` can be silently skipped.
-        _ensure_pinocchio_installed(python_exe, pip_cmd, probe_env=probe_env)
+        # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
+        # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
+        # ``pip install -e source/isaaclab`` to be silently skipped.
+        _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
 
         # Repoint prebundled packages in Isaac Sim to the environment's copies so
         # the active venv/conda versions are always loaded regardless of PYTHONPATH
