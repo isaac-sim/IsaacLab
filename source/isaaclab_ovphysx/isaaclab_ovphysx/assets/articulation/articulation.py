@@ -87,58 +87,56 @@ class Articulation(BaseArticulation):
 
     @property
     def data(self) -> ArticulationData:
-        """Data container with simulation state for this articulation."""
         return self._data
 
     @property
     def num_instances(self) -> int:
-        """Number of articulation instances (environments)."""
         return self._num_instances
-
-    @property
-    def num_bodies(self) -> int:
-        """Number of bodies (links) per articulation."""
-        return self._num_bodies
-
-    @property
-    def num_joints(self) -> int:
-        """Number of degrees of freedom per articulation."""
-        return self._num_joints
-
-    @property
-    def num_fixed_tendons(self) -> int:
-        """Number of fixed tendons per articulation."""
-        return self._num_fixed_tendons
-
-    @property
-    def num_spatial_tendons(self) -> int:
-        """Number of spatial tendons per articulation."""
-        return self._num_spatial_tendons
-
-    @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies in the articulation."""
-        return self._body_names
-
-    @property
-    def joint_names(self) -> list[str]:
-        """Ordered names of joints in the articulation."""
-        return self._joint_names
-
-    @property
-    def fixed_tendon_names(self) -> list[str]:
-        """Ordered names of fixed tendons in the articulation."""
-        return self._fixed_tendon_names
-
-    @property
-    def spatial_tendon_names(self) -> list[str]:
-        """Ordered names of spatial tendons in the articulation."""
-        return self._spatial_tendon_names
 
     @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
         return self._is_fixed_base
+
+    @property
+    def num_joints(self) -> int:
+        """Number of joints in articulation."""
+        return self._num_joints
+
+    @property
+    def num_fixed_tendons(self) -> int:
+        """Number of fixed tendons in articulation."""
+        return self._num_fixed_tendons
+
+    @property
+    def num_spatial_tendons(self) -> int:
+        """Number of spatial tendons in articulation."""
+        return self._num_spatial_tendons
+
+    @property
+    def num_bodies(self) -> int:
+        """Number of bodies in articulation."""
+        return self._num_bodies
+
+    @property
+    def joint_names(self) -> list[str]:
+        """Ordered names of joints in articulation."""
+        return self._joint_names
+
+    @property
+    def fixed_tendon_names(self) -> list[str]:
+        """Ordered names of fixed tendons in articulation."""
+        return self._fixed_tendon_names
+
+    @property
+    def spatial_tendon_names(self) -> list[str]:
+        """Ordered names of spatial tendons in articulation."""
+        return self._spatial_tendon_names
+
+    @property
+    def body_names(self) -> list[str]:
+        """Ordered names of bodies in articulation."""
+        return self._body_names
 
     @property
     def root_view(self) -> dict[int, Any]:
@@ -186,30 +184,30 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Reset the articulation.
 
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
         Args:
-            env_ids: Environment indices.  If None, then all indices are used.
-            env_mask: Environment mask.  If None, then all the instances are
-                updated.  Shape is (num_instances,).
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
+        # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
-        """Apply external wrenches, run the actuator model, and write commands to the simulation.
+        """Write external wrenches and joint commands to the simulation.
 
-        Execution order mirrors the PhysX backend:
+        If any explicit actuators are present, then the actuator models are used to compute the
+        joint commands. Otherwise, the joint commands are directly set into the simulation.
 
-        1. Compose and write external wrenches (body-frame -> world-frame via
-           :func:`_body_wrench_to_world`, then write to ``LINK_WRENCH``).
-        2. Run the actuator model (:meth:`_apply_actuator_model`) to compute
-           joint efforts from user-supplied targets.
-        3. Write the effort tensor to the ``DOF_ACTUATION_FORCE`` binding.
-        4. For implicit actuators, write position and velocity targets in a
-           single shot to ``DOF_POSITION_TARGET`` / ``DOF_VELOCITY_TARGET``.
+        .. note::
+            We write external wrench to the simulation here since this function is called before the simulation step.
+            This ensures that the external wrench is applied at every simulation step.
         """
-        # 1. External wrenches.
+        # write external wrench
         inst = self._instantaneous_wrench_composer
         perm = self._permanent_wrench_composer
         if inst.active or perm.active:
@@ -222,7 +220,8 @@ class Articulation(BaseArticulation):
                 force_b = perm.out_force_b.warp
                 torque_b = perm.out_torque_b.warp
 
-            poses = self._data.body_link_pose_w.warp  # (N, num_bodies) wp.transformf
+            # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``
+            poses = self._data.body_link_pose_w.warp
             wp.launch(
                 _body_wrench_to_world,
                 dim=(self._num_instances, self._num_bodies),
@@ -235,14 +234,12 @@ class Articulation(BaseArticulation):
                 binding.write(self._wrench_buf)
             inst.reset()
 
-        # 2. Actuator model.
+        # apply actuator models
         self._apply_actuator_model()
-
-        # 3. Write effort (applies even when no actuators: zeros are safe).
+        # write actions into simulation (zeros are safe when no actuators are active)
         if self._effort_binding is not None:
             self._effort_binding.write(self._effort_write_view)
-
-        # 4. Write position / velocity targets for implicit actuators.
+        # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
             if self._pos_target_binding is not None:
                 self._pos_target_binding.write(self._pos_target_write_view)
@@ -250,10 +247,10 @@ class Articulation(BaseArticulation):
                 self._vel_target_binding.write(self._vel_target_write_view)
 
     def update(self, dt: float) -> None:
-        """Update the simulation data.
+        """Updates the simulation data.
 
         Args:
-            dt: Time-step in seconds [s].
+            dt: The time step size in seconds.
         """
         self._data.update(dt)
 
@@ -274,7 +271,7 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return resolve_matching_names(name_keys, self._body_names, preserve_order)
+        return resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     def find_joints(
         self,
@@ -297,7 +294,8 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the joint indices and names.
         """
         if joint_subset is None:
-            joint_subset = self._joint_names
+            joint_subset = self.joint_names
+        # find joints
         return resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
@@ -322,7 +320,9 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the tendon indices and names.
         """
         if tendon_subsets is None:
-            tendon_subsets = self._fixed_tendon_names
+            # tendons follow the joint names they are attached to
+            tendon_subsets = self.fixed_tendon_names
+        # find tendons
         return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
@@ -346,7 +346,8 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the tendon indices and names.
         """
         if tendon_subsets is None:
-            tendon_subsets = self._spatial_tendon_names
+            tendon_subsets = self.spatial_tendon_names
+        # find tendons
         return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
@@ -430,13 +431,12 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_link_pose_w],
             device=self._device,
         )
-        # Invalidate dependent timestamps so the next reads re-fetch.  Mirrors
-        # PhysX (articulation.py:457-464): root link pose changes the body
-        # kinematics chain, so all body-pose buffers go stale.
+        # invalidate dependent timestamps: root link pose changes the body
+        # kinematics chain, so all body-pose buffers go stale
         self.data._root_com_pose_w.timestamp = -1.0
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
-        # Push cache to the wheel via an indexed write.
+        # push cache to the wheel via an indexed write
         binding = self._get_binding(TT.ROOT_POSE)
         binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -471,7 +471,7 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_link_pose_w],
             device=self._device,
         )
-        # See write_root_link_pose_to_sim_index for why these are invalidated.
+        # invalidate dependent timestamps (see :meth:`write_root_link_pose_to_sim_index`)
         self.data._root_com_pose_w.timestamp = -1.0
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
@@ -510,8 +510,8 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
-        # Mirrors PhysX (articulation.py:548-556): writing root COM pose updates
-        # the inferred root link pose, which in turn invalidates the body chain.
+        # writing the root CoM pose updates the inferred root link pose, which
+        # in turn invalidates the body kinematics chain
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         binding = self._get_binding(TT.ROOT_POSE)
@@ -549,7 +549,7 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
-        # See write_root_com_pose_to_sim_index for why these are invalidated.
+        # invalidate dependent timestamps (see :meth:`write_root_com_pose_to_sim_index`)
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         binding = self._get_binding(TT.ROOT_POSE)
@@ -800,8 +800,8 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # Invalidate body-state buffers so the next read re-fetches FK from the
-        # wheel using the new joint positions.  Mirrors PhysX (articulation.py:894-903).
+        # invalidate body-state buffers so the next read re-fetches FK from the
+        # wheel using the new joint positions
         self._data._body_com_vel_w.timestamp = -1.0
         self._data._body_link_vel_w.timestamp = -1.0
         self._data._body_com_pose_b.timestamp = -1.0
@@ -846,7 +846,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # See write_joint_position_to_sim_index for why these are invalidated.
+        # invalidate body-state buffers (see :meth:`write_joint_position_to_sim_index`)
         self._data._body_com_vel_w.timestamp = -1.0
         self._data._body_link_vel_w.timestamp = -1.0
         self._data._body_com_pose_b.timestamp = -1.0
@@ -2991,10 +2991,9 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Push the cached fixed-tendon properties to the simulation in a single batch.
 
-        PhysX's equivalent calls ``root_view.set_fixed_tendon_properties`` with
-        all six property buffers at once (articulation.py:3078-3086).  OVPhysX
-        does not expose a single wheel-side batch setter; instead, we write
-        each ``FIXED_TENDON_*`` binding individually from the matching
+        PhysX exposes a single ``root_view.set_fixed_tendon_properties`` that writes all
+        six tendon property buffers at once. OVPhysX has no such batch setter, so this
+        method writes each ``FIXED_TENDON_*`` binding individually from the matching
         ``self._data._fixed_tendon_*`` buffer.
 
         .. note::
@@ -3004,7 +3003,7 @@ class Articulation(BaseArticulation):
 
         Args:
             fixed_tendon_ids: Accepted for PhysX API parity; ignored.
-            env_ids: Environment indices.  If None, all environments are written.
+            env_ids: Environment indices. If None, all environments are written.
         """
         env_ids = self._resolve_env_ids(env_ids)
         for tt, buf in (
@@ -3460,55 +3459,29 @@ class Articulation(BaseArticulation):
     """
 
     def _initialize_impl(self) -> None:
-        """Initialize the articulation from the OVPhysX simulation backend.
-
-        1. Acquire the OvPhysxManager.PhysX instance and the simulation device.
-        2. Validate the USD prim tree (exactly one ArticulationRootAPI under
-           ``cfg.prim_path``; surface a clear RuntimeError otherwise).
-        3. Convert IsaacLab prim-path notation to the glob pattern ovphysx expects,
-           extending it to the articulation root prim if needed.
-        4. Eagerly create the bindings the data container needs and read counts
-           (num_instances, num_bodies, num_joints) and names from binding metadata.
-        5. Discover tendon counts and names via :meth:`_process_tendons`.
-        6. Construct the :class:`ArticulationData` container.
-        7. Allocate asset-side buffers via :meth:`_create_buffers`.
-        8. Apply initial state via :meth:`_process_cfg`.
-        9. Prime the data via ``update(0.0)``.
-        10. Mark the data as ready.
-        """
-        # Step 1: Acquire PhysX instance and device.
+        """Initialize the articulation from the OVPhysX simulation backend."""
+        # obtain global simulation view
         physx_instance = OvPhysxManager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
         self._device = OvPhysxManager.get_device()
 
+        # IsaacLab uses two conventions for env-glob prim paths:
+        #   /World/envs/env_.*/Robot       -- regex dot-star for "any env index"
+        #   /World/envs/{ENV_REGEX_NS}/... -- explicit placeholder
+        # ovphysx ``create_tensor_binding`` expects fnmatch-style globs, so both map to '*'.
         prim_path = self.cfg.prim_path
-        # Step 2: Convert IsaacLab prim-path notation to the glob patterns ovphysx expects.
-        # IsaacLab uses two conventions:
-        #   /World/envs/env_.*/Robot  -- regex dot-star for "any env index"
-        #   /World/envs/{ENV_REGEX_NS}/Robot -- explicit placeholder
-        # ovphysx create_tensor_binding() uses fnmatch-style globs, so both map to '*'.
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
-        pattern = re.sub(r"\.\*", "*", pattern)  # env_.* -> env_*
+        pattern = re.sub(r"\.\*", "*", pattern)
 
-        # Step 3: Validate the USD prim tree and extend pattern to the articulation root if needed.
-        # The pattern above points to the ArticulationCfg prim (e.g. /World/envs/env_*/Robot).
-        # However, PhysicsArticulationRootAPI may be on a CHILD prim (e.g. /Robot/torso)
-        # rather than on the prim itself.  create_tensor_binding() only matches prims that
-        # *have* PhysicsArticulationRootAPI, so we need to extend the pattern to the actual
-        # articulation root.  Mirror the PhysX backend's discovery logic: find the first
-        # matching prim in the USD stage, walk its subtree for the articulation root, and
-        # append the relative suffix to the glob pattern.
+        # ``PhysicsArticulationRootAPI`` may live on a CHILD prim rather than on
+        # the cfg prim itself. ``create_tensor_binding`` only matches prims that
+        # have the API applied, so the pattern must be extended to the actual
+        # articulation root.
         stage = PhysicsManager._sim.stage
-
         if self.cfg.articulation_root_prim_path is not None:
-            # Mirror the PhysX backend (articulation.py:3572): when the user has
-            # explicitly specified the articulation-root subpath, append it to
-            # the prim path directly and skip auto-discovery.  Validate that the
-            # resulting expression resolves to at least one prim in the USD
-            # stage; otherwise surface a RuntimeError before downstream binding
-            # creation fails opaquely.
+            # explicit subpath: skip auto-discovery but validate the prim exists
             root_relative = self.cfg.articulation_root_prim_path
             self._articulation_root_path = prim_path + root_relative
             if sim_utils.find_first_matching_prim(self._articulation_root_path, stage=stage) is None:
@@ -3544,8 +3517,6 @@ class Articulation(BaseArticulation):
             self._articulation_root_path = root_prims[0].GetPath().pathString
             root_relative = self._articulation_root_path[len(first_prim_path) :]
             if root_relative:
-                # e.g. first_prim_path=/World/envs/env_0/Robot, root_relative=/torso
-                # pattern becomes /World/envs/env_*/Robot/torso
                 pattern = pattern + root_relative
                 logger.info(
                     "OvPhysxManager: articulation root at '%s' (pattern extended to '%s')", root_relative, pattern
@@ -3553,8 +3524,8 @@ class Articulation(BaseArticulation):
 
         self._binding_pattern = pattern
 
-        # Step 4: Eagerly create every binding the data container reads at init,
-        # so failures surface here rather than as KeyError downstream.
+        # eagerly create every binding the data container reads at init, so
+        # failures surface here rather than as KeyError downstream
         eager_types = [
             TT.ROOT_POSE,
             TT.DOF_POSITION,
@@ -3583,7 +3554,7 @@ class Articulation(BaseArticulation):
                 "UsdPhysics.ArticulationRootAPI prim."
             )
 
-        # Read metadata from the first available binding.
+        # read metadata from the first available binding
         sample = next(iter(self._bindings.values()))
         self._num_instances = sample.count
         self._num_joints = sample.dof_count
@@ -3592,10 +3563,10 @@ class Articulation(BaseArticulation):
         self._joint_names = list(sample.dof_names)
         self._body_names = list(sample.body_names)
 
-        # Step 5: Discover tendon counts and names before buffer allocation.
+        # tendon counts/names must be resolved before buffer allocation
         self._process_tendons()
 
-        # Step 6: Construct the data container.
+        # construct the data container
         self._data = ArticulationData(
             self._bindings,
             self._device,
@@ -3611,18 +3582,18 @@ class Articulation(BaseArticulation):
             binding_getter=self._get_binding,
         )
 
-        # Step 7: Allocate asset-side buffers.
+        # allocate asset-side buffers
         self._create_buffers()
 
-        # Step 8: Apply initial state from config.
+        # apply initial state from config
         self._process_cfg()
 
-        # Step 8b: Build actuator instances and write drive properties to PhysX.
+        # build actuator instances and write drive properties to PhysX
         self._process_actuators_cfg()
 
-        # Step 8c: Cache effort / target bindings and write-views for write_data_to_sim().
-        # The effort view aliases applied_torque so the binding gets the actuator output
-        # without an extra copy.
+        # cache effort / target bindings and write-views for write_data_to_sim().
+        # The effort view aliases applied_torque so the binding gets the actuator
+        # output without an extra copy.
         self._effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
         if self._effort_binding is not None:
             torque = self._data._applied_torque
@@ -3651,16 +3622,14 @@ class Articulation(BaseArticulation):
             TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target
         )
 
-        # Step 9: Validate the resolved configuration (raises ValueError when
-        # default joint pos/vel falls outside the wheel-reported limits).
-        # Mirrors PhysX's ``_validate_cfg`` ordering — after actuator/tendon
-        # processing, before priming.
+        # validate the resolved configuration AFTER actuator/tendon processing
+        # so the values reflect any overrides applied by the actuator models
         self._validate_cfg()
 
-        # Step 10: Prime the data by performing the first read.
+        # prime the data by performing the first read
         self.update(0.0)
 
-        # Step 11: Mark data as ready.
+        # mark data as ready
         self._data.is_primed = True
 
     def _create_buffers(self) -> None:
