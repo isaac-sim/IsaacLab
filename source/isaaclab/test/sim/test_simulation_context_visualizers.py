@@ -825,7 +825,7 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
-    ctx._clone_plans = {}
+    ctx._clone_plan = None
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
     return ctx

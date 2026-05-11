@@ -1,6 +1,112 @@
 Changelog
 ---------
 
+5.0.0 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.cloner.ClonePlan` as the flat clone contract shared by
+  scene cloning, backend replication, and scene-data providers.
+* Added :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` for publishing the
+  scene's clone plan.
+* Added :attr:`~isaaclab.scene.InteractiveScene.clone_plan` for consumers holding
+  a scene reference.
+* Added explicit ``spawn_paths`` support to multi-asset spawners so scene
+  planning can spawn representative heterogeneous sources directly.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed scene-data providers to build visualizer backend models
+  from :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` instead of a
+  clone-time visualizer artifact. Use the published
+  :class:`~isaaclab.cloner.ClonePlan` for custom scene-data integrations.
+* **Breaking:** Changed :class:`~isaaclab.scene.InteractiveScene` to build clone
+  plans directly from asset configuration, spawn representative sources in their
+  selected environments, and replicate from those sources instead of spawning and
+  discovering prototypes under ``/World/template``.
+* **Breaking:** Replaced ``TemplateCloneCfg`` with
+  :class:`~isaaclab.cloner.CloneCfg` for clone execution settings.
+* **Breaking:** Changed :func:`~isaaclab.cloner.make_clone_plan` to return a
+  :class:`~isaaclab.cloner.ClonePlan` object directly.
+* **Breaking:** Changed clone plan publication to use
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` for the single scene
+  clone plan.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed
+  :attr:`~isaaclab.cloner.TemplateCloneCfg.visualizer_clone_fn`,
+  :func:`~isaaclab.cloner.resolve_visualizer_clone_fn`, and
+  :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`.
+  Use the :class:`~isaaclab.cloner.ClonePlan` published through
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` instead.
+* **Breaking:** Removed
+  :meth:`~isaaclab.sim.SimulationContext.get_scene_data_visualizer_prebuilt_artifact`,
+  :meth:`~isaaclab.sim.SimulationContext.set_scene_data_visualizer_prebuilt_artifact`,
+  and
+  :meth:`~isaaclab.sim.SimulationContext.clear_scene_data_visualizer_prebuilt_artifact`.
+  Use :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` /
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` instead.
+* **Breaking:** Removed :func:`~isaaclab.cloner.clone_from_template`. Use
+  :func:`~isaaclab.cloner.make_clone_plan`,
+  :func:`~isaaclab.cloner.usd_replicate`, and backend physics replication
+  functions for direct cloning workflows.
+
+
+4.8.2 (2026-05-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Pink IK setup checks to reinstall and report the required ``daqp``
+  solver when it is missing or incompatible.
+
+
+4.8.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Pink IK task-space action base link frame lookup to read direct
+  body link pose data instead of slicing packed body link state. No user
+  migration is required.
+* Added :mod:`filelock` to ``isaaclab`` install requirements.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.assets.Articulation` joint friction API docs to clarify backend-specific semantics.
+* Fixed :class:`~isaaclab.envs.mdp.actions.PinkInverseKinematicsAction`
+  base link pose reads to avoid deprecated body link state access.
+* Fixed the sensor overview documentation to include
+  :class:`~isaaclab.sensors.Pva` and
+  :class:`~isaaclab.sensors.JointWrenchSensor`.
+* Fixed the PVA sensor demo to align front-foot sensor names with their prim
+  paths.
+* Fixed Sphinx docs build failing due to ``https://nvidia.github.io/warp/objects.inv`` returning 404.
+  Pinned the ``warp`` intersphinx mapping to ``/stable/``, which is where the inventory now lives.
+* Fixed the sensor prim-deletion callback guard so the OvPhysX backend is not
+  treated as the Kit PhysX backend.
+* Relaxed the ``starlette`` pin in :mod:`isaaclab` from ``==0.49.1`` to
+  ``>=0.46.0,<0.50`` so installs of ``isaaclab[isaacsim,all]==3.0.0``
+  alongside ``isaacsim==6.0.0.0`` resolve cleanly. The transitive pin
+  from ``isaacsim-kernel`` -> ``fastapi==0.117.1`` requires
+  ``starlette<0.49.0``; the previous exact pin was mutually exclusive.
+* Fixed :mod:`isaaclab.sim.spawners.from_files` failing to import on Windows
+  due to an unconditional ``import fcntl`` (Unix-only). The distributed-rank
+  USD spawn lock now uses :class:`filelock.FileLock`, which works on both
+  Windows and POSIX.
+* Certain functions in test_math were failing non deterministically. This was caused by not setting seed values.
+
+
 4.8.0 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 
