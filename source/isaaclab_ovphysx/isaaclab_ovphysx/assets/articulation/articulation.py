@@ -3,14 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OVPhysX-backed Articulation implementation.
-
-Mirrors the post-refactor :class:`~isaaclab_ovphysx.assets.RigidObject`
-shape with the API surface coming from Newton.  Eager binding creation
-in :meth:`_initialize_impl`; dual mask+index API; pinned-host CPU
-staging via the data class's ``_binding_read`` / ``_binding_write``
-helpers (the PR #5329 pattern).
-"""
+# Flag for pyright to ignore type errors in this file.
+# pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
@@ -47,21 +41,34 @@ from .kernels import (
     write_joint_friction_data_to_buffer_mask,
 )
 
+# import logger
 logger = logging.getLogger(__name__)
 
 
 class Articulation(BaseArticulation):
-    """OVPhysX-backed Articulation asset class.
+    """An articulation asset class.
 
-    Mirrors the OVPhysX RigidObject shape with the public API surface
-    coming from Newton.  Joint, body, tendon, and root state are read
-    via :class:`ovphysx.TensorBinding` objects acquired from the
-    :class:`~isaaclab_ovphysx.physics.OvPhysxManager`.  Writes go through
-    the dual mask+index API; CPU-only bindings (mass, COM, inertia,
-    joint properties, tendon properties) route through pinned-host
-    staging buffers (PR #5329 pattern).
+    An articulation is a collection of rigid bodies connected by joints. The joints can be either
+    fixed or actuated. The joints can be of different types, such as revolute, prismatic, D-6, etc.
+    However, the articulation class has currently been tested with revolute and prismatic joints.
+    The class supports both floating-base and fixed-base articulations. The type of articulation
+    is determined based on the root joint of the articulation. If the root joint is fixed, then
+    the articulation is considered a fixed-base system. Otherwise, it is considered a floating-base
+    system. This can be checked using the :attr:`Articulation.is_fixed_base` attribute.
 
-    .. _USD ArticulationRootAPI: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
+    For an asset to be considered an articulation, the root prim of the asset must have the
+    `USD ArticulationRootAPI`_. This API is used to define the sub-tree of the articulation using
+    the reduced coordinate formulation. On playing the simulation, the physics engine parses the
+    articulation root prim and creates the corresponding articulation in the physics engine. The
+    articulation root prim can be specified using the :attr:`AssetBaseCfg.prim_path` attribute.
+
+    OVPhysX exposes per-tensor-type :class:`ovphysx.TensorBinding` objects rather than a single
+    opaque view; binding handles are created eagerly in :meth:`_initialize_impl` and reused across
+    reads and writes. CPU-only bindings (mass, CoM, inertia, joint properties, tendon properties)
+    are routed through pinned-host staging buffers managed by :class:`ArticulationData`.
+
+    .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
+
     """
 
     cfg: ArticulationCfg
@@ -77,8 +84,8 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # Bindings are created lazily (on first access) to avoid allocating
-        # handles for tensor types the user never queries.
+        # bindings are populated eagerly in ``_initialize_impl``; the dict
+        # also caches any tensor type the user explicitly queries later
         self._bindings: dict[int, Any] = {}
 
     """
