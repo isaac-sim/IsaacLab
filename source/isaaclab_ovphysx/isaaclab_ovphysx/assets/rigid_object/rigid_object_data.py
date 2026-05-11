@@ -76,7 +76,7 @@ class RigidObjectData(BaseRigidObjectData):
                 from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
         """
         super().__init__(bindings, device)
-        # Set the bindings (equivalent to the view in PhysX)
+        # Set the tensor bindings (OVPhysX exposes per-tensor-type bindings rather than a single view).
         self._bindings = bindings
         self._check_shapes = check_shapes
         # Set initial time stamp
@@ -134,7 +134,8 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
-        # Mirrors Newton's update() pattern (rigid_object_data.py line 126).
+        # Trigger an update of the body com acceleration buffer at a higher frequency
+        # since we do finite differencing.
         self.body_com_acc_w
 
     """
@@ -143,6 +144,10 @@ class RigidObjectData(BaseRigidObjectData):
 
     body_names: list[str] = None
     """Body names in the order parsed by the simulation view."""
+
+    """
+    Defaults.
+    """
 
     @property
     def default_root_pose(self) -> ProxyArray:
@@ -784,10 +789,6 @@ class RigidObjectData(BaseRigidObjectData):
         return self._body_com_quat_b_ta
 
     def _create_buffers(self) -> None:
-        """Eagerly allocate every per-instance TimestampedBuffer and the slots for
-        cached :class:`ProxyArray` wrappers. Mirrors
-        :meth:`isaaclab_physx.assets.RigidObjectData._create_buffers`.
-        """
         super()._create_buffers()
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame

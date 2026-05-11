@@ -66,9 +66,9 @@ class RigidObject(BaseRigidObject):
         # handles for tensor types the user never queries.
         self._bindings: dict[int, Any] = {}
 
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
+    """
+    Properties
+    """
 
     @property
     def data(self) -> RigidObjectData:
@@ -128,9 +128,9 @@ class RigidObject(BaseRigidObject):
         """
         return self._permanent_wrench_composer
 
-    # ------------------------------------------------------------------
-    # Operations
-    # ------------------------------------------------------------------
+    """
+    Operations.
+    """
 
     def reset(
         self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None
@@ -188,9 +188,9 @@ class RigidObject(BaseRigidObject):
         """
         self._data.update(dt)
 
-    # ------------------------------------------------------------------
-    # Operations - Finders
-    # ------------------------------------------------------------------
+    """
+    Operations - Finders.
+    """
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
@@ -207,9 +207,9 @@ class RigidObject(BaseRigidObject):
         """
         return resolve_matching_names(name_keys, self._body_names, preserve_order)
 
-    # ------------------------------------------------------------------
-    # Operations - Write to simulation
-    # ------------------------------------------------------------------
+    """
+    Operations - Write to simulation.
+    """
 
     def write_root_pose_to_sim_index(
         self,
@@ -605,9 +605,9 @@ class RigidObject(BaseRigidObject):
         binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
         binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
 
-    # ------------------------------------------------------------------
-    # Operations - Setters
-    # ------------------------------------------------------------------
+    """
+    Operations - Setters.
+    """
 
     def set_masses_index(
         self,
@@ -834,9 +834,295 @@ class RigidObject(BaseRigidObject):
             self._cpu_body_inertia.reshape((self._num_instances, 9)), mask=self._get_cpu_env_mask(env_mask_wp)
         )
 
-    # ------------------------------------------------------------------
-    # Deprecated writers
-    # ------------------------------------------------------------------
+    """
+    Internal helper.
+    """
+
+    def _initialize_impl(self) -> None:
+        # acquire ovphysx instance
+        physx_instance = OvPhysxManager.get_physx_instance()
+        if physx_instance is None:
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+        self._ovphysx = physx_instance
+        # Derive the device from PhysicsManager (which mirrors SimulationContext.cfg.device).
+        # The ovphysx PhysX object does not expose a .device property; reading it would
+        # raise AttributeError (masked by hasattr) and fall back to "cuda:0" even when the
+        # simulation is running on CPU, causing a device mismatch in binding.read().
+        self._device = OvPhysxManager.get_device()
+        # Convert IsaacLab prim-path notation to the glob patterns ovphysx expects.
+        # IsaacLab uses two conventions:
+        #   /World/envs/env_.*/object       -- regex dot-star for "any env index"
+        #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
+        # ovphysx ``create_tensor_binding`` uses fnmatch-style globs, so both map to ``*``.
+        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", self.cfg.prim_path)
+        pattern = re.sub(r"\.\*", "*", pattern)
+        self._binding_pattern = pattern
+
+        # Validate the prim tree before creating tensor bindings -- the wheel silently
+        # produces a 0-prim binding when the pattern matches nothing, which surfaces as an
+        # obscure ``TypeError`` deep in property accessors.
+        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
+        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+        if template_prim is None:
+            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+        template_prim_path = template_prim.GetPath().pathString
+
+        # find rigid root prims
+        root_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
+            traverse_instance_prims=False,
+        )
+        if len(root_prims) == 0:
+            raise RuntimeError(
+                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
+                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
+            )
+        if len(root_prims) > 1:
+            raise RuntimeError(
+                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
+                f" Found multiple '{root_prims}' under '{template_prim_path}'."
+                " Please ensure that there is only one rigid body in the prim path tree."
+            )
+        articulation_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path,
+            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+            traverse_instance_prims=False,
+        )
+        if len(articulation_prims) != 0:
+            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
+                raise RuntimeError(
+                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid"
+                    f" objects. These are located at: '{articulation_prims}' under"
+                    f" '{template_prim_path}'. Please disable the articulation root in the USD"
+                    " or from code by setting the parameter"
+                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn"
+                    " configuration."
+                )
+
+        # Eagerly create every binding the data container reads at init, so failures
+        # surface here with a helpful message rather than as a raw wheel exception
+        # (or a KeyError) at first writer call.
+        for tt in (
+            TT.RIGID_BODY_POSE,
+            TT.RIGID_BODY_VELOCITY,
+            TT.RIGID_BODY_WRENCH,
+            TT.RIGID_BODY_MASS,
+            TT.RIGID_BODY_COM_POSE,
+            TT.RIGID_BODY_INERTIA,
+        ):
+            try:
+                self._get_binding(tt)
+            except Exception as e:
+                raise RuntimeError(
+                    f"OVPhysX could not create rigid-body binding {tt!r}. "
+                    f"Check that prim_path={self._binding_pattern!r} matches "
+                    f"at least one UsdPhysics.RigidBodyAPI prim and that the "
+                    f"ovphysx wheel exposes the RIGID_BODY_* TensorType. "
+                    f"Note: pattern resolution may currently include articulation "
+                    f"links; an explicit selection policy is on the wheel-side roadmap."
+                ) from e
+
+        # read counts and body names from the root-pose binding
+        root_pose = self._bindings[TT.RIGID_BODY_POSE]
+        self._num_instances = root_pose.count
+        self._num_bodies = 1
+        try:
+            body_names_value = root_pose.body_names
+            # body_names may be an empty list for non-articulation bindings; fall back to
+            # the documented single-body default in that case.
+            self._body_names = list(body_names_value) if body_names_value else ["base_link"]
+        except (AttributeError, TypeError):
+            # ovphysx TensorBinding raises TypeError (not AttributeError) when body_names
+            # is queried on a non-articulation tensor type such as RIGID_BODY_POSE:
+            # "Articulation metadata … is not available for tensor type 'RIGID_BODY_POSE'."
+            # For a single-body rigid object the default ["base_link"] is always correct.
+            self._body_names = ["base_link"]
+
+        # container for data access
+        self._data = RigidObjectData(self._bindings, self._device, check_shapes=self._check_shapes)
+
+        # create buffers
+        self._create_buffers()
+        # process configuration
+        self._process_cfg()
+        # update the rigid body data
+        self.update(0.0)
+        # Let the rigid object data know that it is fully instantiated and ready to use.
+        self._data.is_primed = True
+
+    def _create_buffers(self) -> None:
+        """Create buffers for storing data."""
+        N = self._num_instances
+        B = 1  # rigid object always has a single body
+        device = self._device
+
+        # constants
+        self._ALL_INDICES = wp.array(np.arange(N, dtype=np.int32), device=device)
+        self._ALL_BODY_INDICES = wp.array(np.arange(B, dtype=np.int32), device=device)
+        # All-true masks for default mask paths. These let ``binding.write(..., mask=...)``
+        # cover all instances when no env_mask is supplied, without converting back to indices.
+        self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=device)
+        self._ALL_TRUE_BODY_MASK = wp.array(np.ones(B, dtype=bool), dtype=wp.bool, device=device)
+
+        # external wrench composer
+        # The kernel writes into the (N, 1, 9) view; the binding consumes the (N, 9) view --
+        # both alias the same allocation, so we cache the flat reshape once.
+        self._wrench_buf = wp.zeros((N, 1, 9), dtype=wp.float32, device=device)
+        self._wrench_buf_flat = wp.array(
+            ptr=self._wrench_buf.ptr,
+            shape=(N, 9),
+            dtype=wp.float32,
+            device=device,
+            copy=False,
+        )
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
+
+        # set information about rigid body into data
+        self._data.body_names = self._body_names
+
+        # Pre-allocated pinned CPU buffers for OVPhysX TensorBinding writes. The wheel
+        # requires CPU arrays for "model" property updates (mass / coms / inertia); pinned
+        # host memory enables DMA fast path and avoids per-call ``wp.clone`` allocation.
+        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
+        # Pinned-host mask staging for CPU-only binding writes (mass/coms/inertia).
+        self._cpu_env_mask = wp.zeros(N, dtype=wp.bool, device="cpu", pinned=True)
+
+    def _process_cfg(self) -> None:
+        """Post processing of configuration parameters."""
+        # default state
+        # -- root state
+        # note: we cast to tuple to avoid torch/numpy type mismatch.
+        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
+        default_root_vel = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
+        default_root_pose = np.tile(np.array(default_root_pose, dtype=np.float32), (self._num_instances, 1))
+        default_root_vel = np.tile(np.array(default_root_vel, dtype=np.float32), (self._num_instances, 1))
+        self._data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self._device)
+        self._data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self._device)
+
+    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+        """Resolve environment indices to a warp array.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices on ``self._device``.
+        """
+        if env_ids is None or env_ids == slice(None):
+            return self._ALL_INDICES
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self._device)
+        if isinstance(env_ids, torch.Tensor):
+            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+        if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
+            env_ids = wp.clone(env_ids, device=self._device)
+        return env_ids
+
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+        """Resolve body indices to a warp array.
+
+        Args:
+            body_ids: Body indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of body indices on ``self._device``.
+        """
+        if body_ids is None or body_ids == slice(None):
+            return self._ALL_BODY_INDICES
+        if isinstance(body_ids, list):
+            return wp.array(body_ids, dtype=wp.int32, device=self._device)
+        return body_ids
+
+    def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
+        """Resolve an environment mask to a ``wp.bool`` array.
+
+        Args:
+            env_mask: Environment mask. If None, then the pre-allocated all-true mask is used.
+
+        Returns:
+            A warp ``wp.bool`` array on ``self._device``.
+        """
+        if env_mask is None:
+            return self._ALL_TRUE_ENV_MASK
+        if isinstance(env_mask, torch.Tensor):
+            return wp.from_torch(env_mask.to(torch.bool), dtype=wp.bool)
+        if isinstance(env_mask, wp.array) and str(env_mask.device) != self._device:
+            env_mask = wp.clone(env_mask, device=self._device)
+        return env_mask
+
+    def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
+        """Resolve a body mask to a ``wp.bool`` array.
+
+        Args:
+            body_mask: Body mask. If None, then the pre-allocated all-true mask is used.
+
+        Returns:
+            A warp ``wp.bool`` array on ``self._device``.
+        """
+        if body_mask is None:
+            return self._ALL_TRUE_BODY_MASK
+        if isinstance(body_mask, torch.Tensor):
+            return wp.from_torch(body_mask.to(torch.bool), dtype=wp.bool)
+        if isinstance(body_mask, wp.array) and str(body_mask.device) != self._device:
+            body_mask = wp.clone(body_mask, device=self._device)
+        return body_mask
+
+    def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
+        """Return a pinned-host CPU copy of *env_mask* for a CPU-only binding write.
+
+        The wheel's ``binding.write(mask=...)`` requires the mask on the binding's
+        device, which is CPU for mass / coms / inertia. Reuses the pre-allocated
+        ``_cpu_env_mask`` pinned buffer.
+        """
+        wp.copy(self._cpu_env_mask, env_mask)
+        return self._cpu_env_mask
+
+    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+        """Return CPU int32 indices, using the pre-allocated pinned ``_cpu_env_ids_all``
+        fast path when *env_ids* matches ``_ALL_INDICES``.
+        """
+        if isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+        if env_ids.ptr == self._ALL_INDICES.ptr:
+            return self._cpu_env_ids_all
+        return wp.clone(env_ids, device="cpu")
+
+    def _get_binding(self, tensor_type: int):
+        """Return a cached TensorBinding, creating it on first access.
+
+        Bindings are lightweight handles (a pointer + shape metadata into PhysX's
+        shared GPU buffer). Creating one does NOT allocate new GPU memory -- the
+        underlying simulation buffers are allocated once by PhysX regardless of how
+        many bindings point into them. Still, we defer creation so that tensor types
+        the user never queries are never looked up.
+
+        Args:
+            tensor_type: The TensorType constant identifying which simulation buffer
+                to bind (e.g. :attr:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_POSE`).
+
+        Returns:
+            The cached TensorBinding for ``tensor_type``.
+        """
+        binding = self._bindings.get(tensor_type)
+        if binding is not None:
+            return binding
+        binding = self._ovphysx.create_tensor_binding(pattern=self._binding_pattern, tensor_type=tensor_type)
+        self._bindings[tensor_type] = binding
+        return binding
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Invalidates the scene elements."""
+        super()._invalidate_initialize_callback(event)
 
     def write_root_state_to_sim(
         self,
@@ -885,290 +1171,3 @@ class RigidObject(BaseRigidObject):
         )
         self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
         self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
-
-    # ------------------------------------------------------------------
-    # Internal helpers -- Resolve
-    # ------------------------------------------------------------------
-
-    def _resolve_env_ids(self, env_ids) -> wp.array:
-        """Resolve environment indices to a warp int32 array on ``self._device`` (mirrors PhysX).
-
-        Tests sometimes hand us indices on CPU even when the sim runs on GPU; we move the
-        resolved array onto ``self._device`` so kernel launches don't fail on a device
-        mismatch.
-        """
-        if env_ids is None or env_ids == slice(None):
-            return self._ALL_INDICES
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
-            env_ids = wp.clone(env_ids, device=self._device)
-        return env_ids
-
-    def _resolve_body_ids(self, body_ids) -> wp.array:
-        """Resolve body indices to a warp int32 array on ``self._device`` (mirrors PhysX)."""
-        if body_ids is None or body_ids == slice(None):
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self._device)
-        return body_ids
-
-    def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
-        """Resolve an environment mask to a ``wp.bool`` array on ``self._device``.
-
-        OVPhysX (like Newton) uses the wheel's native ``binding.write(mask=...)`` path,
-        so the mask is preserved end-to-end -- no ``torch.nonzero`` conversion needed.
-        ``None`` returns the pre-allocated all-true mask.
-        """
-        if env_mask is None:
-            return self._ALL_TRUE_ENV_MASK
-        if isinstance(env_mask, torch.Tensor):
-            return wp.from_torch(env_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(env_mask, wp.array) and str(env_mask.device) != self._device:
-            env_mask = wp.clone(env_mask, device=self._device)
-        return env_mask
-
-    def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
-        """Resolve a body mask to a ``wp.bool`` array on ``self._device`` (Newton-style)."""
-        if body_mask is None:
-            return self._ALL_TRUE_BODY_MASK
-        if isinstance(body_mask, torch.Tensor):
-            return wp.from_torch(body_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(body_mask, wp.array) and str(body_mask.device) != self._device:
-            body_mask = wp.clone(body_mask, device=self._device)
-        return body_mask
-
-    def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
-        """Return a pinned-host CPU copy of *env_mask* for a CPU-only binding write.
-
-        ``env_mask`` is normally on ``self._device``; the wheel's ``binding.write(mask=...)``
-        requires the mask on the binding's device, which is CPU for mass / coms / inertia.
-        Reuses the pre-allocated ``_cpu_env_mask`` pinned buffer.
-        """
-        wp.copy(self._cpu_env_mask, env_mask)
-        return self._cpu_env_mask
-
-    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Return CPU int32 indices, using the pre-allocated pinned ``_cpu_env_ids_all``
-        fast path when *env_ids* matches ``_ALL_INDICES`` (PR #5329 pattern).
-        """
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
-        if env_ids.ptr == self._ALL_INDICES.ptr:
-            return self._cpu_env_ids_all
-        return wp.clone(env_ids, device="cpu")
-
-    # ------------------------------------------------------------------
-    # Internal helpers -- Lifecycle
-    # ------------------------------------------------------------------
-
-    def _initialize_impl(self) -> None:
-        """Initialize the rigid object from the OVPhysX simulation backend.
-
-        Creates tensor bindings for the rigid-body state tensors, reads counts
-        and body names, creates the :class:`RigidObjectData` container, and
-        primes the data buffers.
-        """
-        # Step 1-3: Acquire PhysX instance and build binding pattern.
-        physx_instance = OvPhysxManager.get_physx_instance()
-        if physx_instance is None:
-            raise RuntimeError("OvPhysxManager has not been initialized yet.")
-        self._ovphysx = physx_instance
-        # Derive the device from PhysicsManager (which mirrors SimulationContext.cfg.device).
-        # The ovphysx PhysX object does not expose a .device property; reading it would
-        # raise AttributeError (masked by hasattr) and fall back to "cuda:0" even when the
-        # simulation is running on CPU, causing a device mismatch in binding.read().
-        self._device = OvPhysxManager.get_device()
-        # Convert IsaacLab prim-path notation to the glob patterns ovphysx
-        # expects.  IsaacLab uses two conventions:
-        #   /World/envs/env_.*/object       -- regex dot-star for "any env index"
-        #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
-        # ovphysx ``create_tensor_binding`` uses fnmatch-style globs, so both
-        # map to ``*``.  Mirrors the Articulation backend's resolution
-        # (articulation.py:562-563).
-        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", self.cfg.prim_path)
-        pattern = re.sub(r"\.\*", "*", pattern)
-        self._binding_pattern = pattern
-
-        # Validate the prim tree before creating tensor bindings -- the wheel
-        # silently produces a 0-prim binding when the pattern matches nothing,
-        # which surfaces as an obscure ``TypeError`` deep in property accessors.
-        # Mirror PhysX's prim-scan validation so failures surface here with a
-        # clear message.
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-            traverse_instance_prims=False,
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one rigid body in the prim path tree."
-            )
-        articulation_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-            traverse_instance_prims=False,
-        )
-        if len(articulation_prims) != 0:
-            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                raise RuntimeError(
-                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid"
-                    f" objects. These are located at: '{articulation_prims}' under"
-                    f" '{template_prim_path}'. Please disable the articulation root in the USD"
-                    " or from code by setting the parameter"
-                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn"
-                    " configuration."
-                )
-
-        # Step 4: Eagerly create every binding the data container reads at init,
-        # so failures surface here with a helpful message rather than as a raw
-        # wheel exception (or a KeyError) at first writer call.
-        for tt in (
-            TT.RIGID_BODY_POSE,
-            TT.RIGID_BODY_VELOCITY,
-            TT.RIGID_BODY_WRENCH,
-            TT.RIGID_BODY_MASS,
-            TT.RIGID_BODY_COM_POSE,
-            TT.RIGID_BODY_INERTIA,
-        ):
-            try:
-                self._get_binding(tt)
-            except Exception as e:
-                raise RuntimeError(
-                    f"OVPhysX could not create rigid-body binding {tt!r}. "
-                    f"Check that prim_path={self._binding_pattern!r} matches "
-                    f"at least one UsdPhysics.RigidBodyAPI prim and that the "
-                    f"ovphysx wheel exposes the RIGID_BODY_* TensorType. "
-                    f"Note: pattern resolution may currently include articulation "
-                    f"links; an explicit selection policy is on the wheel-side roadmap."
-                ) from e
-
-        # Step 5: Read counts and body names from the root-pose binding.
-        root_pose = self._bindings[TT.RIGID_BODY_POSE]
-        self._num_instances = root_pose.count
-        self._num_bodies = 1
-        try:
-            body_names_value = root_pose.body_names
-            # body_names may be an empty list for non-articulation bindings; fall
-            # back to the documented single-body default in that case.
-            self._body_names = list(body_names_value) if body_names_value else ["base_link"]
-        except (AttributeError, TypeError):
-            # ovphysx TensorBinding raises TypeError (not AttributeError) when
-            # body_names is queried on a non-articulation tensor type such as
-            # RIGID_BODY_POSE: "Articulation metadata … is not available for
-            # tensor type 'RIGID_BODY_POSE'."  For a single-body rigid object
-            # the default ["base_link"] is always correct.
-            self._body_names = ["base_link"]
-
-        # Step 6: Create the data container (mirrors PhysX: takes bindings + device).
-        self._data = RigidObjectData(self._bindings, self._device, check_shapes=self._check_shapes)
-
-        # Allocate asset-side buffers and apply the initial state from the configuration.
-        self._create_buffers()
-        self._process_cfg()
-
-        # Step 9: Prime the data by performing the first read.
-        self.update(0.0)
-
-        # Step 10: Mark data as ready.
-        self._data.is_primed = True
-
-    def _create_buffers(self) -> None:
-        """Create buffers for storing data (mirrors PhysX)."""
-        N = self._num_instances
-        B = 1  # rigid object always has a single body
-        device = self._device
-
-        # constants
-        self._ALL_INDICES = wp.array(np.arange(N, dtype=np.int32), device=device)
-        self._ALL_BODY_INDICES = wp.array(np.arange(B, dtype=np.int32), device=device)
-        # All-true masks for default mask paths (mirrors Newton). These let
-        # ``binding.write(..., mask=...)`` cover all instances when no env_mask is supplied,
-        # without converting back to indices.
-        self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=device)
-        self._ALL_TRUE_BODY_MASK = wp.array(np.ones(B, dtype=bool), dtype=wp.bool, device=device)
-
-        # external wrench composer
-        # The kernel writes into the (N, 1, 9) view; the binding consumes the (N, 9)
-        # view -- both alias the same allocation, so we cache the flat reshape once.
-        self._wrench_buf = wp.zeros((N, 1, 9), dtype=wp.float32, device=device)
-        self._wrench_buf_flat = wp.array(
-            ptr=self._wrench_buf.ptr,
-            shape=(N, 9),
-            dtype=wp.float32,
-            device=device,
-            copy=False,
-        )
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
-
-        # Set information about rigid body into data (mirrors PhysX).
-        self._data.body_names = self._body_names
-
-        # Pre-allocated pinned CPU buffers for OVPhysX TensorBinding writes (PR #5329 pattern).
-        # The wheel requires CPU arrays for "model" property updates (mass / coms / inertia);
-        # pinned host memory enables DMA fast path and avoids per-call ``wp.clone`` allocation.
-        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
-        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
-        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
-        # Pinned-host mask staging for CPU-only binding writes (mass/coms/inertia).
-        self._cpu_env_mask = wp.zeros(N, dtype=wp.bool, device="cpu", pinned=True)
-
-    def _process_cfg(self) -> None:
-        """Post-processing of configuration parameters (mirrors PhysX)."""
-        # default state
-        # -- root state
-        # note: we cast to tuple to avoid torch/numpy type mismatch.
-        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
-        default_root_vel = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
-        default_root_pose = np.tile(np.array(default_root_pose, dtype=np.float32), (self._num_instances, 1))
-        default_root_vel = np.tile(np.array(default_root_vel, dtype=np.float32), (self._num_instances, 1))
-        self._data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self._device)
-        self._data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self._device)
-
-    def _get_binding(self, tensor_type: int):
-        """Return a cached TensorBinding, creating it on first access.
-
-        Bindings are lightweight handles (a pointer + shape metadata into
-        PhysX's shared GPU buffer).  Creating one does NOT allocate new GPU
-        memory -- the underlying simulation buffers are allocated once by PhysX
-        regardless of how many bindings point into them.  Still, we defer
-        creation so that tensor types the user never queries are never looked up.
-
-        Args:
-            tensor_type: The TensorType constant identifying which simulation
-                buffer to bind (e.g. :attr:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_POSE`).
-
-        Returns:
-            The cached TensorBinding for ``tensor_type``.
-
-        Raises:
-            Whatever the wheel raises if ``create_tensor_binding`` fails.
-            :meth:`_initialize_impl` eagerly creates every binding the writers
-            consume, so post-init calls hit the cache and cannot fail.
-        """
-        binding = self._bindings.get(tensor_type)
-        if binding is not None:
-            return binding
-        binding = self._ovphysx.create_tensor_binding(pattern=self._binding_pattern, tensor_type=tensor_type)
-        self._bindings[tensor_type] = binding
-        return binding
-
-    def _invalidate_initialize_callback(self, event) -> None:
-        """Invalidates the scene elements."""
-        super()._invalidate_initialize_callback(event)
