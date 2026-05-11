@@ -68,10 +68,6 @@ class UrdfConverter(AssetConverterBase):
 
         super().__init__(cfg=cfg)
 
-    """
-    Implementation specific methods.
-    """
-
     def _convert_asset(self, cfg: UrdfConverterCfg):
         """Run the Isaac Sim URDF importer pipeline.
 
@@ -114,10 +110,6 @@ class UrdfConverter(AssetConverterBase):
         )
 
         URDFImporter(import_config).import_urdf()
-
-    """
-    Helper methods.
-    """
 
     @staticmethod
     def _warn_unsupported_features(cfg: UrdfConverterCfg):

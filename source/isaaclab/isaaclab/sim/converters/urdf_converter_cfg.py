@@ -182,18 +182,29 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     robot_type: str = "Default"
     """Robot type applied by the USD robot schema. Defaults to ``"Default"``.
 
+    Supported types are: ``Default``, ``End Effector``, ``Manipulator``, ``Humanoid``, ``Wheeled``,
+    ``Holonomic``, ``Quadruped``, ``Mobile Manipulators``, ``Aerial``.
     Forwarded to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
     """
 
     run_asset_transformer: bool = True
-    """Whether to run the asset transformer profile after conversion. Defaults to True.
+    """Run the asset transformation profile to convert the flattened USD into a layered USD asset. Defaults to True.
 
-    When enabled, the importer restructures the intermediate USD into a layered,
-    payload-based package. Disable for a single flat USD output.
+    After running this profile, the USD asset will be a layered USD asset with the following structure:
+    - robot_name.usda (interface usd)
+    - payloads/base.usda (base usd with links, meshes, and materials)
+    - payloads/instances.usda (usd with visual and collision geometry)
+    - payloads/geometry.usd (binary usd with meshes)
+    - payloads/materials.usda (materials)
+    - payloads/Physics/physics.usda (neutral physics format)
+    - payloads/Physics/physX.usda (PhysX attributes)
+    - payloads/Physics/mujoco.usda (MuJoCo attributes)
     """
 
     run_multi_physics_conversion: bool = True
-    """Whether to run the URDF-to-PhysX joint attribute conversion pass. Defaults to True."""
+    """Enable to generate compatible MuJoCo attributes from the URDF joint attributes alongside PhysX.
+    Defaults to True.
+    """
 
     debug_mode: bool = False
     """Enable debug mode in the underlying URDF importer. Defaults to False.

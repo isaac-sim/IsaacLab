@@ -26,10 +26,6 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
         setting from the base class is not supported by the new MJCF importer and is ignored.
     """
 
-    # ---------------------------------------------------------------
-    # Geometry / mesh options
-    # ---------------------------------------------------------------
-
     merge_mesh: bool = False
     """Merge meshes where possible to optimize the model. Defaults to False."""
 
@@ -45,10 +41,6 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
 
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
-
-    # ---------------------------------------------------------------
-    # Physics / articulation options
-    # ---------------------------------------------------------------
 
     import_physics_scene: bool = False
     """Import the physics scene (time step per second, gravity, etc.) from the MJCF file. Defaults to False."""
@@ -71,12 +63,10 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     robot_type: str = "Default"
     """Robot type applied by the USD robot schema. Defaults to ``"Default"``.
 
+    Supported types are: ``Default``, ``End Effector``, ``Manipulator``, ``Humanoid``, ``Wheeled``,
+    ``Holonomic``, ``Quadruped``, ``Mobile Manipulators``, ``Aerial``.
     Forwarded to :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
     """
-
-    # ---------------------------------------------------------------
-    # Actuator gain overrides
-    # ---------------------------------------------------------------
 
     override_gain_type: str | None = None
     """MuJoCo actuator gain type override (e.g. ``"fixed"``). Defaults to ``None``.
@@ -93,32 +83,43 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     """
 
     override_gain_prm: list[float] | None = None
-    """MuJoCo actuator gain parameter array (10 floats) override. Defaults to ``None``.
+    """MuJoCo actuator gain parameter array override. Defaults to ``None``.
+
+    Mujoco models actuators using an affine transformation, which is a linear combination of the
+    gain parameters, control, and bias.
+
+    The affine transformation is defined as:
+    tau = gain @ control + bias
 
     ``None`` leaves the value parsed from the MJCF file unchanged. Example for position
     control: ``[kp, 0, 0, 0, 0, 0, 0, 0, 0, 0]``.
     """
 
     override_bias_prm: list[float] | None = None
-    """MuJoCo actuator bias parameter array (10 floats) override. Defaults to ``None``.
+    """MuJoCo actuator bias parameter array override. Defaults to ``None``.
 
     ``None`` leaves the value parsed from the MJCF file unchanged. Example for position
     control: ``[0, -kp, -kd, 0, 0, 0, 0, 0, 0, 0]``.
     """
 
-    # ---------------------------------------------------------------
-    # Importer pipeline options
-    # ---------------------------------------------------------------
-
     run_asset_transformer: bool = True
-    """Whether to run the asset transformer profile after conversion. Defaults to True.
+    """Run the asset transformation profile to convert the flattened USD into a layered USD asset. Defaults to True.
 
-    When enabled, the importer restructures the intermediate USD into a layered,
-    payload-based package. Disable for a single flat USD output.
+    After running this profile, the USD asset will be a layered USD asset with the following structure:
+    - robot_name.usda (interface usd)
+    - payloads/base.usda (base usd with links, meshes, and materials)
+    - payloads/instances.usda (usd with visual and collision geometry)
+    - payloads/geometry.usd (binary usd with meshes)
+    - payloads/materials.usda (materials)
+    - payloads/Physics/physics.usda (neutral physics format)
+    - payloads/Physics/physX.usda (PhysX attributes)
+    - payloads/Physics/mujoco.usda (MuJoCo attributes)
+
+
     """
 
     run_multi_physics_conversion: bool = True
-    """Whether to run the MJCF-to-PhysX physics conversion pass. Defaults to True."""
+    """Enable to convert compatible MuJoCo attributes to PhysX attributes, such as actuator gains. Defaults to True."""
 
     debug_mode: bool = False
     """Enable debug mode in the underlying MJCF importer. Defaults to False.

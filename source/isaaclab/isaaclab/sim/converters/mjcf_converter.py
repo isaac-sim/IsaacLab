@@ -54,10 +54,6 @@ class MjcfConverter(AssetConverterBase):
         cfg.usd_file_name = os.path.join(file_basename, f"{file_basename}.usda")
         super().__init__(cfg=cfg)
 
-    """
-    Implementation specific methods.
-    """
-
     def _convert_asset(self, cfg: MjcfConverterCfg):
         """Run the Isaac Sim MJCF importer pipeline.
 
