@@ -17,8 +17,10 @@ Design:
 * Read/write happens via ``wp.indexedfabricarray``, so the view-to-fabric mapping is
   baked into the array itself and the kernels just dereference ``ifa[view_index]``.
 * World ↔ local consistency is maintained:
-    - After ``set_local_poses``: stage is marked dirty; the next world read calls
-      ``IFabricHierarchy.update_world_xforms()`` to propagate local → world.
+    - After ``set_local_poses``: the view is marked dirty; the next world read
+      fires a Warp kernel that recomputes ``child_world = parent_world *
+      child_local`` for this view's children.  Tracking is per-view so that
+      multiple views on the same stage don't clear each other's dirty flag.
     - After ``set_world_poses``: a Warp kernel recomputes child localMatrix from
       parent worldMatrix on the fly using a parent indexed fabric array, so the
       next ``get_local_poses`` returns consistent values.
@@ -92,12 +94,12 @@ class FabricFrameView(BaseFrameView):
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
 
     # Stage-level shared state.  Multiple FabricFrameView instances on the same stage
-    # share one IFabricHierarchy handle; the dirty-stages set tracks which stages
-    # need ``update_world_xforms()`` before a world read.  ``ClassVar`` plus the
-    # ``_static_`` prefix make it explicit (and enforceable by type checkers) that
-    # these are class-level — never shadow them with ``self.<name> = ...``.
+    # share one IFabricHierarchy handle.  ``ClassVar`` plus the ``_static_`` prefix
+    # make it explicit (and enforceable by type checkers) that this is class-level —
+    # never shadow it with ``self.<name> = ...``.  The cache is not protected by a
+    # lock; Isaac Lab's simulation loop is single-threaded, and adding locking would
+    # negate the per-stage hit-cache cost it exists to avoid.
     _static_hierarchy_cache: ClassVar[dict[int, object]] = {}
-    _static_dirty_stages: ClassVar[set[int]] = set()
 
     def __init__(
         self,
@@ -139,6 +141,10 @@ class FabricFrameView(BaseFrameView):
         self._stage_id: int | None = None
         self._stage = None
         self._fabric_hierarchy = None
+        # Set by ``set_local_poses``; cleared by ``_sync_world_from_local_if_dirty``.
+        # Per-view (not per-stage) so concurrent views on the same stage don't clear
+        # each other's flag.
+        self._world_dirty: bool = False
 
         # Selections.
         self._trans_sel_ro = None
@@ -313,8 +319,8 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
-        # Mark the stage dirty so the next world read calls update_world_xforms().
-        FabricFrameView._static_dirty_stages.add(self._stage_id)
+        # Mark this view's worlds stale so the next world read recomputes them.
+        self._world_dirty = True
 
     def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
@@ -443,7 +449,7 @@ class FabricFrameView(BaseFrameView):
         does ``child_world = parent_world * child_local`` per child, leaving the
         Fabric-side localMatrix untouched.
         """
-        if self._stage_id is None or self._stage_id not in FabricFrameView._static_dirty_stages:
+        if not self._world_dirty:
             return
         # Make sure the parent indexed array is up-to-date with the current trans selection.
         if self._parent_world_ifa_ro is None:
@@ -460,7 +466,7 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
         wp.synchronize()
-        FabricFrameView._static_dirty_stages.discard(self._stage_id)
+        self._world_dirty = False
 
     def _sync_local_from_world(self, indices_wp: wp.array) -> None:
         """Recompute child ``localMatrix`` from (parent worldMatrix, child worldMatrix).
@@ -558,6 +564,12 @@ class FabricFrameView(BaseFrameView):
         indices: list[int] = []
         for prim_path in self.prim_paths:
             parent_path = prim_path.rsplit("/", 1)[0]
+            if parent_path == "":
+                raise RuntimeError(
+                    f"Child prim '{prim_path}' is at stage root and has no parent prim. "
+                    "FabricFrameView requires every prim to have a non-pseudoroot parent "
+                    "with Fabric world+local matrices."
+                )
             fabric_idx = path_to_fabric_idx.get(parent_path)
             if fabric_idx is None:
                 raise RuntimeError(
