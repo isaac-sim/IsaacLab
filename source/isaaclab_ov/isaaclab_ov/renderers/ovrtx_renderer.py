@@ -159,6 +159,17 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
 
+        logger.info("Creating OVRTX renderer...")
+        OVRTX_CONFIG = RendererConfig(
+            log_file_path=self.cfg.log_file_path,
+            log_level=self.cfg.log_level,
+            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
+            keep_system_alive=True,
+        )
+        self._renderer = Renderer(OVRTX_CONFIG)
+        assert self._renderer, "Renderer should be valid after creation"
+        logger.info("OVRTX renderer created successfully")
+
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
 
@@ -197,17 +208,6 @@ class OVRTXRenderer(BaseRenderer):
 
         usd_scene_path = self._exported_usd_path
         use_cloning = self.cfg.use_cloning
-
-        logger.info("Creating OVRTX renderer...")
-        OVRTX_CONFIG = RendererConfig(
-            log_file_path=self.cfg.log_file_path,
-            log_level=self.cfg.log_level,
-            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
-            keep_system_alive=True,
-        )
-        self._renderer = Renderer(OVRTX_CONFIG)
-        assert self._renderer, "Renderer should be valid after creation"
-        logger.info("OVRTX renderer created successfully")
 
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
