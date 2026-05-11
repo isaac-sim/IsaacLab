@@ -148,17 +148,17 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``segmentation``,            |
     |                         |                              |                                                                             | ``simple_shading_*``         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |                              |
+    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          | ``physx``                    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |                              |
+    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          | ``physx``                    |
     |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | ``physx``                    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | ``physx``                    |
     |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | ``physx``                    |
     |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |                              |
     |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |                              |
     |                         |                              | controlled via Inverse Kinematics).                                         |                              |
@@ -189,7 +189,7 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``simple_shading_*``         |
     |                         |                              |                                                                             | ``{64,128,256}``             |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |                              |
+    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    | ``physx``                    |
     |                         |                              | a Galbot humanoid robot                                                     |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            |                              |
@@ -531,14 +531,20 @@ Multirotor
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
+.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/develop/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+
+.. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
+
 .. table::
     :widths: 25 30 25 20
 
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+------------------------------+
-    | World                                  | Environment ID                              | Description                                                                            | Presets                      |
-    +========================================+=============================================+========================================================================================+==============================+
-    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                              |
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+------------------------------+
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
+    | World                                  | Environment ID                              | Description                                                                            | Presets               |
+    +========================================+=============================================+========================================================================================+=======================+
+    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                       |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
+    | |arl_robot_navigation|                 | |arl_robot_navigation-link|                 | Navigate through 3D obstacles with the ARL robot using depth camera sensing.           |                       |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
 
 
 Others
@@ -1013,6 +1019,16 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - ``newton_mjwarp``, ``physx``
+    * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
+      - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - ``physx``
+    * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
+      - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - ``physx``
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based
@@ -1108,6 +1124,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       -
+    * - Isaac-Stack-Cube-Franka-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
     * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
 
         Camera variants (requires ``--enable_cameras``):
@@ -1156,7 +1177,37 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+      - ``physx``
+    * - Isaac-PickPlace-GR1T2-Abs-v0
       -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-NutPour-GR1T2-Pink-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-PickPlace-Locomanipulation-G1-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
     * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
       -
       - Manager Based
@@ -1171,42 +1222,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-      -
+      - ``physx``
     * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
       -
       - Manager Based
       -
-      -
+      - ``physx``
     * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
       - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
       - Manager Based
       -
-      -
-    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
-      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
-      - Manager Based
-      -
-      -
+      - ``physx``
     * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
       -
       - Manager Based

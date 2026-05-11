@@ -42,8 +42,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     - body poses via PhysX tensor views, with FrameView fallback
     - camera poses & intrinsics
     - USD stage handles
-    - Newton model/state (built locally from the scene's per-group :class:`ClonePlan` map
-      when required)
+    - Newton model/state (built locally from the scene's :class:`ClonePlan` when required)
     """
 
     # ---- Environment discovery / metadata -------------------------------------------------
@@ -129,7 +128,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._last_newton_model_build_elapsed_ms: float | None = None
 
         if self._needs_newton_sync:
-            self._build_newton_model_from_clone_plans()
+            self._build_newton_model_from_clone_plan()
             self._setup_rigid_body_view()
 
     # ---- Newton model + PhysX view setup --------------------------------------------------
@@ -150,53 +149,55 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         needs_rebuild = self._newton_model is None or self._newton_state is None
         needs_rebuild = needs_rebuild or (self._num_envs_at_last_newton_build != num_envs)
         if needs_rebuild:
-            self._build_newton_model_from_clone_plans()
+            self._build_newton_model_from_clone_plan()
             self._setup_rigid_body_view()
 
-    def _build_newton_model_from_clone_plans(self) -> None:
-        """Build Newton model and state from the scene's per-group :class:`ClonePlan` map.
+    def _build_newton_model_from_clone_plan(self) -> None:
+        """Build Newton model and state from the scene's :class:`ClonePlan`.
 
-        Reads plans :meth:`InteractiveScene.clone_environments` publishes on
-        :class:`SimulationContext`, derives the flat ``(sources, destinations, mask)`` shape
-        :func:`isaaclab_newton.cloner.newton_visualizer_prebuild` expects, and caches the
-        resulting model/state. Per-prototype source paths recover as
-        ``dest_template.format(<first env using this prototype>)``; per-env positions are
-        read off ``xformOp:translate`` on the env-level prims derived from the same template.
-        Pre-condition violations raise :class:`RuntimeError` (logged as ``"missing"``);
-        ``isaaclab_newton`` being absent (optional dep) maps to ``"missing"`` via the
-        import's own exception types; unexpected failures fall through to ``"error"``.
+        Reads the plan :meth:`InteractiveScene.clone_environments` publishes on
+        :class:`SimulationContext`, validates the flat ``(sources, destinations, mask)``
+        shape :func:`isaaclab_newton.cloner.newton_visualizer_prebuild` expects, and
+        caches the resulting model/state. Per-env positions are read off
+        ``xformOp:translate`` on the env-level prims derived from the first destination
+        template. Pre-condition violations raise :class:`RuntimeError` (logged as
+        ``"missing"``); ``isaaclab_newton`` being absent (optional dep) maps to
+        ``"missing"`` via the import's own exception types; unexpected failures fall
+        through to ``"error"``.
         """
         start_t = time.perf_counter()
         source = "missing"
         try:
-            plans = self._simulation_context.get_clone_plans()
-            if not plans:
-                raise RuntimeError("No clone plans on simulation context.")
+            plan = self._simulation_context.get_clone_plan()
+            if plan is None:
+                raise RuntimeError("No clone plan on simulation context.")
             from isaaclab_newton.cloner.newton_replicate import newton_visualizer_prebuild
 
-            # Flatten per-group plans into one (sources, destinations, mask) bundle. Source
-            # paths recover via ``dest_template.format(<first env using this prototype>)``;
-            # all-False rows are dropped (possible when ``num_prototypes > num_envs``).
-            plan_list = list(plans.values())
-            num_envs = plan_list[0].clone_mask.size(1)
-            if any(p.clone_mask.size(1) != num_envs for p in plan_list):
-                raise RuntimeError(f"Clone plans disagree on num_envs: {[p.clone_mask.size(1) for p in plan_list]}")
+            if len(plan.sources) != len(plan.destinations):
+                raise RuntimeError(
+                    f"Clone plan sources and destinations disagree: {len(plan.sources)} != {len(plan.destinations)}"
+                )
+            if plan.clone_mask.dim() != 2 or plan.clone_mask.size(0) != len(plan.sources):
+                raise RuntimeError(
+                    f"Clone plan mask shape {tuple(plan.clone_mask.shape)} does not match {len(plan.sources)} sources."
+                )
+
+            # Drop all-False rows (possible when ``num_prototypes > num_envs``).
             sources, destinations, mask_rows = [], [], []
-            for p in plan_list:
-                for i in range(p.clone_mask.size(0)):
-                    nz = p.clone_mask[i].nonzero(as_tuple=False)
-                    if nz.numel() == 0:
-                        continue
-                    sources.append(p.dest_template.format(int(nz[0].item())))
-                    destinations.append(p.dest_template)
-                    mask_rows.append(p.clone_mask[i : i + 1])
+            for i, (source_path, destination) in enumerate(zip(plan.sources, plan.destinations)):
+                if not plan.clone_mask[i].any():
+                    continue
+                sources.append(source_path)
+                destinations.append(destination)
+                mask_rows.append(plan.clone_mask[i : i + 1])
             if not sources:
-                raise RuntimeError("All clone-plan prototype rows are empty.")
+                raise RuntimeError("All clone-plan source rows are empty.")
             mask = torch.cat(mask_rows, dim=0)
+            num_envs = plan.clone_mask.size(1)
 
             # Env-level path template = dest_template up to the first ``{}``. Per-env world
             # positions: xformOp:translate read off each env prim; missing prims fall through.
-            env_path_template = plan_list[0].dest_template.split("{}")[0] + "{}"
+            env_path_template = destinations[0].split("{}")[0] + "{}"
             positions = torch.zeros((num_envs, 3), dtype=torch.float32, device=self._device)
             for i in range(num_envs):
                 prim = self._stage.GetPrimAtPath(env_path_template.format(i))
@@ -239,7 +240,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._clear_newton_model_state()
         except Exception as exc:
             source = "error"
-            logger.error("[PhysxSceneDataProvider] Failed to build Newton model from clone plans: %s", exc)
+            logger.error("[PhysxSceneDataProvider] Failed to build Newton model from clone plan: %s", exc)
             self._clear_newton_model_state()
         finally:
             self._last_newton_model_build_elapsed_ms = (time.perf_counter() - start_t) * 1000.0

@@ -6,11 +6,15 @@
 __all__ = [
     "spawn_deformable_body_material",
     "DeformableBodyMaterialCfg",
+    "PhysxRigidBodyMaterialCfg",
+    "RigidBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialCfg",
 ]
 
 from .physics_materials import spawn_deformable_body_material
 from .physics_materials_cfg import (
     DeformableBodyMaterialCfg,
+    PhysxRigidBodyMaterialCfg,
+    RigidBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
 )

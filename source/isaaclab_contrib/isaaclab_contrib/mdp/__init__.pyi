@@ -5,7 +5,9 @@
 
 __all__ = [
     "ThrustAction",
+    "NavigationAction",
     "ThrustActionCfg",
+    "NavigationActionCfg",
 ]
 
-from .actions import ThrustAction, ThrustActionCfg
+from .actions import NavigationAction, NavigationActionCfg, ThrustAction, ThrustActionCfg
