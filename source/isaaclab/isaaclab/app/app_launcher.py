@@ -1035,8 +1035,8 @@ class AppLauncher:
             # xr rendering overrides camera rendering settings
             if deterministic_mode and (not self._enable_cameras or not self._headless or self._livestream or self._xr):
                 logger.warning(
-                    "--deterministic has no effect when not in headless mode or "
-                    "when cameras are disabled or  when livestreaming or XR is enabled."
+                    "--deterministic has no effect when not in headless mode, "
+                    "when cameras are disabled, or when livestreaming/XR is enabled. "
                     "Use --enable_cameras --headless --deterministic for deterministic rendering."
                 )
             if deterministic_mode and self._enable_cameras and self._headless and not self._livestream and not self._xr:
