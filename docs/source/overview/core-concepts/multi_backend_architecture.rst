@@ -56,7 +56,7 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`
      - :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`
    * - Cloner
-     - :func:`~isaaclab.cloner.clone_from_template`
+     - :func:`~isaaclab.cloner.usd_replicate`
      - :func:`~isaaclab_physx.cloner.physx_replicate`
      - :func:`~isaaclab_newton.cloner.newton_physics_replicate`
 

@@ -291,8 +291,8 @@ class Camera(SensorBase):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
         # convert torch tensors to warp arrays for the view
-        pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
-        ori_wp = wp.from_torch(orientations.contiguous()) if orientations is not None else None
+        pos_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3f) if positions is not None else None
+        ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f) if orientations is not None else None
         if env_ids is not None:
             if not isinstance(env_ids, torch.Tensor):
                 env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
@@ -325,7 +325,11 @@ class Camera(SensorBase):
         if not isinstance(env_ids, torch.Tensor):
             env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
         idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
-        self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), idx_wp)
+        self._view.set_world_poses(
+            wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
+            wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
+            idx_wp,
+        )
 
     """
     Operations

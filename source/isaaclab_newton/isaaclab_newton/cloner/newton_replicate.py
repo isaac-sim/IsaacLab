@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
@@ -17,7 +19,7 @@ from isaaclab_newton.physics import NewtonManager
 
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
-    sources: list[str],
+    sources: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -53,7 +55,7 @@ def _build_newton_builder_from_mapping(
     builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
-        ignore_paths=["/World/envs"] + sources,
+        ignore_paths=["/World/envs", *sources],
         schema_resolvers=schema_resolvers,
     )
 
@@ -117,7 +119,11 @@ def _build_newton_builder_from_mapping(
 
 
 def _rename_builder_labels(
-    builder: ModelBuilder, sources: list[str], destinations: list[str], env_ids: torch.Tensor, mapping: torch.Tensor
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    destinations: Sequence[str],
+    env_ids: torch.Tensor,
+    mapping: torch.Tensor,
 ) -> None:
     """Rename builder labels/keys from source roots to destination roots.
 
@@ -149,8 +155,8 @@ def _rename_builder_labels(
 
 def newton_physics_replicate(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -195,8 +201,8 @@ def newton_physics_replicate(
 
 def newton_visualizer_prebuild(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
