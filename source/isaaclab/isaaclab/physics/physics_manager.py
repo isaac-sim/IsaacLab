@@ -157,11 +157,23 @@ class PhysicsManager(ABC):
 
     @classmethod
     def clear_callbacks(cls) -> None:
-        """Remove all registered callbacks."""
+        """Remove all registered callbacks.
+
+        Do NOT reset ``_callback_id`` — handle IDs must remain monotonically
+        unique across the lifetime of the process.  Resetting the counter
+        would let a future :meth:`register_callback` hand out an ID that an
+        old, still-alive :class:`CallbackHandle` (e.g. on a sensor that has
+        not been garbage-collected yet) holds, so when the old object
+        eventually finalizes its ``__del__`` would deregister the new
+        callback.  This bit ovphysx's kitless multi-context tests where two
+        ``InteractiveScene``s are created in sequence: the first scene's
+        sensor would post-GC deregister the second scene's
+        ``_initialize_callback`` by ID collision, leaving the second sensor
+        forever uninitialized.
+        """
         for cid in list(cls._callbacks.keys()):
             cls.deregister_callback(cid)
         cls._callbacks.clear()
-        cls._callback_id = 0
 
     @classmethod
     def _wrap_weak_ref(cls, callback: Callable) -> Callable:

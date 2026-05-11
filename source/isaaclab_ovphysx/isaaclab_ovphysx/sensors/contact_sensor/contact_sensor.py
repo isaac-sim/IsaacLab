@@ -229,13 +229,20 @@ class ContactSensor(BaseContactSensor):
             )
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.
-        # ovphysx uses fnmatch and does not brace-expand, so we widen to a single
-        # "*" leaf pattern under the base glob. This relies on the prim_path
-        # already isolating the sensor bodies (e.g. ".*_FOOT" matches all four
-        # feet and no siblings). The post-bind count check below catches a
-        # mismatch.
+        # ovphysx fnmatch does not brace-expand, so we cannot match multiple
+        # body names with a single glob.  Single-body sensors (the common case
+        # — one prim path per sensor) use a tight per-body pattern.  Multi-body
+        # sensors are rejected here; they need per-body bindings + an
+        # interleaved-read kernel that does not exist yet.
         if self.cfg.track_pose:
-            single_pose_pattern = f"{base_glob}/*"
+            if self._num_sensors != 1:
+                raise NotImplementedError(
+                    "ovphysx ContactSensor.track_pose is not yet supported for sensors that "
+                    f"resolve to more than one body per env (got {self._num_sensors} bodies "
+                    f"under '{self.cfg.prim_path}').  Workaround: create one ContactSensor "
+                    "per body."
+                )
+            single_pose_pattern = f"{base_glob}/{body_names[0]}"
             self._pose_binding = physx_instance.create_tensor_binding(
                 pattern=single_pose_pattern,
                 tensor_type=TT.RIGID_BODY_POSE,
