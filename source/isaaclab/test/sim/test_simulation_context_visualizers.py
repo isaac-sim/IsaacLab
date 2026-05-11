@@ -261,6 +261,10 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
             state_calls.append(None)
             return {"state_call": len(state_calls)}
 
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
     import isaaclab_newton.physics as _np_mod
 
     monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
@@ -625,6 +629,10 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         @staticmethod
         def get_state():
             return {"ok": True}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
 
     import isaaclab_newton.physics as _np_mod
 

@@ -161,8 +161,6 @@ class NewtonWarpRenderer(BaseRenderer):
                 "Check the log for earlier Newton model build errors."
             )
 
-        self._newton_state: newton.State = NewtonManager.get_state()
-
         self.newton_sensor = newton.sensors.SensorTiledCamera(
             self._newton_model,
             config=newton.sensors.SensorTiledCamera.RenderConfig(
@@ -233,7 +231,8 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        newton_state = self._newton_state
+        newton_state: newton.State = NewtonManager.get_state()
+
         # Refit the shape BVH against the current state since env body poses move every frame.
         # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
         if self.newton_sensor.model.shape_count > 0:

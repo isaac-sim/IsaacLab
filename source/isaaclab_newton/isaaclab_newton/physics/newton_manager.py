@@ -1455,14 +1455,25 @@ class NewtonManager(PhysicsManager):
             return builder
 
         # Build env_0 as a prototype, then replicate across envs.
+        proto_env_path = env_paths[0][1]
         proto = ModelBuilder(up_axis=up_axis)
         proto.add_usd(
             stage,
-            root_path=env_paths[0][1],
+            root_path=proto_env_path,
             schema_resolvers=schema_resolvers,
         )
 
         xform_cache = UsdGeom.XformCache()
+
+        # ``add_builder`` copies the prototype's ``body_label`` (and sibling label arrays)
+        # verbatim into each replicated world, so all worlds end up with prim paths under
+        # the prototype env (e.g. ``/World/envs/env_0/...``). The visualization sync uses
+        # these labels to map PhysX transforms (which carry distinct per-env paths) into
+        # ``state.body_q``; without rewriting, ``paths.index()`` resolves every match to
+        # world 0 and worlds 1..N never receive fresh poses. Rewrite the newly-added
+        # labels after each ``add_builder`` so each world references its own env prim path.
+        label_attrs = ("body_label", "articulation_label", "joint_label", "shape_label")
+        label_starts = {attr: len(getattr(builder, attr)) for attr in label_attrs}
 
         for _, env_path in env_paths:
             world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
@@ -1477,6 +1488,13 @@ class NewtonManager(PhysicsManager):
             )
             builder.begin_world()
             builder.add_builder(proto, xform=wp.transform(pos, quat))
+            if env_path != proto_env_path:
+                for attr in label_attrs:
+                    labels = getattr(builder, attr)
+                    for i in range(label_starts[attr], len(labels)):
+                        labels[i] = labels[i].replace(proto_env_path, env_path, 1)
+            for attr in label_attrs:
+                label_starts[attr] = len(getattr(builder, attr))
             builder.end_world()
 
         return builder
