@@ -21,6 +21,11 @@ from isaaclab.app import AppLauncher
 # (e.g. ``-m multi_gpu``) that collide with its own short options.  Strip
 # everything but ``argv[0]`` before booting the app — the test file takes no
 # CLI arguments of its own.
+#
+# IMPORTANT: this must stay between the ``AppLauncher`` import and the
+# ``AppLauncher(...).app`` call below.  Adding any CLI parser, or moving the
+# AppLauncher import (or its instantiation) above this line, exposes Kit to
+# pytest's argv again and re-introduces the segfault.
 sys.argv = sys.argv[:1]
 
 simulation_app = AppLauncher(headless=True).app
