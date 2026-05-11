@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils import configclass
@@ -75,19 +75,17 @@ class ArticulationCfg(AssetBaseCfg):
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
 
-    def __post_init__(self) -> None:
-        """Propagate :attr:`actuators` to the spawn cfg's ``actuator_props`` field.
+    def _post_spawn(self, stage: Any) -> None:
+        """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
 
-        The spawner uses ``actuator_props`` to author ``NewtonActuator`` USD prims
-        via :func:`~isaaclab.sim.schemas.define_actuator_properties` (a no-op when
-        ``use_newton_actuators`` is disabled). Keeping the propagation here means
-        users only declare actuators once, on the asset cfg.
-
-        User-provided ``spawn.actuator_props`` is preserved and takes precedence.
+        Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims
+        exist on the stage. Delegates to
+        :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
+        on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
+        is not configured for Newton-native actuators.
         """
-        if (
-            self.spawn is not None
-            and self.actuators is not MISSING
-            and getattr(self.spawn, "actuator_props", None) is None
-        ):
-            self.spawn.actuator_props = dict(self.actuators)
+        if self.actuators is MISSING:
+            return
+        from isaaclab.sim.schemas import define_actuator_properties  # noqa: PLC0415
+
+        define_actuator_properties(self.prim_path, self.actuators, stage=stage)

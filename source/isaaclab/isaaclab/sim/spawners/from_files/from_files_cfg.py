@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
 
 # deformables only supported on PhysX backend
 from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
@@ -17,9 +16,6 @@ from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
-if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorBaseCfg
 
 
 @configclass
@@ -58,16 +54,6 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         We recommend using this attribute sparingly and only when necessary. Instead, please use the
         :attr:`~isaaclab.assets.ArticulationCfg.actuators` parameter to set the joint drive properties
         for specific joints in an articulation.
-    """
-
-    actuator_props: dict[str, ActuatorBaseCfg] | None = None
-    """Newton-native actuator configs to author as ``NewtonActuator`` USD prims.
-
-    Auto-populated from :attr:`~isaaclab.assets.ArticulationCfg.actuators` when an
-    articulation cfg owns this spawn cfg. The spawner authors NewtonActuator prims
-    via :func:`~isaaclab.sim.schemas.define_actuator_properties` after the asset is
-    spawned. The function is a no-op unless
-    :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
     """
 
     visual_material_path: str = "material"
