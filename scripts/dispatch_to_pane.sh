@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # scripts/dispatch_to_pane.sh — canonical dispatch primitive for Codex tmux panes.
 #
 # Origin: 2026-05-11 T-ROOT-COORD Track O. Promotes empirically-validated
