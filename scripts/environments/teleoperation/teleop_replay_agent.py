@@ -43,6 +43,15 @@ parser.add_argument(
     default=120.0,
     help="Seconds to wait after the environment is up before starting replay (default: 120.0).",
 )
+parser.add_argument(
+    "--num_success_steps",
+    type=int,
+    default=1,
+    help=(
+        "Number of consecutive steps the task success term must hold before declaring success and"
+        " resetting the env. Mirrors the equivalent flag in record_demos.py. (default: 10)"
+    ),
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -79,15 +88,28 @@ _LEGACY_DEVICE_NAME = "handtracking"
 _PENDING_REPLAY_TASKS: set[asyncio.Future] = set()
 
 
-def _prepare_env_cfg(task: str, num_envs: int, device: str) -> ManagerBasedRLEnvCfg:
+def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBasedRLEnvCfg, object | None]:
     """Build and tweak an env config suitable for non-interactive replay.
 
     Mirrors the env-config mutations performed by ``record_demos.py``'s
-    :func:`create_environment_config` so the replay-side environment behaves
-    identically to the recording-side one. In particular the ``success`` and
-    ``time_out`` termination terms are cleared -- if either fired mid-replay
-    it would call ``_reset_idx`` and snap the robot back to its initial
-    pose, masking any IK tracking.
+    :func:`create_environment_config`:
+
+    * The ``success`` term is extracted and cleared from the env config so the
+      script can drive success detection (and the matching reset cycle)
+      explicitly via :func:`_process_success_condition`, gated by
+      ``--num_success_steps``. This matches record_demos.py's pattern of
+      manually counting consecutive success steps before resetting.
+    * Every other termination term -- including ``time_out`` and any
+      task-specific failure terms (e.g. ``object_dropping``,
+      ``object_too_far``) -- is left active. ``env.step`` then auto-invokes
+      ``_reset_idx`` for any env whose termination fires; the main loop
+      detects this via the returned ``terminated``/``truncated`` tensors
+      and completes the reset cycle (sim reinit + teleop device reset)
+      so Pink IK starts the next attempt with fresh articulation views.
+
+    Returns:
+        Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
+        the env doesn't define a ``success`` termination term.
     """
     env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs)
     env_cfg.env_name = task.split(":")[-1]
@@ -96,12 +118,18 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> ManagerBasedRLEnv
             "teleop_replay_agent only supports ManagerBasedRLEnv environments. "
             f"Received environment config type: {type(env_cfg).__name__}"
         )
-    env_cfg.terminations.time_out = None
+    success_term: object | None = None
     if hasattr(env_cfg.terminations, "success"):
+        success_term = env_cfg.terminations.success
         env_cfg.terminations.success = None
+    else:
+        logger.warning(
+            "No success termination term was found in the environment;"
+            " success-driven resets will not fire during replay."
+        )
     env_cfg = remove_camera_configs(env_cfg)
     env_cfg.sim.render.antialiasing_mode = "DLSS"
-    return env_cfg
+    return env_cfg, success_term
 
 
 def _create_replay_teleop_device(
@@ -165,6 +193,53 @@ def _on_replay_driver_done(future: asyncio.Future) -> None:
         logger.exception("Failed to post_quit after replay driver failure")
 
 
+def _handle_reset(env: gym.Env, teleop_interface: DeviceBase) -> None:
+    """Run the full env+teleop reset cycle used by ``record_demos.py``.
+
+    Mirrors :func:`scripts.tools.record_demos.handle_reset` (sans the
+    instruction-display update, which the headless replay agent doesn't
+    own). ``env.sim.reset()`` does the hard physics reinit that keeps Pink
+    IK seeded against fresh articulation views; see the initial-reset note
+    in :func:`main`. ``env.recorder_manager.reset()`` is a no-op when no
+    recorders are configured (the default for this script), but kept for
+    parity with record_demos.py so future recorder additions don't have to
+    re-derive the call sequence.
+    """
+    print("Resetting environment...")
+    env.sim.reset()
+    env.recorder_manager.reset()
+    env.reset()
+    teleop_interface.reset()
+
+
+def _process_success_condition(
+    env: gym.Env,
+    success_term: object | None,
+    success_step_count: int,
+    num_success_steps: int,
+) -> tuple[int, bool]:
+    """Track consecutive success steps and decide whether to reset.
+
+    Mirrors :func:`scripts.tools.record_demos.process_success_condition`
+    minus the recorder-export side effects, which this script does not own.
+
+    Returns:
+        Tuple ``(updated_success_step_count, reset_due_to_success)``.
+    """
+    if success_term is None:
+        return success_step_count, False
+
+    if bool(success_term.func(env, **success_term.params)[0]):
+        success_step_count += 1
+        if success_step_count >= num_success_steps:
+            print(f"Success condition met after {success_step_count} consecutive steps; resetting env.")
+            return success_step_count, True
+    else:
+        success_step_count = 0
+
+    return success_step_count, False
+
+
 def _schedule_replay_driver(replay_file: str, start_delay_s: float) -> None:
     """Schedule the replay driver coroutine on the running asyncio loop.
 
@@ -212,7 +287,7 @@ def main() -> None:
     """
     env: gym.Env | None = None
     try:
-        env_cfg = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
+        env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
         # Single-element list so the closure can mutate it without ``nonlocal``.
@@ -250,6 +325,7 @@ def main() -> None:
         print(f"Replay agent started; replay will begin in {args_cli.replay_start_delay_s:.1f} seconds.")
         _schedule_replay_driver(args_cli.replay_file, args_cli.replay_start_delay_s)
 
+        success_step_count = 0
         while simulation_app.is_running():
             try:
                 with torch.inference_mode():
@@ -258,7 +334,31 @@ def main() -> None:
                         env.sim.render()
                         continue
                     actions = action.repeat(env.num_envs, 1)
-                    env.step(actions)
+                    _, _, terminated, truncated, _ = env.step(actions)
+
+                    # Failure path: ``env.step`` already invoked ``_reset_idx``
+                    # for any env whose ``time_out`` or task-specific failure
+                    # term fired (success was extracted up front so it does
+                    # not show up here). We still need to refresh sim physics
+                    # state and the teleop device so Pink IK starts the next
+                    # attempt with fresh articulation views.
+                    if bool(terminated.any().item()) or bool(truncated.any().item()):
+                        print("Failure condition met (terminated/timed-out); resetting env.")
+                        _handle_reset(env, teleop_interface)
+                        success_step_count = 0
+                        continue
+
+                    # Success path: success_term was cleared from the env cfg
+                    # so ``env.step`` does not auto-reset on it. Mirror
+                    # record_demos.py and trigger a reset only after the
+                    # success condition has held for ``num_success_steps``
+                    # consecutive steps.
+                    success_step_count, reset_on_success = _process_success_condition(
+                        env, success_term, success_step_count, args_cli.num_success_steps
+                    )
+                    if reset_on_success:
+                        _handle_reset(env, teleop_interface)
+                        success_step_count = 0
             except Exception:
                 # ``logger.exception`` preserves the full traceback; bare
                 # ``logger.error`` would only log the message.
