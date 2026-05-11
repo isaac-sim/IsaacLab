@@ -127,6 +127,16 @@ The choice depends on which backends you target and which fields you need.
 What parameters live where
 --------------------------
 
+.. note::
+
+   The tables below summarize which fields live on which cfg classes. The
+   canonical source is the auto-generated API reference — see
+   :doc:`/source/api/lab/isaaclab.sim.schemas`,
+   :doc:`/source/api/lab_physx/isaaclab_physx.sim.schemas`, and
+   :doc:`/source/api/lab_newton/isaaclab_newton.sim.schemas`, which render
+   the cfg class docstrings directly. Treat these tables as a navigation aid;
+   if they drift from the source, the API docs win.
+
 Universal physics (declared on the base class)
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -267,6 +277,17 @@ running Newton's MuJoCo solver.
      - ``actuatorgravcomp``
      - ``mjc:actuatorgravcomp`` via ``MjcJointAPI``
 
+.. note::
+
+   The two MuJoCo rows differ in their USD applied-schema requirement:
+   ``mjc:actuatorgravcomp`` is part of the registered ``MjcJointAPI`` applied
+   schema (so the writer calls ``prim.AddAppliedSchema("MjcJointAPI")`` when
+   the field is non-None). ``mjc:gravcomp`` has no registered Mjc applied
+   schema for body-level gravity compensation, so the writer authors it as a
+   raw USD attribute. Newton's MuJoCo solver consumes both via the same
+   resolver path; the schema-application difference is purely a USD-side
+   detail.
+
 .. _schema-cfgs-mixed:
 
 Mixed-namespace authoring on a single instance
@@ -360,7 +381,7 @@ sees them), defaulting to ``None``. ``__post_init__`` runs
 ``DeprecationWarning``, copies the value into the canonical field if the
 canonical is ``None``, then nulls the old field. Setting **both** in the same
 constructor is silent — the canonical wins; the old name's value is discarded.
-Both aliases are scheduled for removal in 5.0.
+Both aliases are scheduled for removal in 4.0.
 
 See also
 --------

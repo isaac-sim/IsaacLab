@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from .schemas_cfg import (
-    MujocoJointDrivePropertiesCfg as MujocoJointDrivePropertiesCfg,
-    MujocoRigidBodyPropertiesCfg as MujocoRigidBodyPropertiesCfg,
-    NewtonArticulationRootPropertiesCfg as NewtonArticulationRootPropertiesCfg,
-    NewtonCollisionPropertiesCfg as NewtonCollisionPropertiesCfg,
-    NewtonJointDrivePropertiesCfg as NewtonJointDrivePropertiesCfg,
-    NewtonMaterialPropertiesCfg as NewtonMaterialPropertiesCfg,
-    NewtonMeshCollisionPropertiesCfg as NewtonMeshCollisionPropertiesCfg,
-    NewtonRigidBodyPropertiesCfg as NewtonRigidBodyPropertiesCfg,
+    MujocoJointDrivePropertiesCfg,
+    MujocoRigidBodyPropertiesCfg,
+    NewtonArticulationRootPropertiesCfg,
+    NewtonCollisionPropertiesCfg,
+    NewtonJointDrivePropertiesCfg,
+    NewtonMaterialPropertiesCfg,
+    NewtonMeshCollisionPropertiesCfg,
+    NewtonRigidBodyPropertiesCfg,
 )

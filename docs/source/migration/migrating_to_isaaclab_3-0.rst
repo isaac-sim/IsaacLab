@@ -106,16 +106,15 @@ Schema Configuration Class Refactor
 In Isaac Lab 3.0, the spawner schema cfg classes are split into solver-common
 **base classes** (in ``isaaclab.sim.schemas``) and **backend-specific subclasses**
 in ``isaaclab_physx.sim.schemas`` and ``isaaclab_newton.sim.schemas``. This makes
-the same asset cfg portable across PhysX and Newton backends, and prepares the
-spawner layer for solver-specific knobs (PhysX TGS iterations, MuJoCo gravity
-compensation, etc.).
+the same asset cfg portable across PhysX and Newton backends, and adds slots
+for backend-specific asset-level knobs (e.g., MuJoCo gravity compensation).
 
 For the full design, see :ref:`schema-cfgs`.
 
 **Class moves and renames**
 
 The following 2.x class names are kept as deprecated aliases. They forward to
-the new location and will be removed in 5.0.
+the new location and will be removed in 4.0.
 
 .. list-table::
    :header-rows: 1
@@ -149,19 +148,28 @@ the new location and will be removed in 5.0.
 
 **Code migration**
 
-Existing 2.x code continues to work via the deprecation aliases:
+Existing 2.x code continues to work via the deprecation aliases (with a
+``DeprecationWarning``; removed in 4.0):
 
 .. code-block:: python
 
-   # Isaac Lab 2.x — still works in 3.0 (emits DeprecationWarning, removed in 5.0)
+   # Isaac Lab 2.x
    import isaaclab.sim as sim_utils
    rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
 
-   # Isaac Lab 3.0 — recommended
+Recommended 3.0 pattern when targeting PhysX:
+
+.. code-block:: python
+
+   # Isaac Lab 3.0 — PhysX backend
    from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
    rigid_props = PhysxRigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
 
-   # Isaac Lab 3.0 — backend-portable (only universal-physics fields)
+Backend-portable 3.0 pattern (universal-physics fields only):
+
+.. code-block:: python
+
+   # Isaac Lab 3.0 — backend-portable
    from isaaclab.sim.schemas import RigidBodyBaseCfg
    rigid_props = RigidBodyBaseCfg(rigid_body_enabled=True, disable_gravity=True)
 
@@ -174,7 +182,7 @@ fields on :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (so
 in ``__post_init__`` with a ``DeprecationWarning``. Setting **both** the old
 and new field on the same instance is silent — the canonical (new) field
 wins; the old field's value is discarded after the warning. Both aliases are
-scheduled for removal in 5.0.
+scheduled for removal in 4.0.
 
 .. list-table::
    :header-rows: 1
@@ -190,19 +198,24 @@ scheduled for removal in 5.0.
      - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+
 .. code-block:: python
 
-   # Both still work; new names recommended.
    import isaaclab.sim as sim_utils
-   from isaaclab.sim.schemas import JointDriveBaseCfg
-
-   # Isaac Lab 2.x style — JointDrivePropertiesCfg is now a deprecated alias
    sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0)
 
-   # Isaac Lab 3.0 — backend-portable
+Recommended 3.0 pattern, backend-portable:
+
+.. code-block:: python
+
+   from isaaclab.sim.schemas import JointDriveBaseCfg
    JointDriveBaseCfg(max_force=80.0, max_joint_velocity=5.0)
 
-   # Isaac Lab 3.0 — PhysX-targeted (with PhysX-only fields available)
+Recommended 3.0 pattern, PhysX-targeted:
+
+.. code-block:: python
+
    from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg
    PhysxJointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0)
 
