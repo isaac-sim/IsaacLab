@@ -403,8 +403,8 @@ configured in the environment's retargeting pipeline. Manus tracking data flows 
 API as headset-based optical hand tracking in Isaac Teleop, so the same retargeters and pipelines
 work with both input sources.
 
-For plugin configuration details, see the
-`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_.
+For plugin configuration details, see the `Manus plugin documentation
+<https://github.com/NVIDIA/IsaacTeleop/blob/main/docs/source/device/manus.rst>`_.
 
 The recommended workflow:
 
