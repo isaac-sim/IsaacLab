@@ -17,7 +17,6 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.scene.scene_data_provider import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -152,8 +151,6 @@ class NewtonWarpRenderer(BaseRenderer):
         merged = aggregate_requirements([current_req, renderer_req])
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
-
-        sdp = SimulationContext.instance().get_scene_data_provider()
 
         self._newton_model: newton.Model = NewtonManager.get_model()
         if self._newton_model is None:

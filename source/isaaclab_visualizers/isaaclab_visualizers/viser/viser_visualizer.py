@@ -190,6 +190,8 @@ class ViserVisualizer(BaseVisualizer):
         self._apply_pending_camera_pose()
 
         self._state = NewtonManager.get_state()
+        num_envs = NewtonManager.get_num_envs()
+
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
         try:

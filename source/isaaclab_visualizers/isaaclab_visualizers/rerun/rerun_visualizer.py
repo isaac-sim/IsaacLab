@@ -242,6 +242,7 @@ class RerunVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
 
         self._state = NewtonManager.get_state()
+        num_envs = NewtonManager.get_num_envs()
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)

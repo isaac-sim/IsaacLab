@@ -1333,6 +1333,10 @@ class NewtonManager(PhysicsManager):
         return cls.get_state_0()
 
     @classmethod
+    def get_num_envs(cls) -> int:
+        return cls._num_envs
+
+    @classmethod
     def _backend_is_newton(cls) -> bool:
         """Return ``True`` when the active sim backend is Newton."""
         sim = PhysicsManager._sim
@@ -1370,7 +1374,6 @@ class NewtonManager(PhysicsManager):
             )
             return
 
-
         try:
             builder = cls._build_visualization_model_from_stage(stage)
         except Exception:
@@ -1389,7 +1392,6 @@ class NewtonManager(PhysicsManager):
                 "renderer is initialized."
             )
             return
-
 
         device = PhysicsManager._device or "cpu"
         try:
