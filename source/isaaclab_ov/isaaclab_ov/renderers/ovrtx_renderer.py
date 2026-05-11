@@ -167,7 +167,11 @@ class OVRTXRenderer(BaseRenderer):
             keep_system_alive=True,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
-        assert self._renderer, "Renderer should be valid after creation"
+        if not self._renderer:
+            raise RuntimeError(
+                "Failed to create OVRTX Renderer; the underlying ovrtx.Renderer constructor returned a falsy"
+                " value. Check that ovrtx is installed correctly and its native dependencies are available."
+            )
         logger.info("OVRTX renderer created successfully")
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
