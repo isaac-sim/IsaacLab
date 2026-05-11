@@ -53,14 +53,9 @@ class PresetTarget(enum.Enum):
     ``PresetRegistry`` discover it via iteration. No second list to update.
     """
 
-    def __new__(cls, label: str, legacy_aliases: dict[str, str] | None = None):
-        obj = object.__new__(cls)
-        obj._value_ = label
-        # Per-instance attribute so it survives the enum machinery.
-        obj.legacy_aliases = dict(legacy_aliases) if legacy_aliases else {}
-        return obj
-
-    # Members. Tuple values are (label, legacy_aliases).
+    # Members. Tuple values are (label, legacy_aliases). The enum metaclass
+    # collects the whole namespace before constructing members, so ``__new__``
+    # below picks these up regardless of declaration order.
     PHYSICS = ("physics", {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
     """Physics backends -- ``--physics`` flag. Legacy: ``newton``, ``kamino``."""
 
@@ -69,6 +64,13 @@ class PresetTarget(enum.Enum):
 
     DOMAIN = ("domain",)
     """Free-form env-specific presets -- ``--presets`` flag (catch-all). Not validated."""
+
+    def __new__(cls, label: str, legacy_aliases: dict[str, str] | None = None):
+        obj = object.__new__(cls)
+        obj._value_ = label
+        # Per-instance attribute so it survives the enum machinery.
+        obj.legacy_aliases = dict(legacy_aliases) if legacy_aliases else {}
+        return obj
 
     def normalize(self, name: str) -> str:
         """Resolve a legacy alias for this target to its canonical name.
