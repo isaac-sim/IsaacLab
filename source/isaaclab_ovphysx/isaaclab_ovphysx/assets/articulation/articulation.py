@@ -436,7 +436,7 @@ class Articulation(BaseArticulation):
         self.data._root_com_pose_w.timestamp = -1.0
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
-        # push cache to the wheel via an indexed write
+        # push cache to the simulation via an indexed write
         binding = self._get_binding(TT.ROOT_POSE)
         binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -1672,8 +1672,8 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
         if joint_viscous_friction_coeff is not None:
             self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
-        # Refresh the combined (N, J, 3) buffer from the wheel so unchanged components
-        # are preserved on the round-trip.
+        # refresh the combined (N, J, 3) buffer from the binding so unchanged
+        # components are preserved on the round-trip
         self._data._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._data._joint_friction_props_buf)
         wp.launch(
             write_joint_friction_data_to_buffer_index,
@@ -1728,7 +1728,7 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
         if joint_viscous_friction_coeff is not None:
             self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
-        # See _index variant for why we refresh the (N, J, 3) buffer from the wheel.
+        # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._data._joint_friction_props_buf)
         wp.launch(
             write_joint_friction_data_to_buffer_mask,
@@ -1787,8 +1787,8 @@ class Articulation(BaseArticulation):
         shape = (env_ids.shape[0], joint_ids.shape[0])
         joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
-        # Refresh the combined (N, J, 3) buffer from the wheel so unchanged components
-        # are preserved on the round-trip.
+        # refresh the combined (N, J, 3) buffer from the binding so unchanged
+        # components are preserved on the round-trip
         self._data._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._data._joint_friction_props_buf)
         wp.launch(
             write_joint_friction_data_to_buffer_index,
@@ -1834,7 +1834,7 @@ class Articulation(BaseArticulation):
         shape = (self._num_instances, self._num_joints)
         joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
-        # See _index variant for why we refresh the (N, J, 3) buffer from the wheel.
+        # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._data._joint_friction_props_buf)
         wp.launch(
             write_joint_friction_data_to_buffer_mask,
@@ -1894,8 +1894,8 @@ class Articulation(BaseArticulation):
         shape = (env_ids.shape[0], joint_ids.shape[0])
         joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
-        # Refresh the combined (N, J, 3) buffer from the wheel so unchanged components
-        # are preserved on the round-trip.
+        # refresh the combined (N, J, 3) buffer from the binding so unchanged
+        # components are preserved on the round-trip
         self._data._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._data._joint_friction_props_buf)
         wp.launch(
             write_joint_friction_data_to_buffer_index,
@@ -1942,7 +1942,7 @@ class Articulation(BaseArticulation):
         shape = (self._num_instances, self._num_joints)
         joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
-        # See _index variant for why we refresh the (N, J, 3) buffer from the wheel.
+        # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._data._joint_friction_props_buf)
         wp.launch(
             write_joint_friction_data_to_buffer_mask,
@@ -2752,7 +2752,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_pos_limits.data],
             device=self._device,
         )
-        # Reinterpret the vec2f buffer as a (N, T, 2) float32 view for the wheel.
+        # reinterpret the vec2f buffer as a (N, T, 2) float32 view for the binding
         flat_src = wp.array(
             ptr=self._data._fixed_tendon_pos_limits.data.ptr,
             shape=(self._num_instances, self._num_fixed_tendons, 2),
@@ -2997,9 +2997,9 @@ class Articulation(BaseArticulation):
         ``self._data._fixed_tendon_*`` buffer.
 
         .. note::
-            Only env indices apply to the wheel write; ``fixed_tendon_ids`` is
-            accepted for API parity with PhysX but is unused (the wheel writes
-            all tendons of the selected envs).
+            Only env indices apply to the simulation write; ``fixed_tendon_ids`` is
+            accepted for API parity with PhysX but is unused (the simulation
+            writes all tendons of the selected envs).
 
         Args:
             fixed_tendon_ids: Accepted for PhysX API parity; ignored.
@@ -3071,9 +3071,9 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set spatial-tendon stiffness over selected env / tendon indices into the simulation.
 
-        ``SPATIAL_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX (PhysX
-        applies tendon properties without a CPU clone), so the write goes
-        directly from the sim-device buffer to the wheel binding.
+        ``SPATIAL_TENDON_STIFFNESS`` is a sim-device binding on OVPhysX
+        (tendon properties are applied without a CPU clone), so the write
+        goes directly from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.  A scalar :class:`float` is
@@ -3243,7 +3243,7 @@ class Articulation(BaseArticulation):
         """Set spatial-tendon limit stiffness over selected env / tendon indices into the simulation.
 
         ``SPATIAL_TENDON_LIMIT_STIFFNESS`` is a sim-device binding on OVPhysX;
-        the write goes directly from the sim-device buffer to the wheel.
+        the write goes directly from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.  A scalar :class:`float` is
@@ -3331,7 +3331,7 @@ class Articulation(BaseArticulation):
         """Set spatial-tendon offsets over selected env / tendon indices into the simulation.
 
         ``SPATIAL_TENDON_OFFSET`` is a sim-device binding on OVPhysX; the
-        write goes directly from the sim-device buffer to the wheel.
+        write goes directly from the sim-device buffer to the binding.
 
         .. note::
             This method expects partial data.  A scalar :class:`float` is
@@ -3870,12 +3870,11 @@ class Articulation(BaseArticulation):
                 logger.warning("Actuator '%s': no joints matched '%s'", name, act_cfg.joint_names_expr)
                 continue
             act_cfg_copy = act_cfg.copy()
-            # Seed the actuator with the wheel's already-correct DOF defaults
-            # (USD-authored ``physxJoint:maxJointVelocity`` etc. that the wheel
-            # parsed at scene-load).  Without these the ActuatorBase constructor
-            # falls back to ``inf`` for unset cfg fields, and the
-            # ``write_joint_*_to_sim_index`` calls below then *overwrite* the
-            # wheel's correct values with ``inf``.  Mirrors the PhysX backend.
+            # seed the actuator with the simulation's already-correct DOF defaults
+            # (USD-authored ``physxJoint:maxJointVelocity`` etc. parsed at scene-load).
+            # Without these the ActuatorBase constructor falls back to ``inf`` for unset
+            # cfg fields, and the ``write_joint_*_to_sim_index`` calls below then
+            # overwrite the correct values with ``inf``.
             act = act_cfg_copy.class_type(
                 act_cfg_copy,
                 joint_names=joint_names,
@@ -4109,8 +4108,8 @@ class Articulation(BaseArticulation):
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an environment mask to a ``wp.bool`` array on ``self._device``.
 
-        OVPhysX (like Newton) uses the wheel's native ``binding.write(mask=...)`` path,
-        so the mask is preserved end-to-end -- no ``torch.nonzero`` conversion needed.
+        OVPhysX (like Newton) uses the binding's native ``binding.write(mask=...)`` path,
+        so the mask is preserved end-to-end; no ``torch.nonzero`` conversion is needed.
         ``None`` returns the pre-allocated all-true mask.
         """
         if env_mask is None:
@@ -4162,10 +4161,10 @@ class Articulation(BaseArticulation):
         return tendon_mask
 
     def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
-        """Return a pinned-host CPU copy of *env_mask* for a CPU-only binding write.
+        """Return a pinned-host CPU copy of :paramref:`env_mask` for a CPU-only binding write.
 
-        ``env_mask`` is normally on ``self._device``; the wheel's ``binding.write(mask=...)``
-        requires the mask on the binding's device, which is CPU for mass / coms / inertia.
+        :paramref:`env_mask` is normally on ``self._device``; ``binding.write(mask=...)``
+        requires the mask on the binding's device, which is CPU for mass / CoMs / inertia.
         Reuses the pre-allocated ``_cpu_env_mask`` pinned buffer.
         """
         wp.copy(self._cpu_env_mask, env_mask)
