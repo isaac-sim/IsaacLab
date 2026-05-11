@@ -35,10 +35,23 @@ from isaaclab_physx.renderers import isaac_rtx_renderer_cfg  # noqa: F401
 def stub_app_launcher(monkeypatch):
     """Avoid Isaac Sim's stdin-reading kit_app init in setup_cli tests by
     pre-populating ``sys.modules`` with a fake ``isaaclab.app`` module
-    before ``setup_cli`` does its lazy ``from isaaclab.app import AppLauncher``."""
+    before ``setup_cli`` does its lazy ``from isaaclab.app import AppLauncher``.
+
+    Also installs a default ``load_cfg_from_registry`` stub that returns an
+    empty env-cfg dict. Most tests use a placeholder ``--task=Foo-v0`` to
+    exercise CLI mechanics and don't care about the loaded config; the
+    stub keeps gym's real ``NameNotFound`` (now propagated since the
+    load helper only swallows ``ImportError``) from masking the test's
+    intent. Tests that need specific variants override via
+    :func:`_patch_load_with`.
+    """
     fake = types.ModuleType("isaaclab.app")
     fake.AppLauncher = type("AppLauncher", (), {"add_app_launcher_args": staticmethod(lambda parser: None)})
     monkeypatch.setitem(sys.modules, "isaaclab.app", fake)
+    monkeypatch.setattr(
+        "isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry",
+        lambda *_args, **_kwargs: {},
+    )
 
 
 def _make_parser() -> argparse.ArgumentParser:
@@ -253,7 +266,8 @@ def test_typed_flag_without_task_errors(stub_app_launcher, monkeypatch):
     monkeypatch.setattr("sys.argv", ["train.py", "--physics", "physx"])
     from isaaclab_tasks.utils.preset_cli import setup_cli
 
-    with pytest.raises(SystemExit, match="--physics/--renderer require --task"):
+    # Match the stable signature of the error, not the (dynamic) list of typed flags.
+    with pytest.raises(SystemExit, match="require --task"):
         setup_cli(_make_parser())
 
 
@@ -403,7 +417,7 @@ def test_variant_shadowing_legacy_alias_preserved(stub_app_launcher, monkeypatch
 def test_nested_preset_under_class_level_alternative_override(stub_app_launcher, monkeypatch):
     """When a ``PresetCfg`` declared field is class-level reassigned to a
     value whose subtree contains a nested ``PresetCfg``, the resolver
-    discovers that nested PresetCfg via ``_preset_fields`` (class-first)
+    discovers that nested PresetCfg via ``PresetCfg.alternatives`` (class-first)
     + ``_walk_cfg`` (instance-first into the picked alternative). The
     variant walker must follow the same rules: read alternatives
     class-first so the override is seen, then recurse instance-first into
@@ -415,8 +429,7 @@ def test_nested_preset_under_class_level_alternative_override(stub_app_launcher,
 
     from isaaclab.utils.preset_registry import PresetTarget
 
-    from isaaclab_tasks.utils.hydra import preset
-    from isaaclab_tasks.utils.preset_cli import _CfgTree
+    from isaaclab_tasks.utils.hydra import collect_task_variants, preset
 
     # Inner PresetCfg with a uniquely named variant ``q_only`` that we
     # want to surface only through the class-level override path.
@@ -437,11 +450,11 @@ def test_nested_preset_under_class_level_alternative_override(stub_app_launcher,
     # CLASS-LEVEL OVERRIDE of the declared field ``newton_renderer``.
     # The instance still carries the original ``NewtonWarpRendererCfg``
     # (set during dataclass ``__init__``), but ``getattr(cls, ...)`` now
-    # returns the wrapper. ``_preset_fields`` reads class-first, so the
+    # returns the wrapper. ``PresetCfg.alternatives`` reads class-first, so the
     # resolver would see the wrapper and descend into ``inner_q``.
     type(outer).newton_renderer = _Wrapper(nested=inner_q)
 
-    variants = _CfgTree.collect_task_variants(outer)
+    variants = collect_task_variants(outer)
     assert "q_only" in variants.get(PresetTarget.RENDERER, set())
 
 
@@ -464,8 +477,7 @@ def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launche
 
     from isaaclab.utils.preset_registry import PresetTarget
 
-    from isaaclab_tasks.utils.hydra import preset
-    from isaaclab_tasks.utils.preset_cli import _CfgTree
+    from isaaclab_tasks.utils.hydra import collect_task_variants, preset
 
     instance_preset = preset(
         default=NewtonWarpRendererCfg(),
@@ -488,7 +500,7 @@ def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launche
     # ``getattr(parent, 'renderer')`` returns ``instance_preset``.
     _Parent.renderer = class_only_preset
 
-    variants = _CfgTree.collect_task_variants(parent)
+    variants = collect_task_variants(parent)
     seen = variants.get(PresetTarget.RENDERER, set())
     assert "instance_only" in seen
     assert "class_only" not in seen
@@ -527,6 +539,47 @@ def test_typed_flag_rejects_when_task_load_fails(stub_app_launcher, monkeypatch)
 
     with pytest.raises(SystemExit, match="not a recognized renderer preset"):
         setup_cli(_make_parser())
+
+
+def test_task_load_non_import_error_propagates(stub_app_launcher, monkeypatch):
+    """``_load_task_env_cfg`` only tolerates Isaac-Sim-runtime-missing
+    failures (``ImportError`` / ``ModuleNotFoundError``). Anything else
+    (bad task name surfacing as a non-import exception, buggy task config
+    module, etc.) is OUT OF SCOPE for this layer and must propagate so
+    the user sees the real error rather than a misleading downstream
+    "not a recognized preset" message.
+    """
+
+    def loader(_task_name, _ep):
+        raise ValueError("synthetic: not actually about preset CLI")
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", loader)
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Isaac-Foo-v0", "--physics", "newton_mjwarp"])
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    with pytest.raises(ValueError, match="synthetic"):
+        setup_cli(_make_parser())
+
+
+def test_task_load_import_error_falls_back_to_registry(stub_app_launcher, monkeypatch, capsys):
+    """``ImportError`` during task load IS tolerated: a stderr note is
+    emitted and validation continues against the names already in
+    ``PresetRegistry``. This is the headless / CI path.
+    """
+
+    def loader(_task_name, _ep):
+        raise ImportError("synthetic: pretend carb is missing")
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", loader)
+    # newton_mjwarp IS registered (force-imported at the top of this file), so
+    # validation should accept it even though the task itself couldn't load.
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Isaac-Foo-v0", "--physics", "newton_mjwarp"])
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    setup_cli(_make_parser())
+    assert sys.argv == ["train.py", "presets=newton_mjwarp"]
+    err = capsys.readouterr().err
+    assert "backend deps unavailable" in err
 
 
 def test_extract_task_from_argv_stops_at_double_dash():
@@ -634,8 +687,6 @@ def _drift_violations(preset_obj) -> list[str]:
     """
     from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
-    from isaaclab_tasks.utils.preset_cli import _CfgTree
-
     # All canonical names across all targets. Used to detect when a field
     # name claims a canonical identity its value class doesn't earn.
     all_registered_names = {name for target in PresetTarget for name in PresetRegistry.names_for(target)}
@@ -644,12 +695,12 @@ def _drift_violations(preset_obj) -> list[str]:
     violations: list[str] = []
     cls_name = type(preset_obj).__name__
 
-    # Use the same class-over-instance + class-only-attr view ``_preset_fields``
-    # uses on a single PresetCfg, so a class-level variant override is linted.
-    for fname, value in _CfgTree.preset_alternatives_view(preset_obj).items():
+    # Use the same class-over-instance + class-only-attr view ``PresetCfg.alternatives``
+    # uses, so a class-level variant override is linted.
+    for fname, value in preset_obj.alternatives().items():
         if fname == "default" or value is None:
             continue
-        canonical, _ = _CfgTree.canonical_and_target(value)
+        canonical, _ = PresetRegistry.canonical_and_target(value)
 
         # Rule 1: when a field name is itself a registered canonical AND its
         # value's class is registered under a DIFFERENT canonical, both sides
@@ -766,8 +817,8 @@ def test_no_canonical_vocabulary_drift_in_registered_tasks():
     import gymnasium as gym
 
     import isaaclab_tasks  # noqa: F401  -- triggers gym registration
+    from isaaclab_tasks.utils.hydra import CfgTree
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-    from isaaclab_tasks.utils.preset_cli import _CfgTree
 
     violations: list[tuple[str, str]] = []
     skipped: list[tuple[str, str]] = []
@@ -790,7 +841,7 @@ def test_no_canonical_vocabulary_drift_in_registered_tasks():
                 violations.append((_task_id, msg))
 
         try:
-            _CfgTree.walk_presets(env_cfg, _record)
+            CfgTree.walk_presets(env_cfg, _record)
         except BaseException as exc:  # noqa: BLE001
             skipped.append((task_id, f"walk failed: {type(exc).__name__}: {exc}"))
 

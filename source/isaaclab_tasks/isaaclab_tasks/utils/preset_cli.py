@@ -60,24 +60,27 @@ def _extract_task_from_argv(argv: list[str]) -> str | None:
 
     Used before argparse parses, so we can pre-load the task's env config
     (which transitively imports its backends and populates the registry)
-    in time for ``--help`` enrichment and validation. Mirrors argparse's
-    semantics in the cases that matter for the pre-load:
+    in time for ``--help`` enrichment and validation. The returned value
+    is the single source of truth for the rest of ``setup_cli``; a guard
+    after argparse runs rejects mismatched argparse values.
 
-    * Returns the LAST occurrence to match argparse's last-wins behavior
-      for repeated single-value flags. This matters for ``--help``, which
-      exits before the post-parse reload path runs.
-    * Stops scanning at the ``--`` end-of-options marker so a task name
-      after ``--`` (which argparse leaves as a positional) doesn't preempt
-      one before it.
+    Stops at the ``--`` end-of-options marker, matching argparse's
+    semantics for positional separation. Picks the last occurrence on
+    repetition to match argparse's last-wins behavior.
 
-    Limitation: argparse's default ``allow_abbrev=True`` accepts unambiguous
-    prefixes (e.g. ``--tas Foo``), but the pre-scan only recognizes the
-    literal ``--task`` / ``--task=``. The non-help path covers this
-    automatically -- the post-parse reload reads ``args.task`` and reloads
-    when it differs from ``pre_task`` -- but ``--help`` exits before that
-    runs, so ``train.py --tas Foo --help`` shows generic help (no
-    task-specific variants). Use the full ``--task`` in ``--help``
-    invocations, or pass ``allow_abbrev=False`` to your parser.
+    Limitation: argparse's default ``allow_abbrev=True`` accepts
+    unambiguous prefixes (e.g. ``--tas Foo``); the pre-scan only
+    recognizes the literal ``--task`` / ``--task=``. :func:`setup_cli`
+    detects the mismatch after argparse runs and raises ``SystemExit``
+    asking for the full spelling (or pass ``allow_abbrev=False`` to
+    your parser).
+
+    Args:
+        argv: Token list to scan, typically ``sys.argv[1:]``.
+
+    Returns:
+        The value paired with the rightmost ``--task`` token before any
+        ``--`` separator, or ``None`` when no ``--task`` appears.
     """
     last: str | None = None
     for i, token in enumerate(argv):
@@ -93,235 +96,49 @@ def _extract_task_from_argv(argv: list[str]) -> str | None:
 
 
 def _load_task_env_cfg(task_name: str) -> object | None:
-    """Load *task_name*'s env config; return an instance or ``None``.
+    """Look up and instantiate the env config registered for *task_name*.
 
     Side effect: importing the env config module triggers the backend cfg
     imports referenced by the task, which fires the :func:`register`
     decorators that populate :class:`PresetRegistry`.
 
-    On import failure the error is written to ``stderr`` and ``None`` is
-    returned, so ``--help`` and validation can still proceed with whatever
-    is already registered. This is loud-by-default: silent swallow would
-    make a typo like ``--task IsacaCartpole`` look like the registry is
-    empty for that task, which is misleading.
+    Scope: this feature only handles its own input. Failures that
+    genuinely belong to gym / Isaac Sim / the task author (a misspelled
+    task name, a buggy task-config module, a config ``__init__`` that
+    raises) propagate as-is so the user sees the real error rather than
+    a misleading "not a recognized preset" message later.
+
+    The single tolerated failure is missing Isaac Sim runtime deps
+    (``ImportError`` / ``ModuleNotFoundError``) in headless or CI
+    environments. There we emit a stderr note and degrade to "validate
+    only against names already registered" so ``--help`` and built-in
+    canonical names remain usable without the full Sim stack.
+
+    Args:
+        task_name: Gym-style task id, optionally with a ``"namespace:"``
+            prefix that is stripped before registry lookup.
+
+    Returns:
+        The instantiated env config, or ``None`` when the only tolerated
+        failure (a missing Isaac Sim runtime dep) tripped the load.
+
+    Raises:
+        Exception: Any non-import failure from the task lookup or the
+            config class's ``__init__`` propagates verbatim.
     """
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     try:
         env_cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
-    except Exception as exc:  # noqa: BLE001 -- broad on purpose: gym, carb, importlib all raise differently
+    except (ImportError, ModuleNotFoundError) as exc:
         sys.stderr.write(
-            f"warning: could not load task {task_name!r} for preset validation: {type(exc).__name__}: {exc}\n"
+            f"warning: backend deps unavailable while loading task {task_name!r} for preset validation: "
+            f"{type(exc).__name__}: {exc}. Falling back to registered names only.\n"
         )
         return None
     if isinstance(env_cfg, type):
-        try:
-            env_cfg = env_cfg()
-        except Exception as exc:  # noqa: BLE001
-            sys.stderr.write(f"warning: could not instantiate {task_name!r} env config: {type(exc).__name__}: {exc}\n")
-            return None
+        env_cfg = env_cfg()  # let __init__ failures propagate -- not our problem
     return env_cfg
-
-
-# ============================================================================
-# Cfg-tree introspection (shared with the cross-env drift lint in tests)
-# ============================================================================
-
-
-class _CfgTree:
-    """Cfg-tree introspection used by both ``setup_cli`` and the cross-env
-    drift lint in tests.
-
-    All methods are pure (no shared state); the class is a namespace that
-    groups the helpers and exposes ``walk_presets`` as the single traversal
-    primitive. Two views drive the traversal:
-
-    * :meth:`preset_alternatives_view` -- class-over-instance read of one
-      ``PresetCfg``'s alternatives. Mirrors :func:`hydra._preset_fields`,
-      which is what the resolver uses to pick an alternative.
-    * :meth:`walk_cfg_items` -- instance-first ``dir + getattr`` over a
-      non-``PresetCfg`` node. Mirrors :func:`hydra._walk_cfg`, which is
-      what the resolver uses to find nested ``PresetCfg`` nodes.
-
-    :meth:`walk_presets` switches between the two by node kind, and the
-    high-level helpers (:meth:`collect_task_variants`, the drift lint)
-    are just visitors layered on top.
-
-    Layout:
-
-    * Decoration lookup: :meth:`canonical_and_target`
-    * Per-node views: :meth:`preset_alternatives_view`, :meth:`walk_cfg_items`
-    * Tree traversal: :meth:`walk_presets`, :meth:`collect_task_variants`
-    """
-
-    # ------------------------------------------------------------------ #
-    # Decoration lookup                                                  #
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def canonical_and_target(value: object) -> tuple[str | None, PresetTarget | None]:
-        """Look up the canonical preset name + target for *value*'s class.
-
-        Walks the MRO for ``_preset_name`` / ``_preset_target`` (stamped by
-        :func:`register`). Falls back to ``value.solver_cfg`` so wrappers
-        like ``NewtonCfg`` (which holds a registered solver-cfg) still
-        resolve. Returns ``(None, None)`` when nothing in the chain is
-        decorated.
-        """
-        for klass in type(value).__mro__:
-            if "_preset_name" in klass.__dict__:
-                return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
-        inner = getattr(value, "solver_cfg", None)
-        if inner is not None:
-            for klass in type(inner).__mro__:
-                if "_preset_name" in klass.__dict__:
-                    return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
-        return None, None
-
-    # ------------------------------------------------------------------ #
-    # Per-node views (one PresetCfg's alternatives vs. one node's items) #
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def preset_alternatives_view(node: object) -> dict[str, object]:
-        """Return ``{name: value}`` for every alternative on a :class:`PresetCfg`.
-
-        Mirrors :func:`isaaclab_tasks.utils.hydra._preset_fields` exactly:
-
-        * Class-level values take priority over instance values for declared
-          ``__dataclass_fields__`` -- robot-specific cfg modules reassign
-          field values on the class after instances are already constructed,
-          and the resolver applies those class-level values when picking an
-          alternative.
-        * Picks up class-only attributes (added outside the dataclass
-          mechanism) when they aren't dunder, callable, or already covered.
-
-        Used when reading alternatives off a single ``PresetCfg``;
-        tree-level recursion through non-``PresetCfg`` nodes uses
-        :meth:`walk_cfg_items` instead.
-        """
-        cls = type(node)
-        out: dict[str, object] = {}
-        fields = getattr(node, "__dataclass_fields__", None)
-        if fields is not None:
-            for fname in fields:
-                cls_val = getattr(cls, fname, None)
-                out[fname] = cls_val if cls_val is not None else getattr(node, fname, None)
-        for attr in vars(cls):
-            if attr.startswith("_") or attr in out or callable(getattr(cls, attr, None)):
-                continue
-            out[attr] = getattr(cls, attr)
-        return out
-
-    @staticmethod
-    def walk_cfg_items(node: object):
-        """Yield ``(name, value)`` pairs for tree recursion, mirroring
-        :func:`isaaclab_tasks.utils.hydra._walk_cfg`.
-
-        For dicts: items as-is. For other objects: every non-underscore
-        attribute reachable via ``getattr`` -- which is instance-first
-        with class fallback. This deliberately differs from
-        :meth:`preset_alternatives_view` (class-first) because it matches
-        how :func:`resolve_presets` finds nested ``PresetCfg`` nodes. If
-        we advertised a class-level override the resolver would never
-        see, the typed-flag layer would accept names ``resolve_presets``
-        then can't apply.
-        """
-        if isinstance(node, dict):
-            return list(node.items())
-        items: list[tuple[str, object]] = []
-        for n in dir(node):
-            if n.startswith("_"):
-                continue
-            val = getattr(node, n, None)
-            if val is None:
-                continue
-            items.append((n, val))
-        return items
-
-    # ------------------------------------------------------------------ #
-    # Tree traversal (one primitive + visitors layered on top)           #
-    # ------------------------------------------------------------------ #
-
-    @classmethod
-    def walk_presets(cls, env_cfg: object, on_preset) -> None:
-        """Visit every :class:`PresetCfg` reachable from *env_cfg*.
-
-        At a ``PresetCfg`` node: invokes ``on_preset(preset_obj, path)``
-        and descends class-first through that PresetCfg's alternatives
-        (matching the resolver's pick step). Elsewhere: descends
-        instance-first via :meth:`walk_cfg_items` (matching the resolver's
-        tree walk).
-
-        This is the single traversal primitive shared by
-        :meth:`collect_task_variants` and the drift lint, so the two
-        cannot diverge on what counts as "reachable."
-        """
-        from isaaclab_tasks.utils.hydra import PresetCfg
-
-        def _visit(node: object, path: str) -> None:
-            if isinstance(node, PresetCfg):
-                on_preset(node, path)
-                items = cls.preset_alternatives_view(node).items()
-            else:
-                items = cls.walk_cfg_items(node)
-            for key, val in items:
-                if val is None:
-                    continue
-                child = f"{path}.{key}" if path else key
-                if isinstance(val, (PresetCfg, dict)) or hasattr(val, "__dataclass_fields__"):
-                    _visit(val, child)
-
-        _visit(env_cfg, "")
-
-    @classmethod
-    def collect_task_variants(cls, env_cfg: object) -> dict[PresetTarget, set[str]]:
-        """Walk *env_cfg* and harvest variant field names from every :class:`PresetCfg`.
-
-        Returns ``{target: set[name]}``. Field ``"default"`` is skipped
-        because it holds the active selection rather than an alternative.
-
-        Strict-anchor rule: within a single ``PresetCfg``, fields are
-        grouped by the canonical name of their value's class. A group is
-        accepted only when at least one of its field names *is* the
-        canonical name; that field anchors the group and other fields in
-        the group are accepted as variants. A group with no canonical
-        anchor is dropped, so e.g.::
-
-            @configclass
-            class PhysicsCfg(PresetCfg):
-                default: ... = MISSING
-                newton_mjwarp2: MjwarpCfg = MjwarpCfg(...)  # variant only
-
-        does *not* make ``--physics newton_mjwarp2`` selectable. The user
-        must add a sibling ``newton_mjwarp: MjwarpCfg = ...`` field to
-        anchor the group; then ``newton_mjwarp2`` is accepted alongside
-        it. This matches the cross-env drift lint, so the CLI surface
-        and the lint agree on what counts as a valid variant.
-        """
-        variants: dict[PresetTarget, set[str]] = {}
-
-        def _collect(preset_obj: object, _path: str) -> None:
-            # (target, canonical) -> [fname, ...]. Keying by target as
-            # well as canonical keeps groups cleanly separated even if a
-            # name were ever reused across targets.
-            by_canonical: dict[tuple[PresetTarget, str], list[str]] = {}
-            for fname, value in cls.preset_alternatives_view(preset_obj).items():
-                if fname == "default" or value is None:
-                    continue
-                canonical, target = cls.canonical_and_target(value)
-                if canonical is None or target is None:
-                    continue
-                by_canonical.setdefault((target, canonical), []).append(fname)
-            for (target, canonical), fnames in by_canonical.items():
-                # No anchor: drop the whole group. The drift lint flags
-                # this; the CLI must not legitimize it.
-                if canonical not in fnames:
-                    continue
-                variants.setdefault(target, set()).update(fnames)
-
-        cls.walk_presets(env_cfg, _collect)
-        return variants
 
 
 # ============================================================================
@@ -331,7 +148,23 @@ class _CfgTree:
 
 
 def _help_text(target: PresetTarget, valid: set[str], task: str | None) -> str:
-    """Argparse ``help=`` string showing valid preset names for *target*."""
+    """Build the argparse ``help=`` string for *target*'s flag.
+
+    Args:
+        target: Which preset target's flag is being described
+            (determines the capitalized prefix).
+        valid: Names to enumerate in the listing -- typically the union
+            of registered canonical names and task variants for
+            *target*. An empty set produces a hint to pass ``--task``.
+        task: When supplied, the listing is scoped ("for task X")
+            instead of described as "registered". This is the
+            pre-scanned task id, not the post-argparse one, since the
+            help fires before argparse runs.
+
+    Returns:
+        A single-line string suitable to pass as
+        ``add_argument(..., help=...)``.
+    """
     capitalized = target.value.capitalize()
     if not valid:
         return f"{capitalized} preset name. Pass '--task=<X> --help' to list valid names for task X."
@@ -350,9 +183,27 @@ def _validate_typed_flag(target: PresetTarget, value: str | None, variants: set[
     field on the task's ``PhysicsCfg``) is preserved as-is and *not*
     rewritten to the alias's canonical -- the variant shadows the alias.
 
-    Returns the canonical name (possibly normalized from a legacy alias)
-    or ``None`` when *value* is ``None``. Raises ``SystemExit`` with a
-    helpful message when the name is not valid.
+    Args:
+        target: Which preset target the value belongs to (drives the
+            registry lookup and alias map).
+        value: Whatever the user typed after ``--{target.value}`` -- or
+            ``None`` when they didn't pass the flag.
+        variants: Names accepted as variants for *target* on the
+            currently loaded task. Pass an empty set when no task is
+            loaded (validation then collapses to "registered names
+            only"). Typically ``task_variants.get(target, set())``.
+
+    Returns:
+        The name to emit in the ``presets=<csv>`` token: *value*
+        unchanged when it's a task variant, the canonical replacement
+        when *value* was a legacy alias, or ``value`` itself when it
+        was already canonical. ``None`` when *value* is ``None``.
+
+    Raises:
+        SystemExit: *value* is neither a registered canonical for
+            *target*, a task variant, nor a legacy alias normalizing
+            into either; the message lists the names that *would* have
+            been accepted.
     """
     if value is None:
         return None
@@ -392,23 +243,46 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     3. Register AppLauncher flags via ``AppLauncher.add_app_launcher_args``.
     4. Call ``parser.parse_known_args``; argparse-handled tokens
        disappear, Hydra-style ``key=value`` tokens stay in *remaining*.
-    5. Validate each typed flag against ``names_for(target) | variants[target]``.
-    6. Collect names + merge with any pre-existing ``presets=...`` token
+    5. Sanity-guard that the parsed ``--task`` matches the pre-scan value
+       (they only disagree when argparse expanded an abbreviation the
+       pre-scan didn't recognize); raise if not.
+    6. Validate each typed flag against ``names_for(target) | variants[target]``.
+    7. Collect names + merge with any pre-existing ``presets=...`` token
        from *remaining*; dedupe; rewrite ``sys.argv`` so the Hydra layer
        sees one ``presets=<csv>`` token followed by leftover Hydra args.
 
-    Returns the parsed argparse namespace; ``sys.argv`` is mutated in place.
+    Args:
+        parser: The caller's argument parser. Preset flags and the
+            AppLauncher flag set are added to it in place; callers do
+            NOT need to register either themselves.
+
+    Returns:
+        The namespace from ``parse_known_args``. The function also
+        mutates ``sys.argv`` in place so the Hydra layer downstream
+        sees the folded ``presets=<csv>`` token followed by whatever
+        the parser didn't consume.
+
+    Raises:
+        SystemExit: A typed flag was set without ``--task``; the parsed
+            ``--task`` disagrees with the pre-scan (argparse
+            abbreviation); or a typed flag's value isn't a recognized
+            name for its target.
     """
     # Lazy: AppLauncher pulls in Isaac Sim. Keep the import inside this
     # function so this module is importable without Sim being available.
     from isaaclab.app import AppLauncher
 
     # Pre-scan: load the task's env config now so the registry + variant
-    # set are ready when we build help strings and validate.
+    # set are ready when we build help strings and validate. ``pre_task``
+    # is the single source of truth for the rest of this function; the
+    # guard below catches the only realistic disagreement (argparse
+    # abbreviations like ``--tas Foo`` that the pre-scan deliberately
+    # doesn't recognize).
+    from isaaclab_tasks.utils.hydra import collect_task_variants as _collect_task_variants
+
     pre_task = _extract_task_from_argv(sys.argv[1:])
     env_cfg = _load_task_env_cfg(pre_task) if pre_task else None
-    loaded_task = pre_task if env_cfg is not None else None
-    task_variants: dict[PresetTarget, set[str]] = _CfgTree.collect_task_variants(env_cfg) if env_cfg is not None else {}
+    task_variants: dict[PresetTarget, set[str]] = _collect_task_variants(env_cfg) if env_cfg is not None else {}
 
     group = parser.add_argument_group(
         "preset selection",
@@ -446,23 +320,22 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     typed_values = {target: getattr(args, target.value) for target in PresetTarget if target is not PresetTarget.DOMAIN}
     any_typed = any(value is not None for value in typed_values.values())
 
-    # ``args.task`` may not exist when --task is in a subparser or wasn't
-    # added at all -- fall back to the pre-scan value so we still validate.
-    task_name = getattr(args, "task", None) or pre_task
+    # Sanity guard: when argparse parsed ``--task``, its value must match
+    # the pre-scan. They only disagree when the user used an argparse
+    # abbreviation (e.g. ``--tas Foo``) that the pre-scan deliberately
+    # doesn't recognize -- raise instead of silently re-loading so a
+    # single source of truth exists for the rest of this function.
+    parsed_task = getattr(args, "task", None)
+    if parsed_task is not None and parsed_task != pre_task:
+        raise SystemExit(
+            f"error: --task value {parsed_task!r} doesn't match the pre-scan value {pre_task!r}. "
+            "preset-CLI requires the literal '--task=NAME' form (argparse-style abbreviations like "
+            "'--tas' are not supported)."
+        )
 
-    if any_typed and not task_name:
-        raise SystemExit("error: --physics/--renderer require --task=<task-name> to validate against.")
-
-    # Reload when the pre-scan didn't yield an env cfg (unusual --task form
-    # or load failure) OR the parsed task name differs from what we loaded
-    # (subparser layouts, repeated --task flags). Always reset variants from
-    # the new env_cfg so a failed reload doesn't leave stale variants from
-    # the previous task. A successful load with no variants for the SAME
-    # task is a legitimate empty result and doesn't retrigger.
-    if any_typed and task_name and (env_cfg is None or task_name != loaded_task):
-        env_cfg = _load_task_env_cfg(task_name)
-        task_variants = _CfgTree.collect_task_variants(env_cfg) if env_cfg is not None else {}
-        loaded_task = task_name if env_cfg is not None else None
+    if any_typed and not pre_task:
+        typed_flags = ", ".join(f"--{t.value}" for t in PresetTarget if t is not PresetTarget.DOMAIN)
+        raise SystemExit(f"error: typed preset flags ({typed_flags}) require --task=<task-name> to validate against.")
 
     # Collect everything the user asked for, in declaration order.
     names: list[str] = []

@@ -65,7 +65,41 @@ class PresetTarget(enum.Enum):
     DOMAIN = ("domain",)
     """Free-form env-specific presets -- ``--presets`` flag (catch-all). Not validated."""
 
+    @classmethod
+    def all_legacy_aliases(cls) -> dict[str, str]:
+        """Aggregate every target's legacy alias map into one flat dict.
+
+        Resolver-layer code looks up aliases by name without target
+        context (the ``presets=...`` token is target-agnostic on the
+        wire), so it needs the flat view. Builds fresh from the
+        per-target tables on every call to keep PresetTarget the
+        single source of truth and avoid a second cached copy.
+
+        Returns:
+            Deprecated-name to canonical-replacement mapping aggregated
+            from every member's ``legacy_aliases``.
+        """
+        return {name: rep for target in cls for name, rep in target.legacy_aliases.items()}
+
     def __new__(cls, label: str, legacy_aliases: dict[str, str] | None = None):
+        """Construct a :class:`PresetTarget` member from its tuple value.
+
+        Called by the enum metaclass for every member assignment so the
+        tuple ``(label, legacy_aliases)`` unpacks into a label-valued
+        member that also carries its own ``legacy_aliases`` mapping.
+
+        Args:
+            label: Lowercase CLI flag suffix (e.g. ``"physics"`` becomes
+                the ``--physics`` flag and ``self.value``).
+            legacy_aliases: Deprecated-to-canonical replacements that
+                :meth:`normalize` consults for this target. A fresh copy
+                is stored so members cannot alias each other's tables;
+                omit (``None``) when the target has no legacy aliases.
+
+        Returns:
+            A new enum member with ``_value_`` set to *label* and a
+            private ``legacy_aliases`` dict ready for :meth:`normalize`.
+        """
         obj = object.__new__(cls)
         obj._value_ = label
         # Per-instance attribute so it survives the enum machinery.
@@ -75,9 +109,17 @@ class PresetTarget(enum.Enum):
     def normalize(self, name: str) -> str:
         """Resolve a legacy alias for this target to its canonical name.
 
-        Returns *name* unchanged if it is not a legacy alias of this target.
-        Otherwise emits a :class:`FutureWarning` and returns the canonical
-        replacement.
+        Side effect: a :class:`FutureWarning` is emitted whenever an
+        alias is rewritten so users notice the deprecation; non-alias
+        names pass through silently.
+
+        Args:
+            name: Whatever the user wrote on the typed flag, before
+                registry validation.
+
+        Returns:
+            *name* unchanged when it is not a legacy alias of this
+            target, or the registered canonical replacement when it is.
         """
         if name in self.legacy_aliases:
             canonical = self.legacy_aliases[name]
@@ -128,8 +170,23 @@ class PresetRegistry:
           name is a deliberate "new preset" declaration and shadows the
           parent canonical at the subclass level.
 
+        Args:
+            target: Which preset target the canonical name belongs to.
+                Determines which ``--flag`` will accept it and which
+                lookup table the binding lives in.
+            name: Canonical name the backend wants to expose. Must be
+                unique within *target* across the whole process.
+
+        Returns:
+            A class decorator. Applied to a config class, it records
+            the binding (so the name resolves via
+            :meth:`names_for`) and stamps the class with
+            ``_preset_name`` / ``_preset_target`` for MRO lookups.
+
         Raises:
-            RuntimeError: If ``(target, name)`` is already bound to a different class.
+            RuntimeError: ``(target, name)`` is already bound to a
+                different class. Catches accidental name reuse across
+                backend packages.
         """
 
         def deco(target_cls: type) -> type:
@@ -154,8 +211,51 @@ class PresetRegistry:
 
     @classmethod
     def names_for(cls, target: PresetTarget) -> set[str]:
-        """Canonical names registered for *target*."""
+        """Look up the canonical names currently bound under *target*.
+
+        Args:
+            target: Which target's bindings to read. Note that backends
+                only land in the registry after their cfg module has
+                been imported; expect an empty set in a fresh process
+                before any task or backend has been touched.
+
+        Returns:
+            A fresh set the caller may mutate without disturbing the
+            registry. Empty when nothing is registered yet for
+            *target*.
+        """
         return set(cls._entries.get(target, ()))
+
+    @staticmethod
+    def canonical_and_target(value: object) -> tuple[str | None, PresetTarget | None]:
+        """Identify which ``@register``-stamped class *value* belongs to.
+
+        Walks the MRO of ``type(value)`` for the ``_preset_name`` /
+        ``_preset_target`` stamps; falls back to ``value.solver_cfg``'s
+        MRO so wrappers like ``NewtonCfg`` (which holds a registered
+        solver-cfg) still resolve. Lives on :class:`PresetRegistry`
+        because it's fundamentally a registry-side lookup: "which of my
+        bindings does this value belong to."
+
+        Args:
+            value: An alternative held by a ``PresetCfg`` (a config
+                instance, a wrapper exposing ``solver_cfg``, or any
+                opaque object that may not be registered at all).
+
+        Returns:
+            The canonical name and target paired with *value*'s
+            registered class. ``(None, None)`` when neither the MRO nor
+            the ``solver_cfg`` fallback hits a registered class.
+        """
+        for klass in type(value).__mro__:
+            if "_preset_name" in klass.__dict__:
+                return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
+        inner = getattr(value, "solver_cfg", None)
+        if inner is not None:
+            for klass in type(inner).__mro__:
+                if "_preset_name" in klass.__dict__:
+                    return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
+        return None, None
 
 
 # Decorator alias kept at module level for the natural decorator spelling.

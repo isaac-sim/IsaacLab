@@ -35,15 +35,18 @@ from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
+
+# ============================================================================
+# Module-level constants
+# ============================================================================
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
-# Map of deprecated preset name -> current name. Newton-backend solver presets are
-# now prefixed with ``newton_`` so they group together in autocomplete and read
-# distinctly from backend/package/visualizer names that also use the word
-# ``newton``. Aliases keep legacy CLI invocations and ``PresetCfg`` field accesses
-# working with a :class:`FutureWarning`; they will be removed in a future release.
-_LEGACY_PRESET_ALIASES = {"newton": "newton_mjwarp", "kamino": "newton_kamino"}
+
+# ============================================================================
+# Alias normalization
+# ============================================================================
 
 
 def _user_stacklevel() -> int:
@@ -83,7 +86,7 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
     """
-    replacement = _LEGACY_PRESET_ALIASES.get(name)
+    replacement = PresetTarget.all_legacy_aliases().get(name)
     if replacement is None or replacement not in known_names or name in known_names:
         return name
     warnings.warn(
@@ -124,7 +127,7 @@ class PresetCfg:
         real field on the subclass, so a user redefining the deprecated name
         shadows the alias.
         """
-        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        replacement = PresetTarget.all_legacy_aliases().get(name)
         fields = getattr(type(self), "__dataclass_fields__", {})
         if replacement is not None and replacement in fields and name not in fields:
             warnings.warn(
@@ -134,6 +137,54 @@ class PresetCfg:
             )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
+
+    def alternatives(self) -> dict:
+        """Read the alternatives the resolver would see on this preset.
+
+        Class-level values win over instance values for declared
+        ``__dataclass_fields__`` -- robot-specific cfg modules reassign
+        field values on the class after instances are already
+        constructed, and the resolver applies those class-level values
+        when picking an alternative. Class-only attrs not declared as
+        dataclass fields are also included (they aren't dunder, callable,
+        or already covered).
+
+        Returns:
+            Field name to the value the resolver would actually read
+            when picking from this node, in declaration-then-class-attr
+            order.
+        """
+        cls = type(self)
+        out = {}
+        for fn in self.__dataclass_fields__:
+            cls_val = getattr(cls, fn, None)
+            out[fn] = cls_val if cls_val is not None else getattr(self, fn)
+        for attr in vars(cls):
+            if attr.startswith("_") or attr in out or callable(getattr(cls, attr)):
+                continue
+            out[attr] = getattr(cls, attr)
+        return out
+
+    def dominant_targets(self) -> set[PresetTarget]:
+        """Targets whose canonical names show up as fields on this preset.
+
+        Used by :func:`_pick_alternative` to decide whether a missing
+        match means "the user specified this target, error out" or "the
+        user didn't specify this target, fall back to ``default``".
+        DOMAIN is never a dominant target (it's the free-form catch-all
+        and has no canonical vocabulary).
+
+        Returns:
+            All targets whose registered canonical names intersect this
+            preset's field names. Empty when the preset has no field
+            matching any target's vocabulary.
+        """
+        fields = self.alternatives()
+        return {
+            target
+            for target in PresetTarget
+            if target is not PresetTarget.DOMAIN and PresetRegistry.names_for(target) & fields.keys()
+        }
 
 
 def preset(**options) -> PresetCfg:
@@ -170,40 +221,92 @@ def preset(**options) -> PresetCfg:
     return cls()
 
 
-def _preset_fields(preset_obj) -> dict:
-    """Extract all alternatives from a :class:`PresetCfg`, class attrs over instance.
+# ============================================================================
+# CfgTree: stateless tree-walking primitives
+# ============================================================================
 
-    Class-level values take priority because robot-specific modules
-    (e.g. ``joint_pos_env_cfg.py``) reassign fields on the class after
-    instances are already created.
+
+class CfgTree:
+    """Two walkers, two purposes.
+
+    * :meth:`walk_cfg` -- instance-first single sweep. Visits each
+      ``PresetCfg`` node once and STOPS at it. Used by
+      :func:`resolve_presets` and :func:`collect_presets`, which want
+      the structure the user actually built.
+    * :meth:`walk_presets` -- also descends class-first through each
+      ``PresetCfg``'s alternatives. Used by
+      :func:`collect_task_variants` and the cross-env drift lint, which
+      need to inspect every alternative including those the resolver
+      wouldn't pick.
     """
-    cls = type(preset_obj)
-    d = {}
-    for fn in preset_obj.__dataclass_fields__:
-        cls_val = getattr(cls, fn, None)
-        d[fn] = cls_val if cls_val is not None else getattr(preset_obj, fn)
-    for attr in vars(cls):
-        if attr.startswith("_") or attr in d or callable(getattr(cls, attr)):
-            continue
-        d[attr] = getattr(cls, attr)
-    return d
+
+    @staticmethod
+    def walk_cfg(cfg, path: str, on_preset: Callable) -> None:
+        """Depth-first visit-once walker.
+
+        At a ``PresetCfg`` node calls ``on_preset(parent, key, obj, path)``
+        and stops -- doesn't descend into its alternatives. Elsewhere
+        recurses through dataclass attrs (instance-first via ``getattr``)
+        and dict values.
+
+        Args:
+            cfg: Root of the tree to walk.
+            path: Dotted path accumulator -- pass ``""`` from the root.
+            on_preset: Called as ``on_preset(parent, key, val, child_path)``
+                for every ``PresetCfg`` reached.
+        """
+        items = (
+            cfg.items()
+            if isinstance(cfg, dict)
+            else ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
+        )
+        for key, val in items:
+            child_path = f"{path}.{key}" if path else key
+            if isinstance(val, PresetCfg):
+                on_preset(cfg, key, val, child_path)
+            elif hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
+                CfgTree.walk_cfg(val, child_path, on_preset)
+
+    @staticmethod
+    def walk_presets(env_cfg: object, on_preset: Callable) -> None:
+        """Depth-first walker that also descends through PresetCfg alternatives.
+
+        Same instance-first iteration as :meth:`walk_cfg` outside
+        ``PresetCfg`` nodes; inside a ``PresetCfg`` reads alternatives
+        class-first (matching the resolver's pick step) and recurses into
+        every alternative value -- including those the resolver wouldn't
+        pick, so variant discovery and the cross-env drift lint see them.
+
+        Args:
+            env_cfg: Root of the tree to walk -- an env-cfg instance, a
+                dict, or any dataclass-like object.
+            on_preset: Called as ``on_preset(preset_obj, path)`` for each
+                reachable ``PresetCfg`` (note the simpler signature
+                compared to :meth:`walk_cfg`: no parent/key, since this
+                walker isn't used for in-place replacement).
+        """
+
+        def _visit(node: object, path: str) -> None:
+            if isinstance(node, PresetCfg):
+                on_preset(node, path)
+                items = list(node.alternatives().items())
+            elif isinstance(node, dict):
+                items = list(node.items())
+            else:
+                items = [(n, getattr(node, n, None)) for n in dir(node) if not n.startswith("_")]
+            for key, val in items:
+                if val is None:
+                    continue
+                child = f"{path}.{key}" if path else key
+                if isinstance(val, (PresetCfg, dict)) or hasattr(val, "__dataclass_fields__"):
+                    _visit(val, child)
+
+        _visit(env_cfg, "")
 
 
-def _walk_cfg(cfg, path: str, on_preset: Callable) -> None:
-    """Depth-first walk of a config tree, calling *on_preset(parent, key, obj, path)*
-    for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts, and
-    nested dicts transparently."""
-    items = (
-        cfg.items()
-        if isinstance(cfg, dict)
-        else ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
-    )
-    for key, val in items:
-        child_path = f"{path}.{key}" if path else key
-        if isinstance(val, PresetCfg):
-            on_preset(cfg, key, val, child_path)
-        elif hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
-            _walk_cfg(val, child_path, on_preset)
+# ============================================================================
+# Discovery
+# ============================================================================
 
 
 def collect_presets(cfg, path: str = "") -> dict:
@@ -222,7 +325,7 @@ def collect_presets(cfg, path: str = "") -> dict:
     result = {}
 
     def _record(preset_obj, preset_path):
-        fields = _preset_fields(preset_obj)
+        fields = preset_obj.alternatives()
         result[preset_path] = fields
         for alt in fields.values():
             if hasattr(alt, "__dataclass_fields__"):
@@ -236,8 +339,53 @@ def collect_presets(cfg, path: str = "") -> dict:
         _record(cfg, path)
         return result
 
-    _walk_cfg(cfg, path, lambda _p, _k, obj, cp: _record(obj, cp))
+    CfgTree.walk_cfg(cfg, path, lambda _p, _k, obj, cp: _record(obj, cp))
     return result
+
+
+def collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
+    """Harvest variant names a user can type for each typed target.
+
+    Walks *env_cfg* via :meth:`CfgTree.walk_presets` and applies the
+    **strict-anchor rule** at each ``PresetCfg``: fields are grouped by
+    the canonical name of their value's class. A group is accepted only
+    when at least one of its field names *is* the canonical name; that
+    field anchors the group and other fields in the group are accepted
+    as variants. Groups without a canonical anchor are dropped so the
+    CLI surface and the cross-env drift lint agree.
+
+    Field ``"default"`` is skipped (active selection, not an alternative).
+
+    Args:
+        env_cfg: Root of the config tree to walk -- typically an env-cfg
+            instance loaded via ``load_cfg_from_registry``.
+
+    Returns:
+        For each target with at least one anchored ``PresetCfg`` in
+        *env_cfg*, the set of accepted variant names (always including
+        the canonical anchor). Targets with no anchored preset are
+        absent from the mapping.
+    """
+    variants: dict[PresetTarget, set[str]] = {}
+
+    def _collect(preset_obj: PresetCfg, _path: str) -> None:
+        by_canonical: dict[tuple[PresetTarget, str], list[str]] = {}
+        for fname, value in preset_obj.alternatives().items():
+            if fname == "default" or value is None:
+                continue
+            canonical, target = PresetRegistry.canonical_and_target(value)
+            if canonical is None or target is None:
+                continue
+            by_canonical.setdefault((target, canonical), []).append(fname)
+        for (target, canonical), fnames in by_canonical.items():
+            if canonical not in fnames:
+                # No anchor: drop the whole group. The drift lint flags
+                # this; the CLI must not legitimize it.
+                continue
+            variants.setdefault(target, set()).update(fnames)
+
+    CfgTree.walk_presets(env_cfg, _collect)
+    return variants
 
 
 # ============================================================================
@@ -249,17 +397,53 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
     """Choose the best alternative from a PresetCfg.
 
     Priority: first match in ``selected``, then ``default`` (preferring
-    class-level over instance-level).
+    class-level over instance-level). Target-aware: when the user selected
+    a name that targets one of *preset_obj*'s targets but none of the
+    selected names is a field on *preset_obj*, raise rather than silently
+    fall back to ``default`` (which would drop the user's selection).
+
+    Args:
+        preset_obj: The PresetCfg node being resolved.
+        selected: Flat set of preset names the user asked for (across
+            all targets and free-form domains).
+        path: Dotted path to *preset_obj* in the cfg tree, used in
+            error messages so users know which node was the problem.
+
+    Returns:
+        The chosen alternative.
 
     Raises:
-        ValueError: If no matching name and no ``default`` field exists.
+        ValueError: User selected a name targeting one of this preset's
+            targets but the name isn't a field here -- silent fallback to
+            ``default`` would lose the user's intent. Also raised when no
+            name matches and no ``default`` field exists.
     """
-    fields = _preset_fields(preset_obj)
+    fields = preset_obj.alternatives()
     field_names = set(fields)
     for name in selected:
-        name = _normalize_preset_name(name, field_names)
-        if name in fields:
-            return fields[name]
+        normalized = _normalize_preset_name(name, field_names)
+        if normalized in fields:
+            return fields[normalized]
+
+    # No selected name matched this preset's fields. Before falling back to
+    # ``default``, check whether the user selected a name targeting one of
+    # THIS preset's targets -- if so, the silent fallback would drop their
+    # intent (they asked for X targeting this preset's target, we'd silently
+    # pick default instead). Raise with the available alternatives so the
+    # error points at the exact place the typo lives.
+    preset_targets = preset_obj.dominant_targets()
+    if preset_targets:
+        for name in selected:
+            for target in preset_targets:
+                if name in PresetRegistry.names_for(target):
+                    alts = sorted(f for f in field_names if f != "default")
+                    raise ValueError(
+                        f"PresetCfg {type(preset_obj).__name__} at '{path}' has no field "
+                        f"{name!r}. User requested '--{target.value} {name}' but this preset "
+                        f"declares: {alts}. Either add {name!r} as a field here or pick from "
+                        "the list above."
+                    )
+
     if "default" in fields:
         return fields["default"]
     raise ValueError(
@@ -314,9 +498,9 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         else:
             setattr(parent, key, val)
         if hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
-            _walk_cfg(val, _path, _resolve)
+            CfgTree.walk_cfg(val, _path, _resolve)
 
-    _walk_cfg(cfg, "", _resolve)
+    CfgTree.walk_cfg(cfg, "", _resolve)
     return cfg
 
 
@@ -407,9 +591,10 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
         fingerprint_to_names.setdefault(key, []).append(name)
 
     lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
-    deprecated_hits = sorted(name for name in unknown if name in _LEGACY_PRESET_ALIASES)
+    aliases = PresetTarget.all_legacy_aliases()
+    deprecated_hits = sorted(name for name in unknown if name in aliases)
     for legacy in deprecated_hits:
-        replacement = _LEGACY_PRESET_ALIASES[legacy]
+        replacement = aliases[legacy]
         lines.append(f"  '{legacy}' was renamed to '{replacement}'; this task does not declare '{replacement}' either.")
     lines += [
         "",
@@ -583,8 +768,9 @@ def apply_overrides(
         if name not in presets[sec][path]:
             avail = list(presets[sec][path].keys())
             hint = ""
-            if name in _LEGACY_PRESET_ALIASES:
-                replacement = _LEGACY_PRESET_ALIASES[name]
+            aliases = PresetTarget.all_legacy_aliases()
+            if name in aliases:
+                replacement = aliases[name]
                 hint = f" '{name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
             raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}.{hint}")
         full_path = f"{sec}.{path}" if path else sec
