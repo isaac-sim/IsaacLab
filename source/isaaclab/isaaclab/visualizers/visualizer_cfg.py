@@ -54,7 +54,7 @@ class VisualizerCfg:
     selected envs for tiled view.
     """
 
-    tiled_cam_view: bool = False
+    tiled_cam_view: bool = True
     """Enable a non-interactive tiled camera image view."""
 
     tiled_cam_num: int = 24

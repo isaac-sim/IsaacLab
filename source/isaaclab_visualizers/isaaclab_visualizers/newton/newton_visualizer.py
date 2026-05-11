@@ -17,6 +17,7 @@ from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.envs.utils.camera_view import (
+    apply_debug_oblique_env_camera_poses,
     apply_camera_view_from_origins,
     camera_rgb_batch,
     compute_tile_resolution,
@@ -296,6 +297,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
         self._logged_camera_stats = False
+        self._camera_update_count = 0
+        self._camera_last_checksum: int | None = None
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -527,13 +530,22 @@ class NewtonVisualizer(BaseVisualizer):
             height=tile_h,
             renderer_cfg=NewtonWarpRendererCfg(),
         )
-        self._camera_sensor_indices = env_ids
+        self._camera_sensor_indices = []
         self._camera_is_owned = True
-        self._update_owned_camera_poses()
+        env_origins = self._scene_data_provider.get_interactive_scene().env_origins
+        apply_debug_oblique_env_camera_poses(
+            self._camera_sensor, env_origins[self._camera_env_indices].detach().cpu(), self._camera_env_indices
+        )
 
     def _update_owned_camera_poses(self) -> None:
         """Update generated camera poses from env origins or follow prims."""
         if self._camera_sensor is None or not self._camera_is_owned:
+            return
+        if self.cfg.tiled_cam_view and self.cfg.cam_follow_prim_path is None:
+            env_origins = self._scene_data_provider.get_interactive_scene().env_origins
+            apply_debug_oblique_env_camera_poses(
+                self._camera_sensor, env_origins[self._camera_env_indices].detach().cpu(), self._camera_env_indices
+            )
             return
         if self.cfg.cam_follow_prim_path:
             origins = prim_world_positions(
@@ -552,7 +564,19 @@ class NewtonVisualizer(BaseVisualizer):
             return
         if self._camera_is_owned and self.cfg.cam_follow_prim_path:
             self._update_owned_camera_poses()
+        if self._camera_is_owned:
+            self._camera_sensor.update(dt=0.0, force_recompute=True)
         rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices).contiguous()
+        self._camera_update_count += 1
+        if self._camera_update_count <= 5 or self._camera_update_count % 30 == 0:
+            checksum = int(rgb.to(dtype=torch.int64).sum().item())
+            logger.warning(
+                "[NewtonVisualizer] Camera update #%s checksum=%s changed=%s",
+                self._camera_update_count,
+                checksum,
+                self._camera_last_checksum is None or checksum != self._camera_last_checksum,
+            )
+            self._camera_last_checksum = checksum
         if not self._logged_camera_stats:
             rgb_min = int(rgb.min().item())
             rgb_max = int(rgb.max().item())

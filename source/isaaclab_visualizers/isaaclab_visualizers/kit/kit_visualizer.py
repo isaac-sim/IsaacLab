@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import TYPE_CHECKING
 
+import numpy as np
+import torch
 from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.envs.utils.camera_view import (
+    apply_debug_oblique_env_camera_poses,
     apply_camera_view_from_origins,
     camera_rgb_batch,
     compose_rgb_grid,
@@ -71,6 +75,9 @@ class KitVisualizer(BaseVisualizer):
         self._generated_camera_prim_paths: list[str] = []
         self._camera_image_provider = None
         self._camera_image_window = None
+        self._camera_debug_frame = 0
+        self._camera_update_count = 0
+        self._camera_last_checksum: int | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -148,7 +155,7 @@ class KitVisualizer(BaseVisualizer):
                 settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
-        self._update_camera_image_panel()
+        self._update_camera_image_panel(dt)
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
@@ -339,6 +346,12 @@ class KitVisualizer(BaseVisualizer):
         """Resolve or create the Camera sensor backing non-interactive image views."""
         if not self._uses_camera_sensor_view() or self._runtime_headless:
             return
+        logger.warning(
+            "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",
+            self.cfg.tiled_cam_view,
+            self.cfg.cam_source,
+            num_envs,
+        )
         env_ids = (
             resolve_tiled_env_indices(num_envs, self.cfg.tiled_cam_num, self.cfg.tiled_cam_env_indices)
             if self.cfg.tiled_cam_view
@@ -354,16 +367,35 @@ class KitVisualizer(BaseVisualizer):
 
             count = max(1, len(env_ids))
             tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)
+            logger.warning(
+                "[KitVisualizer] Creating generated camera sensor: env_ids=%s tile=%sx%s",
+                env_ids,
+                tile_w,
+                tile_h,
+            )
             self._camera_sensor, self._generated_camera_prim_paths = create_visualizer_camera(
                 num_envs=num_envs,
                 width=tile_w,
                 height=tile_h,
                 renderer_cfg=IsaacRtxRendererCfg(),
             )
-            self._camera_sensor_indices = env_ids
+            logger.warning("[KitVisualizer] Generated camera sensor initialized.")
+            self._camera_sensor_indices = []
             self._camera_is_owned = True
-            self._update_owned_camera_poses()
+            env_origins = self._scene_data_provider.get_interactive_scene().env_origins
+            apply_debug_oblique_env_camera_poses(
+                self._camera_sensor, env_origins[self._camera_env_indices].detach().cpu(), self._camera_env_indices
+            )
+            pos = self._camera_sensor.data.pos_w[self._camera_env_indices]
+            logger.warning(
+                "[KitVisualizer] Generated camera pose stats: first_pos=%s min_z=%.2f max_z=%.2f",
+                tuple(float(x) for x in pos[0].detach().cpu()),
+                float(pos[:, 2].min().item()),
+                float(pos[:, 2].max().item()),
+            )
+            logger.warning("[KitVisualizer] Generated camera poses initialized.")
         self._setup_camera_image_window()
+        logger.warning("[KitVisualizer] Camera image window initialized.")
 
     def _setup_camera_image_window(self) -> None:
         """Create a dockable Kit UI image panel for camera sensor RGB output."""
@@ -405,6 +437,12 @@ class KitVisualizer(BaseVisualizer):
         """Update generated camera poses from env origins or follow prims."""
         if self._camera_sensor is None or not self._camera_is_owned:
             return
+        if self.cfg.tiled_cam_view and self.cfg.cam_follow_prim_path is None:
+            env_origins = self._scene_data_provider.get_interactive_scene().env_origins
+            apply_debug_oblique_env_camera_poses(
+                self._camera_sensor, env_origins[self._camera_env_indices].detach().cpu(), self._camera_env_indices
+            )
+            return
         if self.cfg.cam_follow_prim_path:
             origins = prim_world_positions(
                 self._scene_data_provider.get_usd_stage(), self.cfg.cam_follow_prim_path, self._camera_env_indices
@@ -416,15 +454,89 @@ class KitVisualizer(BaseVisualizer):
             self._camera_sensor, origins, self.cfg.eye, self.cfg.lookat, self._camera_env_indices
         )
 
-    def _update_camera_image_panel(self) -> None:
+    def _update_camera_image_panel(self, dt: float) -> None:
         """Refresh the non-interactive Kit image panel from camera RGB output."""
         if self._camera_sensor is None or self._camera_image_provider is None:
             return
+        if not hasattr(self, "_logged_camera_panel_first_update"):
+            logger.warning("[KitVisualizer] Updating camera image panel for the first time.")
+            self._logged_camera_panel_first_update = True
+        self._camera_update_count += 1
         if self._camera_is_owned and self.cfg.cam_follow_prim_path:
             self._update_owned_camera_poses()
+        if not hasattr(self, "_logged_camera_panel_before_data"):
+            logger.warning("[KitVisualizer] Fetching camera RGB tensor.")
+            self._logged_camera_panel_before_data = True
+        if self._camera_is_owned:
+            self._camera_sensor.update(dt=dt, force_recompute=True)
         rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices)
+        if self._camera_update_count <= 5 or self._camera_update_count % 30 == 0:
+            checksum = int(rgb.to(dtype=torch.int64).sum().item())
+            logger.warning(
+                "[KitVisualizer] Camera update #%s checksum=%s changed=%s",
+                self._camera_update_count,
+                checksum,
+                self._camera_last_checksum is None or checksum != self._camera_last_checksum,
+            )
+            self._camera_last_checksum = checksum
+        if not hasattr(self, "_logged_camera_panel_after_data"):
+            tile_means = rgb[..., :3].float().mean(dim=(1, 2)).detach().cpu().numpy()
+            logger.warning(
+                "[KitVisualizer] Camera RGB tensor ready: shape=%s dtype=%s min=%s max=%s",
+                tuple(rgb.shape),
+                rgb.dtype,
+                int(rgb.min().item()),
+                int(rgb.max().item()),
+            )
+            logger.warning("[KitVisualizer] First tile RGB means: %s", tile_means[: min(4, len(tile_means))].tolist())
+            try:
+                from PIL import Image
+
+                debug_dir = os.path.join(os.getcwd(), "mtrepte")
+                for tile_idx in range(min(4, rgb.shape[0])):
+                    tile = rgb[tile_idx].detach().contiguous().cpu().numpy()[..., :3]
+                    Image.fromarray(tile).save(os.path.join(debug_dir, f"kit_tiled_camera_tile_{tile_idx}.png"))
+                logger.warning("[KitVisualizer] Saved first camera debug tiles to %s", debug_dir)
+            except Exception as exc:
+                logger.warning("[KitVisualizer] Failed to save individual camera debug tiles: %s", exc)
+            self._logged_camera_panel_after_data = True
         image = compose_rgb_grid(rgb) if self.cfg.tiled_cam_view else rgb[0].detach().contiguous().cpu().numpy()
-        self._camera_image_provider.set_data_array(image.astype("uint8", copy=False), [image.shape[1], image.shape[0]])
+        self._upload_camera_image_to_panel(image)
+
+    def _upload_camera_image_to_panel(self, image: np.ndarray) -> None:
+        """Upload an RGB/RGBA image to the Kit image provider."""
+        if not hasattr(self, "_logged_camera_panel_image_stats"):
+            channel_mean = image[..., :3].reshape(-1, 3).mean(axis=0)
+            logger.warning(
+                "[KitVisualizer] Composed camera image stats: shape=%s min=%s max=%s mean_rgb=(%.2f, %.2f, %.2f)",
+                image.shape,
+                int(image.min()),
+                int(image.max()),
+                float(channel_mean[0]),
+                float(channel_mean[1]),
+                float(channel_mean[2]),
+            )
+            try:
+                from PIL import Image
+
+                debug_path = os.path.join(os.getcwd(), "mtrepte", "kit_tiled_camera_debug.png")
+                Image.fromarray(image[..., :3]).save(debug_path)
+                logger.warning("[KitVisualizer] Saved composed camera debug image to %s", debug_path)
+            except Exception as exc:
+                logger.warning("[KitVisualizer] Failed to save composed camera debug image: %s", exc)
+            self._logged_camera_panel_image_stats = True
+        if not hasattr(self, "_logged_camera_panel_before_upload"):
+            logger.warning("[KitVisualizer] Uploading camera image to UI provider: shape=%s", image.shape)
+            self._logged_camera_panel_before_upload = True
+        image = image.astype("uint8", copy=False)
+        if image.ndim == 3 and image.shape[2] == 3:
+            alpha = np.full((*image.shape[:2], 1), 255, dtype=np.uint8)
+            image = np.concatenate((image, alpha), axis=2)
+        image = np.ascontiguousarray(image)
+        self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
+        if not hasattr(self, "_logged_camera_panel_after_upload"):
+            logger.warning("[KitVisualizer] Camera image upload complete.")
+            self._logged_camera_panel_after_upload = True
 
     def _refresh_controlled_camera_path(self) -> None:
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""

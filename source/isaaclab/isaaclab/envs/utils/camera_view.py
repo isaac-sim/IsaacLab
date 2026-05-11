@@ -199,4 +199,41 @@ def apply_camera_view_from_origins(
     origins = origins.to(device=device)
     eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
     lookat_offset = torch.tensor(lookat, dtype=torch.float32, device=device).unsqueeze(0)
-    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset, env_ids=env_ids)
+    # Temporary validation mode: force every generated camera to the same pose
+    # as tile 0. If renderer batching is correct, all tiles should match.
+    origin0 = origins[:1]
+    eyes = (origin0 + eye_offset).repeat(origins.shape[0], 1)
+    targets = (origin0 + lookat_offset).repeat(origins.shape[0], 1)
+    camera.set_world_poses_from_view(eyes, targets)
+    camera._update_poses(None)
+
+
+def apply_debug_top_down_grid_camera_poses(camera: Camera, env_indices: list[int], spacing: float = 20.0) -> None:
+    """Temporary debug pose: place cameras on a grid at z=10 looking straight down."""
+    device = camera.device
+    count = len(env_indices)
+    cols = max(1, math.ceil(math.sqrt(max(1, count))))
+    eyes = []
+    targets = []
+    for i, _env_id in enumerate(env_indices):
+        row, col = divmod(i, cols)
+        x = float(col) * spacing
+        y = float(row) * spacing
+        eyes.append((x, y, 10.0))
+        targets.append((x, y, 0.0))
+    eye_tensor = torch.tensor(eyes, dtype=torch.float32, device=device)
+    target_tensor = torch.tensor(targets, dtype=torch.float32, device=device)
+    camera.set_world_poses_from_view(eye_tensor, target_tensor)
+    camera._update_poses(None)
+
+
+def apply_debug_oblique_env_camera_poses(camera: Camera, origins: torch.Tensor, env_indices: list[int]) -> None:
+    """Temporary debug pose: place cameras near each env origin with an oblique view."""
+    device = camera.device
+    origins = origins.to(device=device)
+    # Use a high, nearly top-down view for rough terrain. The small horizontal
+    # offset avoids the Z-up singularity from a perfectly vertical look vector.
+    eye_offset = torch.tensor((2.0, -2.0, 3.0), dtype=torch.float32, device=device).unsqueeze(0)
+    lookat_offset = torch.tensor((0.0, 0.0, 0.0), dtype=torch.float32, device=device).unsqueeze(0)
+    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset)
+    camera._update_poses(None)
