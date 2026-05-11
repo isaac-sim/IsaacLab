@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+5.0.1 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed AppLauncher experience and render preset path resolution to use the
+  tracked ``apps`` directory after the legacy ``apps/isaacsim_5`` files were
+  removed.
+
+
 5.0.0 (2026-05-11)
 ~~~~~~~~~~~~~~~~~~
 

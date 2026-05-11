@@ -23,7 +23,6 @@ import toml
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
@@ -105,9 +104,6 @@ def test_render_cfg_presets():
 
         # grab isaac lab apps path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-        # for Isaac Sim 5 compatibility, we use the 5 rendering mode app files in a different folder
-        if get_isaac_sim_version().major < 6:
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
         # grab preset settings
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
