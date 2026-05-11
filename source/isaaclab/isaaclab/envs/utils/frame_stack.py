@@ -11,6 +11,8 @@ that tasks can use to supply explicit temporal observations to a policy.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 
 
@@ -113,7 +115,7 @@ class FrameStackBuffer:
         self._frame_idx = (self._frame_idx + 1) % self.frame_stack
         return self._stacked
 
-    def reset(self, env_ids: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         """Mark envs for history re-initialization on the next :meth:`update`.
 
         Args:
@@ -122,5 +124,7 @@ class FrameStackBuffer:
         if env_ids is None:
             self._needs_init.fill_(True)
         else:
+            if not isinstance(env_ids, torch.Tensor):
+                env_ids = torch.as_tensor(env_ids, device=self._device, dtype=torch.long)
             self._needs_init[env_ids] = True
         self._needs_init_cpu = True

@@ -157,6 +157,23 @@ class TestFrameStackBuffer:
         assert torch.equal(stacked[..., CHANNELS : 2 * CHANNELS], _make_frame(9))
         assert torch.equal(stacked[..., 2 * CHANNELS :], _make_frame(10))
 
+    def test_reset_accepts_python_sequence(self):
+        """reset() accepts a plain ``list[int]`` (the type DirectRLEnv hands to ``_reset_idx``)."""
+        buf = FrameStackBuffer(SINGLE_SHAPE, frame_stack=2, device="cpu")
+        buf.update(_make_frame(1))
+        buf.update(_make_frame(2))
+        buf.reset([0, 2])
+        stacked = buf.update(_make_frame(9))
+        per_env_shape = (HEIGHT, WIDTH, CHANNELS)
+        nines = torch.full(per_env_shape, 9, dtype=torch.uint8)
+        twos = torch.full(per_env_shape, 2, dtype=torch.uint8)
+        for env_id in (0, 2):
+            assert torch.equal(stacked[env_id, ..., :CHANNELS], nines), f"env {env_id} oldest"
+            assert torch.equal(stacked[env_id, ..., CHANNELS:], nines), f"env {env_id} newest"
+        for env_id in (1, 3):
+            assert torch.equal(stacked[env_id, ..., :CHANNELS], twos), f"env {env_id} oldest"
+            assert torch.equal(stacked[env_id, ..., CHANNELS:], nines), f"env {env_id} newest"
+
     def test_reset_multi_env_subset_preserves_unrelated(self):
         """Resetting envs [0, 2] should re-init only those; envs [1, 3] keep their history."""
         buf = FrameStackBuffer(SINGLE_SHAPE, frame_stack=2, device="cpu")

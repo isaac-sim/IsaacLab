@@ -49,15 +49,16 @@ class CartpoleCameraPresetsEnv(CartpoleCameraEnv):
         # Idempotent — base ``DirectRLEnv.__init__`` calls this again with no effect.
         resolve_cfg_presets(cfg)
 
-        # ``frame_stack=0`` is the sentinel; any non-zero user value short-circuits.
-        if cfg.frame_stack == 0:
+        if cfg.frame_stack < 0:
             cfg.frame_stack = self._resolve_frame_stack_default(cfg.tiled_camera, cfg.sim.physics)
+        elif cfg.frame_stack == 0:
+            cfg.frame_stack = 1
 
         # Capture single-frame channel count before bumping obs_space; the buffer needs
         # the unstacked shape.
         self._single_channels: int = int(cfg.observation_space[-1])
         if cfg.frame_stack > 1:
-            cfg.observation_space[-1] = self._single_channels * cfg.frame_stack
+            cfg.observation_space = [*cfg.observation_space[:-1], self._single_channels * cfg.frame_stack]
 
         super().__init__(cfg, render_mode, **kwargs)
 

@@ -52,7 +52,7 @@ class TestFrameStackTruthTable:
 
     def test_no_presets_resolves_to_default(self):
         cfg = _resolve()
-        assert cfg.frame_stack == 0, "Cfg sentinel default must survive preset resolution"
+        assert cfg.frame_stack == -1, "Cfg sentinel default must survive preset resolution"
         assert _policy_default(cfg) == 1
 
     def test_physx_default_renderer(self):
@@ -122,11 +122,15 @@ class TestEnvConstructionEndToEnd:
         "presets,user_frame_stack,expected_frame_stack,expected_channels",
         [
             # PhysX default (no presets): policy resolves to 1 → buffer skipped → 3 channels.
-            (frozenset(), 0, 1, 3),
+            (frozenset(), -1, 1, 3),
             # Newton + Warp: policy resolves to 2 → buffer active → 6 channels.
-            (frozenset({"newton_mjwarp", "newton_renderer"}), 0, 2, 6),
+            (frozenset({"newton_mjwarp", "newton_renderer"}), -1, 2, 6),
             # User override (env.frame_stack=4) on Newton+Warp: policy is skipped → 12 channels.
             (frozenset({"newton_mjwarp", "newton_renderer"}), 4, 4, 12),
+            # ``frame_stack=0`` is a synonym for "no stacking" → normalized to 1.
+            (frozenset(), 0, 1, 3),
+            # Explicit single-frame: ``frame_stack=1`` short-circuits the policy.
+            (frozenset(), 1, 1, 3),
         ],
     )
     def test_env_obs_shape_matches_policy(self, presets, user_frame_stack, expected_frame_stack, expected_channels):
