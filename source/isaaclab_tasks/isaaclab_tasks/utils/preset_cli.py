@@ -63,7 +63,7 @@ def _extract_task_from_argv(argv: list[str]) -> str | None:
       for repeated single-value flags. This matters for ``--help``, which
       exits before the post-parse reload path runs.
     * Stops scanning at the ``--`` end-of-options marker so a task name
-      after ``--`` (which argparse leaves as a positional) doesn't pre-empt
+      after ``--`` (which argparse leaves as a positional) doesn't preempt
       one before it.
 
     Limitation: argparse's default ``allow_abbrev=True`` accepts unambiguous
@@ -119,157 +119,182 @@ def _load_task_env_cfg(task_name: str) -> object | None:
     return env_cfg
 
 
-def _canonical_and_target(value: object) -> tuple[str | None, PresetTarget | None]:
-    """Look up the canonical preset name + target for *value*'s class.
+class _CfgTree:
+    """Cfg-tree introspection used by both ``setup_cli`` and the cross-env
+    drift lint in tests.
 
-    Walks the MRO for ``_preset_name`` / ``_preset_target`` (stamped by
-    :func:`register`). Falls back to ``value.solver_cfg`` so wrappers like
-    ``NewtonCfg`` (which holds a registered solver-cfg) still resolve.
-    Returns ``(None, None)`` when nothing in the chain is decorated.
+    All methods are pure (no shared state); the class is a namespace that
+    groups the helpers and exposes ``walk_presets`` as the single traversal
+    primitive. Two views drive the traversal:
+
+    * :meth:`preset_alternatives_view` -- class-over-instance read of one
+      ``PresetCfg``'s alternatives. Mirrors :func:`hydra._preset_fields`,
+      which is what the resolver uses to pick an alternative.
+    * :meth:`walk_cfg_items` -- instance-first ``dir + getattr`` over a
+      non-``PresetCfg`` node. Mirrors :func:`hydra._walk_cfg`, which is
+      what the resolver uses to find nested ``PresetCfg`` nodes.
+
+    :meth:`walk_presets` switches between the two by node kind, and the
+    high-level helpers (:meth:`collect_task_variants`, the drift lint)
+    are just visitors layered on top.
     """
-    for klass in type(value).__mro__:
-        if "_preset_name" in klass.__dict__:
-            return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
-    inner = getattr(value, "solver_cfg", None)
-    if inner is not None:
-        for klass in type(inner).__mro__:
+
+    @staticmethod
+    def canonical_and_target(value: object) -> tuple[str | None, PresetTarget | None]:
+        """Look up the canonical preset name + target for *value*'s class.
+
+        Walks the MRO for ``_preset_name`` / ``_preset_target`` (stamped by
+        :func:`register`). Falls back to ``value.solver_cfg`` so wrappers
+        like ``NewtonCfg`` (which holds a registered solver-cfg) still
+        resolve. Returns ``(None, None)`` when nothing in the chain is
+        decorated.
+        """
+        for klass in type(value).__mro__:
             if "_preset_name" in klass.__dict__:
                 return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
-    return None, None
+        inner = getattr(value, "solver_cfg", None)
+        if inner is not None:
+            for klass in type(inner).__mro__:
+                if "_preset_name" in klass.__dict__:
+                    return klass.__dict__["_preset_name"], klass.__dict__["_preset_target"]
+        return None, None
 
+    @staticmethod
+    def preset_alternatives_view(node: object) -> dict[str, object]:
+        """Return ``{name: value}`` for every alternative on a :class:`PresetCfg`.
 
-def _preset_alternatives_view(node: object) -> dict[str, object]:
-    """Return ``{name: value}`` for every alternative on a :class:`PresetCfg`.
+        Mirrors :func:`isaaclab_tasks.utils.hydra._preset_fields` exactly:
 
-    Mirrors :func:`isaaclab_tasks.utils.hydra._preset_fields` exactly:
+        * Class-level values take priority over instance values for declared
+          ``__dataclass_fields__`` -- robot-specific cfg modules reassign
+          field values on the class after instances are already constructed,
+          and the resolver applies those class-level values when picking an
+          alternative.
+        * Picks up class-only attributes (added outside the dataclass
+          mechanism) when they aren't dunder, callable, or already covered.
 
-    * Class-level values take priority over instance values for declared
-      ``__dataclass_fields__`` -- robot-specific cfg modules reassign field
-      values on the class after instances are already constructed, and the
-      Hydra resolver applies those class-level values when picking an
-      alternative. The variant walker must agree.
-    * Picks up class-only attributes (added outside the dataclass mechanism)
-      when they aren't dunder, callable, or already covered.
+        Used when reading alternatives off a single ``PresetCfg``;
+        tree-level recursion through non-``PresetCfg`` nodes uses
+        :meth:`walk_cfg_items` instead.
+        """
+        cls = type(node)
+        out: dict[str, object] = {}
+        fields = getattr(node, "__dataclass_fields__", None)
+        if fields is not None:
+            for fname in fields:
+                cls_val = getattr(cls, fname, None)
+                out[fname] = cls_val if cls_val is not None else getattr(node, fname, None)
+        for attr in vars(cls):
+            if attr.startswith("_") or attr in out or callable(getattr(cls, attr, None)):
+                continue
+            out[attr] = getattr(cls, attr)
+        return out
 
-    Used ONLY when reading alternatives off a single ``PresetCfg`` node;
-    tree-level recursion uses :func:`_walk_cfg_items` instead, so we stay
-    aligned with whichever traversal Hydra uses for each phase.
-    """
-    cls = type(node)
-    out: dict[str, object] = {}
-    fields = getattr(node, "__dataclass_fields__", None)
-    if fields is not None:
-        for fname in fields:
-            cls_val = getattr(cls, fname, None)
-            out[fname] = cls_val if cls_val is not None else getattr(node, fname, None)
-    for attr in vars(cls):
-        if attr.startswith("_") or attr in out or callable(getattr(cls, attr, None)):
-            continue
-        out[attr] = getattr(cls, attr)
-    return out
+    @staticmethod
+    def walk_cfg_items(node: object):
+        """Yield ``(name, value)`` pairs for tree recursion, mirroring
+        :func:`isaaclab_tasks.utils.hydra._walk_cfg`.
 
+        For dicts: items as-is. For other objects: every non-underscore
+        attribute reachable via ``getattr`` -- which is instance-first
+        with class fallback. This deliberately differs from
+        :meth:`preset_alternatives_view` (class-first) because it matches
+        how :func:`resolve_presets` finds nested ``PresetCfg`` nodes. If
+        we advertised a class-level override the resolver would never
+        see, the typed-flag layer would accept names ``resolve_presets``
+        then can't apply.
+        """
+        if isinstance(node, dict):
+            return list(node.items())
+        items: list[tuple[str, object]] = []
+        for n in dir(node):
+            if n.startswith("_"):
+                continue
+            val = getattr(node, n, None)
+            if val is None:
+                continue
+            items.append((n, val))
+        return items
 
-def _walk_cfg_items(node: object):
-    """Yield ``(name, value)`` pairs for tree recursion, mirroring
-    :func:`isaaclab_tasks.utils.hydra._walk_cfg`.
+    @classmethod
+    def walk_presets(cls, env_cfg: object, on_preset) -> None:
+        """Visit every :class:`PresetCfg` reachable from *env_cfg*.
 
-    For dicts: items as-is. For other objects: every non-underscore
-    attribute reachable via ``getattr`` -- which is instance-first with
-    class fallback. This deliberately differs from
-    :func:`_preset_alternatives_view` (class-first) because it matches
-    how :func:`resolve_presets` finds nested ``PresetCfg`` nodes. If we
-    advertised a class-level override that the resolver would never see,
-    the typed-flag layer would accept names ``resolve_presets`` then
-    can't apply.
-    """
-    if isinstance(node, dict):
-        return list(node.items())
-    items: list[tuple[str, object]] = []
-    for n in dir(node):
-        if n.startswith("_"):
-            continue
-        val = getattr(node, n, None)
-        if val is None:
-            continue
-        items.append((n, val))
-    return items
+        At a ``PresetCfg`` node: invokes ``on_preset(preset_obj, path)``
+        and descends class-first through that PresetCfg's alternatives
+        (matching the resolver's pick step). Elsewhere: descends
+        instance-first via :meth:`walk_cfg_items` (matching the resolver's
+        tree walk).
 
+        This is the single traversal primitive shared by
+        :meth:`collect_task_variants` and the drift lint, so the two
+        cannot diverge on what counts as "reachable."
+        """
+        from isaaclab_tasks.utils.hydra import PresetCfg
 
-def _collect_task_variants(env_cfg: object) -> dict[PresetTarget, set[str]]:
-    """Walk *env_cfg* and harvest variant field names from every :class:`PresetCfg`.
+        def _visit(node: object, path: str) -> None:
+            if isinstance(node, PresetCfg):
+                on_preset(node, path)
+                items = cls.preset_alternatives_view(node).items()
+            else:
+                items = cls.walk_cfg_items(node)
+            for key, val in items:
+                if val is None:
+                    continue
+                child = f"{path}.{key}" if path else key
+                if isinstance(val, (PresetCfg, dict)) or hasattr(val, "__dataclass_fields__"):
+                    _visit(val, child)
 
-    Returns ``{target: set[name]}``. Field ``"default"`` is skipped because
-    it holds the active selection rather than an alternative.
+        _visit(env_cfg, "")
 
-    Strict-anchor rule: within a single ``PresetCfg``, fields are grouped
-    by the canonical name of their value's class. A group is accepted only
-    when at least one of its field names *is* the canonical name; that
-    field anchors the group and other fields in the group are accepted
-    as variants. A group with no canonical anchor is dropped from the
-    variants set, so e.g.::
+    @classmethod
+    def collect_task_variants(cls, env_cfg: object) -> dict[PresetTarget, set[str]]:
+        """Walk *env_cfg* and harvest variant field names from every :class:`PresetCfg`.
 
-        @configclass
-        class PhysicsCfg(PresetCfg):
-            default: ... = MISSING
-            newton_mjwarp2: MjwarpCfg = MjwarpCfg(...)  # variant only, no anchor
+        Returns ``{target: set[name]}``. Field ``"default"`` is skipped
+        because it holds the active selection rather than an alternative.
 
-    does *not* make ``--physics newton_mjwarp2`` selectable. The user
-    must add a sibling ``newton_mjwarp: MjwarpCfg = ...`` field to anchor
-    the group; then ``newton_mjwarp2`` is accepted alongside it. This
-    matches the cross-env drift lint, so the CLI surface and the lint
-    agree on what counts as a valid variant.
-    """
-    from isaaclab_tasks.utils.hydra import PresetCfg
+        Strict-anchor rule: within a single ``PresetCfg``, fields are
+        grouped by the canonical name of their value's class. A group is
+        accepted only when at least one of its field names *is* the
+        canonical name; that field anchors the group and other fields in
+        the group are accepted as variants. A group with no canonical
+        anchor is dropped, so e.g.::
 
-    variants: dict[PresetTarget, set[str]] = {}
+            @configclass
+            class PhysicsCfg(PresetCfg):
+                default: ... = MISSING
+                newton_mjwarp2: MjwarpCfg = MjwarpCfg(...)  # variant only
 
-    def _visit(node: object) -> None:
-        if isinstance(node, PresetCfg):
-            # (target, canonical) -> [fname, ...]. Keying by target as well
-            # as canonical keeps groups cleanly separated even if a name
-            # were ever reused across targets. Use the alternatives view
-            # (class-first) here -- matches hydra._preset_fields, which
-            # is what the resolver uses to read PresetCfg fields.
-            alternatives = _preset_alternatives_view(node)
+        does *not* make ``--physics newton_mjwarp2`` selectable. The user
+        must add a sibling ``newton_mjwarp: MjwarpCfg = ...`` field to
+        anchor the group; then ``newton_mjwarp2`` is accepted alongside
+        it. This matches the cross-env drift lint, so the CLI surface
+        and the lint agree on what counts as a valid variant.
+        """
+        variants: dict[PresetTarget, set[str]] = {}
+
+        def _collect(preset_obj: object, _path: str) -> None:
+            # (target, canonical) -> [fname, ...]. Keying by target as
+            # well as canonical keeps groups cleanly separated even if a
+            # name were ever reused across targets.
             by_canonical: dict[tuple[PresetTarget, str], list[str]] = {}
-            for fname, value in alternatives.items():
+            for fname, value in cls.preset_alternatives_view(preset_obj).items():
                 if fname == "default" or value is None:
                     continue
-                canonical, target = _canonical_and_target(value)
+                canonical, target = cls.canonical_and_target(value)
                 if canonical is None or target is None:
                     continue
                 by_canonical.setdefault((target, canonical), []).append(fname)
-
             for (target, canonical), fnames in by_canonical.items():
+                # No anchor: drop the whole group. The drift lint flags
+                # this; the CLI must not legitimize it.
                 if canonical not in fnames:
-                    # No anchor: drop the whole group. The cross-env drift
-                    # lint flags this; the CLI must not legitimize it by
-                    # accepting the variant names.
                     continue
                 variants.setdefault(target, set()).update(fnames)
 
-            # Recurse into the alternatives we just read (class-first
-            # values), not via _walk_cfg_items (instance-first) -- the
-            # resolver picks one of these class-first alternatives and
-            # only AFTER picking does it descend via _walk_cfg into the
-            # picked one. A class-level override of an alternative whose
-            # value contains nested PresetCfgs would otherwise be missed.
-            for value in alternatives.values():
-                if value is None:
-                    continue
-                if isinstance(value, PresetCfg) or hasattr(value, "__dataclass_fields__") or isinstance(value, dict):
-                    _visit(value)
-            return
-
-        # Non-PresetCfg recursion: instance-first via _walk_cfg_items.
-        # Mirrors hydra._walk_cfg which uses getattr against the cfg
-        # instance, so nothing the resolver wouldn't reach is advertised.
-        for _key, val in _walk_cfg_items(node):
-            if isinstance(val, PresetCfg) or hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
-                _visit(val)
-
-    _visit(env_cfg)
-    return variants
+        cls.walk_presets(env_cfg, _collect)
+        return variants
 
 
 def _validate_typed_flag(target: PresetTarget, value: str | None, variants: set[str]) -> str | None:
@@ -345,7 +370,7 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     pre_task = _extract_task_from_argv(sys.argv[1:])
     env_cfg = _load_task_env_cfg(pre_task) if pre_task else None
     loaded_task = pre_task if env_cfg is not None else None
-    task_variants: dict[PresetTarget, set[str]] = _collect_task_variants(env_cfg) if env_cfg is not None else {}
+    task_variants: dict[PresetTarget, set[str]] = _CfgTree.collect_task_variants(env_cfg) if env_cfg is not None else {}
 
     group = parser.add_argument_group(
         "preset selection",
@@ -398,7 +423,7 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     # task is a legitimate empty result and doesn't retrigger.
     if any_typed and task_name and (env_cfg is None or task_name != loaded_task):
         env_cfg = _load_task_env_cfg(task_name)
-        task_variants = _collect_task_variants(env_cfg) if env_cfg is not None else {}
+        task_variants = _CfgTree.collect_task_variants(env_cfg) if env_cfg is not None else {}
         loaded_task = task_name if env_cfg is not None else None
 
     # Collect everything the user asked for, in declaration order.

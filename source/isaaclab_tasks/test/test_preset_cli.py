@@ -416,7 +416,7 @@ def test_nested_preset_under_class_level_alternative_override(stub_app_launcher,
     from isaaclab.utils.preset_registry import PresetTarget
 
     from isaaclab_tasks.utils.hydra import preset
-    from isaaclab_tasks.utils.preset_cli import _collect_task_variants
+    from isaaclab_tasks.utils.preset_cli import _CfgTree
 
     # Inner PresetCfg with a uniquely named variant ``q_only`` that we
     # want to surface only through the class-level override path.
@@ -441,7 +441,7 @@ def test_nested_preset_under_class_level_alternative_override(stub_app_launcher,
     # resolver would see the wrapper and descend into ``inner_q``.
     type(outer).newton_renderer = _Wrapper(nested=inner_q)
 
-    variants = _collect_task_variants(outer)
+    variants = _CfgTree.collect_task_variants(outer)
     assert "q_only" in variants.get(PresetTarget.RENDERER, set())
 
 
@@ -465,7 +465,7 @@ def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launche
     from isaaclab.utils.preset_registry import PresetTarget
 
     from isaaclab_tasks.utils.hydra import preset
-    from isaaclab_tasks.utils.preset_cli import _collect_task_variants
+    from isaaclab_tasks.utils.preset_cli import _CfgTree
 
     instance_preset = preset(
         default=NewtonWarpRendererCfg(),
@@ -488,7 +488,7 @@ def test_walker_matches_resolver_on_class_level_parent_override(stub_app_launche
     # ``getattr(parent, 'renderer')`` returns ``instance_preset``.
     _Parent.renderer = class_only_preset
 
-    variants = _collect_task_variants(parent)
+    variants = _CfgTree.collect_task_variants(parent)
     seen = variants.get(PresetTarget.RENDERER, set())
     assert "instance_only" in seen
     assert "class_only" not in seen
@@ -614,55 +614,6 @@ def test_help_lists_registered_preset_names(stub_app_launcher, monkeypatch, caps
 # ---------------------------------------------------------------------------
 
 
-def _walk_preset_cfgs(cfg, on_preset, _path=""):
-    """Yield every :class:`PresetCfg` node reachable from *cfg*.
-
-    Tree recursion outside ``PresetCfg`` mirrors
-    :func:`isaaclab_tasks.utils.hydra._walk_cfg` (instance-first via
-    ``getattr``). When the current node is itself a ``PresetCfg``, the
-    walker recurses through :func:`_preset_alternatives_view` (class-first)
-    instead -- the resolver picks an alternative from that view, then
-    descends via ``_walk_cfg``. A class-level override of an alternative
-    whose value contains nested ``PresetCfg`` variants would otherwise
-    be invisible to the lint.
-    """
-    from isaaclab_tasks.utils.hydra import PresetCfg
-    from isaaclab_tasks.utils.preset_cli import _preset_alternatives_view, _walk_cfg_items
-
-    if isinstance(cfg, PresetCfg):
-        on_preset(cfg, _path)
-        for key, val in _preset_alternatives_view(cfg).items():
-            if val is None:
-                continue
-            child_path = f"{_path}.{key}" if _path else key
-            if isinstance(val, PresetCfg) or hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
-                _walk_preset_cfgs(val, on_preset, child_path)
-        return
-
-    for key, val in _walk_cfg_items(cfg):
-        child_path = f"{_path}.{key}" if _path else key
-        if isinstance(val, PresetCfg) or hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
-            _walk_preset_cfgs(val, on_preset, child_path)
-
-
-def _canonical_for(value: object) -> str | None:
-    """Walk *value*'s class MRO for ``_preset_name`` (set by :func:`register`).
-
-    Falls back to ``value.solver_cfg``'s MRO when *value* itself isn't decorated
-    but holds a registered solver-cfg (e.g., ``NewtonCfg`` wraps ``MJWarpSolverCfg``).
-    Returns ``None`` if neither is decorated.
-    """
-    for klass in type(value).__mro__:
-        if "_preset_name" in klass.__dict__:
-            return klass.__dict__["_preset_name"]
-    inner = getattr(value, "solver_cfg", None)
-    if inner is not None:
-        for klass in type(inner).__mro__:
-            if "_preset_name" in klass.__dict__:
-                return klass.__dict__["_preset_name"]
-    return None
-
-
 def _drift_violations(preset_obj) -> list[str]:
     """Drift checks for one :class:`PresetCfg` instance.
 
@@ -683,7 +634,7 @@ def _drift_violations(preset_obj) -> list[str]:
     """
     from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
-    from isaaclab_tasks.utils.preset_cli import _preset_alternatives_view
+    from isaaclab_tasks.utils.preset_cli import _CfgTree
 
     # All canonical names across all targets. Used to detect when a field
     # name claims a canonical identity its value class doesn't earn.
@@ -695,10 +646,10 @@ def _drift_violations(preset_obj) -> list[str]:
 
     # Use the same class-over-instance + class-only-attr view ``_preset_fields``
     # uses on a single PresetCfg, so a class-level variant override is linted.
-    for fname, value in _preset_alternatives_view(preset_obj).items():
+    for fname, value in _CfgTree.preset_alternatives_view(preset_obj).items():
         if fname == "default" or value is None:
             continue
-        canonical = _canonical_for(value)
+        canonical, _ = _CfgTree.canonical_and_target(value)
 
         # Rule 1: when a field name is itself a registered canonical AND its
         # value's class is registered under a DIFFERENT canonical, both sides
@@ -816,6 +767,7 @@ def test_no_canonical_vocabulary_drift_in_registered_tasks():
 
     import isaaclab_tasks  # noqa: F401  -- triggers gym registration
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+    from isaaclab_tasks.utils.preset_cli import _CfgTree
 
     violations: list[tuple[str, str]] = []
     skipped: list[tuple[str, str]] = []
@@ -833,12 +785,12 @@ def test_no_canonical_vocabulary_drift_in_registered_tasks():
             skipped.append((task_id, f"{type(exc).__name__}: {exc}"))
             continue
 
-        def _record(preset_obj, _path):
+        def _record(preset_obj, _path, _task_id=task_id):
             for msg in _drift_violations(preset_obj):
-                violations.append((task_id, msg))
+                violations.append((_task_id, msg))
 
         try:
-            _walk_preset_cfgs(env_cfg, _record)
+            _CfgTree.walk_presets(env_cfg, _record)
         except BaseException as exc:  # noqa: BLE001
             skipped.append((task_id, f"walk failed: {type(exc).__name__}: {exc}"))
 
