@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.8.2 (2026-05-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Pink IK setup checks to reinstall and report the required ``daqp``
+  solver when it is missing or incompatible.
+
+
 4.8.1 (2026-05-09)
 ~~~~~~~~~~~~~~~~~~
 
