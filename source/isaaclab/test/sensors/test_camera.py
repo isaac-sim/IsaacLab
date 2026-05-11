@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 import scipy.spatial.transform as tf
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
@@ -105,11 +106,11 @@ def test_camera_init(setup_sim_camera):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
     # Check buffers that exist and have correct shapes
-    assert camera.data.pos_w.shape == (1, 3)
+    assert camera.data.pos_w.torch.shape == (1, 3)
     assert camera.data.quat_w_ros.shape == (1, 4)
-    assert camera.data.quat_w_world.shape == (1, 4)
+    assert camera.data.quat_w_world.torch.shape == (1, 4)
     assert camera.data.quat_w_opengl.shape == (1, 4)
-    assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
+    assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
 
@@ -847,11 +848,11 @@ def test_camera_multi_regex_init(setup_camera_device, device):
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-    assert camera.data.pos_w.shape == (num_cameras, 3)
+    assert camera.data.pos_w.torch.shape == (num_cameras, 3)
     assert camera.data.quat_w_ros.shape == (num_cameras, 4)
-    assert camera.data.quat_w_world.shape == (num_cameras, 4)
+    assert camera.data.quat_w_world.torch.shape == (num_cameras, 4)
     assert camera.data.quat_w_opengl.shape == (num_cameras, 4)
-    assert camera.data.intrinsic_matrices.shape == (num_cameras, 3, 3)
+    assert camera.data.intrinsic_matrices.torch.shape == (num_cameras, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
 
     for _ in range(10):
@@ -970,7 +971,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
     for seg_type in camera_cfg.data_types:
         assert camera.data.output[seg_type].shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
-        assert camera.data.output[seg_type].dtype == torch.int32
+        assert camera.data.output[seg_type].dtype == wp.int32
         assert isinstance(camera.data.info[seg_type], dict)
 
     del camera
@@ -1001,7 +1002,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
         norms = torch.linalg.norm(im_data, dim=-1)
         assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
 
-    assert camera.data.output["normals"].dtype == torch.float
+    assert camera.data.output["normals"].dtype == wp.float32
     del camera
 
 
@@ -1096,7 +1097,7 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
             self.cfg = cfg
 
         def supported_output_types(self):
-            return {RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8)}
+            return {RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8)}
 
         def prepare_stage(self, stage, num_envs):
             pass

@@ -101,11 +101,11 @@ def test_multi_tiled_camera_init(setup_camera):
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
         assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
         assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -193,11 +193,11 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
         assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
         assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -289,11 +289,11 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
         assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
         assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
