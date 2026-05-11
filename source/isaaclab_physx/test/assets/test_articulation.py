@@ -680,7 +680,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
