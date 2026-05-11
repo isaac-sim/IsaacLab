@@ -1,6 +1,3 @@
-# Project-specific CLAUDE.md (upstream tracks @AGENTS.md include; protect local override)
-/CLAUDE.md
-
 # C++
 **/cmake-build*/
 **/build*/
