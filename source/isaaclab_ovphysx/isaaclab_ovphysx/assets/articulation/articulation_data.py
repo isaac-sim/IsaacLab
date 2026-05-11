@@ -3,17 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OVPhysX-backed ArticulationData implementation.
-
-Mirrors the post-refactor :class:`~isaaclab_ovphysx.assets.RigidObjectData`
-shape with the API surface coming from
-:class:`isaaclab_newton.assets.ArticulationData`: eager buffer allocation
-in ``_create_buffers``; pinned-host CPU staging for CPU-only bindings via
-``_binding_read`` (the PR #5329 pattern); ``ProxyArray`` returns from every
-public property; timestamp-cached pull semantics through
-``_read_*_binding``.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -45,24 +34,38 @@ from isaaclab_ovphysx.assets.kernels import (
 
 from .kernels import _fd_joint_acc
 
+# import logger
 logger = logging.getLogger(__name__)
 
 
 class ArticulationData(BaseArticulationData):
-    """Data container for an articulation backed by OVPhysX tensor bindings.
+    """Data container for an articulation.
 
-    Reads simulation state on demand through ``ovphysx`` ``TensorBinding``
-    objects keyed by :data:`~isaaclab_ovphysx.tensor_types.ARTICULATION_*`.
-    Buffers are allocated eagerly in :meth:`_create_buffers` and timestamped
-    so each binding is read at most once per simulation step.
+    This class contains the data for an articulation in the simulation. The data includes the state of
+    the root rigid body, the state of all the bodies in the articulation, and the joint state. The data is
+    stored in the simulation world frame unless otherwise specified.
 
-    CPU-only bindings (``BODY_MASS``, ``BODY_COM_POSE``,
-    ``BODY_INERTIA``, every ``DOF_*`` property except state) route through
-    pinned-host staging buffers via :meth:`_binding_read`, matching the
-    PR #5329 PhysX pattern.
+    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
+    of reference that are used:
 
-    Properties return :class:`~isaaclab.utils.warp.ProxyArray` for time-varying
-    state and raw :class:`wp.array` for one-shot config buffers (defaults).
+    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+      with the rigid body schema.
+    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
+    Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
+    can be interpreted as the link frame.
+
+    .. note::
+        **Pull-to-refresh model.** OVPhysX state properties are *not* automatically updated each
+        simulation step. Each property getter pulls fresh data from the OVPhysX ``TensorBinding``
+        on first access per timestamp, then caches the result until the next step. This differs
+        from the Newton backend, where buffers are refreshed automatically by the simulation.
+
+    .. note::
+        **CPU-only bindings.** OVPhysX exposes a subset of bindings (``BODY_MASS``, ``BODY_COM_POSE``,
+        ``BODY_INERTIA``, and most ``DOF_*`` property bindings) on CPU only. These are routed through
+        pinned-host staging buffers via :meth:`_binding_read` so that GPU-resident consumers see the
+        data without per-step host allocations.
     """
 
     __backend_name__: str = "ovphysx"
@@ -106,8 +109,7 @@ class ArticulationData(BaseArticulationData):
         super().__init__(root_view=None, device=device)
         self._bindings = bindings
         self._binding_getter = binding_getter
-        # Counts and names are PLAIN INSTANCE ATTRIBUTES (not @property),
-        # mirroring the post-audit RigidObjectData demotion.
+        # counts and names are plain instance attributes (no @property indirection)
         self.num_instances = num_instances
         self.num_bodies = num_bodies
         self.num_joints = num_joints
@@ -117,20 +119,23 @@ class ArticulationData(BaseArticulationData):
         self.joint_names = joint_names
         self.fixed_tendon_names = fixed_tendon_names
         self.spatial_tendon_names = spatial_tendon_names
-        # Internal aliases used throughout _create_buffers and property bodies.
+        # private aliases used throughout _create_buffers and property bodies
         self._num_instances = num_instances
         self._num_bodies = num_bodies
         self._num_joints = num_joints
         self._num_fixed_tendons = num_fixed_tendons
         self._num_spatial_tendons = num_spatial_tendons
-        # Simulation timestamp drives the cache validity contract.
+
+        # Set initial time stamp
         self._sim_timestamp: float = 0.0
         self._is_primed: bool = False
-        # Pinned-host staging buffers for CPU-only bindings (keyed by tensor_type).
+        # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
-        # Scratch buffers for _get_read_view cache (keyed by (tensor_type, ptr)).
+        # scratch buffers for _get_read_view cache (keyed by (tensor_type, ptr))
         self._read_scratch: dict = {}
-        # Initialize gravity and forward constants (matching PhysX/Newton pattern).
+
+        # obtain gravity from the simulation configuration (fall back to standard
+        # gravity when the simulation has not been configured yet, e.g. in unit tests)
         gravity = (0.0, 0.0, -9.81)
         from isaaclab.physics import PhysicsManager
 
@@ -144,9 +149,11 @@ class ArticulationData(BaseArticulationData):
             gravity_dir = gravity_np / gravity_mag
         gravity_dir_tiled = np.tile(gravity_dir, (num_instances, 1))
         forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (num_instances, 1))
+
+        # Initialize constants
         self.GRAVITY_VEC_W = ProxyArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=device))
         self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=device))
-        # Allocate every TimestampedBufferWarp and pinned CPU staging buffer.
+
         self._create_buffers()
 
     @property
@@ -172,20 +179,19 @@ class ArticulationData(BaseArticulationData):
         self._is_primed = True
 
     def update(self, dt: float) -> None:
-        """Advance the simulation timestamp; trigger FD derivations.
-
-        Called by :class:`~isaaclab_ovphysx.assets.Articulation` each step.
+        """Updates the data for the articulation.
 
         Args:
-            dt: Simulation time-step [s].
+            dt: The time step for the update. This must be a positive value.
         """
+        # update the simulation timestamp
         self._sim_timestamp += dt
         if not self._is_primed:
             return
-        # FD joint acceleration from velocity.
+        # trigger an update of the joint acceleration buffer via finite differencing
         if dt > 0.0 and self._previous_joint_vel is not None:
             cur_vel_buf = self._joint_vel_buf
-            # Ensure joint vel buffer is fresh before differencing.
+            # ensure joint vel buffer is fresh before differencing
             self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
             wp.launch(
                 _fd_joint_acc,
