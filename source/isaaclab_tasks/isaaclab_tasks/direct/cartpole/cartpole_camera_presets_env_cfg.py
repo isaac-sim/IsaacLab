@@ -78,6 +78,10 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
         tiled_camera: MultiDataTypeCartpoleTiledCameraCfg = MultiDataTypeCartpoleTiledCameraCfg()
         write_image_to_file = False
 
+        # ``0`` is a sentinel resolved by ``CartpoleCameraPresetsEnv.__init__`` (Newton+Warp → 2,
+        # else 1). Any non-zero user value short-circuits.
+        frame_stack: int = 0
+
         # spaces
         action_space = 1
         state_space = 0

@@ -4,3 +4,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-package for environment utils."""
+
+from .frame_stack import FrameStackBuffer
