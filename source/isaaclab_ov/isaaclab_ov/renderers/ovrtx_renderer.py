@@ -193,7 +193,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_path = export_path
         logger.info("Exported to %s", export_path)
 
-    def initialize(self, spec: CameraRenderSpec):
+    def _initialize_from_spec(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
@@ -371,7 +371,7 @@ class OVRTXRenderer(BaseRenderer):
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
         if not self._initialized_scene:
-            self.initialize(spec)
+            self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, DEVICE)
 
     # Map torch dtypes to their warp counterparts for zero-copy wrapping.
