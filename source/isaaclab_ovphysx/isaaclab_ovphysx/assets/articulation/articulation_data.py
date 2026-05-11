@@ -1684,10 +1684,24 @@ class ArticulationData(BaseArticulationData):
 
         Reads directly into the target array -- no scratch buffer, no extra copy.
         """
+        self._read_binding_into_view(tensor_type, wp_array)
+
+    def _read_binding_into_view(self, tensor_type: int, view: wp.array) -> None:
+        """Read an ovphysx binding into a float32 warp view."""
         binding = self._get_binding(tensor_type)
         if binding is None:
             return
-        binding.read(wp_array)
+
+        from isaaclab_ovphysx.tensor_types import _CPU_ONLY_TYPES
+
+        if tensor_type in _CPU_ONLY_TYPES and str(view.device) != "cpu":
+            scratch = self._get_read_scratch(tensor_type)
+            if scratch is None:
+                return
+            binding.read(scratch)
+            wp.copy(view, scratch)
+        else:
+            binding.read(view)
 
     def _read_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
         """Read from an ovphysx binding into a TimestampedBuffer, skipping if fresh."""
@@ -1696,7 +1710,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data)
         if view is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._read_binding_into_view(tensor_type, view)
         buf.timestamp = self._sim_timestamp
 
     def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
@@ -1706,7 +1720,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data, 7)
         if view is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._read_binding_into_view(tensor_type, view)
         buf.timestamp = self._sim_timestamp
 
     def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
@@ -1716,7 +1730,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data, 6)
         if view is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._read_binding_into_view(tensor_type, view)
         buf.timestamp = self._sim_timestamp
 
     """
