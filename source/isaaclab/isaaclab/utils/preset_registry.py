@@ -161,3 +161,37 @@ class PresetRegistry:
 # Decorator alias kept at module level for the natural decorator spelling.
 register = PresetRegistry.register
 """Decorator alias for :meth:`PresetRegistry.register`."""
+
+
+# ----------------------------------------------------------------------------
+# Design follow-up (not pursued in this PR)
+# ----------------------------------------------------------------------------
+# ``DOMAIN`` is structurally a different kind of target than ``PHYSICS`` /
+# ``RENDERER``: it's free-form rather than validated, never decorated with
+# ``@register``, and has no legacy aliases. The current ``setup_cli`` branches
+# on ``if target is PresetTarget.DOMAIN`` in three places (arg registration,
+# typed-values collection, name collection). A polymorphic refactor would lift
+# those branches into per-kind classes held as enum values::
+#
+#     class TargetKind:
+#         def add_argument(self, group, valid_names, task): ...
+#         def collect_names(self, args, variants) -> list[str]: ...
+#
+#     class TypedTarget(TargetKind):    # PHYSICS / RENDERER
+#         def __init__(self, label, legacy_aliases=None): ...
+#
+#     class DomainTarget(TargetKind):   # DOMAIN -- free-form CSV
+#         label = "presets"
+#
+#     class PresetTarget(enum.Enum):
+#         PHYSICS  = TypedTarget("physics", {"newton": "newton_mjwarp", ...})
+#         RENDERER = TypedTarget("renderer")
+#         DOMAIN   = DomainTarget()
+#         def add_argument(self, *a, **kw): return self.value.add_argument(*a, **kw)
+#         def collect_names(self, *a, **kw): return self.value.collect_names(*a, **kw)
+#
+# Net change is roughly line-neutral: ``_help_text`` and ``_validate_typed_flag``
+# fold into ``TypedTarget`` methods, the three ``if DOMAIN`` branches disappear,
+# and ``@register``'s signature can narrow to reject anything but a typed kind.
+# Worth revisiting when a third kind appears (logger / teleop / curriculum)
+# whose behavior doesn't fit either of the two existing shapes.
