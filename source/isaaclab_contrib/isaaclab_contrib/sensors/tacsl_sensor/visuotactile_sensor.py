@@ -66,7 +66,8 @@ class VisuoTactileSensor(SensorBase):
         The following requirements must be satisfied for proper sensor operation:
 
         **Camera Tactile Imaging**
-            If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (CameraCfg) must be
+            If ``enable_camera_tactile=True``, a valid ``camera_cfg``
+            (:class:`~isaaclab.sensors.CameraCfg`) must be
             provided with appropriate camera parameters.
 
         **Force Field Computation**

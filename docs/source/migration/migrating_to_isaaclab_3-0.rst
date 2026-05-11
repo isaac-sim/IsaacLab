@@ -251,6 +251,8 @@ If you were using the old ``Imu`` sensor, you need to decide which new sensor to
 - Use :class:`~isaaclab.sensors.Imu` / :class:`~isaaclab.sensors.ImuCfg` if you only need angular
   velocity and linear acceleration (as a real IMU provides).
 
+For configuration and data access examples, see the :ref:`overview_sensors_pva`.
+
 **Import changes:**
 
 .. code-block:: python
@@ -345,6 +347,8 @@ Isaac Lab 3.0, incoming joint reaction wrenches are exposed through
 implementations and returns separate force [N] and torque [N·m] buffers.
 The sensor reports wrenches in the child-side incoming joint frame, with torque
 referenced at the child-side joint anchor.
+
+For configuration and data access examples, see the :ref:`overview_sensors_joint_wrench`.
 
 **Before (Isaac Lab 2.x):**
 

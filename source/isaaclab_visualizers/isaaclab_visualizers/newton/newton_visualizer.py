@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
+from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -463,7 +464,8 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
-        self._viewer.camera.pos = wp.vec3(*cam_pos)
+        # Match Newton's Camera native pos type: PyVec3, not wp.vec3.
+        self._viewer.camera.pos = PygletVec3(*cam_pos)
         cam_pos_np = np.array(cam_pos, dtype=np.float32)
         cam_target_np = np.array(cam_target, dtype=np.float32)
         direction = cam_target_np - cam_pos_np

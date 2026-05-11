@@ -81,8 +81,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         for rigid_body_cfg in self.cfg.rigid_objects.values():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
+                spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
                 rigid_body_cfg.spawn.func(
-                    rigid_body_cfg.prim_path,
+                    spawn_path,
                     rigid_body_cfg.spawn,
                     translation=rigid_body_cfg.init_state.pos,
                     orientation=rigid_body_cfg.init_state.rot,

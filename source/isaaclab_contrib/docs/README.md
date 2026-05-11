@@ -208,11 +208,11 @@ The `ThrustAction` term provides flexible preprocessing to support all modes thr
 
 ### Demo Script
 
-A complete demonstration of quadcopter simulation is available:
+A complete demonstration of multirotor simulation is available:
 
 ```bash
-# Run quadcopter demo
-./isaaclab.sh -p scripts/demos/quadcopter.py
+# Run multirotor demo
+./isaaclab.sh -p scripts/demos/arl_robot_1.py
 ```
 
 ## TacSL Tactile Sensor (Detailed)
@@ -478,7 +478,7 @@ The extension includes comprehensive unit tests for all contributed components:
 # Test multirotor components
 python -m pytest source/isaaclab_contrib/test/assets/test_multirotor.py
 python -m pytest source/isaaclab_contrib/test/actuators/test_thruster.py
-
+python -m pytest source/isaaclab_contrib/test/assets/test_drone_geometric_controllers.py
 # Run all contrib tests
 python -m pytest source/isaaclab_contrib/test/
 ```
