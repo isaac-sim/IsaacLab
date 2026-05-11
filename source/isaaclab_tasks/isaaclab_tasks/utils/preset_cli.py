@@ -50,6 +50,10 @@ import sys
 
 from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
+# ============================================================================
+# Pre-parse setup: scan argv for --task, load that task's env config
+# ============================================================================
+
 
 def _extract_task_from_argv(argv: list[str]) -> str | None:
     """Best-effort scan of *argv* for ``--task=value`` / ``--task value``.
@@ -117,6 +121,11 @@ def _load_task_env_cfg(task_name: str) -> object | None:
             sys.stderr.write(f"warning: could not instantiate {task_name!r} env config: {type(exc).__name__}: {exc}\n")
             return None
     return env_cfg
+
+
+# ============================================================================
+# Cfg-tree introspection (shared with the cross-env drift lint in tests)
+# ============================================================================
 
 
 class _CfgTree:
@@ -315,6 +324,22 @@ class _CfgTree:
         return variants
 
 
+# ============================================================================
+# Per-flag handling: help string (used at arg-registration time) +
+# validation (used at name-collection time after argparse has run)
+# ============================================================================
+
+
+def _help_text(target: PresetTarget, valid: set[str], task: str | None) -> str:
+    """Argparse ``help=`` string showing valid preset names for *target*."""
+    capitalized = target.value.capitalize()
+    if not valid:
+        return f"{capitalized} preset name. Pass '--task=<X> --help' to list valid names for task X."
+    listing = ", ".join(sorted(valid))
+    scope = f"for task {task!r}" if task else "registered"
+    return f"{capitalized} preset name. Available ({scope}): {listing}."
+
+
 def _validate_typed_flag(target: PresetTarget, value: str | None, variants: set[str]) -> str | None:
     """Reject unknown names; normalize legacy aliases.
 
@@ -346,14 +371,9 @@ def _validate_typed_flag(target: PresetTarget, value: str | None, variants: set[
     return canonical
 
 
-def _help_text(target: PresetTarget, valid: set[str], task: str | None) -> str:
-    """Argparse ``help=`` string showing valid preset names for *target*."""
-    capitalized = target.value.capitalize()
-    if not valid:
-        return f"{capitalized} preset name. Pass '--task=<X> --help' to list valid names for task X."
-    listing = ", ".join(sorted(valid))
-    scope = f"for task {task!r}" if task else "registered"
-    return f"{capitalized} preset name. Available ({scope}): {listing}."
+# ============================================================================
+# Entry point
+# ============================================================================
 
 
 def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
