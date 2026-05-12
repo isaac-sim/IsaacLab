@@ -25,11 +25,17 @@ class FrameView(FactoryBase, BaseFrameView):
 
     - **PhysX / no backend**: :class:`~isaaclab_physx.sim.views.FabricFrameView`
       (Fabric GPU acceleration with USD fallback).
+    - **OVPhysX**: :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView`
+      (Warp-native, reads ``body_q`` via the OVPhysX scene data provider).
     - **Newton**: :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
-      (GPU-resident site-based transforms).
+      (Warp-native, reads ``body_q`` from the Newton state).
     """
 
-    _backend_class_names = {"physx": "FabricFrameView", "newton": "NewtonSiteFrameView"}
+    _backend_class_names = {
+        "physx": "FabricFrameView",
+        "ovphysx": "OvPhysxFrameView",
+        "newton": "NewtonSiteFrameView",
+    }
 
     @classmethod
     def _get_backend(cls, *args, **kwargs) -> str:
@@ -41,6 +47,8 @@ class FrameView(FactoryBase, BaseFrameView):
         manager_name = ctx.physics_manager.__name__.lower()
         if "newton" in manager_name:
             return "newton"
+        if "ovphysx" in manager_name:
+            return "ovphysx"
         return "physx"
 
     def __new__(cls, *args, **kwargs) -> BaseFrameView:
