@@ -815,12 +815,13 @@ def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
     return scene_cfg
 
 
-def test_sensor_metadata():
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_sensor_metadata(device: str):
     """Verify sensor_names and filter_object_names match the underlying sensing and
     counterpart configuration across body-mode, body-mode-with-filter, and shape-mode.
     """
     num_envs = 4
-    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device="cuda:0", gravity=(0.0, 0.0, -9.81))
+    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
 
     # (1) Body-mode, no filter: pattern matches two distinct body names per env.
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
