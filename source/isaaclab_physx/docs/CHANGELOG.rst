@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.6.3 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed rigid object collection spawning to honor planned ``spawn_path``
+  values while falling back to ``prim_path`` for direct construction.
+
+
 0.6.2 (2026-05-09)
 ~~~~~~~~~~~~~~~~~~
 
