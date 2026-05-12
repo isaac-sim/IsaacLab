@@ -219,20 +219,41 @@ def test_peek_task_missing_returns_none(monkeypatch):
     assert _peek_task() is None
 
 
-def test_bucket_variants_buckets_by_registered_target():
-    from isaaclab.utils.preset_registry import PresetTarget
+def test_bucket_variants_routes_by_cfg_class_type():
+    """Variants are bucketed by their cfg INSTANCE'S TYPE (via isinstance),
+    not by name string lookup. A name routes to PHYSICS only if the cfg
+    instance is a PHYSICS-registered class instance (or subclass)."""
+    from isaaclab.utils.preset_registry import PresetTarget, register
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
 
+    @register(PresetTarget.PHYSICS, "_test_bucket_phys")
+    class _BucketPhysCfg:
+        pass
+
+    @register(PresetTarget.RENDERER, "_test_bucket_rend")
+    class _BucketRendCfg:
+        pass
+
     walked = {
-        "physics": {"default": None, "physx": None, "newton_mjwarp": None},
-        "renderer": {"default": None, "newton_renderer": None},
-        "weight": {"default": None, "light": None, "heavy": None},  # custom names, not registered
+        "physics": {
+            "default": _BucketPhysCfg(),
+            "_test_bucket_phys": _BucketPhysCfg(),
+        },
+        "renderer": {
+            "default": _BucketRendCfg(),
+            "_test_bucket_rend": _BucketRendCfg(),
+        },
+        "weight": {  # cfgs whose type matches no registered target -> DOMAIN
+            "default": 1.0,
+            "light": 0.5,
+            "heavy": 2.0,
+        },
     }
     result = _bucket_variants_by_target(walked)
-    assert {"physx", "newton_mjwarp"} <= result[PresetTarget.PHYSICS]
-    assert "newton_renderer" in result[PresetTarget.RENDERER]
-    # Custom names with no registry entry fall into DOMAIN.
+    assert "_test_bucket_phys" in result[PresetTarget.PHYSICS]
+    assert "_test_bucket_rend" in result[PresetTarget.RENDERER]
+    # Type-unregistered instances fall into DOMAIN.
     assert {"light", "heavy"} <= result[PresetTarget.DOMAIN]
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
     for bucket in result.values():
@@ -258,18 +279,30 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
 
 
 def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
-    """``--task=X --help`` shows variants from X's env_cfg, bucketed by target.
-
-    Typed flags (``--physics``) list only registered names of that target.
-    The DOMAIN catch-all (``--presets``) lists every variant in the task.
+    """``--task=X --help`` shows variants from X's env_cfg, bucketed by cfg class
+    type. Typed flags (``--physics``) list only variants whose cfgs are
+    registered-class instances for that target. The DOMAIN catch-all
+    (``--presets``) lists every variant in the task.
     """
     from isaaclab.utils import configclass
+    from isaaclab.utils.preset_registry import PresetTarget, register
 
     from isaaclab_tasks.utils.hydra import preset
 
+    @register(PresetTarget.PHYSICS, "_test_help_phys_a")
+    class _HelpPhysCfg:
+        pass
+
+    @register(PresetTarget.RENDERER, "_test_help_rend_a")
+    class _HelpRendCfg:
+        pass
+
+    # Two physics-typed variants (one is the default), one renderer variant,
+    # plus a primitive-typed "weight" preset that should fall into DOMAIN.
     @configclass
     class _FakeCfg:
-        physics: object = preset(default=None, physx="px", newton_mjwarp="nmj")
+        physics: object = preset(default=_HelpPhysCfg(), _test_help_phys_a=_HelpPhysCfg())
+        renderer: object = preset(default=_HelpRendCfg(), _test_help_rend_a=_HelpRendCfg())
         weight: object = preset(default=1.0, light=0.5, heavy=2.0)
 
     import isaaclab_tasks.utils.parse_cfg as parse_cfg
@@ -284,10 +317,11 @@ def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
         setup_preset_cli(parser)
     out = capsys.readouterr().out
 
-    # Registered physics names actually in this cfg appear in --physics help.
-    assert "physx" in out
-    assert "newton_mjwarp" in out
-    # Custom names appear in the DOMAIN catch-all (--presets) help.
+    # Registered PHYSICS-class instance appears in --physics help.
+    assert "_test_help_phys_a" in out
+    # Registered RENDERER-class instance appears in --renderer help.
+    assert "_test_help_rend_a" in out
+    # Primitive-typed variants land in the DOMAIN catch-all (--presets) help.
     assert "light" in out
     assert "heavy" in out
 

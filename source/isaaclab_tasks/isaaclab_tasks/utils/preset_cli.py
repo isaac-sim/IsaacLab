@@ -271,12 +271,20 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
 
 
 def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
-    """Convert :func:`collect_presets` output into ``{target: set[name]}``.
+    """Convert :func:`collect_presets` output into ``{target: set[name]}`` by
+    cfg instance type.
 
-    Variant names registered with :func:`PresetRegistry.register` go to
-    their declared target; everything else falls into
-    :attr:`PresetTarget.DOMAIN`. The implicit ``default`` field is filtered
-    out -- it's the fallback, not a selectable variant the user can name.
+    For each ``(name, cfg)`` pair, the target is decided by whether
+    ``type(cfg)`` matches any class registered under a typed target via
+    :func:`isinstance`. Subclasses of registered classes route to their
+    parent's target. Cfgs whose type matches no registered target fall
+    into :attr:`PresetTarget.DOMAIN`. The implicit ``default`` field is
+    filtered out -- it's the fallback, not a selectable variant the
+    user can name.
+
+    Routing by class type (not by name string) keeps target assignment
+    consistent even if a task-local preset happens to reuse a backend's
+    canonical name.
 
     Args:
         walked: Output of :func:`isaaclab_tasks.utils.hydra.collect_presets`,
@@ -285,11 +293,16 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     Returns:
         Mapping with one entry per :class:`PresetTarget` member.
     """
-    name_to_target = {name: target for target in PresetTarget for name in PresetRegistry.names_for(target)}
+    typed_targets = [t for t in PresetTarget if t is not PresetTarget.DOMAIN]
+    target_classes = {t: PresetRegistry.classes_for(t) for t in typed_targets}
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in walked.values():
-        for name in path_dict:
+        for name, cfg in path_dict.items():
             if name == "default":
                 continue
-            result[name_to_target.get(name, PresetTarget.DOMAIN)].add(name)
+            matched = next(
+                (t for t in typed_targets if target_classes[t] and isinstance(cfg, target_classes[t])),
+                PresetTarget.DOMAIN,
+            )
+            result[matched].add(name)
     return result

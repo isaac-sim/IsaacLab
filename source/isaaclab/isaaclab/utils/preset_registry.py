@@ -182,6 +182,25 @@ class PresetRegistry:
         """
         return set(cls._entries.get(target, ()))
 
+    @classmethod
+    def classes_for(cls, target: PresetTarget) -> tuple[type, ...]:
+        """Classes currently registered under *target*.
+
+        The returned tuple is suitable for an :func:`isinstance` check
+        (subclasses match too), which is how the typed-flag help layer
+        in :mod:`isaaclab_tasks.utils.preset_cli` routes ``PresetCfg``
+        variants to ``--physics`` / ``--renderer`` buckets by type
+        rather than by name string.
+
+        Args:
+            target: Which target's class bindings to read.
+
+        Returns:
+            A fresh tuple the caller may freely use; mutating it does
+            not disturb the registry.
+        """
+        return tuple(cls._entries.get(target, {}).values())
+
 
 # Module-level alias kept for the natural decorator spelling at call sites.
 register = PresetRegistry.register
