@@ -43,7 +43,7 @@ from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
@@ -421,13 +421,19 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations.torch, origin="world", target="opengl")
-        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
+        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=DEVICE)
+        convert_camera_frame_orientation_convention_wp(
+            src=orientations.warp,
+            dst=converted_wp,
+            origin="world",
+            target="opengl",
+            device=DEVICE,
+        )
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
         wp.launch(
             kernel=create_camera_transforms_kernel,
             dim=num_envs,
-            inputs=[positions, camera_orientations_wp, camera_transforms],
+            inputs=[positions, converted_wp, camera_transforms],
             device=DEVICE,
         )
         if self._camera_binding is not None:

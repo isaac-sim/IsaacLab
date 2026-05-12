@@ -132,11 +132,11 @@ def test_camera_init(setup_simulation):
     # Check if camera is initialized
     assert camera.is_initialized
     # Check buffers that exists and have correct shapes
-    assert camera.data.pos_w.shape == (1, 3)
-    assert camera.data.quat_w_ros.shape == (1, 4)
-    assert camera.data.quat_w_world.shape == (1, 4)
-    assert camera.data.quat_w_opengl.shape == (1, 4)
-    assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
+    assert camera.data.pos_w.torch.shape == (1, 3)
+    assert camera.data.quat_w_ros.torch.shape == (1, 4)
+    assert camera.data.quat_w_world.torch.shape == (1, 4)
+    assert camera.data.quat_w_opengl.torch.shape == (1, 4)
+    assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
     # Simulate physics

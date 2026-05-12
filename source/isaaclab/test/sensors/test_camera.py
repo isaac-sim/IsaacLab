@@ -107,9 +107,9 @@ def test_camera_init(setup_sim_camera):
 
     # Check buffers that exist and have correct shapes
     assert camera.data.pos_w.torch.shape == (1, 3)
-    assert camera.data.quat_w_ros.shape == (1, 4)
+    assert camera.data.quat_w_ros.torch.shape == (1, 4)
     assert camera.data.quat_w_world.torch.shape == (1, 4)
-    assert camera.data.quat_w_opengl.shape == (1, 4)
+    assert camera.data.quat_w_opengl.torch.shape == (1, 4)
     assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
@@ -849,9 +849,9 @@ def test_camera_multi_regex_init(setup_camera_device, device):
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
     assert camera.data.pos_w.torch.shape == (num_cameras, 3)
-    assert camera.data.quat_w_ros.shape == (num_cameras, 4)
+    assert camera.data.quat_w_ros.torch.shape == (num_cameras, 4)
     assert camera.data.quat_w_world.torch.shape == (num_cameras, 4)
-    assert camera.data.quat_w_opengl.shape == (num_cameras, 4)
+    assert camera.data.quat_w_opengl.torch.shape == (num_cameras, 4)
     assert camera.data.intrinsic_matrices.torch.shape == (num_cameras, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
 

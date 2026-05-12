@@ -26,6 +26,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -559,8 +560,18 @@ class Camera(SensorBase):
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
         pos_w, quat_w = self._view.get_world_poses(indices)
         self._data.pos_w.torch[env_ids] = pos_w.torch
-        self._data.quat_w_world.torch[env_ids] = convert_camera_frame_orientation_convention(
-            quat_w.torch, origin="opengl", target="world"
+        
+        # Note: Currently get_world_poses() returns wp.vec4f, so we need to reinterpret as wp.quatf
+        quat_w_quatf = wp.array(
+            ptr=quat_w.warp.ptr, dtype=wp.quatf, shape=quat_w.warp.shape, device=quat_w.warp.device, copy=False
+        )
+        convert_camera_frame_orientation_convention_wp(
+            src=quat_w_quatf,
+            dst=self._data.quat_w_world,
+            origin="opengl",
+            target="world",
+            indices=indices,
+            device=self._device,
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:

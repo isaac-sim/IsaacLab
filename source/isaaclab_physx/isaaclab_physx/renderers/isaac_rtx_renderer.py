@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import torch
 import warp as wp
 from packaging import version
 
@@ -25,6 +24,7 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
+from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
 from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
 
@@ -385,16 +385,15 @@ class IsaacRtxRenderer(BaseRenderer):
             #       in values larger than the clipping range in the output. We apply an additional clipping to
             #       ensure values are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                t = output_data[data_type].torch
-                t[t > cfg.spawn.clipping_range[1]] = torch.inf
+                clamp_depth_to_inf_wp(output_data[data_type], cfg.spawn.clipping_range[1], device=device)
 
             # apply defined clipping behavior
             if (
                 data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
                 and self.cfg.depth_clipping_behavior != "none"
             ):
-                t = output_data[data_type].torch
-                t[torch.isinf(t)] = 0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
+                replacement = 0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
+                replace_inf_depth_wp(output_data[data_type], replacement, device=device)
 
     def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().

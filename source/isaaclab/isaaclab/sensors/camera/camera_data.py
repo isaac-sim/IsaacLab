@@ -17,8 +17,8 @@ from isaaclab.utils.leapp import (
     XYZ_ELEMENT_NAMES,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 __all__ = ["CameraData", "RenderBufferKind", "RenderBufferSpec"]
 
@@ -35,12 +35,17 @@ class CameraData:
         # Warp arrays for pose / intrinsics — allocated in create_buffers()
         self._pos_w_wp: wp.array | None = None
         self._quat_w_world_wp: wp.array | None = None
-        self._intrinsic_matrices: wp.array | None = None
+        self._intrinsic_matrices_wp: wp.array | None = None
+        # Pre-allocated output buffers for derived orientation properties
+        self._quat_w_ros_wp: wp.array | None = None
+        self._quat_w_opengl_wp: wp.array | None = None
 
         # ProxyArray wrappers — created in create_buffers()
         self._pos_w_pa: ProxyArray | None = None
         self._quat_w_world_pa: ProxyArray | None = None
         self._intrinsic_matrices_pa: ProxyArray | None = None
+        self._quat_w_ros_pa: ProxyArray | None = None
+        self._quat_w_opengl_pa: ProxyArray | None = None
 
         # Output image buffers — allocated in allocate()
         self._output: dict[str, ProxyArray] | None = None
@@ -128,11 +133,15 @@ class CameraData:
         """
         self._pos_w_wp = wp.zeros(num_views, dtype=wp.vec3f, device=device)
         self._quat_w_world_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-        self._intrinsic_matrices = wp.zeros(num_views, dtype=wp.mat33f, device=device)
+        self._intrinsic_matrices_wp = wp.zeros(num_views, dtype=wp.mat33f, device=device)
+        self._quat_w_ros_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
+        self._quat_w_opengl_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
 
         self._pos_w_pa = ProxyArray(self._pos_w_wp)
         self._quat_w_world_pa = ProxyArray(self._quat_w_world_wp)
-        self._intrinsic_matrices_pa = ProxyArray(self._intrinsic_matrices)
+        self._intrinsic_matrices_pa = ProxyArray(self._intrinsic_matrices_wp)
+        self._quat_w_ros_pa = ProxyArray(self._quat_w_ros_wp)
+        self._quat_w_opengl_pa = ProxyArray(self._quat_w_opengl_wp)
 
     @classmethod
     def allocate(
@@ -230,24 +239,32 @@ class CameraData:
     ##
 
     @property
-    def quat_w_ros(self) -> torch.Tensor:
+    @leapp_tensor_semantics(kind="state/sensor/rotation", element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def quat_w_ros(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following ROS convention.
 
         .. note::
             ROS convention follows the camera aligned with forward axis +Z and up axis -Y.
 
-        Shape is (N, 4) where N is the number of sensors.
+        Shape is (N,), dtype ``wp.quatf``. In torch this resolves to (N, 4),
+        where N is the number of sensors. Use ``.warp`` for the underlying
+        ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="ros")
+        convert_camera_frame_orientation_convention_wp(self._quat_w_world_wp, self._quat_w_ros_wp, "world", "ros")
+        return self._quat_w_ros_pa
 
     @property
-    def quat_w_opengl(self) -> torch.Tensor:
+    @leapp_tensor_semantics(kind="state/sensor/rotation", element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def quat_w_opengl(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following
         Opengl / USD Camera convention.
 
         .. note::
             OpenGL convention follows the camera aligned with forward axis -Z and up axis +Y.
 
-        Shape is (N, 4) where N is the number of sensors.
+        Shape is (N,), dtype ``wp.quatf``. In torch this resolves to (N, 4),
+        where N is the number of sensors. Use ``.warp`` for the underlying
+        ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="opengl")
+        convert_camera_frame_orientation_convention_wp(self._quat_w_world_wp, self._quat_w_opengl_wp, "world", "opengl")
+        return self._quat_w_opengl_pa

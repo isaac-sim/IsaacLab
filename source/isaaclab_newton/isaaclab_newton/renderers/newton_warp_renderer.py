@@ -18,7 +18,7 @@ import warp as wp
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
@@ -94,8 +94,13 @@ class RenderData:
         return None
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
-        converted_orientations = convert_camera_frame_orientation_convention(
-            orientations.torch, origin="world", target="opengl"
+        converted_wp = wp.empty_like(orientations)
+        convert_camera_frame_orientation_convention_wp(
+            src=orientations,
+            dst=converted_wp,
+            origin="world",
+            target="opengl",
+            device=self.newton_sensor.model.device,
         )
 
         self.camera_transforms = wp.empty(
@@ -104,7 +109,7 @@ class RenderData:
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
-            [positions, converted_orientations, self.camera_transforms],
+            [positions, converted_wp, self.camera_transforms],
             device=self.newton_sensor.model.device,
         )
 
