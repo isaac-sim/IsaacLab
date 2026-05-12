@@ -10,9 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
-from isaaclab.envs.utils import FrameStackBuffer
+from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
 
 from .cartpole_camera_env import CartpoleCameraEnv
@@ -22,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class CartpoleCameraPresetsEnv(CartpoleCameraEnv):
-    """Cartpole camera env that wires up a :class:`~isaaclab.envs.utils.FrameStackBuffer`
+    """Cartpole camera env that wires up a :class:`~isaaclab.utils.buffers.CircularBuffer`
     when the active backend combo benefits from explicit temporal observations.
 
     Behavior is identical to :class:`CartpoleCameraEnv` when ``cfg.frame_stack == 1``;
@@ -54,33 +52,30 @@ class CartpoleCameraPresetsEnv(CartpoleCameraEnv):
         elif cfg.frame_stack == 0:
             cfg.frame_stack = 1
 
-        # Capture single-frame channel count before bumping obs_space; the buffer needs
-        # the unstacked shape.
-        self._single_channels: int = int(cfg.observation_space[-1])
+        single_channels = int(cfg.observation_space[-1])
         if cfg.frame_stack > 1:
-            cfg.observation_space = [*cfg.observation_space[:-1], self._single_channels * cfg.frame_stack]
+            cfg.observation_space = [*cfg.observation_space[:-1], single_channels * cfg.frame_stack]
 
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._stack: FrameStackBuffer | None = None
+        self._stack: CircularBuffer | None = None
         if cfg.frame_stack > 1:
-            single_shape = (
-                self.num_envs,
-                cfg.tiled_camera.height,
-                cfg.tiled_camera.width,
-                self._single_channels,
-            )
-            self._stack = FrameStackBuffer(
-                single_shape,
-                cfg.frame_stack,
+            self._stack = CircularBuffer(
+                max_len=cfg.frame_stack,
+                batch_size=self.num_envs,
                 device=self.device,
-                dtype=torch.float32,
             )
 
     def _get_observations(self) -> dict:
         obs = super()._get_observations()
         if self._stack is not None:
-            obs["policy"] = self._stack.update(obs["policy"]).clone()
+            self._stack.append(obs["policy"])
+            # CircularBuffer.buffer is (B, K, H, W, C) oldest->newest along dim 1.
+            # Channel-stack: move K next to C, then flatten so the last dim reads
+            # oldest_C, ..., newest_C.
+            stacked = self._stack.buffer
+            b, k, h, w, c = stacked.shape
+            obs["policy"] = stacked.permute(0, 2, 3, 1, 4).reshape(b, h, w, k * c).clone()
         return obs
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
