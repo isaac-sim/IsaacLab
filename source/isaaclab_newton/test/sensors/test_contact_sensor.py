@@ -881,10 +881,6 @@ def test_sensor_metadata(device: str):
 
         sensor: ContactSensor = scene["contact_sensor_a"]
         assert sensor.num_sensors == 2, f"expected 2 shape sensors per env, got {sensor.num_sensors}"
-        # Newton names each USD Cuboid's collision geometry "mesh" (the leaf prim of the
-        # collision-shape USD path), independent of the parent body's name. Both boxes
-        # contribute one "mesh" shape per env, hence ["mesh", "mesh"]. Update this
-        # assertion if Newton's shape-labelling convention changes.
         assert sensor.sensor_names == ["mesh", "mesh"], f"unexpected shape sensor_names: {sensor.sensor_names}"
         assert sensor.filter_object_names == [], (
             f"expected empty filter_object_names with no filter, got {sensor.filter_object_names}"
