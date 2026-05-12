@@ -1,9 +1,9 @@
 Added
 ^^^^^
 
-* Added :func:`isaaclab_tasks.utils.preset_cli.setup_cli` -- a typed-flag
+* Added :func:`isaaclab_tasks.utils.preset_cli.setup_preset_cli` -- a typed-flag
   argparse layer over the existing ``presets=<csv>`` Hydra-decorator
-  preset flow. Scripts call ``setup_cli(parser)`` once and gain
+  preset flow. Scripts call ``setup_preset_cli(parser)`` once and gain
   ``--physics=NAME``, ``--renderer=NAME``, and free-form
   ``--presets=NAME[,NAME,...]``. Flag values are folded into a single
   ``presets=<csv>`` token in ``sys.argv``; the existing resolver

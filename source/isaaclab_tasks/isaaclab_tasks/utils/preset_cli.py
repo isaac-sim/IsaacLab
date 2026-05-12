@@ -39,13 +39,13 @@ Typical script setup::
     parser = argparse.ArgumentParser(...)
     # ... script-specific args ...
     add_launcher_args(parser)  # AppLauncher flags (--headless, --device, ...)
-    args_cli = setup_cli(parser)  # preset flags + parse + fold sys.argv
+    args_cli = setup_preset_cli(parser)  # preset flags + parse + fold sys.argv
 
-``setup_cli`` does NOT add AppLauncher flags itself -- callers add them
+``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
 explicitly via :func:`isaaclab_tasks.utils.add_launcher_args` before
-calling ``setup_cli``. Two reasons: ``setup_cli`` then has a single
+calling ``setup_preset_cli``. Two reasons: ``setup_preset_cli`` then has a single
 responsibility (preset CLI), and scripts that already call
-``add_launcher_args`` can adopt ``setup_cli`` without first removing
+``add_launcher_args`` can adopt ``setup_preset_cli`` without first removing
 their existing call (which would otherwise collide with a duplicate
 ``--headless`` registration).
 """
@@ -58,7 +58,7 @@ import sys
 from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
 
-def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
+def setup_preset_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     """Add typed preset flags, parse, fold values into ``presets=<csv>``.
 
     Steps:

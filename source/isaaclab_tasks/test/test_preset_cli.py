@@ -80,15 +80,15 @@ def test_all_legacy_aliases_aggregates_per_target_tables():
 
 
 # ---------------------------------------------------------------------------
-# setup_cli: typed flags fold into a single presets=<csv> token
+# setup_preset_cli: typed flags fold into a single presets=<csv> token
 # ---------------------------------------------------------------------------
 
 
 def test_no_preset_flags_passes_argv_through(monkeypatch):
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"])
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    args = setup_cli(_make_parser())
+    args = setup_preset_cli(_make_parser())
     assert args.task == "Foo-v0"
     assert sys.argv == ["train.py", "env.sim.dt=0.001"]
 
@@ -98,9 +98,9 @@ def test_physics_flag_translates_to_presets_token(monkeypatch):
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "env.sim.dt=0.001"],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton_mjwarp", "env.sim.dt=0.001"]
 
 
@@ -118,9 +118,9 @@ def test_three_flags_merge_into_one_token(monkeypatch):
             "albedo,depth",
         ],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton_mjwarp,newton_renderer,albedo,depth"]
 
 
@@ -129,9 +129,9 @@ def test_merges_with_existing_presets_token(monkeypatch):
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "presets=albedo"],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton_mjwarp,albedo"]
 
 
@@ -140,17 +140,17 @@ def test_dedupes_repeated_names(monkeypatch):
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "presets=newton_mjwarp,albedo"],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton_mjwarp,albedo"]
 
 
 def test_equals_form_works(monkeypatch):
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp"])
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton_mjwarp"]
 
 
@@ -170,9 +170,9 @@ def test_unknown_physics_name_passes_through_silently(monkeypatch, capsys):
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mujoco"],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=newton_mujoco"]
     err = capsys.readouterr().err
     assert err == ""
@@ -182,9 +182,9 @@ def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
     """A task-local custom preset name (e.g. Dexsuite's ``cube``) is accepted via
     the typed flag with no fuss -- the registry is a hint, not a gate."""
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--presets", "cube,peg_insert_4mm,mayank_solver"])
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_cli(_make_parser())
+    setup_preset_cli(_make_parser())
     assert sys.argv == ["train.py", "presets=cube,peg_insert_4mm,mayank_solver"]
     err = capsys.readouterr().err
     assert err == ""
@@ -241,12 +241,12 @@ def test_bucket_variants_buckets_by_registered_target():
 def test_help_without_task_says_pass_task(monkeypatch, capsys):
     """``--help`` without ``--task`` tells the user to pass ``--task=X``."""
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     parser = argparse.ArgumentParser(prog="train.py")  # default add_help=True
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
-        setup_cli(parser)
+        setup_preset_cli(parser)
     out = capsys.readouterr().out
     assert "Pass `--task=X`" in out
 
@@ -270,12 +270,12 @@ def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
 
     monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", lambda *_a, **_kw: _FakeCfg())
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Fake-v0", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     parser = argparse.ArgumentParser(prog="train.py")
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
-        setup_cli(parser)
+        setup_preset_cli(parser)
     out = capsys.readouterr().out
 
     # Registered physics names actually in this cfg appear in --physics help.
@@ -295,12 +295,12 @@ def test_help_reports_env_cfg_load_failure(monkeypatch, capsys):
 
     monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", _boom)
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Bad-Task", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_cli
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     parser = argparse.ArgumentParser(prog="train.py")
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
-        setup_cli(parser)
+        setup_preset_cli(parser)
     out = capsys.readouterr().out
     assert "failed to load env_cfg" in out
     assert "Bad-Task" in out
