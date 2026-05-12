@@ -280,6 +280,9 @@ def test_override_actuator_gains(test_setup_teardown):
     from pxr import Usd
 
     stage = Usd.Stage.Open(mjcf_converter.usd_path)
+
+    ant = stage.GetPrimAtPath("/ant")
+    ant.GetVariantSet("Physics").SetVariantSelection("mujoco")
     actuator_prims = [p for p in stage.Traverse() if p.GetTypeName() == "MjcActuator"]
     assert len(actuator_prims) > 0, "Expected MjcActuator prims in nv_ant.xml output"
 

@@ -21,7 +21,6 @@ import xml.etree.ElementTree as ET
 import pytest
 
 import omni.kit.app
-from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -184,6 +183,8 @@ def test_merge_fixed_joints_xml():
         manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
     extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
     extension_path = manager.get_extension_path(extension_id)
+
+    from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
 
     urdf_path = os.path.join(extension_path, "data", "urdf", "tests", "test_merge_joints.urdf")
 
