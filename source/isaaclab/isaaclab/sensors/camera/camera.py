@@ -560,7 +560,7 @@ class Camera(SensorBase):
         pos_w, quat_w = self._view.get_world_poses(indices)
         self._data.pos_w.torch[env_ids] = pos_w.torch
         self._data.quat_w_world.torch[env_ids] = convert_camera_frame_orientation_convention(
-            quat_w, origin="opengl", target="world"
+            quat_w.torch, origin="opengl", target="world"
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:

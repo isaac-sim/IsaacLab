@@ -95,7 +95,7 @@ class RenderData:
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
         converted_orientations = convert_camera_frame_orientation_convention(
-            orientations, origin="world", target="opengl"
+            orientations.torch, origin="world", target="opengl"
         )
 
         self.camera_transforms = wp.empty(

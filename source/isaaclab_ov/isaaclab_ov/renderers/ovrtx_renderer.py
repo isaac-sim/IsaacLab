@@ -421,7 +421,7 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
+        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations.torch, origin="world", target="opengl")
         camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
         wp.launch(
