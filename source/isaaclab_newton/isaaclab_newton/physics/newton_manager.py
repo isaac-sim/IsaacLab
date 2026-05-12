@@ -1322,13 +1322,17 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_state(cls) -> State:
-        """Get the current Newton state for visualization (alias for :meth:`get_state_0`).
+        """Get the current Newton state for visualization.
 
         Use this method from visualizers/renderers/video recorders that need a
-        backend-agnostic Newton ``State``. When the sim backend is PhysX the
-        returned state's ``body_q`` reflects the most recent
-        :meth:`update_visualization_state` sync.
+        backend-agnostic Newton ``State``. When the sim backend is PhysX this
+        refreshes the shadow ``_state_0.body_q`` from the live PhysX scene via
+        :meth:`update_visualization_state` before returning, so callers never
+        observe stale transforms. Under the Newton sim backend
+        :meth:`update_visualization_state` is a no-op and this is equivalent to
+        :meth:`get_state_0`.
         """
+        cls.update_visualization_state()
         return cls.get_state_0()
 
     @classmethod
@@ -1396,6 +1400,7 @@ class NewtonManager(PhysicsManager):
         try:
             cls._model = builder.finalize(device=device)
             cls._state_0 = cls._model.state()
+            cls._model.num_envs = cls._num_envs
             replace_newton_shape_colors(cls._model)
 
         except Exception:
@@ -1418,9 +1423,12 @@ class NewtonManager(PhysicsManager):
 
         This routine is intentionally independent of
         :meth:`instantiate_builder_from_stage` (which targets the live-sim path
-        and uses a different naming convention and writes into ``cls._builder`` /
-        ``cls._cl_site_index_map`` / ``cls._num_envs``). The visualization shadow
-        path must not pollute those live-sim slots.
+        and uses a different naming convention and writes into ``cls._builder``
+        and ``cls._cl_site_index_map``). The visualization shadow path must not
+        pollute those live-sim slots. ``cls._num_envs`` is populated here too so
+        :meth:`get_num_envs` returns the env count when the sim backend is PhysX
+        (the live-sim path never runs in that configuration, so there is no slot
+        to collide with).
 
         Args:
             stage: USD stage to inspect.
@@ -1451,7 +1459,10 @@ class NewtonManager(PhysicsManager):
         if not env_paths:
             # Fallback: ingest the whole stage as a single world.
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            NewtonManager._num_envs = 1
             return builder
+
+        NewtonManager._num_envs = len(env_paths)
 
         # Ingest stage-level (non-env) geometry into the global world (``current_world == -1``)
         # so visualization sees the ground plane, ceilings, fixed props, etc. The legacy
@@ -1548,7 +1559,8 @@ class NewtonManager(PhysicsManager):
         (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
         GL video) see fresh poses.
 
-        Called from :meth:`PhysxManager.pre_render` once per render frame.
+        Invoked lazily from :meth:`get_state` so consumers do not need to
+        coordinate the sync explicitly.
         """
         if cls._backend_is_newton():
             return

@@ -25,6 +25,7 @@ def _reset_newton_manager_state():
     NewtonManager._builder = None
     NewtonManager._model = None
     NewtonManager._state_0 = None
+    NewtonManager._num_envs = None
     NewtonManager._physx_visualization_scene_data = None
     NewtonManager._physx_visualization_mapping = None
 
@@ -97,6 +98,36 @@ def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, ca
     assert NewtonManager._model is None
     assert NewtonManager._state_0 is None
     assert any("no Newton bodies" in r.message for r in caplog.records)
+
+
+def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(monkeypatch):
+    """Shadow-model build must populate ``_num_envs`` so ``get_num_envs`` is correct under PhysX."""
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import newton_manager as nm
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: False))
+    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: SimpleNamespace())
+    monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
+
+    class _FakeBuilder:
+        body_count = 3
+
+        def finalize(self, device):
+            return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
+
+    def _fake_build(cls, stage):
+        # Mirror the real shadow-build behaviour: writes the env count discovered on the stage.
+        NewtonManager._num_envs = 4
+        return _FakeBuilder()
+
+    monkeypatch.setattr(NewtonManager, "_build_visualization_model_from_stage", classmethod(_fake_build))
+    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
+
+    NewtonManager._ensure_visualization_model()
+
+    assert NewtonManager.get_num_envs() == 4
+    assert NewtonManager._model.num_envs == 4
 
 
 def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch, caplog):
