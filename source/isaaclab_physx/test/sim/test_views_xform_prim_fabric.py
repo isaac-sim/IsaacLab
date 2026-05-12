@@ -357,3 +357,51 @@ def test_set_world_then_get_local_with_rotated_parent(device):
     local_pos, _ = view.get_local_poses()
     expected = torch.tensor([[0.0, -5.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(local_pos.torch, expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_initial_seed_with_scaled_parent(device):
+    """Verify the initial USD→Fabric seed handles non-unit scales correctly.
+
+    Sets up a parent with world scale (2, 1, 1) and a child with local scale
+    (3, 1, 1) at local translation (1, 0, 0).  Expected world-space values for
+    the child:
+
+    * world scale = parent_scale * child_local_scale = (6, 1, 1)
+    * world position = parent_pos + parent_scale * child_local_pos
+                     = (0, 0, 1) + (2 * 1, 0, 0) = (2, 0, 1)
+
+    If the parent's worldMatrix is seeded with a hardcoded unit scale,
+    ``get_scales`` returns (3, 1, 1) instead of (6, 1, 1) and ``get_world_poses``
+    returns (1, 0, 1) instead of (2, 0, 1).  If the child's localMatrix is
+    seeded without scale, after ``_sync_world_from_local_if_dirty`` the world
+    scale collapses to (2, 1, 1).  This test catches both regressions.
+    """
+    _skip_if_unavailable(device)
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Parent_0", "Xform", translation=(0.0, 0.0, 1.0), scale=(2.0, 1.0, 1.0), stage=stage)
+    sim_utils.create_prim(
+        "/World/Parent_0/Child",
+        "Camera",
+        translation=(1.0, 0.0, 0.0),
+        scale=(3.0, 1.0, 1.0),
+        stage=stage,
+    )
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/Parent_.*/Child", device=device)
+
+    world_pos, _ = view.get_world_poses()
+    torch.testing.assert_close(
+        world_pos.torch,
+        torch.tensor([[2.0, 0.0, 1.0]], dtype=torch.float32, device=device),
+        atol=1e-5,
+        rtol=0,
+    )
+
+    scales = wp.to_torch(view.get_scales())
+    torch.testing.assert_close(
+        scales,
+        torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device),
+        atol=1e-5,
+        rtol=0,
+    )

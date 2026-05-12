@@ -34,7 +34,7 @@ from typing import ClassVar
 import torch
 import warp as wp
 
-from pxr import Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager
@@ -769,7 +769,10 @@ class FabricFrameView(BaseFrameView):
             ],
             device=self._device,
         )
-        # Compose into child localMatrix.
+        # Compose into child localMatrix.  Pass the locally-authored scale so
+        # that a subsequent ``_sync_world_from_local_if_dirty`` produces the
+        # right world-space scale (``world = parent_world * local`` carries
+        # ``local``'s scale through the multiply).
         wp.launch(
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=self.count,
@@ -777,7 +780,7 @@ class FabricFrameView(BaseFrameView):
                 self._local_ifa_rw,
                 _to_float32_2d(local_pos_ta.warp),
                 _to_float32_2d(local_ori_ta.warp),
-                self._fabric_empty_2d_array_sentinel,
+                _to_float32_2d(scales_wp),
                 False,
                 False,
                 False,
@@ -793,23 +796,25 @@ class FabricFrameView(BaseFrameView):
             xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
             world_pos_rows: list[list[float]] = []
             world_ori_rows: list[list[float]] = []
+            world_scale_rows: list[list[float]] = []
+            decomposer = Gf.Transform()
             for path in unique_parent_paths:
                 prim = usd_stage.GetPrimAtPath(path)
                 tf = xform_cache.GetLocalToWorldTransform(prim)
+                # Extract scale before ``Orthonormalize`` strips it from the rows.
+                decomposer.SetMatrix(tf)
+                s = decomposer.GetScale()
                 tf.Orthonormalize()
                 t = tf.ExtractTranslation()
                 q = tf.ExtractRotationQuat()
                 img, real = q.GetImaginary(), q.GetReal()
                 world_pos_rows.append([float(t[0]), float(t[1]), float(t[2])])
                 world_ori_rows.append([float(img[0]), float(img[1]), float(img[2]), float(real)])
+                world_scale_rows.append([float(s[0]), float(s[1]), float(s[2])])
             parent_view_indices = wp.array(list(range(len(unique_parent_paths))), dtype=wp.uint32, device=self._device)
             parent_pos_wp = wp.array(world_pos_rows, dtype=wp.float32, device=self._device)
             parent_ori_wp = wp.array(world_ori_rows, dtype=wp.float32, device=self._device)
-            parent_unit_scale = wp.array(
-                [[1.0, 1.0, 1.0]] * len(unique_parent_paths),
-                dtype=wp.float32,
-                device=self._device,
-            )
+            parent_scale_wp = wp.array(world_scale_rows, dtype=wp.float32, device=self._device)
             # Compose worldMatrix for parents (use a one-shot indexed array against
             # ``world_sel_rw`` keyed on the unique parent paths).
             parent_world_rw = wp.indexedfabricarray(
@@ -823,7 +828,7 @@ class FabricFrameView(BaseFrameView):
                     parent_world_rw,
                     parent_pos_wp,
                     parent_ori_wp,
-                    parent_unit_scale,
+                    parent_scale_wp,
                     False,
                     False,
                     False,
@@ -832,6 +837,14 @@ class FabricFrameView(BaseFrameView):
                 device=self._device,
             )
         wp.synchronize()
+
+        # The child worldMatrix above was composed with the child's *local* scale,
+        # which is wrong whenever a parent has a non-unit world scale.  Mark the
+        # view dirty so the next world read fires ``_sync_world_from_local_if_dirty``
+        # and recomputes ``child_world = parent_world * child_local`` — that
+        # multiply produces the correct world-space scale because the parent and
+        # local matrices now both carry the right scale (seeded above).
+        self._world_dirty = True
 
     def _compute_fabric_indices_for(self, selection, paths: list[str]) -> wp.array:
         """Path-dict lookup helper used to build one-shot indexed arrays for a custom path set."""
