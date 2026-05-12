@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from dataclasses import MISSING
 
 from isaaclab.utils.configclass import configclass
@@ -114,13 +115,21 @@ class InteractiveSceneCfg:
     clone_in_fabric: bool = False
     """Enable/disable cloning in fabric. Default is False.
 
-    Omniverse Fabric is a more optimized method for performing cloning in scene creation. This reduces the time
-    taken to create the scene. However, it limits flexibility in accessing the stage through USD APIs and instead,
-    the stage must be accessed through USDRT.
-
-    .. note::
-        Cloning in fabric can only be enabled if :attr:`replicated_physics` is also enabled.
-        If :attr:`replicated_physics` is ``False``, cloning in Fabric will automatically
-        default to ``False``.
-
+    .. deprecated:: 4.6.23
+        This field is a no-op: no physics backend (PhysX, Newton, OmniPhysX) reads it.
+        Remove the kwarg from your :class:`InteractiveSceneCfg` constructor.
+        The field will be removed in a future release.
     """
+
+    def __post_init__(self):
+        """Warn when the deprecated :attr:`clone_in_fabric` is set to a non-default value."""
+        # Only warn on explicit non-default (True) — silent False matches the default.
+        if self.clone_in_fabric:
+            warnings.warn(
+                "InteractiveSceneCfg.clone_in_fabric is deprecated and will be removed in a future release."
+                " The field is a no-op (no physics backend reads it); remove the kwarg.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            # Reset so callers that copy this cfg (e.g. via configclass.replace) don't re-warn.
+            self.clone_in_fabric = False
