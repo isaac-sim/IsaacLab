@@ -35,7 +35,11 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationCfg, build_simulation_context
+
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.manager_based.locomotion.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -1177,6 +1181,47 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
 
 class TestDecimationRemotizedPD(_DecimationMixin, TestRemotizedPDEquivalence):
     """RemotizedPD — decimation=2 + CUDA graph."""
+
+
+class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
+    """Regression test for Newton actuator authoring in manager-based clone paths."""
+
+    def test_newton_actuators_present_for_g1_manager_env(self):
+        env_cfg = G1FlatEnvCfg()
+        env_cfg.scene.num_envs = 1
+        env_cfg.decimation = 1
+        env_cfg.scene.contact_forces = None
+        env_cfg.rewards.feet_air_time = None
+        env_cfg.rewards.feet_slide = None
+        env_cfg.terminations.base_contact = None
+        env_cfg.sim.physics = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=95,
+                nconmax=10,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicitfast",
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        )
+        env_cfg.sim.use_newton_actuators = True
+        env = ManagerBasedRLEnv(cfg=env_cfg)
+        try:
+            stage = env.unwrapped.sim.stage
+            actuator_prim_count = sum(1 for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator")
+            self.assertGreater(
+                actuator_prim_count,
+                0,
+                "Expected authored NewtonActuator prims in manager-based scene workflow.",
+            )
+            self.assertGreater(
+                len(SimulationManager.get_model().actuators),
+                0,
+                "Expected Newton model actuators to be non-empty with use_newton_actuators=True.",
+            )
+        finally:
+            env.close()
 
 
 # ---------------------------------------------------------------------------

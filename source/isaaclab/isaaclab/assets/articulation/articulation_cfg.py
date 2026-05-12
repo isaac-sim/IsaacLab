@@ -88,4 +88,11 @@ class ArticulationCfg(AssetBaseCfg):
             return
         from isaaclab.sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
 
-        define_actuator_properties(self.prim_path, self.actuators, stage=stage)
+        # In InteractiveScene, articulated assets are often spawned first under
+        # a template path (for example ``/World/template/Robot``) and cloned
+        # into ``{ENV_REGEX_NS}`` later. Author NewtonActuator prims on the
+        # actual spawned source prim so clones inherit them.
+        author_prim_path = (
+            self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path is not None else self.prim_path
+        )
+        define_actuator_properties(author_prim_path, self.actuators, stage=stage)
