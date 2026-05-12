@@ -866,9 +866,10 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
         PhysX implementation: passthrough of ``_root_view.get_jacobians()``, which is
-        natively COM-referenced.
+        natively COM-referenced. The wrapper is pinned once in :meth:`_create_buffers`
+        because the engine buffer is pointer-stable for the articulation's lifetime.
         """
-        return ProxyArray(self._root_view.get_jacobians())
+        return self._body_com_jacobian_w_ta
 
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
@@ -896,16 +897,20 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
 
         PhysX implementation: passthrough of ``_root_view.get_generalized_mass_matrices()``.
+        The wrapper is pinned once in :meth:`_create_buffers` because the engine buffer
+        is pointer-stable for the articulation's lifetime.
         """
-        return ProxyArray(self._root_view.get_generalized_mass_matrices())
+        return self._mass_matrix_ta
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
         PhysX implementation: passthrough of ``_root_view.get_gravity_compensation_forces()``.
+        The wrapper is pinned once in :meth:`_create_buffers` because the engine buffer
+        is pointer-stable for the articulation's lifetime.
         """
-        return ProxyArray(self._root_view.get_gravity_compensation_forces())
+        return self._gravity_compensation_forces_ta
 
     """
     Joint state properties.
@@ -1603,11 +1608,14 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        # Dynamics quantities (task-space controllers).
-        # Only the link-origin Jacobian has a pinned ProxyArray wrapper (we own that buffer).
-        # body_com_jacobian_w / mass_matrix / gravity_compensation_forces wrap the engine's
-        # buffer fresh on every read, so they don't have pinned wrappers.
+        # Dynamics quantities (task-space controllers). All four wrappers are eager —
+        # the PhysX tensor-view getters (``get_jacobians`` / ``get_generalized_mass_matrices`` /
+        # ``get_gravity_compensation_forces``) return pointer-stable buffers for the
+        # articulation's lifetime, so a single ProxyArray wrap survives every read.
         self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
+        self._body_com_jacobian_w_ta = ProxyArray(self._root_view.get_jacobians())
+        self._mass_matrix_ta = ProxyArray(self._root_view.get_generalized_mass_matrices())
+        self._gravity_compensation_forces_ta = ProxyArray(self._root_view.get_gravity_compensation_forces())
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
