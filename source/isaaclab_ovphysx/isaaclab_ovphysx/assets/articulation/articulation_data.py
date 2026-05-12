@@ -16,6 +16,7 @@ import warp as wp
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
+from isaaclab_ovphysx.physics import OvPhysxManager
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets.kernels import (
@@ -815,6 +816,9 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._body_link_pose_w.timestamp < self._sim_timestamp:
+            # perform forward kinematics (shouldn't cause overhead if it happened already)
+            OvPhysxManager.get_physx_instance().update_articulations_kinematic()
         self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)

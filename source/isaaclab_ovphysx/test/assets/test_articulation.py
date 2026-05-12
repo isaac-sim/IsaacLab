@@ -93,21 +93,6 @@ _MATERIAL_GAP_REASON = (
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
 
-_FK_ON_DEMAND_GAP_REASON = (
-    "GPU-only: PhysX's data-class getters call "
-    "``SimulationView.update_articulations_kinematic`` before reading link "
-    "transforms (see ``isaaclab_physx.assets.articulation_data:735``), so body "
-    "poses reflect new joint positions immediately after "
-    "``write_joint_position_to_sim_*`` without a sim step.  The OVPhysX wheel's "
-    "``ovphysx.PhysX`` class does not expose an equivalent FK-on-demand API "
-    "(omni.physics.tensors has it; the OVPhysX wrapper does not surface it), "
-    "so body-pose bindings remain stale on a GPU sim until the next ``step``.  "
-    "On a CPU sim the same write path happens to update the bindings synchronously "
-    "(no async stream involved), so the test xpasses there — hence ``strict=False``.  "
-    "See docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
-)
-
-
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX TensorBinding into a torch tensor on *device*.
 
@@ -2154,7 +2139,6 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
-@pytest.mark.xfail(reason=_FK_ON_DEMAND_GAP_REASON, strict=False)
 def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled):
     """Test the setters for root_state using both the link frame and center of mass as reference frame.
 
