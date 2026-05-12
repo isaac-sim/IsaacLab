@@ -163,8 +163,13 @@ def _rename_builder_labels(
                     values[k] = swap(values[k], world_roots[world_id])
 
         # Pass 1: built-in label arrays. Each has a paired ``*_world`` int column.
+        # Use ``is None`` (not ``or``) so an empty-but-defined ``*_label`` column
+        # is recognized — falling through to ``*_key`` would over-match a
+        # builder that legitimately exposes both attributes.
         for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
-            labels = getattr(builder, f"{t}_label", None) or getattr(builder, f"{t}_key", None)
+            labels = getattr(builder, f"{t}_label", None)
+            if labels is None:
+                labels = getattr(builder, f"{t}_key", None)
             worlds_arr = getattr(builder, f"{t}_world", None)
             if labels is None or worlds_arr is None:
                 continue

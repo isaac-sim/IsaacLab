@@ -8,7 +8,7 @@
 Covers both passes of the rewrite:
 
   * Pass 1 — built-in label arrays (``body``, ``joint``, ``shape``,
-    ``articulation``, ``constraint_mimic``).
+    ``articulation``, ``constraint_mimic``, ``equality_constraint``).
   * Pass 2 — any string-typed custom-attribute column whose frequency declares a
     sibling ``references="world"`` companion (e.g. ``mujoco:tendon_label``).
 
@@ -60,7 +60,9 @@ def _make_builder_with_entries(worlds: list[int]) -> newton.ModelBuilder:
     """Builder pre-populated with one row per world for every label class under test."""
     b = newton.ModelBuilder()
     SolverMuJoCo.register_custom_attributes(b)
-    _inject_builtins(b, ("body", "joint", "shape", "articulation", "constraint_mimic"), _SRC, worlds)
+    _inject_builtins(
+        b, ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"), _SRC, worlds
+    )
     _inject_tendon_strings(b, _SRC, worlds)
     return b
 
@@ -84,7 +86,7 @@ class TestRenameBuilderLabels(unittest.TestCase):
     def test_builtin_labels_rewritten_per_world(self):
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
-        for t in ("body", "joint", "shape", "articulation", "constraint_mimic"):
+        for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
             labels = getattr(b, f"{t}_label")
             worlds_arr = getattr(b, f"{t}_world")
             for k, w in enumerate(worlds_arr):
@@ -111,7 +113,7 @@ class TestRenameBuilderLabels(unittest.TestCase):
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
         per_world = {int(w): _DST.format(int(w)) + "/" for w in self.env_ids.tolist()}
-        for t in ("body", "joint", "shape", "articulation", "constraint_mimic"):
+        for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
             for label, w in zip(getattr(b, f"{t}_label"), getattr(b, f"{t}_world")):
                 self.assertTrue(label.startswith(per_world[int(w)]), msg=f"{t}: {label!r}")
         tendon_labels = b.custom_attributes["mujoco:tendon_label"].values
