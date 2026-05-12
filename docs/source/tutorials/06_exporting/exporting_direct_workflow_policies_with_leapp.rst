@@ -21,8 +21,25 @@ overhead until export time. They are activated by
 
 This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
-annotation pattern to your own Direct RL environment. After your environment includes
-the required LEAPP input, output, and state annotations, export a trained policy with:
+annotation pattern to your own Direct RL environment.
+
+Before exporting, install LEAPP into the Isaac Lab Python environment:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p -m pip install leapp
+
+If you want to run the exported example with the existing
+``Isaac-Velocity-Rough-Anymal-C-Direct-v0`` task registration, copy the annotated
+tutorial environment into the task package:
+
+.. code-block:: bash
+
+   cp scripts/tutorials/06_deploy/anymal_c_env.py \
+      source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+
+After your environment includes the required LEAPP input, output, and state
+annotations, export a trained policy with:
 
 .. code-block:: bash
 
