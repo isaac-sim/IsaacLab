@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
-
-from pxr import Usd
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils import configclass
@@ -77,22 +75,17 @@ class ArticulationCfg(AssetBaseCfg):
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
 
-    def _post_spawn(self, stage: Usd.Stage) -> None:
+    def _post_spawn(self, stage: Any) -> None:
         """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
 
         Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims
-        exist on the stage. The actual authoring logic lives in
-        :func:`~isaaclab_newton.actuators.author_actuator_prims_for_articulation`,
-        which gates itself on ``sim_cfg.use_newton_actuators`` and silently no-ops when
-        the Newton actuator package is unavailable.
+        exist on the stage. Delegates to
+        :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
+        on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
+        is not configured for Newton-native actuators.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
-        try:
-            from isaaclab_newton.actuators import author_actuator_prims_for_articulation  # noqa: PLC0415
-        except ImportError:
+        if self.actuators is MISSING:
             return
+        from isaaclab.sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
 
-        sim_ctx = SimulationContext.instance()
-        sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
-        author_actuator_prims_for_articulation(self, sim_cfg, stage)
+        define_actuator_properties(self.prim_path, self.actuators, stage=stage)

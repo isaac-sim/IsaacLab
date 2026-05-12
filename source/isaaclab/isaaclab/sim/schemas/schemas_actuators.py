@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD authoring for Newton-native actuators.
+"""USD schema authoring for Newton-native actuators.
 
-:func:`author_newton_actuator_prims` translates IsaacLab actuator configs
+:func:`define_actuator_properties` translates IsaacLab actuator configs
 into ``NewtonActuator`` USD prims. Both the Newton ``ModelBuilder.add_usd``
 path and the PhysX adapter's
 :meth:`~isaaclab_newton.actuators.adapter.NewtonActuatorAdapter.from_usd`
 read the same authored prims, ensuring both backends construct
 :class:`~newton.actuators.Actuator` instances with matching parameters.
 
-:func:`author_actuator_prims_for_articulation` is a thin wrapper that
-resolves per-articulation pre-conditions (sim cfg gating, prim lookup)
-and dispatches into :func:`author_newton_actuator_prims`. It is invoked
-from the schema-side articulation initialisation path.
+This module lives on the schema side so that authoring is a regular
+``define_*_properties`` step in the spawner pipeline, alongside
+:func:`define_articulation_root_properties` and friends, rather than a
+side effect of asset construction.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def resolve_per_dof(
 ) -> dict[str, float | int]:
     """Expand a scalar or regex-keyed dict cfg value into a per-joint mapping.
 
-    Used by :func:`author_newton_actuator_prims` to flatten the various
+    Used by :func:`define_actuator_properties` to flatten the various
     accepted forms of a per-DOF config field (``stiffness``, ``damping``,
     ``effort_limit``, …) into a single ``{joint_name: value}`` dict that
     the authoring loop can ``.get(jname, default)`` against.
@@ -62,77 +62,78 @@ def resolve_per_dof(
     return {}
 
 
-def author_actuator_prims_for_articulation(cfg: Any, sim_cfg: Any, stage: Any) -> None:
-    """Resolve per-articulation authoring args from ``cfg`` + ``sim_cfg`` and dispatch.
+def define_actuator_properties(
+    prim_path: str,
+    actuator_cfgs: dict[str, Any],
+    stage: Any | None = None,
+) -> None:
+    """Author ``NewtonActuator`` USD prims under an articulation root.
 
-    Higher-level wrapper around :func:`author_newton_actuator_prims` that
-    handles the pre-conditions previously inlined in
-    ``BaseArticulation._author_newton_actuator_prims``:
+    For every joint covered by an explicit (non-implicit) Lab actuator
+    config, any existing ``NewtonActuator`` prim targeting that joint is
+    replaced by a new one created from the config values. Joints **not**
+    covered by any Lab config keep their USD-authored actuators unchanged.
 
-    * No-op when the simulation is not configured for the Newton actuator
-      fast path (``sim_cfg is None`` or ``use_newton_actuators=False``).
-    * Falls back from ``cfg.spawn.spawn_path`` to ``cfg.prim_path`` when the
-      former is not set, then resolves the first matching USD prim.
-    * No-op when no matching prim exists on the stage.
+    The supported config-to-schema mapping is:
 
-    Keeping this resolution on the schema side lets articulations call
-    authoring with a single line, and lets the rules be tested without
-    constructing an articulation instance.
+    * :class:`~isaaclab.actuators.IdealPDActuatorCfg` →
+      ``NewtonPDControlAPI`` + ``NewtonMaxEffortClampingAPI``
+    * :class:`~isaaclab.actuators.DCMotorCfg` →
+      ``NewtonPDControlAPI`` + ``NewtonDCMotorClampingAPI``
+    * :class:`~isaaclab.actuators.DelayedPDActuatorCfg` →
+      same as ``IdealPDActuatorCfg`` + ``NewtonActuatorDelayAPI``
+    * :class:`~isaaclab.actuators.RemotizedPDActuatorCfg` →
+      same as ``DelayedPDActuatorCfg`` + ``NewtonPositionBasedClampingAPI``
+    * :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
+      :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
+      ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
+
+    No-ops (returns immediately) when:
+
+    * the active :class:`~isaaclab.sim.SimulationContext` was configured
+      with ``use_newton_actuators=False`` (or no context is active), or
+    * *prim_path* does not resolve to a valid prim on the stage.
+
+    Must be called **after** the articulation is spawned (joint prims
+    exist on stage) and **before** the cloner / ``ModelBuilder.add_usd``
+    reads the stage.
+
+    Args:
+        prim_path: Root prim path of the articulation (e.g.
+            ``"/World/Env_0/Robot"``). May contain a regex pattern; the
+            first matching prim is used.
+        actuator_cfgs: Mapping of group name to
+            :class:`~isaaclab.actuators.ActuatorBaseCfg`.
+        stage: USD stage to author on. When ``None``, the current stage
+            is used.
     """
-    if sim_cfg is not None and not getattr(sim_cfg, "use_newton_actuators", False):
+    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+    sim_ctx = SimulationContext.instance()
+    sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+    if sim_cfg is None or not getattr(sim_cfg, "use_newton_actuators", False):
         return
 
     from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415
+    from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
-    spawn_path = getattr(cfg.spawn, "spawn_path", None) if cfg.spawn is not None else None
-    search_path = spawn_path if spawn_path is not None else cfg.prim_path
-    first_prim = find_first_matching_prim(search_path)
+    if stage is None:
+        stage = get_current_stage()
+
+    first_prim = find_first_matching_prim(prim_path)
     if first_prim is None:
         return
+    articulation_prim_path = str(first_prim.GetPath())
 
-    author_newton_actuator_prims(
-        stage=stage,
-        articulation_prim_path=str(first_prim.GetPath()),
-        actuator_cfgs=cfg.actuators,
-    )
+    _author_actuator_prims(stage, articulation_prim_path, actuator_cfgs)
 
 
-def author_newton_actuator_prims(
+def _author_actuator_prims(
     stage: Any,
     articulation_prim_path: str,
     actuator_cfgs: dict[str, Any],
 ) -> None:
-    """Author ``NewtonActuator`` USD prims from IsaacLab actuator configs.
-
-    For every joint covered by an explicit (non-implicit) Lab actuator config,
-    any existing ``NewtonActuator`` prim targeting that joint is replaced by a
-    new one created from the config values.  Joints **not** covered by any
-    Lab config keep their USD-authored actuators unchanged.
-
-    The supported config-to-schema mapping is:
-
-    * :class:`~isaaclab.actuators.IdealPDActuatorCfg` ->
-      ``NewtonPDControlAPI`` + ``NewtonMaxEffortClampingAPI``
-    * :class:`~isaaclab.actuators.DCMotorCfg` ->
-      ``NewtonPDControlAPI`` + ``NewtonDCMotorClampingAPI``
-    * :class:`~isaaclab.actuators.DelayedPDActuatorCfg` ->
-      same as ``IdealPDActuatorCfg`` + ``NewtonActuatorDelayAPI``
-    * :class:`~isaaclab.actuators.RemotizedPDActuatorCfg` ->
-      same as ``DelayedPDActuatorCfg`` + ``NewtonPositionBasedClampingAPI``
-    * :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
-      :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` ->
-      ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
-
-    Must be called **after** the articulation is spawned (joint prims exist
-    on stage) and **before** the cloner / ``ModelBuilder.add_usd`` reads
-    the stage.
-
-    Args:
-        stage: The USD stage to author prims on.
-        articulation_prim_path: Root prim path of the articulation
-            (e.g. ``"/World/Env_0/Robot"``).  Must not contain wildcards.
-        actuator_cfgs: Mapping of group name to ``ActuatorBaseCfg``.
-    """
+    """Inner authoring routine; exposed separately for test fixtures."""
     from pxr import Sdf  # noqa: PLC0415
 
     from isaaclab.actuators import ImplicitActuator  # noqa: PLC0415
@@ -151,9 +152,7 @@ def author_newton_actuator_prims(
     for group_name, cfg in actuator_cfgs.items():
         cls_type = cfg.class_type
         is_implicit = (
-            "ImplicitActuator" in cls_type
-            if isinstance(cls_type, str)
-            else issubclass(cls_type, ImplicitActuator)
+            "ImplicitActuator" in cls_type if isinstance(cls_type, str) else issubclass(cls_type, ImplicitActuator)
         )
         if is_implicit:
             continue
@@ -200,9 +199,7 @@ def author_newton_actuator_prims(
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
 
         vel_limit_map = resolve_per_dof(getattr(cfg, "velocity_limit", None), joint_names) if is_dc_motor else {}
-        sat_effort_map = (
-            resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
-        )
+        sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
 
         raw_delay = getattr(cfg, "max_delay", 0) if is_delayed else 0
         delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
@@ -321,7 +318,7 @@ def _remove_actuator_prims_for_joints(
     """Deactivate ``NewtonActuator`` prims whose target is in *joint_paths*.
 
     Deactivated prims are invisible to ``Usd.PrimRange`` and therefore
-    ignored by ``ModelBuilder.add_usd``.  Using ``SetActive(False)``
+    ignored by ``ModelBuilder.add_usd``. Using ``SetActive(False)``
     instead of ``RemovePrim`` works correctly when the prim originates
     from a USD reference or payload.
 
