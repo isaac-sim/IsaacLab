@@ -385,12 +385,35 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
-        # detect physics backend and instantiate the appropriate implementation
-        manager_name = env.sim.physics_manager.__name__.lower()
-        if "newton" in manager_name:
+        # detect physics backend and instantiate the appropriate implementation.
+        # Exact name matches: ``"physx" in name.lower()`` would also catch
+        # ``OvPhysxManager`` and route it to the PhysX impl, which assumes a
+        # ``root_view`` with ``.link_paths`` — OVPhysX's per-tensor-type
+        # bindings dict does not satisfy that contract.
+        manager_name = env.sim.physics_manager.__name__
+        if manager_name == "NewtonManager":
             self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
-        else:
+        elif manager_name == "PhysxManager":
             self._impl = _RandomizeRigidBodyMaterialPhysx(cfg, env, self.asset, self.asset_cfg)
+        elif manager_name == "OvPhysxManager":
+            # No OVPhysX implementation yet — wheel-side
+            # ``RIGID_BODY_MATERIAL`` tensor binding is missing; randomization
+            # would require per-body view creation that ovphysx does not yet
+            # expose.  Run with material randomization disabled (warns once).
+            import logging  # noqa: PLC0415
+
+            logging.getLogger(__name__).warning(
+                "randomize_rigid_body_material is a no-op on the OVPhysX backend "
+                "(wheel-side gap — see docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md)."
+            )
+
+            class _Noop:
+                def __call__(self, *args, **kwargs):
+                    pass
+
+            self._impl = _Noop()
+        else:
+            raise ValueError(f"Unsupported physics manager for randomize_rigid_body_material: {manager_name!r}")
 
     def __call__(
         self,

@@ -209,6 +209,13 @@ class ContactSensor(BaseContactSensor):
             filter_patterns = None
 
         # Create the contact binding (must happen BEFORE the next step()).
+        # OVPhysX's ``InteractiveScene`` runs in ``clone_usd=False`` mode:
+        # env_1..N have no USD prim — they're physics-layer clones via
+        # ``physx.clone()``.  The parent class's ``find_matching_prims`` walk
+        # therefore sees only env_0 and sets ``self._num_envs = 1`` even when
+        # the scene is configured for many envs.  We size the
+        # ``max_contact_data_count`` for env_0 only here; the binding's
+        # ``sensor_count`` after creation gives us the real env count.
         max_count = self.cfg.max_contact_data_count_per_prim * self._num_sensors * self._num_envs
         self._contact_binding = physx_instance.create_contact_binding(
             sensor_patterns=sensor_patterns,
@@ -217,16 +224,28 @@ class ContactSensor(BaseContactSensor):
             max_contact_data_count=max_count,
         )
 
-        # Validate that ovphysx matched what we expected. sensor_count is the
-        # global total (envs * bodies); the binding does not split per env.
-        expected_sensors = self._num_sensors * self._num_envs
-        if self._contact_binding.sensor_count != expected_sensors:
+        # Validate: sensor_count must be a non-zero multiple of num_sensors.
+        if self._contact_binding.sensor_count == 0 or self._contact_binding.sensor_count % self._num_sensors != 0:
             raise RuntimeError(
                 "Failed to initialize contact binding for specified bodies."
                 f"\n\tInput prim path     : {self.cfg.prim_path}"
-                f"\n\tExpected sensors    : {expected_sensors} ({self._num_envs} envs * {self._num_sensors} bodies)"
+                f"\n\tNum sensor bodies   : {self._num_sensors}"
                 f"\n\tBound sensors       : {self._contact_binding.sensor_count}"
             )
+
+        # Override ``_num_envs`` with the binding's view if it differs (it does
+        # for any OVPhysX scene with ``num_envs > 1`` due to ``clone_usd=False``).
+        # Re-allocate the env-sized buffers from the parent class so they match
+        # the real env count.
+        binding_num_envs = self._contact_binding.sensor_count // self._num_sensors
+        if binding_num_envs != self._num_envs:
+            self._num_envs = binding_num_envs
+            self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
+            self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
+            self._reset_mask_torch = wp.to_torch(self._reset_mask)
+            self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+            self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+            self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.
         # ovphysx fnmatch does not brace-expand, so we cannot match multiple
@@ -247,12 +266,12 @@ class ContactSensor(BaseContactSensor):
                 pattern=single_pose_pattern,
                 tensor_type=TT.RIGID_BODY_POSE,
             )
-            if self._pose_binding.count != expected_sensors:
+            if self._pose_binding.count != self._contact_binding.sensor_count:
                 raise RuntimeError(
                     "RIGID_BODY_POSE binding count mismatch."
                     f"\n\tPattern: {single_pose_pattern}"
                     f"\n\tBound  : {self._pose_binding.count}"
-                    f"\n\tExpect : {expected_sensors}"
+                    f"\n\tExpect : {self._contact_binding.sensor_count}"
                 )
 
         self._create_buffers()
