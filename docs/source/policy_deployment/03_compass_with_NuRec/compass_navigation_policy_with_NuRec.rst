@@ -19,7 +19,7 @@ The following provides a high-level overview of the complete workflow:
 
    - Download X-Mobility checkpoint: ``hf download nvidia/X-Mobility x_mobility-nav2-semantic_action_path.ckpt``
    - Download COMPASS USD assets: ``hf download nvidia/COMPASS compass_usds.zip``
-   - Download NuRec Real2Sim assets: ``hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset``
+   - Download NuRec Real2Sim assets (3.a): ``hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset``, or use XGRID portal-camera assets you built per 3.b
 
 7. **Prepare assets**:
 
@@ -219,7 +219,7 @@ into the COMPASS extension directory:
     # Ensure that you are in COMPASS root directory
     compass/rl_env/exts/mobility_es/mobility_es/
 
-**3. NuRec Real2Sim Assets**
+**3.a. NuRec Real2Sim Assets**
 
 Download the NuRec Real2Sim assets from the `PhysicalAI-Robotics-NuRec dataset`_ on Hugging Face using the Hugging Face CLI:
 
@@ -288,6 +288,19 @@ For example, for the Galileo environment (nova_carter-galileo):
       * - ``hand_hold-voyager-babyboom-2``
         - Conference room in NVIDIA Voyager building
         - Yes
+
+**3.b. XGRID portal camera assets (alternate)**
+
+As an alternative to the NuRec dataset assets above, you can use Real2Sim assets produced from **XGRID** using the **portal camera** capture setup. A typical pipeline is:
+
+#. Collect data with XGRID.
+#. Run the XGRID reconstruction pipeline to generate the splat or intermediate asset.
+#. Convert to Particle (3D Gaussian splat) USD using `py3dgsPlyToUsd.py`_ from the OpenUSD repository (PLY to ``UsdVol.ParticleField3DGaussianSplat``).
+#. Ingest the mesh and set the required USDZ properties using `patch_usdz.py`_ from the Real2Sim tooling.
+
+After that, install the resulting environment under the same layout as in **3.a.** (for example ``compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/`` with ``stage.usdz`` and related files) so COMPASS can load it like any other Real2Sim scene.
+
+Example assets produced with this workflow are shared in `this Google Drive folder`_.
 
 Training the Policy
 -------------------
@@ -493,3 +506,6 @@ For NuRec Real2Sim environments:
 .. _COMPASS Repository: https://github.com/NVlabs/COMPASS
 .. _COMPASS ROS2 Deployment Guide: https://github.com/NVlabs/COMPASS/tree/main/ros2_deployment
 .. _PhysicalAI-Robotics-NuRec dataset: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec
+.. _py3dgsPlyToUsd.py: https://github.com/PixarAnimationStudios/OpenUSD/blob/dev/extras/imaging/examples/hdParticleField/py3dgsPlyToUsd.py
+.. _patch_usdz.py: https://gitlab-master.nvidia.com/visual_mapping/real2sim/-/blob/main/real2sim/tools/usdz/patch_usdz.py
+.. _this Google Drive folder: https://drive.google.com/drive/folders/1R_UAoDJFKAcXsudQwrOTloC4Bq125Kx1
