@@ -715,6 +715,23 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(rerun_visualizer, "render_newton_visualization_markers", _raise_marker_render)
 
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state():
+            return {"ok": True}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 4
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
+
     visualizer = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
     viewer = _FakeRerunViewer()
     visualizer._is_initialized = True
