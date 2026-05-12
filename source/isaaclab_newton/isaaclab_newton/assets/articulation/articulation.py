@@ -3625,7 +3625,11 @@ class Articulation(BaseArticulation):
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
-            self._implicit_dof_mask = build_implicit_dof_mask(
+            # ``_implicit_dof_mask_owner`` is the underlying torch tensor that owns
+            # the GPU memory aliased by ``_implicit_dof_mask``. We keep it as an
+            # instance attribute so the memory isn't freed while a CUDA graph
+            # holds a captured pointer into it.
+            self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
                 self.actuators,
                 self.num_joints,
                 self.device,

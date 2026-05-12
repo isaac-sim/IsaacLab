@@ -169,11 +169,21 @@ def build_implicit_dof_mask(
     actuators: dict[str, ActuatorBase],
     num_joints: int,
     device: str,
-) -> wp.array:
+) -> tuple[wp.array, torch.Tensor]:
     """Per-DOF mask consumed by :func:`sync_torque_telemetry`.
 
     Entry is ``1`` for DOFs covered by an
     :class:`~isaaclab.actuators.ImplicitActuator` group, ``0`` otherwise.
+
+    Returns:
+        Tuple of ``(wp_mask, torch_owner)``. ``wp_mask`` is the Warp
+        view used by the kernel; ``torch_owner`` is the underlying
+        :class:`torch.Tensor` whose GPU memory ``wp_mask`` aliases. The
+        caller **must keep a reference to** ``torch_owner`` for the
+        Warp view's lifetime — otherwise the torch refcount drops to
+        zero, the memory becomes eligible for reallocation by the
+        caching allocator, and any captured CUDA graph that baked in
+        ``wp_mask``'s device pointer will read garbage at replay time.
     """
     modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
     for actuator in actuators.values():
@@ -184,4 +194,4 @@ def build_implicit_dof_mask(
             modes[:] = 1
         else:
             modes[j_ids.long()] = 1
-    return wp.from_torch(modes, dtype=wp.int32)
+    return wp.from_torch(modes, dtype=wp.int32), modes

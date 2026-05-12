@@ -1077,7 +1077,18 @@ class NewtonManager(PhysicsManager):
         if cls._usdrt_stage is not None:
             cls._setup_cubric_bindings()
 
-        cls._capture_or_defer_graph()
+        # Skip the initial graph capture when the Newton actuator fast path is
+        # active. Capturing here would use ``cls._decimation`` (still its default
+        # of 1, because the env's ``set_decimation`` hasn't run yet); a second
+        # capture from ``set_decimation`` then triggers an illegal-memory-access
+        # CUDA fault inside the captured ``_simulate_full`` graph (back-to-back
+        # captures of the contact + actuator pipeline don't survive re-capture
+        # — root cause is in Newton's collision/actuator buffer handling, not
+        # Lab code). For non-Newton-actuator paths this branch is unaffected:
+        # ``set_decimation`` is a no-op for them (``_is_all_graphable`` is False),
+        # so we still need the start-time capture below.
+        if not cls._use_newton_actuators_active:
+            cls._capture_or_defer_graph()
 
     @classmethod
     def _setup_cubric_bindings(cls) -> None:
