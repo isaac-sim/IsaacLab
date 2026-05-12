@@ -341,7 +341,8 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
         rgb = env._tiled_camera.data.output.get("rgb")
         if rgb is None:
             rgb = env._tiled_camera.data.output[env.cfg.tiled_camera.data_types[0]]
-        last_rgb = rgb
+        # TODO: We should make the assert not use torch tensors as we migrate to warp.
+        last_rgb = rgb.torch
         try:
             _assert_non_black_tensor(rgb)
             return

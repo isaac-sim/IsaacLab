@@ -365,13 +365,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type in SIMPLE_SHADING_MODES:
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
+            # Get the warp array since the kernel is overloaded for specific types
+            buf_wp = output_data[data_type].warp
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
                 inputs=[
                     tiled_data_buffer.flatten(),
-                    output_data[data_type],
-                    *list(output_data[data_type].shape[1:]),
+                    buf_wp,
+                    *list(buf_wp.shape[1:]),
                     num_tiles_x,
                 ],
                 device=device,
@@ -385,7 +387,7 @@ class IsaacRtxRenderer(BaseRenderer):
             #       in values larger than the clipping range in the output. We apply an additional clipping to
             #       ensure values are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                clamp_depth_to_inf_wp(output_data[data_type], cfg.spawn.clipping_range[1], device=device)
+                clamp_depth_to_inf_wp(buf_wp, cfg.spawn.clipping_range[1], device=device)
 
             # apply defined clipping behavior
             if (
@@ -393,7 +395,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 and self.cfg.depth_clipping_behavior != "none"
             ):
                 replacement = 0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
-                replace_inf_depth_wp(output_data[data_type], replacement, device=device)
+                replace_inf_depth_wp(buf_wp, replacement, device=device)
 
     def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
