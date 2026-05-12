@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.0.4 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Pre-create renderer backends in
+  :class:`~isaaclab_experimental.envs.ManagerBasedEnvWarp` and
+  :class:`~isaaclab_experimental.envs.DirectRLEnvWarp` by invoking
+  :meth:`~isaaclab.scene.InteractiveScene.initialize_renderers` after scene
+  construction so that renderer backend creation order is deterministic and
+  front-loaded before the first
+  :meth:`~isaaclab.sim.SimulationContext.reset`.
+
+
 0.0.3 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 

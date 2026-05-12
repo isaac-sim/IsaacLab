@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
+
+import tomllib
 
 from ..utils import (
     ISAACLAB_ROOT,
@@ -286,6 +289,111 @@ ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
 
+def _normalize_package_name(name: str) -> str:
+    """Normalize a Python package name for metadata comparisons."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _requirement_name(requirement: str) -> str:
+    """Extract the distribution name from a requirement string."""
+    requirement = requirement.split(";", 1)[0].strip()
+    return re.split(r"\s|<|>|=|!|~|\[|@", requirement, maxsplit=1)[0]
+
+
+def _get_installed_distribution_requirements(python_exe: str, distribution_name: str) -> list[str]:
+    """Return installed ``Requires-Dist`` requirements for a distribution."""
+    probe = """import importlib.metadata
+import sys
+
+try:
+    dist = importlib.metadata.distribution(sys.argv[1])
+except importlib.metadata.PackageNotFoundError:
+    sys.exit(1)
+
+for requirement in dist.requires or []:
+    print(requirement)
+"""
+    result = run_command(
+        [python_exe, "-c", probe, distribution_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print_warning(f"Could not read installed metadata for {distribution_name}; skipping dependency upgrades.")
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _get_extension_pip_upgrade_dependencies(extension_dir: Path) -> list[str]:
+    """Read dependency names opted into targeted pip upgrades from ``extension.toml``."""
+    extension_toml = extension_dir / "config" / "extension.toml"
+    if not extension_toml.is_file():
+        return []
+
+    try:
+        with extension_toml.open("rb") as fd:
+            extension_data = tomllib.load(fd)
+    except tomllib.TOMLDecodeError as exc:
+        print_warning(f"Could not parse {extension_toml}: {exc}; skipping targeted dependency upgrades.")
+        return []
+
+    isaac_lab_settings = extension_data.get("isaac_lab_settings", {})
+    if not isinstance(isaac_lab_settings, dict):
+        print_warning(
+            f"Ignoring invalid isaac_lab_settings in {extension_toml}; expected a table with pip_upgrade_dependencies."
+        )
+        return []
+
+    upgrade_dependencies = isaac_lab_settings.get("pip_upgrade_dependencies", [])
+    if not isinstance(upgrade_dependencies, list) or not all(isinstance(item, str) for item in upgrade_dependencies):
+        print_warning(f"Ignoring invalid pip_upgrade_dependencies in {extension_toml}; expected a list of strings.")
+        return []
+
+    return upgrade_dependencies
+
+
+def _get_pip_upgrade_command(pip_cmd: list[str], dependency_name: str, requirement: str) -> list[str]:
+    """Return a pip command that upgrades one dependency requirement."""
+    if pip_cmd[0] == "uv":
+        return pip_cmd + ["install", "--upgrade-package", dependency_name, requirement]
+    return pip_cmd + ["install", "--upgrade", requirement]
+
+
+def _upgrade_extension_pip_dependencies(
+    python_exe: str,
+    pip_cmd: list[str],
+    distribution_name: str,
+    dependency_names: list[str],
+) -> None:
+    """Upgrade selected dependencies using installed distribution metadata requirements."""
+    if not dependency_names:
+        return
+
+    requirements = _get_installed_distribution_requirements(python_exe, distribution_name)
+    seen_dependency_names = set()
+
+    for dependency_name in dependency_names:
+        normalized_dependency_name = _normalize_package_name(dependency_name)
+        if normalized_dependency_name in seen_dependency_names:
+            continue
+        seen_dependency_names.add(normalized_dependency_name)
+
+        matching_requirements = [
+            req for req in requirements if _normalize_package_name(_requirement_name(req)) == normalized_dependency_name
+        ]
+        if not matching_requirements:
+            print_warning(
+                f"Could not find dependency '{dependency_name}' in installed metadata for {distribution_name}; "
+                "skipping targeted upgrade."
+            )
+            continue
+
+        for requirement in matching_requirements:
+            print_info(f"Upgrading {dependency_name} for {distribution_name}: {requirement}")
+            run_command(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
+
+
 def _install_isaacsim() -> None:
     """Install Isaac Sim pip package if not already present."""
     python_exe = extract_python_exe()
@@ -414,6 +522,12 @@ def _install_isaaclab_submodules(
         editable = (submodule_extras or {}).get(item.name, "")
         install_target = f"{item}{editable}"
         run_command(pip_cmd + ["install", "--editable", install_target])
+        _upgrade_extension_pip_dependencies(
+            python_exe,
+            pip_cmd,
+            item.name,
+            _get_extension_pip_upgrade_dependencies(item),
+        )
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
