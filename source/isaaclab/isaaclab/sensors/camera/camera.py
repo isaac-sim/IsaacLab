@@ -561,8 +561,7 @@ class Camera(SensorBase):
         pos_w, quat_w = self._view.get_world_poses(indices)
         self._data.pos_w.torch[env_ids] = pos_w.torch
 
-        # get_world_poses() returns orientations as a flat 4-float type (vec4f or float32 (N,4)).
-        # Reinterpret as (N,) wp.quatf — same memory, same xyzw layout, 1-D shape for the kernel.
+        # get_world_poses() returns orientations as a flat 4-float type (vec4f or float32 (N,4)), reinterpret as (N,) wp.quatf
         quat_w_quatf = wp.array(
             ptr=quat_w.warp.ptr, dtype=wp.quatf, shape=(quat_w.warp.shape[0],), device=quat_w.warp.device, copy=False
         )

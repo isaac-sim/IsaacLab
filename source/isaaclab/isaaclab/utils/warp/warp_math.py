@@ -15,34 +15,12 @@ from typing import Literal
 
 import warp as wp
 
-# Quaternion multiplication (xyzw format)
-# Note: We can't use warp functions since warp quaternion is wxyz format
-
-
-@wp.func
-def quat_mul_xyzw(q1: wp.quatf, q2: wp.quatf) -> wp.quatf:
-    """Hamilton product of two unit quaternions in (x, y, z, w) format.
-
-    Args:
-        q1: First quaternion ``(x, y, z, w)``.
-        q2: Second quaternion ``(x, y, z, w)``.
-
-    Returns:
-        Product quaternion ``(x, y, z, w)``.
-    """
-    x = q1[3] * q2[0] + q1[0] * q2[3] + q1[1] * q2[2] - q1[2] * q2[1]
-    y = q1[3] * q2[1] - q1[0] * q2[2] + q1[1] * q2[3] + q1[2] * q2[0]
-    z = q1[3] * q2[2] + q1[0] * q2[1] - q1[1] * q2[0] + q1[2] * q2[3]
-    w = q1[3] * q2[3] - q1[0] * q2[0] - q1[1] * q2[1] - q1[2] * q2[2]
-    return wp.quatf(x, y, z, w)
-
-
 # Camera orientation convention conversion
 #
 # Every pair of (origin, target) conventions is equivalent to a single
 # right-multiplication by a constant unit quaternion:
 #
-#   q_out[i] = quat_mul_xyzw(q_in[i], q_const)
+#   q_out[i] = q_in[i] * q_const
 #
 # Derivations (xyzw):
 #   opengl ↔ ros   : 180° around X  →  (1, 0, 0, 0)   (self-inverse)
@@ -61,6 +39,7 @@ _CAMERA_ORIENTATION_CONST: dict[tuple[str, str], wp.quatf] = {
 }
 
 
+# TODO: Optimize these kernels with tiled ops and use wp.static
 @wp.kernel
 def _convert_camera_orientation_all_kernel(
     src: wp.array(dtype=wp.quatf),
@@ -69,7 +48,7 @@ def _convert_camera_orientation_all_kernel(
 ):
     """Apply constant-quaternion convention conversion to every element."""
     i = wp.tid()
-    dst[i] = quat_mul_xyzw(src[i], q_const)
+    dst[i] = src[i] * q_const
 
 
 @wp.kernel
@@ -85,7 +64,7 @@ def _convert_camera_orientation_indexed_kernel(
     camera updates (e.g. environment resets targeting a subset of cameras).
     """
     i = wp.tid()
-    dst[indices[i]] = quat_mul_xyzw(src[i], q_const)
+    dst[indices[i]] = src[i] * q_const
 
 
 def convert_camera_frame_orientation_convention_wp(
