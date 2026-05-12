@@ -14,6 +14,8 @@ import time
 
 from isaaclab.app import AppLauncher
 
+from isaaclab_tasks.utils import setup_preset_cli
+
 from scripts.benchmarks.early_stop import (
     RlGamesEarlyStopObserver,
     add_success_cli_args,
@@ -63,14 +65,10 @@ add_success_cli_args(parser)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli, hydra_args = parser.parse_known_args()
-# always enable cameras to record video
+args_cli = setup_preset_cli(parser)
+hydra_args = sys.argv[1:]  # captured for get_preset_string telemetry below
 if args_cli.video:
     args_cli.enable_cameras = True
-
-# clear out sys.argv for Hydra
-sys.argv = [sys.argv[0]] + hydra_args
 
 imports_time_begin = time.perf_counter_ns()
 

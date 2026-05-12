@@ -10,7 +10,6 @@ import contextlib
 import math
 import os
 import random
-import sys
 import time
 
 import gymnasium as gym
@@ -27,7 +26,13 @@ from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    get_checkpoint_path,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -59,12 +64,10 @@ parser.add_argument(
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli = setup_preset_cli(parser)
 
 if args_cli.video:
     args_cli.enable_cameras = True
-
-sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main():

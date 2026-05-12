@@ -30,6 +30,8 @@ torch.jit._state.disable()
 
 from isaaclab.app import AppLauncher
 
+from isaaclab_tasks.utils import setup_preset_cli
+
 _RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
 if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_RSL_RL_SCRIPTS_DIR))
@@ -86,11 +88,8 @@ parser.add_argument(
 
 cli_args.add_rsl_rl_args(parser)
 AppLauncher.add_app_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli = setup_preset_cli(parser)
 args_cli.headless = True
-
-# clear out sys.argv for Hydra
-sys.argv = [sys.argv[0]] + hydra_args
 
 installed_version = metadata.version("rsl-rl-lib")
 
