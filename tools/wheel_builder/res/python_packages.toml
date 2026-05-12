@@ -41,7 +41,10 @@ pyproject.dependencies.all = [
     # visualizers
     "imgui-bundle==1.92.4",
     "rerun-sdk>=0.29.0",
-    "viser>=1.0.16",
+    # viser is intentionally not a base dep: viser>=1.0.16 pulls websockets>=13.1,
+    # but isaacsim-kernel==6.0.0.0 pins websockets==12.0. Users who want the viser
+    # visualizer install isaaclab[viser] explicitly (see the optional-dependencies
+    # block below).
     "typing_extensions==4.12.2",
     "lazy_loader>=0.4",
     "pin ; platform_system == 'Linux'",
@@ -99,6 +102,12 @@ pyproject.optional-dependencies.all = [
     # { "rl_games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
     { "rsl-rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
     { "rsl_rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/setup.py
+    # ================================================================================
+    # Viser visualizer (opt-in: viser pulls websockets>=13.1 which collides with
+    # isaacsim-kernel==6.0.0.0's websockets==12.0; do not include in [all]).
+    { "viser" = ["viser>=1.0.16"] },
     # RL libraries (all)
     { "all" = [
         "stable-baselines3>=2.6",
