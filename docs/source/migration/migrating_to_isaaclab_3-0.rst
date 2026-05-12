@@ -98,6 +98,167 @@ The following classes have been moved to ``isaaclab_physx``:
    installation steps are required.
 
 
+.. _schemas-cfg-refactor:
+
+Schema Configuration Class Refactor
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Lab 3.0, the spawner schema cfg classes are split into solver-common
+**base classes** (in ``isaaclab.sim.schemas``) and **backend-specific subclasses**
+in ``isaaclab_physx.sim.schemas`` and ``isaaclab_newton.sim.schemas``. This makes
+the same asset cfg portable across PhysX and Newton backends, and adds slots
+for backend-specific asset-level knobs (e.g., MuJoCo gravity compensation).
+
+For the full design, see :ref:`schema-cfgs`.
+
+**Class moves and renames**
+
+The following 2.x class names are kept as deprecated aliases. They forward to
+the new location and will be removed in 4.0.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``RigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` (solver-common fields) +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` (PhysX-specific)
+   * - ``JointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`
+   * - ``CollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.CollisionBaseCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`
+   * - ``ArticulationRootPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`
+   * - ``RigidBodyMaterialCfg``
+     - :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` +
+       :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
+   * - ``MeshCollisionPropertiesCfg`` family (``ConvexHullPropertiesCfg``,
+       ``ConvexDecompositionPropertiesCfg``, ``TriangleMeshPropertiesCfg``,
+       ``TriangleMeshSimplificationPropertiesCfg``, ``SDFMeshPropertiesCfg``)
+     - :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` +
+       ``Physx*PropertiesCfg`` family in :mod:`isaaclab_physx.sim.schemas`
+   * - ``FixedTendonPropertiesCfg``, ``SpatialTendonPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
+
+**Code migration**
+
+Existing 2.x code continues to work via the deprecation aliases (with a
+``DeprecationWarning``; removed in 4.0):
+
+.. code-block:: python
+
+   # Isaac Lab 2.x
+   import isaaclab.sim as sim_utils
+   rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
+
+Recommended 3.0 pattern when targeting PhysX:
+
+.. code-block:: python
+
+   # Isaac Lab 3.0 — PhysX backend
+   from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
+   rigid_props = PhysxRigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
+
+Backend-portable 3.0 pattern (universal-physics fields only):
+
+.. code-block:: python
+
+   # Isaac Lab 3.0 — backend-portable
+   from isaaclab.sim.schemas import RigidBodyBaseCfg
+   rigid_props = RigidBodyBaseCfg(rigid_body_enabled=True, disable_gravity=True)
+
+**Field renames on** ``JointDriveBaseCfg``
+
+Two cfg fields were renamed so their snake_case names map identity-style to the
+USD camelCase attribute names. The old names remain as deprecated dataclass
+fields on :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (so
+``dataclasses.fields()`` still sees them) and are forwarded to the new fields
+in ``__post_init__`` with a ``DeprecationWarning``. Setting **both** the old
+and new field on the same instance is silent — the canonical (new) field
+wins; the old field's value is discarded after the warning. Both aliases are
+scheduled for removal in 4.0.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+     - USD attribute (unchanged)
+   * - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_velocity`
+     - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_joint_velocity`
+     - ``physxJoint:maxJointVelocity``
+   * - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_effort`
+     - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
+     - ``drive:<axis>:physics:maxForce``
+
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0)
+
+Recommended 3.0 pattern, backend-portable:
+
+.. code-block:: python
+
+   from isaaclab.sim.schemas import JointDriveBaseCfg
+   JointDriveBaseCfg(max_force=80.0, max_joint_velocity=5.0)
+
+Recommended 3.0 pattern, PhysX-targeted:
+
+.. code-block:: python
+
+   from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg
+   PhysxJointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0)
+
+**New Newton and MuJoCo cfg classes**
+
+For the Newton backend (and Newton's MuJoCo solver), new cfg classes are
+available under :mod:`isaaclab_newton.sim.schemas`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Class
+     - Use case
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg`
+     - ``newton:contactMargin`` / ``newton:contactGap`` via ``NewtonCollisionAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg`
+     - ``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`
+     - ``newton:torsionalFriction`` / ``newton:rollingFriction`` via ``NewtonMaterialAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg`
+     - ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg`
+     - ``mjc:gravcomp`` (body-level gravity compensation, MuJoCo solver only)
+   * - :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg`
+     - ``mjc:actuatorgravcomp`` via ``MjcJointAPI`` (joint-level routing)
+
+The MuJoCo cfgs subclass their Newton parent because MuJoCo is one of Newton's
+solver options.
+
+.. note::
+
+   Spawners auto-enable body-level gravity compensation when joint-level
+   ``actuatorgravcomp=True`` is requested but no Mujoco rigid-body cfg is
+   provided — without ``gravcomp`` on the bodies, ``actuatorgravcomp`` is a
+   no-op (no forces to route). To override, pass an explicit
+   ``MujocoRigidBodyPropertiesCfg`` in ``rigid_props``. See
+   :ref:`schema-cfgs-gravcomp` for details.
+
+For complete tables of which fields live on which class and where each lands in
+USD, see :ref:`schema-cfgs`.
+
+
 Renaming of ``XformPrimView`` to ``FrameView``
 -----------------------------------------------
 

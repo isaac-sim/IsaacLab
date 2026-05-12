@@ -139,12 +139,15 @@ class NewtonWarpRenderer(BaseRenderer):
     RenderData = RenderData
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
+        """Pre-physics initialization."""
         from isaaclab.physics.scene_data_requirements import (
             aggregate_requirements,
             requirement_for_renderer_type,
         )
 
         self.cfg = cfg
+        self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
+
         sim = SimulationContext.instance()
         current_req = sim.get_scene_data_requirements()
         renderer_req = requirement_for_renderer_type("newton_warp")
@@ -152,6 +155,8 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
+    def initialize(self) -> None:
+        """Post-physics setup: read the built Newton model and construct the sensor."""
         newton_model = self.get_scene_data_provider().get_newton_model()
         if newton_model is None:
             raise RuntimeError(
@@ -164,11 +169,11 @@ class NewtonWarpRenderer(BaseRenderer):
         self.newton_sensor = newton.sensors.SensorTiledCamera(
             newton_model,
             config=newton.sensors.SensorTiledCamera.RenderConfig(
-                enable_textures=cfg.enable_textures,
-                enable_shadows=cfg.enable_shadows,
-                enable_ambient_lighting=cfg.enable_ambient_lighting,
-                enable_backface_culling=cfg.enable_backface_culling,
-                max_distance=cfg.max_distance,
+                enable_textures=self.cfg.enable_textures,
+                enable_shadows=self.cfg.enable_shadows,
+                enable_ambient_lighting=self.cfg.enable_ambient_lighting,
+                enable_backface_culling=self.cfg.enable_backface_culling,
+                max_distance=self.cfg.max_distance,
             ),
         )
 
@@ -180,8 +185,8 @@ class NewtonWarpRenderer(BaseRenderer):
         if newton_model.shape_count > 0 and newton_model.bvh_shapes is None:
             newton.geometry.build_bvh_shape(newton_model, newton_model.state())
 
-        if cfg.create_default_light:
-            self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
+        if self.cfg.create_default_light:
+            self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
