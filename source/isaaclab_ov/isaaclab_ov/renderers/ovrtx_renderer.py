@@ -146,6 +146,12 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
         }
 
+    @property
+    def _device_id(self) -> int:
+        """CUDA device index extracted from ``self._device`` for OVRTX ``binding.map()`` calls."""
+        parts = self._device.split(":")
+        return int(parts[1]) if len(parts) > 1 else 0
+
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
@@ -430,7 +436,7 @@ class OVRTXRenderer(BaseRenderer):
             if body_q is None:
                 return
 
-            with self._object_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
+            with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
                 ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.launch(
                     kernel=sync_newton_transforms_kernel,
@@ -461,7 +467,7 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
         if self._camera_binding is not None:
-            with self._camera_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
+            with self._camera_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
@@ -565,14 +571,14 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
+                with frame.render_vars["LdrColor"].map(device=Device.CUDA, device_id=self._device_id) as mapping:
                     tiled_data = wp.from_dlpack(mapping.tensor)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
-            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
+            with frame.render_vars[depth_var].map(device=Device.CUDA, device_id=self._device_id) as mapping:
                 tiled_depth_data = wp.from_dlpack(mapping.tensor)
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
@@ -582,12 +588,14 @@ class OVRTXRenderer(BaseRenderer):
             break
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
+            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA, device_id=self._device_id) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
+            with frame.render_vars["SemanticSegmentation"].map(
+                device=Device.CUDA, device_id=self._device_id
+            ) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
                 if tiled_semantic_data.dtype == wp.uint32:
