@@ -55,7 +55,17 @@ class PresetTarget(enum.Enum):
     # collects the whole namespace before constructing members, so ``__new__``
     # below picks these up regardless of declaration order.
     PHYSICS = ("physics", {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
-    """Physics backends -- ``--physics`` flag. Legacy aliases: ``newton``, ``kamino``."""
+    """Physics backends -- ``--physics`` flag.
+
+    Legacy aliases ``newton`` -> ``newton_mjwarp`` and ``kamino`` -> ``newton_kamino``
+    exist because Newton-backend solver presets were renamed to use the
+    ``newton_`` prefix so they group together in autocomplete and read distinctly
+    from backend / package / visualizer names that also contain the word
+    ``newton``. Hydra's resolver (see
+    :func:`~isaaclab_tasks.utils.hydra._normalize_preset_name`) consults these
+    and emits a :class:`FutureWarning`; the aliases will be removed in a future
+    release.
+    """
 
     RENDERER = ("renderer",)
     """Camera-sensor renderers -- ``--renderer`` flag."""
