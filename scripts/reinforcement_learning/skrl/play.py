@@ -14,6 +14,7 @@ import argparse
 import contextlib
 import os
 import random
+import sys
 import time
 
 import gymnasium as gym

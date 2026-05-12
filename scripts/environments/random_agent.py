@@ -6,6 +6,7 @@
 """Script to an environment with random action agent."""
 
 import argparse
+import sys
 
 import gymnasium as gym
 import torch

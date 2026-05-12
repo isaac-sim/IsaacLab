@@ -57,6 +57,10 @@ import sys
 
 from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
+# ============================================================================
+# Public entry point
+# ============================================================================
+
 
 def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespace, list[str]]:
     """Add typed preset flags, parse, and compute the Hydra-bound argv tokens.
@@ -171,6 +175,11 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
     return args, [f"presets={','.join(deduped)}", *kept]
 
 
+# ============================================================================
+# Help-text rendering
+# ============================================================================
+
+
 def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str]] | None) -> str:
     """Argparse ``help=`` string for a typed flag.
 
@@ -210,6 +219,11 @@ def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str
     return f"{label}. Available: {', '.join(available)}."
 
 
+# ============================================================================
+# argv inspection (pre-argparse peek for help-text rendering)
+# ============================================================================
+
+
 def _peek_task() -> str | None:
     """Find ``--task=X`` or ``--task X`` in ``sys.argv`` without invoking argparse.
 
@@ -239,6 +253,11 @@ def _peek_task() -> str | None:
 def _help_requested() -> bool:
     """Return True if ``--help`` or ``-h`` appears in ``sys.argv`` (excluding ``sys.argv[0]``)."""
     return any(token in ("--help", "-h") for token in sys.argv[1:])
+
+
+# ============================================================================
+# Help-time variant enumeration (load env_cfg, walk, bucket by target)
+# ============================================================================
 
 
 def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:

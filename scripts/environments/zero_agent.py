@@ -6,6 +6,7 @@
 """Script to run an environment with zero action agent."""
 
 import argparse
+import sys
 
 import gymnasium as gym
 import torch
