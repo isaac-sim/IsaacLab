@@ -162,43 +162,37 @@ def inject_cameras_into_usd(
     return temp_path, render_product_path
 
 
-def create_cloning_attributes(stage, num_envs: int = 1, use_cloning: bool = True) -> int:
-    """Create OVRTX cloning attributes (scene partition, xform) on env_0 only.
+def create_scene_partition_attributes(stage, num_envs: int = 1, use_cloning: bool = True) -> None:
+    """Create scene partition attributes for env roots and cameras.
 
-    Only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
-    OVRTX clones env_0 internally and _update_scene_partitions_after_clone sets
-    partition attributes on the clones. So we only need to set attributes on env_0 here.
+    If use_cloning is True, only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
+    OVRTX clones env_0 internally and _update_scene_partitions_after_clone sets partition attributes on the clones.
+    So we only need to set attributes on env_0 here.
 
-    Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by
-    name, so this works regardless of where the camera is placed in the hierarchy.
+    Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by name, so this works regardless of
+    where the camera is placed in the hierarchy.
 
     Args:
         stage: USD stage to modify.
         num_envs: Number of environments.
         use_cloning: Whether OVRTX cloning is enabled.
-
-    Returns:
-        Total number of objects (non-camera prims) that received partition attributes.
     """
-    total_objects = 0
     env_indices = [0] if use_cloning else range(num_envs)
     for env_idx in env_indices:
         env_path = f"/World/envs/env_{env_idx}"
         env_prim = stage.GetPrimAtPath(env_path)
         if not env_prim.IsValid():
+            logger.warning("Failed to get env root prim at '%s'", env_path)
             continue
-        partition_name = f"env_{env_idx}"
-        attr = env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
-        attr.Set(partition_name)
+
+        scene_partition = f"env_{env_idx}"
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+        logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
+
         for prim in Usd.PrimRange(env_prim):
-            if prim.GetPath() == env_prim.GetPath():
-                continue
             if prim.IsA(UsdGeom.Camera):
-                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
-            else:
-                prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition_name)
-                total_objects += 1
-    return total_objects
+                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+                logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
 
 
 def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: bool = True) -> str:

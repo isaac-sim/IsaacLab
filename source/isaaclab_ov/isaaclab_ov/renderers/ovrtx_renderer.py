@@ -57,7 +57,7 @@ from .ovrtx_renderer_kernels import (
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
-    create_cloning_attributes,
+    create_scene_partition_attributes,
     export_stage_for_ovrtx,
     inject_cameras_into_usd,
 )
@@ -186,7 +186,7 @@ class OVRTXRenderer(BaseRenderer):
         use_cloning = self.cfg.use_cloning
 
         logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
-        create_cloning_attributes(stage, num_envs, use_cloning)
+        create_scene_partition_attributes(stage, num_envs, use_cloning)
 
         export_path = "/tmp/stage_before_ovrtx.usda"
         export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
