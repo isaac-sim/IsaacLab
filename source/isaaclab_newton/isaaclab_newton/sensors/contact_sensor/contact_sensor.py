@@ -376,8 +376,10 @@ class ContactSensor(BaseContactSensor):
             if self._generate_force_matrix and not self._filter_object_names:
                 logger.warning("Filter expressions matched zero counterpart objects; force matrix will be empty.")
 
-        self._num_filter_objects = len(self._filter_object_names)
         force_matrix = self.contact_view.force_matrix
+        force_matrix_shape = force_matrix.shape if force_matrix is not None else (total_sensor_count, 0)
+        # Number of filter objects.
+        self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
         if self._num_filter_objects > 0 and force_matrix is None:
             raise RuntimeError("Filter counterparts present but Newton force_matrix is None.")
 
