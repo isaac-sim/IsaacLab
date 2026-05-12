@@ -22,7 +22,6 @@ import pytest
 
 import omni.kit.app
 from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
-from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
