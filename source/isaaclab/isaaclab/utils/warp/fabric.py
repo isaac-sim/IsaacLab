@@ -15,6 +15,17 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
+__all__ = [
+    "arange_k",
+    "compose_fabric_transformation_matrix_from_warp_arrays",
+    "compose_indexed_fabric_transforms",
+    "decompose_fabric_transformation_matrix_to_warp_arrays",
+    "decompose_indexed_fabric_transforms",
+    "set_view_to_fabric_array",
+    "update_indexed_local_matrix_from_world",
+    "update_indexed_world_matrix_from_local",
+]
+
 if TYPE_CHECKING:
     FabricArrayUInt32 = Any
     FabricArrayMat44d = Any
