@@ -40,7 +40,7 @@ parser.add_argument(
 parser.add_argument(
     "--replay_start_delay_s",
     type=float,
-    default=120.0,
+    default=0.0,
     help="Seconds to wait after the environment is up before starting replay (default: 120.0).",
 )
 parser.add_argument(
@@ -64,6 +64,7 @@ simulation_app = app_launcher.app
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 
 import gymnasium as gym
@@ -86,6 +87,85 @@ _LEGACY_DEVICE_NAME = "handtracking"
 # may be garbage-collected before it completes. The completion callback below
 # discards the task again once it finishes.
 _PENDING_REPLAY_TASKS: set[asyncio.Future] = set()
+
+
+_RENDERER_SETTLE_FRAMES: int = 30
+"""Number of extra render frames pumped after the USD stage finishes loading.
+
+Kit's stage-load status flips to ``count_loading == 0`` as soon as every referenced
+asset has been resolved, but the renderer pipeline (shader compilation,
+articulation-view binding, material warm-up) typically needs a few more event-loop
+ticks to converge. Thirty frames at the default Kit render cadence is ~0.5 s on
+most machines and is deterministic per-machine -- unlike a wall-clock delay it
+does not have to be tuned for hardware.
+"""
+
+_DEFAULT_MAX_STAGE_LOAD_WAIT_S: float = 300.0
+"""Safety cap on the deterministic stage-load wait.
+
+Hit only when something is misconfigured (missing asset, slow Nucleus, etc.); a
+warning is logged and the loop continues so CI does not hang silently on a
+broken capture.
+"""
+
+
+def _wait_for_stage_load(max_wait_s: float = _DEFAULT_MAX_STAGE_LOAD_WAIT_S) -> None:
+    """Block until the USD stage finishes resolving every referenced asset.
+
+    Polls :meth:`omni.usd.UsdContext.get_stage_loading_status`. The third element of
+    the returned tuple is the count of assets Kit still has pending; when it
+    reaches zero the stage is fully streamed in and the renderer pipeline is ready
+    to draw against it. After the count reaches zero this function pumps an
+    additional :data:`_RENDERER_SETTLE_FRAMES` ``simulation_app.update()`` calls so
+    shaders, materials, and articulation views finish warming up before the caller
+    begins consuming replay data or stepping the env.
+
+    Unlike :attr:`args_cli.replay_start_delay_s`, which is wall-clock and has to be
+    tuned per-host, this wait is deterministic and self-adapting: it returns
+    immediately on a warm asset cache and waits exactly long enough on a cold one.
+
+    Args:
+        max_wait_s: Upper bound on how long to spin on a non-zero loading count
+            before warning and returning. Acts as a safety net for misconfigured
+            scenes (missing assets, slow Nucleus); a successful run typically
+            completes well within this bound.
+    """
+    try:
+        import omni.usd
+    except (ImportError, ModuleNotFoundError):
+        logger.warning("omni.usd not available; skipping deterministic stage-load wait")
+        return
+
+    print("Waiting for USD stage to finish loading...")
+    start_s = time.monotonic()
+    last_progress_log_s = start_s
+    while simulation_app.is_running():
+        context = omni.usd.get_context()
+        if context is None:
+            break
+        # get_stage_loading_status -> (message, count_loaded, count_loading)
+        _, _, count_loading = context.get_stage_loading_status()
+        if count_loading == 0:
+            break
+        elapsed_s = time.monotonic() - start_s
+        if elapsed_s >= max_wait_s:
+            logger.warning(
+                "Stage still reports %d assets pending after %.1fs; proceeding anyway. Replay may race the renderer.",
+                count_loading,
+                max_wait_s,
+            )
+            break
+        if time.monotonic() - last_progress_log_s >= 5.0:
+            print(f"  stage loading: {count_loading} assets pending (elapsed {elapsed_s:.1f}s)")
+            last_progress_log_s = time.monotonic()
+        simulation_app.update()
+
+    elapsed_s = time.monotonic() - start_s
+    print(f"Stage load complete after {elapsed_s:.1f}s; settling renderer for {_RENDERER_SETTLE_FRAMES} frames...")
+    for _ in range(_RENDERER_SETTLE_FRAMES):
+        if not simulation_app.is_running():
+            return
+        simulation_app.update()
 
 
 def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBasedRLEnvCfg, object | None]:
@@ -321,6 +401,14 @@ def main() -> None:
         env.sim.reset()
         env.reset()
         teleop_interface.reset()
+
+        # Deterministic warmup: block until omni.usd reports zero pending
+        # assets, then pump a fixed number of renderer-settle frames. This
+        # is independent of ``--replay_start_delay_s``; the wall-clock delay
+        # below covers the XCR-side OpenXR profile warm-up, while this wait
+        # ensures the stage is fully streamed in before the XCR replay
+        # injects its first recorded pose.
+        _wait_for_stage_load()
 
         print(f"Replay agent started; replay will begin in {args_cli.replay_start_delay_s:.1f} seconds.")
         _schedule_replay_driver(args_cli.replay_file, args_cli.replay_start_delay_s)
