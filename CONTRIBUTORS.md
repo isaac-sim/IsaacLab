@@ -66,6 +66,7 @@ Guidelines for modifications:
 * Dhananjay Shendre
 * Dongxuan Fan
 * Dorsa Rohani
+* Emilio Palma
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
