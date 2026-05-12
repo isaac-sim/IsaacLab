@@ -122,29 +122,43 @@ class PresetRegistry:
     def register(cls, target: PresetTarget, name: str):
         """Decorator: bind ``(target, name)`` to a config class.
 
+        Names are globally unique -- the same canonical name cannot be
+        registered under two different :class:`PresetTarget`\\ s. This
+        matters because the help-time bucketing in
+        :mod:`isaaclab_tasks.utils.preset_cli` builds a flat
+        ``name -> target`` map: cross-target duplicates would silently
+        drop one binding.
+
         Args:
             target: Which preset target the canonical name belongs to.
                 Determines which ``--flag`` accepts it and which lookup
                 table the binding lives in.
             name: Canonical name the backend wants to expose. Must be
-                unique within *target* across the whole process.
+                globally unique across all targets in the process.
 
         Returns:
             A class decorator that records the binding and returns the
             class unchanged.
 
         Raises:
-            RuntimeError: ``(target, name)`` is already bound to a
-                different class than the one being decorated. Catches
-                accidental name reuse across backend packages.
+            RuntimeError: *name* is already bound to a different class
+                or a different target. Catches accidental name reuse
+                across backend packages and cross-target collisions.
         """
 
         def deco(target_cls: type) -> type:
-            existing = cls._entries.get(target, {}).get(name)
-            if existing is not None and existing is not target_cls:
+            for existing_target, existing_entries in cls._entries.items():
+                existing = existing_entries.get(name)
+                if existing is None:
+                    continue
+                if existing is target_cls and existing_target is target:
+                    # Same (target, name, class) -- idempotent re-import is fine.
+                    return target_cls
+                where = "another target" if existing_target is not target else "another class"
                 raise RuntimeError(
                     f"@register({target!r}, {name!r}) already bound to"
-                    f" {existing.__module__}.{existing.__name__}; cannot rebind to"
+                    f" {existing.__module__}.{existing.__name__} under"
+                    f" {existing_target!r} ({where}); cannot rebind to"
                     f" {target_cls.__module__}.{target_cls.__name__}."
                 )
             cls._entries.setdefault(target, {})[name] = target_cls
