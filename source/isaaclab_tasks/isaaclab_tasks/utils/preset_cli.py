@@ -34,11 +34,20 @@ do not import ``pxr`` / ``omni`` / ``carb`` / ``isaacsim`` at top
 level. Without ``--task``, ``--help`` tells the user to pass one
 (the available variants are task-dependent and we don't try to guess).
 
-Most scripts use the one-line form::
+Typical script setup::
 
     parser = argparse.ArgumentParser(...)
     # ... script-specific args ...
-    args_cli = setup_cli(parser)
+    add_launcher_args(parser)  # AppLauncher flags (--headless, --device, ...)
+    args_cli = setup_cli(parser)  # preset flags + parse + fold sys.argv
+
+``setup_cli`` does NOT add AppLauncher flags itself -- callers add them
+explicitly via :func:`isaaclab_tasks.utils.add_launcher_args` before
+calling ``setup_cli``. Two reasons: ``setup_cli`` then has a single
+responsibility (preset CLI), and scripts that already call
+``add_launcher_args`` can adopt ``setup_cli`` without first removing
+their existing call (which would otherwise collide with a duplicate
+``--headless`` registration).
 """
 
 from __future__ import annotations
@@ -50,35 +59,39 @@ from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
 
 def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    """Add typed preset flags + AppLauncher flags, parse, fold into ``presets=<csv>``.
+    """Add typed preset flags, parse, fold values into ``presets=<csv>``.
 
     Steps:
 
-    1. If ``sys.argv`` contains ``--task=X``, load ``X``'s env_cfg and
-       enumerate its :class:`PresetCfg` variants for use in ``--help``
-       text (see :func:`_enumerate_variants`).
+    1. If ``sys.argv`` contains ``--task=X`` and ``--help`` was also
+       requested, load ``X``'s env_cfg and enumerate its
+       :class:`PresetCfg` variants for use in help text (see
+       :func:`_enumerate_variants`).
     2. Register one argparse flag per :class:`PresetTarget`:
        ``--{target.value}=NAME`` for typed targets, ``--presets=NAME[,NAME,...]``
        for the DOMAIN catch-all. Help strings list variants from step 1,
        or tell the user to pass ``--task=X`` if no task was given.
-    3. Register AppLauncher flags via ``AppLauncher.add_app_launcher_args``.
-    4. Call ``parser.parse_known_args``.
-    5. Pass typed and free-form values through verbatim. Fold them
+    3. Call ``parser.parse_known_args``.
+    4. Pass typed and free-form values through verbatim. Fold them
        (plus any pre-existing ``presets=...`` token in *remaining*) into
        a single ``presets=<csv>`` token; rewrite ``sys.argv`` so the
        downstream Hydra layer sees one token followed by leftover args.
 
+    Callers must add AppLauncher flags (via
+    :func:`isaaclab_tasks.utils.add_launcher_args`) and any
+    script-specific arguments *before* calling this function -- otherwise
+    those unknown tokens land in ``parse_known_args``'s remainder and
+    silently leak into ``sys.argv``.
+
     Args:
-        parser: The caller's argument parser. Preset flags and the
-            AppLauncher flag set are added in place; callers do NOT
-            register either themselves.
+        parser: The caller's argument parser. Preset flags are added in
+            place. Must already have AppLauncher flags and any
+            script-specific arguments registered.
 
     Returns:
         The namespace from ``parse_known_args``. ``sys.argv`` is
         mutated in place to carry the folded ``presets=<csv>`` token.
     """
-    from isaaclab.app import AppLauncher
-
     # Peek for --task before argparse parses. argparse short-circuits on --help,
     # so help text that depends on the task has to find it ahead of parser run.
     # Skip the env_cfg load when --help isn't requested -- normal training runs
@@ -113,7 +126,6 @@ def setup_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 help=_help_text(target, actual_variants),
             )
 
-    AppLauncher.add_app_launcher_args(parser)
     args, remaining = parser.parse_known_args()
 
     # Collect names in declaration order: typed first, then free-form --presets.

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import types
 
 import pytest
 
@@ -29,14 +28,6 @@ from isaaclab_ov.renderers import ovrtx_renderer_cfg  # noqa: F401
 from isaaclab_ovphysx.physics import ovphysx_manager_cfg  # noqa: F401
 from isaaclab_physx.physics import physx_manager_cfg  # noqa: F401
 from isaaclab_physx.renderers import isaac_rtx_renderer_cfg  # noqa: F401
-
-
-@pytest.fixture
-def stub_app_launcher(monkeypatch):
-    """Avoid Isaac Sim's stdin-reading kit_app init by stubbing the lazy import."""
-    fake = types.ModuleType("isaaclab.app")
-    fake.AppLauncher = type("AppLauncher", (), {"add_app_launcher_args": staticmethod(lambda parser: None)})
-    monkeypatch.setitem(sys.modules, "isaaclab.app", fake)
 
 
 def _make_parser() -> argparse.ArgumentParser:
@@ -93,7 +84,7 @@ def test_all_legacy_aliases_aggregates_per_target_tables():
 # ---------------------------------------------------------------------------
 
 
-def test_no_preset_flags_passes_argv_through(stub_app_launcher, monkeypatch):
+def test_no_preset_flags_passes_argv_through(monkeypatch):
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"])
     from isaaclab_tasks.utils.preset_cli import setup_cli
 
@@ -102,7 +93,7 @@ def test_no_preset_flags_passes_argv_through(stub_app_launcher, monkeypatch):
     assert sys.argv == ["train.py", "env.sim.dt=0.001"]
 
 
-def test_physics_flag_translates_to_presets_token(stub_app_launcher, monkeypatch):
+def test_physics_flag_translates_to_presets_token(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "env.sim.dt=0.001"],
@@ -113,7 +104,7 @@ def test_physics_flag_translates_to_presets_token(stub_app_launcher, monkeypatch
     assert sys.argv == ["train.py", "presets=newton_mjwarp", "env.sim.dt=0.001"]
 
 
-def test_three_flags_merge_into_one_token(stub_app_launcher, monkeypatch):
+def test_three_flags_merge_into_one_token(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -133,7 +124,7 @@ def test_three_flags_merge_into_one_token(stub_app_launcher, monkeypatch):
     assert sys.argv == ["train.py", "presets=newton_mjwarp,newton_renderer,albedo,depth"]
 
 
-def test_merges_with_existing_presets_token(stub_app_launcher, monkeypatch):
+def test_merges_with_existing_presets_token(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "presets=albedo"],
@@ -144,7 +135,7 @@ def test_merges_with_existing_presets_token(stub_app_launcher, monkeypatch):
     assert sys.argv == ["train.py", "presets=newton_mjwarp,albedo"]
 
 
-def test_dedupes_repeated_names(stub_app_launcher, monkeypatch):
+def test_dedupes_repeated_names(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
         ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "presets=newton_mjwarp,albedo"],
@@ -155,7 +146,7 @@ def test_dedupes_repeated_names(stub_app_launcher, monkeypatch):
     assert sys.argv == ["train.py", "presets=newton_mjwarp,albedo"]
 
 
-def test_equals_form_works(stub_app_launcher, monkeypatch):
+def test_equals_form_works(monkeypatch):
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp"])
     from isaaclab_tasks.utils.preset_cli import setup_cli
 
@@ -168,7 +159,7 @@ def test_equals_form_works(stub_app_launcher, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_physics_name_passes_through_silently(stub_app_launcher, monkeypatch, capsys):
+def test_unknown_physics_name_passes_through_silently(monkeypatch, capsys):
     """A name not in the registry is passed through verbatim with no warning.
 
     At CLI parse time we can't tell a typo apart from a legitimate task-local
@@ -187,7 +178,7 @@ def test_unknown_physics_name_passes_through_silently(stub_app_launcher, monkeyp
     assert err == ""
 
 
-def test_custom_task_preset_via_typed_flag_passes_through(stub_app_launcher, monkeypatch, capsys):
+def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
     """A task-local custom preset name (e.g. Dexsuite's ``cube``) is accepted via
     the typed flag with no fuss -- the registry is a hint, not a gate."""
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--presets", "cube,peg_insert_4mm,mayank_solver"])
@@ -247,7 +238,7 @@ def test_bucket_variants_buckets_by_registered_target():
 # ---------------------------------------------------------------------------
 
 
-def test_help_without_task_says_pass_task(stub_app_launcher, monkeypatch, capsys):
+def test_help_without_task_says_pass_task(monkeypatch, capsys):
     """``--help`` without ``--task`` tells the user to pass ``--task=X``."""
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
     from isaaclab_tasks.utils.preset_cli import setup_cli
@@ -260,7 +251,7 @@ def test_help_without_task_says_pass_task(stub_app_launcher, monkeypatch, capsys
     assert "Pass `--task=X`" in out
 
 
-def test_help_with_task_shows_actual_variants(stub_app_launcher, monkeypatch, capsys):
+def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
     """``--task=X --help`` shows variants from X's env_cfg, bucketed by target.
 
     Typed flags (``--physics``) list only registered names of that target.
@@ -295,7 +286,7 @@ def test_help_with_task_shows_actual_variants(stub_app_launcher, monkeypatch, ca
     assert "heavy" in out
 
 
-def test_help_reports_env_cfg_load_failure(stub_app_launcher, monkeypatch, capsys):
+def test_help_reports_env_cfg_load_failure(monkeypatch, capsys):
     """If env_cfg load raises, ``--help`` still prints, with the error shown in help text."""
     import isaaclab_tasks.utils.parse_cfg as parse_cfg
 
