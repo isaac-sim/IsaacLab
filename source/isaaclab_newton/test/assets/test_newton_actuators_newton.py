@@ -144,7 +144,10 @@ def _run_simulation(
     """
     sim_cfg = SimulationCfg(dt=dt, physics=newton_cfg, use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
-        device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
@@ -241,20 +244,22 @@ class _EquivalenceTestBase(unittest.TestCase):
         cls.newton_result = _run_simulation(cls.actuators, use_newton_actuators=True, **kwargs)
 
     def test_joint_positions_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])
-        ):
+        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])):
             torch.testing.assert_close(
-                lab, newton, atol=self.pos_atol, rtol=self.pos_rtol,
+                lab,
+                newton,
+                atol=self.pos_atol,
+                rtol=self.pos_rtol,
                 msg=f"Joint positions diverged at step {step_i}",
             )
 
     def test_joint_velocities_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])
-        ):
+        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])):
             torch.testing.assert_close(
-                lab, newton, atol=self.vel_atol, rtol=self.vel_rtol,
+                lab,
+                newton,
+                atol=self.vel_atol,
+                rtol=self.vel_rtol,
                 msg=f"Joint velocities diverged at step {step_i}",
             )
 
@@ -263,7 +268,10 @@ class _EquivalenceTestBase(unittest.TestCase):
             zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
         ):
             torch.testing.assert_close(
-                lab, newton, atol=self.torque_atol, rtol=self.torque_rtol,
+                lab,
+                newton,
+                atol=self.torque_atol,
+                rtol=self.torque_rtol,
                 msg=f"applied_torque diverged at step {step_i}",
             )
 
@@ -272,7 +280,10 @@ class _EquivalenceTestBase(unittest.TestCase):
             zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
         ):
             torch.testing.assert_close(
-                lab, newton, atol=self.torque_atol, rtol=self.torque_rtol,
+                lab,
+                newton,
+                atol=self.torque_atol,
+                rtol=self.torque_rtol,
                 msg=f"computed_torque diverged at step {step_i}",
             )
 
@@ -396,7 +407,10 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
     sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
-        device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -405,7 +419,8 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
         anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Anymal")
         cartpole_cfg = CARTPOLE_CFG.replace(
-            actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_.*/Cartpole",
+            actuators=CARTPOLE_EXPLICIT_ACTUATORS,
+            prim_path="/World/Env_.*/Cartpole",
         )
         # Stand the cartpole well clear of the anymal.
         cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
@@ -457,7 +472,10 @@ class TestHeterogeneousMultiArticulationNewton(unittest.TestCase):
             zip(self.lab_result["joint_pos_anymal"], self.newton_result["joint_pos_anymal"])
         ):
             torch.testing.assert_close(
-                newton, lab, atol=2e-3, rtol=1e-3,
+                newton,
+                lab,
+                atol=2e-3,
+                rtol=1e-3,
                 msg=f"ANYmal joint_pos diverged from Lab path at step {step_i}",
             )
 
@@ -466,7 +484,10 @@ class TestHeterogeneousMultiArticulationNewton(unittest.TestCase):
             zip(self.lab_result["joint_pos_cartpole"], self.newton_result["joint_pos_cartpole"])
         ):
             torch.testing.assert_close(
-                newton, lab, atol=2e-3, rtol=1e-3,
+                newton,
+                lab,
+                atol=2e-3,
+                rtol=1e-3,
                 msg=f"Cartpole joint_pos diverged from Lab path at step {step_i}",
             )
 
@@ -564,13 +585,17 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
     def test_single_articulation(self):
         sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
         with build_simulation_context(
-            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
         ) as sim:
             sim._app_control_on_stop_handle = None
             for i in range(NUM_ENVS):
                 sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
             art_cfg = ANYMAL_C_CFG.replace(
-                actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Robot",
+                actuators=IDEAL_PD_ACTUATORS,
+                prim_path="/World/Env_.*/Robot",
             )
             anymal = Articulation(art_cfg)
             sim.reset()
@@ -585,10 +610,13 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
 
             term(
-                env, env_ids=env_ids, asset_cfg=asset_cfg,
+                env,
+                env_ids=env_ids,
+                asset_cfg=asset_cfg,
                 stiffness_distribution_params=(100.0, 100.0),
                 damping_distribution_params=(5.0, 5.0),
-                operation="abs", distribution="uniform",
+                operation="abs",
+                distribution="uniform",
             )
 
             kp_after = self._gather_param(anymal, "kp")
@@ -606,7 +634,10 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
         sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
         with build_simulation_context(
-            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
         ) as sim:
             sim._app_control_on_stop_handle = None
             for i in range(NUM_ENVS):
@@ -614,7 +645,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Anymal")
             cartpole_cfg = CARTPOLE_CFG.replace(
-                actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_.*/Cartpole",
+                actuators=CARTPOLE_EXPLICIT_ACTUATORS,
+                prim_path="/World/Env_.*/Cartpole",
             )
             cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
             anymal = Articulation(anymal_cfg)
@@ -633,10 +665,13 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
 
             term(
-                env, env_ids=env_ids, asset_cfg=asset_cfg,
+                env,
+                env_ids=env_ids,
+                asset_cfg=asset_cfg,
                 stiffness_distribution_params=(100.0, 100.0),
                 damping_distribution_params=(5.0, 5.0),
-                operation="abs", distribution="uniform",
+                operation="abs",
+                distribution="uniform",
             )
 
             cp_kp_after = self._gather_param(cartpole, "kp")
@@ -751,7 +786,6 @@ class TestDecimationMixed(_DecimationMixin, TestMixedActuatorEquivalence):
 RESET_WARMUP_STEPS = 3
 
 
-
 class TestActuatorStateReset(unittest.TestCase):
     """Reset must clear the actuator state buffers for the requested envs only.
 
@@ -771,17 +805,23 @@ class TestActuatorStateReset(unittest.TestCase):
 
     def _build_and_warm(self, *, use_newton_actuators: bool):
         sim_cfg = SimulationCfg(
-            dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators,
+            dt=DT,
+            physics=NEWTON_CFG,
+            use_newton_actuators=use_newton_actuators,
         )
         ctx = build_simulation_context(
-            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
         )
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
         art_cfg = ANYMAL_C_CFG.replace(
-            actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot",
+            actuators=DELAYED_PD_ACTUATORS,
+            prim_path="/World/Env_.*/Robot",
         )
         articulation = Articulation(art_cfg)
         sim.reset()
@@ -805,7 +845,8 @@ class TestActuatorStateReset(unittest.TestCase):
             self.assertIsNotNone(adapter)
             # Find a DelayedPD actuator (it's the only one with delay_state).
             stateful_pairs = [
-                (act, st) for act, st in zip(adapter.actuators, adapter._states_a)
+                (act, st)
+                for act, st in zip(adapter.actuators, adapter._states_a)
                 if st is not None and getattr(st, "delay_state", None) is not None
             ]
             self.assertGreater(len(stateful_pairs), 0, "expected at least one DelayedPD actuator with delay_state")
@@ -832,12 +873,14 @@ class TestActuatorStateReset(unittest.TestCase):
                     env = int(global_dof) // adapter.num_joints
                     if env == self.RESET_ENV:
                         self.assertEqual(
-                            int(pushes_after[i]), 0,
+                            int(pushes_after[i]),
+                            0,
                             f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}",
                         )
                     else:
                         self.assertGreater(
-                            int(pushes_after[i]), 0,
+                            int(pushes_after[i]),
+                            0,
                             f"DOF {i} (env {env}) was NOT in reset env_ids but num_pushes is 0",
                         )
         finally:
@@ -1009,9 +1052,7 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
         sim._app_control_on_stop_handle = None
 
         for i in range(NUM_ENVS):
-            sim_utils.create_prim(
-                f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0)
-            )
+            sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
 
         art_cfg = ANYMAL_C_CFG.replace(
             actuators=actuator_cfgs,
@@ -1026,15 +1067,15 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
         actuator_info = []
         for act in model.actuators:
             ctrl_type = type(act.controller).__name__
-            clamp_types = sorted(
-                type(c).__name__ for c in (act.clamping or [])
+            clamp_types = sorted(type(c).__name__ for c in (act.clamping or []))
+            actuator_info.append(
+                {
+                    "controller_type": ctrl_type,
+                    "clamping_types": clamp_types,
+                    "has_delay": act.delay is not None,
+                    "num_indices": len(act.indices),
+                }
             )
-            actuator_info.append({
-                "controller_type": ctrl_type,
-                "clamping_types": clamp_types,
-                "has_delay": act.delay is not None,
-                "num_indices": len(act.indices),
-            })
 
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
         target_pos = init_pos + TARGET_OFFSET
@@ -1068,47 +1109,40 @@ class TestRemotizedPDAuthoring(unittest.TestCase):
     def setUpClass(cls):
         from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
-        cls.result = _run_authoring_introspection({
-            "hips": IdealPDActuatorCfg(
-                joint_names_expr=[".*HAA", ".*HFE"],
-                stiffness=40.0,
-                damping=5.0,
-                effort_limit=80.0,
-            ),
-            "knees": RemotizedPDActuatorCfg(
-                joint_names_expr=[".*KFE"],
-                stiffness=60.0,
-                damping=1.5,
-                effort_limit=80.0,
-                max_delay=3,
-                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-            ),
-        })
+        cls.result = _run_authoring_introspection(
+            {
+                "hips": IdealPDActuatorCfg(
+                    joint_names_expr=[".*HAA", ".*HFE"],
+                    stiffness=40.0,
+                    damping=5.0,
+                    effort_limit=80.0,
+                ),
+                "knees": RemotizedPDActuatorCfg(
+                    joint_names_expr=[".*KFE"],
+                    stiffness=60.0,
+                    damping=1.5,
+                    effort_limit=80.0,
+                    max_delay=3,
+                    joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+                ),
+            }
+        )
 
     def test_num_actuators(self):
         self.assertGreaterEqual(self.result["num_actuators"], 2)
 
     def test_kfe_controller_is_pd(self):
-        kfe_acts = [
-            a for a in self.result["actuator_info"]
-            if "ClampingPositionBased" in a["clamping_types"]
-        ]
+        kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         self.assertTrue(len(kfe_acts) > 0, "No actuator with position-based clamping found")
         for a in kfe_acts:
             self.assertEqual(a["controller_type"], "ControllerPD")
 
     def test_kfe_has_position_based_clamping(self):
-        kfe_acts = [
-            a for a in self.result["actuator_info"]
-            if "ClampingPositionBased" in a["clamping_types"]
-        ]
+        kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         self.assertTrue(len(kfe_acts) > 0, "Position-based clamping not found")
 
     def test_kfe_has_delay(self):
-        kfe_acts = [
-            a for a in self.result["actuator_info"]
-            if "ClampingPositionBased" in a["clamping_types"]
-        ]
+        kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         for a in kfe_acts:
             self.assertTrue(a["has_delay"], "Delay not found on remotized KFE actuator")
 
@@ -1157,24 +1191,30 @@ def _make_dummy_mlp_checkpoint(device: str = "cpu") -> str:
     in pos_vel order) and outputs 1 effort.
     """
     torch.manual_seed(42)
-    net = torch.nn.Sequential(
-        torch.nn.Linear(6, 8),
-        torch.nn.ELU(),
-        torch.nn.Linear(8, 1),
-    ).to(device).eval()
+    net = (
+        torch.nn.Sequential(
+            torch.nn.Linear(6, 8),
+            torch.nn.ELU(),
+            torch.nn.Linear(8, 1),
+        )
+        .to(device)
+        .eval()
+    )
     scripted = torch.jit.script(net)
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
         tmp_path = tmp.name
     extra = {
-        "metadata.json": json.dumps({
-            "model_type": "mlp",
-            "input_order": "pos_vel",
-            "input_idx": [0, 1, 2],
-            "pos_scale": 1.0,
-            "vel_scale": 0.5,
-            "torque_scale": 2.0,
-        })
+        "metadata.json": json.dumps(
+            {
+                "model_type": "mlp",
+                "input_order": "pos_vel",
+                "input_idx": [0, 1, 2],
+                "pos_scale": 1.0,
+                "vel_scale": 0.5,
+                "torque_scale": 2.0,
+            }
+        )
     }
     torch.jit.save(scripted, tmp_path, _extra_files=extra)
     return tmp_path
@@ -1220,26 +1260,28 @@ class TestNeuralMLPAuthoring(unittest.TestCase):
         from isaaclab.actuators.actuator_net_cfg import ActuatorNetMLPCfg  # noqa: PLC0415
 
         cls.mlp_path = _make_dummy_mlp_checkpoint()
-        cls.result = _run_authoring_introspection({
-            "mlp_legs": ActuatorNetMLPCfg(
-                joint_names_expr=[".*HAA"],
-                network_file=cls.mlp_path,
-                saturation_effort=120.0,
-                effort_limit=80.0,
-                velocity_limit=7.5,
-                pos_scale=-1.0,
-                vel_scale=1.0,
-                torque_scale=1.0,
-                input_order="pos_vel",
-                input_idx=[0, 1, 2],
-            ),
-            "pd_legs": IdealPDActuatorCfg(
-                joint_names_expr=[".*HFE", ".*KFE"],
-                stiffness=40.0,
-                damping=5.0,
-                effort_limit=80.0,
-            ),
-        })
+        cls.result = _run_authoring_introspection(
+            {
+                "mlp_legs": ActuatorNetMLPCfg(
+                    joint_names_expr=[".*HAA"],
+                    network_file=cls.mlp_path,
+                    saturation_effort=120.0,
+                    effort_limit=80.0,
+                    velocity_limit=7.5,
+                    pos_scale=-1.0,
+                    vel_scale=1.0,
+                    torque_scale=1.0,
+                    input_order="pos_vel",
+                    input_idx=[0, 1, 2],
+                ),
+                "pd_legs": IdealPDActuatorCfg(
+                    joint_names_expr=[".*HFE", ".*KFE"],
+                    stiffness=40.0,
+                    damping=5.0,
+                    effort_limit=80.0,
+                ),
+            }
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -1249,17 +1291,11 @@ class TestNeuralMLPAuthoring(unittest.TestCase):
         self.assertGreaterEqual(self.result["num_actuators"], 2)
 
     def test_has_neural_mlp_controller(self):
-        mlp_acts = [
-            a for a in self.result["actuator_info"]
-            if a["controller_type"] == "ControllerNeuralMLP"
-        ]
+        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralMLP"]
         self.assertTrue(len(mlp_acts) > 0, "No NeuralMLP controller found")
 
     def test_mlp_has_dc_motor_clamping(self):
-        mlp_acts = [
-            a for a in self.result["actuator_info"]
-            if a["controller_type"] == "ControllerNeuralMLP"
-        ]
+        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralMLP"]
         for a in mlp_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
 
@@ -1274,21 +1310,23 @@ class TestNeuralLSTMAuthoring(unittest.TestCase):
         from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg  # noqa: PLC0415
 
         cls.lstm_path = _make_dummy_lstm_checkpoint()
-        cls.result = _run_authoring_introspection({
-            "lstm_legs": ActuatorNetLSTMCfg(
-                joint_names_expr=[".*HAA"],
-                network_file=cls.lstm_path,
-                saturation_effort=120.0,
-                effort_limit=80.0,
-                velocity_limit=7.5,
-            ),
-            "pd_legs": IdealPDActuatorCfg(
-                joint_names_expr=[".*HFE", ".*KFE"],
-                stiffness=40.0,
-                damping=5.0,
-                effort_limit=80.0,
-            ),
-        })
+        cls.result = _run_authoring_introspection(
+            {
+                "lstm_legs": ActuatorNetLSTMCfg(
+                    joint_names_expr=[".*HAA"],
+                    network_file=cls.lstm_path,
+                    saturation_effort=120.0,
+                    effort_limit=80.0,
+                    velocity_limit=7.5,
+                ),
+                "pd_legs": IdealPDActuatorCfg(
+                    joint_names_expr=[".*HFE", ".*KFE"],
+                    stiffness=40.0,
+                    damping=5.0,
+                    effort_limit=80.0,
+                ),
+            }
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -1298,17 +1336,11 @@ class TestNeuralLSTMAuthoring(unittest.TestCase):
         self.assertGreaterEqual(self.result["num_actuators"], 2)
 
     def test_has_neural_lstm_controller(self):
-        lstm_acts = [
-            a for a in self.result["actuator_info"]
-            if a["controller_type"] == "ControllerNeuralLSTM"
-        ]
+        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
         self.assertTrue(len(lstm_acts) > 0, "No NeuralLSTM controller found")
 
     def test_lstm_has_dc_motor_clamping(self):
-        lstm_acts = [
-            a for a in self.result["actuator_info"]
-            if a["controller_type"] == "ControllerNeuralLSTM"
-        ]
+        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
         for a in lstm_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
 

@@ -12,7 +12,7 @@ import ctypes
 import logging
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import warp as wp
 

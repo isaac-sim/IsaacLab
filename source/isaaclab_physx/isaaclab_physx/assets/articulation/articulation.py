@@ -283,7 +283,8 @@ class Articulation(BaseArticulation):
             # to PhysX as the actuation force.
             self._apply_actuator_model_newton()
             self.root_view.set_dof_actuation_forces(
-                self._physx_actuator_wrapper.joint_f_2d, self._ALL_INDICES,
+                self._physx_actuator_wrapper.joint_f_2d,
+                self._ALL_INDICES,
             )
             if self._has_implicit_actuators:
                 self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
@@ -1254,20 +1255,31 @@ class Articulation(BaseArticulation):
             return
 
         env_id_pos = torch.full(
-            (self.num_instances,), -1, dtype=torch.int32, device=self.device,
+            (self.num_instances,),
+            -1,
+            dtype=torch.int32,
+            device=self.device,
         )
         env_id_pos[env_ids.to(self.device, dtype=torch.long)] = torch.arange(
-            env_ids.shape[0], dtype=torch.int32, device=self.device,
+            env_ids.shape[0],
+            dtype=torch.int32,
+            device=self.device,
         )
         joint_id_pos = torch.full(
-            (self.num_joints,), -1, dtype=torch.int32, device=self.device,
+            (self.num_joints,),
+            -1,
+            dtype=torch.int32,
+            device=self.device,
         )
         joint_id_pos[joint_ids.to(self.device, dtype=torch.long)] = torch.arange(
-            joint_ids.shape[0], dtype=torch.int32, device=self.device,
+            joint_ids.shape[0],
+            dtype=torch.int32,
+            device=self.device,
         )
 
         values_wp = wp.from_torch(
-            values.to(self.device, dtype=torch.float32).contiguous(), dtype=wp.float32,
+            values.to(self.device, dtype=torch.float32).contiguous(),
+            dtype=wp.float32,
         )
         env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
         joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
@@ -1280,8 +1292,12 @@ class Articulation(BaseArticulation):
                 actuator_kernels.patch_actuator_param_kernel,
                 dim=act.indices.shape[0],
                 inputs=[
-                    act.indices, env_id_pos_wp, joint_id_pos_wp, values_wp,
-                    0, self.num_joints,
+                    act.indices,
+                    env_id_pos_wp,
+                    joint_id_pos_wp,
+                    values_wp,
+                    0,
+                    self.num_joints,
                 ],
                 outputs=[getattr(ctrl, attr)],
                 device=self.device,
@@ -3941,7 +3957,9 @@ class Articulation(BaseArticulation):
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
             self._implicit_dof_mask = build_implicit_dof_mask(
-                self.actuators, self.num_joints, self.device,
+                self.actuators,
+                self.num_joints,
+                self.device,
             )
             # Per-articulation view of the adapter's pre-clamp computed-effort
             # buffer (or zero fallback when there are no explicit Newton
@@ -3951,7 +3969,9 @@ class Articulation(BaseArticulation):
                 self._data._sim_bind_joint_computed_effort = self.newton_actuator_adapter.computed_effort_2d
             else:
                 self._data._sim_bind_joint_computed_effort = wp.zeros(
-                    (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device,
+                    (self.num_instances, self.num_joints),
+                    dtype=wp.float32,
+                    device=self.device,
                 )
             return
 
@@ -3983,7 +4003,11 @@ class Articulation(BaseArticulation):
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
 
     def _create_lab_actuator(
-        self, actuator_name: str, actuator_cfg: ActuatorBaseCfg, *, properties_only: bool = False,
+        self,
+        actuator_name: str,
+        actuator_cfg: ActuatorBaseCfg,
+        *,
+        properties_only: bool = False,
     ) -> None:
         """Instantiate a single Lab actuator from its config and write properties to sim.
 
@@ -4024,20 +4048,25 @@ class Articulation(BaseArticulation):
 
         # Write physical joint properties (armature, limits, friction) — always needed.
         self.write_joint_effort_limit_to_sim_index(
-            limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices,
+            limits=actuator.effort_limit_sim,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_velocity_limit_to_sim_index(
-            limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices,
+            limits=actuator.velocity_limit_sim,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
         self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices,
+            joint_friction_coeff=actuator.friction,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices,
+            joint_dynamic_friction_coeff=actuator.dynamic_friction,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices,
+            joint_viscous_friction_coeff=actuator.viscous_friction,
+            joint_ids=actuator.joint_indices,
         )
 
         if properties_only:

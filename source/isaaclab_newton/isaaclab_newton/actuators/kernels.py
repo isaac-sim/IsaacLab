@@ -10,7 +10,6 @@ import warp as wp
 
 from isaaclab.actuators import ActuatorBase, ImplicitActuator
 
-
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
 # per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`),
@@ -186,4 +185,3 @@ def build_implicit_dof_mask(
         else:
             modes[j_ids.long()] = 1
     return wp.from_torch(modes, dtype=wp.int32)
-

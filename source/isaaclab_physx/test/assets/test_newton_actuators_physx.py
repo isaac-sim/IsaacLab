@@ -137,7 +137,10 @@ def _run_simulation(
     """
     sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
-        device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
@@ -204,27 +207,33 @@ class _EquivalenceTestBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.lab_result = _run_simulation(
-            cls.actuators, use_newton_actuators=False, feedforward=cls.feedforward,
+            cls.actuators,
+            use_newton_actuators=False,
+            feedforward=cls.feedforward,
         )
         cls.newton_result = _run_simulation(
-            cls.actuators, use_newton_actuators=True, feedforward=cls.feedforward,
+            cls.actuators,
+            use_newton_actuators=True,
+            feedforward=cls.feedforward,
         )
 
     def test_joint_positions_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])
-        ):
+        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])):
             torch.testing.assert_close(
-                lab, newton, atol=self.pos_atol, rtol=self.pos_rtol,
+                lab,
+                newton,
+                atol=self.pos_atol,
+                rtol=self.pos_rtol,
                 msg=f"Joint positions diverged at step {step_i}",
             )
 
     def test_joint_velocities_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])
-        ):
+        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])):
             torch.testing.assert_close(
-                lab, newton, atol=self.vel_atol, rtol=self.vel_rtol,
+                lab,
+                newton,
+                atol=self.vel_atol,
+                rtol=self.vel_rtol,
                 msg=f"Joint velocities diverged at step {step_i}",
             )
 
@@ -233,7 +242,10 @@ class _EquivalenceTestBase(unittest.TestCase):
             zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
         ):
             torch.testing.assert_close(
-                lab, newton, atol=self.torque_atol, rtol=self.torque_rtol,
+                lab,
+                newton,
+                atol=self.torque_atol,
+                rtol=self.torque_rtol,
                 msg=f"applied_torque diverged at step {step_i}",
             )
 
@@ -242,7 +254,10 @@ class _EquivalenceTestBase(unittest.TestCase):
             zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
         ):
             torch.testing.assert_close(
-                lab, newton, atol=self.torque_atol, rtol=self.torque_rtol,
+                lab,
+                newton,
+                atol=self.torque_atol,
+                rtol=self.torque_rtol,
                 msg=f"computed_torque diverged at step {step_i}",
             )
 
@@ -344,7 +359,10 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
     sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
-        device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
     ) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -353,7 +371,8 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
         anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Anymal")
         cartpole_cfg = CARTPOLE_CFG.replace(
-            actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_.*/Cartpole",
+            actuators=CARTPOLE_EXPLICIT_ACTUATORS,
+            prim_path="/World/Env_.*/Cartpole",
         )
         cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
 
@@ -403,7 +422,10 @@ class TestHeterogeneousMultiArticulationPhysx(unittest.TestCase):
             zip(self.lab_result["joint_pos_anymal"], self.newton_result["joint_pos_anymal"])
         ):
             torch.testing.assert_close(
-                newton, lab, atol=2e-3, rtol=1e-3,
+                newton,
+                lab,
+                atol=2e-3,
+                rtol=1e-3,
                 msg=f"ANYmal joint_pos diverged from Lab path at step {step_i}",
             )
 
@@ -412,7 +434,10 @@ class TestHeterogeneousMultiArticulationPhysx(unittest.TestCase):
             zip(self.lab_result["joint_pos_cartpole"], self.newton_result["joint_pos_cartpole"])
         ):
             torch.testing.assert_close(
-                newton, lab, atol=2e-3, rtol=1e-3,
+                newton,
+                lab,
+                atol=2e-3,
+                rtol=1e-3,
                 msg=f"Cartpole joint_pos diverged from Lab path at step {step_i}",
             )
 
@@ -500,13 +525,17 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
     def test_single_articulation(self):
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
         with build_simulation_context(
-            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
         ) as sim:
             sim._app_control_on_stop_handle = None
             for i in range(NUM_ENVS):
                 sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
             art_cfg = ANYMAL_C_CFG.replace(
-                actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Robot",
+                actuators=IDEAL_PD_ACTUATORS,
+                prim_path="/World/Env_.*/Robot",
             )
             anymal = Articulation(art_cfg)
             sim.reset()
@@ -522,10 +551,13 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
 
             term(
-                env, env_ids=env_ids, asset_cfg=asset_cfg,
+                env,
+                env_ids=env_ids,
+                asset_cfg=asset_cfg,
                 stiffness_distribution_params=(100.0, 100.0),
                 damping_distribution_params=(5.0, 5.0),
-                operation="abs", distribution="uniform",
+                operation="abs",
+                distribution="uniform",
             )
 
             kp_after = self._gather_param(adapter, NUM_ENVS, n, "kp", anymal.device)
@@ -541,7 +573,10 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
         with build_simulation_context(
-            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
         ) as sim:
             sim._app_control_on_stop_handle = None
             for i in range(NUM_ENVS):
@@ -549,7 +584,8 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
             anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Anymal")
             cartpole_cfg = CARTPOLE_CFG.replace(
-                actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_.*/Cartpole",
+                actuators=CARTPOLE_EXPLICIT_ACTUATORS,
+                prim_path="/World/Env_.*/Cartpole",
             )
             cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
             anymal = Articulation(anymal_cfg)
@@ -575,10 +611,13 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
 
             term(
-                env, env_ids=env_ids, asset_cfg=asset_cfg,
+                env,
+                env_ids=env_ids,
+                asset_cfg=asset_cfg,
                 stiffness_distribution_params=(100.0, 100.0),
                 damping_distribution_params=(5.0, 5.0),
-                operation="abs", distribution="uniform",
+                operation="abs",
+                distribution="uniform",
             )
 
             cp_kp_after = self._gather_param(cartpole_adapter, NUM_ENVS, n_cp, "kp", anymal.device)
@@ -603,7 +642,6 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 RESET_WARMUP_STEPS = 3
 
 
-
 class TestActuatorStateReset(unittest.TestCase):
     """Reset must clear the actuator state buffers for the requested envs only.
 
@@ -622,17 +660,23 @@ class TestActuatorStateReset(unittest.TestCase):
 
     def _build_and_warm(self, *, use_newton_actuators: bool):
         sim_cfg = SimulationCfg(
-            dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators,
+            dt=DT,
+            physics=PhysxCfg(),
+            use_newton_actuators=use_newton_actuators,
         )
         ctx = build_simulation_context(
-            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
         )
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
         art_cfg = ANYMAL_C_CFG.replace(
-            actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot",
+            actuators=DELAYED_PD_ACTUATORS,
+            prim_path="/World/Env_.*/Robot",
         )
         articulation = Articulation(art_cfg)
         sim.reset()
@@ -655,7 +699,8 @@ class TestActuatorStateReset(unittest.TestCase):
             adapter = articulation.newton_actuator_adapter
             self.assertIsNotNone(adapter)
             stateful_pairs = [
-                (act, st) for act, st in zip(adapter.actuators, adapter._states_a)
+                (act, st)
+                for act, st in zip(adapter.actuators, adapter._states_a)
                 if st is not None and getattr(st, "delay_state", None) is not None
             ]
             self.assertGreater(len(stateful_pairs), 0, "expected at least one DelayedPD actuator with delay_state")
@@ -679,12 +724,14 @@ class TestActuatorStateReset(unittest.TestCase):
                     env = int(global_dof) // adapter.num_joints
                     if env == self.RESET_ENV:
                         self.assertEqual(
-                            int(pushes_after[i]), 0,
+                            int(pushes_after[i]),
+                            0,
                             f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}",
                         )
                     else:
                         self.assertGreater(
-                            int(pushes_after[i]), 0,
+                            int(pushes_after[i]),
+                            0,
                             f"DOF {i} (env {env}) was NOT in reset env_ids but num_pushes is 0",
                         )
         finally:
@@ -907,24 +954,30 @@ class TestRemotizedPDFunctional(unittest.TestCase):
 def _make_dummy_mlp_checkpoint(device: str = "cpu") -> str:
     """Create a minimal TorchScript MLP checkpoint with metadata."""
     torch.manual_seed(42)
-    net = torch.nn.Sequential(
-        torch.nn.Linear(6, 8),
-        torch.nn.ELU(),
-        torch.nn.Linear(8, 1),
-    ).to(device).eval()
+    net = (
+        torch.nn.Sequential(
+            torch.nn.Linear(6, 8),
+            torch.nn.ELU(),
+            torch.nn.Linear(8, 1),
+        )
+        .to(device)
+        .eval()
+    )
     scripted = torch.jit.script(net)
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
         tmp_path = tmp.name
     extra = {
-        "metadata.json": json.dumps({
-            "model_type": "mlp",
-            "input_order": "pos_vel",
-            "input_idx": [0, 1, 2],
-            "pos_scale": 1.0,
-            "vel_scale": 0.5,
-            "torque_scale": 2.0,
-        })
+        "metadata.json": json.dumps(
+            {
+                "model_type": "mlp",
+                "input_order": "pos_vel",
+                "input_idx": [0, 1, 2],
+                "pos_scale": 1.0,
+                "vel_scale": 0.5,
+                "torque_scale": 2.0,
+            }
+        )
     }
     torch.jit.save(scripted, tmp_path, _extra_files=extra)
     return tmp_path

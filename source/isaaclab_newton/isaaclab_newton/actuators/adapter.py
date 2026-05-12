@@ -23,7 +23,6 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-
 from newton.actuators import Actuator, Clamping, Delay
 
 from .kernels import (
@@ -32,7 +31,6 @@ from .kernels import (
     set_mask_kernel,
     zero_at_indices_kernel,
 )
-
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
@@ -89,7 +87,9 @@ class NewtonActuatorAdapter:
         # computed (pre-clamp) effort instead of mirroring ``joint_f``. The
         # binding onto ``sim_control`` happens in :meth:`finalize`.
         self._computed_effort = wp.zeros(
-            num_envs * num_joints, dtype=wp.float32, device=device,
+            num_envs * num_joints,
+            dtype=wp.float32,
+            device=device,
         )
         self.computed_effort_2d = self._computed_effort.reshape((num_envs, num_joints))
         for act in actuators:
@@ -195,7 +195,7 @@ class NewtonActuatorAdapter:
         num_joints: int,
         device: str,
         articulation_prim_path: str | None = None,
-    ) -> "NewtonActuatorAdapter":
+    ) -> NewtonActuatorAdapter:
         """Build an adapter from ``NewtonActuator`` prims authored on *stage*.
 
         PhysX-side counterpart of Newton's ``ModelBuilder.add_usd``: reads
@@ -216,7 +216,11 @@ class NewtonActuatorAdapter:
                 considered; otherwise the whole stage is scanned.
         """
         actuators = _create_actuators_from_usd(
-            stage, joint_names, num_envs, num_joints, device,
+            stage,
+            joint_names,
+            num_envs,
+            num_joints,
+            device,
             articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
@@ -262,10 +266,7 @@ def build_newton_actuator_defaults(
           the adapter's actuators. ``slice(None)`` when every joint is
           covered, otherwise an int32 tensor of column indices.
     """
-    arti_actuators = [
-        act for act in actuators
-        if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints
-    ]
+    arti_actuators = [act for act in actuators if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints]
 
     managed_local: set[int] = set()
     for act in arti_actuators:
@@ -287,13 +288,15 @@ def build_newton_actuator_defaults(
         ctrl = act.controller
         if hasattr(ctrl, "kp"):
             wp.launch(
-                scatter_gain_kernel, dim=act.indices.shape[0],
+                scatter_gain_kernel,
+                dim=act.indices.shape[0],
                 inputs=[ctrl.kp, flat_stiffness, act.indices, dof_offset, num_joints],
                 device=wp_device,
             )
         if hasattr(ctrl, "kd"):
             wp.launch(
-                scatter_gain_kernel, dim=act.indices.shape[0],
+                scatter_gain_kernel,
+                dim=act.indices.shape[0],
                 inputs=[ctrl.kd, flat_damping, act.indices, dof_offset, num_joints],
                 device=wp_device,
             )
@@ -361,6 +364,7 @@ def _create_actuators_from_usd(
     from collections import defaultdict  # noqa: PLC0415
 
     from newton.actuators import parse_actuator_prim  # noqa: PLC0415
+
     from pxr import Usd  # noqa: PLC0415
 
     wp_device = wp.get_device(device)
@@ -382,9 +386,7 @@ def _create_actuators_from_usd(
             parsed_per_joint[joint_name_to_idx[target_name]] = parsed
 
     if not parsed_per_joint:
-        raise ValueError(
-            f"No NewtonActuator prims found targeting any of: {joint_names}"
-        )
+        raise ValueError(f"No NewtonActuator prims found targeting any of: {joint_names}")
 
     groups: dict[tuple, list[int]] = defaultdict(list)
     sig_to_parsed: dict[tuple, Any] = {}
@@ -436,7 +438,10 @@ def _create_actuators_from_usd(
                         clamp_arrays[k] = v
                     else:
                         clamp_arrays[k] = wp.full(
-                            num_dofs_in_group, float(v), dtype=wp.float32, device=wp_device,
+                            num_dofs_in_group,
+                            float(v),
+                            dtype=wp.float32,
+                            device=wp_device,
                         )
                 clampings.append(comp_cls(**clamp_arrays))
 

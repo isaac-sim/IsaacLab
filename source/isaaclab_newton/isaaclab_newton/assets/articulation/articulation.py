@@ -1555,12 +1555,15 @@ class Articulation(BaseArticulation):
             return
 
         env_ids_wp = wp.from_torch(
-            env_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32,
+            env_ids.to(self.device, dtype=torch.int32).contiguous(),
+            dtype=wp.int32,
         )
         env_mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
         wp.launch(
             actuator_kernels.set_mask_kernel,
-            dim=env_ids_wp.shape[0], inputs=[env_mask, env_ids_wp], device=self.device,
+            dim=env_ids_wp.shape[0],
+            inputs=[env_mask, env_ids_wp],
+            device=self.device,
         )
 
         env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
@@ -1574,8 +1577,11 @@ class Articulation(BaseArticulation):
             cur_torch = wp.to_torch(cur_wp)
             cur_torch[env_ids_long, joint_ids_long] = values.to(cur_torch.device, dtype=cur_torch.dtype)
             self._root_view.set_actuator_parameter(
-                actuator=act, component=ctrl, name=attr,
-                values=cur_wp, mask=env_mask,
+                actuator=act,
+                component=ctrl,
+                name=attr,
+                values=cur_wp,
+                mask=env_mask,
             )
 
     def write_joint_position_limit_to_sim_index(
@@ -3600,7 +3606,9 @@ class Articulation(BaseArticulation):
                 explicit_joint_ids.extend(int(j) for j in joint_ids)
             if explicit_joint_ids:
                 explicit_ids_t = torch.tensor(
-                    sorted(set(explicit_joint_ids)), dtype=torch.int32, device=self.device,
+                    sorted(set(explicit_joint_ids)),
+                    dtype=torch.int32,
+                    device=self.device,
                 )
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=explicit_ids_t)
                 self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=explicit_ids_t)
@@ -3618,13 +3626,14 @@ class Articulation(BaseArticulation):
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
             self._implicit_dof_mask = build_implicit_dof_mask(
-                self.actuators, self.num_joints, self.device,
+                self.actuators,
+                self.num_joints,
+                self.device,
             )
 
             # Run the implicit-DOF FF-routing + telemetry kernel inside the
             # captured graph, right after the actuator step. Closure captures
             # the buffers we need via ``self._data``.
-            from newton import Model as NewtonModel  # noqa: PLC0415
 
             # Per-articulation view of the global adapter's pre-clamp
             # computed-effort buffer. Set up once here (the adapter is
@@ -3658,7 +3667,9 @@ class Articulation(BaseArticulation):
                 )
             else:
                 self._data._sim_bind_joint_computed_effort = wp.zeros(
-                    (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device,
+                    (self.num_instances, self.num_joints),
+                    dtype=wp.float32,
+                    device=self.device,
                 )
 
             def _post_actuator() -> None:
@@ -3716,7 +3727,11 @@ class Articulation(BaseArticulation):
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
 
     def _create_lab_actuator(
-        self, actuator_name: str, actuator_cfg: ActuatorBaseCfg, *, properties_only: bool = False,
+        self,
+        actuator_name: str,
+        actuator_cfg: ActuatorBaseCfg,
+        *,
+        properties_only: bool = False,
     ) -> None:
         """Instantiate a single Lab actuator from its config and write properties to sim.
 
@@ -3755,14 +3770,17 @@ class Articulation(BaseArticulation):
 
         # Write physical joint properties (armature, limits, friction) — always needed.
         self.write_joint_effort_limit_to_sim_index(
-            limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices,
+            limits=actuator.effort_limit_sim,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_velocity_limit_to_sim_index(
-            limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices,
+            limits=actuator.velocity_limit_sim,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
         self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices,
+            joint_friction_coeff=actuator.friction,
+            joint_ids=actuator.joint_indices,
         )
 
         if properties_only:

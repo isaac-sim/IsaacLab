@@ -1246,22 +1246,32 @@ class randomize_actuator_gains(ManagerTermBase):
         if stiffness_distribution_params is not None:
             new_stiffness = self.default_joint_stiffness[env_ids][:, joint_ids].clone()
             _randomize_prop_by_op(
-                new_stiffness, stiffness_distribution_params,
-                dim_0_ids=None, dim_1_ids=slice(None),
-                operation=operation, distribution=distribution,
+                new_stiffness,
+                stiffness_distribution_params,
+                dim_0_ids=None,
+                dim_1_ids=slice(None),
+                operation=operation,
+                distribution=distribution,
             )
             self.asset.write_actuator_stiffness_to_sim(
-                stiffness=new_stiffness, env_ids=env_ids, joint_ids=joint_ids,
+                stiffness=new_stiffness,
+                env_ids=env_ids,
+                joint_ids=joint_ids,
             )
         if damping_distribution_params is not None:
             new_damping = self.default_joint_damping[env_ids][:, joint_ids].clone()
             _randomize_prop_by_op(
-                new_damping, damping_distribution_params,
-                dim_0_ids=None, dim_1_ids=slice(None),
-                operation=operation, distribution=distribution,
+                new_damping,
+                damping_distribution_params,
+                dim_0_ids=None,
+                dim_1_ids=slice(None),
+                operation=operation,
+                distribution=distribution,
             )
             self.asset.write_actuator_damping_to_sim(
-                damping=new_damping, env_ids=env_ids, joint_ids=joint_ids,
+                damping=new_damping,
+                env_ids=env_ids,
+                joint_ids=joint_ids,
             )
 
 

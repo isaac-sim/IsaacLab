@@ -1369,9 +1369,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
                 :, 0
             ]
-            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[
-                :, 0
-            ]
+            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[:, 0]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_pos", SimulationManager.get_control()
             )[:, 0]

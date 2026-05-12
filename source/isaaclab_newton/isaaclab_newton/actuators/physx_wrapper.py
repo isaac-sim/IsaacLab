@@ -52,7 +52,7 @@ class PhysxActuatorWrapper:
     joint_f_2d: wp.array | None = None
 
     @classmethod
-    def create(cls, num_envs: int, num_joints: int, device: str) -> "PhysxActuatorWrapper":
+    def create(cls, num_envs: int, num_joints: int, device: str) -> PhysxActuatorWrapper:
         """Allocate the persistent ``joint_f`` buffer for the given articulation shape."""
         w = cls()
         w.joint_f_2d = wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device)
