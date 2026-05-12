@@ -35,7 +35,8 @@ from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
-from isaaclab.utils.preset_registry import PresetTarget
+
+from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 

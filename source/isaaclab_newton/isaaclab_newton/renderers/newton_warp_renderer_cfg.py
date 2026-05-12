@@ -7,10 +7,8 @@
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.preset_registry import PresetTarget, register
 
 
-@register(PresetTarget.RENDERER, "newton_renderer")
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""

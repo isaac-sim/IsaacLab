@@ -19,16 +19,6 @@ import sys
 
 import pytest
 
-# Force-import backend cfg modules so their @register decorators populate the
-# registry for unit-level assertions. In real scripts the same import chain
-# fires when the env config is loaded (transitively imports backend cfgs).
-from isaaclab_newton.physics import kamino_manager_cfg, mjwarp_manager_cfg  # noqa: F401
-from isaaclab_newton.renderers import newton_warp_renderer_cfg  # noqa: F401
-from isaaclab_ov.renderers import ovrtx_renderer_cfg  # noqa: F401
-from isaaclab_ovphysx.physics import ovphysx_manager_cfg  # noqa: F401
-from isaaclab_physx.physics import physx_manager_cfg  # noqa: F401
-from isaaclab_physx.renderers import isaac_rtx_renderer_cfg  # noqa: F401
-
 
 def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="train.py", add_help=False)
@@ -37,46 +27,30 @@ def _make_parser() -> argparse.ArgumentParser:
 
 
 # ---------------------------------------------------------------------------
-# Registry: @register decorator binds canonical names
+# PresetTarget: per-target metadata on the enum
 # ---------------------------------------------------------------------------
 
 
-def test_register_populates_known_names():
-    from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
-
-    assert PresetRegistry.names_for(PresetTarget.PHYSICS) >= {
-        "physx",
-        "ovphysx",
-        "newton_mjwarp",
-        "newton_kamino",
-    }
-    assert PresetRegistry.names_for(PresetTarget.RENDERER) >= {
-        "isaacsim_rtx_renderer",
-        "newton_renderer",
-        "ovrtx_renderer",
-    }
-
-
-def test_register_rejects_duplicate_binding():
-    from isaaclab.utils.preset_registry import PresetTarget, register
-
-    @register(PresetTarget.PHYSICS, "_test_unique_a")
-    class _A:
-        pass
-
-    with pytest.raises(RuntimeError, match="already bound"):
-
-        @register(PresetTarget.PHYSICS, "_test_unique_a")
-        class _B:
-            pass
-
-
 def test_all_legacy_aliases_aggregates_per_target_tables():
-    from isaaclab.utils.preset_registry import PresetTarget
+    from isaaclab_tasks.utils.preset_target import PresetTarget
 
     flat = PresetTarget.all_legacy_aliases()
     assert flat["newton"] == "newton_mjwarp"
     assert flat["kamino"] == "newton_kamino"
+
+
+def test_preset_target_carries_base_classes():
+    """Typed targets carry the cfg base classes whose subclass instances
+    should bucket to them. DOMAIN carries no base classes (it's the
+    catch-all)."""
+    from isaaclab.physics import PhysicsCfg
+    from isaaclab.renderers.renderer_cfg import RendererCfg
+
+    from isaaclab_tasks.utils.preset_target import PresetTarget
+
+    assert PresetTarget.PHYSICS.base_classes == (PhysicsCfg,)
+    assert PresetTarget.RENDERER.base_classes == (RendererCfg,)
+    assert PresetTarget.DOMAIN.base_classes == ()
 
 
 # ---------------------------------------------------------------------------
@@ -219,41 +193,60 @@ def test_peek_task_missing_returns_none(monkeypatch):
     assert _peek_task() is None
 
 
-def test_bucket_variants_routes_by_cfg_class_type():
-    """Variants are bucketed by their cfg INSTANCE'S TYPE (via isinstance),
-    not by name string lookup. A name routes to PHYSICS only if the cfg
-    instance is a PHYSICS-registered class instance (or subclass)."""
-    from isaaclab.utils.preset_registry import PresetTarget, register
+def test_bucket_variants_routes_by_base_class_isinstance():
+    """Variants bucket by ``isinstance`` against ``PresetTarget.base_classes``.
+
+    PhysicsCfg subclass instances route to PHYSICS, RendererCfg subclass
+    instances route to RENDERER, and everything else falls into DOMAIN.
+    This also covers the wrapper-class case that motivated the design:
+    a wrapper cfg that subclasses ``PhysicsCfg`` (e.g., ``NewtonCfg``) is
+    routed correctly even when its inner solver class is something else.
+    """
+    from isaaclab.physics import PhysicsCfg
+    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
+    from isaaclab_tasks.utils.preset_target import PresetTarget
 
-    @register(PresetTarget.PHYSICS, "_test_bucket_phys")
-    class _BucketPhysCfg:
-        pass
+    @configclass
+    class _PhysVariant(PhysicsCfg):
+        class_type: str = "mock"
 
-    @register(PresetTarget.RENDERER, "_test_bucket_rend")
-    class _BucketRendCfg:
+    @configclass
+    class _PhysWrapper(PhysicsCfg):
+        # Mirrors NewtonCfg's "wrapper holds an inner solver" shape: still
+        # subclasses PhysicsCfg, so the base-class isinstance check still
+        # buckets it correctly regardless of any nested member type.
+        class_type: str = "mock_wrapper"
+        inner: object = None
+
+    @configclass
+    class _RendVariant(RendererCfg):
         pass
 
     walked = {
         "physics": {
-            "default": _BucketPhysCfg(),
-            "_test_bucket_phys": _BucketPhysCfg(),
+            "default": _PhysVariant(),
+            "physx": _PhysVariant(),
+            "newton_mjwarp": _PhysWrapper(inner=_PhysVariant()),
+            "newton_kamino": _PhysWrapper(inner=_PhysVariant()),
         },
         "renderer": {
-            "default": _BucketRendCfg(),
-            "_test_bucket_rend": _BucketRendCfg(),
+            "default": _RendVariant(),
+            "newton_renderer": _RendVariant(),
         },
-        "weight": {  # cfgs whose type matches no registered target -> DOMAIN
+        "weight": {  # cfgs whose type is not a typed-target base subclass -> DOMAIN
             "default": 1.0,
             "light": 0.5,
             "heavy": 2.0,
         },
     }
     result = _bucket_variants_by_target(walked)
-    assert "_test_bucket_phys" in result[PresetTarget.PHYSICS]
-    assert "_test_bucket_rend" in result[PresetTarget.RENDERER]
-    # Type-unregistered instances fall into DOMAIN.
+    # All four physics variants bucket to PHYSICS (including the wrapper-shaped ones).
+    assert {"physx", "newton_mjwarp", "newton_kamino"} <= result[PresetTarget.PHYSICS]
+    assert "newton_renderer" in result[PresetTarget.RENDERER]
+    # Primitive-typed variants land in DOMAIN.
     assert {"light", "heavy"} <= result[PresetTarget.DOMAIN]
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
     for bucket in result.values():
@@ -279,30 +272,32 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
 
 
 def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
-    """``--task=X --help`` shows variants from X's env_cfg, bucketed by cfg class
-    type. Typed flags (``--physics``) list only variants whose cfgs are
-    registered-class instances for that target. The DOMAIN catch-all
-    (``--presets``) lists every variant in the task.
+    """``--task=X --help`` shows variants from X's env_cfg, bucketed by
+    isinstance against ``PresetTarget.base_classes``. ``PhysicsCfg`` subclass
+    instances land in ``--physics``; ``RendererCfg`` subclass instances land
+    in ``--renderer``; everything else (primitives, task-local cfg classes)
+    lands in the ``--presets`` catch-all.
     """
+    from isaaclab.physics import PhysicsCfg
+    from isaaclab.renderers.renderer_cfg import RendererCfg
     from isaaclab.utils import configclass
-    from isaaclab.utils.preset_registry import PresetTarget, register
 
     from isaaclab_tasks.utils.hydra import preset
 
-    @register(PresetTarget.PHYSICS, "_test_help_phys_a")
-    class _HelpPhysCfg:
-        pass
+    @configclass
+    class _HelpPhysCfg(PhysicsCfg):
+        class_type: str = "mock"
 
-    @register(PresetTarget.RENDERER, "_test_help_rend_a")
-    class _HelpRendCfg:
+    @configclass
+    class _HelpRendCfg(RendererCfg):
         pass
 
     # Two physics-typed variants (one is the default), one renderer variant,
     # plus a primitive-typed "weight" preset that should fall into DOMAIN.
     @configclass
     class _FakeCfg:
-        physics: object = preset(default=_HelpPhysCfg(), _test_help_phys_a=_HelpPhysCfg())
-        renderer: object = preset(default=_HelpRendCfg(), _test_help_rend_a=_HelpRendCfg())
+        physics: object = preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg())
+        renderer: object = preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg())
         weight: object = preset(default=1.0, light=0.5, heavy=2.0)
 
     import isaaclab_tasks.utils.parse_cfg as parse_cfg
@@ -317,10 +312,10 @@ def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
         setup_preset_cli(parser)
     out = capsys.readouterr().out
 
-    # Registered PHYSICS-class instance appears in --physics help.
-    assert "_test_help_phys_a" in out
-    # Registered RENDERER-class instance appears in --renderer help.
-    assert "_test_help_rend_a" in out
+    # PhysicsCfg-subclass variant appears in --physics help.
+    assert "my_phys" in out
+    # RendererCfg-subclass variant appears in --renderer help.
+    assert "my_rend" in out
     # Primitive-typed variants land in the DOMAIN catch-all (--presets) help.
     assert "light" in out
     assert "heavy" in out
@@ -380,26 +375,3 @@ def test_peek_task_returns_last_value(monkeypatch):
     assert _peek_task() == "New"
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Old", "--task", "New"])
     assert _peek_task() == "New"
-
-
-# ---------------------------------------------------------------------------
-# Registry: cross-target name collisions are rejected
-# ---------------------------------------------------------------------------
-
-
-def test_register_rejects_cross_target_duplicate():
-    """The same canonical name under two ``PresetTarget``\\ s must raise.
-    Without this guard, the help-time ``name -> target`` map silently drops
-    one binding because it's a flat dict, so a backend author could
-    accidentally shadow another target's name."""
-    from isaaclab.utils.preset_registry import PresetTarget, register
-
-    @register(PresetTarget.PHYSICS, "_test_cross_target_unique")
-    class _A:
-        pass
-
-    with pytest.raises(RuntimeError, match="already bound"):
-
-        @register(PresetTarget.RENDERER, "_test_cross_target_unique")
-        class _B:
-            pass

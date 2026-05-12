@@ -11,7 +11,7 @@ token that the existing Hydra-decorator preset flow already consumes
 via :mod:`isaaclab_tasks.utils.hydra`. This module is a pure translator:
 
 * It does **not** validate names at CLI time. A user-typed name that
-  isn't in the registry might still be a legitimate task-local preset
+  is unknown might still be a legitimate task-local preset
   (e.g. ``--presets=cube`` for Dexsuite's ``ObjectCfg.cube``). Only the
   resolver has the loaded task's full vocabulary and can tell typos
   apart from custom names; it produces the rich path-grouped error via
@@ -26,8 +26,10 @@ via :mod:`isaaclab_tasks.utils.hydra`. This module is a pure translator:
 The single new capability is **discoverability**: when ``--task=X`` is
 present in ``sys.argv``, ``--help`` loads ``X``'s env_cfg, walks its
 :class:`PresetCfg` fields via
-:func:`isaaclab_tasks.utils.hydra.collect_presets`, and shows the
-variants actually present in that task -- not a static registry. The
+:func:`isaaclab_tasks.utils.hydra.collect_presets`, and buckets the
+variants by ``isinstance`` against each
+:attr:`PresetTarget.base_classes` so typed flags
+(``--physics`` / ``--renderer``) list only their own kind. The
 load is safe before ``AppLauncher`` boots because IsaacLab's
 ``test_env_cfg_no_forbidden_imports.py`` enforces that env_cfg modules
 do not import ``pxr`` / ``omni`` / ``carb`` / ``isaacsim`` at top
@@ -39,7 +41,8 @@ Typical script setup::
     parser = argparse.ArgumentParser(...)
     # ... script-specific args ...
     add_launcher_args(parser)  # AppLauncher flags (--headless, --device, ...)
-    args_cli = setup_preset_cli(parser)  # preset flags + parse + fold sys.argv
+    args_cli, hydra_args = setup_preset_cli(parser)  # adds preset flags + parses
+    sys.argv = [sys.argv[0]] + hydra_args  # caller hands the folded argv to Hydra
 
 ``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
 explicitly via :func:`isaaclab_tasks.utils.add_launcher_args` before
@@ -55,7 +58,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
+from .preset_target import PresetTarget
 
 # ============================================================================
 # Public entry point
@@ -192,7 +195,8 @@ def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str
         target: Which typed target's help string to build.
         actual_variants: Either ``None`` (no ``--task`` was given) or a
             ``{target: set[name]}`` mapping of variants present in the
-            loaded task, bucketed by target via :func:`PresetRegistry`.
+            loaded task, bucketed by target via ``isinstance`` against
+              :attr:`PresetTarget.base_classes`.
             A failure during the env_cfg load or walk is not caught
             here -- it propagates naturally to the user.
 
@@ -279,8 +283,10 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
 
     Returns:
         ``dict[PresetTarget, set[str]]`` -- variant names found in the
-        task, bucketed by their registered target. Un-registered names
-        fall into :attr:`PresetTarget.DOMAIN`.
+        task, bucketed by ``isinstance`` against each typed target's
+        :attr:`~PresetTarget.base_classes`. Variants whose cfg type does
+        not subclass any typed target's base fall into
+        :attr:`PresetTarget.DOMAIN`.
     """
     from isaaclab_tasks.utils.hydra import collect_presets
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
@@ -293,17 +299,18 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     """Convert :func:`collect_presets` output into ``{target: set[name]}`` by
     cfg instance type.
 
-    For each ``(name, cfg)`` pair, the target is decided by whether
-    ``type(cfg)`` matches any class registered under a typed target via
-    :func:`isinstance`. Subclasses of registered classes route to their
-    parent's target. Cfgs whose type matches no registered target fall
+    For each ``(name, cfg)`` pair, the target is decided by ``isinstance(cfg,
+    target.base_classes)`` against each typed target on :class:`PresetTarget`.
+    The first match wins; cfgs that match no typed target's base classes fall
     into :attr:`PresetTarget.DOMAIN`. The implicit ``default`` field is
     filtered out -- it's the fallback, not a selectable variant the
     user can name.
 
-    Routing by class type (not by name string) keeps target assignment
-    consistent even if a task-local preset happens to reuse a backend's
-    canonical name.
+    Routing by class hierarchy (not by name string) keeps target assignment
+    consistent regardless of how an env_cfg names the PresetCfg field, and
+    any new backend that subclasses :class:`~isaaclab.physics.PhysicsCfg` or
+    :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` is picked up
+    automatically.
 
     Args:
         walked: Output of :func:`isaaclab_tasks.utils.hydra.collect_presets`,
@@ -312,15 +319,14 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     Returns:
         Mapping with one entry per :class:`PresetTarget` member.
     """
-    typed_targets = [t for t in PresetTarget if t is not PresetTarget.DOMAIN]
-    target_classes = {t: PresetRegistry.classes_for(t) for t in typed_targets}
+    typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in walked.values():
         for name, cfg in path_dict.items():
             if name == "default":
                 continue
             matched = next(
-                (t for t in typed_targets if target_classes[t] and isinstance(cfg, target_classes[t])),
+                (t for t in typed_targets if isinstance(cfg, t.base_classes)),
                 PresetTarget.DOMAIN,
             )
             result[matched].add(name)

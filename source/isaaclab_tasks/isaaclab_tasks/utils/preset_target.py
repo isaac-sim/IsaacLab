@@ -1,0 +1,107 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Closed enum of typed CLI preset categories with per-target metadata.
+
+Each :class:`PresetTarget` member carries everything the preset CLI layer
+needs to know about that category in one place:
+
+* ``label`` -- the typed-flag suffix and ``self.value`` (e.g. ``"physics"`` for
+  ``--physics``).
+* ``base_classes`` -- the cfg base classes whose subclass instances belong to
+  this bucket. Help-time bucketing in :mod:`isaaclab_tasks.utils.preset_cli`
+  routes variants by ``isinstance`` against these. Empty for
+  :attr:`PresetTarget.DOMAIN`, which is the catch-all whose membership is
+  "no typed target matched".
+* ``legacy_aliases`` -- deprecated-name to canonical-name table for this
+  target, aggregated for hydra's resolver via :meth:`all_legacy_aliases`.
+
+Adding a new typed target = appending one enum member with its label, base
+classes, and (optional) legacy alias map. The CLI layer needs no other wiring.
+"""
+
+from __future__ import annotations
+
+import enum
+
+from isaaclab.physics import PhysicsCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
+
+
+class PresetTarget(enum.Enum):
+    """Typed-flag preset categories.
+
+    Adding a new target = appending one enum member.
+    """
+
+    # Members. Tuple values are (label, base_classes, legacy_aliases); the
+    # enum metaclass collects the whole namespace before constructing members,
+    # so ``__new__`` below unpacks each tuple regardless of declaration order.
+    PHYSICS = ("physics", (PhysicsCfg,), {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
+    """Physics backends -- ``--physics`` flag.
+
+    Legacy aliases ``newton`` -> ``newton_mjwarp`` and ``kamino`` -> ``newton_kamino``
+    exist because Newton-backend solver presets were renamed to use the
+    ``newton_`` prefix so they group together in autocomplete and read
+    distinctly from backend / package / visualizer names that also contain the
+    word ``newton``. Hydra's resolver (see
+    :func:`~isaaclab_tasks.utils.hydra._normalize_preset_name`) consults these
+    and emits a :class:`FutureWarning`; the aliases will be removed in a
+    future release.
+    """
+
+    RENDERER = ("renderer", (RendererCfg,))
+    """Camera-sensor renderers -- ``--renderer`` flag."""
+
+    DOMAIN = ("domain",)
+    """Free-form env-specific presets -- ``--presets`` flag (catch-all).
+
+    No ``base_classes`` -- any variant whose cfg class doesn't subclass a typed
+    target's base ends up here. The ``--presets`` token also acts as a
+    broadcast: hydra's resolver applies a DOMAIN-bucketed name to every
+    matching ``PresetCfg`` regardless of target.
+    """
+
+    def __new__(
+        cls,
+        label: str,
+        base_classes: tuple[type, ...] = (),
+        legacy_aliases: dict[str, str] | None = None,
+    ):
+        """Construct a member from its ``(label, base_classes, legacy_aliases)`` tuple.
+
+        Args:
+            label: Lowercase CLI flag suffix (e.g. ``"physics"`` becomes
+                ``--physics`` and ``self.value``).
+            base_classes: Cfg base classes whose instances route to this
+                target via :func:`isinstance`. Defaults to ``()`` (no typed
+                routing).
+            legacy_aliases: Optional deprecated-to-canonical map for this
+                target; copied so members cannot alias each other's tables.
+
+        Returns:
+            A new enum member with ``_value_`` set to *label*, plus
+            ``base_classes`` and ``legacy_aliases`` attributes.
+        """
+        obj = object.__new__(cls)
+        obj._value_ = label
+        obj.base_classes = tuple(base_classes)
+        obj.legacy_aliases = dict(legacy_aliases) if legacy_aliases else {}
+        return obj
+
+    @classmethod
+    def all_legacy_aliases(cls) -> dict[str, str]:
+        """Flat ``{deprecated: canonical}`` view across every target.
+
+        Resolver-layer code (in :mod:`isaaclab_tasks.utils.hydra`) needs a
+        target-agnostic lookup -- the ``presets=...`` token is target-agnostic
+        on the wire. Builds fresh from per-target tables so this enum stays
+        the single source of truth.
+
+        Returns:
+            Mapping of every legacy alias to its canonical replacement,
+            aggregated across all members.
+        """
+        return {name: rep for target in cls for name, rep in target.legacy_aliases.items()}

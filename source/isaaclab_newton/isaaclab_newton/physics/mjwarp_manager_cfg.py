@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
-from isaaclab.utils.preset_registry import PresetTarget, register
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -18,7 +17,6 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
 
-@register(PresetTarget.PHYSICS, "newton_mjwarp")
 @configclass
 class MJWarpSolverCfg(NewtonSolverCfg):
     """Configuration for MuJoCo Warp solver-related parameters.

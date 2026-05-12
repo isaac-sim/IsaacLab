@@ -9,10 +9,8 @@ from __future__ import annotations
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.preset_registry import PresetTarget, register
 
 
-@register(PresetTarget.PHYSICS, "ovphysx")
 @configclass
 class OvPhysxCfg(PhysicsCfg):
     """Configuration for the ovphysx physics manager.
