@@ -41,6 +41,9 @@ def test_setup_teardown():
     yield
     sim_utils.clear_stage()
     sim_utils.SimulationContext.clear_instance()
+    # Each test creates a fresh stage; drop cached IFabricHierarchy handles so
+    # the next test does not reuse a handle attached to the disposed stage.
+    FrameView.clear_static_caches()
 
 
 def _skip_if_unavailable(device: str):
@@ -276,3 +279,81 @@ def test_get_scales_fabric_path(device, view_factory):
     # Default scale should be (1, 1, 1)
     expected = torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(scales_t, expected, atol=1e-4, rtol=0)
+
+
+# ------------------------------------------------------------------
+# Transpose-convention verification: world ↔ local kernels rely on the
+# identity ``(A·B)ᵀ = Bᵀ·Aᵀ`` to drop explicit transposes when operating
+# on Fabric's column-transposed matrix storage.  The translation-only
+# parents used by the standard fixture cannot distinguish the right
+# convention from the wrong one — the rotation block is identity and
+# equals its own transpose.  These tests use a parent rotated 90° around
+# Z so that an incorrect storage convention would produce a clearly
+# wrong child pose.
+# ------------------------------------------------------------------
+
+
+# Parent at (0, 0, 1) rotated +90° around Z (so the parent X axis points
+# along world +Y).  Quaternion components in (x, y, z, w) order.
+_ROTATED_PARENT_POS = (0.0, 0.0, 1.0)
+_ROTATED_PARENT_QUAT_XYZW = (0.0, 0.0, 0.70710678, 0.70710678)
+
+
+def _build_rotated_parent_view(device: str) -> "FrameView":
+    """Build a 1-env FabricFrameView whose parent is rotated 90° around Z."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim(
+        "/World/Parent_0",
+        "Xform",
+        translation=_ROTATED_PARENT_POS,
+        orientation=_ROTATED_PARENT_QUAT_XYZW,
+        stage=stage,
+    )
+    sim_utils.create_prim("/World/Parent_0/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/Parent_.*/Child", device=device)
+    view.get_world_poses()  # force Fabric init and USD→Fabric seed
+    return view
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_set_local_then_get_world_with_rotated_parent(device):
+    """Verify ``update_indexed_world_matrix_from_local`` under non-identity parent rotation.
+
+    With parent rotated +90° around Z, a child local translation of (1, 0, 0)
+    must produce world translation (0, 1, 1) — parent_pos + R · local.  If the
+    transpose convention in the kernel were wrong, the rotation would flip
+    direction and the world position would land at (0, -1, 1) instead.
+    """
+    _skip_if_unavailable(device)
+    view = _build_rotated_parent_view(device)
+
+    new_local = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local, 1.0, 0.0, 0.0], device=device)
+    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
+    view.set_local_poses(translations=new_local, orientations=identity_quat)
+
+    world_pos, _ = view.get_world_poses()
+    expected = torch.tensor([[0.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(world_pos.torch, expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_set_world_then_get_local_with_rotated_parent(device):
+    """Verify ``update_indexed_local_matrix_from_world`` under non-identity parent rotation.
+
+    With parent rotated +90° around Z and at (0, 0, 1), writing child world
+    translation (5, 0, 2) must yield child local translation Rᵀ · (5, 0, 1) =
+    (0, -5, 1).  A wrong transpose convention would invert the rotation in the
+    wrong direction and produce (0, 5, 1) instead.
+    """
+    _skip_if_unavailable(device)
+    view = _build_rotated_parent_view(device)
+
+    new_world = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world, 5.0, 0.0, 2.0], device=device)
+    view.set_world_poses(positions=new_world)
+
+    local_pos, _ = view.get_local_poses()
+    expected = torch.tensor([[0.0, -5.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(local_pos.torch, expected, atol=1e-5, rtol=0)

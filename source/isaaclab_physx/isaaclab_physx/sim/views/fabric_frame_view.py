@@ -80,12 +80,18 @@ class FabricFrameView(BaseFrameView):
     ``omni:fabric:localMatrix``.  All other operations delegate to the
     internal USD view.
 
-    After every Fabric write (``set_world_poses``, ``set_local_poses``,
-    ``set_scales``), :meth:`PrepareForReuse` is called on the
-    ``PrimSelection`` to notify the FSD renderer that Fabric data has
-    changed and to detect topology changes that require rebuilding
-    internal mappings.  Read operations do not call PrepareForReuse to
-    avoid unnecessary renderer invalidation.
+    Every accessor for a selection's indexed fabric array
+    (:meth:`_get_world_ro_array`, :meth:`_get_local_ro_array`,
+    :meth:`_get_world_rw_array`, :meth:`_get_local_rw_array`,
+    :meth:`_get_parent_world_ro_array`) calls :meth:`PrepareForReuse` on its
+    backing ``PrimSelection`` to detect Fabric topology changes that would
+    require rebuilding the view→fabric index mapping.  ``PrepareForReuse``
+    is idempotent and cheap in the steady state (returns ``False`` with no
+    rebuild), so the per-access cost is negligible.  The two sync helpers
+    (:meth:`_sync_local_from_world`, :meth:`_sync_world_from_local_if_dirty`)
+    refresh ``trans_sel_ro`` at most once per call to avoid the redundant
+    USDRT round-trip that would otherwise occur when ``_world_ifa_ro``,
+    ``_local_ifa_ro`` and ``_parent_world_ifa_ro`` are read consecutively.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
@@ -94,12 +100,29 @@ class FabricFrameView(BaseFrameView):
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
 
     # Stage-level shared state.  Multiple FabricFrameView instances on the same stage
-    # share one IFabricHierarchy handle.  ``ClassVar`` plus the ``_static_`` prefix
-    # make it explicit (and enforceable by type checkers) that this is class-level —
-    # never shadow it with ``self.<name> = ...``.  The cache is not protected by a
-    # lock; Isaac Lab's simulation loop is single-threaded, and adding locking would
-    # negate the per-stage hit-cache cost it exists to avoid.
-    _static_hierarchy_cache: ClassVar[dict[int, object]] = {}
+    # share one ``IFabricHierarchy`` handle, keyed by ``(stage_id, fabric_id)`` so
+    # that a recycled ``stage_id`` paired with a fresh ``fabric_id`` never reuses a
+    # stale handle.  ``ClassVar`` plus the ``_static_`` prefix make it explicit (and
+    # enforceable by type checkers) that this is class-level — never shadow it with
+    # ``self.<name> = ...``.  The cache is not protected by a lock; Isaac Lab's
+    # simulation loop is single-threaded, and adding locking would negate the
+    # per-stage hit-cache cost it exists to avoid.  Call
+    # :meth:`clear_static_caches` on stage teardown if you tear down many stages
+    # in one process.
+    _static_hierarchy_cache: ClassVar[dict[tuple[int, int], object]] = {}
+
+    @classmethod
+    def clear_static_caches(cls) -> None:
+        """Drop all cached ``IFabricHierarchy`` handles.
+
+        Call this after tearing down a USD stage if the process will continue
+        opening new stages.  Cached handles are otherwise retained for the
+        lifetime of the process, which can leak memory in long test suites and,
+        in theory, allow a recycled ``stage_id`` paired with a new Fabric
+        attachment to read a stale handle (though the ``(stage_id, fabric_id)``
+        cache key already guards against the latter).
+        """
+        cls._static_hierarchy_cache.clear()
 
     def __init__(
         self,
@@ -451,14 +474,15 @@ class FabricFrameView(BaseFrameView):
         """
         if not self._world_dirty:
             return
-        # Make sure the parent indexed array is up-to-date with the current trans selection.
-        if self._parent_world_ifa_ro is None:
-            self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
+        # Refresh trans_sel_ro once, then read _local_ifa_ro and _parent_world_ifa_ro
+        # directly to avoid calling PrepareForReuse twice on the same selection.
+        if self._trans_sel_ro.PrepareForReuse() or self._parent_world_ifa_ro is None:
+            self._rebuild_trans_ro_arrays()
         wp.launch(
             kernel=fabric_utils.update_indexed_world_matrix_from_local,
             dim=self.count,
             inputs=[
-                self._get_local_ro_array(),
+                self._local_ifa_ro,
                 self._parent_world_ifa_ro,
                 self._get_world_rw_array(),
                 self._view_indices,
@@ -476,12 +500,15 @@ class FabricFrameView(BaseFrameView):
         not provide a built-in world → local sync, so we do it via a Warp kernel
         using the parent indexed fabric array.
         """
+        # Refresh trans_sel_ro once; _world_ifa_ro and _parent_world_ifa_ro share it.
+        if self._trans_sel_ro.PrepareForReuse() or self._parent_world_ifa_ro is None:
+            self._rebuild_trans_ro_arrays()
         wp.launch(
             kernel=fabric_utils.update_indexed_local_matrix_from_world,
             dim=indices_wp.shape[0],
             inputs=[
-                self._get_world_ro_array(),
-                self._get_parent_world_ro_array(),
+                self._world_ifa_ro,
+                self._parent_world_ifa_ro,
                 self._get_local_rw_array(),
                 indices_wp,
             ],
@@ -611,18 +638,22 @@ class FabricFrameView(BaseFrameView):
         self._stage = usdrt.Usd.Stage.Attach(self._stage_id)
         self._stage.SynchronizeToFabric()
 
-        # Reuse (or create) a hierarchy handle for this stage.  Enable change-tracking
+        # Reuse (or create) a hierarchy handle for this stage.  The cache key is
+        # ``(stage_id, fabric_id)`` so a recycled ``stage_id`` paired with a fresh
+        # Fabric attachment never returns a stale handle.  Enable change-tracking
         # BEFORE we author any local matrices, so the per-prim
-        # ``SetLocalXformFromUsd`` calls below mark themselves dirty and the next
-        # ``update_world_xforms()`` walks the parent chain to populate worldMatrix.
-        if self._stage_id not in FabricFrameView._static_hierarchy_cache:
+        # ``SetLocalXformFromUsd`` calls below mark themselves dirty.
+        fabric_id = self._stage.GetFabricId()
+        self._fabric_id = fabric_id
+        cache_key = (self._stage_id, fabric_id)
+        if cache_key not in FabricFrameView._static_hierarchy_cache:
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                self._stage.GetFabricId(), self._stage.GetStageIdAsStageId()
+                fabric_id, self._stage.GetStageIdAsStageId()
             )
             hierarchy.track_local_xform_changes(True)
             hierarchy.track_world_xform_changes(True)
-            FabricFrameView._static_hierarchy_cache[self._stage_id] = hierarchy
-        self._fabric_hierarchy = FabricFrameView._static_hierarchy_cache[self._stage_id]
+            FabricFrameView._static_hierarchy_cache[cache_key] = hierarchy
+        self._fabric_hierarchy = FabricFrameView._static_hierarchy_cache[cache_key]
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
         # attributes.  Our ``trans_ro`` selection requires both, so prims missing either
