@@ -63,7 +63,8 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 add_launcher_args(parser)
-args_cli = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True

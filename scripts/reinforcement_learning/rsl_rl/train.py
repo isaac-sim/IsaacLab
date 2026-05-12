@@ -69,22 +69,25 @@ parser.add_argument(
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
 
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# Call an external callback if requested. This gives external code an opportunity to register
-# environments. The callback is expected to return the args it did NOT consume. We intersect
-# with the post-setup_preset_cli sys.argv so Hydra only sees args neither side consumed --
-# preserving the "presets=..." token at sys.argv[1] so typed --physics / --renderer / --presets
-# selections always reach the resolver.
+# Call an external callback if requested. setup_preset_cli does not mutate
+# sys.argv, so the callback sees the user's original command line with the
+# typed --physics / --renderer / --presets flags intact. The callback returns
+# the args it did NOT consume; we intersect with hydra_args' non-preset tail
+# so the resolver only sees args neither side consumed, while the folded
+# "presets=..." token is held aside and always reaches Hydra.
 if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
-    presets_tokens = [t for t in sys.argv[1:] if t.startswith("presets=")]
-    other_tokens = [t for t in sys.argv[1:] if not t.startswith("presets=")]
-    sys.argv = [sys.argv[0]] + presets_tokens + list_intersection(other_tokens, remaining_args_env_registration)
+    presets_tokens = [t for t in hydra_args if t.startswith("presets=")]
+    other_tokens = [t for t in hydra_args if not t.startswith("presets=")]
+    hydra_args = presets_tokens + list_intersection(other_tokens, remaining_args_env_registration)
+
+sys.argv = [sys.argv[0]] + hydra_args
 
 # -- check RSL-RL version ----------------------------------------------------
 installed_version = metadata.version("rsl-rl-lib")

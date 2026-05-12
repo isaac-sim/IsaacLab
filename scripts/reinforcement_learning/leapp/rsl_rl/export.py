@@ -88,7 +88,8 @@ parser.add_argument(
 
 cli_args.add_rsl_rl_args(parser)
 AppLauncher.add_app_launcher_args(parser)
-args_cli = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 args_cli.headless = True
 
 installed_version = metadata.version("rsl-rl-lib")

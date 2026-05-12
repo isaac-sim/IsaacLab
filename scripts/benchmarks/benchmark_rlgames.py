@@ -65,8 +65,8 @@ add_success_cli_args(parser)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-args_cli = setup_preset_cli(parser)
-hydra_args = sys.argv[1:]  # captured for get_preset_string telemetry below
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 if args_cli.video:
     args_cli.enable_cameras = True
 

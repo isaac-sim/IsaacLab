@@ -59,8 +59,8 @@ parser.add_argument(
 
 # append AppLauncher cli args (provides --device, --headless, etc.)
 AppLauncher.add_app_launcher_args(parser)
-args_cli = setup_preset_cli(parser)
-hydra_args = sys.argv[1:]  # captured for get_preset_string telemetry below
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 

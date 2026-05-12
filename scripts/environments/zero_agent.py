@@ -22,7 +22,8 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 add_launcher_args(parser)
-args_cli = setup_preset_cli(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 MAX_STEPS = 100
