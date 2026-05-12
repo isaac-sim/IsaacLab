@@ -9,8 +9,10 @@ from typing import Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.preset_registry import PresetTarget, register
 
 
+@register(PresetTarget.RENDERER, "isaacsim_rtx_renderer")
 @configclass
 class IsaacRtxRendererCfg(RendererCfg):
     """Configuration for Isaac RTX renderer using Omniverse Replicator.

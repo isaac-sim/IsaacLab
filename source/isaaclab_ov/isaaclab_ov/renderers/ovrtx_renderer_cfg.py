@@ -10,8 +10,10 @@ from pathlib import Path
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.preset_registry import PresetTarget, register
 
 
+@register(PresetTarget.RENDERER, "ovrtx_renderer")
 @configclass
 class OVRTXRendererCfg(RendererCfg):
     """Configuration for OVRTX Renderer.
