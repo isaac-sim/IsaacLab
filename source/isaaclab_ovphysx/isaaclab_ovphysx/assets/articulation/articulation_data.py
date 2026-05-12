@@ -1931,7 +1931,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data)
         if view is None:
             return
-        self._read_binding_into_view(tensor_type, view)
+        self._get_binding(tensor_type).read(view)
         buf.timestamp = self._sim_timestamp
 
     def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
@@ -1968,7 +1968,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data, 6)
         if view is None:
             return
-        self._read_binding_into_view(tensor_type, view)
+        self._get_binding(tensor_type).read(view)
         buf.timestamp = self._sim_timestamp
 
     def _read_scalar_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
