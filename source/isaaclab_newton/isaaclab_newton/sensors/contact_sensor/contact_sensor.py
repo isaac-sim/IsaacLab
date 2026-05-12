@@ -379,16 +379,19 @@ class ContactSensor(BaseContactSensor):
         self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
-        counterpart_indices_flat = flatten_metadata(self.contact_view.counterpart_indices)
         counterpart_type = self.contact_view.counterpart_type
         # Newton >= 1.2: counterpart_type is a scalar Literal["body", "shape"] | None;
         # broadcast it to match the length of counterpart_indices.
+        # Guard against None before accessing counterpart_indices to avoid
+        # flatten_metadata(None) producing a spurious [None] list.
         if counterpart_type is None:
             flat_counterparts = []
-        elif isinstance(counterpart_type, str):
-            flat_counterparts = [(idx, counterpart_type) for idx in counterpart_indices_flat]
         else:
-            flat_counterparts = list(zip(counterpart_indices_flat, flatten_metadata(counterpart_type)))
+            counterpart_indices_flat = flatten_metadata(self.contact_view.counterpart_indices)
+            if isinstance(counterpart_type, str):
+                flat_counterparts = [(idx, counterpart_type) for idx in counterpart_indices_flat]
+            else:
+                flat_counterparts = list(zip(counterpart_indices_flat, flatten_metadata(counterpart_type)))
         self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
 
         force_matrix = self.contact_view.force_matrix
