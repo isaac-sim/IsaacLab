@@ -11,16 +11,12 @@ import numpy as np
 import trimesh
 import trimesh.transformations
 
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim import schemas as schemas_physx
-from isaaclab_physx.sim.spawners.materials import DeformableBodyMaterialCfg, SurfaceDeformableBodyMaterialCfg
-
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
-from ..materials import RigidBodyMaterialCfg
+from ..materials import RigidBodyMaterialBaseCfg
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -352,6 +348,16 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    # Lazily import PhysX-specific types only when deformable bodies are used. Deformable
+    # bodies are only supported on the PhysX backend and ``isaaclab_physx`` is optional
+    # under kit-less / Newton-only installs.
+    if cfg.deformable_props is not None:
+        from isaaclab_physx.sim import schemas as schemas_physx  # noqa: PLC0415
+        from isaaclab_physx.sim.spawners.materials import (  # noqa: PLC0415
+            DeformableBodyMaterialCfg,
+            SurfaceDeformableBodyMaterialCfg,
+        )
+
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
@@ -370,7 +376,7 @@ def _spawn_mesh_geom_from_mesh(
         if not isinstance(cfg.physics_material, DeformableBodyMaterialCfg):
             raise ValueError("Deformable properties require a deformable physics material.")
     if cfg.rigid_props is not None and cfg.physics_material is not None:
-        if not isinstance(cfg.physics_material, RigidBodyMaterialCfg):
+        if not isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg):
             raise ValueError("Rigid properties require a rigid physics material.")
 
     # create all the paths we need for clarity

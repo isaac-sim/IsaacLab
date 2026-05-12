@@ -13,14 +13,9 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim import schemas as schemas_physx
-from isaaclab_physx.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg
-
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -386,6 +381,11 @@ def _spawn_from_usd_file(
 
     # define deformable body properties, or modify if deformable body API is present (PhysX only)
     if cfg.deformable_props is not None:
+        # Lazily import PhysX-specific types only when deformable bodies are used.
+        # ``isaaclab_physx`` is optional under kit-less / Newton-only installs.
+        from isaaclab_physx.sim import schemas as schemas_physx  # noqa: PLC0415
+        from isaaclab_physx.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg  # noqa: PLC0415
+
         prim = stage.GetPrimAtPath(prim_path)
         deformable_type = "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialCfg) else "volume"
         if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
@@ -471,6 +471,10 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
+        # Compliant-contact stiffness / damping are PhysX-specific; the PhysX-flavored
+        # ``RigidBodyMaterialCfg`` lives in ``isaaclab_physx`` and is only imported here.
+        from isaaclab_physx.sim.spawners.materials import RigidBodyMaterialCfg  # noqa: PLC0415
+
         material_kwargs = {}
         if stiff is not None:
             material_kwargs["compliant_contact_stiffness"] = stiff
