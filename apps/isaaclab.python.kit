@@ -18,7 +18,9 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.core.deprecation_manager" = { order = -100 }
 "isaacsim.core.experimental.materials" = {}
 "isaacsim.core.experimental.objects" = {}
-"isaacsim.core.experimental.primdata" = {}
+# Optional: not yet present in publicly-released isaacsim 6.0.x; Kit's resolver
+# otherwise stalls on remote registry sync. Hard-load once it ships publicly.
+"isaacsim.core.experimental.primdata" = { optional = true }
 "isaacsim.core.experimental.prims" = {}
 "isaacsim.core.experimental.utils" = {}
 "isaacsim.core.nodes" = {}
@@ -31,9 +33,12 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.robot.policy.examples" = {}
 "isaacsim.robot.schema" = {}
 "isaacsim.robot.experimental.wheeled_robots" = {}
-"isaacsim.robot.wheeled_robots.nodes" = {}
+# Optional: not yet present in publicly-released isaacsim 6.0.x; Kit's resolver
+# otherwise stalls on remote registry sync. Hard-load once it ships publicly.
+"isaacsim.robot.wheeled_robots.nodes" = { optional = true }
 "isaacsim.sensors.experimental.physics" = {}
-"isaacsim.sensors.experimental.rtx" = {}
+# Optional: see comment above.
+"isaacsim.sensors.experimental.rtx" = { optional = true }
 "isaacsim.simulation_app" = {}
 "isaacsim.storage.native" = {}
 "isaacsim.util.debug_draw" = {}

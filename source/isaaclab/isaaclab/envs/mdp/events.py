@@ -28,6 +28,25 @@ from isaaclab.actuators import ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
+
+def _get_replicator_version(rep) -> str:
+    """Return the X.Y.Z version of ``omni.replicator.core``.
+
+    ``rep.__file__`` can be ``None`` when ``omni.replicator.core`` is loaded as a
+    namespace package by Kit's extension manager (e.g. on the Kit 110.x stack),
+    so we fall back to ``rep.__path__[0]``, which always points to the extscache
+    directory whose name embeds the version (e.g.
+    ``"omni.replicator.core-1.13.4+110.0.0.lx64.r.cp312"``).
+    """
+    rep_path = rep.__file__ or (rep.__path__[0] if getattr(rep, "__path__", None) else None)
+    if rep_path is None:
+        raise RuntimeError("omni.replicator.core has no resolvable __file__ or __path__")
+    match = re.search(r"omni\.replicator\.core-(\d+\.\d+\.\d+)", rep_path)
+    if match is None:
+        raise RuntimeError(f"Could not parse omni-replicator-core version from {rep_path!r}")
+    return match.group(1)
+
+
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
 
@@ -2087,7 +2106,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # extract the replicator version
-        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+        version = _get_replicator_version(rep)
 
         # use different path for different version of replicator
         if compare_versions(version, "1.12.4") < 0:
@@ -2157,7 +2176,7 @@ class randomize_visual_texture_material(ManagerTermBase):
         import omni.replicator.core as rep
 
         # extract the replicator version
-        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+        version = _get_replicator_version(rep)
 
         # use different path for different version of replicator
         if compare_versions(version, "1.12.4") < 0:
@@ -2246,7 +2265,7 @@ class randomize_visual_color(ManagerTermBase):
         # TODO: Need to make it work for multiple meshes.
 
         # extract the replicator version
-        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+        version = _get_replicator_version(rep)
 
         # use different path for different version of replicator
         if compare_versions(version, "1.12.4") < 0:
@@ -2315,7 +2334,7 @@ class randomize_visual_color(ManagerTermBase):
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep
 
-        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+        version = _get_replicator_version(rep)
 
         # use different path for different version of replicator
         if compare_versions(version, "1.12.4") < 0:
