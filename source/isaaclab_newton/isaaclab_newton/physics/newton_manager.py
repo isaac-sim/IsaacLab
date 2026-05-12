@@ -827,9 +827,11 @@ class NewtonManager(PhysicsManager):
 
         # The single global actuator adapter is built lazily on the first
         # call to ``activate_newton_actuator_path`` from any Newton-fast-path
-        # articulation after this point.
-        cls._adapter = None
-        cls._use_newton_actuators_active = False
+        # articulation after this point. Assign through the explicit base
+        # class so external readers (which import ``NewtonManager`` directly)
+        # observe the canonical state regardless of which subclass is active.
+        NewtonManager._adapter = None
+        NewtonManager._use_newton_actuators_active = False
 
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset)
         NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.int32, device=device)
@@ -1410,7 +1412,10 @@ class NewtonManager(PhysicsManager):
            :class:`NewtonActuatorAdapter` over the full flat DOF layout;
            later calls reuse it.
         """
-        cls._use_newton_actuators_active = True
+        # Shared state lives on the base class so all readers (including
+        # framework code that imports ``NewtonManager`` directly) see the
+        # same flag regardless of which solver subclass is active.
+        NewtonManager._use_newton_actuators_active = True
 
         if cls._adapter is not None:
             return
@@ -1419,7 +1424,7 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
-        cls._adapter = NewtonActuatorAdapter(
+        NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls._model.actuators),
             num_envs=cls._num_envs,
             num_joints=dofs_per_env,
