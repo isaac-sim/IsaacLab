@@ -19,6 +19,7 @@
       mesh
       modifiers
       noise
+      preset_registry
       seed
       sensors
       string
@@ -138,6 +139,13 @@ Noise operations
    :inherited-members:
    :show-inheritance:
    :exclude-members: __init__, func
+
+Preset registry
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.preset_registry
+   :members:
+   :show-inheritance:
 
 Seed operations
 ~~~~~~~~~~~~~~~
