@@ -3,18 +3,39 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CI/automation entry point for replaying captured teleop sessions.
+"""CI/automation entry point for replaying captured Isaac Teleop sessions.
 
 This is the non-interactive counterpart to ``teleop_se3_agent.py``. It builds
-a teleop environment, attaches a teleop device, schedules a replay driver,
-and pumps the simulation loop until the replay completes and the application
-exits. The user-journey teleop script remains ``teleop_se3_agent.py``.
+a teleop environment, attaches an :class:`~isaaclab_teleop.IsaacTeleopDevice`
+configured in :class:`isacteleop.teleop_session_manager.SessionMode.REPLAY`,
+and pumps the simulation loop until ``--max_replay_duration_s`` elapses
+(post-quit) or Kit is closed. The user-journey teleop script remains
+``teleop_se3_agent.py``.
 
-The current implementation drives playback through Kit's OpenXR XCR backend
-and the legacy native XR ``handtracking`` device. The script is structured so
-that the replay-driver call site and device selection are the only pieces
-that need to change when migrating to a different replay backend in the
-future (e.g. an Isaac Teleop ``TeleopSession`` running in replay mode).
+Inputs:
+    ``--replay_file`` is an MCAP capture produced by Isaac Teleop's
+    ``McapRecordingConfig`` path. The recorder lays down per-tracker
+    flatbuffer messages (head / hands / controllers) plus a
+    ``_teleop_control`` ``MessageChannelTracker`` for control events.
+    TeleopCore's :class:`~isacteleop.deviceio_session.ReplaySession`
+    only supports tracker-shaped data (no ``MessageChannelTracker``
+    replay), so the control-events channel is recorded but cannot be
+    re-emitted today; the replay agent therefore steps the env on
+    every non-None action and bounds the run with
+    ``--max_replay_duration_s``.
+
+Warmup:
+    Before stepping the env, the agent waits deterministically for Kit
+    to finish loading the USD stage by polling
+    ``omni.usd.UsdContext.get_stage_loading_status()`` until no assets
+    are pending (bounded by ``--max_stage_load_wait_s`` as a safety net).
+    It then pumps a fixed number of additional renderer-settle frames so
+    shaders / articulation views finish warming up before any action
+    lands. ``--replay_start_delay_s`` is available as an optional
+    wall-clock buffer on top of the deterministic wait for hardware
+    that needs more grace. During warmup the agent does not call
+    :meth:`IsaacTeleopDevice.advance`, so ``ReplaySession.update()``
+    does not advance through the MCAP.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -25,7 +46,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(
     description=(
-        "Replay a captured teleop session against an Isaac Lab environment. "
+        "Replay a captured Isaac Teleop MCAP session against an Isaac Lab environment. "
         "CI/automation entry point; for interactive teleoperation see teleop_se3_agent.py."
     )
 )
@@ -35,13 +56,7 @@ parser.add_argument(
     "--replay_file",
     type=str,
     required=True,
-    help="Absolute path to the recorded teleop session to replay.",
-)
-parser.add_argument(
-    "--replay_start_delay_s",
-    type=float,
-    default=120.0,
-    help="Seconds to wait after the environment is up before starting replay (default: 120.0).",
+    help="Absolute path to the Isaac Teleop MCAP capture to replay.",
 )
 parser.add_argument(
     "--num_success_steps",
@@ -49,7 +64,41 @@ parser.add_argument(
     default=1,
     help=(
         "Number of consecutive steps the task success term must hold before declaring success and"
-        " resetting the env. Mirrors the equivalent flag in record_demos.py. (default: 10)"
+        " resetting the env. Mirrors the equivalent flag in record_demos.py."
+    ),
+)
+parser.add_argument(
+    "--max_replay_duration_s",
+    type=float,
+    default=600.0,
+    help=(
+        "Maximum wall-clock seconds to keep the replay loop running before asking Kit to quit,"
+        " measured from the end of the warmup window (see --replay_start_delay_s)."
+        " TeleopCore's ReplaySession does not expose a playback-finished signal, so a hard cap"
+        " is the deterministic way to terminate CI replays. Default is 600s (10 min)."
+    ),
+)
+parser.add_argument(
+    "--replay_start_delay_s",
+    type=float,
+    default=0.0,
+    help=(
+        "Optional wall-clock buffer added on top of the deterministic stage-load wait."
+        " The agent always blocks until omni.usd reports no assets pending and then renders a"
+        " fixed number of settle frames before consuming MCAP frames; this flag inserts an"
+        " additional render-only window after that if the deterministic check is not enough"
+        " for a given hardware/asset combination. Default is 0s -- bump it if you still see"
+        " a race after the deterministic wait."
+    ),
+)
+parser.add_argument(
+    "--max_stage_load_wait_s",
+    type=float,
+    default=300.0,
+    help=(
+        "Safety cap on how long to wait for omni.usd to finish loading the stage before"
+        " proceeding anyway. Hit only when something is misconfigured (missing asset, slow"
+        " Nucleus, etc.); a warning is logged and replay continues. Default is 300s."
     ),
 )
 AppLauncher.add_app_launcher_args(parser)
@@ -62,30 +111,20 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import asyncio
 import logging
-from collections.abc import Callable
+import time
 
 import gymnasium as gym
 import torch
+from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device
 
-from isaaclab.devices import DeviceBase
 from isaaclab.devices.openxr import remove_camera_configs
-from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
 logger = logging.getLogger(__name__)
-
-_LEGACY_DEVICE_NAME = "handtracking"
-
-# Module-level set of pending replay-driver tasks. The asyncio event loop only
-# keeps weak references to tasks, so a task that is not referenced elsewhere
-# may be garbage-collected before it completes. The completion callback below
-# discards the task again once it finishes.
-_PENDING_REPLAY_TASKS: set[asyncio.Future] = set()
 
 
 def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBasedRLEnvCfg, object | None]:
@@ -132,68 +171,7 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
     return env_cfg, success_term
 
 
-def _create_replay_teleop_device(
-    env_cfg: ManagerBasedRLEnvCfg, task: str, callbacks: dict[str, Callable[[], None]]
-) -> DeviceBase:
-    """Instantiate the teleop device used during replay.
-
-    Today this returns the legacy native XR ``handtracking`` device because the
-    XCR backend replays through Kit's OpenXR runtime, which is the surface
-    that device consumes. When migrating to a ``TeleopSession``-driven replay
-    backend, swap this for an ``IsaacTeleopDevice`` configured in replay mode.
-
-    Args:
-        env_cfg: The environment configuration.
-        task: Task identifier, used for diagnostic messages.
-        callbacks: Teleop-command callbacks (typically just ``"START"`` for
-            replay; see :func:`main`) registered on the device. The XCR
-            replay dispatches the recorded user's start gesture through
-            Kit's OpenXR message bus, which the legacy
-            :class:`~isaaclab.devices.openxr.OpenXRDevice` translates into
-            calls into this dictionary.
-    """
-    if not hasattr(env_cfg, "teleop_devices") or _LEGACY_DEVICE_NAME not in env_cfg.teleop_devices.devices:
-        raise ValueError(
-            f"Task '{task}' does not expose a teleop device named '{_LEGACY_DEVICE_NAME}'. "
-            "Use a task whose env config defines that legacy device, "
-            "or update _create_replay_teleop_device to use a different backend."
-        )
-    teleop_interface = create_teleop_device(_LEGACY_DEVICE_NAME, env_cfg.teleop_devices.devices, callbacks)
-    if teleop_interface is None:
-        raise RuntimeError(f"Failed to create '{_LEGACY_DEVICE_NAME}' teleop device for task '{task}'.")
-    return teleop_interface
-
-
-def _on_replay_driver_done(future: asyncio.Future) -> None:
-    """Surface replay-driver failures so the CI process does not hang.
-
-    When :func:`start_xcr_replay` raises before reaching ``post_quit`` (e.g.
-    :class:`FileNotFoundError`, an ``omni.kit`` import failure, or a Kit
-    runtime error) the exception sits silently on the discarded future and
-    Python only emits a ``Future exception was never retrieved`` warning on
-    GC. The main loop would then keep spinning forever because nothing ever
-    flips ``simulation_app.is_running()`` to ``False``.
-
-    This callback retrieves the exception, logs it with traceback, and asks
-    Kit to quit so the host process exits cleanly. It also drops the task
-    from :data:`_PENDING_REPLAY_TASKS` now that it is done.
-    """
-    _PENDING_REPLAY_TASKS.discard(future)
-    if future.cancelled():
-        return
-    exc = future.exception()
-    if exc is None:
-        return
-    logger.error("XCR replay driver failed", exc_info=exc)
-    try:
-        import omni.kit.app
-
-        omni.kit.app.get_app().post_quit()
-    except Exception:
-        logger.exception("Failed to post_quit after replay driver failure")
-
-
-def _handle_reset(env: gym.Env, teleop_interface: DeviceBase) -> None:
+def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice) -> None:
     """Run the full env+teleop reset cycle used by ``record_demos.py``.
 
     Mirrors :func:`scripts.tools.record_demos.handle_reset` (sans the
@@ -240,46 +218,127 @@ def _process_success_condition(
     return success_step_count, False
 
 
-def _schedule_replay_driver(replay_file: str, start_delay_s: float) -> None:
-    """Schedule the replay driver coroutine on the running asyncio loop.
+_RENDERER_SETTLE_FRAMES: int = 30
+"""Number of additional render frames pumped after the USD stage finishes loading.
 
-    Today this drives Kit's OpenXR XCR backend. To migrate to a different
-    replay backend (e.g. ``TeleopSession`` running in replay mode), replace
-    this call with the equivalent driver hook -- this is the only XCR-specific
-    site outside the device-creation helper above.
+Kit's stage-load status flips to ``count_loading == 0`` as soon as every referenced asset
+has been resolved, but the renderer pipeline (shader compilation, articulation-view
+binding, material warm-up) typically needs a few more event-loop ticks to converge. Thirty
+frames at the default Kit render cadence is ~0.5 s on most machines and is deterministic
+per-machine -- unlike a wall-clock delay it does not have to be tuned for hardware.
+"""
+
+
+def _wait_for_stage_load(simulation_app, max_wait_s: float) -> None:
+    """Block until the USD stage finishes resolving every referenced asset.
+
+    Polls :meth:`omni.usd.UsdContext.get_stage_loading_status`. The third element of
+    the returned tuple is the count of assets Kit still has pending; when it reaches
+    zero the stage is fully streamed in and the renderer pipeline is ready to draw
+    against it. After the count reaches zero this function pumps an additional
+    :data:`_RENDERER_SETTLE_FRAMES` ``simulation_app.update()`` calls so shaders,
+    materials, and articulation views finish warming up before the caller begins
+    consuming MCAP frames or stepping the env.
+
+    Args:
+        simulation_app: The :class:`isaaclab.app.SimulationApp` instance whose
+            event loop to pump while waiting.
+        max_wait_s: Upper bound on how long to spin on a non-zero loading count
+            before warning and returning. Acts as a safety net for misconfigured
+            scenes (missing assets, slow Nucleus); a successful run typically
+            completes well within this bound.
+
+    The function is best-effort: when ``omni.usd`` is unavailable (e.g. when
+    running outside a Kit context) it returns immediately so callers do not
+    need a separate code path.
     """
-    from isaaclab_teleop.automation import XcrReplayConfig, start_xcr_replay
+    try:
+        import omni.usd
+    except (ImportError, ModuleNotFoundError):
+        logger.warning("omni.usd not available; skipping deterministic stage-load wait")
+        return
 
-    future = asyncio.ensure_future(
-        start_xcr_replay(XcrReplayConfig(replay_file=replay_file, start_delay_s=start_delay_s))
-    )
-    _PENDING_REPLAY_TASKS.add(future)
-    future.add_done_callback(_on_replay_driver_done)
+    print("Waiting for USD stage to finish loading...")
+    start_s = time.monotonic()
+    last_progress_log_s = start_s
+    while simulation_app.is_running():
+        context = omni.usd.get_context()
+        if context is None:
+            break
+        # get_stage_loading_status -> (message, count_loaded, count_loading)
+        _, _, count_loading = context.get_stage_loading_status()
+        if count_loading == 0:
+            break
+        elapsed_s = time.monotonic() - start_s
+        if elapsed_s >= max_wait_s:
+            logger.warning(
+                "Stage still reports %d assets pending after %.1fs; proceeding anyway. Replay may race the renderer.",
+                count_loading,
+                max_wait_s,
+            )
+            break
+        if time.monotonic() - last_progress_log_s >= 5.0:
+            print(f"  stage loading: {count_loading} assets pending (elapsed {elapsed_s:.1f}s)")
+            last_progress_log_s = time.monotonic()
+        simulation_app.update()
+
+    elapsed_s = time.monotonic() - start_s
+    print(f"Stage load complete after {elapsed_s:.1f}s; settling renderer for {_RENDERER_SETTLE_FRAMES} frames...")
+    for _ in range(_RENDERER_SETTLE_FRAMES):
+        if not simulation_app.is_running():
+            return
+        simulation_app.update()
+
+
+def _request_kit_quit() -> None:
+    """Ask Kit to drain its event loop and exit.
+
+    Used after ``--max_replay_duration_s`` elapses so CI processes
+    terminate deterministically. The host process needs Kit to flip
+    ``simulation_app.is_running()`` to ``False``; ``post_quit`` is the
+    canonical Kit-side path. ``ReplaySession`` does not emit a
+    playback-finished signal, and the recorded ``_teleop_control``
+    message channel cannot be re-emitted by TeleopCore (no
+    ``ReplayMessageChannelTrackerImpl``), so a wall-clock cap is what
+    we have today.
+    """
+    try:
+        import omni.kit.app
+
+        omni.kit.app.get_app().post_quit()
+    except Exception:
+        logger.exception("Failed to post_quit at end of replay; the loop will keep running")
 
 
 def main() -> None:
-    """Replay a captured teleop session against an Isaac Lab environment.
+    """Replay a captured Isaac Teleop session against an Isaac Lab environment.
 
-    Builds the env, attaches a replay teleop device, schedules the replay
-    driver as a background task, and runs the standard teleop step loop
-    until the application is closed (driver-issued ``post_quit``, Kit
-    shutdown, or operator interrupt).
+    Builds the env, attaches a replay-mode :class:`IsaacTeleopDevice`, and
+    pumps the simulation loop until ``--max_replay_duration_s`` elapses or
+    Kit is closed.
 
-    The loop deliberately does not call ``env.step()`` until the legacy
-    :class:`OpenXRDevice` dispatches a ``"START"`` callback. The XCR replay
-    restores the recorded user's start gesture through Kit's OpenXR message
-    bus, and the device routes that into the callback registered here --
-    exactly the path ``record_demos.py`` uses to know when to start
-    recording. Until that ``"START"`` arrives, the OpenXR runtime is silent
-    and the device's :meth:`advance` would otherwise return a default zero
-    pose for both wrists, which stepping the env with would drive Pink IK
-    toward the world origin.
-
-    Unlike :file:`record_demos.py`, the replay agent does **not** subscribe
-    to the ``"STOP"`` callback: Kit's ``teleop_command`` bus drains queued
-    events as a batch when the AR profile is enabled, so a recorded STOP
-    gesture fires within milliseconds of START and would gate the env-step
-    loop off again before Pink IK had time to converge.
+    Control flow:
+        * Pre-loop warmup: ``_wait_for_stage_load`` polls
+          ``omni.usd.UsdContext.get_stage_loading_status`` until Kit
+          reports zero pending assets, then renders a fixed number of
+          settle frames. An optional ``--replay_start_delay_s`` buffer
+          can be appended for hardware that needs more grace.
+          ``advance()`` is not called during warmup so
+          ``ReplaySession.update`` does not consume MCAP frames yet.
+        * Main loop: :meth:`IsaacTeleopDevice.advance` returns an action
+          tensor derived from the MCAP-replayed tracker stream. The env
+          steps on every non-None action; the agent does **not** gate on
+          recorded START/STOP events because TeleopCore's
+          ``ReplaySession`` rejects the ``MessageChannelTracker`` schema
+          and therefore cannot reproduce the control channel during
+          replay.
+        * Failure terminations (``time_out`` / task failure) and success
+          (gated by ``--num_success_steps``) still drive the full reset
+          cycle so multi-episode recordings are replayed end-to-end as
+          long as the trajectory remains within env tolerances.
+        * After ``--max_replay_duration_s`` wall-clock seconds (measured
+          from end-of-warmup) the agent asks Kit to ``post_quit`` so the
+          host process exits cleanly.
 
     Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
     always runs, even when device construction or any subsequent setup
@@ -290,80 +349,112 @@ def main() -> None:
         env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-        # Single-element list so the closure can mutate it without ``nonlocal``.
-        teleop_active = [False]
+        if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
+            raise ValueError(
+                f"Task '{args_cli.task}' does not configure an IsaacTeleop pipeline. "
+                "MCAP replay requires env_cfg.isaac_teleop to be set."
+            )
 
-        def _on_start() -> None:
-            if not teleop_active[0]:
-                teleop_active[0] = True
-                print("Teleop START received from XCR replay; forwarding actions to env.step().")
-
-        # Intentionally only subscribe to START, not STOP. The XCR replay
-        # restores both the recorded user's start and stop gestures from the
-        # capture file, and Kit's ``teleop_command`` message bus appears to
-        # drain queued events as a batch when the AR profile is enabled --
-        # so a STOP fires within milliseconds of START and would shut the env
-        # step loop off before Pink IK has had a chance to converge. For the
-        # replay agent's one-shot CI use case the only valid termination is
-        # the driver's ``post_quit`` (or a real exception in the loop).
-        callbacks: dict[str, Callable[[], None]] = {"START": _on_start}
-
-        teleop_interface = _create_replay_teleop_device(env_cfg, args_cli.task, callbacks)
+        teleop_interface = create_isaac_teleop_device(
+            env_cfg.isaac_teleop,
+            sim_device=args_cli.device,
+            callbacks={},
+            cloudxr_env_file=None,
+            auto_launch_cloudxr=False,
+            mcap_replay_path=args_cli.replay_file,
+        )
         print(f"Using teleop device: {teleop_interface}")
 
-        # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
-        # does a hard physics reinit (re-binds articulation views, plays the
-        # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
-        # ``data.joint_pos.torch`` every step to seed Pinocchio's configuration
-        # and to compute ``target = curr + delta``; if the articulation view is
-        # stale, every IK call produces zero-delta arm targets while the
-        # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
-        env.sim.reset()
-        env.reset()
-        teleop_interface.reset()
+        with teleop_interface:
+            # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
+            # does a hard physics reinit (re-binds articulation views, plays the
+            # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
+            # ``data.joint_pos.torch`` every step to seed Pinocchio's configuration
+            # and to compute ``target = curr + delta``; if the articulation view is
+            # stale, every IK call produces zero-delta arm targets while the
+            # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
+            env.sim.reset()
+            env.reset()
+            teleop_interface.reset()
 
-        print(f"Replay agent started; replay will begin in {args_cli.replay_start_delay_s:.1f} seconds.")
-        _schedule_replay_driver(args_cli.replay_file, args_cli.replay_start_delay_s)
+            # Deterministic warmup: block until omni.usd reports zero pending
+            # assets, then pump a fixed number of renderer-settle frames.
+            # ``TeleopSession.__enter__`` already opened the MCAP, but
+            # ``ReplaySession.update`` only advances when ``advance()`` is
+            # called -- so no MCAP frames are consumed during this window.
+            _wait_for_stage_load(simulation_app, args_cli.max_stage_load_wait_s)
 
-        success_step_count = 0
-        while simulation_app.is_running():
-            try:
-                with torch.inference_mode():
-                    action = teleop_interface.advance()
-                    if action is None or not teleop_active[0]:
-                        env.sim.render()
-                        continue
-                    actions = action.repeat(env.num_envs, 1)
-                    _, _, terminated, truncated, _ = env.step(actions)
+            # Optional extra wall-clock buffer on top of the deterministic
+            # wait. Useful as an escape hatch when the deterministic check
+            # is not enough (e.g. very slow shader compilation paths).
+            if args_cli.replay_start_delay_s > 0:
+                print(
+                    f"Additional warmup buffer: rendering for {args_cli.replay_start_delay_s:.1f}s"
+                    " before consuming MCAP frames."
+                )
+                buffer_start_s = time.monotonic()
+                while simulation_app.is_running() and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s:
+                    env.sim.render()
 
-                    # Failure path: ``env.step`` already invoked ``_reset_idx``
-                    # for any env whose ``time_out`` or task-specific failure
-                    # term fired (success was extracted up front so it does
-                    # not show up here). We still need to refresh sim physics
-                    # state and the teleop device so Pink IK starts the next
-                    # attempt with fresh articulation views.
-                    if bool(terminated.any().item()) or bool(truncated.any().item()):
-                        print("Failure condition met (terminated/timed-out); resetting env.")
-                        _handle_reset(env, teleop_interface)
-                        success_step_count = 0
-                        continue
+            print(
+                f"Replay agent started; replaying MCAP from {args_cli.replay_file}"
+                f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
+            )
+            success_step_count = 0
+            replay_start_s = time.monotonic()
+            quit_requested = False
 
-                    # Success path: success_term was cleared from the env cfg
-                    # so ``env.step`` does not auto-reset on it. Mirror
-                    # record_demos.py and trigger a reset only after the
-                    # success condition has held for ``num_success_steps``
-                    # consecutive steps.
-                    success_step_count, reset_on_success = _process_success_condition(
-                        env, success_term, success_step_count, args_cli.num_success_steps
-                    )
-                    if reset_on_success:
-                        _handle_reset(env, teleop_interface)
-                        success_step_count = 0
-            except Exception:
-                # ``logger.exception`` preserves the full traceback; bare
-                # ``logger.error`` would only log the message.
-                logger.exception("Error during simulation step")
-                break
+            while simulation_app.is_running():
+                try:
+                    with torch.inference_mode():
+                        # Bound the run so CI does not hang if the MCAP has no
+                        # natural end-of-stream signal.
+                        elapsed_s = time.monotonic() - replay_start_s
+                        if not quit_requested and elapsed_s >= args_cli.max_replay_duration_s:
+                            print(
+                                f"Replay reached max_replay_duration_s={args_cli.max_replay_duration_s:.1f};"
+                                " asking Kit to quit."
+                            )
+                            _request_kit_quit()
+                            quit_requested = True
+
+                        action = teleop_interface.advance()
+
+                        if action is None:
+                            env.sim.render()
+                            continue
+
+                        actions = action.repeat(env.num_envs, 1)
+                        _, _, terminated, truncated, _ = env.step(actions)
+
+                        # Failure path: ``env.step`` already invoked ``_reset_idx``
+                        # for any env whose ``time_out`` or task-specific failure
+                        # term fired (success was extracted up front so it does
+                        # not show up here). We still need to refresh sim physics
+                        # state and the teleop device so Pink IK starts the next
+                        # attempt with fresh articulation views.
+                        if bool(terminated.any().item()) or bool(truncated.any().item()):
+                            print("Failure condition met (terminated/timed-out); resetting env.")
+                            _handle_reset(env, teleop_interface)
+                            success_step_count = 0
+                            continue
+
+                        # Success path: ``success_term`` was cleared from the
+                        # env cfg so ``env.step`` does not auto-reset on it.
+                        # Mirror record_demos.py and trigger a reset only after
+                        # the success condition has held for
+                        # ``--num_success_steps`` consecutive steps.
+                        success_step_count, reset_on_success = _process_success_condition(
+                            env, success_term, success_step_count, args_cli.num_success_steps
+                        )
+                        if reset_on_success:
+                            _handle_reset(env, teleop_interface)
+                            success_step_count = 0
+                except Exception:
+                    # ``logger.exception`` preserves the full traceback; bare
+                    # ``logger.error`` would only log the message.
+                    logger.exception("Error during simulation step")
+                    break
     finally:
         if env is not None:
             env.close()
