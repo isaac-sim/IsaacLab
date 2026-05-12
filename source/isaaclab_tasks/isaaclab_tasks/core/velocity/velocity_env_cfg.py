@@ -8,6 +8,7 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_ovphysx.sensors import ContactSensorCfg as OvPhysXContactSensorCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
@@ -67,6 +68,7 @@ class RoughPhysicsCfg(PresetCfg):
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
     physx = default
+    ovphysx = OvPhysxCfg()
 
 
 ##
