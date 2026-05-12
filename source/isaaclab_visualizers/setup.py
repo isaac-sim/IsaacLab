@@ -17,16 +17,16 @@ EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        "newton==1.2.0rc3",
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.5",
     ],
     "rerun": [
-        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        "newton==1.2.0rc3",
         "rerun-sdk>=0.29.0",
     ],
     "viser": [
-        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        "newton==1.2.0rc3",
         "viser>=1.0.16",
     ],
 }
