@@ -13,10 +13,6 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim import schemas as schemas_physx
-from isaaclab_physx.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg
-
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.sim import converters, schemas
@@ -386,6 +382,11 @@ def _spawn_from_usd_file(
 
     # define deformable body properties, or modify if deformable body API is present (PhysX only)
     if cfg.deformable_props is not None:
+        # Lazily import PhysX-specific types only when deformable bodies are used.
+        # ``isaaclab_physx`` is optional under kit-less / Newton-only installs.
+        from isaaclab_physx.sim import schemas as schemas_physx  # noqa: PLC0415
+        from isaaclab_physx.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg  # noqa: PLC0415
+
         prim = stage.GetPrimAtPath(prim_path)
         deformable_type = "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialCfg) else "volume"
         if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():

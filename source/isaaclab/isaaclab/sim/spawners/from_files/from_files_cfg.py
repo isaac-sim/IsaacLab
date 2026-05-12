@@ -5,11 +5,27 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
+# deformables only supported on the PhysX backend; ``isaaclab_physx`` is optional under
+# kit-less / Newton-only installs. Fall back to a dummy stub so this module still imports
+# when ``isaaclab_physx`` is not available.
+try:
+    from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
+except ImportError as e:
+    warnings.warn(
+        f"""Could not import DeformableObjectSpawnerCfg, is isaaclab_physx installed?
+        Safe to ignore if using newton only. Complete exception: {e}"""
+    )
+    # import dummy class to avoid errors in type hints
+    from isaaclab.utils import configclass
+
+    @configclass
+    class DeformableObjectSpawnerCfg:
+        deformable_props = None
+
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials

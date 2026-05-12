@@ -11,10 +11,6 @@ import numpy as np
 import trimesh
 import trimesh.transformations
 
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim import schemas as schemas_physx
-from isaaclab_physx.sim.spawners.materials import DeformableBodyMaterialCfg, SurfaceDeformableBodyMaterialCfg
-
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
@@ -352,6 +348,16 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    # Lazily import PhysX-specific types only when deformable bodies are used. Deformable
+    # bodies are only supported on the PhysX backend and ``isaaclab_physx`` is optional
+    # under kit-less / Newton-only installs.
+    if cfg.deformable_props is not None:
+        from isaaclab_physx.sim import schemas as schemas_physx  # noqa: PLC0415
+        from isaaclab_physx.sim.spawners.materials import (  # noqa: PLC0415
+            DeformableBodyMaterialCfg,
+            SurfaceDeformableBodyMaterialCfg,
+        )
+
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
