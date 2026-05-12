@@ -347,11 +347,12 @@ class ContactSensor(BaseContactSensor):
         shape_labels = self._get_model_labels("shape")
 
         def get_name(idx, kind):
-            kind_name = getattr(kind, "name", None)
-            kind_value = getattr(kind, "value", kind)
-            if kind_name == "BODY" or kind_value == 2:
+            # Handle both legacy enum ObjectType and new scalar Literal["body", "shape"] from Newton >= 1.2
+            kind_str = kind if isinstance(kind, str) else getattr(kind, "name", None)
+            kind_value = getattr(kind, "value", kind) if not isinstance(kind, str) else kind
+            if kind_str in ("body", "BODY") or kind_value == 2:
                 return body_labels[int(idx)].split("/")[-1]
-            if kind_name == "SHAPE" or kind_value == 1:
+            if kind_str in ("shape", "SHAPE") or kind_value == 1:
                 return shape_labels[int(idx)].split("/")[-1]
             return "MATCH_ANY"
 
@@ -367,21 +368,27 @@ class ContactSensor(BaseContactSensor):
                 ]
             return flat_values
 
-        flat_sensing = list(
-            zip(
-                flatten_metadata(self.contact_view.sensing_obj_idx),
-                flatten_metadata(self.contact_view.sensing_obj_type),
-            )
-        )
+        sensing_indices = flatten_metadata(self.contact_view.sensing_obj_idx)
+        sensing_type = self.contact_view.sensing_obj_type
+        # Newton >= 1.2: sensing_obj_type is a scalar Literal["body", "shape"];
+        # broadcast it to match the length of sensing_obj_idx.
+        if isinstance(sensing_type, str):
+            flat_sensing = [(idx, sensing_type) for idx in sensing_indices]
+        else:
+            flat_sensing = list(zip(sensing_indices, flatten_metadata(sensing_type)))
         self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
-        flat_counterparts = list(
-            zip(
-                flatten_metadata(self.contact_view.counterpart_indices),
-                flatten_metadata(self.contact_view.counterpart_type),
-            )
-        )
+        counterpart_indices_flat = flatten_metadata(self.contact_view.counterpart_indices)
+        counterpart_type = self.contact_view.counterpart_type
+        # Newton >= 1.2: counterpart_type is a scalar Literal["body", "shape"] | None;
+        # broadcast it to match the length of counterpart_indices.
+        if counterpart_type is None:
+            flat_counterparts = []
+        elif isinstance(counterpart_type, str):
+            flat_counterparts = [(idx, counterpart_type) for idx in counterpart_indices_flat]
+        else:
+            flat_counterparts = list(zip(counterpart_indices_flat, flatten_metadata(counterpart_type)))
         self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
 
         force_matrix = self.contact_view.force_matrix
