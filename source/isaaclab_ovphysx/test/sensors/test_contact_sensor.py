@@ -460,6 +460,70 @@ def test_no_contact_reporting():
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 3])
+@pytest.mark.isaacsim_ci
+def test_multi_body_per_sensor_indexing(device, num_envs):
+    """Ground-truth body-index check for a single sensor that resolves to two bodies.
+
+    OVPhysX :class:`ContactBinding` returns sensors in **pattern-major** order
+    (``[env_0/body_0, env_1/body_0, …, env_0/body_1, env_1/body_1, …]``),
+    whereas the inherited PhysX kernel formula assumes env-major
+    (``[env_0/body_0, env_0/body_1, …, env_1/body_0, …]``).  Single-body
+    sensors don't disambiguate the two layouts, so this test exercises the
+    multi-body discovery path with one cube on the ground and one floating
+    above it.  After the scene settles, only the bottom cube should report a
+    non-zero net force.  An env-major bug would attribute that force to the
+    wrong (env, body) slot — caught here.
+    """
+    with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
+        scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        # -- Cube_low: on the ground, will report contact forces
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_low")
+        scene_cfg.shape.init_state.pos = (0.0, 0.0, 0.25)
+        # -- Cube_high: floating well above the ground, should remain in air
+        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_high")
+        scene_cfg.shape_2.init_state.pos = (0.0, 1.5, 3.0)
+        # Single ContactSensor that matches BOTH cubes via a regex glob.
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube_.*",
+            track_pose=False,
+            debug_vis=False,
+            update_period=0.0,
+            filter_prim_paths_expr=[],
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        contact_sensor: ContactSensor = scene["contact_sensor"]
+
+        # Sanity: the sensor discovered exactly two bodies, one per cube.
+        assert contact_sensor.body_names is not None
+        assert sorted(contact_sensor.body_names) == ["Cube_high", "Cube_low"]
+        low_idx = contact_sensor.body_names.index("Cube_low")
+        high_idx = contact_sensor.body_names.index("Cube_high")
+
+        # Let physics settle and accumulate stable contacts on Cube_low.
+        scene.reset()
+        for _ in range(200):
+            _perform_sim_step(sim, scene, _SIM_DT)
+
+        # Net force readout: shape (num_envs, num_sensors=2, 3) after .torch.
+        net_forces = contact_sensor.data.net_forces_w.torch
+        assert net_forces.shape == (num_envs, 2, 3)
+        low_force_mag = net_forces[:, low_idx, :].abs().sum().item()
+        high_force_mag = net_forces[:, high_idx, :].abs().sum().item()
+        # Cube_low rests on the ground: non-zero contact force per env.
+        assert low_force_mag > 0.0, "Cube_low (on ground) should report contact force"
+        # Cube_high floats: net force is zero (no contact).
+        assert high_force_mag == 0.0, (
+            f"Cube_high (in air) should report zero contact force, got sum-abs={high_force_mag:.6f}."
+            " A non-zero value here usually means body indices are scrambled —"
+            " e.g. a Cube_low contact was attributed to Cube_high because the kernel"
+            " assumed env-major instead of pattern-major flat-buffer layout."
+        )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
 def test_sensor_print(device):
     """Test sensor print is working correctly."""
