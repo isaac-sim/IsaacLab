@@ -131,6 +131,7 @@ The following modules are available in the ``isaaclab_physx`` extension:
    sensors
    sim.schemas
    sim.spawners
+   sim.views
 
 .. toctree::
    :hidden:
@@ -142,6 +143,7 @@ The following modules are available in the ``isaaclab_physx`` extension:
    lab_physx/isaaclab_physx.sensors
    lab_physx/isaaclab_physx.sim.schemas
    lab_physx/isaaclab_physx.sim.spawners
+   lab_physx/isaaclab_physx.sim.views
 
 isaaclab_newton extension
 -------------------------
