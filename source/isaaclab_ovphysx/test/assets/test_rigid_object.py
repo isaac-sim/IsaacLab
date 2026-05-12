@@ -31,14 +31,20 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_ovphysx.assets import RigidObject
-from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import (
+# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
+# but the ovphysx wheel is not installed in that environment. Skip gracefully
+# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
+from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
+from isaaclab.utils.math import (  # noqa: E402
     combine_frame_transforms,
     default_orientation,
     quat_apply_inverse,
