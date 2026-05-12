@@ -198,22 +198,25 @@ def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
 # ---------------------------------------------------------------------------
 
 
-def test_peek_task_finds_equals_form():
+def test_peek_task_finds_equals_form(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0"])
     from isaaclab_tasks.utils.preset_cli import _peek_task
 
-    assert _peek_task(["train.py", "--task=Foo-v0"]) == "Foo-v0"
+    assert _peek_task() == "Foo-v0"
 
 
-def test_peek_task_finds_separated_form():
+def test_peek_task_finds_separated_form(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Foo-v0"])
     from isaaclab_tasks.utils.preset_cli import _peek_task
 
-    assert _peek_task(["train.py", "--task", "Foo-v0"]) == "Foo-v0"
+    assert _peek_task() == "Foo-v0"
 
 
-def test_peek_task_missing_returns_none():
+def test_peek_task_missing_returns_none(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["train.py", "--physics", "newton_mjwarp"])
     from isaaclab_tasks.utils.preset_cli import _peek_task
 
-    assert _peek_task(["train.py", "--physics", "newton_mjwarp"]) is None
+    assert _peek_task() is None
 
 
 def test_bucket_variants_buckets_by_registered_target():
@@ -331,15 +334,18 @@ def test_hydra_argv_keeps_presets_token_for_telemetry(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_peek_task_returns_last_value():
+def test_peek_task_returns_last_value(monkeypatch):
     """argparse's ``store`` action uses the last ``--task``; ``_peek_task``
     must match so ``--help`` shows variants for the task argparse will actually
     use."""
     from isaaclab_tasks.utils.preset_cli import _peek_task
 
-    assert _peek_task(["train.py", "--task=Old", "--task=New"]) == "New"
-    assert _peek_task(["train.py", "--task", "Old", "--task", "New"]) == "New"
-    assert _peek_task(["train.py", "--task=Old", "--task", "New"]) == "New"
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Old", "--task=New"])
+    assert _peek_task() == "New"
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Old", "--task", "New"])
+    assert _peek_task() == "New"
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Old", "--task", "New"])
+    assert _peek_task() == "New"
 
 
 # ---------------------------------------------------------------------------

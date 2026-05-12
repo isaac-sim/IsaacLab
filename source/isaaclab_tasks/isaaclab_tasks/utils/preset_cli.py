@@ -107,8 +107,8 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
     # so help text that depends on the task has to find it ahead of parser run.
     # Skip the env_cfg load when --help isn't requested -- normal training runs
     # don't need the variant enumeration and hydra walks the cfg later anyway.
-    task_name = _peek_task(sys.argv)
-    actual_variants = _enumerate_variants(task_name) if (task_name and _help_requested(sys.argv)) else None
+    task_name = _peek_task()
+    actual_variants = _enumerate_variants(task_name) if (task_name and _help_requested()) else None
 
     group = parser.add_argument_group(
         "preset selection",
@@ -210,8 +210,8 @@ def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str
     return f"{label}. Available: {', '.join(available)}."
 
 
-def _peek_task(argv: list[str]) -> str | None:
-    """Find ``--task=X`` or ``--task X`` in *argv* without invoking argparse.
+def _peek_task() -> str | None:
+    """Find ``--task=X`` or ``--task X`` in ``sys.argv`` without invoking argparse.
 
     argparse's ``--help`` short-circuits parsing, so help text that depends
     on the task must locate it before any parser ever runs. Returns the
@@ -222,26 +222,23 @@ def _peek_task(argv: list[str]) -> str | None:
     ``load_cfg_from_registry`` call will raise the natural "task not
     registered" error, which is the right user-facing signal.
 
-    Args:
-        argv: Argument list to scan; typically ``sys.argv``.
-
     Returns:
         The task value if present, otherwise ``None``.
     """
     last_task: str | None = None
-    # Skip the script name at argv[0].
-    for i in range(1, len(argv)):
-        token = argv[i]
-        if token == "--task" and i + 1 < len(argv):
-            last_task = argv[i + 1]
+    # Skip the script name at sys.argv[0].
+    for i in range(1, len(sys.argv)):
+        token = sys.argv[i]
+        if token == "--task" and i + 1 < len(sys.argv):
+            last_task = sys.argv[i + 1]
         elif token.startswith("--task="):
             last_task = token[len("--task=") :]
     return last_task
 
 
-def _help_requested(argv: list[str]) -> bool:
-    """Return True if ``--help`` or ``-h`` appears in *argv* (excluding argv[0])."""
-    return any(token in ("--help", "-h") for token in argv[1:])
+def _help_requested() -> bool:
+    """Return True if ``--help`` or ``-h`` appears in ``sys.argv`` (excluding ``sys.argv[0]``)."""
+    return any(token in ("--help", "-h") for token in sys.argv[1:])
 
 
 def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
