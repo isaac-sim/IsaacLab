@@ -18,6 +18,7 @@ import warp as wp
 # Quaternion multiplication (xyzw format)
 # Note: We can't use warp functions since warp quaternion is wxyz format
 
+
 @wp.func
 def quat_mul_xyzw(q1: wp.quatf, q2: wp.quatf) -> wp.quatf:
     """Hamilton product of two unit quaternions in (x, y, z, w) format.
