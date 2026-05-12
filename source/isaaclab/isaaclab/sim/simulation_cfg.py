@@ -11,12 +11,28 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+from dataclasses import field
 from typing import Any, Literal  # Literal used by RenderCfg
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
+
+
+def _default_physics_material() -> RigidBodyMaterialBaseCfg:
+    """Construct the default rigid-body physics material for :class:`SimulationCfg`.
+
+    Prefers the PhysX-flavored :class:`~isaaclab_physx.sim.spawners.materials.RigidBodyMaterialCfg`
+    when ``isaaclab_physx`` is installed, falling back to the solver-common
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` on kit-less /
+    Newton-only installs that deliberately omit ``isaaclab_physx``.
+    """
+    try:
+        from isaaclab_physx.sim.spawners.materials import RigidBodyMaterialCfg  # noqa: PLC0415
+    except ImportError:
+        return RigidBodyMaterialBaseCfg()
+    return RigidBodyMaterialCfg()
 
 
 @configclass
@@ -193,13 +209,18 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg.
+    physics_material: RigidBodyMaterialBaseCfg = field(default_factory=_default_physics_material)
+    """Default physics material settings for rigid bodies.
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
     physics material specified on them.
 
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
+
+    Defaults to :class:`~isaaclab_physx.sim.spawners.materials.RigidBodyMaterialCfg` when
+    ``isaaclab_physx`` is installed, and to the solver-common
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` on kit-less /
+    Newton-only installs.
     """
 
     use_fabric: bool = True
