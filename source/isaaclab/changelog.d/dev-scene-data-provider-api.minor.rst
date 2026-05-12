@@ -28,7 +28,7 @@ Removed
   ``isaaclab.physics.SceneDataProvider`` (the legacy factory),
   ``SimulationContext.initialize_scene_data_provider()``, and
   ``SimulationContext.update_scene_data_provider()``. Use
-  :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_new_scene_data_provider`
+  :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_scene_data_provider`
   to obtain the new provider; consumers that previously called
   ``get_newton_model()`` / ``get_newton_state()`` should call
   ``NewtonManager.get_model()`` / ``NewtonManager.get_state()`` instead.
