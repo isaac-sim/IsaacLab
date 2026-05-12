@@ -1535,7 +1535,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
         # Case 3: velocity limit sim is not set but velocity limit is set
         #   For backwards compatibility, we do not set velocity limit to simulation
         #   Thus, both default to USD default value.
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
         # Case 4: only velocity limit sim is set
         #   In this case, the velocity limit is set to the USD value
@@ -1594,7 +1594,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     if vel_limit_sim is not None:
         limit = vel_limit_sim
     else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     # check physx is set to expected value
     expected_vel_limit = torch.full_like(physx_vel_limit, limit)
     torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
@@ -1642,7 +1642,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 
     # decide the limit based on what is set
     if effort_limit_sim is None and effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_effort
+        limit = articulation_cfg.spawn.joint_drive_props.max_force
     elif effort_limit_sim is not None and effort_limit is None:
         limit = effort_limit_sim
     elif effort_limit_sim is None and effort_limit is not None:
