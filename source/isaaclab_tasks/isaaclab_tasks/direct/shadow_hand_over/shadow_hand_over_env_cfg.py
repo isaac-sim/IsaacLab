@@ -20,7 +20,7 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
@@ -131,12 +131,19 @@ class EventCfg:
 _SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
 
 
-def _newton_shadow_hand_cfg(
-    prim_path: str, init_pos: tuple[float, float, float], init_rot: tuple[float, float, float, float]
-) -> ArticulationCfg:
-    """Newton Shadow Hand cfg parameterized by per-robot ``prim_path`` and init pose.
+def _shadow_hand_cfg(
+    prim_path: str,
+    init_pos: tuple[float, float, float],
+    init_rot: tuple[float, float, float, float],
+) -> PresetCfg:
+    """Per-hand Shadow Hand preset (PhysX and Newton MJWarp variants).
 
-    Two overrides versus the single-agent Newton port:
+    Both variants are placed at *prim_path* with the same init pose; per-hand
+    differences (right vs left) come from the caller's *prim_path* / *init_pos* /
+    *init_rot* — the gain tuning is identical on both hands.
+
+    The Newton variant layers two :class:`~isaaclab.actuators.ImplicitActuatorCfg`
+    overrides on top of the single-agent Newton port:
 
     * ``fingers`` actuator: ``stiffness=20.0`` / ``damping=2.0`` (vs PhysX's
       ``5.0`` / ``0.5`` on wrists and ``1.0`` / ``0.1`` on fingers). PhysX layers
@@ -147,14 +154,17 @@ def _newton_shadow_hand_cfg(
       authority. ``20.0`` / ``2.0`` is the smallest tested setting at which
       MAPPO learns the catch (mean reward at iter 200 / 2048 envs goes from
       ~27 at PhysX-mirrored gains to ~777).
-    * ``distal_passive`` actuator on the four ``robot0_(FF|MF|RF|LF)J0`` joints
-      with ``stiffness=10.0`` / ``damping=0.1``. The Newton USD bakes
+    * ``distal_passive`` on the four ``robot0_(FF|MF|RF|LF)J0`` joints with
+      ``stiffness=10.0`` / ``damping=0.1``. The Newton USD bakes
       ``stiffness=286 / damping=57`` on these joints from the MJCF→USD
       translation, which fights the ``MjcTendon`` coupling and bounces the
-      ball. ``stiffness=10`` (1/3 of PhysX ``limit_stiffness=30``) keeps the
-      joints near-passive while the tendon constraint dominates.
+      ball. ``stiffness=10`` (~1/3 of PhysX's ``limit_stiffness=30``) keeps
+      the joints near-passive while the tendon constraint dominates.
     """
-    return _SHADOW_HAND_NEWTON_CFG.replace(
+    physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
+        init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
+    )
+    newton_cfg = _SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=init_rot),
         actuators={
@@ -168,40 +178,7 @@ def _newton_shadow_hand_cfg(
             ),
         },
     )
-
-
-@configclass
-class RightRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/RightRobot").replace(
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        )
-    )
-    newton_mjwarp = _newton_shadow_hand_cfg(
-        prim_path="/World/envs/env_.*/RightRobot",
-        init_pos=(0.0, 0.0, 0.5),
-        init_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-    default = physx
-
-
-@configclass
-class LeftRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/LeftRobot").replace(
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, -1.0, 0.5),
-            rot=(0.0, 0.0, 1.0, 0.0),
-            joint_pos={".*": 0.0},
-        )
-    )
-    newton_mjwarp = _newton_shadow_hand_cfg(
-        prim_path="/World/envs/env_.*/LeftRobot",
-        init_pos=(0.0, -1.0, 0.5),
-        init_rot=(0.0, 0.0, 1.0, 0.0),
-    )
-    default = physx
+    return preset(default=physx_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg)
 
 
 @configclass
@@ -256,23 +233,6 @@ class ObjectCfg(PresetCfg):
 
 
 @configclass
-class ShadowHandOverSceneCfg(PresetCfg):
-    """Scene preset.
-
-    PhysX supports ``clone_in_fabric=True`` for faster cloning. Newton's
-    cloning path does not, so the Newton variant disables Fabric cloning.
-    """
-
-    physx: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=2048, env_spacing=1.5, replicate_physics=True, clone_in_fabric=True
-    )
-    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=2048, env_spacing=1.5, replicate_physics=True, clone_in_fabric=False
-    )
-    default: InteractiveSceneCfg = physx
-
-
-@configclass
 class PhysicsCfg(PresetCfg):
     """Physics-backend preset (PhysX vs Newton/MJWarp).
 
@@ -296,7 +256,7 @@ class PhysicsCfg(PresetCfg):
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
-            iterations=100,
+            ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
         ),
         num_substeps=2,
         debug_mode=False,
@@ -325,8 +285,16 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
         physics=PhysicsCfg(),
     )
     # robot
-    right_robot_cfg: RightRobotCfg = RightRobotCfg()
-    left_robot_cfg: LeftRobotCfg = LeftRobotCfg()
+    right_robot_cfg: PresetCfg = _shadow_hand_cfg(
+        prim_path="/World/envs/env_.*/RightRobot",
+        init_pos=(0.0, 0.0, 0.5),
+        init_rot=(0.0, 0.0, 0.0, 1.0),
+    )
+    left_robot_cfg: PresetCfg = _shadow_hand_cfg(
+        prim_path="/World/envs/env_.*/LeftRobot",
+        init_pos=(0.0, -1.0, 0.5),
+        init_rot=(0.0, 0.0, 1.0, 0.0),
+    )
     actuated_joint_names = [
         "robot0_WRJ1",
         "robot0_WRJ0",
@@ -369,8 +337,8 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
             ),
         },
     )
-    # scene - use ShadowHandOverSceneCfg so that --preset newton disables clone_in_fabric automatically
-    scene: ShadowHandOverSceneCfg = ShadowHandOverSceneCfg()
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
