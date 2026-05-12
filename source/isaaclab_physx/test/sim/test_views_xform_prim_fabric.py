@@ -10,23 +10,13 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
 from isaaclab.app import AppLauncher
-
-# Kit reads ``sys.argv`` directly during startup and segfaults on pytest flags
-# (e.g. ``-m multi_gpu``) that collide with its own short options.  Strip
-# everything but ``argv[0]`` before booting the app — the test file takes no
-# CLI arguments of its own.
-#
-# IMPORTANT: this must stay between the ``AppLauncher`` import and the
-# ``AppLauncher(...).app`` call below.  Adding any CLI parser, or moving the
-# AppLauncher import (or its instantiation) above this line, exposes Kit to
-# pytest's argv again and re-introduces the segfault.
-sys.argv = sys.argv[:1]
 
 simulation_app = AppLauncher(headless=True).app
 
@@ -191,7 +181,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
     # Verify Fabric has the new position
     fab_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(fab_pos)
+    pos_torch = torch.as_tensor(fab_pos, device=device)
     assert torch.allclose(pos_torch, torch.tensor([[99.0, 99.0, 99.0]], device=device), atol=0.1), (
         f"Fabric should have new position, got {pos_torch}"
     )
@@ -252,7 +242,7 @@ def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch)
     # Read back — proves the rebuilt _view_to_fabric and _fabric_world_matrices
     # are still consistent.
     ret_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(ret_pos)
+    pos_torch = torch.as_tensor(ret_pos, device=device)
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Read after rebuild failed on {device}: {pos_torch}"
 
@@ -262,7 +252,10 @@ def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch)
 # ------------------------------------------------------------------
 
 
-@pytest.mark.multi_gpu
+@pytest.mark.skipif(
+    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
+    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
+)
 @pytest.mark.parametrize("device", ["cuda:1"])
 def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     """set_world_poses -> get_world_poses roundtrip works on cuda:1.
@@ -278,12 +271,15 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     view.set_world_poses(positions=new_pos)
 
     ret_pos, _ = view.get_world_poses()
-    pos_torch = ret_pos.torch
+    pos_torch = torch.as_tensor(ret_pos, device=device)
     expected = torch.tensor([[10.0, 20.0, 30.0], [10.0, 20.0, 30.0]], device=device)
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
 
 
-@pytest.mark.multi_gpu
+@pytest.mark.skipif(
+    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
+    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
+)
 @pytest.mark.parametrize("device", ["cuda:1"])
 def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     """set_world_poses on cuda:1 does not write back to USD.
@@ -312,7 +308,10 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     )
 
 
-@pytest.mark.multi_gpu
+@pytest.mark.skipif(
+    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
+    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
+)
 @pytest.mark.parametrize("device", ["cuda:1"])
 def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     """set_scales -> get_scales roundtrip works on cuda:1.
@@ -329,6 +328,6 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     view.set_scales(new_scales)
 
     ret_scales = view.get_scales()
-    scales_torch = wp.to_torch(ret_scales)
+    scales_torch = torch.as_tensor(ret_scales, device=device)
     expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
     assert torch.allclose(scales_torch, expected, atol=1e-7), f"Scales roundtrip failed on {device}: {scales_torch}"

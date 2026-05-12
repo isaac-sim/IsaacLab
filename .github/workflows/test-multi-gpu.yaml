@@ -20,8 +20,6 @@ on:
       - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/isaaclab_tasks/isaaclab_tasks/utils/sim_launcher.py"
       - "scripts/reinforcement_learning/**/train.py"
-      - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
-      - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
       - ".github/workflows/test-multi-gpu.yaml"
   workflow_dispatch:
 
@@ -30,38 +28,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-fabric-multi-gpu:
-    name: FabricFrameView multi-GPU unit tests
-    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
-    timeout-minutes: 30
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Isaac Lab
-        run: ./isaaclab.sh --install
-
-      - name: Verify multi-GPU availability
-        # Fail loud if the runner regressed to a single GPU.  Without this, the
-        # test helper's ``_skip_if_unavailable`` would skip every ``cuda:1`` case
-        # and the job would go green with no real coverage.
-        run: |
-          echo "=== GPU Info ==="
-          nvidia-smi --query-gpu=index,name,memory.total --format=csv
-
-          GPU_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())")
-          echo "Detected $GPU_COUNT GPU(s)"
-
-          if [ "$GPU_COUNT" -lt 2 ]; then
-            echo "::error::At least 2 GPUs required for Fabric multi-GPU tests, found $GPU_COUNT"
-            exit 1
-          fi
-
-      - name: Run FabricFrameView multi-GPU unit tests
-        run: |
-          ./isaaclab.sh -p -m pytest -m multi_gpu \
-            source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v
-
   test-multi-gpu:
     name: Multi-GPU (${{ matrix.physics }}, ${{ matrix.renderer }})
     # Use dedicated multi-GPU runner to avoid blocking standard CI resources

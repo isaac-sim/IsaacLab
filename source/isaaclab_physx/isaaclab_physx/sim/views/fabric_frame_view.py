@@ -23,12 +23,6 @@ from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 
-# TODO: extend this to ``cuda:N`` once we wire up multi-GPU support for the view.
-# Recent Kit / USDRT releases do support multi-GPU ``SelectPrims``, but the
-# rest of the FabricFrameView wiring (selections, indexed arrays, etc.) still
-# assumes a single device — to be tackled in a follow-up.
-# Fabric acceleration is supported on any CUDA device (cuda:0, cuda:1, etc.) and CPU.
-
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
     """Ensure array is compatible with Fabric kernels (2-D float32).
@@ -96,6 +90,9 @@ class FabricFrameView(BaseFrameView):
 
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
+        # TODO(pv): Misleading abstraction — FabricFrameView can fall back to USD internally;
+        # the concrete class should be determined by the factory instead. (PR #5673 pv/fabric-view-no-fallback)
+        # TODO(pv): Fuse set_world_poses/set_scales into single kernel launch (PR #5674 pv/fabric-fused-compose)
 
         self._fabric_initialized = False
         self._fabric_usd_sync_done = False
@@ -399,8 +396,6 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.arange_k, dim=self.count, inputs=[self._default_view_indices], device=self._device
         )
         wp.synchronize()
-
-        # Fabric acceleration is supported on any device; no allowlist check needed.
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[

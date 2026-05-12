@@ -194,7 +194,6 @@ ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty"
 
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
-    "multi_gpu: tests that require 2+ GPUs; skipped automatically on single-GPU machines",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
