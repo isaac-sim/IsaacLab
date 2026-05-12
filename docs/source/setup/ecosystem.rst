@@ -157,7 +157,7 @@ to Isaac Lab, please reach out to us.
 .. _DoorGym: https://github.com/PSVL/DoorGym/
 .. _ManiSkill: https://github.com/haosulab/ManiSkill
 .. _ThreeDWorld: https://www.threedworld.org/
-.. _RoboSuite: https://robosuite.ai/
+.. _RoboSuite: https://robosuite.ai/docs/overview.html
 .. _MuJoCo: https://mujoco.org/
 .. _MuJoCo Playground: https://playground.mujoco.org/
 .. _MJX: https://mujoco.readthedocs.io/en/stable/mjx.html
