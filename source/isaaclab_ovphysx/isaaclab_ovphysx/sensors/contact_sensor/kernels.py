@@ -192,6 +192,7 @@ def update_net_forces_kernel(
     net_forces_flat: wp.array(dtype=wp.vec3f),
     net_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
     mask: wp.array(dtype=wp.bool),
+    num_envs: int,
     num_sensors: int,
     num_filter_shapes: int,
     history_length: int,
@@ -212,10 +213,17 @@ def update_net_forces_kernel(
 
     Launch with dim=(num_envs, num_sensors).
 
+    The OVPhysX :class:`ContactBinding` returns sensors in **pattern-major**
+    order — the flat buffer index for ``(env, sensor)`` is
+    ``sensor * num_envs + env``, not the PhysX env-major
+    ``env * num_sensors + sensor``.  We pass ``num_envs`` so the kernel can
+    compute the right index.
+
     Args:
-        net_forces_flat: Flat net forces. Shape is (num_envs*num_sensors,).
-        net_forces_matrix_flat: Flat force matrix. Shape is (num_envs*num_sensors, num_filter_shapes).
+        net_forces_flat: Flat net forces. Shape is (num_sensors*num_envs,) in pattern-major order.
+        net_forces_matrix_flat: Flat force matrix. Shape is (num_sensors*num_envs, num_filter_shapes).
         mask: Mask array. Shape is (num_envs,).
+        num_envs: Number of environments.
         num_sensors: Number of sensors per environment.
         num_filter_shapes: Number of filter shapes.
         history_length: Length of history.
@@ -238,7 +246,7 @@ def update_net_forces_kernel(
         if not mask[env]:
             return
 
-    src_idx = env * num_sensors + sensor
+    src_idx = sensor * num_envs + env
 
     # Update net forces
     net_forces_w[env, sensor] = net_forces_flat[src_idx]

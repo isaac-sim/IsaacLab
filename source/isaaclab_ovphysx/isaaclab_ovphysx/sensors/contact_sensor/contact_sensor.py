@@ -336,6 +336,7 @@ class ContactSensor(BaseContactSensor):
                 net_forces_flat,
                 force_matrix_flat,
                 env_mask,
+                self._num_envs,
                 self._num_sensors,
                 self._num_filter_shapes,
                 self._history_length,
