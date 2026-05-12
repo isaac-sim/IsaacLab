@@ -200,16 +200,55 @@ def test_custom_task_preset_via_typed_flag_passes_through(stub_app_launcher, mon
 
 
 # ---------------------------------------------------------------------------
-# --help: typed-flag help mentions registered canonicals as a hint
+# Helpers: _peek_task and _bucket_variants_by_target
 # ---------------------------------------------------------------------------
 
 
-def test_help_lists_registered_canonicals_as_hint(stub_app_launcher, monkeypatch, capsys):
-    """``--help`` lists registered canonical names in the typed-flag help text.
+def test_peek_task_finds_equals_form():
+    from isaaclab_tasks.utils.preset_cli import _peek_task
 
-    The hint is purely advisory: the wording says "other names are accepted",
-    so users know they can pass custom task-local presets too.
-    """
+    assert _peek_task(["train.py", "--task=Foo-v0"]) == "Foo-v0"
+
+
+def test_peek_task_finds_separated_form():
+    from isaaclab_tasks.utils.preset_cli import _peek_task
+
+    assert _peek_task(["train.py", "--task", "Foo-v0"]) == "Foo-v0"
+
+
+def test_peek_task_missing_returns_none():
+    from isaaclab_tasks.utils.preset_cli import _peek_task
+
+    assert _peek_task(["train.py", "--physics", "newton_mjwarp"]) is None
+
+
+def test_bucket_variants_buckets_by_registered_target():
+    from isaaclab.utils.preset_registry import PresetTarget
+
+    from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
+
+    walked = {
+        "physics": {"default": None, "physx": None, "newton_mjwarp": None},
+        "renderer": {"default": None, "newton_renderer": None},
+        "weight": {"default": None, "light": None, "heavy": None},  # custom names, not registered
+    }
+    result = _bucket_variants_by_target(walked)
+    assert {"physx", "newton_mjwarp"} <= result[PresetTarget.PHYSICS]
+    assert "newton_renderer" in result[PresetTarget.RENDERER]
+    # Custom names with no registry entry fall into DOMAIN.
+    assert {"light", "heavy"} <= result[PresetTarget.DOMAIN]
+    # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
+    for bucket in result.values():
+        assert "default" not in bucket
+
+
+# ---------------------------------------------------------------------------
+# --help: task-aware variant listing
+# ---------------------------------------------------------------------------
+
+
+def test_help_without_task_says_pass_task(stub_app_launcher, monkeypatch, capsys):
+    """``--help`` without ``--task`` tells the user to pass ``--task=X``."""
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
     from isaaclab_tasks.utils.preset_cli import setup_cli
 
@@ -218,9 +257,59 @@ def test_help_lists_registered_canonicals_as_hint(stub_app_launcher, monkeypatch
     with pytest.raises(SystemExit):
         setup_cli(parser)
     out = capsys.readouterr().out
-    # Registered canonicals appear in the help output.
+    assert "Pass `--task=X`" in out
+
+
+def test_help_with_task_shows_actual_variants(stub_app_launcher, monkeypatch, capsys):
+    """``--task=X --help`` shows variants from X's env_cfg, bucketed by target.
+
+    Typed flags (``--physics``) list only registered names of that target.
+    The DOMAIN catch-all (``--presets``) lists every variant in the task.
+    """
+    from isaaclab.utils import configclass
+
+    from isaaclab_tasks.utils.hydra import preset
+
+    @configclass
+    class _FakeCfg:
+        physics: object = preset(default=None, physx="px", newton_mjwarp="nmj")
+        weight: object = preset(default=1.0, light=0.5, heavy=2.0)
+
+    import isaaclab_tasks.utils.parse_cfg as parse_cfg
+
+    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", lambda *_a, **_kw: _FakeCfg())
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Fake-v0", "--help"])
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    parser = argparse.ArgumentParser(prog="train.py")
+    parser.add_argument("--task", type=str, default=None)
+    with pytest.raises(SystemExit):
+        setup_cli(parser)
+    out = capsys.readouterr().out
+
+    # Registered physics names actually in this cfg appear in --physics help.
     assert "physx" in out
     assert "newton_mjwarp" in out
-    assert "newton_renderer" in out
-    # The wording makes clear other names are accepted too.
-    assert "Other names are accepted" in out
+    # Custom names appear in the DOMAIN catch-all (--presets) help.
+    assert "light" in out
+    assert "heavy" in out
+
+
+def test_help_reports_env_cfg_load_failure(stub_app_launcher, monkeypatch, capsys):
+    """If env_cfg load raises, ``--help`` still prints, with the error shown in help text."""
+    import isaaclab_tasks.utils.parse_cfg as parse_cfg
+
+    def _boom(*_a, **_kw):
+        raise RuntimeError("simulated import error")
+
+    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", _boom)
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Bad-Task", "--help"])
+    from isaaclab_tasks.utils.preset_cli import setup_cli
+
+    parser = argparse.ArgumentParser(prog="train.py")
+    parser.add_argument("--task", type=str, default=None)
+    with pytest.raises(SystemExit):
+        setup_cli(parser)
+    out = capsys.readouterr().out
+    assert "failed to load env_cfg" in out
+    assert "Bad-Task" in out
