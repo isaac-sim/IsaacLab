@@ -32,8 +32,7 @@ import omni.usd
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene.scene_data_provider import SceneDataBackend, SceneDataFormat
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:

@@ -8,7 +8,10 @@ __all__ = [
     "PhysicsEvent",
     "PhysicsManager",
     "PhysicsCfg",
+    "SceneDataBackend",
+    "SceneDataFormat",
 ]
 
 from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
 from .physics_manager_cfg import PhysicsCfg
+from .scene_data_backend import SceneDataBackend, SceneDataFormat
