@@ -472,29 +472,18 @@ def set_root_link_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
 ):
     """Write root link pose data to simulation buffers.
 
-    This kernel writes root link poses from the input array to the output buffers
-    and optionally updates the corresponding state vectors.
+    This kernel writes root link poses from the input array to the output buffer.
 
     Args:
         data: Input array of root link poses. Shape is (num_selected_envs,).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
-        root_link_state_w: Output array where root link states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     root_link_pose_w[env_ids[i]] = data[i]
-    if root_link_state_w:
-        root_link_state_w[env_ids[i]] = set_state_transforms_func(root_link_state_w[env_ids[i]], data[i])
-    if root_state_w:
-        root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], data[i])
 
 
 @wp.kernel
@@ -502,30 +491,19 @@ def set_root_link_pose_to_sim_mask(
     data: wp.array(dtype=wp.transformf),
     env_mask: wp.array(dtype=wp.bool),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
 ):
     """Write root link pose data to simulation buffers.
 
-    This kernel writes root link poses from the input array to the output buffers
-    and optionally updates the corresponding state vectors.
+    This kernel writes root link poses from the input array to the output buffer.
 
     Args:
         data: Input array of root link poses. Shape is (num_instances,).
         env_mask: Input array of environment mask. Shape is (num_instances,).
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
-        root_link_state_w: Output array where root link states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     if env_mask[i]:
         root_link_pose_w[i] = data[i]
-        if root_link_state_w:
-            root_link_state_w[i] = set_state_transforms_func(root_link_state_w[i], data[i])
-        if root_state_w:
-            root_state_w[i] = set_state_transforms_func(root_state_w[i], data[i])
 
 
 @wp.kernel
@@ -535,15 +513,11 @@ def set_root_com_pose_to_sim_index(
     env_ids: wp.array(dtype=wp.int32),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_com_state_w: wp.array(dtype=vec13f),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
 ):
     """Write root COM pose data to simulation buffers.
 
-    This kernel writes root COM poses from the input array to the output buffers,
-    computes the corresponding link pose from the COM pose, and optionally updates
-    the corresponding state vectors.
+    This kernel writes root COM poses from the input array to the output buffers
+    and computes the corresponding link pose from the COM pose.
 
     Args:
         data: Input array of root COM poses. Shape is (num_selected_envs,).
@@ -553,27 +527,13 @@ def set_root_com_pose_to_sim_index(
         root_com_pose_w: Output array where root COM poses are written. Shape is (num_envs,).
         root_link_pose_w: Output array where root link poses (derived from COM) are written.
             Shape is (num_envs,).
-        root_com_state_w: Output array where root COM states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_link_state_w: Output array where root link states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     root_com_pose_w[env_ids[i]] = data[i]
-    if root_com_state_w:
-        root_com_state_w[env_ids[i]] = set_state_transforms_func(root_com_state_w[env_ids[i]], data[i])
     # Get the com pose in the link frame
     root_link_pose_w[env_ids[i]] = get_com_pose_in_link_frame_func(
         root_com_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
     )
-    if root_link_state_w:
-        root_link_state_w[env_ids[i]] = set_state_transforms_func(
-            root_link_state_w[env_ids[i]], root_link_pose_w[env_ids[i]]
-        )
-    if root_state_w:
-        root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], root_link_pose_w[env_ids[i]])
 
 
 @wp.kernel
@@ -583,15 +543,11 @@ def set_root_com_pose_to_sim_mask(
     env_mask: wp.array(dtype=wp.bool),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_com_state_w: wp.array(dtype=vec13f),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
 ):
     """Write root COM pose data to simulation buffers.
 
-    This kernel writes root COM poses from the input array to the output buffers,
-    computes the corresponding link pose from the COM pose, and optionally updates
-    the corresponding state vectors.
+    This kernel writes root COM poses from the input array to the output buffers
+    and computes the corresponding link pose from the COM pose.
 
     Args:
         data: Input array of root COM poses. Shape is (num_instances,).
@@ -601,24 +557,12 @@ def set_root_com_pose_to_sim_mask(
         root_com_pose_w: Output array where root COM poses are written. Shape is (num_envs,).
         root_link_pose_w: Output array where root link poses (derived from COM) are written.
             Shape is (num_envs,).
-        root_com_state_w: Output array where root COM states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_link_state_w: Output array where root link states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     if env_mask[i]:
         root_com_pose_w[i] = data[i]
-        if root_com_state_w:
-            root_com_state_w[i] = set_state_transforms_func(root_com_state_w[i], data[i])
         # Get the com pose in the link frame
         root_link_pose_w[i] = get_com_pose_in_link_frame_func(root_com_pose_w[i], body_com_pos_b[i, 0])
-        if root_link_state_w:
-            root_link_state_w[i] = set_state_transforms_func(root_link_state_w[i], root_link_pose_w[i])
-        if root_state_w:
-            root_state_w[i] = set_state_transforms_func(root_state_w[i], root_link_pose_w[i])
 
 
 @wp.kernel
@@ -628,14 +572,11 @@ def set_root_com_velocity_to_sim_index(
     num_bodies: wp.int32,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_state_w: wp.array(dtype=vec13f),
-    root_com_state_w: wp.array(dtype=vec13f),
 ):
     """Write root COM velocity data to simulation buffers.
 
-    This kernel writes root COM velocities from the input array to the output buffers,
-    optionally updates the corresponding state vectors, and zeros out the body
-    acceleration buffer to prevent reporting stale values.
+    This kernel writes root COM velocities from the input array to the output buffers
+    and zeros out the body acceleration buffer to prevent reporting stale values.
 
     Args:
         data: Input array of root COM spatial velocities. Shape is (num_selected_envs,).
@@ -644,17 +585,9 @@ def set_root_com_velocity_to_sim_index(
         root_com_velocity_w: Output array where root COM velocities are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed. Shape is
             (num_envs, num_bodies).
-        root_state_w: Output array where root states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_com_state_w: Output array where root COM states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     root_com_velocity_w[env_ids[i]] = data[i]
-    if root_state_w:
-        root_state_w[env_ids[i]] = set_state_velocities_func(root_state_w[env_ids[i]], data[i])
-    if root_com_state_w:
-        root_com_state_w[env_ids[i]] = set_state_velocities_func(root_com_state_w[env_ids[i]], data[i])
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -667,14 +600,11 @@ def set_root_com_velocity_to_sim_mask(
     num_bodies: wp.int32,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_state_w: wp.array(dtype=vec13f),
-    root_com_state_w: wp.array(dtype=vec13f),
 ):
     """Write root COM velocity data to simulation buffers.
 
-    This kernel writes root COM velocities from the input array to the output buffers,
-    optionally updates the corresponding state vectors, and zeros out the body
-    acceleration buffer to prevent reporting stale values.
+    This kernel writes root COM velocities from the input array to the output buffers
+    and zeros out the body acceleration buffer to prevent reporting stale values.
 
     Args:
         data: Input array of root COM spatial velocities. Shape is (num_instances,).
@@ -683,18 +613,10 @@ def set_root_com_velocity_to_sim_mask(
         root_com_velocity_w: Output array where root COM velocities are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed. Shape is
             (num_envs, num_bodies).
-        root_state_w: Output array where root states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_com_state_w: Output array where root COM states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     if env_mask[i]:
         root_com_velocity_w[i] = data[i]
-        if root_state_w:
-            root_state_w[i] = set_state_velocities_func(root_state_w[i], data[i])
-        if root_com_state_w:
-            root_com_state_w[i] = set_state_velocities_func(root_com_state_w[i], data[i])
         # Make the acceleration zero to prevent reporting old values
         for j in range(num_bodies):
             body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -710,15 +632,12 @@ def set_root_link_velocity_to_sim_index(
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
-    root_com_state_w: wp.array(dtype=vec13f),
 ):
     """Write root link velocity data to simulation buffers.
 
     This kernel writes root link velocities from the input array to the output buffers,
-    computes the corresponding COM velocity from the link velocity, optionally updates
-    the corresponding state vectors, and zeros out the body acceleration buffer.
+    computes the corresponding COM velocity from the link velocity, and zeros out
+    the body acceleration buffer.
 
     Args:
         data: Input array of root link spatial velocities. Shape is (num_selected_envs,).
@@ -733,27 +652,13 @@ def set_root_link_velocity_to_sim_index(
             are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
-        root_link_state_w: Output array where root link states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_com_state_w: Output array where root COM states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     root_link_velocity_w[env_ids[i]] = data[i]
-    if root_link_state_w:
-        root_link_state_w[env_ids[i]] = set_state_velocities_func(root_link_state_w[env_ids[i]], data[i])
     # Get the link velocity in the com frame
     root_com_velocity_w[env_ids[i]] = get_link_velocity_in_com_frame_func(
         root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
     )
-    if root_com_state_w:
-        root_com_state_w[env_ids[i]] = set_state_velocities_func(
-            root_com_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]]
-        )
-    if root_state_w:
-        root_state_w[env_ids[i]] = set_state_velocities_func(root_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]])
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -769,15 +674,12 @@ def set_root_link_velocity_to_sim_mask(
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
-    root_com_state_w: wp.array(dtype=vec13f),
 ):
     """Write root link velocity data to simulation buffers.
 
     This kernel writes root link velocities from the input array to the output buffers,
-    computes the corresponding COM velocity from the link velocity, optionally updates
-    the corresponding state vectors, and zeros out the body acceleration buffer.
+    computes the corresponding COM velocity from the link velocity, and zeros out
+    the body acceleration buffer.
 
     Args:
         data: Input array of root link spatial velocities. Shape is (num_instances,).
@@ -792,26 +694,14 @@ def set_root_link_velocity_to_sim_mask(
             are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
-        root_link_state_w: Output array where root link states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_com_state_w: Output array where root COM states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
     if env_mask[i]:
         root_link_velocity_w[i] = data[i]
-        if root_link_state_w:
-            root_link_state_w[i] = set_state_velocities_func(root_link_state_w[i], data[i])
         # Get the link velocity in the com frame
         root_com_velocity_w[i] = get_link_velocity_in_com_frame_func(
             root_link_velocity_w[i], link_pose_w[i], body_com_pos_b[i, 0]
         )
-        if root_com_state_w:
-            root_com_state_w[i] = set_state_velocities_func(root_com_state_w[i], root_com_velocity_w[i])
-        if root_state_w:
-            root_state_w[i] = set_state_velocities_func(root_state_w[i], root_com_velocity_w[i])
         # Make the acceleration zero to prevent reporting old values
         for j in range(num_bodies):
             body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)

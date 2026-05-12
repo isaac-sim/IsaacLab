@@ -195,7 +195,7 @@ class ManagerBasedEnv:
         # Instantiate the video recorder before sim.reset() so that any fallback Camera
         # (used for state-based envs without an observation camera) is spawned into the USD
         # stage and registered for the PHYSICS_READY callback before physics initialises.
-        # env_render_mode and camera_position/camera_target are forwarded by subclasses (e.g. ManagerBasedRLEnv)
+        # env_render_mode and eye/lookat are forwarded by subclasses (e.g. ManagerBasedRLEnv)
         # into cfg.video_recorder before calling super().__init__().
         if self.cfg.video_recorder is not None:
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)

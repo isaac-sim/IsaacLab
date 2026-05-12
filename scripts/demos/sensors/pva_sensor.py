@@ -54,9 +54,9 @@ class PvaSensorSceneCfg(InteractiveSceneCfg):
     # robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    pva_RF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
+    pva_LF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
 
-    pva_LF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", debug_vis=True)
+    pva_RF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", debug_vis=True)
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):

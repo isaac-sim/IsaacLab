@@ -438,7 +438,6 @@ class TestMockArticulationDataProperties:
         [
             ("body_mass", (4, 13)),
             ("body_inertia", (4, 13, 9)),
-            ("body_incoming_joint_wrench_b", (4, 13, 6)),
         ],
     )
     def test_body_property_shapes(self, data, property_name, expected_shape):

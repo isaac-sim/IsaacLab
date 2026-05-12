@@ -308,7 +308,7 @@ def test_warp_with_invalid_camera_preset(shadow_hand_vision_presets, camera_pres
 # ---------------------------------------------------------------------------
 
 _RENDER_CORRECTNESS_CASES = [
-    # (renderer_preset, camera_preset, physics) — physics is "physx" or "newton"
+    # (renderer_preset, camera_preset, physics) - physics is "physx" or "newton"
     # ── PhysX physics (default) + IsaacRTX: supports all data types ──
     pytest.param(("isaacsim_rtx_renderer", "rgb", "physx"), id="physx-isaacsim_rtx-rgb"),
     pytest.param(("isaacsim_rtx_renderer", "depth", "physx"), id="physx-isaacsim_rtx-depth"),
@@ -383,15 +383,15 @@ def render_correctness_env(request, shadow_hand_vision_presets):
     camera_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera"][camera_preset])
     camera_cfg.renderer_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer_preset])
     cfg.tiled_camera = camera_cfg
-    # Apply Newton presets before resolve_presets so they are not overwritten by defaults.
+    # Apply MJWarp presets before resolve_presets so they are not overwritten by defaults.
     # Newton needs a specific solver config, a different robot USD, an articulation-based object,
     # and a stripped-down event cfg (no PhysX-specific material randomization).
     if physics == "newton":
-        cfg.sim.physics = copy.deepcopy(shadow_hand_vision_presets["sim.physics"]["newton"])
-        cfg.robot_cfg = copy.deepcopy(shadow_hand_vision_presets["robot_cfg"]["newton"])
-        cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["newton"])
+        cfg.sim.physics = copy.deepcopy(shadow_hand_vision_presets["sim.physics"]["newton_mjwarp"])
+        cfg.robot_cfg = copy.deepcopy(shadow_hand_vision_presets["robot_cfg"]["newton_mjwarp"])
+        cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["newton_mjwarp"])
         if "events" in shadow_hand_vision_presets:
-            cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["newton"])
+            cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["newton_mjwarp"])
     cfg = resolve_presets(cfg)
     cfg.scene.num_envs = 4
     cfg.feature_extractor.write_image_to_file = False

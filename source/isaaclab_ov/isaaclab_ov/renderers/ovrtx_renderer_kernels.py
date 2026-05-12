@@ -76,38 +76,89 @@ def extract_tile_from_tiled_buffer_kernel(
 @wp.kernel
 def extract_all_rgba_tiles_kernel(
     tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.uint8, ndim=4),  # type: ignore  (num_envs, H, W, 4)
+    output_buffer: wp.array(dtype=wp.uint8, ndim=4),  # type: ignore
     num_cols: int,
     tile_width: int,
     tile_height: int,
+    num_channels: int,
 ):
-    """Extract ALL RGBA tiles from a tiled buffer in a single kernel launch."""
+    """Extract ALL RGBA or RGB tiles from a tiled buffer in a single kernel launch.
+
+    Args:
+        tiled_buffer: 3D uint8 array of shape (H, W, 4) for RGBA or (H, W, 3) for RGB.
+        output_buffer: 4D uint8 array of shape (num_envs, H, W, 4) for RGBA or (num_envs, H, W, 3) for RGB.
+        num_cols: number of columns in the tiled buffer.
+        tile_width: width of each tile.
+        tile_height: height of each tile.
+        num_channels: number of channels in the output buffer. Use 3 for RGB or 4 for RGBA.
+            If a value other than 3 or 4 is given, it will be treated as 3 (RGB).
+    """
     env_idx, y, x = wp.tid()
     tile_x = env_idx % num_cols
     tile_y = env_idx // num_cols
     src_x = tile_x * tile_width + x
     src_y = tile_y * tile_height + y
+
+    # RGB
     output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
     output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
     output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
-    output_buffer[env_idx, y, x, 3] = tiled_buffer[src_y, src_x, 3]
+
+    # Alpha (if it is RGBA)
+    if num_channels == 4:
+        output_buffer[env_idx, y, x, 3] = tiled_buffer[src_y, src_x, 3]
 
 
 @wp.kernel
-def extract_all_depth_tiles_kernel(
+def extract_all_depth_tiles_kernel_legacy(
     tiled_buffer: wp.array(dtype=wp.float32, ndim=2),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 1)
+    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore
     num_cols: int,
     tile_width: int,
     tile_height: int,
 ):
-    """Extract ALL depth tiles from a tiled buffer in a single kernel launch."""
+    """Extract all depth tiles from a tiled buffer in a single kernel launch.
+
+    Used with ovrtx older than 0.3.0.
+
+    Args:
+        tiled_buffer: 2D float32 array of shape (H, W) for depth.
+        output_buffer: 4D float32 array of shape (num_envs, H, W, 1) for depth.
+        num_cols: number of columns in the tiled buffer.
+        tile_width: width of each tile.
+        tile_height: height of each tile.
+    """
     env_idx, y, x = wp.tid()
     tile_x = env_idx % num_cols
     tile_y = env_idx // num_cols
     src_x = tile_x * tile_width + x
     src_y = tile_y * tile_height + y
     output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x]
+
+
+@wp.kernel
+def extract_all_depth_tiles_kernel(
+    tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
+    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+):
+    """Extract all depth tiles from a tiled buffer in a single kernel launch.
+
+    Args:
+        tiled_buffer: 3D float32 array of shape (H, W, 1) for depth.
+        output_buffer: 4D float32 array of shape (num_envs, H, W, 1) for depth.
+        num_cols: number of columns in the tiled buffer.
+        tile_width: width of each tile.
+        tile_height: height of each tile.
+    """
+    env_idx, y, x = wp.tid()
+    tile_x = env_idx % num_cols
+    tile_y = env_idx // num_cols
+    src_x = tile_x * tile_width + x
+    src_y = tile_y * tile_height + y
+    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
 
 
 @wp.kernel
@@ -151,6 +202,13 @@ def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
     Returns:
         uint32 color: ``r | (g<<8) | (b<<16) | (a<<24)``
     """
+    if input_id == wp.uint32(0):
+        # BACKGROUND special case
+        return wp.uint32(0)
+    if input_id == wp.uint32(1):
+        # UNLABELLED special case
+        return wp.uint32(0xFF000000)
+
     hash_val = color_hash(input_id)
 
     # Golden ratio inverse = 1.0 / 1.618033988749895 (Replicator constant)
@@ -228,30 +286,35 @@ def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
 
 
 @wp.kernel
-def generate_random_colors_from_ids_kernel(
+def generate_random_colors_from_ids_kernel_legacy(
     input_ids: wp.array(dtype=wp.uint32, ndim=2),  # type: ignore
     output_colors: wp.array(dtype=wp.uint32, ndim=2),  # type: ignore
 ):
     """Generate random colors given IDs (e.g. semantic IDs).
 
+    Used with ovrtx older than 0.3.0.
+
     Args:
-        input_ids: 2D uint32 array of semantic IDs per pixel
+        input_ids: 2D uint32 array of shape (H, W) for semantic IDs per pixel.
         output_data: 2D uint32 array; each word is `r | (g<<8) | (b<<16) | (a<<24)`
     """
     i, j = wp.tid()
+    output_colors[i, j] = random_color_from_id(input_ids[i, j])
 
-    input_id = input_ids[i, j]
 
-    if input_id == wp.uint32(0):
-        # BACKGROUND special case
-        output_color = wp.uint32(0)
-    elif input_id == wp.uint32(1):
-        # UNLABELLED special case
-        output_color = wp.uint32(0xFF000000)
-    else:
-        output_color = random_color_from_id(input_id)
+@wp.kernel
+def generate_random_colors_from_ids_kernel(
+    input_ids: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore
+    output_colors: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore
+):
+    """Generate random colors given IDs (e.g. semantic IDs).
 
-    output_colors[i, j] = output_color
+    Args:
+        input_ids: 3D uint32 array for semantic IDs per pixel.
+        output_colors: 3D uint32 array for colors per pixel; each word is ``r | (g<<8) | (b<<16) | (a<<24)``.
+    """
+    i, j, k = wp.tid()
+    output_colors[i, j, k] = random_color_from_id(input_ids[i, j, k])
 
 
 @wp.kernel

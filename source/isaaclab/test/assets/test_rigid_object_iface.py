@@ -112,6 +112,22 @@ def create_physx_rigid_object(
     object.__setattr__(rigid_object, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(rigid_object, "_ALL_BODY_INDICES", wp.array(np.array([0], dtype=np.int32), device=device))
 
+    # Cached .view(wp.float32) wrappers
+    object.__setattr__(rigid_object, "_root_link_pose_w_f32", None)
+    object.__setattr__(rigid_object, "_root_com_vel_w_f32", None)
+    object.__setattr__(rigid_object, "_inst_wrench_force_f32", None)
+    object.__setattr__(rigid_object, "_inst_wrench_torque_f32", None)
+    object.__setattr__(rigid_object, "_perm_wrench_force_f32", None)
+    object.__setattr__(rigid_object, "_perm_wrench_torque_f32", None)
+
+    # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
+    N, B = num_instances, 1  # rigid object has 1 body
+    cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
+    object.__setattr__(rigid_object, "_cpu_env_ids_all", cpu_env_ids)
+    object.__setattr__(rigid_object, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
+    object.__setattr__(rigid_object, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
+    object.__setattr__(rigid_object, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
+
     return rigid_object, mock_view
 
 
@@ -246,6 +262,29 @@ _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
 _default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
 
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_index_resolution_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+
+
+# ---------------------------------------------------------------------------
+# Tests: Index resolution helpers
+# ---------------------------------------------------------------------------
+
+
+class TestRigidObjectIndexResolution:
+    """Test backend-specific index resolution helpers."""
+
+    @_index_resolution_backends
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
+        obj, _ = get_rigid_object(backend, num_instances=4, device="cpu")
+
+        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = obj._resolve_env_ids(env_ids)
+        resolved_view = obj._resolve_env_ids(env_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
 
 
 # ---------------------------------------------------------------------------
