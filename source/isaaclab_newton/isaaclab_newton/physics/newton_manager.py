@@ -1453,6 +1453,17 @@ class NewtonManager(PhysicsManager):
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
             return builder
 
+        # Ingest stage-level (non-env) geometry into the global world (``current_world == -1``)
+        # so visualization sees the ground plane, ceilings, fixed props, etc. The legacy
+        # cloner-based prebuild did this via ``add_usd(stage, ignore_paths=["/World/envs"], ...)``
+        # before adding the per-env worlds; without this, renderers/visualizers driven off the
+        # shadow Newton model are missing every shape authored outside the env hierarchy.
+        builder.add_usd(
+            stage,
+            ignore_paths=[r"/World/envs($|/.*)"],
+            schema_resolvers=schema_resolvers,
+        )
+
         # Build env_0 as a prototype, then replicate across envs.
         proto_env_path = env_paths[0][1]
         proto = ModelBuilder(up_axis=up_axis)
@@ -1474,19 +1485,45 @@ class NewtonManager(PhysicsManager):
         label_attrs = ("body_label", "articulation_label", "joint_label", "shape_label")
         label_starts = {attr: len(getattr(builder, attr)) for attr in label_attrs}
 
+        # ``proto.add_usd`` ingests env_0's bodies at their absolute world positions
+        # (``UsdPhysics.LoadUsdPhysicsFromRange`` reports world-space transforms), so
+        # ``proto.body_q`` already encodes env_0's world transform. ``add_builder``
+        # composes its ``xform`` onto every imported body, so passing each env's
+        # absolute world transform here would double the offset; the correct xform is
+        # the env's pose relative to the prototype (identity for env_0, env_X * env_0^-1
+        # for the rest). Dynamic bodies are overwritten in ``update_visualization_state``
+        # via the PhysX sync, but static bodies (e.g. the table) keep this initial pose
+        # and render at the wrong position when env_0 is not at the world origin.
+        proto_world_gf = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(proto_env_path))
+        proto_translation = proto_world_gf.ExtractTranslation()
+        proto_rotation = proto_world_gf.ExtractRotationQuat()
+        proto_world_tf = wp.transform(
+            (proto_translation[0], proto_translation[1], proto_translation[2]),
+            (
+                proto_rotation.GetImaginary()[0],
+                proto_rotation.GetImaginary()[1],
+                proto_rotation.GetImaginary()[2],
+                proto_rotation.GetReal(),
+            ),
+        )
+        proto_world_tf_inv = wp.transform_inverse(proto_world_tf)
+
         for _, env_path in env_paths:
             world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
             translation = world_xform.ExtractTranslation()
             rotation = world_xform.ExtractRotationQuat()
-            pos = (translation[0], translation[1], translation[2])
-            quat = (
-                rotation.GetImaginary()[0],
-                rotation.GetImaginary()[1],
-                rotation.GetImaginary()[2],
-                rotation.GetReal(),
+            env_world_tf = wp.transform(
+                (translation[0], translation[1], translation[2]),
+                (
+                    rotation.GetImaginary()[0],
+                    rotation.GetImaginary()[1],
+                    rotation.GetImaginary()[2],
+                    rotation.GetReal(),
+                ),
             )
+            relative_tf = wp.transform_multiply(env_world_tf, proto_world_tf_inv)
             builder.begin_world()
-            builder.add_builder(proto, xform=wp.transform(pos, quat))
+            builder.add_builder(proto, xform=relative_tf)
             if env_path != proto_env_path:
                 for attr in label_attrs:
                     labels = getattr(builder, attr)

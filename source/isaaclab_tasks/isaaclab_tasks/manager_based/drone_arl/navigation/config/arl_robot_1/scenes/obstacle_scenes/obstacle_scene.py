@@ -55,7 +55,7 @@ def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectio
     for wall_name, wall_cfg in cfg.wall_cfgs.items():
         # Walls get their specific size and default center
         default_center = [0.0, 0.0, 0.0]  # Will be set properly at reset
-        color = float(np.random.randint(0, 256, size=1, dtype=np.uint8)) / 255.0
+        color = float(np.random.randint(0, 256, dtype=np.uint8)) / 255.0
 
         rigid_objects[wall_name] = RigidObjectCfg(
             prim_path=f"{{ENV_REGEX_NS}}/obstacle_{wall_name}",

@@ -300,6 +300,26 @@ def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
     monkeypatch.setattr(viser_visualizer, "render_newton_visualization_markers", _raise_marker_render)
 
+    state_calls: list[None] = []
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state():
+            state_calls.append(None)
+            return {"state_call": len(state_calls)}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
+
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider))
 
