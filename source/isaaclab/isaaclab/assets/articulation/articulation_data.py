@@ -743,7 +743,7 @@ class ArticulationData:
 
         if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
             self._body_incoming_joint_wrench_b.data = self._root_physx_view.get_link_incoming_joint_force()
-            self._body_incoming_joint_wrench_b.time_stamp = self._sim_timestamp
+            self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
         return self._body_incoming_joint_wrench_b.data
 
     ##
