@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock, patch
@@ -70,8 +71,38 @@ def _install_stubs():
     """Insert MagicMock modules for all heavy dependencies."""
     for name in _MODULES_TO_STUB:
         if name not in sys.modules:
-            _stubs_installed[name] = MagicMock()
-            sys.modules[name] = _stubs_installed[name]
+            sys.modules[name] = _stubs_installed.setdefault(name, MagicMock())
+        if "." in name:
+            parent_name, child_name = name.rsplit(".", 1)
+            setattr(sys.modules[parent_name], child_name, sys.modules[name])
+
+    @dataclass
+    class DeadlinePacingConfig:
+        safety_margin_s: float = 0.025
+
+    @dataclass
+    class RetargetingExecutionConfig:
+        mode: str = "sync"
+        pacing: DeadlinePacingConfig | None = None
+
+    tsm = sys.modules["isaacteleop.teleop_session_manager"]
+    tsm.DeadlinePacingConfig = DeadlinePacingConfig  # type: ignore[attr-defined]
+    tsm.RetargetingExecutionConfig = RetargetingExecutionConfig  # type: ignore[attr-defined]
+
+
+def _restore_stubs():
+    """Remove stubs installed for this test module from ``sys.modules``."""
+    for name in reversed(_MODULES_TO_STUB):
+        stub = _stubs_installed.get(name)
+        if stub is None:
+            continue
+        if "." in name:
+            parent_name, child_name = name.rsplit(".", 1)
+            parent = sys.modules.get(parent_name)
+            if parent is not None and getattr(parent, child_name, None) is stub:
+                delattr(parent, child_name)
+        if sys.modules.get(name) is stub:
+            del sys.modules[name]
 
 
 _install_stubs()
@@ -83,9 +114,19 @@ from isaaclab_teleop.isaac_teleop_cfg import (  # noqa: E402
 )
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle  # noqa: E402
 
+_restore_stubs()
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _stub_heavy_dependencies():
+    """Keep CloudXR tests isolated from modules collected later in the suite."""
+    _install_stubs()
+    yield
+    _restore_stubs()
 
 
 def _make_cfg() -> IsaacTeleopCfg:
@@ -137,6 +178,42 @@ class TestEnvProfilePaths:
 
     def test_profiles_are_in_same_directory(self):
         assert Path(CLOUDXR_AVP_ENV).parent == Path(CLOUDXR_JS_ENV).parent
+
+
+# ============================================================================
+# IsaacTeleop execution config
+# ============================================================================
+
+
+class TestRetargetingExecutionConfig:
+    """Tests for Isaac Lab's IsaacTeleop retargeting execution defaults."""
+
+    def test_session_config_receives_deadline_paced_pipelined_retargeting(self):
+        """The default retargeting execution config is passed into TeleopSession."""
+        cfg = _make_cfg()
+
+        assert cfg.retargeting_execution.mode == "pipelined"
+        assert cfg.retargeting_execution.pacing.safety_margin_s == 0.025
+
+        sentinel_execution = cfg.retargeting_execution
+
+        lifecycle = TeleopSessionLifecycle(cfg)
+        lifecycle._pipeline = MagicMock()
+        lifecycle._teleop_control_pipeline = None
+
+        session_config_cls = MagicMock(return_value=MagicMock())
+        session_cls = MagicMock()
+        fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
+
+        with (
+            patch.object(fake_tsm_module, "TeleopSessionConfig", session_config_cls),
+            patch.object(fake_tsm_module, "TeleopSession", session_cls),
+            patch.object(lifecycle, "_ensure_xr_ar_profile_enabled"),
+            patch.object(lifecycle, "_acquire_kit_oxr_handles", return_value=object()),
+        ):
+            assert lifecycle.try_start_session() is True
+
+        assert session_config_cls.call_args.kwargs["retargeting_execution"] is sentinel_execution
 
 
 # ============================================================================

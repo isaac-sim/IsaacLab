@@ -158,6 +158,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    physics
    renderers
    sensors
+   sim.schemas
 
 .. toctree::
    :hidden:
@@ -167,6 +168,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    lab_newton/isaaclab_newton.physics
    lab_newton/isaaclab_newton.renderers
    lab_newton/isaaclab_newton.sensors
+   lab_newton/isaaclab_newton.sim.schemas
 
 isaaclab_ov extension
 ---------------------
