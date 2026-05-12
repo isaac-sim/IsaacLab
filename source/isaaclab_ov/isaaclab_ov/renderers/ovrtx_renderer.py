@@ -12,7 +12,7 @@ How it fits together
   updates camera/object transforms (using kernels), steps the renderer, then extracts
   tiles from the tiled framebuffer (kernels).
 
-- **ovrtx_renderer_kernels.py**: Warp GPU kernels and DEVICE constant.
+- **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
 """
@@ -47,7 +47,6 @@ from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
-    DEVICE,
     create_camera_transforms_kernel,
     extract_all_depth_tiles_kernel,
     extract_all_depth_tiles_kernel_legacy,
@@ -149,6 +148,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
+        self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         self._usd_handles = []
         self._render_product_paths = []
         self._camera_binding = None
@@ -356,7 +356,7 @@ class OVRTXRenderer(BaseRenderer):
 
             if self._object_binding is not None:
                 logger.info("Object binding created successfully")
-                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=DEVICE)
+                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
             else:
                 logger.warning("Object binding is None")
         except ImportError:
@@ -370,9 +370,10 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
+        self._device = spec.device
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
-        return OVRTXRenderData(spec, DEVICE)
+        return OVRTXRenderData(spec, self._device)
 
     # Map torch dtypes to their warp counterparts for zero-copy wrapping.
     _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
@@ -435,7 +436,7 @@ class OVRTXRenderer(BaseRenderer):
                     kernel=sync_newton_transforms_kernel,
                     dim=len(self._object_newton_indices),
                     inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
-                    device=DEVICE,
+                    device=self._device,
                 )
         except Exception as e:
             logger.warning("Failed to update object transforms: %s", e)
@@ -452,12 +453,12 @@ class OVRTXRenderer(BaseRenderer):
         camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
         camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
         camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
+        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
         wp.launch(
             kernel=create_camera_transforms_kernel,
             dim=num_envs,
             inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
-            device=DEVICE,
+            device=self._device,
         )
         if self._camera_binding is not None:
             with self._camera_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
@@ -482,7 +483,7 @@ class OVRTXRenderer(BaseRenderer):
     def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
         """Generate pseudo-random colors from semantic IDs."""
         if self._output_semantic_color_buffer is None or self._output_semantic_color_buffer.shape != input_ids.shape:
-            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=DEVICE)
+            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=self._device)
 
         output_colors = self._output_semantic_color_buffer
 
@@ -494,7 +495,7 @@ class OVRTXRenderer(BaseRenderer):
             ),
             dim=input_ids.shape,
             inputs=[input_ids, output_colors],
-            device=DEVICE,
+            device=self._device,
         )
 
         return output_colors
@@ -524,7 +525,7 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.height,
                 num_channels,
             ],
-            device=DEVICE,
+            device=self._device,
         )
 
     def _extract_depth_tiles(
@@ -545,7 +546,7 @@ class OVRTXRenderer(BaseRenderer):
                         render_data.width,
                         render_data.height,
                     ],
-                    device=DEVICE,
+                    device=self._device,
                 )
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
