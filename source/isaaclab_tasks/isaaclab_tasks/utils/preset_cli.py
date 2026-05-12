@@ -58,8 +58,8 @@ import sys
 from isaaclab.utils.preset_registry import PresetRegistry, PresetTarget
 
 
-def setup_preset_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    """Add typed preset flags, parse, fold values into ``presets=<csv>``.
+def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespace, list[str]]:
+    """Add typed preset flags, parse, and compute the Hydra-bound argv tokens.
 
     Steps:
 
@@ -74,14 +74,20 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     3. Call ``parser.parse_known_args``.
     4. Pass typed and free-form values through verbatim. Fold them
        (plus any pre-existing ``presets=...`` token in *remaining*) into
-       a single ``presets=<csv>`` token; rewrite ``sys.argv`` so the
-       downstream Hydra layer sees one token followed by leftover args.
+       a single ``presets=<csv>`` token. Return the resulting token list so
+       the caller can assign it to ``sys.argv[1:]`` when it's ready.
 
     Callers must add AppLauncher flags (via
     :func:`isaaclab_tasks.utils.add_launcher_args`) and any
     script-specific arguments *before* calling this function -- otherwise
-    those unknown tokens land in ``parse_known_args``'s remainder and
-    silently leak into ``sys.argv``.
+    those unknown tokens land in ``parse_known_args``'s remainder.
+
+    This function deliberately does NOT mutate ``sys.argv``. Mutation is
+    the caller's responsibility (typical pattern: ``sys.argv = [sys.argv[0]]
+    + hydra_argv``). The deferral lets scripts insert argv-aware logic
+    (e.g., an ``--external_callback`` hook that re-reads ``sys.argv``)
+    between parse and the final ``sys.argv`` assignment, where folding
+    earlier would hide the user's original command line from the callback.
 
     Args:
         parser: The caller's argument parser. Preset flags are added in
@@ -89,8 +95,13 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
             script-specific arguments registered.
 
     Returns:
-        The namespace from ``parse_known_args``. ``sys.argv`` is
-        mutated in place to carry the folded ``presets=<csv>`` token.
+        ``(args, hydra_argv)`` where ``args`` is the namespace from
+        ``parse_known_args`` and ``hydra_argv`` is the list of tokens to
+        hand to Hydra via ``sys.argv[1:]``. ``hydra_argv[0]`` is a folded
+        ``presets=<csv>`` token whenever any preset flag (typed or
+        free-form) was given or a pre-existing ``presets=...`` token was
+        present in the remainder; otherwise the list contains only the
+        non-preset remainder.
     """
     # Peek for --task before argparse parses. argparse short-circuits on --help,
     # so help text that depends on the task has to find it ahead of parser run.
@@ -141,8 +152,10 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 names.append(value)
 
     if not names:
-        sys.argv = [sys.argv[0], *remaining]
-        return args
+        # No preset flags were given; still scan *remaining* for a pre-existing
+        # ``presets=...`` token so we don't drop it. If absent, hydra_argv is
+        # just the un-touched remainder.
+        return args, list(remaining)
 
     # Merge with any pre-existing ``presets=...`` token already in remaining.
     kept: list[str] = []
@@ -155,11 +168,10 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> argparse.Namespace:
     # Dedupe, preserve first-occurrence order.
     seen: set[str] = set()
     deduped = [name for name in names if not (name in seen or seen.add(name))]
-    sys.argv = [sys.argv[0], f"presets={','.join(deduped)}", *kept]
-    return args
+    return args, [f"presets={','.join(deduped)}", *kept]
 
 
-def _help_text(target: PresetTarget, actual_variants) -> str:
+def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str]] | None) -> str:
     """Argparse ``help=`` string for a typed flag.
 
     The string reports the variants present in the loaded task (if a task
@@ -169,12 +181,11 @@ def _help_text(target: PresetTarget, actual_variants) -> str:
 
     Args:
         target: Which typed target's help string to build.
-        actual_variants: One of three shapes:
-
-            * ``None`` -- no ``--task`` was given.
-            * ``str`` -- env_cfg load raised; the string is the error.
-            * ``dict[PresetTarget, set[str]]`` -- variants present in the
-              loaded task, bucketed by target via :func:`PresetRegistry`.
+        actual_variants: Either ``None`` (no ``--task`` was given) or a
+            ``{target: set[name]}`` mapping of variants present in the
+            loaded task, bucketed by target via :func:`PresetRegistry`.
+            A failure during the env_cfg load or walk is not caught
+            here -- it propagates naturally to the user.
 
     Returns:
         Single-line help text for ``add_argument(help=...)``.
@@ -185,10 +196,7 @@ def _help_text(target: PresetTarget, actual_variants) -> str:
 
     if actual_variants is None:
         return f"{label}. Pass `--task=X` along with `--help` to see preset variants available for that task."
-    if isinstance(actual_variants, str):
-        return f"{label}. ({actual_variants})"
 
-    # actual_variants is dict[PresetTarget, set[str]] -- variants from the loaded task.
     if target is PresetTarget.DOMAIN:
         # Free-form --presets accepts any name; list every variant we found.
         all_names = sorted({n for variants in actual_variants.values() for n in variants})
@@ -206,7 +214,13 @@ def _peek_task(argv: list[str]) -> str | None:
     """Find ``--task=X`` or ``--task X`` in *argv* without invoking argparse.
 
     argparse's ``--help`` short-circuits parsing, so help text that depends
-    on the task must locate it before any parser ever runs.
+    on the task must locate it before any parser ever runs. Returns the
+    *last* ``--task`` value -- matching argparse's last-wins ``store``
+    semantics for repeated flags.
+
+    Malformed values are passed through verbatim: a downstream
+    ``load_cfg_from_registry`` call will raise the natural "task not
+    registered" error, which is the right user-facing signal.
 
     Args:
         argv: Argument list to scan; typically ``sys.argv``.
@@ -214,14 +228,15 @@ def _peek_task(argv: list[str]) -> str | None:
     Returns:
         The task value if present, otherwise ``None``.
     """
+    last_task: str | None = None
     # Skip the script name at argv[0].
     for i in range(1, len(argv)):
         token = argv[i]
         if token == "--task" and i + 1 < len(argv):
-            return argv[i + 1]
-        if token.startswith("--task="):
-            return token.split("=", 1)[1]
-    return None
+            last_task = argv[i + 1]
+        elif token.startswith("--task="):
+            last_task = token[len("--task=") :]
+    return last_task
 
 
 def _help_requested(argv: list[str]) -> bool:
@@ -229,7 +244,7 @@ def _help_requested(argv: list[str]) -> bool:
     return any(token in ("--help", "-h") for token in argv[1:])
 
 
-def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]] | str:
+def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
     """Load env_cfg for *task_name* and bucket its variants by target.
 
     Uses :func:`isaaclab_tasks.utils.hydra.collect_presets` -- the same
@@ -238,23 +253,23 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]] | str:
     boots because ``test_env_cfg_no_forbidden_imports`` enforces that
     cfg modules do not import Kit-only packages at top level.
 
+    Exceptions from :func:`load_cfg_from_registry` or :func:`collect_presets`
+    propagate verbatim -- a bad ``--task`` value or a broken cfg should
+    surface as the natural error the loader emits, not a string buried in
+    ``--help`` text.
+
     Args:
         task_name: Gym registry id, e.g. ``"Isaac-Cartpole-v0"``.
 
     Returns:
-        Either ``dict[PresetTarget, set[str]]`` -- variant names found in
-        the task, bucketed by their registered target (un-registered names
-        fall into :attr:`PresetTarget.DOMAIN`) -- or a ``str`` error
-        message if the load raised. Defensive ``except`` keeps ``--help``
-        from dying on a broken third-party cfg.
+        ``dict[PresetTarget, set[str]]`` -- variant names found in the
+        task, bucketed by their registered target. Un-registered names
+        fall into :attr:`PresetTarget.DOMAIN`.
     """
-    try:
-        from isaaclab_tasks.utils.hydra import collect_presets
-        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+    from isaaclab_tasks.utils.hydra import collect_presets
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-        env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    except Exception as exc:  # noqa: BLE001 -- surface in help text, don't crash --help
-        return f"failed to load env_cfg for '{task_name}': {exc}"
+    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     return _bucket_variants_by_target(collect_presets(env_cfg))
 
 

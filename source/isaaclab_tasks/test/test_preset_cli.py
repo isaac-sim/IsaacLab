@@ -84,13 +84,16 @@ def test_all_legacy_aliases_aggregates_per_target_tables():
 # ---------------------------------------------------------------------------
 
 
-def test_no_preset_flags_passes_argv_through(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"])
+def test_no_preset_flags_returns_remainder_only(monkeypatch):
+    original = ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"]
+    monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    args = setup_preset_cli(_make_parser())
+    args, hydra_argv = setup_preset_cli(_make_parser())
     assert args.task == "Foo-v0"
-    assert sys.argv == ["train.py", "env.sim.dt=0.001"]
+    assert hydra_argv == ["env.sim.dt=0.001"]
+    # setup_preset_cli must NOT mutate sys.argv -- the caller controls when to assign.
+    assert sys.argv == original
 
 
 def test_physics_flag_translates_to_presets_token(monkeypatch):
@@ -100,8 +103,8 @@ def test_physics_flag_translates_to_presets_token(monkeypatch):
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=newton_mjwarp", "env.sim.dt=0.001"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001"]
 
 
 def test_three_flags_merge_into_one_token(monkeypatch):
@@ -120,8 +123,8 @@ def test_three_flags_merge_into_one_token(monkeypatch):
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=newton_mjwarp,newton_renderer,albedo,depth"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=newton_mjwarp,newton_renderer,albedo,depth"]
 
 
 def test_merges_with_existing_presets_token(monkeypatch):
@@ -131,8 +134,8 @@ def test_merges_with_existing_presets_token(monkeypatch):
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=newton_mjwarp,albedo"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=newton_mjwarp,albedo"]
 
 
 def test_dedupes_repeated_names(monkeypatch):
@@ -142,16 +145,16 @@ def test_dedupes_repeated_names(monkeypatch):
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=newton_mjwarp,albedo"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=newton_mjwarp,albedo"]
 
 
 def test_equals_form_works(monkeypatch):
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=newton_mjwarp"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=newton_mjwarp"]
 
 
 # ---------------------------------------------------------------------------
@@ -172,8 +175,8 @@ def test_unknown_physics_name_passes_through_silently(monkeypatch, capsys):
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=newton_mujoco"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=newton_mujoco"]
     err = capsys.readouterr().err
     assert err == ""
 
@@ -184,8 +187,8 @@ def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--presets", "cube,peg_insert_4mm,mayank_solver"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    setup_preset_cli(_make_parser())
-    assert sys.argv == ["train.py", "presets=cube,peg_insert_4mm,mayank_solver"]
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv == ["presets=cube,peg_insert_4mm,mayank_solver"]
     err = capsys.readouterr().err
     assert err == ""
 
@@ -286,21 +289,77 @@ def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
     assert "heavy" in out
 
 
-def test_help_reports_env_cfg_load_failure(monkeypatch, capsys):
-    """If env_cfg load raises, ``--help`` still prints, with the error shown in help text."""
-    import isaaclab_tasks.utils.parse_cfg as parse_cfg
+# ---------------------------------------------------------------------------
+# Contract: setup_preset_cli does NOT mutate sys.argv
+# ---------------------------------------------------------------------------
 
-    def _boom(*_a, **_kw):
-        raise RuntimeError("simulated import error")
 
-    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", _boom)
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Bad-Task", "--help"])
+def test_does_not_mutate_sys_argv(monkeypatch):
+    """``setup_preset_cli`` must not mutate ``sys.argv`` -- mutation is the
+    caller's responsibility. Locks the contract that ``rsl_rl/{train,play}.py``
+    rely on so an ``--external_callback`` hook invoked after ``setup_preset_cli``
+    can still read the user's original command line. If mutation happened
+    here, the callback would see the folded ``presets=...`` token instead of
+    ``--physics newton_mjwarp`` and fail to recognize the user's intent."""
+    original = ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "env.sim.dt=0.001"]
+    monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    parser = argparse.ArgumentParser(prog="train.py")
-    parser.add_argument("--task", type=str, default=None)
-    with pytest.raises(SystemExit):
-        setup_preset_cli(parser)
-    out = capsys.readouterr().out
-    assert "failed to load env_cfg" in out
-    assert "Bad-Task" in out
+    args, hydra_argv = setup_preset_cli(_make_parser())
+    # sys.argv must remain exactly what the user typed.
+    assert sys.argv == original
+    # The folded form is exposed via the second return value.
+    assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001"]
+    # Parsed namespace still carries the typed values.
+    assert args.physics == "newton_mjwarp"
+
+
+def test_hydra_argv_keeps_presets_token_for_telemetry(monkeypatch):
+    """Benchmarks capture ``hydra_argv`` for ``get_preset_string`` telemetry.
+    Verify ``hydra_argv[0]`` is the folded ``presets=...`` token whenever any
+    preset flag was given, so ``get_preset_string`` keeps reporting the
+    active preset selection."""
+    monkeypatch.setattr("sys.argv", ["bench.py", "--task=Foo-v0", "--physics=newton_mjwarp"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    _, hydra_argv = setup_preset_cli(_make_parser())
+    assert hydra_argv[0] == "presets=newton_mjwarp"
+
+
+# ---------------------------------------------------------------------------
+# _peek_task: argparse-compatible semantics for repeated / malformed --task
+# ---------------------------------------------------------------------------
+
+
+def test_peek_task_returns_last_value():
+    """argparse's ``store`` action uses the last ``--task``; ``_peek_task``
+    must match so ``--help`` shows variants for the task argparse will actually
+    use."""
+    from isaaclab_tasks.utils.preset_cli import _peek_task
+
+    assert _peek_task(["train.py", "--task=Old", "--task=New"]) == "New"
+    assert _peek_task(["train.py", "--task", "Old", "--task", "New"]) == "New"
+    assert _peek_task(["train.py", "--task=Old", "--task", "New"]) == "New"
+
+
+# ---------------------------------------------------------------------------
+# Registry: cross-target name collisions are rejected
+# ---------------------------------------------------------------------------
+
+
+def test_register_rejects_cross_target_duplicate():
+    """The same canonical name under two ``PresetTarget``\\ s must raise.
+    Without this guard, the help-time ``name -> target`` map silently drops
+    one binding because it's a flat dict, so a backend author could
+    accidentally shadow another target's name."""
+    from isaaclab.utils.preset_registry import PresetTarget, register
+
+    @register(PresetTarget.PHYSICS, "_test_cross_target_unique")
+    class _A:
+        pass
+
+    with pytest.raises(RuntimeError, match="already bound"):
+
+        @register(PresetTarget.RENDERER, "_test_cross_target_unique")
+        class _B:
+            pass
