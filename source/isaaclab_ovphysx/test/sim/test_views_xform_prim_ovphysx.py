@@ -51,40 +51,10 @@ def test_view_raises_before_physics_ready():
             view.get_world_poses()
 
 
-def test_view_errors_when_newton_model_not_required():
-    """If the scene declares no Newton-model requirement, the view raises a hint.
-
-    ``build_simulation_context`` does not accept ``scene_data_requirements`` directly;
-    instead we call ``sim.update_scene_data_requirements`` after context creation to
-    reset the requirement flag to ``False``.  The actual class is
-    ``SceneDataRequirement`` (singular) from
-    ``isaaclab.physics.scene_data_requirements``.
-
-    Two error paths are possible depending on whether ``PHYSICS_READY`` fires:
-
-    * If the event fires synchronously (full OVPhysX context), the
-      ``_on_physics_ready`` callback sees ``get_newton_state() is None`` and raises
-      a ``RuntimeError`` containing ``"requires_newton_model=True"``.
-    * If the event does not fire (SDP not yet ready at construction time and no
-      step is issued), ``_require_initialized`` raises
-      ``"OvPhysxFrameView used before initialization"``.
-
-    The ``match`` regex covers both paths.
-    """
-    from isaaclab.physics.scene_data_requirements import SceneDataRequirement
-
-    device = "cpu"
-    OVPHYSX_SIM_CFG.device = device
-    with build_simulation_context(device=device, sim_cfg=OVPHYSX_SIM_CFG, add_ground_plane=False) as sim:
-        # Override the scene-data requirement so that requires_newton_model=False.
-        # This causes get_newton_state() to return None even after PHYSICS_READY.
-        sim.update_scene_data_requirements(SceneDataRequirement(requires_newton_model=False))
-
-        stage = sim_utils.get_current_stage()
-        prim = stage.DefinePrim("/World/marker_noreq", "Xform")
-        sim_utils.standardize_xform_ops(prim)
-        with pytest.raises(RuntimeError, match="used before initialization|requires_newton_model"):
-            FrameView("/World/marker_noreq", device=device).get_world_poses()
+# Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
+# removed when ``OvPhysxFrameView`` was reworked to read poses from a direct
+# OVPhysX ``RIGID_BODY_POSE`` tensor binding instead of the SDP's Newton state.
+# The view no longer depends on ``requires_newton_model``.
 
 
 # ==================================================================
@@ -105,9 +75,7 @@ from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
 from pxr import Gf  # noqa: E402
 
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
-from isaaclab.sim import SimulationContext  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 
 
@@ -127,7 +95,16 @@ class _OvPhysxFrameViewSceneCfg(InteractiveSceneCfg):
 
 @pytest.fixture
 def view_factory():
-    """OVPhysX factory: CameraMount child Xform at CHILD_OFFSET under each Cube body."""
+    """OVPhysX factory: CameraMount child Xform at CHILD_OFFSET under each Cube body.
+
+    Test scaffolding note: ``OvPhysxFrameView`` reads body poses from a live
+    OVPhysX ``RIGID_BODY_POSE`` tensor binding each frame. The shared contract
+    tests inject synthetic parent poses via ``set_parent_pos`` and expect the
+    very next ``get_world_poses`` call to reflect them -- without stepping the
+    sim. To make that work, the fixture detaches the binding after one
+    initial read so subsequent reads return the contents of ``_pose_buf``
+    directly, and the get/set callbacks drive ``_pose_buf`` in place.
+    """
     from isaaclab_ovphysx.sim.views import OvPhysxFrameView  # noqa: PLC0415
 
     contexts: list = []
@@ -148,24 +125,24 @@ def view_factory():
             prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*CHILD_OFFSET))
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
-        # Activate Newton model sync so get_newton_state() returns body_q.
-        sim.update_scene_data_requirements(SceneDataRequirement(requires_newton_model=True))
         sim.reset()
         view = OvPhysxFrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
 
-        sdp = SimulationContext.instance().initialize_scene_data_provider()
-        body_labels = list(sdp._rigid_body_paths)
-        cube_indices = [body_labels.index(f"/World/envs/env_{i}/Cube") for i in range(num_envs)]
+        # Capture binding row order, populate _pose_buf once with the live spawn poses,
+        # then detach the binding so subsequent reads do not overwrite the buffer.
+        assert view._pose_binding is not None, "Fixture expects a non-empty pose binding."
+        view._pose_binding.read(view._pose_buf)
+        path_to_row = {p: i for i, p in enumerate(view._pose_binding.prim_paths)}
+        view._pose_binding = None
+
+        cube_rows = [path_to_row[f"/World/envs/env_{i}/Cube"] for i in range(num_envs)]
+        pose_buf_torch = wp.to_torch(view._pose_buf)  # shape [num_bodies, 7] float32
 
         def _get_parent_pos(n: int, dev: str) -> torch.Tensor:
-            body_q = sdp.get_newton_state().body_q
-            torch_q = wp.to_torch(body_q).to(dev)
-            return torch_q[cube_indices, :3].clone()
+            return pose_buf_torch[cube_rows, :3].to(dev).clone()
 
         def _set_parent_pos(positions: torch.Tensor, n: int) -> None:
-            body_q = sdp.get_newton_state().body_q
-            torch_q = wp.to_torch(body_q)
-            torch_q[cube_indices, :3] = positions.to(torch_q.device, torch_q.dtype)
+            pose_buf_torch[cube_rows, :3] = positions.to(pose_buf_torch.device, pose_buf_torch.dtype)
 
         return ViewBundle(
             view=view,
