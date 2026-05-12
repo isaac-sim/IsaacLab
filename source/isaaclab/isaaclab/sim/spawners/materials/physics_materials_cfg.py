@@ -27,7 +27,7 @@ def __getattr__(name):
                 f"'isaaclab.sim.spawners.materials.physics_materials_cfg.{name}' has moved to"
                 " 'isaaclab_physx.sim.spawners.materials.physics_materials_cfg'. Install the"
                 " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
-                " for removal in 5.0."
+                " for removal in 4.0."
             ) from e
         return getattr(_physx_mat_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")

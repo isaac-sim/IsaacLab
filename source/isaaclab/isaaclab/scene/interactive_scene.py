@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject, SurfaceGripper
 
+    from isaaclab.renderers.base_renderer import BaseRenderer
+
 import torch
 import warp as wp
 
@@ -363,6 +365,42 @@ class InteractiveScene:
             for s in self._sensors.values()
             if (rcfg := getattr(getattr(s, "cfg", None), "renderer_cfg", None)) is not None
         ]
+
+    def initialize_renderers(self) -> list[BaseRenderer]:
+        """Pre-create renderer backends for all scene sensors with a ``renderer_cfg``.
+
+        Walks the constructed sensors and registers each unique
+        :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` with the
+        simulation-scoped :class:`~isaaclab.renderers.render_context.RenderContext`.
+        Configs that compare equal share a single backend (see
+        :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so
+        calling this method is idempotent and safe to invoke before
+        :meth:`~isaaclab.sim.SimulationContext.reset`.
+
+        Pre-creating backends here makes the order of renderer construction
+        deterministic (matches sensor registration order) and front-loads logging
+        instead of trickling out during the first :meth:`Camera._initialize_impl`.
+        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` is
+        intentionally not invoked here; it runs on first camera initialization
+        with the correct ``num_envs`` and final stage.
+
+        Returns:
+            The list of unique renderer backends now registered on the
+            shared :class:`~isaaclab.renderers.render_context.RenderContext`,
+            in sensor registration order.
+        """
+        ctx = self.sim.render_context
+        backends: list[BaseRenderer] = []
+        seen: set[int] = set()
+        for sensor in self._sensors.values():
+            rcfg = getattr(getattr(sensor, "cfg", None), "renderer_cfg", None)
+            if rcfg is None:
+                continue
+            backend = ctx.get_renderer(rcfg)
+            if id(backend) not in seen:
+                seen.add(id(backend))
+                backends.append(backend)
+        return backends
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
