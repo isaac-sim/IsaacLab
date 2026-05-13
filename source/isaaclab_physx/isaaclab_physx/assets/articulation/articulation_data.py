@@ -866,9 +866,15 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
         PhysX implementation: passthrough of ``_root_view.get_jacobians()``, which is
-        natively COM-referenced. The wrapper is pinned once in :meth:`_create_buffers`
-        because the engine buffer is pointer-stable for the articulation's lifetime.
+        natively Center-Of-Mass-referenced. Refresh is gated by ``_sim_timestamp`` and
+        invalidated by ``write_*_to_sim_index``; the ``ProxyArray`` wrapper is lazy-init
+        once and reused thereafter.
         """
+        if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
+            self._body_com_jacobian_w.data = self._root_view.get_jacobians()
+            self._body_com_jacobian_w.timestamp = self._sim_timestamp
+        if self._body_com_jacobian_w_ta is None:
+            self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
         return self._body_com_jacobian_w_ta
 
     @property
@@ -897,9 +903,14 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
 
         PhysX implementation: passthrough of ``_root_view.get_generalized_mass_matrices()``.
-        The wrapper is pinned once in :meth:`_create_buffers` because the engine buffer
-        is pointer-stable for the articulation's lifetime.
+        Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
+        the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
         """
+        if self._mass_matrix.timestamp < self._sim_timestamp:
+            self._mass_matrix.data = self._root_view.get_generalized_mass_matrices()
+            self._mass_matrix.timestamp = self._sim_timestamp
+        if self._mass_matrix_ta is None:
+            self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
         return self._mass_matrix_ta
 
     @property
@@ -907,9 +918,14 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
         PhysX implementation: passthrough of ``_root_view.get_gravity_compensation_forces()``.
-        The wrapper is pinned once in :meth:`_create_buffers` because the engine buffer
-        is pointer-stable for the articulation's lifetime.
+        Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
+        the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
         """
+        if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
+            self._gravity_compensation_forces.data = self._root_view.get_gravity_compensation_forces()
+            self._gravity_compensation_forces.timestamp = self._sim_timestamp
+        if self._gravity_compensation_forces_ta is None:
+            self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
         return self._gravity_compensation_forces_ta
 
     """
@@ -1445,6 +1461,25 @@ class ArticulationData(BaseArticulationData):
             dtype=wp.float32,
             device=self.device,
         )
+        # ``TimestampedBuffer``s for the three engine-passthrough properties. The placeholder
+        # ``wp.zeros`` allocation is replaced on first read by the engine view returned from
+        # ``_root_view.get_*()``; timestamps are advanced on each refresh and invalidated by
+        # write-paths.
+        self._body_com_jacobian_w = TimestampedBuffer(
+            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
+            self.device,
+            wp.float32,
+        )
+        self._mass_matrix = TimestampedBuffer(
+            (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
+            self.device,
+            wp.float32,
+        )
+        self._gravity_compensation_forces = TimestampedBuffer(
+            (self._num_instances, self._num_joints + num_base_dofs),
+            self.device,
+            wp.float32,
+        )
 
         # Default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
@@ -1608,14 +1643,16 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        # Dynamics quantities (task-space controllers). All four wrappers are eager —
-        # the PhysX tensor-view getters (``get_jacobians`` / ``get_generalized_mass_matrices`` /
-        # ``get_gravity_compensation_forces``) return pointer-stable buffers for the
-        # articulation's lifetime, so a single ProxyArray wrap survives every read.
+        # Dynamics quantities (task-space controllers). ``_body_link_jacobian_w`` wraps our
+        # own pre-allocated buffer (pointer-stable, eager wrap). The three engine-passthrough
+        # wrappers are lazy-init inside their property bodies on first read, matching the
+        # ``TimestampedBuffer`` + ``ProxyArray`` cache pattern used by ``body_link_pose_w``,
+        # ``joint_pos``, and the rest of this file. Refresh is gated by ``_sim_timestamp`` and
+        # invalidated by ``write_*_to_sim_index`` setting ``timestamp = -1.0``.
         self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
-        self._body_com_jacobian_w_ta = ProxyArray(self._root_view.get_jacobians())
-        self._mass_matrix_ta = ProxyArray(self._root_view.get_generalized_mass_matrices())
-        self._gravity_compensation_forces_ta = ProxyArray(self._root_view.get_gravity_compensation_forces())
+        self._body_com_jacobian_w_ta: ProxyArray | None = None
+        self._mass_matrix_ta: ProxyArray | None = None
+        self._gravity_compensation_forces_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
