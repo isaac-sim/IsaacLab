@@ -349,9 +349,9 @@ class ContactSensor(BaseContactSensor):
         def get_name(idx, kind):
             kind_name = getattr(kind, "name", None)
             kind_value = getattr(kind, "value", kind)
-            if kind_name == "BODY" or kind_value == 2:
+            if kind_name == "BODY" or kind_value == 2 or kind_value == "body":
                 return body_labels[int(idx)].split("/")[-1]
-            if kind_name == "SHAPE" or kind_value == 1:
+            if kind_name == "SHAPE" or kind_value == 1 or kind_value == "shape":
                 return shape_labels[int(idx)].split("/")[-1]
             return "MATCH_ANY"
 
@@ -367,19 +367,31 @@ class ContactSensor(BaseContactSensor):
                 ]
             return flat_values
 
+        def expand_metadata_type(values, count):
+            # Newton may expose object types as scalar strings ("body"/"shape") instead of
+            # per-object enum metadata. Expand scalars so they align with object indices.
+            if isinstance(values, str) or values is None:
+                return [values] * count
+            flat_values = flatten_metadata(values)
+            if len(flat_values) == 1 and count != 1:
+                return flat_values * count
+            return flat_values
+
+        flat_sensing_indices = flatten_metadata(self.contact_view.sensing_obj_idx)
         flat_sensing = list(
             zip(
-                flatten_metadata(self.contact_view.sensing_obj_idx),
-                flatten_metadata(self.contact_view.sensing_obj_type),
+                flat_sensing_indices,
+                expand_metadata_type(self.contact_view.sensing_obj_type, len(flat_sensing_indices)),
             )
         )
         self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
+        flat_counterpart_indices = flatten_metadata(self.contact_view.counterpart_indices)
         flat_counterparts = list(
             zip(
-                flatten_metadata(self.contact_view.counterpart_indices),
-                flatten_metadata(self.contact_view.counterpart_type),
+                flat_counterpart_indices,
+                expand_metadata_type(self.contact_view.counterpart_type, len(flat_counterpart_indices)),
             )
         )
         self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]

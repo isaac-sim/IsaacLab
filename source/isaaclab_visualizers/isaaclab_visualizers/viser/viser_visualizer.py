@@ -161,6 +161,7 @@ class ViserVisualizer(BaseVisualizer):
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
         )
         viewer_url = _viser_web_viewer_url(self.cfg.port)
+        self._log_viewer_url(logger, "ViserVisualizer", viewer_url)
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
@@ -170,7 +171,6 @@ class ViserVisualizer(BaseVisualizer):
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("port", self.cfg.port),
-                ("viewer_url", viewer_url),
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )

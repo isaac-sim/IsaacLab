@@ -21,8 +21,11 @@ class ViserVisualizerCfg(VisualizerCfg):
     port: int = 8080
     """Port of the local viser web server."""
 
-    open_browser: bool = True
-    """Whether to attempt opening the viser web viewer URL in a browser."""
+    open_browser: bool = False
+    """Whether to attempt opening the viser web viewer URL in a browser.
+
+    The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
+    """
 
     label: str | None = "Isaac Lab Simulation"
     """Optional label shown in the viewer page title."""

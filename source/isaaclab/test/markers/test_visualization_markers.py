@@ -54,6 +54,109 @@ def test_instantiation(sim):
     assert test_marker.num_prototypes == 1
 
 
+def test_rendering_without_visualizers_initializes_kit_backend(monkeypatch):
+    """Rendering observations should still author USD markers when no visualizer is launched."""
+
+    class _FakeSim:
+        is_rendering = True
+        visualizers = []
+
+    marker = object.__new__(VisualizationMarkers)
+    marker._backends = []
+
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: _FakeSim()))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.append("newton"))
+
+    marker._ensure_backends_initialized()
+
+    assert marker._backends == ["kit"]
+
+
+def test_non_rendering_without_visualizers_defers_backend_initialization(monkeypatch):
+    """Avoid creating render backends when neither rendering nor visualizers are active."""
+
+    class _FakeSim:
+        is_rendering = False
+        visualizers = []
+
+    marker = object.__new__(VisualizationMarkers)
+    marker._backends = []
+
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: _FakeSim()))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.append("newton"))
+
+    marker._ensure_backends_initialized()
+
+    assert marker._backends == []
+
+
+def test_kit_visualizer_initializes_kit_backend_when_rendering_flag_is_false(monkeypatch):
+    """Keep the explicit Kit visualizer path independent of SimulationContext.is_rendering."""
+
+    class _FakeKitVisualizer:
+        cfg = type("Cfg", (), {"enable_markers": True})()
+
+        def supports_markers(self):
+            return True
+
+        def pumps_app_update(self):
+            return True
+
+    class _FakeSim:
+        is_rendering = False
+        visualizers = [_FakeKitVisualizer()]
+
+    marker = object.__new__(VisualizationMarkers)
+    marker._backends = []
+
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: _FakeSim()))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.append("newton"))
+
+    marker._ensure_backends_initialized()
+
+    assert marker._backends == ["kit"]
+
+
+def test_rendering_context_authors_visible_usd_point_instancer(sim):
+    """Rendering-active contexts should create visible USD marker prims."""
+    from pxr import UsdGeom
+
+    sim._has_offscreen_render = True
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/rendered_marker",
+        markers={
+            "failure": sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
+                visible=True,
+            ),
+            "success": sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)),
+                visible=True,
+            ),
+        },
+    )
+    test_marker = VisualizationMarkers(config)
+    test_marker.visualize(
+        translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
+        marker_indices=torch.tensor([0, 1], device=sim.device),
+    )
+
+    stage = sim_utils.get_current_stage()
+    instancer_prim = stage.GetPrimAtPath(test_marker.prim_path)
+    instancer = UsdGeom.PointInstancer(instancer_prim)
+
+    assert instancer_prim.IsValid()
+    assert instancer
+    assert UsdGeom.Imageable(instancer_prim).GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
+    assert len(instancer.GetPositionsAttr().Get()) == 2
+    assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 1]
+
+
 def test_usd_marker(sim):
     """Test with marker from a USD."""
     # create a marker

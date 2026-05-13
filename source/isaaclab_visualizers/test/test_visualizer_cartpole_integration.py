@@ -35,14 +35,13 @@ import copy
 import logging
 import socket
 
+import omni.timeline
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
-from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
@@ -76,8 +75,11 @@ _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (600, 600)
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (600, 600)
 """Tiled camera per-env tile width/height (preset default is 100×100); keeps ``observation_space`` consistent."""
 
-_VIS_FRAME_TEST_STEPS = 60
+_VIS_FRAME_TEST_STEPS = 10
 """Steps for Kit / Newton frame capture: no early exit."""
+
+_PAUSED_FRAME_TEST_STEPS = 5
+"""Visualizer frames to pump while simulation is paused."""
 
 # Motion check compares the 2nd vs last captured frame (e.g. 2nd vs 60th when *_STEPS* is 60).
 _MOTION_FRAME_EARLY_IDX = 1
@@ -178,6 +180,8 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "viser":
         __import__("newton")
         __import__("viser")
+        from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+
         port = _find_free_tcp_port(host="127.0.0.1")
         return (
             ViserVisualizerCfg(open_browser=False, port=port, randomly_sample_visible_envs=False, **cam),
@@ -186,6 +190,8 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "rerun":
         __import__("newton")
         __import__("rerun")
+        from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
+
         web_port, grpc_port = _allocate_rerun_test_ports(host="127.0.0.1")
         return (
             RerunVisualizerCfg(
@@ -303,6 +309,14 @@ def _count_significantly_differing_pixels(
     return int(np.count_nonzero(per_pixel_max >= channel_diff_threshold))
 
 
+def _assert_frames_remain_stable(frame_a, frame_b, *, max_differing_pixels: int = 10) -> None:
+    """Assert two viewport frames are effectively unchanged while simulation is paused."""
+    n_diff = _count_significantly_differing_pixels(frame_a, frame_b)
+    assert n_diff <= max_differing_pixels, (
+        f"Paused viewport frames changed unexpectedly ({n_diff} > {max_differing_pixels} differing pixels)."
+    )
+
+
 def _assert_early_and_late_motion_frames_differ(
     frames: list,
     *,
@@ -333,6 +347,12 @@ def _assert_early_and_late_motion_frames_differ(
     )
 
 
+def _assert_frame_sequence_has_motion(frames: list) -> None:
+    """Assert a captured frame sequence is visible and changes over time."""
+    _assert_non_black_frame_array(frames[-1])
+    _assert_early_and_late_motion_frames_differ(frames)
+
+
 def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
     """Step env until the env's tiled camera RGB tensor is non-black, bounded by *max_steps*."""
     last_rgb = None
@@ -350,20 +370,88 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
     _assert_non_black_tensor(last_rgb)
 
 
+def _select_newton_training_control_button(viewer, target_label: str) -> None:
+    """Trigger one Newton visualizer training-control button by label."""
+
+    class _FakeImgui:
+        def separator(self):
+            pass
+
+        def text(self, _text):
+            pass
+
+        def button(self, label):
+            return label == target_label
+
+        def slider_int(self, _label, value, _min_value, _max_value, _format):
+            return False, value
+
+        def is_item_hovered(self):
+            return False
+
+        def set_tooltip(self, _text):
+            pass
+
+    viewer._render_training_controls(_FakeImgui())
+
+
+def _select_newton_pause_simulation_button(viewer) -> None:
+    """Trigger the Newton visualizer's Pause/Resume Simulation UI button."""
+    label = "Resume Simulation" if viewer.is_training_paused() else "Pause Simulation"
+    _select_newton_training_control_button(viewer, label)
+
+
+def _select_newton_pause_rendering_button(viewer) -> None:
+    """Trigger the Newton visualizer's Pause/Resume Rendering UI button."""
+    label = "Resume Rendering" if viewer.is_rendering_paused() else "Pause Rendering"
+    _select_newton_training_control_button(viewer, label)
+
+
 def _run_newton_viewer_frame_motion_test(
     viewer,
     *,
+    visualizer: NewtonVisualizer,
     step_hook,
+    get_physics_step_count,
     physics_kind: str,
     viz_kind: str = "newton",
 ) -> None:
-    """Exactly ``_VIS_FRAME_TEST_STEPS`` sim steps; last frame non-black; early vs late motion check."""
+    """Check Newton viewer simulation pause, rendering pause, then resumed motion."""
     frames: list = []
     for _ in range(_VIS_FRAME_TEST_STEPS):
         step_hook()
         frames.append(viewer.get_frame())
-    _assert_non_black_frame_array(frames[-1])
-    _assert_early_and_late_motion_frames_differ(frames)
+    _assert_frame_sequence_has_motion(frames)
+
+    _select_newton_pause_simulation_button(viewer)
+    paused_frame = viewer.get_frame()
+    for _ in range(_PAUSED_FRAME_TEST_STEPS):
+        visualizer.step(0.0)
+    _assert_frames_remain_stable(paused_frame, viewer.get_frame())
+
+    _select_newton_pause_simulation_button(viewer)
+    resumed_frames: list = []
+    for _ in range(_VIS_FRAME_TEST_STEPS):
+        step_hook()
+        resumed_frames.append(viewer.get_frame())
+    _assert_frame_sequence_has_motion(resumed_frames)
+
+    _select_newton_pause_rendering_button(viewer)
+    rendering_paused_frame = viewer.get_frame()
+    physics_step_before_render_pause = get_physics_step_count()
+    for _ in range(_PAUSED_FRAME_TEST_STEPS):
+        step_hook()
+    _assert_frames_remain_stable(rendering_paused_frame, viewer.get_frame())
+    assert get_physics_step_count() > physics_step_before_render_pause, (
+        "Physics did not advance while Newton visualizer rendering was paused."
+    )
+
+    _select_newton_pause_rendering_button(viewer)
+    render_resumed_frames: list = []
+    for _ in range(_VIS_FRAME_TEST_STEPS):
+        step_hook()
+        render_resumed_frames.append(viewer.get_frame())
+    _assert_frame_sequence_has_motion(render_resumed_frames)
 
 
 def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
@@ -403,7 +491,7 @@ def _run_kit_viewport_frame_motion_test(
     physics_kind: str,
     viz_kind: str = "kit",
 ) -> None:
-    """Exactly ``_VIS_FRAME_TEST_STEPS`` env steps; last Replicator frame non-black; early vs late motion check."""
+    """Check Kit viewport motion, timeline pause freeze, then resumed motion."""
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
     assert camera_path, "Kit visualizer does not expose a controlled viewport camera path."
 
@@ -417,12 +505,33 @@ def _run_kit_viewport_frame_motion_test(
             env.step(action=actions)
             rgb_data = annotator.get_data()
             frames.append(_annotator_rgb_to_numpy(rgb_data))
-        _assert_non_black_frame_array(frames[-1])
-        _assert_early_and_late_motion_frames_differ(frames)
+        _assert_frame_sequence_has_motion(frames)
+
+        timeline = omni.timeline.get_timeline_interface()
+        timeline.pause()
+        simulation_app.update()
+        paused_frame = _capture_kit_viewport_rgb(annotator)
+        try:
+            for _ in range(_PAUSED_FRAME_TEST_STEPS):
+                env.sim.render()
+            _assert_frames_remain_stable(paused_frame, _capture_kit_viewport_rgb(annotator))
+        finally:
+            timeline.play()
+            simulation_app.update()
+
+        resumed_frames: list = []
+        for _ in range(_VIS_FRAME_TEST_STEPS):
+            env.step(action=actions)
+            resumed_frames.append(_capture_kit_viewport_rgb(annotator))
+        _assert_frame_sequence_has_motion(resumed_frames)
     finally:
         if annotator is not None and render_product is not None:
             with contextlib.suppress(Exception):
                 annotator.detach([render_product])
+
+
+def _capture_kit_viewport_rgb(annotator) -> np.ndarray:
+    return _annotator_rgb_to_numpy(annotator.get_data())
 
 
 def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> CartpoleCameraEnv:
@@ -456,7 +565,6 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
 @pytest.mark.parametrize(
     "backend_kind",
     [
-        # xfail: Kit visualizer + PhysX only (Newton backend uses skip below — separate CUDA issue).
         pytest.param(
             "physx",
             marks=pytest.mark.xfail(
@@ -464,16 +572,7 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
                 strict=False,
             ),
         ),
-        pytest.param(
-            "newton",
-            marks=pytest.mark.skip(
-                reason=(
-                    "TODO: Kit visualizer + Newton physics + Isaac RTX tiled camera can hit CUDA illegal access "
-                    "or bad GPU state. Repro: rl_games train Isaac-Cartpole-Camera-Presets-Direct-v0 "
-                    "--enable_cameras presets=newton_mjwarp --viz kit. Re-enable when fixed."
-                )
-            ),
-        ),
+        "newton",
     ],
 )
 def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
@@ -541,7 +640,13 @@ def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplo
             def _step_env() -> None:
                 env.step(action=actions)
 
-            _run_newton_viewer_frame_motion_test(viewer, step_hook=_step_env, physics_kind=backend_kind)
+            _run_newton_viewer_frame_motion_test(
+                viewer,
+                visualizer=newton_visualizers[0],
+                step_hook=_step_env,
+                get_physics_step_count=lambda: env.sim._physics_step_count,
+                physics_kind=backend_kind,
+            )
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
@@ -565,6 +670,8 @@ def test_cartpole_rerun_visualizer_smoke_steps_and_logs(backend_kind: str, caplo
         with caplog.at_level(logging.WARNING):
             env.reset()
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            from isaaclab_visualizers.rerun import RerunVisualizer
+
             rerun_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, RerunVisualizer)]
             assert rerun_visualizers, "Expected an initialized Rerun visualizer."
             assert getattr(rerun_visualizers[0], "_viewer", None) is not None, "Rerun viewer was not created."
@@ -592,6 +699,8 @@ def test_cartpole_viser_visualizer_smoke_steps_and_logs(backend_kind: str, caplo
         with caplog.at_level(logging.WARNING):
             env.reset()
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            from isaaclab_visualizers.viser import ViserVisualizer
+
             viser_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, ViserVisualizer)]
             assert viser_visualizers, "Expected an initialized Viser visualizer."
             assert getattr(viser_visualizers[0], "_viewer", None) is not None, "Viser viewer was not created."

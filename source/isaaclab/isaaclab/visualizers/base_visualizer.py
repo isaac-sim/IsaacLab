@@ -310,6 +310,29 @@ class BaseVisualizer(ABC):
             table.add_row([key, value])
         logger.info("Visualizer initialization:\n%s", table.get_string())
 
+    @staticmethod
+    def _log_viewer_url(logger: logging.Logger, visualizer_name: str, viewer_url: str) -> None:
+        """Log a visible browser URL block for web-based visualizers.
+
+        Args:
+            logger: Logger used to emit the URL block.
+            visualizer_name: Name of the visualizer exposing the URL.
+            viewer_url: Browser URL for the visualizer.
+        """
+        border = "=" * 80
+        logger.warning(
+            "\n%s\n"
+            "[%s] Open the browser viewer manually:\n"
+            "  %s\n"
+            "Ctrl-click the URL in supported terminals/IDEs.\n"
+            "Set `open_browser=True` in the visualizer config to auto-launch it.\n"
+            "%s\n",
+            border,
+            visualizer_name,
+            viewer_url,
+            border,
+        )
+
     def play(self) -> None:
         """Handle simulation play/start. No-op by default."""
         pass

@@ -52,6 +52,7 @@ class KitVisualizer(BaseVisualizer):
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
         self._controlled_camera_path: str | None = None
+        self._physics_backend: str | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -72,6 +73,7 @@ class KitVisualizer(BaseVisualizer):
         if usd_stage is None:
             raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
         metadata = scene_data_provider.get_metadata()
+        self._physics_backend = str(metadata.get("physics_backend", "")).lower()
 
         self._ensure_simulation_app()
         self._setup_viewport()
@@ -122,10 +124,16 @@ class KitVisualizer(BaseVisualizer):
             if app is not None and app.is_running():
                 # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
                 # Disable playSimulations around app.update() so Kit does not advance its own physics here.
+                # Newton is not driven by Kit's player loop, so avoid toggling the setting; the Kit
+                # play/pause UI needs to control the timeline without this visualizer overwriting it.
                 settings = get_settings_manager()
-                settings.set_bool("/app/player/playSimulations", False)
+                guard_play_simulations = self._physics_backend != "newton"
+                play_before = settings.get("/app/player/playSimulations")
+                if guard_play_simulations:
+                    settings.set_bool("/app/player/playSimulations", False)
                 app.update()
-                settings.set_bool("/app/player/playSimulations", True)
+                if guard_play_simulations:
+                    settings.set_bool("/app/player/playSimulations", True if play_before is None else bool(play_before))
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first

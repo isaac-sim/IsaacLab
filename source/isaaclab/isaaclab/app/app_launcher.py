@@ -38,7 +38,6 @@ logging.getLogger("websockets").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("h5py").setLevel(logging.WARNING)
 
-
 class ExplicitAction(argparse.Action):
     """Custom action to track if an argument was explicitly passed by the user."""
 

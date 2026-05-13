@@ -19,7 +19,6 @@ from isaaclab.sensors.camera.camera_cfg import CameraCfg
 
 logger = logging.getLogger(__name__)
 
-
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
     """Add simulation-launcher CLI arguments (``--headless``, ``--device``, etc.) to *parser*.
 

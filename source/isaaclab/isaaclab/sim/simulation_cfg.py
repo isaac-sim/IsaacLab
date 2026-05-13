@@ -203,7 +203,7 @@ class SimulationCfg:
     """
 
     use_fabric: bool = True
-    """Enable/disable reading of physics buffers directly. Default is True.
+    """Enable/disable reading of physics buffers directly. Default is False.
 
     When running the simulation, updates in the states in the scene is normally synchronized with USD.
     This leads to an overhead in reading the data and does not scale well with massive parallelization.
