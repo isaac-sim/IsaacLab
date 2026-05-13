@@ -14,7 +14,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
-import warp as wp
 from flaky import flaky
 
 import isaaclab.envs.mdp as mdp
@@ -1299,8 +1298,11 @@ class _FloatingBaseOscActionsCfg:
         controller_cfg=OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
+            # Both flags enabled so the action term fetches mass matrix AND
+            # gravity each step, exercising the floating-base +6 indexing on
+            # both quantities.
             inertial_dynamics_decoupling=True,
-            gravity_compensation=False,
+            gravity_compensation=True,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
         ),
@@ -1330,14 +1332,16 @@ def test_floating_base_osc_action_term_indexing():
     """Regression test for #4999 / PR #5107: verify OperationalSpaceControllerAction uses correct
     indices for mass matrix and gravity on floating-base robots.
 
-    For floating-base robots, PhysX prepends 6 virtual DOFs to the generalized mass matrix and
-    gravity vectors. The action term's ``_compute_dynamic_quantities()`` must use
-    ``_jacobi_joint_idx`` (with +6 offset) instead of ``_joint_ids``. This test instantiates the
-    real action term via a ManagerBasedEnv, triggers ``_compute_dynamic_quantities()``, and verifies
-    the extracted mass matrix and gravity match a manual extraction using the correct PhysX indices.
+    The Jacobian / mass-matrix / gravity-comp DoF axis prepends ``num_base_dofs``
+    floating-base columns (``6`` for floating-base, ``0`` for fixed-base). The action
+    term's ``_compute_dynamic_quantities()`` must use ``_jacobi_joint_idx`` (with the
+    ``+ num_base_dofs`` shift) instead of ``_joint_ids``. This test instantiates the
+    real action term via a ManagerBasedEnv, triggers ``_compute_dynamic_quantities()``,
+    and verifies the extracted mass matrix and gravity match a manual extraction using
+    the correct indices.
 
-    If someone reverts ``_jacobi_joint_idx`` back to ``_joint_ids`` in ``_compute_dynamic_quantities``,
-    this test will fail.
+    If someone reverts ``_jacobi_joint_idx`` back to ``_joint_ids`` in
+    ``_compute_dynamic_quantities``, this test will fail.
     """
     env_cfg = _FloatingBaseOscEnvCfg()
     env_cfg.sim.device = "cuda:0"
@@ -1365,8 +1369,8 @@ def test_floating_base_osc_action_term_indexing():
 
         # --- 5. Manually extract using the CORRECT indices (what the fix does) ---
         jacobi_joint_idx = action_term._jacobi_joint_idx
-        full_mass_matrix = wp.to_torch(robot.root_view.get_generalized_mass_matrices())
-        full_gravity = wp.to_torch(robot.root_view.get_gravity_compensation_forces())
+        full_mass_matrix = robot.data.mass_matrix.torch
+        full_gravity = robot.data.gravity_compensation_forces.torch
 
         manual_mass = full_mass_matrix[:, jacobi_joint_idx, :][:, :, jacobi_joint_idx]
         manual_gravity = full_gravity[:, jacobi_joint_idx]
@@ -1375,10 +1379,10 @@ def test_floating_base_osc_action_term_indexing():
         torch.testing.assert_close(term_mass, manual_mass, atol=1e-5, rtol=0)
         torch.testing.assert_close(term_gravity, manual_gravity, atol=1e-5, rtol=0)
 
-        # --- 7. Verify the full PhysX tensor has +6 virtual DOFs ---
-        expected_physx_dofs = robot.num_joints + 6
-        assert full_mass_matrix.shape[1] == expected_physx_dofs, (
-            f"Mass matrix should have {expected_physx_dofs} DOFs, got {full_mass_matrix.shape[1]}"
+        # --- 7. Verify the data-layer tensor exposes the full DoF axis (J + num_base_dofs) ---
+        expected_dofs = robot.num_joints + robot.num_base_dofs
+        assert full_mass_matrix.shape[1] == expected_dofs, (
+            f"Mass matrix should have {expected_dofs} DoFs, got {full_mass_matrix.shape[1]}"
         )
 
         # --- 8. Verify correct indices differ from raw joint_ids (the old bug) ---
@@ -1386,7 +1390,7 @@ def test_floating_base_osc_action_term_indexing():
         original_joint_ids, _ = robot.find_joints(_G1_ARM_JOINT_NAMES)
         buggy_mass = full_mass_matrix[:, original_joint_ids, :][:, :, original_joint_ids]
         assert not torch.allclose(term_mass, buggy_mass, atol=1e-6), (
-            "Action term mass matrix should NOT match extraction with raw joint_ids (no +6 offset)"
+            "Action term mass matrix should NOT match extraction with raw joint_ids (no num_base_dofs offset)"
         )
 
         # --- 9. Verify physically reasonable values ---
@@ -1591,9 +1595,9 @@ def _update_states(
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
-    jacobian_w = wp.to_torch(robot.root_view.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
-    mass_matrix = wp.to_torch(robot.root_view.get_generalized_mass_matrices())[:, arm_joint_ids, :][:, :, arm_joint_ids]
-    gravity = wp.to_torch(robot.root_view.get_gravity_compensation_forces())[:, arm_joint_ids]
+    jacobian_w = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, arm_joint_ids]
+    mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+    gravity = robot.data.gravity_compensation_forces.torch[:, arm_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
     root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w.torch))
