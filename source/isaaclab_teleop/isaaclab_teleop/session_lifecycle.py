@@ -310,10 +310,13 @@ class TeleopSessionLifecycle:
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
-        # Replay sessions have no live XR client to attach, so the CloudXR
-        # runtime is irrelevant -- skip the launcher even if a profile was
-        # passed in by the caller.
-        if self._cloudxr_env_file is not None and not self._is_replay:
+        # CloudXR is per-run, not per-mode: when the caller passes a profile
+        # we spawn the runtime so a real client has something to attach to.
+        # This is true for live recording (operator wears the headset) and
+        # for spectate-on-replay (operator wears the headset to view a
+        # captured trajectory). Pure CI replay leaves cloudxr_env_file at
+        # None and gets the previous no-launcher behavior.
+        if self._cloudxr_env_file is not None:
             self._ensure_cloudxr_runtime()
 
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
@@ -330,16 +333,15 @@ class TeleopSessionLifecycle:
         }
         self._pipeline = OutputCombiner(pipeline_outputs)
 
-        # Build optional teleop_control_pipeline for message-channel control.
-        # In replay mode this is intentionally skipped: TeleopCore's
-        # ReplayDeviceIOFactory rejects ``MessageChannelTracker``, which the
-        # control pipeline auto-adds as a source. The recorded control
-        # events therefore stay in the MCAP file but cannot drive the
-        # replay loop -- see the follow-up notes on
-        # ``isaaclab_teleop.IsaacTeleopDevice`` for the gap.
+        # Build the optional teleop_control_pipeline for message-channel control.
+        # Live and replay both build it: in replay mode the underlying
+        # MessageChannelTracker is fed by TeleopCore's
+        # ReplayMessageChannelTrackerImpl from the recorded
+        # ``_teleop_control_source`` channel, so START / STOP / RESET edges
+        # surface through ``poll_control_events`` the same way they do live.
         self._teleop_control_pipeline = None
         self._message_processor = None
-        if self._cfg.control_channel_uuid is not None and not self._is_replay:
+        if self._cfg.control_channel_uuid is not None:
             self._teleop_control_pipeline, self._message_processor = self._build_control_pipeline(
                 self._cfg.control_channel_uuid
             )
