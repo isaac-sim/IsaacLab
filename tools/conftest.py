@@ -48,7 +48,7 @@ legitimate slow launches.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
-TIMEOUT_RETRIES = 2
+TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
 SHUTDOWN_GRACE_PERIOD = 30

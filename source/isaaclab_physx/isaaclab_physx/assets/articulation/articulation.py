@@ -464,6 +464,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors: body-frame Jacobian + gravity comp depend on root orientation;
+        # mass_matrix does not (configuration-space).
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
@@ -553,6 +557,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors: body-frame Jacobian + gravity comp depend on root orientation;
+        # mass_matrix does not (configuration-space).
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
@@ -874,6 +882,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors all depend on joint state.
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._mass_matrix.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
@@ -963,6 +975,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors all depend on joint state.
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._mass_matrix.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
 
