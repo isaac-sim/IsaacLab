@@ -346,48 +346,42 @@ class ContactSensor(BaseContactSensor):
         body_labels = self._get_model_labels("body")
         shape_labels = self._get_model_labels("shape")
 
-        def get_name(idx, kind):
-            kind_name = getattr(kind, "name", None)
-            kind_value = getattr(kind, "value", kind)
-            if kind_name == "BODY" or kind_value == 2:
-                return body_labels[int(idx)].split("/")[-1]
-            if kind_name == "SHAPE" or kind_value == 1:
-                return shape_labels[int(idx)].split("/")[-1]
-            return "MATCH_ANY"
-
-        def flatten_metadata(values):
-            if isinstance(values, wp.array):
-                values = values.numpy()
-            flat_values = np.asarray(values, dtype=object).reshape(-1).tolist()
-            if flat_values and isinstance(flat_values[0], list | tuple | np.ndarray):
-                return [
-                    value
-                    for nested_values in flat_values
-                    for value in np.asarray(nested_values, dtype=object).reshape(-1).tolist()
-                ]
-            return flat_values
-
-        flat_sensing = list(
-            zip(
-                flatten_metadata(self.contact_view.sensing_obj_idx),
-                flatten_metadata(self.contact_view.sensing_obj_type),
-            )
-        )
-        self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
+        s_kind = self.contact_view.sensing_obj_type
+        if s_kind == "body":
+            s_labels = body_labels
+        elif s_kind == "shape":
+            s_labels = shape_labels
+        else:
+            raise RuntimeError(f"Unexpected Newton sensing_obj_type {s_kind!r}; expected 'body' or 'shape'.")
+        self._sensor_names = [s_labels[i].split("/")[-1] for i in self.contact_view.sensing_obj_idx]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
-        flat_counterparts = list(
-            zip(
-                flatten_metadata(self.contact_view.counterpart_indices),
-                flatten_metadata(self.contact_view.counterpart_type),
-            )
-        )
-        self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
+
+        c_kind = self.contact_view.counterpart_type
+        c_idx_per_sensor = self.contact_view.counterpart_indices
+        if c_kind is None:
+            if self._generate_force_matrix:
+                raise RuntimeError("Filter expressions were configured but Newton reports no counterpart type.")
+            self._filter_object_names = []
+        else:
+            if c_kind == "body":
+                c_labels = body_labels
+            elif c_kind == "shape":
+                c_labels = shape_labels
+            else:
+                raise RuntimeError(f"Unexpected Newton counterpart_type {c_kind!r}; expected 'body' or 'shape'.")
+            # Envs are homogeneous: every sensor row sees the same counterpart list. Take row 0.
+            row0 = c_idx_per_sensor[0] if c_idx_per_sensor else []
+            self._filter_object_names = [c_labels[i].split("/")[-1] for i in row0]
+            if self._generate_force_matrix and not self._filter_object_names:
+                logger.warning("Filter expressions matched zero counterpart objects; force matrix will be empty.")
 
         force_matrix = self.contact_view.force_matrix
         force_matrix_shape = force_matrix.shape if force_matrix is not None else (total_sensor_count, 0)
         # Number of filter objects.
         self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
+        if self._num_filter_objects > 0 and force_matrix is None:
+            raise RuntimeError("Filter counterparts present but Newton force_matrix is None.")
 
         # Store flat Newton force views for copying data. These may be non-contiguous
         # views, so the copy kernel indexes them without reshaping.
