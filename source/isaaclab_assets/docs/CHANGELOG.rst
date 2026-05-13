@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+0.3.4 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_assets.robots.unitree.G129_CFG_WITH_DEX3_BASE_FIX` robot configuration
+  for the Unitree G1 29-DOF with Dex3 hands.
+
+
+0.3.3 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration for Flexiv Rizon 4s with Grav parallel gripper for manipulation tasks.
+
+
+0.3.2 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Cassie failing to load on Newton by enabling
+  :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+  in :data:`~isaaclab_assets.robots.cassie.CASSIE_CFG`.
+
+
 0.3.1 (2026-02-17)
 ~~~~~~~~~~~~~~~~~~
 

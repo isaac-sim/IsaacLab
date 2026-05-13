@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+0.3.2 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed ``_patched_reset`` monkey-patch in RLinf extension; use
+  ``num_rerenders_on_reset`` env config instead.
+
+
+0.3.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated TacSL visuotactile sensor camera configuration and examples to use
+  :class:`~isaaclab.sensors.CameraCfg` and :class:`~isaaclab.sensors.Camera`
+  instead of deprecated tiled-camera aliases.
+
+
 0.3.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 

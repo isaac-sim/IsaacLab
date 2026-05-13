@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
+
+import tomllib
 
 from ..utils import (
     ISAACLAB_ROOT,
@@ -76,6 +79,151 @@ def _install_system_deps() -> None:
             ]
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
+        # nlopt has no aarch64 manylinux wheel for the version pinned by
+        # isaacteleop[retargeters], so pip falls back to a CMake source build
+        # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
+        if not shutil.which("swig"):
+            print_info("Installing swig (required for building nlopt on ARM)...")
+            cmd = ["apt-get", "update"]
+            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+            cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
+            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+
+
+def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
+    """Return True when the first ``torch`` on ``sys.path`` comes from a prebundle directory.
+
+    Checks whether the first directory on ``sys.path`` that contains a
+    ``torch`` package lives under a ``pip_prebundle`` path (e.g.
+    ``omni.isaac.ml_archive/pip_prebundle``).  This catches the prebundle
+    regardless of whether the extension lives under ``exts/``,
+    ``extsDeprecated/``, or any other search path.
+
+    Does not import ``torch`` (that can fail on missing ``libcudnn`` while the
+    prebundle still appears earlier on ``sys.path`` than ``site-packages``).
+    """
+    probe = """import os, sys
+for p in sys.path:
+    if not p:
+        continue
+    if os.path.isfile(os.path.join(p, "torch", "__init__.py")):
+        norm = os.path.normpath(p)
+        sys.exit(1 if "pip_prebundle" in norm else 0)
+sys.exit(0)
+"""
+    result = run_command(
+        [python_exe, "-c", probe],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 1
+
+
+def _maybe_preinstall_arm_nlopt(pip_cmd: list[str]) -> None:
+    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
+
+    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
+    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
+    that hides the host-Python ``numpy`` from its isolated build env. Mirror
+    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
+    in the host Python first, then ``--no-build-isolation`` install nlopt so
+    later submodule installs see it as already satisfied.
+    """
+    if is_windows() or not is_arm():
+        return
+    print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
+    print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
+    run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
+    print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
+    run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
+
+
+def _maybe_uninstall_prebundled_torch(
+    python_exe: str,
+    pip_cmd: list[str],
+    using_uv: bool,
+    *,
+    probe_env: dict[str, str],
+) -> None:
+    """Uninstall pip torch stack when ``sys.path`` would load ``torch`` from a prebundle first."""
+    if not _torch_first_on_sys_path_is_prebundle(python_exe, env=probe_env):
+        return
+    print_info(
+        "The first ``torch`` on ``sys.path`` is under a prebundle directory (e.g. "
+        "``omni.isaac.ml_archive/pip_prebundle``). Uninstalling pip "
+        "``torch``/``torchvision``/``torchaudio`` before continuing."
+    )
+    uninstall_flags = ["-y"] if not using_uv else []
+    run_command(
+        pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
+        check=False,
+    )
+
+
+# Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
+# via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
+# ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
+_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.8.5")
+
+
+def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
+    """Ensure the Pink IK dependency stack is importable, force-installing it if not.
+
+    Recent Isaac Sim base images preinstall ``pin-pink`` into the kit's bundled
+    ``site-packages`` without its ``pin`` (cmeel pinocchio) dependency.  Pip then
+    treats the ``pin-pink`` requirement as satisfied and never resolves the
+    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This checks
+    the runtime dependencies and force-installs the cmeel stack when needed so
+    the pink IK controller and its tests work out of the box.
+
+    Only runs on Linux x86_64 / aarch64 — the same platforms that have
+    pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
+    Skipped on Windows and macOS (no cmeel wheels) and on unsupported
+    architectures so the rest of ``--install`` behaves unchanged there.
+
+    A force-reinstall failure (e.g. transient PyPI / NVIDIA Artifactory issue)
+    is logged as a warning rather than aborting ``--install``: pinocchio is only
+    needed by the optional pink IK controller, so the rest of Isaac Lab should
+    still install cleanly.
+    """
+    import platform
+
+    if platform.system() != "Linux":
+        return
+    if platform.machine() not in {"x86_64", "AMD64", "aarch64", "arm64"}:
+        return
+
+    probe_result = run_command(
+        [
+            python_exe,
+            "-c",
+            "import inspect, pinocchio, daqp, qpsolvers; "
+            "assert 'daqp' in qpsolvers.available_solvers; "
+            "assert 'primal_start' in inspect.signature(daqp.solve).parameters",
+        ],
+        env=probe_env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if probe_result.returncode == 0:
+        return
+
+    print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
+    install_result = run_command(
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINK_IK_STACK],
+        check=False,
+    )
+    if install_result.returncode != 0:
+        print_warning(
+            "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
+            f"{install_result.returncode}). The pink IK controller and its tests will not be"
+            " usable until ``pin pin-pink==3.1.0 daqp==0.8.5`` is installed manually."
+        )
+
 
 def _ensure_cuda_torch() -> None:
     """Ensure correct PyTorch and CUDA versions are installed."""
@@ -139,6 +287,111 @@ def _ensure_cuda_torch() -> None:
 ISAACSIM_VERSION_SPEC = ">=6.0.0"
 ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
+
+
+def _normalize_package_name(name: str) -> str:
+    """Normalize a Python package name for metadata comparisons."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _requirement_name(requirement: str) -> str:
+    """Extract the distribution name from a requirement string."""
+    requirement = requirement.split(";", 1)[0].strip()
+    return re.split(r"\s|<|>|=|!|~|\[|@", requirement, maxsplit=1)[0]
+
+
+def _get_installed_distribution_requirements(python_exe: str, distribution_name: str) -> list[str]:
+    """Return installed ``Requires-Dist`` requirements for a distribution."""
+    probe = """import importlib.metadata
+import sys
+
+try:
+    dist = importlib.metadata.distribution(sys.argv[1])
+except importlib.metadata.PackageNotFoundError:
+    sys.exit(1)
+
+for requirement in dist.requires or []:
+    print(requirement)
+"""
+    result = run_command(
+        [python_exe, "-c", probe, distribution_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print_warning(f"Could not read installed metadata for {distribution_name}; skipping dependency upgrades.")
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _get_extension_pip_upgrade_dependencies(extension_dir: Path) -> list[str]:
+    """Read dependency names opted into targeted pip upgrades from ``extension.toml``."""
+    extension_toml = extension_dir / "config" / "extension.toml"
+    if not extension_toml.is_file():
+        return []
+
+    try:
+        with extension_toml.open("rb") as fd:
+            extension_data = tomllib.load(fd)
+    except tomllib.TOMLDecodeError as exc:
+        print_warning(f"Could not parse {extension_toml}: {exc}; skipping targeted dependency upgrades.")
+        return []
+
+    isaac_lab_settings = extension_data.get("isaac_lab_settings", {})
+    if not isinstance(isaac_lab_settings, dict):
+        print_warning(
+            f"Ignoring invalid isaac_lab_settings in {extension_toml}; expected a table with pip_upgrade_dependencies."
+        )
+        return []
+
+    upgrade_dependencies = isaac_lab_settings.get("pip_upgrade_dependencies", [])
+    if not isinstance(upgrade_dependencies, list) or not all(isinstance(item, str) for item in upgrade_dependencies):
+        print_warning(f"Ignoring invalid pip_upgrade_dependencies in {extension_toml}; expected a list of strings.")
+        return []
+
+    return upgrade_dependencies
+
+
+def _get_pip_upgrade_command(pip_cmd: list[str], dependency_name: str, requirement: str) -> list[str]:
+    """Return a pip command that upgrades one dependency requirement."""
+    if pip_cmd[0] == "uv":
+        return pip_cmd + ["install", "--upgrade-package", dependency_name, requirement]
+    return pip_cmd + ["install", "--upgrade", requirement]
+
+
+def _upgrade_extension_pip_dependencies(
+    python_exe: str,
+    pip_cmd: list[str],
+    distribution_name: str,
+    dependency_names: list[str],
+) -> None:
+    """Upgrade selected dependencies using installed distribution metadata requirements."""
+    if not dependency_names:
+        return
+
+    requirements = _get_installed_distribution_requirements(python_exe, distribution_name)
+    seen_dependency_names = set()
+
+    for dependency_name in dependency_names:
+        normalized_dependency_name = _normalize_package_name(dependency_name)
+        if normalized_dependency_name in seen_dependency_names:
+            continue
+        seen_dependency_names.add(normalized_dependency_name)
+
+        matching_requirements = [
+            req for req in requirements if _normalize_package_name(_requirement_name(req)) == normalized_dependency_name
+        ]
+        if not matching_requirements:
+            print_warning(
+                f"Could not find dependency '{dependency_name}' in installed metadata for {distribution_name}; "
+                "skipping targeted upgrade."
+            )
+            continue
+
+        for requirement in matching_requirements:
+            print_info(f"Upgrading {dependency_name} for {distribution_name}: {requirement}")
+            run_command(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
 
 
 def _install_isaacsim() -> None:
@@ -269,6 +522,12 @@ def _install_isaaclab_submodules(
         editable = (submodule_extras or {}).get(item.name, "")
         install_target = f"{item}{editable}"
         run_command(pip_cmd + ["install", "--editable", install_target])
+        _upgrade_extension_pip_dependencies(
+            python_exe,
+            pip_cmd,
+            item.name,
+            _get_extension_pip_upgrade_dependencies(item),
+        )
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
@@ -305,6 +564,9 @@ _PREBUNDLE_REPOINT_PACKAGES: list[str] = [
     "newton_actuators",
     "warp",
     "mujoco_warp",
+    "websockets",
+    "viser",
+    "imgui_bundle",
 ]
 """Package directory names in Isaac Sim prebundle directories to repoint.
 
@@ -352,7 +614,25 @@ def _repoint_prebundle_packages() -> None:
         print_warning(f"site-packages directory not found: {site_packages} — skipping prebundle repoint.")
         return
 
-    prebundle_dirs = list(isaacsim_path.rglob("pip_prebundle"))
+    # Discover pip_prebundle directories from both the Isaac Sim tree and
+    # Omniverse cache roots. Some Isaac Sim directories are symlinked into
+    # ~/.local/share/ov and may be missed by a plain rglob() on _isaac_sim.
+    candidate_roots: set[Path] = set()
+    for root in (
+        isaacsim_path,
+        isaacsim_path.resolve(),
+        isaacsim_path / "extscache",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
+    ):
+        if root.exists():
+            candidate_roots.add(root)
+            candidate_roots.add(root.resolve())
+
+    prebundle_dirs: set[Path] = set()
+    for root in candidate_roots:
+        prebundle_dirs.update(root.rglob("pip_prebundle"))
+
     if not prebundle_dirs:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
@@ -366,6 +646,17 @@ def _repoint_prebundle_packages() -> None:
             if not venv_pkg.exists():
                 continue
             if not prebundled.exists() and not prebundled.is_symlink():
+                continue
+
+            # The 'nvidia' directory is a Python namespace package shared across many
+            # distributions (nvidia-cudnn-cu12, nvidia-cublas-cu12, nvidia-srl, …).
+            # When using Isaac Sim's built-in Python, site-packages/nvidia only contains
+            # 'srl'; replacing the whole prebundle nvidia/ with that symlink strips away
+            # the CUDA shared libraries (libcudnn.so.9, etc.) that torch needs.
+            # Only repoint the nvidia namespace when the target actually provides the
+            # CUDA subpackages (cudnn is the minimal required indicator).
+            if pkg_name == "nvidia" and not (venv_pkg / "cudnn").exists():
+                print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages (cudnn missing).")
                 continue
 
             try:
@@ -482,12 +773,6 @@ def command_install(install_type: str = "all") -> None:
                 if name == "newton" and "isaaclab_visualizers" not in isaaclab_submodules:
                     isaaclab_submodules.append("isaaclab_visualizers")
                     submodule_extras["isaaclab_visualizers"] = "[newton]"
-                # newton and physx are tightly coupled; always install both together.
-                # todo: remove once we move to UV and pyproject.toml-based packaging
-                if name == "newton" and "isaaclab_physx" not in isaaclab_submodules:
-                    isaaclab_submodules.append("isaaclab_physx")
-                if name == "physx" and "isaaclab_newton" not in isaaclab_submodules:
-                    isaaclab_submodules.append("isaaclab_newton")
             else:
                 valid = sorted(VALID_ISAACLAB_SUBMODULES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
                 print_warning(f"Unknown Isaac Lab submodule '{name}'. Valid values: {', '.join(valid)}. Skipping.")
@@ -528,6 +813,12 @@ def command_install(install_type: str = "all") -> None:
     pip_cmd = get_pip_command(python_exe)
     using_uv = pip_cmd[0] == "uv"
 
+    # Probe with the user's original PYTHONPATH (before pip-time filtering) so we detect
+    # Isaac Sim's setup_python_env.sh ordering that prefers extsDeprecated/ml_archive.
+    probe_env = {**os.environ}
+    if saved_pythonpath is not None:
+        probe_env["PYTHONPATH"] = saved_pythonpath
+
     try:
         # Upgrade pip first to avoid compatibility issues (skip when using uv).
         if not using_uv:
@@ -536,6 +827,12 @@ def command_install(install_type: str = "all") -> None:
 
         # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+
+        # On ARM Linux pre-install nlopt to dodge its from-source build fallback.
+        _maybe_preinstall_arm_nlopt(pip_cmd)
+
+        # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+        _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
 
         # Install Isaac Sim if requested.
         if install_isaacsim:
@@ -554,6 +851,11 @@ def command_install(install_type: str = "all") -> None:
         # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
         # Can prevent that from happening.
         _ensure_cuda_torch()
+
+        # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
+        # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
+        # ``pip install -e source/isaaclab`` to be silently skipped.
+        _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
 
         # Repoint prebundled packages in Isaac Sim to the environment's copies so
         # the active venv/conda versions are always loaded regardless of PYTHONPATH

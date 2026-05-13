@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -27,14 +27,14 @@ def object_obs(
         right_eef_to object,
     """
 
-    body_pos_w = wp.to_torch(env.scene["robot"].data.body_pos_w)
+    body_pos_w = env.scene["robot"].data.body_pos_w.torch
     left_eef_idx = env.scene["robot"].data.body_names.index(left_eef_link_name)
     right_eef_idx = env.scene["robot"].data.body_names.index(right_eef_link_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
     right_eef_pos = body_pos_w[:, right_eef_idx] - env.scene.env_origins
 
-    object_pos = wp.to_torch(env.scene["object"].data.root_pos_w) - env.scene.env_origins
-    object_quat = wp.to_torch(env.scene["object"].data.root_quat_w)
+    object_pos = env.scene["object"].data.root_pos_w.torch - env.scene.env_origins
+    object_quat = env.scene["object"].data.root_quat_w.torch
 
     left_eef_to_object = object_pos - left_eef_pos
     right_eef_to_object = object_pos - right_eef_pos
@@ -51,7 +51,7 @@ def object_obs(
 
 
 def get_eef_pos(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
-    body_pos_w = wp.to_torch(env.scene["robot"].data.body_pos_w)
+    body_pos_w = env.scene["robot"].data.body_pos_w.torch
     left_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     left_eef_pos = body_pos_w[:, left_eef_idx] - env.scene.env_origins
 
@@ -59,7 +59,7 @@ def get_eef_pos(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
 
 
 def get_eef_quat(env: ManagerBasedRLEnv, link_name: str) -> torch.Tensor:
-    body_quat_w = wp.to_torch(env.scene["robot"].data.body_quat_w)
+    body_quat_w = env.scene["robot"].data.body_quat_w.torch
     left_eef_idx = env.scene["robot"].data.body_names.index(link_name)
     left_eef_quat = body_quat_w[:, left_eef_idx]
 
@@ -73,15 +73,39 @@ def get_robot_joint_state(
     # hand_joint_names is a list of regex, use find_joints
     indexes, _ = env.scene["robot"].find_joints(joint_names)
     indexes = torch.tensor(indexes, dtype=torch.long)
-    robot_joint_states = wp.to_torch(env.scene["robot"].data.joint_pos)[:, indexes]
+    robot_joint_states = env.scene["robot"].data.joint_pos.torch[:, indexes]
 
     return robot_joint_states
+
+
+def get_all_robot_link_pose(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Robot link poses in the world frame.
+
+    Returns:
+        Link poses with shape ``[num_envs, num_bodies, 7]`` and layout
+        ``[x, y, z, qx, qy, qz, qw]`` where position is in ``[m]``.
+    """
+    return env.scene["robot"].data.body_link_pose_w.torch
+
+
+def get_all_robot_link_velocity(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Robot link velocities in the world frame.
+
+    Returns:
+        Link velocities with shape ``[num_envs, num_bodies, 6]`` and layout
+        ``[linear_velocity(3), angular_velocity(3)]`` in ``[m/s, rad/s]``.
+    """
+    return env.scene["robot"].data.body_link_vel_w.torch
 
 
 def get_all_robot_link_state(
     env: ManagerBasedRLEnv,
 ) -> torch.Tensor:
-    body_pos_w = wp.to_torch(env.scene["robot"].data.body_link_state_w)[:, :, :]
-    all_robot_link_pos = body_pos_w
-
-    return all_robot_link_pos
+    # TODO: Remove this compatibility helper in IsaacLab 4.0.
+    warnings.warn(
+        "`get_all_robot_link_state` is deprecated and will be removed in IsaacLab 4.0. "
+        "Use `get_all_robot_link_pose` and `get_all_robot_link_velocity` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return torch.cat((get_all_robot_link_pose(env), get_all_robot_link_velocity(env)), dim=-1)

@@ -5,30 +5,28 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Sequence
 
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd, UsdGeom
-
-from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
+from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
 
 
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
-    sources: list[str],
+    sources: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     simplify_meshes: bool = True,
-) -> tuple[ModelBuilder, object]:
+) -> tuple[ModelBuilder, object, dict]:
     """Build a Newton model builder from clone mapping inputs.
 
     Args:
@@ -42,7 +40,9 @@ def _build_newton_builder_from_mapping(
         simplify_meshes: Whether to run convex-hull mesh approximation.
 
     Returns:
-        Tuple of the populated Newton model builder and stage metadata returned by ``add_usd``.
+        Tuple of the populated Newton model builder, stage metadata returned
+        by ``add_usd``, and a site index map for
+        :attr:`NewtonManager._cl_site_index_map`.
     """
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
@@ -52,10 +52,10 @@ def _build_newton_builder_from_mapping(
 
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
-    builder = ModelBuilder(up_axis=up_axis)
+    builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
-        ignore_paths=["/World/envs"] + sources,
+        ignore_paths=["/World/envs", *sources],
         schema_resolvers=schema_resolvers,
     )
 
@@ -64,7 +64,7 @@ def _build_newton_builder_from_mapping(
     env0_pos = positions[0]
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
-        p = ModelBuilder(up_axis=up_axis)
+        p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
             stage,
@@ -77,6 +77,16 @@ def _build_newton_builder_from_mapping(
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
+    # Inject registered sites into prototypes (and global sites into main builder)
+    global_sites, proto_sites = NewtonManager._cl_inject_sites(builder, protos)
+
+    # Global sites: (int, None)
+    global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
+
+    # Local sites: per-world sublists, populated in the loop below
+    num_worlds = mapping.size(1)
+    local_site_map: dict[str, list[list[int]]] = {}
+
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
     for col, _ in enumerate(env_ids.tolist()):
@@ -85,18 +95,35 @@ def _build_newton_builder_from_mapping(
         # add all active sources for this world
         delta_pos = (positions[col] - env0_pos).tolist()
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
+            proto = protos[sources[row]]
+            offset = builder.shape_count
             builder.add_builder(
-                protos[sources[row]],
+                proto,
                 xform=wp.transform(delta_pos, quaternions[col].tolist()),
             )
+            # Compute final shape indices for sites in this proto
+            for label, proto_shape_indices in proto_sites.get(id(proto), {}).items():
+                if label not in local_site_map:
+                    local_site_map[label] = [[] for _ in range(num_worlds)]
+                for proto_shape_idx in proto_shape_indices:
+                    local_site_map[label][col].append(offset + proto_shape_idx)
         # end the world context
         builder.end_world()
 
-    return builder, stage_info
+    site_index_map = {
+        **global_site_map,
+        **{label: (None, per_world) for label, per_world in local_site_map.items()},
+    }
+
+    return builder, stage_info, site_index_map
 
 
 def _rename_builder_labels(
-    builder: ModelBuilder, sources: list[str], destinations: list[str], env_ids: torch.Tensor, mapping: torch.Tensor
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    destinations: Sequence[str],
+    env_ids: torch.Tensor,
+    mapping: torch.Tensor,
 ) -> None:
     """Rename builder labels/keys from source roots to destination roots.
 
@@ -128,8 +155,8 @@ def _rename_builder_labels(
 
 def newton_physics_replicate(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -155,7 +182,7 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    builder, stage_info = _build_newton_builder_from_mapping(
+    builder, stage_info, site_index_map = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
         env_ids=env_ids,
@@ -166,6 +193,7 @@ def newton_physics_replicate(
         simplify_meshes=simplify_meshes,
     )
     _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+    NewtonManager._cl_site_index_map = site_index_map
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
     return builder, stage_info
@@ -173,8 +201,8 @@ def newton_physics_replicate(
 
 def newton_visualizer_prebuild(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -203,7 +231,7 @@ def newton_visualizer_prebuild(
     Returns:
         Tuple of finalized Newton model and state.
     """
-    builder, _ = _build_newton_builder_from_mapping(
+    builder, _, _site_index_map = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
         env_ids=env_ids,
@@ -217,55 +245,3 @@ def newton_visualizer_prebuild(
     model = builder.finalize(device=device)
     state = model.state()
     return model, state
-
-
-def create_newton_visualizer_prebuild_clone_fn(
-    stage,
-    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
-):
-    """Create a cloner callback that prebuilds Newton visualizer artifacts.
-
-    Args:
-        stage: USD stage used by the clone callback.
-        set_visualizer_artifact: Callback used to store the produced prebuilt artifact.
-
-    Returns:
-        Clone callback that builds and stores visualizer prebuilt artifacts.
-    """
-    up_axis = UsdGeom.GetStageUpAxis(stage)
-
-    def _visualizer_clone_fn(
-        stage,
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=None,
-        quaternions=None,
-        device="cpu",
-    ):
-        """Prebuild Newton model/state and store visualizer artifacts for clone consumers."""
-        model, state = newton_visualizer_prebuild(
-            stage=stage,
-            sources=sources,
-            destinations=destinations,
-            env_ids=env_ids,
-            mapping=mapping,
-            positions=positions,
-            quaternions=quaternions,
-            device=device,
-            up_axis=up_axis,
-        )
-        set_visualizer_artifact(
-            VisualizerPrebuiltArtifacts(
-                model=model,
-                state=state,
-                rigid_body_paths=list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
-                articulation_paths=list(
-                    getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
-                ),
-                num_envs=int(mapping.size(1)),
-            )
-        )
-
-    return _visualizer_clone_fn

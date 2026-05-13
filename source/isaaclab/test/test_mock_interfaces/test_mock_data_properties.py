@@ -7,7 +7,6 @@
 
 import pytest
 import torch
-import warp as wp
 
 from isaaclab.test.mock_interfaces.assets import (
     MockArticulationData,
@@ -18,6 +17,7 @@ from isaaclab.test.mock_interfaces.sensors import (
     MockContactSensorData,
     MockFrameTransformerData,
     MockImuData,
+    MockPvaData,
 )
 
 # ==============================================================================
@@ -26,12 +26,68 @@ from isaaclab.test.mock_interfaces.sensors import (
 
 
 class TestMockImuDataProperties:
-    """Comprehensive tests for all MockImuData properties."""
+    """Comprehensive tests for all MockImuData properties.
+
+    MockImuData only provides angular velocity and linear acceleration.
+    """
 
     @pytest.fixture
     def data(self):
         """Create MockImuData fixture."""
         return MockImuData(num_instances=4, device="cpu")
+
+    @pytest.mark.parametrize(
+        "property_name,expected_shape",
+        [
+            ("ang_vel_b", (4, 3)),
+            ("lin_acc_b", (4, 3)),
+        ],
+    )
+    def test_property_shapes(self, data, property_name, expected_shape):
+        """Test that all properties return tensors with correct shapes."""
+        prop = getattr(data, property_name)
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
+
+    @pytest.mark.parametrize(
+        "setter_name,property_name,shape",
+        [
+            ("set_ang_vel_b", "ang_vel_b", (4, 3)),
+            ("set_lin_acc_b", "lin_acc_b", (4, 3)),
+        ],
+    )
+    def test_setters_update_properties(self, data, setter_name, property_name, shape):
+        """Test that setters properly update the corresponding properties."""
+
+        test_value = torch.randn(shape)
+        setter = getattr(data, setter_name)
+        setter(test_value)
+        result = getattr(data, property_name).torch
+        assert torch.allclose(result, test_value), f"{setter_name} did not update {property_name}"
+
+    def test_bulk_setter(self, data):
+        """Test that set_mock_data updates multiple properties at once."""
+
+        ang_vel = torch.randn(4, 3)
+        lin_acc = torch.randn(4, 3)
+
+        data.set_mock_data(ang_vel_b=ang_vel, lin_acc_b=lin_acc)
+
+        assert torch.allclose(data.ang_vel_b.torch, ang_vel)
+        assert torch.allclose(data.lin_acc_b.torch, lin_acc)
+
+
+# ==============================================================================
+# PVA Data Property Tests
+# ==============================================================================
+
+
+class TestMockPvaDataProperties:
+    """Comprehensive tests for all MockPvaData properties."""
+
+    @pytest.fixture
+    def data(self):
+        """Create MockPvaData fixture."""
+        return MockPvaData(num_instances=4, device="cpu")
 
     @pytest.mark.parametrize(
         "property_name,expected_shape",
@@ -49,7 +105,7 @@ class TestMockImuDataProperties:
     def test_property_shapes(self, data, property_name, expected_shape):
         """Test that all properties return tensors with correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     @pytest.mark.parametrize(
         "setter_name,property_name,shape",
@@ -65,17 +121,15 @@ class TestMockImuDataProperties:
     )
     def test_setters_update_properties(self, data, setter_name, property_name, shape):
         """Test that setters properly update the corresponding properties."""
-        import warp as wp
 
         test_value = torch.randn(shape)
         setter = getattr(data, setter_name)
         setter(test_value)
-        result = wp.to_torch(getattr(data, property_name))
+        result = getattr(data, property_name).torch
         assert torch.allclose(result, test_value), f"{setter_name} did not update {property_name}"
 
     def test_bulk_setter(self, data):
         """Test that set_mock_data updates multiple properties at once."""
-        import warp as wp
 
         lin_vel = torch.randn(4, 3)
         ang_vel = torch.randn(4, 3)
@@ -83,23 +137,21 @@ class TestMockImuDataProperties:
 
         data.set_mock_data(lin_vel_b=lin_vel, ang_vel_b=ang_vel, lin_acc_b=lin_acc)
 
-        assert torch.allclose(wp.to_torch(data.lin_vel_b), lin_vel)
-        assert torch.allclose(wp.to_torch(data.ang_vel_b), ang_vel)
-        assert torch.allclose(wp.to_torch(data.lin_acc_b), lin_acc)
+        assert torch.allclose(data.lin_vel_b.torch, lin_vel)
+        assert torch.allclose(data.ang_vel_b.torch, ang_vel)
+        assert torch.allclose(data.lin_acc_b.torch, lin_acc)
 
     def test_default_quaternion_is_identity(self, data):
         """Test that default quaternion is identity in XYZW format: (x, y, z, w) = (0, 0, 0, 1)."""
-        import warp as wp
 
-        quat = wp.to_torch(data.quat_w)
+        quat = data.quat_w.torch
         assert torch.allclose(quat[:, :3], torch.zeros(4, 3))  # xyz=0
         assert torch.allclose(quat[:, 3], torch.ones(4))  # w=1
 
     def test_default_gravity_points_down(self, data):
         """Test that default gravity points in -z direction."""
-        import warp as wp
 
-        gravity = wp.to_torch(data.projected_gravity_b)
+        gravity = data.projected_gravity_b.torch
         expected = torch.tensor([[0, 0, -1]] * 4, dtype=torch.float32)
         assert torch.allclose(gravity, expected)
 
@@ -170,7 +222,7 @@ class TestMockContactSensorDataProperties:
         if property_name == "force_matrix_w_history":
             assert prop.shape == expected_shape, f"{property_name} has wrong shape"
         else:
-            assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+            assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     def test_optional_properties_none_without_config(self, data_no_history):
         """Test optional properties are None when not configured."""
@@ -194,12 +246,11 @@ class TestMockContactSensorDataProperties:
     )
     def test_setters_update_properties(self, data, setter_name, property_name, shape):
         """Test that setters properly update the corresponding properties."""
-        import warp as wp
 
         test_value = torch.randn(shape)
         setter = getattr(data, setter_name)
         setter(test_value)
-        result = wp.to_torch(getattr(data, property_name))
+        result = getattr(data, property_name).torch
         assert torch.allclose(result, test_value), f"{setter_name} did not update {property_name}"
 
 
@@ -238,7 +289,7 @@ class TestMockFrameTransformerDataProperties:
     def test_property_shapes(self, data, property_name, expected_shape):
         """Test that all properties return tensors with correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     @pytest.mark.parametrize(
         "setter_name,property_name,shape",
@@ -253,12 +304,11 @@ class TestMockFrameTransformerDataProperties:
     )
     def test_setters_update_properties(self, data, setter_name, property_name, shape):
         """Test that setters properly update the corresponding properties."""
-        import warp as wp
 
         test_value = torch.randn(shape)
         setter = getattr(data, setter_name)
         setter(test_value)
-        result = wp.to_torch(getattr(data, property_name))
+        result = getattr(data, property_name).torch
         assert torch.allclose(result, test_value), f"{setter_name} did not update {property_name}"
 
     def test_target_frame_names(self, data):
@@ -303,7 +353,7 @@ class TestMockArticulationDataProperties:
     def test_joint_state_shapes(self, data, property_name, expected_shape):
         """Test joint state properties have correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Joint Property Shapes --
     @pytest.mark.parametrize(
@@ -326,7 +376,7 @@ class TestMockArticulationDataProperties:
     def test_joint_property_shapes(self, data, property_name, expected_shape):
         """Test joint property shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Root State Properties --
     @pytest.mark.parametrize(
@@ -352,7 +402,7 @@ class TestMockArticulationDataProperties:
     def test_root_state_shapes(self, data, property_name, expected_shape):
         """Test root state properties have correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Body State Properties --
     @pytest.mark.parametrize(
@@ -380,7 +430,7 @@ class TestMockArticulationDataProperties:
     def test_body_state_shapes(self, data, property_name, expected_shape):
         """Test body state properties have correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Body Properties --
     @pytest.mark.parametrize(
@@ -388,13 +438,12 @@ class TestMockArticulationDataProperties:
         [
             ("body_mass", (4, 13)),
             ("body_inertia", (4, 13, 9)),
-            ("body_incoming_joint_wrench_b", (4, 13, 6)),
         ],
     )
     def test_body_property_shapes(self, data, property_name, expected_shape):
         """Test body property shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Default State Properties --
     @pytest.mark.parametrize(
@@ -410,7 +459,7 @@ class TestMockArticulationDataProperties:
     def test_default_state_shapes(self, data, property_name, expected_shape):
         """Test default state properties have correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Derived Properties --
     @pytest.mark.parametrize(
@@ -427,7 +476,7 @@ class TestMockArticulationDataProperties:
     def test_derived_property_shapes(self, data, property_name, expected_shape):
         """Test derived properties have correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Tendon Properties --
     @pytest.mark.parametrize(
@@ -448,7 +497,7 @@ class TestMockArticulationDataProperties:
     def test_tendon_property_shapes(self, data, property_name, expected_shape):
         """Test tendon properties have correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
     # -- Setter Tests --
     @pytest.mark.parametrize(
@@ -466,12 +515,11 @@ class TestMockArticulationDataProperties:
     )
     def test_setters_update_properties(self, data, setter_name, property_name, shape):
         """Test that setters properly update the corresponding properties."""
-        import warp as wp
 
         test_value = torch.randn(shape)
         setter = getattr(data, setter_name)
         setter(test_value)
-        result = wp.to_torch(getattr(data, property_name))
+        result = getattr(data, property_name).torch
         assert torch.allclose(result, test_value), f"{setter_name} did not update {property_name}"
 
     def test_bulk_setter_with_multiple_properties(self, data):
@@ -486,9 +534,9 @@ class TestMockArticulationDataProperties:
             root_link_pose_w=root_pose,
         )
 
-        assert torch.allclose(wp.to_torch(data.joint_pos), joint_pos)
-        assert torch.allclose(wp.to_torch(data.joint_vel), joint_vel)
-        assert torch.allclose(wp.to_torch(data.root_link_pose_w), root_pose)
+        assert torch.allclose(data.joint_pos.torch, joint_pos)
+        assert torch.allclose(data.joint_vel.torch, joint_vel)
+        assert torch.allclose(data.root_link_pose_w.torch, root_pose)
 
     def test_bulk_setter_unknown_property_raises(self, data):
         """Test that set_mock_data raises on unknown property."""
@@ -542,7 +590,7 @@ class TestMockRigidObjectDataProperties:
     def test_property_shapes(self, data, property_name, expected_shape):
         """Test that all properties return tensors with correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
 
 # ==============================================================================
@@ -601,7 +649,7 @@ class TestMockRigidObjectCollectionDataProperties:
     def test_property_shapes(self, data, property_name, expected_shape):
         """Test that all properties return tensors with correct shapes."""
         prop = getattr(data, property_name)
-        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{property_name} has wrong shape"
 
 
 # ==============================================================================
@@ -615,8 +663,8 @@ class TestDeviceHandling:
     def test_imu_data_device(self):
         """Test IMU data tensors are on correct device."""
         data = MockImuData(num_instances=2, device="cpu")
-        assert str(data.pos_w.device) == "cpu"
-        assert str(data.quat_w.device) == "cpu"
+        assert str(data.ang_vel_b.device) == "cpu"
+        assert str(data.lin_acc_b.device) == "cpu"
 
     def test_contact_sensor_data_device(self):
         """Test contact sensor data tensors are on correct device."""
@@ -634,8 +682,8 @@ class TestDeviceHandling:
         data = MockImuData(num_instances=2, device="cpu")
         # Create tensor on CPU (default)
         test_tensor = torch.randn(2, 3)
-        data.set_pos_w(test_tensor)
-        assert str(data.pos_w.device) == "cpu"
+        data.set_ang_vel_b(test_tensor)
+        assert str(data.ang_vel_b.device) == "cpu"
 
 
 # ==============================================================================
@@ -646,16 +694,16 @@ class TestDeviceHandling:
 class TestCompositeProperties:
     """Test that composite properties are correctly composed from components."""
 
-    def test_imu_pose_composition(self):
-        """Test IMU pose_w is correctly composed from pos_w and quat_w."""
-        data = MockImuData(num_instances=2, device="cpu")
+    def test_pva_pose_composition(self):
+        """Test PVA pose_w is correctly composed from pos_w and quat_w."""
+        data = MockPvaData(num_instances=2, device="cpu")
         pos = torch.randn(2, 3)
         quat = torch.tensor([[1, 0, 0, 0], [0.707, 0.707, 0, 0]], dtype=torch.float32)
 
         data.set_pos_w(pos)
         data.set_quat_w(quat)
 
-        pose = wp.to_torch(data.pose_w)
+        pose = data.pose_w.torch
         assert torch.allclose(pose[:, :3], pos)
         assert torch.allclose(pose[:, 3:], quat)
 
@@ -668,7 +716,7 @@ class TestCompositeProperties:
         data.set_root_link_pose_w(pose)
         data.set_root_link_vel_w(vel)
 
-        state = wp.to_torch(data.root_link_state_w)
+        state = data.root_link_state_w.torch
         assert torch.allclose(state[:, :7], pose)
         assert torch.allclose(state[:, 7:], vel)
 
@@ -681,7 +729,7 @@ class TestCompositeProperties:
         data.set_default_root_pose(pose)
         data.set_default_root_vel(vel)
 
-        state = wp.to_torch(data.default_root_state)
+        state = data.default_root_state.torch
         assert torch.allclose(state[:, :7], pose)
         assert torch.allclose(state[:, 7:], vel)
 
@@ -723,8 +771,8 @@ class TestArticulationConvenienceAliases:
         """Test root state aliases reference correct properties."""
         alias_prop = getattr(data, alias)
         source_prop = getattr(data, source)
-        assert wp.to_torch(alias_prop).shape == expected_shape, f"{alias} has wrong shape"
-        assert torch.allclose(wp.to_torch(alias_prop), wp.to_torch(source_prop)), f"{alias} should equal {source}"
+        assert alias_prop.torch.shape == expected_shape, f"{alias} has wrong shape"
+        assert torch.allclose(alias_prop.torch, source_prop.torch), f"{alias} should equal {source}"
 
     # -- Body state aliases (without _link_ or _com_ prefix) --
     @pytest.mark.parametrize(
@@ -746,8 +794,8 @@ class TestArticulationConvenienceAliases:
         """Test body state aliases reference correct properties."""
         alias_prop = getattr(data, alias)
         source_prop = getattr(data, source)
-        assert wp.to_torch(alias_prop).shape == expected_shape, f"{alias} has wrong shape"
-        assert torch.allclose(wp.to_torch(alias_prop), wp.to_torch(source_prop)), f"{alias} should equal {source}"
+        assert alias_prop.torch.shape == expected_shape, f"{alias} has wrong shape"
+        assert torch.allclose(alias_prop.torch, source_prop.torch), f"{alias} should equal {source}"
 
     # -- CoM in body frame --
     @pytest.mark.parametrize(
@@ -760,7 +808,7 @@ class TestArticulationConvenienceAliases:
     def test_com_body_frame_aliases(self, data, alias, expected_shape):
         """Test CoM in body frame aliases."""
         prop = getattr(data, alias)
-        assert wp.to_torch(prop).shape == expected_shape, f"{alias} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{alias} has wrong shape"
 
     # -- Joint property aliases --
     @pytest.mark.parametrize(
@@ -775,14 +823,14 @@ class TestArticulationConvenienceAliases:
         """Test joint property aliases."""
         alias_prop = getattr(data, alias)
         source_prop = getattr(data, source)
-        assert wp.to_torch(alias_prop).shape == expected_shape, f"{alias} has wrong shape"
-        assert torch.allclose(wp.to_torch(alias_prop), wp.to_torch(source_prop)), f"{alias} should equal {source}"
+        assert alias_prop.torch.shape == expected_shape, f"{alias} has wrong shape"
+        assert torch.allclose(alias_prop.torch, source_prop.torch), f"{alias} should equal {source}"
 
     # -- Fixed tendon alias --
     def test_fixed_tendon_limit_alias(self, data):
         """Test fixed_tendon_limit is alias for fixed_tendon_pos_limits."""
-        assert wp.to_torch(data.fixed_tendon_limit).shape == (4, 2, 2)
-        assert torch.allclose(wp.to_torch(data.fixed_tendon_limit), wp.to_torch(data.fixed_tendon_pos_limits))
+        assert data.fixed_tendon_limit.torch.shape == (4, 2, 2)
+        assert torch.allclose(data.fixed_tendon_limit.torch, data.fixed_tendon_pos_limits.torch)
 
 
 class TestRigidObjectConvenienceAliases:
@@ -820,8 +868,8 @@ class TestRigidObjectConvenienceAliases:
         """Test convenience aliases reference correct properties."""
         alias_prop = getattr(data, alias)
         source_prop = getattr(data, source)
-        assert wp.to_torch(alias_prop).shape == expected_shape, f"{alias} has wrong shape"
-        assert torch.allclose(wp.to_torch(alias_prop), wp.to_torch(source_prop)), f"{alias} should equal {source}"
+        assert alias_prop.torch.shape == expected_shape, f"{alias} has wrong shape"
+        assert torch.allclose(alias_prop.torch, source_prop.torch), f"{alias} should equal {source}"
 
     @pytest.mark.parametrize(
         "alias,expected_shape",
@@ -833,7 +881,7 @@ class TestRigidObjectConvenienceAliases:
     def test_com_body_frame_aliases(self, data, alias, expected_shape):
         """Test CoM in body frame aliases."""
         prop = getattr(data, alias)
-        assert wp.to_torch(prop).shape == expected_shape, f"{alias} has wrong shape"
+        assert prop.torch.shape == expected_shape, f"{alias} has wrong shape"
 
 
 class TestRigidObjectCollectionConvenienceAliases:
@@ -850,5 +898,5 @@ class TestRigidObjectCollectionConvenienceAliases:
 
     def test_body_state_w_alias(self, data):
         """Test body_state_w is alias for body_com_state_w."""
-        assert wp.to_torch(data.body_state_w).shape == (4, 5, 13)
-        assert torch.allclose(wp.to_torch(data.body_state_w), wp.to_torch(data.body_com_state_w))
+        assert data.body_state_w.torch.shape == (4, 5, 13)
+        assert torch.allclose(data.body_state_w.torch, data.body_com_state_w.torch)

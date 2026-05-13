@@ -49,15 +49,13 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_contrib"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
-        "Isaac Sim :: 5.0.0",
+        "Programming Language :: Python :: 3.12",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )

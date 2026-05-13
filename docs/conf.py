@@ -136,10 +136,12 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
-    "torch": ("https://docs.pytorch.org/docs/stable/", None),
+    # NOTE: pinned to /docs/2.11/ because /docs/stable/objects.inv currently 404s
+    "torch": ("https://docs.pytorch.org/docs/2.11/", None),
     "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
-    "warp": ("https://nvidia.github.io/warp/", None),
+    # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
+    "warp": ("https://nvidia.github.io/warp/stable/", None),
     "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
@@ -173,11 +175,11 @@ autodoc_mock_imports = [
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
-    "isaacsim",
-    "isaacsim.core.api",
     "isaacsim.core.cloner",
     "isaacsim.core.version",
-    "isaacsim.core.utils",
+    "isaacsim.core.experimental.prims",
+    "isaacsim.core.experimental.utils",
+    "isaacsim.core.rendering_manager",
     "isaacsim.robot_motion.motion_generation",
     "isaacsim.gui.components",
     "isaacsim.asset.importer.urdf",
@@ -186,6 +188,7 @@ autodoc_mock_imports = [
     "omni.timeline",
     "omni.ui",
     "gym",
+    "gymnasium",
     "skrl",
     "stable_baselines3",
     "rsl_rl",
@@ -200,8 +203,10 @@ autodoc_mock_imports = [
     "toml",
     "pink",
     "pinocchio",
+    "qpsolvers",
     "nvidia.srl",
     "flatdict",
+    "filelock",
     "IPython",
     "cv2",
     "imageio",
@@ -209,6 +214,10 @@ autodoc_mock_imports = [
     "mpl_toolkits",
     "isaacteleop",
     "scipy",
+    "hydra",
+    "hydra.core",
+    "hydra.core.config_store",
+    "omegaconf",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
@@ -300,8 +309,10 @@ templates_path = [
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
 smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop|release/.*)$")
-# Whitelist pattern for tags (set to None to ignore all tags)
-smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
+# Whitelist pattern for tags (set to None to ignore all tags).
+# Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
+# so tags like v3.0.0-beta show up in the version selector.
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$")
 html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }

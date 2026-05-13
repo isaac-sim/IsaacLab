@@ -7,119 +7,193 @@
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
+import pytest
+import torch
 from isaaclab_physx.scene_data_providers import PhysxSceneDataProvider
 
-from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
+from isaaclab.cloner import ClonePlan
+
+PROVIDER_MOD = "isaaclab_physx.scene_data_providers.physx_scene_data_provider"
 
 
-def _make_provider():
-    provider = object.__new__(PhysxSceneDataProvider)
-    provider._force_usd_fallback_for_newton_model_build = False
-    return provider
+def _silent_stage() -> SimpleNamespace:
+    """Stage stub whose ``GetPrimAtPath`` returns an invalid prim — env xforms read as zero."""
+    return SimpleNamespace(GetPrimAtPath=lambda path: SimpleNamespace(IsValid=lambda: False))
 
 
-def test_get_newton_model_for_env_ids_builds_and_caches_sorted_keys():
-    provider = _make_provider()
-    provider._needs_newton_sync = True
-    provider._newton_model = "full-model"
-    provider._filtered_newton_model = None
-    provider._filtered_env_ids_key = None
+@pytest.fixture
+def stub_provider():
+    """Bare :class:`PhysxSceneDataProvider` with all buffer attrs initialized to defaults.
 
-    build_calls = []
-
-    def _fake_build(env_ids):
-        build_calls.append(env_ids)
-        provider._filtered_newton_model = f"filtered-{env_ids}"
-
-    provider._build_filtered_newton_model = _fake_build
-
-    # None asks for the full model.
-    assert provider.get_newton_model_for_env_ids(None) == "full-model"
-
-    # First subset request builds using sorted env id key.
-    model_a = provider.get_newton_model_for_env_ids([3, 1])
-    assert model_a == "filtered-[1, 3]"
-    assert build_calls == [[1, 3]]
-
-    # Equivalent request should use cache and not rebuild.
-    model_b = provider.get_newton_model_for_env_ids([1, 3])
-    assert model_b == "filtered-[1, 3]"
-    assert build_calls == [[1, 3]]
-
-    # Different subset rebuilds.
-    model_c = provider.get_newton_model_for_env_ids([2])
-    assert model_c == "filtered-[2]"
-    assert build_calls == [[1, 3], [2]]
+    Tests assign ``_simulation_context`` and ``_stage`` themselves; everything else is the
+    pre-build state the build path expects.
+    """
+    p = object.__new__(PhysxSceneDataProvider)
+    p._device = "cpu"
+    p._xform_views = {}
+    p._view_body_index_map = {}
+    p._view_order_tensors = {}
+    p._pose_buf_num_bodies = 0
+    p._positions_buf = None
+    p._orientations_buf = None
+    p._covered_buf = None
+    p._xform_mask_buf = None
+    return p
 
 
-def test_try_use_prebuilt_artifact_populates_provider_state():
-    """Provider should consume scene-time prebuilt artifact as fast path."""
-    provider = _make_provider()
-    artifact = VisualizerPrebuiltArtifacts(
-        model="prebuilt-model",
-        state="prebuilt-state",
-        rigid_body_paths=["/World/envs/env_0/A"],
-        articulation_paths=["/World/envs/env_0/Robot"],
-        num_envs=4,
+@pytest.fixture
+def newton_stub(monkeypatch):
+    """Stub the ``isaaclab_newton`` newton-prebuild module and the side-effect helpers.
+
+    Returned :class:`SimpleNamespace` exposes:
+
+    * ``calls`` — list of kwargs from each prebuild invocation,
+    * ``model`` / ``state_obj`` — what prebuild returns; tests can override before invoking.
+    """
+    state = SimpleNamespace(
+        calls=[],
+        model=SimpleNamespace(body_label=[], articulation_label=[]),
+        state_obj=object(),
     )
-    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: artifact)
 
-    provider._xform_views = {"old": object()}
-    provider._view_body_index_map = {"old": [1]}
-    provider._view_order_tensors = {"old": object()}
-    provider._pose_buf_num_bodies = 7
-    provider._positions_buf = object()
-    provider._orientations_buf = object()
-    provider._covered_buf = object()
-    provider._xform_mask_buf = object()
-    provider._env_id_to_body_indices = {0: [0]}
-    provider._filtered_newton_model = "old-filtered-model"
-    provider._filtered_newton_state = "old-filtered-state"
-    provider._filtered_env_ids_key = (0,)
-    provider._filtered_body_indices = [0]
+    def _prebuild(**kwargs):
+        state.calls.append(dict(kwargs))
+        return state.model, state.state_obj
 
-    assert provider._try_use_prebuilt_newton_artifact() is True
-    assert provider._newton_model == "prebuilt-model"
-    assert provider._newton_state == "prebuilt-state"
-    assert provider._rigid_body_paths == ["/World/envs/env_0/A"]
-    assert provider._rigid_body_view_paths == ["/World/envs/env_0/A", "/World/envs/env_0/Robot"]
-    assert provider._num_envs_at_last_newton_build == 4
-    assert provider._xform_views == {}
-    assert provider._view_body_index_map == {}
-    assert provider._view_order_tensors == {}
-    assert provider._pose_buf_num_bodies == 0
-    assert provider._positions_buf is None
-    assert provider._orientations_buf is None
-    assert provider._covered_buf is None
-    assert provider._xform_mask_buf is None
-    assert provider._env_id_to_body_indices == {}
-    assert provider._filtered_newton_model is None
-    assert provider._filtered_newton_state is None
-    assert provider._filtered_env_ids_key is None
-    assert provider._filtered_body_indices == []
-
-
-def test_try_use_prebuilt_artifact_respects_force_usd_fallback_flag():
-    """Force flag should disable prebuilt fast path even when artifact is available."""
-    provider = _make_provider()
-    provider._force_usd_fallback_for_newton_model_build = True
-    artifact = VisualizerPrebuiltArtifacts(
-        model="prebuilt-model",
-        state="prebuilt-state",
-        rigid_body_paths=["/World/envs/env_0/A"],
-        articulation_paths=["/World/envs/env_0/Robot"],
-        num_envs=4,
+    monkeypatch.setitem(
+        sys.modules, "isaaclab_newton.cloner.newton_replicate", SimpleNamespace(newton_visualizer_prebuild=_prebuild)
     )
-    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: artifact)
+    monkeypatch.setattr(f"{PROVIDER_MOD}.UsdGeom.GetStageUpAxis", lambda stage: "Z")
+    monkeypatch.setattr(f"{PROVIDER_MOD}.replace_newton_shape_colors", lambda m, s: None)
+    return state
 
-    assert provider._try_use_prebuilt_newton_artifact() is False
+
+def test_get_newton_model_returns_model_when_sync_enabled(stub_provider):
+    """Callers receive the full Newton model from :meth:`get_newton_model`."""
+    stub_provider._needs_newton_sync = True
+    stub_provider._newton_model = "full-model"
+    assert stub_provider.get_newton_model() == "full-model"
 
 
-def test_build_newton_model_from_usd_short_circuits_when_prebuilt_available():
-    """If prebuilt artifact is available, USD fallback should not run."""
-    provider = _make_provider()
-    provider._try_use_prebuilt_newton_artifact = lambda: True
-    provider._build_newton_model_from_usd()
-    assert provider._last_newton_model_build_source == "prebuilt"
+def test_build_from_clone_plan_populates_provider_state(stub_provider, newton_stub):
+    """Building from a flat clone plan sets model, state, and rigid-body paths.
+
+    Asserts the provider consumes the single source-of-truth ``(sources,
+    destinations, mask)`` contract directly and reads per-env positions from stage
+    xforms.
+    """
+    newton_stub.model = SimpleNamespace(
+        body_label=["/World/envs/env_0/Object/A"],
+        articulation_label=["/World/envs/env_0/Robot"],
+    )
+    plan = ClonePlan(
+        sources=(
+            "/World/envs/env_0/Object",
+            "/World/envs/env_1/Object",
+            "/World/envs/env_0/Robot",
+        ),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object", "/World/envs/env_{}/Robot"),
+        # object 0 -> env 0, 2 ; object 1 -> env 1, 3 ; robot -> all envs
+        clone_mask=torch.tensor(
+            [[True, False, True, False], [False, True, False, True], [True, True, True, True]], dtype=torch.bool
+        ),
+    )
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
+    stub_provider._stage = _silent_stage()
+
+    stub_provider._build_newton_model_from_clone_plan()
+
+    assert stub_provider._newton_model is newton_stub.model
+    assert stub_provider._newton_state is newton_stub.state_obj
+    assert stub_provider._rigid_body_paths == newton_stub.model.body_label
+    assert stub_provider._rigid_body_view_paths == newton_stub.model.body_label + newton_stub.model.articulation_label
+    assert stub_provider._num_envs_at_last_newton_build == 4
+    assert stub_provider._last_newton_model_build_source == "built"
+
+    kw = newton_stub.calls[-1]
+    assert kw["sources"] == [
+        "/World/envs/env_0/Object",
+        "/World/envs/env_1/Object",
+        "/World/envs/env_0/Robot",
+    ]
+    assert kw["destinations"] == ["/World/envs/env_{}/Object", "/World/envs/env_{}/Object", "/World/envs/env_{}/Robot"]
+    assert kw["mapping"].shape == (3, 4)
+    assert kw["positions"].shape == (4, 3)
+
+
+def test_build_from_clone_plan_missing_sets_error_state(stub_provider):
+    """When no clone plan is published, model/state stay unset."""
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: None)
+    stub_provider._stage = object()
+
+    stub_provider._build_newton_model_from_clone_plan()
+
+    assert stub_provider._last_newton_model_build_source == "missing"
+    assert stub_provider._newton_model is None
+    assert stub_provider._newton_state is None
+
+
+def test_build_from_clone_plan_skips_unused_source_rows(stub_provider, newton_stub):
+    """A source row with no assigned env (all-False mask row) is dropped, not raised on.
+
+    When ``num_prototypes > num_envs`` under a sequential strategy (or any strategy that
+    leaves some prototypes unused), the provider must filter unused rows out of
+    sources/destinations/mask.
+    """
+    # 3 prototypes, 2 envs, sequential: env 0 → proto 0, env 1 → proto 1, proto 2 unused.
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_0/Object"),
+        destinations=("/World/envs/env_{}/Object",) * 3,
+        clone_mask=torch.tensor([[True, False], [False, True], [False, False]], dtype=torch.bool),
+    )
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
+    stub_provider._stage = _silent_stage()
+
+    stub_provider._build_newton_model_from_clone_plan()
+
+    assert stub_provider._last_newton_model_build_source == "built"
+    kw = newton_stub.calls[-1]
+    # Unused proto_2 row dropped; only the two assigned prototypes survive.
+    assert kw["sources"] == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    assert kw["mapping"].shape == (2, 2)
+
+
+def test_build_from_clone_plan_uses_destination_template_for_env_lookup(stub_provider, newton_stub):
+    """Env-origin lookup uses the plan's destination prefix, not a hardcoded path.
+
+    A scene with a non-default env path (``/Stage/scenes/env_<i>``) should still have its
+    xform translates read correctly. Replaces the prior hardcoded ``/World/envs/env_<i>``.
+    """
+    visited: list[str] = []
+
+    def _get_prim(path):
+        visited.append(path)
+        return SimpleNamespace(IsValid=lambda: False)
+
+    plan = ClonePlan(
+        sources=("/Stage/scenes/env_0/Object",),
+        destinations=("/Stage/scenes/env_{}/Object",),
+        clone_mask=torch.ones((1, 3), dtype=torch.bool),
+    )
+    stub_provider._simulation_context = SimpleNamespace(get_clone_plan=lambda: plan)
+    stub_provider._stage = SimpleNamespace(GetPrimAtPath=_get_prim)
+
+    stub_provider._build_newton_model_from_clone_plan()
+
+    assert {f"/Stage/scenes/env_{i}" for i in range(3)} <= set(visited)
+    assert not any(p.startswith("/World/envs/") for p in visited)
+
+
+def test_clone_plan_carries_flat_replication_contract():
+    """``ClonePlan`` contains only sources, destinations, and the clone mask."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object",),
+        destinations=("/World/envs/env_{}/Object",),
+        clone_mask=torch.ones((1, 4), dtype=torch.bool),
+    )
+    assert plan.sources == ("/World/envs/env_0/Object",)
+    assert plan.destinations == ("/World/envs/env_{}/Object",)
+    assert plan.clone_mask.shape == (1, 4)

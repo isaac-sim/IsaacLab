@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
+from isaaclab.utils.leapp import (
+    POSE7_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
+    XYZ_ELEMENT_NAMES,
+    InputKindEnum,
+    leapp_tensor_semantics,
+)
+from isaaclab.utils.warp import ProxyArray
 
 
 class BaseContactSensorData(ABC):
@@ -21,7 +28,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def pose_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame.
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
@@ -30,7 +38,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def pos_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
@@ -42,7 +51,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def quat_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.quatf. In torch this resolves to
@@ -54,7 +64,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def net_forces_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def net_forces_w(self) -> ProxyArray | None:
         """The net normal contact forces in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
@@ -64,7 +75,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def net_forces_w_history(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def net_forces_w_history(self) -> ProxyArray | None:
         """History of net normal contact forces.
 
         Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
@@ -74,7 +86,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def force_matrix_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def force_matrix_w(self) -> ProxyArray | None:
         """Normal contact forces filtered between sensor and filtered bodies.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
@@ -86,7 +99,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def force_matrix_w_history(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def force_matrix_w_history(self) -> ProxyArray | None:
         """History of filtered contact forces.
 
         Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
@@ -98,7 +112,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def contact_pos_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    def contact_pos_w(self) -> ProxyArray | None:
         """Average position of contact points.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
@@ -110,7 +125,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def friction_forces_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def friction_forces_w(self) -> ProxyArray | None:
         """Sum of friction forces.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
@@ -122,7 +138,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def last_air_time(self) -> wp.array | None:
+    @leapp_tensor_semantics()
+    def last_air_time(self) -> ProxyArray | None:
         """Time spent in air before last contact.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
@@ -133,7 +150,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def current_air_time(self) -> wp.array | None:
+    @leapp_tensor_semantics()
+    def current_air_time(self) -> ProxyArray | None:
         """Time spent in air since last detach.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
@@ -144,7 +162,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def last_contact_time(self) -> wp.array | None:
+    @leapp_tensor_semantics()
+    def last_contact_time(self) -> ProxyArray | None:
         """Time spent in contact before last detach.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
@@ -155,7 +174,8 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    def current_contact_time(self) -> wp.array | None:
+    @leapp_tensor_semantics()
+    def current_contact_time(self) -> ProxyArray | None:
         """Time spent in contact since last contact.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.

@@ -12,14 +12,31 @@ import torch
 from .mock_contact_sensor import MockContactSensor
 from .mock_frame_transformer import MockFrameTransformer
 from .mock_imu import MockImu
+from .mock_pva import MockPva
 
 
 def create_mock_imu(
     num_instances: int = 1,
     device: str = "cpu",
-    gravity: tuple[float, float, float] = (0.0, 0.0, -1.0),
 ) -> MockImu:
     """Create a mock IMU sensor with default configuration.
+
+    Args:
+        num_instances: Number of sensor instances.
+        device: Device for tensor allocation.
+
+    Returns:
+        Configured MockImu instance.
+    """
+    return MockImu(num_instances=num_instances, device=device)
+
+
+def create_mock_pva(
+    num_instances: int = 1,
+    device: str = "cpu",
+    gravity: tuple[float, float, float] = (0.0, 0.0, -1.0),
+) -> MockPva:
+    """Create a mock PVA sensor with default configuration.
 
     Args:
         num_instances: Number of sensor instances.
@@ -27,11 +44,11 @@ def create_mock_imu(
         gravity: Default gravity direction in body frame.
 
     Returns:
-        Configured MockImu instance.
+        Configured MockPva instance.
     """
-    imu = MockImu(num_instances=num_instances, device=device)
-    imu.data.set_projected_gravity_b(torch.tensor([gravity], device=device).expand(num_instances, -1).clone())
-    return imu
+    pva = MockPva(num_instances=num_instances, device=device)
+    pva.data.set_projected_gravity_b(torch.tensor([gravity], device=device).expand(num_instances, -1).clone())
+    return pva
 
 
 def create_mock_contact_sensor(

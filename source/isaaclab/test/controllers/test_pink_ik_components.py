@@ -19,6 +19,8 @@ from pink.exceptions import FrameNotFound
 
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 class TestPinkKinematicsConfiguration:
     """Test suite for PinkKinematicsConfiguration class."""

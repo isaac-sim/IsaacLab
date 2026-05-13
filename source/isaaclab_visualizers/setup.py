@@ -17,16 +17,16 @@ EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton @ git+https://github.com/newton-physics/newton.git@2684d75bfa4bb8b058a93b81c458a74b7701c997",
+        "newton==1.2.0rc3",
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.5",
     ],
     "rerun": [
-        "newton @ git+https://github.com/newton-physics/newton.git@2684d75bfa4bb8b058a93b81c458a74b7701c997",
+        "newton==1.2.0rc3",
         "rerun-sdk>=0.29.0",
     ],
     "viser": [
-        "newton @ git+https://github.com/newton-physics/newton.git@2684d75bfa4bb8b058a93b81c458a74b7701c997",
+        "newton==1.2.0rc3",
         "viser>=1.0.16",
     ],
 }
@@ -44,16 +44,13 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.11",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_visualizers"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

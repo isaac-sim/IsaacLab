@@ -101,6 +101,18 @@ Isaac Lab.
     draw_markers
 
 
+Working with Simulation Data
+----------------------------
+
+This guide explains how to read and write simulation state using the :class:`~isaaclab.utils.warp.ProxyArray`
+dual-access wrapper that all data classes return.
+
+.. toctree::
+    :maxdepth: 1
+
+    proxy_array
+
+
 Interfacing with Environments
 -----------------------------
 
@@ -195,3 +207,14 @@ This guide explains 2 features that can speed up stage initialization, **fabric 
     :maxdepth: 1
 
     optimize_stage_creation
+
+
+Profiling Isaac Lab with Nsight Systems
+---------------------------------------
+
+This guide explains how to profile Isaac Lab tasks with NVIDIA Nsight Systems for runtime performance analysis.
+
+.. toctree::
+    :maxdepth: 1
+
+    profile_with_nsys

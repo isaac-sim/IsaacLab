@@ -23,7 +23,7 @@ INSTALL_REQUIRES = [
     # jupyter notebook
     "ipywidgets==8.1.5",
     # data collection
-    "h5py",
+    "h5py==3.15.1",
 ]
 
 # nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels
@@ -56,13 +56,10 @@ setup(
     extras_require=EXTRAS_REQUIRE,
     license="Apache-2.0",
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

@@ -223,5 +223,8 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
     fall_dist = 0.24
     vel_obs_scale = 0.2
     act_moving_average = 1.0
+    # success criteria
+    success_distance_threshold: float = 0.1
+    """Object-to-goal distance below which the handover is considered successful [m]."""
     # reward-related scales
     dist_reward_scale = 20.0

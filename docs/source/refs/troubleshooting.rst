@@ -26,7 +26,7 @@ You are running a script that requires Isaac Sim, but it is not installed.
 Either:
 
 - Install Isaac Sim: ``./isaaclab.sh -i isaacsim``, or
-- Use a Newton-based task with ``presets=newton --visualizer newton`` (Kit-less path)
+- Use a Newton-based task with ``presets=newton_mjwarp --visualizer newton`` (Kit-less path)
 
 ``ModuleNotFoundError: No module named 'isaaclab_physx'`` or ``'isaaclab_ov'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -76,6 +76,13 @@ Isaac Sim pip packages require GLIBC 2.35+. Check with ``ldd --version``.
 Ubuntu 22.04+ satisfies this. For older distributions, use the
 `binary installation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`_
 method for Isaac Sim.
+
+Troubleshooting distributed training NCCL errors
+------------------------------------------------
+
+On some Linux multi-GPU systems, distributed training may fail with
+``CUDA error: an illegal memory access was encountered`` reported by ``ProcessGroupNCCL``.
+For documented NCCL workarounds, see :ref:`multi-gpu-nccl-troubleshooting`.
 
 
 Debugging physics simulation stability issues

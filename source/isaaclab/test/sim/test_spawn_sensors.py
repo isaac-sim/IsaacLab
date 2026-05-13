@@ -22,6 +22,8 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
 from isaaclab.utils.string import to_camel_case
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture
 def sim():

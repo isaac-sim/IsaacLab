@@ -55,12 +55,47 @@ inputs:
     description: 'Additional pytest options'
     default: ''
     required: false
+  extra-pip-packages:
+    description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
+    default: ''
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
 runs:
   using: composite
   steps:
+    # Display some details on AWS instance we're running on
+    - name: AWS Instance Info
+      shell: bash
+      run: |
+        # get instance ID for debugging purposes (if running on EC2)
+        IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
+          -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
+        if [ -n "$IMDS_TOKEN" ]; then
+          INSTANCE_ID=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+            "http://169.254.169.254/latest/meta-data/instance-id") || true
+          INSTANCE_REGION=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+              "http://169.254.169.254/latest/meta-data/placement/region") || true
+          INSTANCE_TYPE=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+              "http://169.254.169.254/latest/meta-data/instance-type") || true
+          echo "⚪ Instance ID: ${INSTANCE_ID:-Not running on EC2}"
+          echo "⚪ Instance Region: ${INSTANCE_REGION:-Not running on EC2}"
+          echo "⚪ Instance Type: ${INSTANCE_TYPE:-Not running on EC2}"
+          echo "⚪ Connect: https://${INSTANCE_REGION}.console.aws.amazon.com/ec2-instance-connect/ssh/home?region=${INSTANCE_REGION}&connType=standard&instanceId=${INSTANCE_ID}&osUser=ubuntu&sshPort=22&addressFamily=ipv4"
+        else
+          echo "🟠 Could not obtain IMDS token, probably not running on EC2"
+        fi
+
+    - name: Prepare Docker disk space
+      shell: bash
+      run: |
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "pre-test-cleanup" \
+          "true"
+
     - name: Record pull start time
       id: pull-start
       shell: bash
@@ -103,6 +138,7 @@ runs:
         quarantined-only: ${{ inputs.quarantined-only }}
         include-files: ${{ inputs.include-files }}
         volume-mount-source: ${{ github.workspace }}
+        extra-pip-packages: ${{ inputs.extra-pip-packages }}
 
     - name: Check Test Results
       if: always()
@@ -131,26 +167,8 @@ runs:
       if: always()
       shell: bash
       run: |
-        # Don't let cleanup errors fail a passing test job
-        set +e
-
-        echo "⚪ Disk usage before cleanup:"
-        df -h /var/lib/docker
-
-        ISAACSIM_IMAGE="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
-
-        # Pin the base IsaacSim image so prune -a doesn't remove it
-        ISAACSIM_IMAGE_PIN_CONTAINER="isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
-        echo "🔵 Pinning IsaacSim base image: ${ISAACSIM_IMAGE} to temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}"
-        docker create --name "${ISAACSIM_IMAGE_PIN_CONTAINER}" "${ISAACSIM_IMAGE}" true 2>/dev/null || true
-
-        echo "🔵 Removing Docker images older than 3 days..."
-        docker image prune -a -f --filter "until=72h"
-
-        echo "🔵 Removing temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}..."
-        docker rm "${ISAACSIM_IMAGE_PIN_CONTAINER}" 2>/dev/null || true
-
-        echo "🟢 Docker image cleanup complete."
-
-        echo "⚪ Disk usage after cleanup:"
-        df -h /var/lib/docker
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "post-job-cleanup" \
+          "false"

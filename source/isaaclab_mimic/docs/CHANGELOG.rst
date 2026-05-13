@@ -1,6 +1,50 @@
 Changelog
 ---------
 
+1.2.6 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a temporary ``warp.torch`` compatibility shim at
+  :mod:`isaaclab_mimic` import time so that cuRobo (NVlabs/curobo) keeps
+  working with ``warp-lang>=1.13``, which dropped the ``warp.torch``
+  submodule in favour of top-level ``warp.*`` (e.g.
+  ``wp.torch.device_from_torch`` → ``wp.device_from_torch``). cuRobo's
+  pinned commit and ``main`` still call ``wp.torch.*`` and raise
+  ``AttributeError: module 'warp' has no attribute 'torch'`` at
+  :meth:`MotionGenConfig.load_from_robot_config` time. The shim
+  reconstructs ``warp.torch`` as a thin forwarding module and is a
+  no-op once warp re-introduces the namespace or cuRobo migrates.
+  Remove this shim once the cuRobo pin in ``docker/Dockerfile.curobo``
+  is bumped to a commit that uses the top-level ``wp.*`` API directly.
+
+
+1.2.5 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated mobility path utilities to import from ``isaacsim.replicator.experimental.mobility_gen``.
+
+
+1.2.4 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made performance enhancing changes to data generation pipeline (elimate large tensor usage, reduce asyncio overhead and blocking)
+* Locked h5py dependency to last stable version 3.15.1 to prevent package import errors on Windows with version 3.16.0.
+
+Added
+^^^^^
+
+* Added data generation test cases for all tasks (single and multi environment).
+
+
 1.2.3 (2026-03-12)
 ~~~~~~~~~~~~~~~~~~~
 

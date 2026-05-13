@@ -28,3 +28,4 @@ _isaac_sim?
 docker/.isaac-lab-docker-history
 # ignore uv environment
 env_isaaclab
+tools/wheel_builder/build/

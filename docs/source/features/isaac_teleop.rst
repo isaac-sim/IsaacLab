@@ -115,8 +115,10 @@ and Isaac Lab. It composes three collaborators:
   Isaac Sim's XR bridge, creates the ``TeleopSession``, and steps it each frame to produce an
   action tensor.
 
-* **CommandHandler** -- registers and dispatches START / STOP / RESET callbacks triggered by XR UI
-  buttons or the message bus.
+* **CommandHandler** -- lightweight callback registry for START / STOP / RESET commands.  Scripts
+  can register callbacks via :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback`, but the
+  primary control path uses :func:`~isaaclab_teleop.poll_control_events` (see
+  :ref:`isaac-teleop-control-states`).
 
 .. dropdown:: Session lifecycle details
 
@@ -125,6 +127,104 @@ and Isaac Lab. It composes three collaborators:
    session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
    flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
    the session is not yet ready or has been torn down.
+
+
+.. _isaac-teleop-control-states:
+
+Teleop Control States (Start / Stop / Reset)
+---------------------------------------------
+
+Isaac Lab supports remote teleop control commands -- **start**, **stop**, and **reset** -- sent
+from the XR headset to the simulation.  These are used to begin and end demonstration recording,
+pause the robot, or reset the environment without touching the simulation host.
+
+How it works
+~~~~~~~~~~~~
+
+By default, every :class:`~isaaclab_teleop.IsaacTeleopCfg` enables a control message channel
+using the well-known UUID ``uuid5(NAMESPACE_DNS, "teleop_command")``.  The channel is created as
+a ``teleop_control_pipeline`` inside TeleopCore's :class:`TeleopSession`, which means:
+
+1. A :class:`~isaacteleop.retargeting_engine.deviceio_source_nodes.MessageChannelSource` opens an
+   OpenXR opaque data channel (``XR_NV_opaque_data_channel``) with the agreed-upon UUID.
+2. The CloudXR JS client (or any other client) discovers the channel by UUID and sends UTF-8
+   JSON commands::
+
+       {"type": "teleop_command", "message": {"command": "start teleop"}}
+       {"type": "teleop_command", "message": {"command": "stop teleop"}}
+       {"type": "teleop_command", "message": {"command": "reset teleop"}}
+
+3. A :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor` parses these
+   payloads and produces boolean pulse signals (``run_toggle``, ``kill``, ``reset``).
+4. :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager` consumes the
+   boolean signals, runs its state machine (edge detection, fail-safe), and produces
+   ``teleop_state`` (one-hot) and ``reset_event`` (bool pulse) outputs.
+5. TeleopCore decodes these outputs into ``ExecutionEvents`` and injects them into every
+   retargeter's ``ComputeContext``, so stateful retargeters can react to state changes
+   (e.g. reinitializing cross-step state on reset).
+
+Polling control events in your script
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :func:`~isaaclab_teleop.poll_control_events` to read the latest control state each frame:
+
+.. code-block:: python
+
+   from isaaclab_teleop import poll_control_events
+
+   with IsaacTeleopDevice(cfg) as device:
+       running = False
+       while sim_app.is_running():
+           action = device.advance()
+
+           ctrl = poll_control_events(device)
+           if ctrl.is_active is not None:
+               running = ctrl.is_active      # True after "start", False after "stop"
+           if ctrl.should_reset:
+               env.reset()                    # "reset" command received this frame
+
+           if action is not None and running:
+               env.step(action.repeat(num_envs, 1))
+           else:
+               env.sim.render()
+
+:class:`~isaaclab_teleop.ControlEvents` has two fields:
+
+* ``is_active`` -- ``True`` after a "start" command, ``False`` after "stop", ``None`` when no
+  command has been received yet (callers should leave their own flag unchanged).
+* ``should_reset`` -- ``True`` for exactly one frame after a "reset" command.
+
+Disabling the control channel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you do not need headset-driven start/stop/reset (e.g. keyboard-only workflows), set
+``control_channel_uuid=None`` in your config:
+
+.. code-block:: python
+
+   IsaacTeleopCfg(
+       pipeline_builder=_build_my_pipeline,
+       control_channel_uuid=None,   # no opaque data channel created
+   )
+
+Using a custom channel UUID
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To use a different channel UUID (e.g. for a separate control protocol), pass any 16-byte
+``bytes`` value:
+
+.. code-block:: python
+
+   import uuid
+
+   MY_UUID = uuid.uuid5(uuid.NAMESPACE_DNS, "my_custom_control").bytes
+
+   IsaacTeleopCfg(
+       pipeline_builder=_build_my_pipeline,
+       control_channel_uuid=MY_UUID,
+   )
+
+The CloudXR JS client must be updated to discover this UUID when sending commands.
 
 
 .. _isaac-teleop-retargeting:
@@ -585,12 +685,101 @@ Key ``IsaacTeleopCfg`` fields:
 * ``xr_cfg`` -- :class:`~isaaclab_teleop.XrCfg` for anchor configuration (see below).
 * ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
 * ``sim_device`` -- torch device string (default ``"cuda:0"``).
+* ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
+  Defaults to ``RetargetingExecutionConfig(mode="pipelined")`` with
+  ``DeadlinePacingConfig(safety_margin_s=0.025)`` so retargeting can run on
+  the IsaacTeleop worker instead of blocking the simulation loop.
+  The 25 ms safety margin staggers IsaacTeleop's Python work behind Isaac
+  Lab's step Python, giving native work such as rendering time to overlap
+  instead of having both Python stacks contend for the GIL at the start of
+  the step.
 
 .. warning::
 
    ``pipeline_builder`` and ``retargeters_to_tune`` must be **callables** (functions or lambdas),
    not pre-built objects. The ``@configclass`` decorator deep-copies mutable attributes, which
    would break pre-built pipeline graphs.
+
+
+.. _isaac-teleop-cloudxr-profiles:
+
+CloudXR Environment Profiles
+-----------------------------
+
+Isaac Lab ships two ``.env`` profiles that configure the CloudXR runtime for different XR devices.
+These are bundled inside the ``isaaclab_teleop`` package and can be referenced via constants:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 25 20
+
+   * - Constant
+     - File
+     - ``NV_DEVICE_PROFILE``
+     - ``NV_CXR_ENABLE_PUSH_DEVICES``
+   * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
+     - ``cloudxrjs-cloudxr.env``
+     - ``auto-webrtc``
+     - ``0``
+   * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
+     - ``avp-cloudxr.env``
+     - ``auto-native``
+     - ``0``
+
+Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
+tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
+this to ``1`` in a custom profile (see below).
+
+Override at launch time
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` selects which
+``.env`` profile to use. The default is ``cloudxrjs`` (Quest/Pico). Use the ``avp`` shorthand
+for Apple Vision Pro, or pass a full file path for a custom profile:
+
+.. code-block:: bash
+
+   # Use the AVP profile
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr \
+       --cloudxr_env avp
+
+Create a custom profile
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Copy a shipped profile and edit it:
+
+.. code-block:: bash
+
+   # Start from the Quest/Pico profile
+   cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
+
+Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
+Manus gloves), then pass it via ``--cloudxr_env ~/my-cloudxr.env``.
+
+Disable auto-launch
+~~~~~~~~~~~~~~~~~~~
+
+If you prefer to run the CloudXR runtime manually in a separate terminal
+(``python -m isaacteleop.cloudxr``), you can disable auto-launch in several ways:
+
+* **CLI flag**: ``--no-auto_launch_cloudxr`` on the teleop script.
+* **Disable CloudXR entirely**: ``--cloudxr_env none``.
+* **Environment variable**: ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` overrides the CLI flag at runtime.
+
+.. code-block:: bash
+
+   # Disable via CLI flag
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr \
+       --no-auto_launch_cloudxr
+
+   # Or disable via environment variable
+   ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr
 
 
 .. _isaac-teleop-xr-anchor:
@@ -827,6 +1016,10 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 * :class:`~isaaclab_teleop.IsaacTeleopCfg`
 * :class:`~isaaclab_teleop.IsaacTeleopDevice`
 * :func:`~isaaclab_teleop.create_isaac_teleop_device`
+* :class:`~isaaclab_teleop.ControlEvents`
+* :class:`~isaaclab_teleop.SupportsControlEvents`
+* :func:`~isaaclab_teleop.poll_control_events`
+* :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
 * :class:`~isaaclab_teleop.XrCfg`
 * :class:`~isaaclab_teleop.XrAnchorRotationMode`
 

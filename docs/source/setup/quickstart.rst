@@ -53,9 +53,9 @@ package manager. To begin, create a virtual environment:
 
             .. code-block:: batch
 
-               # create a virtual environment named env_isaaclab with python3.12
+               :: create a virtual environment named env_isaaclab with python3.12
                uv venv --python 3.12 --seed env_isaaclab
-               # activate the virtual environment
+               :: activate the virtual environment
                env_isaaclab\Scripts\activate
 
    .. tab-item:: conda
@@ -68,11 +68,31 @@ package manager. To begin, create a virtual environment:
          conda activate env_isaaclab
 
 
-Next, install a CUDA-enabled PyTorch build.
+Next, install a CUDA-enabled PyTorch build that matches your system architecture.
 
-   .. code-block:: bash
+.. tab-set::
+   :sync-group: pip-platform
 
-      uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
+      :sync: linux-x86_64
+
+      .. code-block:: bash
+
+         uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
+      :sync: windows-x86_64
+
+      .. code-block:: bash
+
+         uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
+      :sync: linux-aarch64
+
+      .. code-block:: bash
+
+         uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
@@ -131,9 +151,10 @@ Installation is now as easy as navigating to the repo and then calling the root 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code:: bash
+      .. code:: batch
 
-         isaaclab.bat --install :: or "isaaclab.bat -i"
+         isaaclab.bat --install
+         :: or use "isaaclab.bat -i"
 
 
 Quick Start Using Isaac Launchable
@@ -173,11 +194,11 @@ Use the ``presets=`` argument to select the physics backend at runtime:
 
 .. code-block:: bash
 
-   # Newton (Kit-less) with Newton visualizer
+   # MJWarp (Newton backend, Kit-less) with Newton visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=newton \
+     presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit) — requires Isaac Sim installed
@@ -186,11 +207,11 @@ Use the ``presets=`` argument to select the physics backend at runtime:
      --num_envs 4096 \
      presets=physx
 
-   # Newton with a specific visualizer
+   # MJWarp with a specific visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=newton \
+     presets=newton_mjwarp \
      --visualizer viser
 
 Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.

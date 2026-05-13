@@ -100,6 +100,10 @@ jobs:
           --exclude 'huggingface\.co/nvidia/COMPASS'
           --exclude 'huggingface\.co/nvidia/X-Mobility'
           --exclude 'openusd\.org'
+          --exclude 'ubuntu\.com/server/docs'
+          --exclude 'docs\.ray\.io'
+          --exclude 'docs\.conda\.io'
+          --exclude 'stackoverflow\.com'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20

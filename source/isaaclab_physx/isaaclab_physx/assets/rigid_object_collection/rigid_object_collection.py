@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
+import omni.physics.tensors.api as physx
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -81,8 +81,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         for rigid_body_cfg in self.cfg.rigid_objects.values():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
+                spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
                 rigid_body_cfg.spawn.func(
-                    rigid_body_cfg.prim_path,
+                    spawn_path,
                     rigid_body_cfg.spawn,
                     translation=rigid_body_cfg.init_state.pos,
                     orientation=rigid_body_cfg.init_state.rot,
@@ -186,42 +187,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_ENV_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(
-                        self._instantaneous_wrench_composer.composed_force, device=self.device
-                    ).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(
-                        self._instantaneous_wrench_composer.composed_torque, device=self.device
-                    ).view(wp.float32),
-                    position_data=None,
-                    indices=self._env_body_ids_to_view_ids(
-                        self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
-                    ),
-                    is_global=False,
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(
-                        self._permanent_wrench_composer.composed_force, device=self.device
-                    ).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(
-                        self._permanent_wrench_composer.composed_torque, device=self.device
-                    ).view(wp.float32),
-                    position_data=None,
-                    indices=self._env_body_ids_to_view_ids(
-                        self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
-                    ),
-                    is_global=False,
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=self.reshape_data_to_view_2d(composer.out_force_b.warp, device=self.device).view(wp.float32),
+                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b.warp, device=self.device).view(
+                    wp.float32
+                ),
+                position_data=None,
+                indices=self._env_body_ids_to_view_ids(
+                    self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
+                ),
+                is_global=False,
+            )
         self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
@@ -434,8 +415,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             outputs=[
                 self.data.body_link_pose_w,
-                None,  # self.data._body_link_state_w.data,
-                None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
@@ -530,9 +509,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[
                 self.data.body_com_pose_w,
                 self.data.body_link_pose_w,
-                None,  # self.data._body_com_state_w.data,
-                None,  # self.data._body_link_state_w.data,
-                None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
@@ -630,8 +606,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[
                 self.data.body_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._body_state_w.data,
-                None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
@@ -739,9 +713,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 self.data.body_link_vel_w,
                 self.data.body_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._body_link_state_w.data,
-                None,  # self.data._body_state_w.data,
-                None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
@@ -1188,26 +1159,30 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def _resolve_env_ids(self, env_ids) -> wp.array:
         """Resolve environment indices to a warp array."""
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
     def _resolve_body_ids(self, body_ids) -> wp.array:
         """Resolve body indices to a warp array."""
+        if isinstance(body_ids, list):
+            return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if body_ids is None or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, slice):
             return wp.from_torch(
                 torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
             )
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if isinstance(body_ids, torch.Tensor):
-            return wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:

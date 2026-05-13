@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import yaml
 
+from isaaclab_tasks.utils.hydra import resolve_presets
+
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
@@ -141,8 +143,6 @@ def parse_env_cfg(
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
     """
-    from isaaclab_tasks.utils.hydra import resolve_preset_defaults
-
     # load the default configuration
     cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
 
@@ -156,7 +156,7 @@ def parse_env_cfg(
     # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
     # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
     # is replaced by its .default.
-    cfg = resolve_preset_defaults(cfg)
+    cfg = resolve_presets(cfg)
 
     # simulation device
     cfg.sim.device = device

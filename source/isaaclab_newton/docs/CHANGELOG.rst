@@ -1,6 +1,409 @@
 Changelog
 ---------
 
+0.8.1 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton integration to use the packaged Newton 1.2.0 release candidate
+  and updated transform conversion calls for Warp 1.13 compatibility.
+
+Fixed
+^^^^^
+
+* Fixed a spurious ``[Error][carb] Client passed into the framework is nullptr.``
+  log emitted from :meth:`~isaaclab_newton.physics._cubric.CubricBindings.initialize`
+  when the first ``tryAcquireInterfaceWithClient`` attempt returned null. The
+  helper used to retry with ``clientName=None``, which Carbonite has rejected as
+  invalid since 2018 — the retry only emitted a misleading error log. Removed
+  the null-client retry; the existing ``acquireInterfaceWithClient`` fallback
+  with the ``isaaclab.cubric`` client name still handles configurations where
+  the plugin needs to be loaded on demand.
+
+
+0.8.0 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonRigidBodyPropertiesCfg` and
+  :class:`~isaaclab_newton.sim.schemas.NewtonJointDrivePropertiesCfg` as Newton-targeted
+  bases for solver-specific subclasses. Currently empty (no Newton-native ``newton:*``
+  rigid-body or joint-drive attributes today); reserved as the family root for any
+  future Newton-native fields.
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` (subclasses
+  :class:`NewtonRigidBodyPropertiesCfg`) with :attr:`gravcomp` for body-level gravity
+  compensation (``mjc:gravcomp``).
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` (subclasses
+  :class:`NewtonJointDrivePropertiesCfg`) with :attr:`actuatorgravcomp` for joint-level
+  gravity compensation routing (``mjc:actuatorgravcomp`` via ``MjcJointAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg` with
+  :attr:`contact_margin` and :attr:`contact_gap` (``newton:*`` via ``NewtonCollisionAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg` with
+  :attr:`max_hull_vertices` (``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg` with
+  :attr:`torsional_friction` and :attr:`rolling_friction` (``newton:*`` via ``NewtonMaterialAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg` with
+  :attr:`self_collision_enabled` (``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``).
+
+Changed
+^^^^^^^
+
+* Split :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` construction
+  into a pre-physics ``__init__`` (stores cfg and registers the Newton-Warp
+  scene-data requirement on
+  :class:`~isaaclab.sim.SimulationContext`) and a post-physics
+  :meth:`~isaaclab_newton.renderers.NewtonWarpRenderer.initialize` (reads
+  the built Newton model.
+
+
+0.7.2 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed rigid object collection spawning to honor planned ``spawn_path``
+  values while falling back to ``prim_path`` for direct construction.
+
+
+0.7.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.assets.Articulation` joint friction docs to identify Newton friction as a force or
+  torque value instead of a unitless coefficient.
+* Fixed :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensor` to use
+  current Newton contact sensor API names, removing deprecation warnings from
+  Newton contact sensor test runs.
+* Fixed stale Newton forward-kinematics state after explicit pose writes so
+  downstream collision queries and :attr:`~isaaclab_newton.assets.RigidObjectData.body_link_pose_w`
+  reads use updated transforms.
+
+
+0.7.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped Newton pin to ``v1.2.0rc2``. Pulls in IsaacLab-relevant fixes from
+  `newton-physics/newton#2678 <https://github.com/newton-physics/newton/pull/2678>`_
+  and `newton-physics/newton#2720
+  <https://github.com/newton-physics/newton/pull/2720>`_ (``SolverKamino``
+  reset under ``world_mask``), the upstream tendon-scoping fix from
+  `newton-physics/newton#2659
+  <https://github.com/newton-physics/newton/pull/2659>`_ ("Scope USD
+  custom-frequency parsing"), and a VRAM-leak fix on example reset
+  (`newton-physics/newton#2710
+  <https://github.com/newton-physics/newton/pull/2710>`_).
+* Newton ``v1.2.0rc2`` requires ``warp-lang==1.13.0``, ``mujoco==3.8.0``,
+  and ``mujoco-warp==3.8.0.1``. ``warp-lang``/``mujoco``/``mujoco-warp``
+  pins live in :mod:`isaaclab` and ``tools/wheel_builder/res/python_packages.toml``;
+  the Newton pin is mirrored across :mod:`isaaclab_newton`,
+  :mod:`isaaclab_visualizers` (3×), :mod:`isaaclab_physx` (``[newton]``
+  extra), and the wheel-builder TOML.
+* Updated ``wp.math.transform_to_matrix`` to ``wp.transform_to_matrix`` in
+  :mod:`~isaaclab_newton.physics.newton_manager` and
+  :mod:`~isaaclab_ov.renderers.ovrtx_renderer_kernels` to match the
+  ``warp-lang`` 1.13 API (the ``wp.math`` namespace was removed).
+* Adapted :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to
+  Newton ``v1.2.0rc2``'s explicit shape-BVH lifecycle.
+  :meth:`~newton.sensors.SensorTiledCamera.update` no longer auto-builds
+  the BVH when a non-``None`` state is passed and the underlying
+  ``RenderContext.render`` now raises ``RuntimeError("build_bvh_shape()
+  must be called before rendering shapes.")`` if it was never built. The
+  renderer now calls ``newton.geometry.build_bvh_shape`` once after
+  sensor construction and ``newton.geometry.refit_bvh_shape`` each frame
+  before :meth:`~newton.sensors.SensorTiledCamera.update`, since env
+  body poses move every step.
+
+
+0.6.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the newton renderer to use the new patterns from renderer/camera decoupling.
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to dispatch through
+  solver-specific manager subclasses while preserving the existing
+  ``NewtonCfg(solver_cfg=...)`` configuration pattern.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :attr:`~isaaclab_newton.physics.NewtonSolverCfg.solver_type` for
+  manager dispatch in favor of
+  :attr:`~isaaclab_newton.physics.NewtonSolverCfg.class_type`. Existing configs
+  remain valid, but new code should rely on ``class_type``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed
+  ``isaaclab_newton.cloner.newton_replicate.create_newton_visualizer_prebuild_clone_fn``.
+  Callers that need a Newton model for visualization should call
+  :func:`~isaaclab_newton.cloner.newton_replicate.newton_visualizer_prebuild`
+  directly with the ``(sources, destinations, env_ids, mask, positions)`` bundle
+  derived from :meth:`~isaaclab.sim.SimulationContext.get_clone_plans`.
+* Removed the unimplemented ``ArticulationData.body_incoming_joint_wrench_b``
+  accessor. Add :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene
+  and read :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.JointWrenchSensor` initialization for
+  USD assets whose articulation root is nested below the configured asset prim.
+
+
+0.5.26 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.JointWrenchSensor`.
+
+
+0.5.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
+  solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
+* Added fused :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_index`
+  and :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_mask` that
+  write joint position and velocity in a single kernel launch instead of two.
+
+Changed
+^^^^^^^
+
+* Removed dead state-buffer output parameters from 8 root pose/velocity warp kernels
+  in :mod:`~isaaclab_newton.assets.kernels`, reducing kernel argument marshalling
+  overhead.
+
+Fixed
+^^^^^
+
+* Replaced boolean ``_fk_dirty`` and ``_kamino_needs_fk`` flags with per-world
+  reset masks (``_world_reset_mask`` and ``_fk_reset_mask``). Asset write methods
+  now call :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` with
+  ``env_mask``/``env_ids`` and ``articulation_ids``, so ``eval_fk`` and
+  ``SolverKamino.reset()`` only operate on dirtied environments. Rigid object
+  and rigid object collection write methods now also trigger FK invalidation.
+* Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()``
+  after CUDA graph capture. ``StateKamino.from_newton()`` lazily allocates
+  ``body_f_total``, ``joint_q_prev``, and ``joint_lambdas`` via ``wp.clone``/``wp.zeros``
+  during the first ``step()`` inside graph capture. These memory-pool addresses become
+  stale without a warm-up ``wp.capture_launch`` replay to pin them before any eager
+  ``solver.reset()`` call.
+
+
+0.5.24 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonShapeCfg` exposing
+  per-shape collision defaults (``margin``, ``gap``) via
+  :attr:`~isaaclab_newton.physics.NewtonCfg.default_shape_cfg`.
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder` now
+  forwards the wrapper onto Newton's upstream
+  ``ModelBuilder.default_shape_cfg`` via
+  :func:`~isaaclab.utils.checked_apply`. The previous code only set
+  ``gap`` and left ``margin`` at Newton's upstream default of ``0.0``,
+  causing all non-Anymal-D robots to fail to learn rough-terrain
+  locomotion on triangle-mesh terrain. ``RoughPhysicsCfg`` opts in to
+  ``margin=0.01``.
+
+
+0.5.23 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` to match the
+  new :class:`~isaaclab.sim.views.BaseFrameView` ProxyArray return contract.
+  See the ``isaaclab`` 4.6.15 changelog for migration guidance.
+
+
+0.5.22 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Properties on the following data classes now return
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
+  :class:`~isaaclab_newton.assets.articulation.ArticulationData`,
+  :class:`~isaaclab_newton.assets.rigid_object.RigidObjectData`,
+  :class:`~isaaclab_newton.assets.rigid_object_collection.RigidObjectCollectionData`,
+  :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensorData`,
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformerData`,
+  :class:`~isaaclab_newton.sensors.imu.ImuData`, and
+  :class:`~isaaclab_newton.sensors.pva.PvaData`.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
+  the underlying ``wp.array``. Implicit torch operations (arithmetic,
+  ``torch.*`` functions) work during the deprecation period but emit a warning.
+
+
+0.5.21 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flakiness in ``test_body_root_state_properties`` by bounding the random spin velocity so
+  numerical drift stays within the position tolerance over the simulated trajectory.
+
+
+0.5.20 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.views.XformPrimView` providing the Newton
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.19 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied after body-frame composition.
+* Updated the PhysX Tensor API docstring link in :class:`~isaaclab_newton.assets.ArticulationData`
+  from ``omni.physics.tensors.impl.api`` to ``omni.physics.tensors.api`` to track the upstream
+  Isaac Sim module relocation (the ``impl`` submodule was removed).
+
+
+0.5.18 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Upgraded Newton from ``2684d75`` to ``a27277e``. Includes collision improvements, contact quality fixes,
+  hydroelastic contact optimization, and memory usage fixes in CollisionPipeline. For details see
+  ``Newton changelog <https://github.com/newton-physics/newton/blob/main/CHANGELOG.md>``.
+* Pinned ``mujoco`` and ``mujoco-warp`` to ``3.6.0`` to align with the Newton library.
+
+
+0.5.17 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton visualization colors drifting from the USD stage by calling
+  :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors`
+  after the model is finalized in :class:`~isaaclab_newton.physics.NewtonManager`.
+
+Changed
+^^^^^^^
+
+* Changed Newton Warp tiled camera outputs to clear with a light linear gray
+  (0xFFEEEEEE, 93% gray, fully opaque) background via ``SensorTiledCamera.ClearData``
+  in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
+
+0.5.16 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect attribute name ``contact_margin`` on Newton
+  ``ShapeConfig`` in
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`. The
+  field was renamed to ``gap`` in Newton PR #1732. The typo created a
+  dead attribute so the intended 1 cm default shape gap was never applied.
+
+
+0.5.15 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.pva.Pva` sensor wrapping Newton's
+  body state (``body_q``, ``body_qd``, ``body_qdd``) to provide world-frame
+  pose and body-frame velocities/accelerations.
+
+
+0.5.14 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.Imu` sensor wrapping Newton's
+  ``SensorIMU``, providing angular velocity and linear acceleration in the
+  sensor's body frame.
+
+
+0.5.13 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to expose Newton
+  collision pipeline parameters via :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
+* Added :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.tolerance` for solver convergence control.
+
+Fixed
+^^^^^
+
+* Fixed truthiness check on hydroelastic config dict in collision pipeline
+  initialization. An explicit ``is not None`` check is now used so that
+  :class:`~isaaclab_newton.physics.newton_collision_cfg.HydroelasticSDFCfg`
+  with all-default values is no longer silently skipped.
+
+
+0.5.12 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``set_friction_index/mask`` and ``set_restitution_index/mask`` methods to
+  Newton assets for native material property randomization.
+
+
+0.5.11 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer` sensor
+  wrapping Newton's ``SensorFrameTransform``. Supports per-env source/target site
+  registration, wildcard body matching, and zero-copy transform views.
+
+
 0.5.10 (2026-04-05)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -11,10 +414,6 @@ Fixed
   pipeline. Added :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`
   so articulation write methods trigger ``eval_fk`` before the next
   ``collide()``.
-
-
-0.5.9 (2026-03-16)
-~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
