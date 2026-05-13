@@ -3535,6 +3535,11 @@ class Articulation(BaseArticulation):
         # failures surface here rather than as KeyError downstream
         eager_types = [
             TT.ROOT_POSE,
+            TT.ROOT_VELOCITY,
+            TT.LINK_POSE,
+            TT.LINK_VELOCITY,
+            TT.LINK_ACCELERATION,
+            TT.LINK_INCOMING_JOINT_FORCE,
             TT.DOF_POSITION,
             TT.DOF_VELOCITY,
             TT.DOF_STIFFNESS,
@@ -3573,21 +3578,39 @@ class Articulation(BaseArticulation):
         # tendon counts/names must be resolved before buffer allocation
         self._process_tendons()
 
-        # construct the data container
-        self._data = ArticulationData(
-            self._bindings,
-            self._device,
-            self._num_instances,
-            self._num_bodies,
-            self._num_joints,
-            self._num_fixed_tendons,
-            self._num_spatial_tendons,
-            self._body_names,
-            self._joint_names,
-            self._fixed_tendon_names,
-            self._spatial_tendon_names,
-            binding_getter=self._get_binding,
-        )
+        # eagerly create tendon bindings now that the counts are known; this keeps
+        # ArticulationData's _get_binding a simple dict lookup (no lazy callback).
+        if self._num_fixed_tendons > 0:
+            for tt in (
+                TT.FIXED_TENDON_STIFFNESS,
+                TT.FIXED_TENDON_DAMPING,
+                TT.FIXED_TENDON_LIMIT_STIFFNESS,
+                TT.FIXED_TENDON_LIMIT,
+                TT.FIXED_TENDON_REST_LENGTH,
+                TT.FIXED_TENDON_OFFSET,
+            ):
+                try:
+                    self._bindings[tt] = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=tt)
+                except Exception:
+                    logger.debug("Could not create tensor binding for type %s on pattern %s", tt, pattern)
+        if self._num_spatial_tendons > 0:
+            for tt in (
+                TT.SPATIAL_TENDON_STIFFNESS,
+                TT.SPATIAL_TENDON_DAMPING,
+                TT.SPATIAL_TENDON_LIMIT_STIFFNESS,
+                TT.SPATIAL_TENDON_OFFSET,
+            ):
+                try:
+                    self._bindings[tt] = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=tt)
+                except Exception:
+                    logger.debug("Could not create tensor binding for type %s on pattern %s", tt, pattern)
+
+        # construct the data container; counts come from the bindings
+        self._data = ArticulationData(self._bindings, self._device)
+        self._data.body_names = self._body_names
+        self._data.joint_names = self._joint_names
+        self._data.fixed_tendon_names = self._fixed_tendon_names
+        self._data.spatial_tendon_names = self._spatial_tendon_names
 
         # allocate asset-side buffers
         self._create_buffers()
@@ -3767,16 +3790,6 @@ class Articulation(BaseArticulation):
                             self._spatial_tendon_names.append(name)
                 except Exception:
                     logger.debug("Could not parse USD stage for tendon names at %s", stage_path)
-
-        # Push the discovered names into the data container if it already exists.
-        # (During _initialize_impl the data container is created AFTER _process_tendons,
-        # so self._data may not be set yet; the ArticulationData constructor receives the
-        # counts/names directly.)
-        if hasattr(self, "_data"):
-            self._data._num_fixed_tendons = self._num_fixed_tendons
-            self._data._num_spatial_tendons = self._num_spatial_tendons
-            self._data.fixed_tendon_names = self._fixed_tendon_names
-            self._data.spatial_tendon_names = self._spatial_tendon_names
 
     def _get_binding(self, tensor_type: int):
         """Return a cached TensorBinding, creating it on first access.

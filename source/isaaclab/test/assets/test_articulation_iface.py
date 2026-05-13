@@ -287,20 +287,12 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_num_fixed_tendons", num_fixed_tendons)
     object.__setattr__(articulation, "_num_spatial_tendons", num_spatial_tendons)
 
-    # Create ArticulationData
-    data = OvPhysxArticulationData(
-        mock_bindings.bindings,
-        device,
-        num_instances=num_instances,
-        num_bodies=num_bodies,
-        num_joints=num_joints,
-        num_fixed_tendons=num_fixed_tendons,
-        num_spatial_tendons=num_spatial_tendons,
-        body_names=body_names,
-        joint_names=joint_names,
-        fixed_tendon_names=fixed_tendon_names,
-        spatial_tendon_names=spatial_tendon_names,
-    )
+    # Create ArticulationData; counts come from the bindings, names are set after.
+    data = OvPhysxArticulationData(mock_bindings.bindings, device)
+    data.body_names = body_names
+    data.joint_names = joint_names
+    data.fixed_tendon_names = fixed_tendon_names
+    data.spatial_tendon_names = spatial_tendon_names
     data._is_fixed_base = False
     object.__setattr__(articulation, "_data", data)
 

@@ -117,8 +117,6 @@ def test_process_tendons_scopes_to_articulation_root(tmp_path):
 
     assert articulation.fixed_tendon_names == ["fixed_joint"]
     assert articulation.spatial_tendon_names == ["spatial_joint"]
-    assert articulation._data.fixed_tendon_names == ["fixed_joint"]
-    assert articulation._data.spatial_tendon_names == ["spatial_joint"]
 
 
 def test_mock_binding_set_rigid_object_shapes():

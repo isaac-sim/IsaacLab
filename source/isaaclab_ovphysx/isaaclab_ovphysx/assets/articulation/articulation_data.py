@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import warnings
-from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -72,60 +71,36 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the articulation data."""
 
-    def __init__(
-        self,
-        bindings: dict[int, Any],
-        device: str,
-        num_instances: int,
-        num_bodies: int,
-        num_joints: int,
-        num_fixed_tendons: int,
-        num_spatial_tendons: int,
-        body_names: list[str],
-        joint_names: list[str],
-        fixed_tendon_names: list[str],
-        spatial_tendon_names: list[str],
-        binding_getter: Callable[[int], Any] | None = None,
-    ) -> None:
+    def __init__(self, bindings: dict[int, Any], device: str) -> None:
         """Initialize the articulation data container.
 
         Args:
             bindings: Dictionary of OVPhysX :class:`TensorBinding` objects keyed
-                by :class:`isaaclab_ovphysx.tensor_types.TensorType`.
+                by :class:`isaaclab_ovphysx.tensor_types.TensorType`. All counts
+                (instances, bodies, DOFs, fixed/spatial tendons) are derived
+                from the binding metadata. Name lists are assigned by
+                :meth:`~isaaclab_ovphysx.assets.Articulation._initialize_impl`
+                after construction.
             device: Simulation device string (e.g., ``"cuda:0"`` or ``"cpu"``).
-            num_instances: Number of articulation instances.
-            num_bodies: Number of bodies per articulation.
-            num_joints: Number of degrees of freedom per articulation.
-            num_fixed_tendons: Number of fixed tendons per articulation.
-            num_spatial_tendons: Number of spatial tendons per articulation.
-            body_names: Ordered list of body names.
-            joint_names: Ordered list of joint names.
-            fixed_tendon_names: Ordered list of fixed tendon names.
-            spatial_tendon_names: Ordered list of spatial tendon names.
-            binding_getter: Optional callable(tensor_type) -> TensorBinding
-                that lazily creates bindings on first access.  When provided,
-                :meth:`_get_binding` delegates to this instead of only checking
-                the static ``bindings`` dict.
         """
         super().__init__(root_view=None, device=device)
         self._bindings = bindings
-        self._binding_getter = binding_getter
-        # counts and names are plain instance attributes (no @property indirection)
-        self.num_instances = num_instances
-        self.num_bodies = num_bodies
-        self.num_joints = num_joints
-        self.num_fixed_tendons = num_fixed_tendons
-        self.num_spatial_tendons = num_spatial_tendons
-        self.body_names = body_names
-        self.joint_names = joint_names
-        self.fixed_tendon_names = fixed_tendon_names
-        self.spatial_tendon_names = spatial_tendon_names
+
+        # Every OVPhysX TensorBinding carries the articulation metadata
+        # (instance count, dof_count, body_count, fixed/spatial tendon counts);
+        # any binding will do for the read.
+        sample = next(iter(bindings.values()))
+        self.num_instances = sample.count
+        self.num_bodies = sample.body_count
+        self.num_joints = sample.dof_count
+        self.num_fixed_tendons = getattr(sample, "fixed_tendon_count", 0)
+        self.num_spatial_tendons = getattr(sample, "spatial_tendon_count", 0)
         # private aliases used throughout _create_buffers and property bodies
-        self._num_instances = num_instances
-        self._num_bodies = num_bodies
-        self._num_joints = num_joints
-        self._num_fixed_tendons = num_fixed_tendons
-        self._num_spatial_tendons = num_spatial_tendons
+        self._num_instances = self.num_instances
+        self._num_bodies = self.num_bodies
+        self._num_joints = self.num_joints
+        self._num_fixed_tendons = self.num_fixed_tendons
+        self._num_spatial_tendons = self.num_spatial_tendons
 
         # Set initial time stamp
         self._sim_timestamp: float = 0.0
@@ -148,8 +123,8 @@ class ArticulationData(BaseArticulationData):
             gravity_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
         else:
             gravity_dir = gravity_np / gravity_mag
-        gravity_dir_tiled = np.tile(gravity_dir, (num_instances, 1))
-        forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (num_instances, 1))
+        gravity_dir_tiled = np.tile(gravity_dir, (self._num_instances, 1))
+        forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (self._num_instances, 1))
 
         # Initialize constants
         self.GRAVITY_VEC_W = ProxyArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=device))
@@ -203,6 +178,22 @@ class ArticulationData(BaseArticulationData):
             )
             self._joint_acc.timestamp = self._sim_timestamp
             wp.copy(self._previous_joint_vel, cur_vel_buf.data)
+
+    """
+    Names.
+    """
+
+    body_names: list[str] = None
+    """Body names in the order parsed by the simulation view."""
+
+    joint_names: list[str] = None
+    """Joint names in the order parsed by the simulation view."""
+
+    fixed_tendon_names: list[str] = None
+    """Fixed tendon names in the order parsed by USD."""
+
+    spatial_tendon_names: list[str] = None
+    """Spatial tendon names in the order parsed by USD."""
 
     """
     Defaults - Initial state.
@@ -817,8 +808,11 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # perform forward kinematics (shouldn't cause overhead if it happened already)
-            OvPhysxManager.get_physx_instance().update_articulations_kinematic()
+            # perform forward kinematics (shouldn't cause overhead if it happened already);
+            # skip when no physics instance is bound (mocked iface tests)
+            physx_instance = OvPhysxManager.get_physx_instance()
+            if physx_instance is not None:
+                physx_instance.update_articulations_kinematic()
         self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -1861,23 +1855,15 @@ class ArticulationData(BaseArticulationData):
                     val.timestamp = -1.0
 
     def _get_binding(self, tensor_type: int):
-        """Return a binding, lazily creating it if a binding_getter was provided.
+        """Return the cached binding for :paramref:`tensor_type`, or ``None`` if absent.
 
         Args:
             tensor_type: TensorType key.
 
         Returns:
-            The TensorBinding, or ``None`` if not available.
+            The TensorBinding, or ``None`` if not present in the binding dict.
         """
-        b = self._bindings.get(tensor_type)
-        if b is not None:
-            return b
-        if self._binding_getter is not None:
-            b = self._binding_getter(tensor_type)
-            if b is not None:
-                self._bindings[tensor_type] = b
-            return b
-        return None
+        return self._bindings.get(tensor_type)
 
     def _get_read_view(self, tensor_type: int, wp_array: wp.array, floats_per_elem: int = 0) -> wp.array | None:
         """Return a stable float32 view of a warp buffer for reading from a binding.
