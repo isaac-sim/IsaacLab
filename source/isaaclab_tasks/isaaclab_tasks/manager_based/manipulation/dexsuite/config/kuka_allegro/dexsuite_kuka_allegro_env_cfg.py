@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
-
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -29,34 +26,6 @@ from .camera_cfg import (
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 THUMB_SENSOR = "thumb_link_3_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
-
-
-@configclass
-class KukaAllegroPhysicsCfg(PresetCfg):
-    default = PhysxCfg(
-        bounce_threshold_velocity=0.01,
-        gpu_max_rigid_patch_count=4 * 5 * 2**15,
-        gpu_found_lost_pairs_capacity=2**26,
-    )
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            solver="newton",
-            integrator="implicitfast",
-            njmax=300,
-            nconmax=70,
-            impratio=10.0,
-            cone="elliptic",
-            update_data_interval=2,
-            iterations=100,
-            ls_iterations=15,
-            ls_parallel=False,
-            use_mujoco_contacts=True,
-            ccd_iterations=5000,
-        ),
-        num_substeps=2,
-        debug_mode=False,
-    )
-    physx = default
 
 
 @configclass
@@ -133,27 +102,14 @@ class KukaAllegroObservationCfg(PresetCfg):
 
 
 @configclass
-class KukaAllegroEventCfg(PresetCfg):
-    @configclass
-    class KukaAllegroPhysxEventCfg(dexsuite.StartupEventCfg, dexsuite.EventCfg):
-        pass
-
-    default = KukaAllegroPhysxEventCfg()
-    newton_mjwarp = dexsuite.EventCfg()
-    physx = default
-
-
-@configclass
 class KukaAllegroMixinCfg:
     scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg()
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
     observations: KukaAllegroObservationCfg = KukaAllegroObservationCfg()
-    events: KukaAllegroEventCfg = KukaAllegroEventCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
 
     def __post_init__(self):
         super().__post_init__()
-        self.sim.physics = KukaAllegroPhysicsCfg()
 
 
 @configclass

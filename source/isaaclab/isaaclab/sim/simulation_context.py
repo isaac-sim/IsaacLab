@@ -23,7 +23,7 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
+from isaaclab.physics import BaseSceneDataProvider, PhysicsEvent, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     resolve_scene_data_requirements,
@@ -206,6 +206,13 @@ class SimulationContext:
 
         # Shared renderers for all Camera sensors (compatible renderer_cfg only).
         self._render_context = RenderContext()
+
+        # Run renderer post-physics setup.
+        self.physics_manager.register_callback(
+            lambda _payload: self._render_context.ensure_initialize(),
+            PhysicsEvent.PHYSICS_READY,
+            order=5,
+        )
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 

@@ -159,6 +159,21 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
 
+        logger.info("Creating OVRTX renderer...")
+        OVRTX_CONFIG = RendererConfig(
+            log_file_path=self.cfg.log_file_path,
+            log_level=self.cfg.log_level,
+            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
+            keep_system_alive=True,
+        )
+        self._renderer = Renderer(OVRTX_CONFIG)
+        if not self._renderer:
+            raise RuntimeError(
+                "Failed to create OVRTX Renderer; the underlying ovrtx.Renderer constructor returned a falsy"
+                " value. Check that ovrtx is installed correctly and its native dependencies are available."
+            )
+        logger.info("OVRTX renderer created successfully")
+
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
 
@@ -178,7 +193,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_path = export_path
         logger.info("Exported to %s", export_path)
 
-    def initialize(self, spec: CameraRenderSpec):
+    def _initialize_from_spec(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
@@ -197,17 +212,6 @@ class OVRTXRenderer(BaseRenderer):
 
         usd_scene_path = self._exported_usd_path
         use_cloning = self.cfg.use_cloning
-
-        logger.info("Creating OVRTX renderer...")
-        OVRTX_CONFIG = RendererConfig(
-            log_file_path=self.cfg.log_file_path,
-            log_level=self.cfg.log_level,
-            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
-            keep_system_alive=True,
-        )
-        self._renderer = Renderer(OVRTX_CONFIG)
-        assert self._renderer, "Renderer should be valid after creation"
-        logger.info("OVRTX renderer created successfully")
 
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
@@ -367,7 +371,7 @@ class OVRTXRenderer(BaseRenderer):
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
         if not self._initialized_scene:
-            self.initialize(spec)
+            self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, DEVICE)
 
     # Map torch dtypes to their warp counterparts for zero-copy wrapping.
