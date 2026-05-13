@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+1.5.38 (2026-05-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton MJWarp physics preset support and mesh-based heterogeneous
+  object spawning for Dexsuite manipulation environments.
+
+
+1.5.37 (2026-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Assemble-Trocar-G129-Dex3-v0`` and
+  ``Isaac-Assemble-Trocar-G129-Dex3-Eval-v0`` manipulation tasks: a Unitree G1
+  29-DOF humanoid with Dex3 hands assembles a trocar from a tray, trained via
+  RL post-training of a VLA model using RLinf.
+
+
 1.5.36 (2026-05-09)
 ~~~~~~~~~~~~~~~~~~~
 
