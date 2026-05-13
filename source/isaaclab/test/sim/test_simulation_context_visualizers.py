@@ -535,6 +535,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
+    assert captured["init"]["open_browser"] is False
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
@@ -609,6 +610,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             keep_historical_data: bool,
             keep_scalar_history: bool,
             record_to_rrd: str | None,
+            open_browser: bool,
         ):
             captured["init"] = {
                 "app_id": app_id,
@@ -619,6 +621,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
                 "keep_historical_data": keep_historical_data,
                 "keep_scalar_history": keep_scalar_history,
                 "record_to_rrd": record_to_rrd,
+                "open_browser": open_browser,
             }
 
         def set_model(self, model: Any) -> None:
@@ -686,6 +689,7 @@ def test_rerun_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch
             keep_historical_data: bool,
             keep_scalar_history: bool,
             record_to_rrd: str | None,
+            open_browser: bool,
         ):
             pass
 

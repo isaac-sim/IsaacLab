@@ -12,6 +12,7 @@ import random
 import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from isaaclab.physics import SceneDataProvider
@@ -308,7 +309,7 @@ class BaseVisualizer(ABC):
         table.align["Value"] = "l"
         for key, value in rows:
             table.add_row([key, value])
-        logger.info("Visualizer initialization:\n%s", table.get_string())
+        logger.debug("Visualizer initialization:\n%s", table.get_string())
 
     @staticmethod
     def _log_viewer_url(logger: logging.Logger, visualizer_name: str, viewer_url: str) -> None:
@@ -319,18 +320,24 @@ class BaseVisualizer(ABC):
             visualizer_name: Name of the visualizer exposing the URL.
             viewer_url: Browser URL for the visualizer.
         """
-        border = "=" * 80
+        parsed_url = urlparse(viewer_url)
+        visualizer_label = visualizer_name.removesuffix("Visualizer").lower()
+        title = f" {visualizer_label} (listening *:{parsed_url.port}) " if parsed_url.port else f" {visualizer_label} "
+        label_width = 9
+        value_width = max(len(viewer_url), len(title) + 2, 21)
+        inner_width = label_width + value_width + 9
+        left_rule_width = max((inner_width - len(title)) // 2, 1)
+        right_rule_width = max(inner_width - len(title) - left_rule_width, 1)
+
         logger.warning(
-            "\n%s\n"
-            "[%s] Open the browser viewer manually:\n"
-            "  %s\n"
-            "Ctrl-click the URL in supported terminals/IDEs.\n"
-            "Set `open_browser=True` in the visualizer config to auto-launch it.\n"
-            "%s\n",
-            border,
-            visualizer_name,
+            "\n%s\n%s\n%s\n%s\n%s\n%s server running at: %s\n",
+            f"╭{'─' * left_rule_width}{title}{'─' * right_rule_width}╮",
+            f"│{' ' * (label_width + 4)}╷{' ' * (value_width + 4)}│",
+            f"│   {'HTTP':<{label_width}} │ {viewer_url:<{value_width}}   │",
+            f"│{' ' * (label_width + 4)}╵{' ' * (value_width + 4)}│",
+            f"╰{'─' * inner_width}╯",
+            visualizer_label.capitalize(),
             viewer_url,
-            border,
         )
 
     def play(self) -> None:

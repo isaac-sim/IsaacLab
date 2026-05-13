@@ -36,11 +36,6 @@ import cli_args  # isort: skip
 
 logger = logging.getLogger(__name__)
 
-
-def _hang_debug(message: str) -> None:
-    """Print unbuffered breadcrumbs for diagnosing training startup hangs."""
-    print(f"[ISAACLAB-HANG-DEBUG][{time.monotonic():.6f}][rsl_rl.train] {message}", flush=True)
-
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
@@ -176,17 +171,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.log_dir = log_dir
 
         # create isaac environment
-        _hang_debug("before gym.make")
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-        _hang_debug(f"after gym.make env_type={type(env).__name__} unwrapped={type(env.unwrapped).__name__}")
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             from isaaclab.envs import multi_agent_to_single_agent
 
-            _hang_debug("before multi_agent_to_single_agent")
             env = multi_agent_to_single_agent(env)
-            _hang_debug(f"after multi_agent_to_single_agent env_type={type(env).__name__}")
 
         # save resume path before creating a new log_dir
         if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
@@ -202,59 +193,39 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             }
             print("[INFO] Recording videos during training.")
             print_dict(video_kwargs, nesting=4)
-            _hang_debug("before gym.wrappers.RecordVideo")
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
-            _hang_debug(f"after gym.wrappers.RecordVideo env_type={type(env).__name__}")
 
         start_time = time.time()
 
         # wrap around environment for rsl-rl
-        _hang_debug("before RslRlVecEnvWrapper")
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-        _hang_debug(f"after RslRlVecEnvWrapper env_type={type(env).__name__}")
 
         # create runner from rsl-rl
         if agent_cfg.class_name == "OnPolicyRunner":
-            _hang_debug("before OnPolicyRunner construction")
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-            _hang_debug("after OnPolicyRunner construction")
         elif agent_cfg.class_name == "DistillationRunner":
-            _hang_debug("before DistillationRunner construction")
             runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-            _hang_debug("after DistillationRunner construction")
         else:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
         # write git state to logs
-        _hang_debug("before runner.add_git_repo_to_log")
         runner.add_git_repo_to_log(__file__)
-        _hang_debug("after runner.add_git_repo_to_log")
         # load the checkpoint
         if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
             # load previously trained model
-            _hang_debug("before runner.load")
             runner.load(resume_path)
-            _hang_debug("after runner.load")
 
         # dump the configuration into log-directory
-        _hang_debug("before dump env.yaml")
         dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
-        _hang_debug("after dump env.yaml; before dump agent.yaml")
         dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
-        _hang_debug("after dump agent.yaml")
 
         # run training
         try:
-            _hang_debug(f"before runner.learn max_iterations={agent_cfg.max_iterations}")
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
-            _hang_debug("after runner.learn")
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
             # close the simulator
-            _hang_debug("before env.close")
             env.close()
-            _hang_debug("after env.close")
         except KeyboardInterrupt:
-            _hang_debug("KeyboardInterrupt caught")
             pass
 
 

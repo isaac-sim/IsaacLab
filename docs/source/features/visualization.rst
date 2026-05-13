@@ -85,10 +85,21 @@ To run in headless mode, omit the ``--viz`` argument:
 
 .. important::
 
-    Rerun and Viser do not open a browser tab by default. Their browser URLs are printed in the logs when the
-    visualizer initializes, before the simulation or training workflow starts. In supported terminals and IDEs,
-    Ctrl-click the printed ``http://...`` URL to open the viewer manually. To restore automatic browser launch,
-    set ``open_browser=True`` on the visualizer config.
+    Rerun and Viser do not open a browser tab by default. A highlighted browser URL is printed in the logs
+    before the simulation or training starts. In supported terminals and IDEs, Ctrl-click the printed
+    ``http://...`` URL to open the viewer manually. To set automatic browser launch, set ``open_browser=True``
+    on the visualizer config.
+
+    Example:
+
+    .. code-block:: text
+
+        ╭────── viser (listening *:8080) ───────╮
+        │             ╷                         │
+        │   HTTP      │ http://localhost:8080   │
+        │   Websocket │ ws://localhost:8080     │
+        │             ╵                         │
+        ╰───────────────────────────────────────╯
 
 
 .. _visualization-configuration:
@@ -429,9 +440,9 @@ starting a new server, initialization fails with a clear port-conflict error.
 
 .. important::
 
-   The Rerun browser URL is logged as a highlighted block during visualizer initialization, before the main
-   simulation or training loop begins. Ctrl-click the printed URL in supported terminals/IDEs to open it.
-   Set ``open_browser=True`` to automatically open the browser tab instead.
+   A highlighted Rerun browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead.
 
 
 Viser Visualizer
@@ -463,7 +474,7 @@ server, allowing you to view and interact with the scene from any browser.
 
     visualizer_cfg = ViserVisualizerCfg(
         port=8080,
-        open_browser=True,
+        open_browser=False,
         label="Isaac Lab Simulation",
         share=False,
         max_visible_envs=16,
@@ -481,9 +492,9 @@ server, allowing you to view and interact with the scene from any browser.
 
 .. important::
 
-   The Viser browser URL is logged as a highlighted block during visualizer initialization, before the main
-   simulation or training loop begins. Ctrl-click the printed URL in supported terminals/IDEs to open it.
-   Set ``open_browser=True`` to automatically open the browser tab instead.
+   A highlighted Viser browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead.
 
 .. note::
 

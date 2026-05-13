@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import contextlib
-import io
 import logging
 import os
 import webbrowser
@@ -44,24 +42,6 @@ def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
         return
 
     client_autobuild.ensure_client_is_built = lambda: None
-
-
-@contextlib.contextmanager
-def _suppress_viser_startup_logs(enabled: bool):
-    """Temporarily quiet noisy viser/websockets startup output."""
-    if not enabled:
-        yield
-        return
-
-    websockets_logger = logging.getLogger("websockets.server")
-    previous_level = websockets_logger.level
-    websockets_logger.setLevel(logging.WARNING)
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            yield
-    finally:
-        websockets_logger.setLevel(previous_level)
-
 
 def _open_viser_web_viewer(port: int) -> None:
     """Open the local viser web UI in a browser."""
@@ -160,8 +140,6 @@ class ViserVisualizer(BaseVisualizer):
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
         )
-        viewer_url = _viser_web_viewer_url(self.cfg.port)
-        self._log_viewer_url(logger, "ViserVisualizer", viewer_url)
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
@@ -263,15 +241,15 @@ class ViserVisualizer(BaseVisualizer):
         if self._model is None:
             raise RuntimeError("Viser visualizer requires a Newton model.")
 
-        with _suppress_viser_startup_logs(enabled=not self.cfg.verbose):
-            self._viewer = NewtonViewerViser(
-                port=self.cfg.port,
-                label=self.cfg.label,
-                verbose=self.cfg.verbose,
-                share=self.cfg.share,
-                record_to_viser=record_to_viser,
-                metadata=metadata or {},
-            )
+        print()
+        self._viewer = NewtonViewerViser(
+            port=self.cfg.port,
+            label=self.cfg.label,
+            verbose=self.cfg.verbose,
+            share=self.cfg.share,
+            record_to_viser=record_to_viser,
+            metadata=metadata or {},
+        )
         num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self._model)
         apply_viewer_visible_worlds(
