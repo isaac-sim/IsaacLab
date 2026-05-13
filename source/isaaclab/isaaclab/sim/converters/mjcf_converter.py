@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
@@ -61,14 +60,6 @@ class MjcfConverter(AssetConverterBase):
             cfg: The configuration instance for MJCF to USD conversion.
         """
         from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig
-
-        # Clean up any existing output subdirectory so the importer writes fresh files.
-        # MJCFImporter outputs to `{usd_dir}/{robot_name}/{robot_name}.usda` and may skip
-        # writing if the output already exists from a previous conversion.
-        file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
-        output_subdir = os.path.join(self.usd_dir, file_basename)
-        if os.path.exists(output_subdir):
-            shutil.rmtree(output_subdir)
 
         import_config = MJCFImporterConfig(
             mjcf_path=cfg.asset_path,
