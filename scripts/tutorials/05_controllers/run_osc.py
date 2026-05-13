@@ -314,9 +314,13 @@ def update_states(
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
-    jacobian_w = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-    mass_matrix = robot.root_view.get_generalized_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
-    gravity = robot.root_view.get_gravity_compensation_forces()[:, arm_joint_ids]
+    # The J / M / g DoF axis prepends ``num_base_dofs`` floating-base columns
+    # (0 for fixed-base, 6 for floating-base); shift the actuated-joint ids by
+    # ``num_base_dofs`` to address the actuated-joint columns directly.
+    jacobi_joint_ids = [j + robot.num_base_dofs for j in arm_joint_ids]
+    jacobian_w = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, jacobi_joint_ids]
+    mass_matrix = robot.data.mass_matrix.torch[:, jacobi_joint_ids, :][:, :, jacobi_joint_ids]
+    gravity = robot.data.gravity_compensation_forces.torch[:, jacobi_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
     root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w.torch))

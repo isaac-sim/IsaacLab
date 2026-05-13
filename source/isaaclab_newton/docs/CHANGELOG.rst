@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.8.1 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton integration to use the packaged Newton 1.2.0 release candidate
+  and updated transform conversion calls for Warp 1.13 compatibility.
+
+Fixed
+^^^^^
+
+* Fixed a spurious ``[Error][carb] Client passed into the framework is nullptr.``
+  log emitted from :meth:`~isaaclab_newton.physics._cubric.CubricBindings.initialize`
+  when the first ``tryAcquireInterfaceWithClient`` attempt returned null. The
+  helper used to retry with ``clientName=None``, which Carbonite has rejected as
+  invalid since 2018 — the retry only emitted a misleading error log. Removed
+  the null-client retry; the existing ``acquireInterfaceWithClient`` fallback
+  with the ``isaaclab.cubric`` client name still handles configurations where
+  the plugin needs to be loaded on demand.
+
+
 0.8.0 (2026-05-12)
 ~~~~~~~~~~~~~~~~~~
 

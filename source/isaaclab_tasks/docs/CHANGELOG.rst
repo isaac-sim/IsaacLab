@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.38 (2026-05-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton MJWarp physics preset support and mesh-based heterogeneous
+  object spawning for Dexsuite manipulation environments.
+
+
 1.5.37 (2026-05-12)
 ~~~~~~~~~~~~~~~~~~~
 
