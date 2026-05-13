@@ -199,24 +199,6 @@ class RenderCfg:
 
     This is set by the variable: ``/rtx/ambientOcclusion/denoiserMode``.
     """
-
-    subpixel_mode: Literal[0, 1] | None = None
-    """Raytracing subpixel mode. Default is 0.
-
-    Valid values are:
-
-    * 0: Performance mode
-    * 1: Quality mode (better anti-aliasing)
-
-    This is set by the variable: ``/rtx/raytracing/subpixel/mode``.
-    """
-
-    enable_cached_raytracing: bool | None = None
-    """Enables cached raytracing for improved performance. Default is True.
-
-    This is set by the variable: ``/rtx/raytracing/cached/enabled``.
-    """
-
     max_samples_per_launch: int | None = None
     """Maximum samples per launch for path tracing. Default is 1000000.
 
