@@ -1,0 +1,17 @@
+base_link
+ └── joint1 (continuous)
+      └── link1
+           └── joint2 (continuous)
+                └── link2
+                     └── joint3 (continuous)
+                          └── link3
+                               └── joint4 (continuous)
+                                    └── link4
+                                         └── joint5 (continuous)
+                                              └── link5
+                                                   └── joint6 (continuous)
+                                                        └── link6
+                                                             ├── gripper_left_joint (prismatic)
+                                                             │    └── gripper_left
+                                                             └── gripper_right_joint (prismatic)
+                                                                  └── gripper_right

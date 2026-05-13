@@ -15,10 +15,10 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-v0",
+    id="Isaac-Lift-Cube-A10-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCubeLiftEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:A10CubeLiftEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
@@ -28,10 +28,10 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-Play-v0",
+    id="Isaac-Lift-Cube-A10-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCubeLiftEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:A10CubeLiftEnvCfg_PLAY",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
@@ -40,37 +40,17 @@ gym.register(
     disable_env_checker=True,
 )
 
-##
-# Inverse Kinematics - Absolute Pose Control
-##a
 
-gym.register(
-    id="Isaac-Lift-Cube-Franka-IK-Abs-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaCubeLiftEnvCfg",
-    },
-    disable_env_checker=True,
-)
-
-gym.register(
-    id="Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaTeddyBearLiftEnvCfg",
-    },
-    disable_env_checker=True,
-)
 
 ##
 # Inverse Kinematics - Relative Pose Control
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-IK-Rel-v0",
+    id="Isaac-Lift-Cube-A10-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCubeLiftEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:A10CubeLiftEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc.json",
     },
     disable_env_checker=True,

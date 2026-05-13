@@ -2,6 +2,12 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+#
+#conda activate env_isaaclab
+# ./isaaclab.sh -p "scripts/tools/convert_urdf.py" \
+#   "A10_Single/assets/dualarm/urdf/a10_single.urdf" \
+#   "A10_Single/assets/a10_single.usd" \
+#   --headless
 
 """
 Utility to convert a URDF into USD format.

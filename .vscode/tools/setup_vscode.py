@@ -101,6 +101,11 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source"))
     path_names.extend(['"${workspaceFolder}/source/' + ext + '"' for ext in isaaclab_extensions])
 
+    # Local scripts / OpenPI client live outside source/; Pylance needs these for import resolution
+    for rel in ("A10_Single", "A10_Single/openpi-client/src"):
+        if os.path.isdir(os.path.join(ISAACLAB_DIR, rel)):
+            path_names.append(f'"${{workspaceFolder}}/{rel}"')
+
     # combine them into a single string
     path_names = ",\n\t\t".expandtabs(4).join(path_names)
     # deal with the path separator being different on Windows and Unix

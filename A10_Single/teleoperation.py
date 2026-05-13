@@ -3,8 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+#export PYTHONPATH=$PYTHONPATH:$(pwd)
+#./isaaclab.sh -p A10_Single/teleoperation.py --task Isaac-Lift-Cube-A10-IK-Rel --num_envs 1 --teleop_device keyboard
+
 #./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
+#./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-A10-IK-Rel --num_envs 1 --teleop_device keyboard
 """Script to run a keyboard teleoperation with Isaac Lab manipulation environments."""
 
 """Launch Isaac Sim Simulator first."""
@@ -77,6 +81,8 @@ if args_cli.enable_pinocchio:
 # import logger
 logger = logging.getLogger(__name__)
 
+# from .reach.config import a10  # 如果teleoperation.py在包内
+
 
 def main() -> None:
     """
@@ -91,6 +97,7 @@ def main() -> None:
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
     env_cfg.env_name = args_cli.task
+   # env_cfg.robot = A10_CFG
     # modify configuration
     env_cfg.terminations.time_out = None
     if "Lift" in args_cli.task:
@@ -108,7 +115,7 @@ def main() -> None:
     try:
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-        # check environment name (for reach , we don't allow the gripper)
+        # check environment name (for reach, we don't allow the gripper)
         if "Reach" in args_cli.task:
             logger.warning(
                 f"The environment '{args_cli.task}' does not support gripper control. The device command will be"
@@ -194,15 +201,15 @@ def main() -> None:
             sensitivity = args_cli.sensitivity
             if args_cli.teleop_device.lower() == "keyboard":
                 teleop_interface = Se3Keyboard(
-                    Se3KeyboardCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.05 * sensitivity)
+                    Se3KeyboardCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.04 * sensitivity)
                 )
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(
-                    Se3SpaceMouseCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.05 * sensitivity)
+                    Se3SpaceMouseCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.04 * sensitivity)
                 )
             elif args_cli.teleop_device.lower() == "gamepad":
                 teleop_interface = Se3Gamepad(
-                    Se3GamepadCfg(pos_sensitivity=0.1 * sensitivity, rot_sensitivity=0.1 * sensitivity)
+                    Se3GamepadCfg(pos_sensitivity=0.10 * sensitivity, rot_sensitivity=0.12 * sensitivity)
                 )
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
@@ -231,6 +238,16 @@ def main() -> None:
 
     print(f"Using teleop device: {teleop_interface}")
 
+    # Infer expected action dimension from action manager (more reliable than action_space for batched envs).
+    expected_action_dim = None
+    if hasattr(env, "action_manager"):
+        expected_action_dim = int(env.action_manager.total_action_dim)
+    elif hasattr(env.action_space, "shape") and env.action_space.shape is not None and len(env.action_space.shape) > 0:
+        expected_action_dim = int(env.action_space.shape[-1])
+    warned_action_dim_once = False
+    reset_hold_steps = 8
+    reset_hold_counter = reset_hold_steps
+
     # reset environment
     env.reset()
     teleop_interface.reset()
@@ -242,22 +259,86 @@ def main() -> None:
         try:
             # run everything in inference mode
             with torch.inference_mode():
+                # Handle reset before reading/applying any new action to avoid one stale control step.
+                if should_reset_recording_instance:
+                    env.reset()
+                    teleop_interface.reset()
+                    should_reset_recording_instance = False
+                    reset_hold_counter = reset_hold_steps
+                    print("Environment reset complete")
+                    continue
+
                 # get device command
                 action = teleop_interface.advance()
 
-                # Only apply teleop commands when active
+                # # Only apply teleop commands when active
+                # if teleoperation_active:
+                #     # process actions
+                #     actions = action.repeat(env.num_envs, 1)
+                #     print("num actions:", env.action_space.shape)
+
+                #     actions = actions[..., :6]
+                #     robot = env.scene["robot"]
+                #     print("joint pos:", robot.data.joint_pos[0, :6])
+
+                #     env.step(actions)
+                # else:
+                #     env.sim.render()
+
                 if teleoperation_active:
-                    # process actions
-                    actions = action.repeat(env.num_envs, 1)
-                    # apply actions
+                    # Hold zero-actions for a few frames right after reset to avoid stale-input spikes.
+                    if reset_hold_counter > 0 and expected_action_dim is not None:
+                        zero_actions = torch.zeros((env.num_envs, expected_action_dim), device=env.device, dtype=torch.float32)
+                        env.step(zero_actions)
+                        reset_hold_counter -= 1
+                        continue
+
+                    # Some devices can return tuples/lists (e.g. [delta_pose, gripper]); flatten to a single vector.
+                    if isinstance(action, (tuple, list)):
+                        tensor_parts = [
+                            torch.as_tensor(part, device=env.device, dtype=torch.float32).reshape(-1) for part in action
+                        ]
+                        actions = torch.cat(tensor_parts, dim=0)
+                    else:
+                        actions = torch.as_tensor(action, device=env.device, dtype=torch.float32)
+
+                    if actions.ndim == 1:
+                        actions = actions.unsqueeze(0)
+
+                    if expected_action_dim is not None and actions.shape[-1] != expected_action_dim:
+                        current_dim = int(actions.shape[-1])
+                        if current_dim > expected_action_dim:
+                            actions = actions[..., :expected_action_dim]
+                        else:
+                            pad = torch.zeros(
+                                actions.shape[0],
+                                expected_action_dim - current_dim,
+                                device=actions.device,
+                                dtype=actions.dtype,
+                            )
+                            actions = torch.cat([actions, pad], dim=-1)
+
+                        if not warned_action_dim_once:
+                            logger.warning(
+                                "Teleop action dimension adjusted from %d to %d for task '%s'.",
+                                current_dim,
+                                expected_action_dim,
+                                args_cli.task,
+                            )
+                            warned_action_dim_once = True
+
+                    if actions.shape[0] == 1 and env.num_envs > 1:
+                        actions = actions.repeat(env.num_envs, 1)
+                    # A10 keyboard convention fix: keep x as-is, invert y/z/yaw for intuitive teleop direction.
+                    if args_cli.teleop_device.lower() == "keyboard" and actions.shape[-1] >= 6:
+                        actions[:, 1] *= -1.0  # y-axis (A/D)
+                        actions[:, 2] *= -1.0  # z-axis (Q/E)
+                        actions[:, 5] *= -1.0  # yaw (C/V)
+                    # Filter tiny residual values to prevent drift when no key is pressed.
+                    actions = torch.where(actions.abs() < 1e-4, torch.zeros_like(actions), actions)
                     env.step(actions)
                 else:
                     env.sim.render()
-
-                if should_reset_recording_instance:
-                    env.reset()
-                    should_reset_recording_instance = False
-                    print("Environment reset complete")
         except Exception as e:
             logger.error(f"Error during simulation step: {e}")
             break

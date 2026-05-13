@@ -73,7 +73,7 @@ include = ["isaaclab*", "isaaclab_rl*", "isaaclab_mimic*", "isaaclab_assets*", "
 
 [tool.pyright]
 
-include = ["source", "scripts"]
+include = ["source", "scripts", "A10_Single"]
 exclude = [
     "**/__pycache__",
     "**/_isaac_sim",

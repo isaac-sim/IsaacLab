@@ -1,0 +1,506 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="dualarm">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.129005725929568 -0.184670396574784 0.51258205496432"
+        rpy="0 0 0" />
+      <mass
+        value="26.3002175823176" />
+      <inertia
+        ixx="3.67871877357829"
+        ixy="-0.00523912103071409"
+        ixz="0.0541395655093394"
+        iyy="3.84844749755078"
+        iyz="-0.00401159194401568"
+        izz="0.22959120436109" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="link1">
+    <inertial>
+      <origin
+        xyz="-0.51258205496432 -0.122492444132962 -0.00168989156289856"
+        rpy="0 0 0" />
+      <mass
+        value="26.3002175823176" />
+      <inertia
+        ixx="0.22959120436109"
+        ixy="-0.053983742712942"
+        ixz="-0.00573942036866138"
+        iyy="3.67855742499984"
+        iyz="-0.00019200904979072"
+        izz="3.84860884612923" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint1"
+    type="continuous">
+    <origin
+      xyz="-0.0065218 -0.18245 0"
+      rpy="1.5388 1.5708 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="link1" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-6"
+      upper="6"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="link2">
+    <inertial>
+      <origin
+        xyz="-0.0785422204115868 -0.402930270170193 -0.000556365836297479"
+        rpy="0 0 0" />
+      <mass
+        value="26.3002175823176" />
+      <inertia
+        ixx="3.67855742499984"
+        ixy="-0.053983974256305"
+        ixz="-0.000108941576106643"
+        iyy="0.229639685878469"
+        iyz="-0.0144358602931894"
+        izz="3.84856036461185" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint2"
+    type="continuous">
+    <origin
+      xyz="-0.10965 -0.04395 0"
+      rpy="3.136 0 1.5708" />
+    <parent
+      link="link1" />
+    <child
+      link="link2" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-6"
+      upper="6"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="link3">
+    <inertial>
+      <origin
+        xyz="0.0785422204115867 -0.192052458758287 -0.00263509861623276"
+        rpy="0 0 0" />
+      <mass
+        value="26.3002175823176" />
+      <inertia
+        ixx="3.67855742499984"
+        ixy="-0.0539819914822748"
+        ixz="-0.000475331862830296"
+        iyy="0.229751134880632"
+        iyz="-0.0247327058786172"
+        izz="3.84844891560969" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint3"
+    type="continuous">
+    <origin
+      xyz="0 -0.594999999999952 0"
+      rpy="-0.0108231836094345 0 3.14159265358979" />
+    <parent
+      link="link2" />
+    <child
+      link="link3" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-6"
+      upper="6"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="link4">
+    <inertial>
+      <origin
+        xyz="-0.766355933022853 0.0755962114188302 -0.00127228523496972"
+        rpy="0 0 0" />
+      <mass
+        value="26.3002175823176" />
+      <inertia
+        ixx="0.229593004064364"
+        ixy="-0.0539837133608198"
+        ixz="0.00628124994162189"
+        iyy="3.67855742499984"
+        iyz="0.00020009135211356"
+        izz="3.84860704642596" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint4"
+    type="continuous">
+    <origin
+      xyz="0.0029460089927562 0.574299999999998 0"
+      rpy="3.14159265358979 -0.00509865451899513 1.5707963267949" />
+    <parent
+      link="link3" />
+    <child
+      link="link4" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-6"
+      upper="6"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="link5">
+    <inertial>
+      <origin
+        xyz="0.132940965902691 0.077038534820469 -7.48244870979464E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.250529604832804" />
+      <inertia
+        ixx="0.000147706766103638"
+        ixy="7.83928372298396E-20"
+        ixz="-3.86458782184775E-20"
+        iyy="9.17998386031011E-05"
+        iyz="1.62109132077211E-09"
+        izz="9.18814797461867E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint5"
+    type="continuous">
+    <origin
+      xyz="0.0290592307671516 0.0769037672858438 0"
+      rpy="-3.14159265358979 0.0169257666086247 1.5707963267949" />
+    <parent
+      link="link4" />
+    <child
+      link="link5" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-6"
+      upper="6"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="link6">
+    <inertial>
+      <origin
+        xyz="-0.0370017754368165 0.0252022998147514 -0.000164888510944233"
+        rpy="0 0 0" />
+      <mass
+        value="0.136132934660164" />
+      <inertia
+        ixx="8.92887694531639E-05"
+        ixy="-2.96183646362377E-06"
+        ixz="-2.18448541752676E-08"
+        iyy="8.28440577765062E-05"
+        iyz="-8.66732105135689E-09"
+        izz="3.54803368100766E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.807843137254902 0.843137254901961 0.905882352941176 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint6"
+    type="continuous">
+    <origin
+      xyz="0.160979601048544 0.0770407692328487 0"
+      rpy="-3.13500084326082 0 3.1415901196294" />
+    <parent
+      link="link5" />
+    <child
+      link="link6" />
+    <axis
+      xyz="0.99999999999679 0 0" />
+  </joint>
+  <link
+    name="gripper_left">
+    <inertial>
+      <origin
+        xyz="-0.097255 -0.0098559 0.011772"
+        rpy="0 0 0" />
+      <mass
+        value="0.023424" />
+      <inertia
+        ixx="4.9615E-06"
+        ixy="3.0934E-10"
+        ixz="-1.315E-06"
+        iyy="6.2677E-06"
+        iyz="-1.7097E-10"
+        izz="7.8716E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/gripper_left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.80784 0.84314 0.90588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/gripper_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_left_joint"
+    type="prismatic">
+    <origin
+      xyz="0.0085252 0.010305 -0.00019018"
+      rpy="0 0 0" />
+    <parent
+      link="link6" />
+    <child
+      link="gripper_left" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0.05"
+      effort="5"
+      velocity="12" />
+  </joint>
+  <link
+    name="gripper_right">
+    <inertial>
+      <origin
+        xyz="-0.09873 -0.00045117 0.010552"
+        rpy="0 0 0" />
+      <mass
+        value="0.023424" />
+      <inertia
+        ixx="4.9615E-06"
+        ixy="3.0338E-10"
+        ixz="-1.315E-06"
+        iyy="6.2677E-06"
+        iyz="-1.7752E-10"
+        izz="7.8716E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/gripper_right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.80784 0.84314 0.90588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://dualarm/meshes/gripper_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gripper_right_joint"
+    type="prismatic">
+    <origin
+      xyz="0.01 0 0"
+      rpy="3.1416 0 0" />
+    <parent
+      link="link6" />
+    <child
+      link="gripper_right" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0.05"
+      effort="5"
+      velocity="12" />
+  </joint>
+</robot>
