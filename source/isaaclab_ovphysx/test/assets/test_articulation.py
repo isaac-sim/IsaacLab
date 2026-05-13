@@ -55,20 +55,26 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_ovphysx import tensor_types as TT
-from isaaclab_ovphysx.assets import Articulation
-from isaaclab_ovphysx.physics import OvPhysxCfg
 
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
-from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
+# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
+# but the ovphysx wheel is not installed in that environment. Skip gracefully
+# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
+from isaaclab_ovphysx.assets import Articulation  # noqa: E402
+from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
+
+import isaaclab.sim as sim_utils  # noqa: E402
+import isaaclab.utils.math as math_utils  # noqa: E402
+import isaaclab.utils.string as string_utils  # noqa: E402
+from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
+from isaaclab.assets import ArticulationCfg  # noqa: E402
+from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
+from isaaclab.managers import SceneEntityCfg  # noqa: E402
+from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
+from isaaclab.utils.version import get_isaac_sim_version, has_kit  # noqa: E402
 
 ##
 # Pre-defined configs
