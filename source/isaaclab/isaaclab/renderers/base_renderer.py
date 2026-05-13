@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
+    def initialize(self) -> None:
+        """Post-physics one-time initialization hook. Called only once."""
+        return
+
     @abstractmethod
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Per-output layout (channels + dtype) this renderer can produce.

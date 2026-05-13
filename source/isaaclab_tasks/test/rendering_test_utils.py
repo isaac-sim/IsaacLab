@@ -66,15 +66,8 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
 
-# OVRTX kitless paths can segfault on CI runners; keep warp/Kit paths in CI.
-_SKIP_ON_CI = any(os.environ.get(name) == "true" for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI"))
-_SKIP_ON_CI_MARK = pytest.mark.skipif(
-    _SKIP_ON_CI,
-    reason="Skipped on CI runners until the test can run on CI runners.",
-)
-
-# Let's just accept the fact that low-resolution camera outputs from RTX renderers are not deterministic enough to pass
-# golden image testing on every CI run.
+# Low-resolution camera outputs from RTX renderers are not deterministic enough to pass golden image testing
+# on every CI run. (NVBUG#6152566)
 _FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
@@ -200,49 +193,49 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "rgb",
         id="newton-ovrtx-rgb",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "albedo",
         id="newton-ovrtx-albedo",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "depth",
         id="newton-ovrtx-depth",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_full_mdl",
         id="newton-ovrtx-simple_shading_full_mdl",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "semantic_segmentation",
         id="newton-ovrtx-semantic_segmentation",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     # newton + newton_renderer (warp)
     pytest.param(

@@ -84,10 +84,9 @@ Drivers other than those recommended on `Omniverse Technical Requirements <https
 may work but have not been validated against all Omniverse tests.
 
 - Use the **latest NVIDIA production branch driver**.
-- On Linux, version ``580.65.06`` or later is recommended, especially when upgrading to
-  **Ubuntu 22.04.5 with kernel 6.8.0-48-generic** or newer.
-- On Spark, version ``580.95.05`` is recommended.
-- On Windows, version ``580.88`` is recommended.
+- On Linux (x86_64 and aarch64), version ``580.95.05`` or later is recommended.
+- On Spark (Linux aarch64), version ``580.142`` is recommended.
+- On Windows, version ``581.42.00`` is recommended.
 - If you are using a new GPU or encounter driver issues, install the latest production branch
   driver from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_
   using the ``.run`` installer.

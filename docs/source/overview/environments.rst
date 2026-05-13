@@ -204,6 +204,8 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cabi_openarm_uni|      | |cabi_openarm_uni-link|      | Grasp the handle of a cabinet's drawer and open it with the OpenArm robot   |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |g1_assemble_trocar|    | |g1_assemble_trocar-link|    | Assemble trocar with a Unitree G1 humanoid robot with Dex3 hands            |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -228,6 +230,7 @@ for the lift-cube environment:
 .. |reach_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_reach.jpg
 .. |lift_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_lift.jpg
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
+.. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -261,6 +264,7 @@ for the lift-cube environment:
 .. |reach_openarm_uni-link| replace:: `Isaac-Reach-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
 .. |lift_openarm_uni-link| replace:: `Isaac-Lift-Cube-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/openarm/joint_pos_env_cfg.py>`__
 .. |cabi_openarm_uni-link| replace:: `Isaac-Open-Drawer-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/openarm/joint_pos_env_cfg.py>`__
+.. |g1_assemble_trocar-link| replace:: `Isaac-Assemble-Trocar-G129-Dex3-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/g129_dex3_env_cfg.py>`__
 
 
 Contact-rich Manipulation
@@ -531,14 +535,20 @@ Multirotor
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
+.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/develop/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+
+.. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
+
 .. table::
     :widths: 25 30 25 20
 
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+------------------------------+
-    | World                                  | Environment ID                              | Description                                                                            | Presets                      |
-    +========================================+=============================================+========================================================================================+==============================+
-    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                              |
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+------------------------------+
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
+    | World                                  | Environment ID                              | Description                                                                            | Presets               |
+    +========================================+=============================================+========================================================================================+=======================+
+    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                       |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
+    | |arl_robot_navigation|                 | |arl_robot_navigation-link|                 | Navigate through 3D obstacles with the ARL robot using depth camera sensing.           |                       |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
 
 
 Others
@@ -763,6 +773,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO), **sb3** (PPO)
       - ``newton_mjwarp``, ``physx``
+    * - Isaac-Assemble-Trocar-G129-Dex3-v0
+      - Isaac-Assemble-Trocar-G129-Dex3-Eval-v0
+      - Manager Based
+      - **rlinf** (PPO)
+      -
     * - Isaac-Cart-Double-Pendulum-Direct-v0
       -
       - Direct
@@ -1013,6 +1028,16 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - ``newton_mjwarp``, ``physx``
+    * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
+      - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - ``physx``
+    * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
+      - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - ``physx``
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based

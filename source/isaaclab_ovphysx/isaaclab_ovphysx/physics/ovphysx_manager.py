@@ -13,6 +13,7 @@ using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
+import inspect
 import logging
 import os
 import tempfile
@@ -202,7 +203,23 @@ class OvPhysxManager(PhysicsManager):
 
         import ovphysx
 
-        cls._physx = ovphysx.PhysX(device=ovphysx_device, gpu_index=gpu_index)
+        physx_kwargs = {"device": ovphysx_device}
+        physx_signature = inspect.signature(ovphysx.PhysX)
+        physx_parameters = physx_signature.parameters
+        if "active_cuda_gpus" in physx_parameters:
+            if ovphysx_device == "gpu":
+                # ovphysx 0.4 accepts a comma-separated CUDA ordinal string; IsaacLab selects one GPU.
+                physx_kwargs["active_cuda_gpus"] = str(gpu_index)
+                physx_kwargs["config"] = ovphysx.PhysXConfig(
+                    carbonite_overrides={
+                        "/physics/suppressReadback": True,
+                        "/physics/suppressFabricUpdate": True,
+                    }
+                )
+        elif "gpu_index" in physx_parameters:
+            physx_kwargs["gpu_index"] = gpu_index
+
+        cls._physx = ovphysx.PhysX(**physx_kwargs)
 
         # Without worker threads the stepper runs simulate()+fetchResults()
         # synchronously, blocking the calling thread for the full GPU step time.

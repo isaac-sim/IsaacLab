@@ -7,7 +7,7 @@
 
 The following configuration parameters are available:
 
-* :obj:`ARL_ROBOT_1_CFG`: The ARL_Robot_1 with (TODO add motor propeller combination)
+* :obj:`ARL_ROBOT_1_CFG`: The ARL_Robot_1
 """
 
 import isaaclab.sim as sim_utils

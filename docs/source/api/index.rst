@@ -82,6 +82,7 @@ The following modules are available in the ``isaaclab_contrib`` extension:
 
    actuators
    assets
+   controllers
    mdp
    rl
    sensors
@@ -160,6 +161,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    renderers
    scene_data_providers
    sensors
+   sim.schemas
 
 .. toctree::
    :hidden:
@@ -170,6 +172,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    lab_newton/isaaclab_newton.renderers
    lab_newton/isaaclab_newton.scene_data_providers
    lab_newton/isaaclab_newton.sensors
+   lab_newton/isaaclab_newton.sim.schemas
 
 isaaclab_ov extension
 ---------------------

@@ -23,7 +23,7 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
+from isaaclab.physics import BaseSceneDataProvider, PhysicsEvent, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     resolve_scene_data_requirements,
@@ -176,11 +176,10 @@ class SimulationContext:
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
         self._scene_data_requirements = SceneDataRequirement()
-        # Per-group clone plans published by InteractiveScene after cloning. Providers (e.g.
-        # the Newton visualizer model rebuilder on a PhysX backend) consume these to derive
-        # their own backend args. Empty dict until :meth:`InteractiveScene.clone_environments`
-        # runs.
-        self._clone_plans: dict[str, ClonePlan] = {}
+        # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
+        # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
+        # their own backend args. None until :meth:`InteractiveScene.clone_environments` runs.
+        self._clone_plan: ClonePlan | None = None
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -207,6 +206,13 @@ class SimulationContext:
 
         # Shared renderers for all Camera sensors (compatible renderer_cfg only).
         self._render_context = RenderContext()
+
+        # Run renderer post-physics setup.
+        self.physics_manager.register_callback(
+            lambda _payload: self._render_context.ensure_initialize(),
+            PhysicsEvent.PHYSICS_READY,
+            order=5,
+        )
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -635,18 +641,18 @@ class SimulationContext:
         """Update scene-data requirements."""
         self._scene_data_requirements = requirements
 
-    def get_clone_plans(self) -> dict[str, ClonePlan]:
-        """Return per-group clone plans published by the scene, keyed by destination template.
+    def get_clone_plan(self) -> ClonePlan | None:
+        """Return the clone plan published by the scene.
 
         Set by :meth:`InteractiveScene.clone_environments` after replication. Consumed by
         scene data providers that build backend models (e.g. Newton visualizer model on a
-        PhysX backend) from the same plan the cloner used. Empty dict until the scene clones.
+        PhysX backend) from the same plan the cloner used. ``None`` until the scene clones.
         """
-        return self._clone_plans
+        return self._clone_plan
 
-    def set_clone_plans(self, plans: dict[str, ClonePlan]) -> None:
-        """Set the cloner's per-group clone-plan map."""
-        self._clone_plans = plans
+    def set_clone_plan(self, plan: ClonePlan | None) -> None:
+        """Set the cloner's clone plan."""
+        self._clone_plan = plan
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:
