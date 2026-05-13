@@ -83,24 +83,6 @@ To run in headless mode, omit the ``--viz`` argument:
     The ``--headless`` argument is deprecated.
     For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
-.. important::
-
-    Rerun and Viser do not open a browser tab by default. A highlighted browser URL is printed in the logs
-    before the simulation or training starts. In supported terminals and IDEs, Ctrl-click the printed
-    ``http://...`` URL to open the viewer manually. To set automatic browser launch, set ``open_browser=True``
-    on the visualizer config.
-
-    Example:
-
-    .. code-block:: text
-
-        ╭────── viser (listening *:8080) ───────╮
-        │             ╷                         │
-        │   HTTP      │ http://localhost:8080   │
-        │   Websocket │ ws://localhost:8080     │
-        │             ╵                         │
-        ╰───────────────────────────────────────╯
-
 
 .. _visualization-configuration:
 
@@ -408,6 +390,22 @@ Rerun Visualizer
 - Timeline scrubbing and playback controls of recordings
 - Visualization debug markers
 
+.. important::
+
+   A highlighted Rerun browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead.
+
+   Example:
+
+   .. code-block:: text
+
+      ╭─────────────────────────── rerun (listening *:9090) ───────────────────────────╮
+      │             ╷                                                                  │
+      │   HTTP      │ http://127.0.0.1:9090/?url=rerun%2Bhttp://127.0.0.1:9876/proxy   │
+      │             ╵                                                                  │
+      ╰────────────────────────────────────────────────────────────────────────────────╯
+
 **Core Configuration:**
 
 .. code-block:: python
@@ -438,12 +436,6 @@ Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no exte
 management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
 starting a new server, initialization fails with a clear port-conflict error.
 
-.. important::
-
-   A highlighted Rerun browser URL is printed in the logs before the main simulation or training loop begins.
-   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
-   open the browser tab instead.
-
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
@@ -452,7 +444,7 @@ The `Viser <https://viser.studio/>`_ visualizer provides a **web-based** 3D view
 simulations powered by the Newton Warp renderer. It streams the simulation state to a local web
 server, allowing you to view and interact with the scene from any browser.
 
-**Key features:**
+**Main Features:**
 
 - Browser-based visualization accessible at ``http://localhost:8080`` by default
 - Optional public share URL for remote viewing
@@ -460,41 +452,47 @@ server, allowing you to view and interact with the scene from any browser.
 - Environment filtering to control which environments are rendered
 - Visualization debug markers
 
-**Launch with Viser:**
+.. important::
 
-.. code-block:: bash
+   A highlighted Viser browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead.
 
-    ./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py --viz viser
+   Example:
 
-**Configuration example:**
+   .. code-block:: text
+
+      ╭────── viser (listening *:8080) ───────╮
+      │             ╷                         │
+      │   HTTP      │ http://localhost:8080   │
+      │   Websocket │ ws://localhost:8080     │
+      │             ╵                         │
+      ╰───────────────────────────────────────╯
+
+**Core Configuration:**
 
 .. code-block:: python
 
     from isaaclab_visualizers.viser import ViserVisualizerCfg
 
     visualizer_cfg = ViserVisualizerCfg(
-        port=8080,
-        open_browser=False,
-        label="Isaac Lab Simulation",
-        share=False,
-        max_visible_envs=16,
+        # Server settings
+        port=8080,                                # Port for local Viser web server
+        open_browser=False,                       # Set True to auto-launch the browser
+        label="Isaac Lab Simulation",             # Page title shown in the viewer
+        share=False,                              # Request a public share URL for remote viewing
+        verbose=True,                             # Print viewer server startup information
+
+        # Camera settings
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+
+        # Environment filtering
+        max_visible_envs=16,                      # Maximum number of environments to visualize
+
+        # Recording
+        record_to_viser="recording.viser",        # Path to save .viser file (None = no recording)
     )
-
-**Configuration options:**
-
-- ``port`` (int, default ``8080``): Port of the local Viser web server.
-- ``open_browser`` (bool, default ``False``): Automatically open the viewer URL in a browser. The URL is logged even
-  when this is ``False``.
-- ``label`` (str or None, default ``"Isaac Lab Simulation"``): Page title shown in the viewer.
-- ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
-- ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
-- ``verbose`` (bool, default ``True``): Print viewer server startup information.
-
-.. important::
-
-   A highlighted Viser browser URL is printed in the logs before the main simulation or training loop begins.
-   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
-   open the browser tab instead.
 
 .. note::
 
