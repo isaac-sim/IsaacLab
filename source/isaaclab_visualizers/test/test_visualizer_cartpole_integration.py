@@ -565,16 +565,7 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize(
     "backend_kind",
-    [
-        pytest.param(
-            "physx",
-            marks=pytest.mark.xfail(
-                reason=("Kit visualizer + PhysX: TODO remove xfail when stale Fabric transforms bug in Kit is fixed"),
-                strict=False,
-            ),
-        ),
-        "newton",
-    ],
+    ["physx", "newton"],
 )
 def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
     backend_kind: str, caplog: pytest.LogCaptureFixture
