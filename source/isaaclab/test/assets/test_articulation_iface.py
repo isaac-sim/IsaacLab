@@ -20,9 +20,13 @@ import sys
 from unittest.mock import MagicMock
 
 # When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely when LD_PRELOAD is cleared
-# (the signature of run_ovphysx.sh) or when EXP_PATH is not set.
-_kitless = os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
+# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
+# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
+# set (bare Python, no Kit at all).
+_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
+    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+)
 
 if not _kitless:
     from isaaclab.app import AppLauncher
@@ -30,6 +34,19 @@ if not _kitless:
     simulation_app = AppLauncher(headless=True).app
 else:
     simulation_app = None
+    # Stub out the Kit/Omniverse modules that are not present under
+    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
+    # ``omni`` is a real namespace package, so missing submodules also need
+    # to be installed as attributes on it -- ``sys.modules`` alone is not
+    # enough because attribute access on the real ``omni`` won't fall
+    # through to ``sys.modules``.
+    import omni as _omni
+
+    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
+        _stub = MagicMock()
+        sys.modules[f"omni.{_mod}"] = _stub
+        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
+        setattr(_omni, _mod.split(".", 1)[0], _stub)
     for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
         sys.modules.setdefault(_mod, MagicMock())
 
