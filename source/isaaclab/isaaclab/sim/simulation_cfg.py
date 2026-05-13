@@ -199,13 +199,6 @@ class RenderCfg:
 
     This is set by the variable: ``/rtx/ambientOcclusion/denoiserMode``.
     """
-    max_samples_per_launch: int | None = None
-    """Maximum samples per launch for path tracing. Default is 1000000.
-
-    This setting helps avoid replicator warnings when using large tile counts.
-
-    This is set by the variable: ``/rtx/pathtracing/maxSamplesPerLaunch``.
-    """
 
     view_tile_limit: int | None = None
     """Maximum number of view tiles. Default is 1000000.
