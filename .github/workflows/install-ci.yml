@@ -135,7 +135,7 @@ jobs:
     name: Installation Tests
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 90
     steps:
       - name: Checkout

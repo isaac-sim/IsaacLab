@@ -196,7 +196,7 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     needs: [changes, config]
     if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
@@ -217,7 +217,7 @@ jobs:
 
   build-curobo:
     name: Build cuRobo Docker Image
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     needs: [changes, config]
     if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
@@ -240,7 +240,7 @@ jobs:
   #region test jobs
   test-isaaclab-tasks:
     name: isaaclab_tasks [1/3]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
@@ -263,7 +263,7 @@ jobs:
 
   test-isaaclab-tasks-2:
     name: isaaclab_tasks [2/3]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
@@ -286,7 +286,7 @@ jobs:
 
   test-isaaclab-tasks-3:
     name: isaaclab_tasks [3/3]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
@@ -309,7 +309,7 @@ jobs:
 
   test-isaaclab-core:
     name: isaaclab (core) [1/3]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -330,7 +330,7 @@ jobs:
 
   test-isaaclab-core-2:
     name: isaaclab (core) [2/3]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -351,7 +351,7 @@ jobs:
 
   test-isaaclab-core-3:
     name: isaaclab (core) [3/3]
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -372,7 +372,7 @@ jobs:
 
   test-isaaclab-rl:
     name: isaaclab_rl
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -392,7 +392,7 @@ jobs:
 
   test-isaaclab-mimic:
     name: isaaclab_mimic
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -411,7 +411,7 @@ jobs:
 
   test-isaaclab-contrib:
     name: isaaclab_contrib
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -430,7 +430,7 @@ jobs:
 
   test-isaaclab-teleop:
     name: isaaclab_teleop
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -449,7 +449,7 @@ jobs:
 
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -468,7 +468,7 @@ jobs:
 
   test-isaaclab-assets:
     name: isaaclab_assets
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -487,7 +487,7 @@ jobs:
 
   test-isaaclab-newton:
     name: isaaclab_newton
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -506,7 +506,7 @@ jobs:
 
   test-isaaclab-physx:
     name: isaaclab_physx
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -525,7 +525,7 @@ jobs:
 
   test-isaaclab-ov:
     name: isaaclab_ov
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 180
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -544,7 +544,7 @@ jobs:
 
   test-curobo:
     name: test-curobo
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
@@ -566,7 +566,7 @@ jobs:
 
   test-skillgen:
     name: test-skillgen
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
@@ -588,7 +588,7 @@ jobs:
 
   test-environments-training:
     name: "environments_training"
-    runs-on: [self-hosted, gpu]
+    runs-on: [self-hosted, gpu-stg]
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
@@ -611,7 +611,7 @@ jobs:
 #region disabled quarantined tests
 # test-quarantined:
 #   name: "Quarantined Tests"
-#   runs-on: [self-hosted, gpu]
+#   runs-on: [self-hosted, gpu-stg]
 #   timeout-minutes: 180
 #   continue-on-error: true
 #   needs: [build, config]
