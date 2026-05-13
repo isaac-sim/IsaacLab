@@ -4,11 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "Articulation",
-    "ArticulationData",
     "RigidObject",
     "RigidObjectData",
 ]
 
-from .articulation import Articulation, ArticulationData
-from .rigid_object import RigidObject, RigidObjectData
+from .rigid_object import RigidObject
+from .rigid_object_data import RigidObjectData

@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.6.4 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton extra to depend on the packaged Newton 1.2.0 release
+  candidate instead of a Git commit.
+
+
 0.6.3 (2026-05-11)
 ~~~~~~~~~~~~~~~~~~
 
