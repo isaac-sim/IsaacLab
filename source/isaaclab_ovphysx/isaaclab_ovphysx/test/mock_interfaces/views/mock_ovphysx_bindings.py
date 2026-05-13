@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -161,6 +163,10 @@ class MockOvPhysxBindingSet:
     for a given articulation configuration.
 
     Mirrors the tensor types that ``Articulation._initialize_impl`` creates.
+
+    With ``asset_kind='rigid_object'`` it produces the smaller set
+    consumed by ``RigidObject._initialize_impl``: ``RIGID_BODY_*`` only,
+    ``num_joints`` must be 0, ``num_bodies`` must be 1, no tendons.
     """
 
     def __init__(
@@ -173,7 +179,54 @@ class MockOvPhysxBindingSet:
         body_names: list[str] | None = None,
         num_fixed_tendons: int = 0,
         num_spatial_tendons: int = 0,
+        *,
+        asset_kind: Literal["articulation", "rigid_object"] = "articulation",
     ):
+        if asset_kind == "rigid_object":
+            if num_joints != 0 or num_bodies != 1 or num_fixed_tendons != 0 or num_spatial_tendons != 0:
+                raise ValueError(
+                    "asset_kind='rigid_object' requires num_joints=0, num_bodies=1, "
+                    "num_fixed_tendons=0, num_spatial_tendons=0; got "
+                    f"num_joints={num_joints}, num_bodies={num_bodies}, "
+                    f"num_fixed_tendons={num_fixed_tendons}, "
+                    f"num_spatial_tendons={num_spatial_tendons}"
+                )
+            N = num_instances
+            if body_names is None:
+                body_names = ["base_link"]
+            common = dict(
+                count=N,
+                dof_count=0,
+                body_count=1,
+                joint_count=0,
+                is_fixed_base=is_fixed_base,
+                dof_names=[],
+                body_names=body_names,
+                joint_names=[],
+                fixed_tendon_count=0,
+                spatial_tendon_count=0,
+            )
+            self.bindings: dict[int, MockTensorBinding] = {
+                TT.RIGID_BODY_POSE: MockTensorBinding(TT.RIGID_BODY_POSE, (N, 7), **common),
+                TT.RIGID_BODY_VELOCITY: MockTensorBinding(TT.RIGID_BODY_VELOCITY, (N, 6), **common),
+                TT.RIGID_BODY_WRENCH: MockTensorBinding(TT.RIGID_BODY_WRENCH, (N, 9), write_only=True, **common),
+                TT.RIGID_BODY_MASS: MockTensorBinding(TT.RIGID_BODY_MASS, (N,), **common),
+                TT.RIGID_BODY_COM_POSE: MockTensorBinding(TT.RIGID_BODY_COM_POSE, (N, 7), **common),
+                TT.RIGID_BODY_INERTIA: MockTensorBinding(TT.RIGID_BODY_INERTIA, (N, 9), **common),
+            }
+            # Optional bindings: only present when the wheel exposes the alias.
+            if hasattr(TT, "RIGID_BODY_ACCELERATION"):
+                self.bindings[TT.RIGID_BODY_ACCELERATION] = MockTensorBinding(
+                    TT.RIGID_BODY_ACCELERATION, (N, 6), **common
+                )
+            if hasattr(TT, "RIGID_BODY_INV_MASS"):
+                self.bindings[TT.RIGID_BODY_INV_MASS] = MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N,), **common)
+            if hasattr(TT, "RIGID_BODY_INV_INERTIA"):
+                self.bindings[TT.RIGID_BODY_INV_INERTIA] = MockTensorBinding(
+                    TT.RIGID_BODY_INV_INERTIA, (N, 9), **common
+                )
+            return
+
         N = num_instances
         D = num_joints
         L = num_bodies
@@ -259,17 +312,25 @@ class MockOvPhysxBindingSet:
         for b in self.bindings.values():
             if not b._write_only:
                 b.set_random_data()
-        lim = self.bindings[TT.DOF_LIMIT]
-        lim._data[..., 0] = -3.14
-        lim._data[..., 1] = 3.14
-        for tt in (TT.ROOT_POSE, TT.LINK_POSE, TT.BODY_COM_POSE):
+        if TT.DOF_LIMIT in self.bindings:
+            lim = self.bindings[TT.DOF_LIMIT]
+            lim._data[..., 0] = -3.14
+            lim._data[..., 1] = 3.14
+        pose_keys = [
+            k
+            for k in (TT.ROOT_POSE, TT.LINK_POSE, TT.BODY_COM_POSE, TT.RIGID_BODY_POSE, TT.RIGID_BODY_COM_POSE)
+            if k in self.bindings
+        ]
+        for tt in pose_keys:
             b = self.bindings[tt]
             b._data[..., 3:6] = 0.0
             b._data[..., 6] = 1.0
-        self.bindings[TT.BODY_MASS]._data = np.abs(self.bindings[TT.BODY_MASS]._data) + 0.1
-        self.bindings[TT.DOF_MAX_VELOCITY]._data = np.abs(self.bindings[TT.DOF_MAX_VELOCITY]._data) + 1.0
-        self.bindings[TT.DOF_MAX_FORCE]._data = np.abs(self.bindings[TT.DOF_MAX_FORCE]._data) + 1.0
-        # Set sensible defaults for fixed tendon limits
+        for mass_key in (TT.BODY_MASS, TT.RIGID_BODY_MASS):
+            if mass_key in self.bindings:
+                self.bindings[mass_key]._data = np.abs(self.bindings[mass_key]._data) + 0.1
+        for max_key in (TT.DOF_MAX_VELOCITY, TT.DOF_MAX_FORCE):
+            if max_key in self.bindings:
+                self.bindings[max_key]._data = np.abs(self.bindings[max_key]._data) + 1.0
         if TT.FIXED_TENDON_LIMIT in self.bindings:
             tlim = self.bindings[TT.FIXED_TENDON_LIMIT]
             tlim._data[..., 0] = -1.0
