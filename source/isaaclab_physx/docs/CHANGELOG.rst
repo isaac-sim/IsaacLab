@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.6.3 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed rigid object collection spawning to honor planned ``spawn_path``
+  values while falling back to ``prim_path`` for direct construction.
+
+
+0.6.2 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.Articulation` joint friction docs to distinguish legacy coefficients from
+  PhysX 5 static and dynamic friction efforts.
+* Fixed PhysX backend tests to use current contact sensor and asset API names,
+  removing deprecation warnings from scoped test runs.
+
+
 0.6.1 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 
