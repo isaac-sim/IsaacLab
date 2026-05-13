@@ -271,7 +271,9 @@ def test_bucket_variants_routes_by_base_class_isinstance():
 
 
 def test_help_without_task_says_pass_task(monkeypatch, capsys):
-    """``--help`` without ``--task`` tells the user to pass ``--task=X``."""
+    """``--help`` without ``--task`` tells the user to pass ``--task=X``,
+    once on the section description rather than repeated per-flag.
+    """
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
@@ -280,15 +282,61 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
     with pytest.raises(SystemExit):
         setup_preset_cli(parser)
     out = capsys.readouterr().out
-    assert "Pass `--task=X`" in out
+    assert out.count("Pass `--task=X`") == 1
 
 
-def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
-    """``--task=X --help`` shows variants from X's env_cfg, bucketed by
-    isinstance against ``PresetTarget.base_classes``. ``PhysicsCfg`` subclass
-    instances land in ``--physics``; ``RendererCfg`` subclass instances land
-    in ``--renderer``; everything else (primitives, task-local cfg classes)
-    lands in the ``--presets`` catch-all.
+@pytest.mark.parametrize(
+    "build_key, expected_phrases",
+    [
+        pytest.param(
+            "empty",
+            [
+                "Physics preset name. No physics preset variants in this task.",
+                "Renderer preset name. No renderer preset variants in this task.",
+                "Comma-separated preset names. No preset variants in this task.",
+            ],
+            id="zero_variants_everywhere",
+        ),
+        pytest.param(
+            "physics_only",
+            [
+                "Physics preset name. Available: alpha, beta.",
+                "Renderer preset name. No renderer preset variants in this task.",
+                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: alpha, beta.",
+            ],
+            id="typed_populated_other_typed_empty",
+        ),
+        pytest.param(
+            "domain_only",
+            [
+                "Physics preset name. No physics preset variants in this task.",
+                "Renderer preset name. No renderer preset variants in this task.",
+                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: heavy, light.",
+            ],
+            id="domain_bucket_only",
+        ),
+        pytest.param(
+            "mixed",
+            [
+                "Physics preset name. Available: my_phys.",
+                "Renderer preset name. Available: my_rend.",
+                (
+                    "Comma-separated preset names (broadcast to every matching PresetCfg)."
+                    " Available: heavy, light, my_phys, my_rend."
+                ),
+            ],
+            id="all_three_buckets_populated",
+        ),
+    ],
+)
+def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phrases):
+    """Each branch of :func:`_help_text` renders the documented string for
+    its variant shape. ``PhysicsCfg`` subclass instances land in
+    ``--physics``; ``RendererCfg`` subclass instances land in ``--renderer``;
+    primitives and task-local cfg classes fall into the ``--presets``
+    DOMAIN catch-all. The parametrize id captures which branch each case
+    locks; argparse line-wrapping is normalized away before substring
+    assertions so wording changes are deliberate.
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -304,17 +352,34 @@ def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
     class _HelpRendCfg(RendererCfg):
         pass
 
-    # Two physics-typed variants (one is the default), one renderer variant,
-    # plus a primitive-typed "weight" preset that should fall into DOMAIN.
     @configclass
-    class _FakeCfg:
+    class _EmptyCfg:
+        pass
+
+    @configclass
+    class _PhysOnlyCfg:
+        physics: object = preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg())
+
+    @configclass
+    class _DomainOnlyCfg:
+        weight: object = preset(default=1.0, light=0.5, heavy=2.0)
+
+    @configclass
+    class _MixedCfg:
         physics: object = preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg())
         renderer: object = preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg())
         weight: object = preset(default=1.0, light=0.5, heavy=2.0)
 
+    builders = {
+        "empty": _EmptyCfg,
+        "physics_only": _PhysOnlyCfg,
+        "domain_only": _DomainOnlyCfg,
+        "mixed": _MixedCfg,
+    }
+
     import isaaclab_tasks.utils.parse_cfg as parse_cfg
 
-    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", lambda *_a, **_kw: _FakeCfg())
+    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", lambda *_a, **_kw: builders[build_key]())
     monkeypatch.setattr("sys.argv", ["train.py", "--task=Fake-v0", "--help"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
@@ -322,15 +387,11 @@ def test_help_with_task_shows_actual_variants(monkeypatch, capsys):
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
         setup_preset_cli(parser)
-    out = capsys.readouterr().out
+    # Collapse argparse line-wrapping so substring checks survive width changes.
+    flat = " ".join(capsys.readouterr().out.split())
 
-    # PhysicsCfg-subclass variant appears in --physics help.
-    assert "my_phys" in out
-    # RendererCfg-subclass variant appears in --renderer help.
-    assert "my_rend" in out
-    # Primitive-typed variants land in the DOMAIN catch-all (--presets) help.
-    assert "light" in out
-    assert "heavy" in out
+    for phrase in expected_phrases:
+        assert phrase in flat, f"Missing phrase: {phrase!r}"
 
 
 # ---------------------------------------------------------------------------

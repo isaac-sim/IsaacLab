@@ -117,15 +117,17 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
     argv = _ArgvHelper(sys.argv)
     actual_variants = _enumerate_variants(argv.task_name) if (argv.task_name and argv.help_requested) else None
 
-    group = parser.add_argument_group(
-        "preset selection",
-        description=(
-            "Select named PresetCfg alternatives at runtime. Both '--flag value' and"
-            " '--flag=value' are accepted. Flag values are folded into a 'presets=<csv>'"
-            " token consumed by the Hydra-decorator flow; Hydra validates names against"
-            " the loaded task at resolve time."
-        ),
+    description = (
+        "Select named PresetCfg alternatives at runtime. Both '--flag value' and"
+        " '--flag=value' are accepted. Flag values are folded into a 'presets=<csv>'"
+        " token consumed by the Hydra-decorator flow; Hydra validates names against"
+        " the loaded task at resolve time."
     )
+    if actual_variants is None:
+        # Hoist the "no task yet" hint to the section header so it prints once,
+        # instead of repeating identical text in each typed flag's help string.
+        description += " Pass `--task=X` along with `--help` to see preset variants available for that task."
+    group = parser.add_argument_group("preset selection", description=description)
     for target in PresetTarget:
         if target is PresetTarget.DOMAIN:
             group.add_argument(
@@ -187,9 +189,12 @@ def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str
     """Argparse ``help=`` string for a typed flag.
 
     The string reports the variants present in the loaded task (if a task
-    was discovered via ``--task=X`` in ``sys.argv``). Without a task, it
-    tells the user to pass one. The registry is not consulted here -- it
-    is a naming convention hint, not a help-text source.
+    was discovered via ``--task=X`` in ``sys.argv``). Without a task,
+    the per-flag string is just the label -- the "pass ``--task=X``"
+    hint lives once on the section description (see
+    :func:`setup_preset_cli`) so it isn't repeated three times. The
+    registry is not consulted here -- it is a naming convention hint,
+    not a help-text source.
 
     Args:
         target: Which typed target's help string to build.
@@ -208,7 +213,7 @@ def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str
     )
 
     if actual_variants is None:
-        return f"{label}. Pass `--task=X` along with `--help` to see preset variants available for that task."
+        return f"{label}."
 
     if target is PresetTarget.DOMAIN:
         # Free-form --presets accepts any name; list every variant we found.
