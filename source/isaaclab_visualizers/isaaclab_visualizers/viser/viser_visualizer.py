@@ -43,6 +43,7 @@ def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
 
     client_autobuild.ensure_client_is_built = lambda: None
 
+
 def _open_viser_web_viewer(port: int) -> None:
     """Open the local viser web UI in a browser."""
     url = _viser_web_viewer_url(port)

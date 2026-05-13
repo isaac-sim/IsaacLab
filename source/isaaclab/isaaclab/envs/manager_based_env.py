@@ -32,6 +32,7 @@ from .utils.video_recorder import VideoRecorder
 # import logger
 logger = logging.getLogger(__name__)
 
+
 class ManagerBasedEnv:
     """The base environment encapsulates the simulation scene and the environment managers for
     the manager-based workflow.

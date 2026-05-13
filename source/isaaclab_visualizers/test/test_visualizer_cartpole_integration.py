@@ -35,13 +35,14 @@ import copy
 import logging
 import socket
 
-import omni.timeline
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+
+import omni.timeline
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext

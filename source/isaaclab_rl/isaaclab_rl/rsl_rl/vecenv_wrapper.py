@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     with contextlib.suppress(ImportError):
         from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
+
 class RslRlVecEnvWrapper(VecEnv):
     """Wraps around Isaac Lab environment for the RSL-RL library
 

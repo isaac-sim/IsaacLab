@@ -43,6 +43,7 @@ __all__ = ["IsaacEvents", "PhysxManager"]
 
 logger = logging.getLogger(__name__)
 
+
 class IsaacEvents(Enum):
     """Events dispatched during simulation lifecycle.
 
