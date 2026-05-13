@@ -262,7 +262,6 @@ class PhysxManager(PhysicsManager):
 
         cls._physx_sim.simulate(sim.cfg.dt, 0.0)
         cls._physx_sim.fetch_results()
-
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)

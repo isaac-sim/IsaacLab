@@ -233,6 +233,49 @@ class NewtonManager(PhysicsManager):
             cls.initialize_solver()
 
     @classmethod
+    def play(cls) -> None:
+        """Start or resume the Kit timeline when Kit is driving visualization."""
+        timeline, app = cls._get_kit_timeline_and_app()
+        if timeline is None:
+            return
+        timeline.play()
+        if app is not None:
+            app.update()
+
+    @classmethod
+    def pause(cls) -> None:
+        """Pause the Kit timeline when Kit is driving visualization."""
+        timeline, app = cls._get_kit_timeline_and_app()
+        if timeline is None:
+            return
+        timeline.pause()
+        if app is not None:
+            app.update()
+
+    @classmethod
+    def stop(cls) -> None:
+        """Stop the Kit timeline when Kit is driving visualization."""
+        timeline, app = cls._get_kit_timeline_and_app()
+        if timeline is None:
+            return
+        timeline.stop()
+        if app is not None:
+            app.update()
+
+    @classmethod
+    def wait_for_playing(cls) -> None:
+        """Block while the Kit timeline is paused, keeping the UI responsive."""
+        timeline, app = cls._get_kit_timeline_and_app()
+        if timeline is None or app is None:
+            return
+        if timeline.is_playing():
+            return
+        while not timeline.is_playing():
+            app.update()
+            if timeline.is_stopped():
+                break
+
+    @classmethod
     def forward(cls) -> None:
         """Update articulation kinematics without stepping physics.
 
@@ -425,6 +468,19 @@ class NewtonManager(PhysicsManager):
     ) -> CallbackHandle:
         """Register a callback. Passes event to parent class."""
         return PhysicsManager.register_callback(callback, event, order, name, wrap_weak_ref)
+
+    @classmethod
+    def _get_kit_timeline_and_app(cls):
+        """Return Kit timeline/app interfaces if Kit is available."""
+        try:
+            import omni.kit.app
+            import omni.timeline
+        except (ImportError, AttributeError):
+            return None, None
+        app = omni.kit.app.get_app()
+        if app is None:
+            return None, None
+        return omni.timeline.get_timeline_interface(), app
 
     @classmethod
     def get_physics_sim_view(cls) -> list:
