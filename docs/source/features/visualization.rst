@@ -83,6 +83,13 @@ To run in headless mode, omit the ``--viz`` argument:
     The ``--headless`` argument is deprecated.
     For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
+.. important::
+
+    Rerun and Viser do not open a browser tab by default. Their browser URLs are printed in the logs when the
+    visualizer initializes, before the simulation or training workflow starts. In supported terminals and IDEs,
+    Ctrl-click the printed ``http://...`` URL to open the viewer manually. To restore automatic browser launch,
+    set ``open_browser=True`` on the visualizer config.
+
 
 .. _visualization-configuration:
 
@@ -400,8 +407,9 @@ Rerun Visualizer
         # Server settings
         app_id="isaaclab-simulation",             # Application identifier for viewer
         grpc_port=9876,                           # gRPC endpoint for logging SDK connection
-        web_port=9090,                            # Port for local web viewer (launched in browser)
+        web_port=9090,                            # Port for local web viewer URL printed in logs
         bind_address="0.0.0.0",                  # Endpoint host formatting/reuse checks
+        open_browser=False,                       # Set True to auto-launch the browser
 
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
@@ -418,6 +426,12 @@ Rerun Visualizer
 Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no external ``rerun`` CLI process
 management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
 starting a new server, initialization fails with a clear port-conflict error.
+
+.. important::
+
+   The Rerun browser URL is logged as a highlighted block during visualizer initialization, before the main
+   simulation or training loop begins. Ctrl-click the printed URL in supported terminals/IDEs to open it.
+   Set ``open_browser=True`` to automatically open the browser tab instead.
 
 
 Viser Visualizer
@@ -458,11 +472,18 @@ server, allowing you to view and interact with the scene from any browser.
 **Configuration options:**
 
 - ``port`` (int, default ``8080``): Port of the local Viser web server.
-- ``open_browser`` (bool, default ``True``): Automatically open the viewer URL in a browser.
+- ``open_browser`` (bool, default ``False``): Automatically open the viewer URL in a browser. The URL is logged even
+  when this is ``False``.
 - ``label`` (str or None, default ``"Isaac Lab Simulation"``): Page title shown in the viewer.
 - ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
 - ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
 - ``verbose`` (bool, default ``True``): Print viewer server startup information.
+
+.. important::
+
+   The Viser browser URL is logged as a highlighted block during visualizer initialization, before the main
+   simulation or training loop begins. Ctrl-click the printed URL in supported terminals/IDEs to open it.
+   Set ``open_browser=True`` to automatically open the browser tab instead.
 
 .. note::
 
