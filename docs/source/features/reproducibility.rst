@@ -32,9 +32,9 @@ settings via :meth:`~isaaclab.app.app_launcher.AppLauncher.apply_rtx_determinism
 for **RL-Games**, **skrl**, **RSL-RL**, and **Stable-Baselines3**: each calls
 :meth:`~isaaclab.utils.seed.configure_seed` after constructing its framework runner or agent object
 so library initialization is not disturbed, then training proceeds with the requested global RNG and
-optional PyTorch deterministic algorithms. As for task Isaac-Cartpole-v0, it is deterministic,
-no need to use deterministic flag and call configure_seed. As for task Isaac-Cartpole-RGB-v0, it is non-deterministic,
-so you need to use deterministic flag and call configure_seed.
+optional PyTorch deterministic algorithms. Whether you need ``--deterministic`` at the app level
+depends on the workload: **physics-only** simulation does not require it; **RTX** rendering
+(non-minimal mode) does require it for reproducible imagery; **Newton** rendering does not require it.
 
 To enable deterministic RTX settings from the app launcher, pass ``--deterministic``.
 
@@ -42,59 +42,6 @@ To enable deterministic RTX settings from the app launcher, pass ``--determinist
 
   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
     --task Isaac-Cartpole-RGB-v0 --enable_cameras --headless --deterministic
-
-Gymnasium registry (``gym.register``) and training scripts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Isaac Lab tasks are registered with `Gymnasium <https://gymnasium.farama.org/>`_ using ``gym.register``.
-Besides ``id`` and ``entry_point``, the ``kwargs`` dict lists **string entry points** that tell each
-training script where to load configs from—for example:
-
-* ``env_cfg_entry_point`` — environment configuration class (always present for Isaac tasks).
-* ``rl_games_cfg_entry_point``, ``sb3_cfg_entry_point``, ``skrl_cfg_entry_point``, ``rsl_rl_cfg_entry_point`` —
-  optional; **only keys that appear in ``kwargs`` are valid** for that task id.
-
-When you run ``scripts/reinforcement_learning/<framework>/train.py --task <TASK_ID>``, the script resolves
-``<framework>_cfg_entry_point`` (or the name you pass with ``--agent``) against the registry. If the task
-was registered **without** that key—for example ``Isaac-Cartpole-RGB-v0`` currently lists only
-``rl_games_cfg_entry_point``—you will get a ``ValueError`` such as “Could not find configuration …
-``sb3_cfg_entry_point``”. To use another framework you must either pick a task that registers that entry
-point or extend ``gym.register(..., kwargs={...})`` for that task with matching agent YAML/Python configs.
-
-Regression test for training scripts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The file ``source/isaaclab_tasks/test/test_train_scripts_deterministic.py`` checks that:
-
-* ``AppLauncher`` exposes ``--deterministic``;
-* the RL-Games training script calls :meth:`~isaaclab.utils.seed.configure_seed` after ``Runner`` construction;
-* (optional, heavy) for RL-Games on ``Isaac-Cartpole-RGB-v0``, two runs **without** ``--deterministic`` diverge
-  in logged ``rewards/iter``, while two runs **with** ``--deterministic`` match.
-
-Run all tests in that file from the repository root:
-
-.. code-block:: bash
-
-  cd /path/to/isaaclab
-  ./isaaclab.sh -p -m pytest source/isaaclab_tasks/test/test_train_scripts_deterministic.py
-
-**Heavy reproducibility test (starts Kit and trains multiple times).** It is skipped unless you set
-``ISAACLAB_RUN_DETERMINISM_TRAIN_TEST=1``:
-
-.. code-block:: bash
-
-  cd /path/to/isaaclab
-  ISAACLAB_RUN_DETERMINISM_TRAIN_TEST=1 ./isaaclab.sh -p -m pytest \
-    source/isaaclab_tasks/test/test_train_scripts_deterministic.py -k reproducibility
-
-**Pytest ``-k`` (keyword expression).** ``-k`` filters which tests run by matching their **names** (test
-function name, class name, and parametrized case ids). It is **not** the same as ``-m`` (markers).
-
-* ``-k reproducibility`` — runs only tests whose full name contains that substring (for example the
-  heavy RL-Games test ``test_rl_games_deterministic_flag_affects_rewards_reproducibility``).
-* ``-k "not reproducibility"`` — runs the lighter checks and **skips** the heavy training comparison.
-* Inspect names with ``./isaaclab.sh -p -m pytest ... --collect-only -q``; combine filters with
-  ``and`` / ``or`` / ``not`` and parentheses as needed.
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 
