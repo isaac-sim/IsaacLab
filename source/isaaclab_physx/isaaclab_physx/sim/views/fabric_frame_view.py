@@ -100,13 +100,16 @@ class FabricFrameView(BaseFrameView):
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
 
     # Stage-level shared state.  Multiple FabricFrameView instances on the same stage
-    # share one ``IFabricHierarchy`` handle, keyed by ``(stage_id, fabric_id)`` so
-    # that a recycled ``stage_id`` paired with a fresh ``fabric_id`` never reuses a
-    # stale handle.  ``ClassVar`` plus the ``_static_`` prefix make it explicit (and
-    # enforceable by type checkers) that this is class-level — never shadow it with
-    # ``self.<name> = ...``.  The cache is not protected by a lock; Isaac Lab's
-    # simulation loop is single-threaded, and adding locking would negate the
-    # per-stage hit-cache cost it exists to avoid.  Call
+    # share one ``IFabricHierarchy`` handle, keyed by ``(stage_id, fabric_id_int)``
+    # so that a recycled ``stage_id`` paired with a fresh Fabric attachment never
+    # reuses a stale handle.  The Fabric id is stored as a plain ``int`` (extracted
+    # from ``FabricId.id``) because the ``FabricId`` wrapper itself is freshly
+    # allocated on every ``GetFabricId()`` call and has no value equality, which
+    # would defeat the cache.  ``ClassVar`` plus the ``_static_`` prefix make it
+    # explicit (and enforceable by type checkers) that this is class-level — never
+    # shadow it with ``self.<name> = ...``.  The cache is not protected by a lock;
+    # Isaac Lab's simulation loop is single-threaded, and adding locking would
+    # negate the per-stage hit-cache cost it exists to avoid.  Call
     # :meth:`clear_static_caches` on stage teardown if you tear down many stages
     # in one process.
     _static_hierarchy_cache: ClassVar[dict[tuple[int, int], object]] = {}
@@ -639,13 +642,16 @@ class FabricFrameView(BaseFrameView):
         self._stage.SynchronizeToFabric()
 
         # Reuse (or create) a hierarchy handle for this stage.  The cache key is
-        # ``(stage_id, fabric_id)`` so a recycled ``stage_id`` paired with a fresh
-        # Fabric attachment never returns a stale handle.  Enable change-tracking
-        # BEFORE we author any local matrices, so the per-prim
+        # ``(stage_id, fabric_id_int)`` so a recycled ``stage_id`` paired with a fresh
+        # Fabric attachment never returns a stale handle.  Note: ``GetFabricId()``
+        # returns a fresh ``FabricId`` *wrapper* on every call, and the wrapper has
+        # no value equality (two wrappers for the same underlying Fabric compare
+        # unequal and hash differently), so we key on its stable ``.id`` int.
+        # Enable change-tracking BEFORE we author any local matrices, so the per-prim
         # ``SetLocalXformFromUsd`` calls below mark themselves dirty.
         fabric_id = self._stage.GetFabricId()
-        self._fabric_id = fabric_id
-        cache_key = (self._stage_id, fabric_id)
+        self._fabric_id = fabric_id.id
+        cache_key = (self._stage_id, fabric_id.id)
         if cache_key not in FabricFrameView._static_hierarchy_cache:
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                 fabric_id, self._stage.GetStageIdAsStageId()

@@ -405,3 +405,91 @@ def test_initial_seed_with_scaled_parent(device):
         atol=1e-5,
         rtol=0,
     )
+
+
+# ------------------------------------------------------------------
+# Multi-view per stage: per-view dirty-flag isolation
+# ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_multi_view_per_view_dirty_isolation(device):
+    """Two ``FabricFrameView`` instances on the same stage must not clear each other's
+    pending local→world sync.
+
+    Background: an earlier implementation stored the world-dirty flag at the class
+    level keyed by ``stage_id``.  With two views on the same stage, view B reading
+    worlds would clear the flag set by view A's ``set_local_poses``, leaving A's
+    world matrices silently stale because A's per-view sync kernel never fired.
+
+    This test sets up two views over disjoint child prims (under different parent
+    sub-trees of the same stage), interleaves their writes and reads, and verifies:
+
+    * view A's ``set_local_poses`` only dirties view A
+    * view B's ``get_world_poses`` does not clear view A's flag
+    * after both views' world reads, each one's worlds reflect its own latest local
+    * neither view's reads/writes corrupt the other view's poses
+    """
+    _skip_if_unavailable(device)
+    stage = sim_utils.get_current_stage()
+
+    # Two disjoint sub-trees under the same stage.  Use different parent names so
+    # the regex patterns for the two views don't accidentally overlap.
+    sim_utils.create_prim("/World/EnvA_0", "Xform", translation=(0.0, 0.0, 1.0), stage=stage)
+    sim_utils.create_prim("/World/EnvA_0/ChildA", "Camera", translation=(0.1, 0.0, 0.0), stage=stage)
+    sim_utils.create_prim("/World/EnvB_0", "Xform", translation=(0.0, 0.0, 2.0), stage=stage)
+    sim_utils.create_prim("/World/EnvB_0/ChildB", "Camera", translation=(0.2, 0.0, 0.0), stage=stage)
+
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view_a = FrameView("/World/EnvA_.*/ChildA", device=device)
+    view_b = FrameView("/World/EnvB_.*/ChildB", device=device)
+
+    # Initial reads — triggers Fabric init + the seed-time ``_world_dirty = True``
+    # path on both views, then clears it.
+    expected_a0 = torch.tensor([[0.1, 0.0, 1.0]], dtype=torch.float32, device=device)
+    expected_b0 = torch.tensor([[0.2, 0.0, 2.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(view_a.get_world_poses()[0].torch, expected_a0, atol=1e-5, rtol=0)
+    torch.testing.assert_close(view_b.get_world_poses()[0].torch, expected_b0, atol=1e-5, rtol=0)
+    assert view_a._world_dirty is False
+    assert view_b._world_dirty is False
+    # Both views must reuse the same cached IFabricHierarchy (one stage = one handle).
+    assert view_a._fabric_hierarchy is view_b._fabric_hierarchy
+    assert len(FrameView._static_hierarchy_cache) == 1
+
+    # Write a new local pose on view A only.
+    new_local_a = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_a, 1.0, 0.0, 0.0], device=device)
+    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
+    view_a.set_local_poses(translations=new_local_a, orientations=identity_quat)
+
+    # Only view A should be dirty.  Critical: a per-stage flag would have dirtied
+    # both views (or neither) at this point.
+    assert view_a._world_dirty is True, "set_local_poses should mark its own view dirty"
+    assert view_b._world_dirty is False, "set_local_poses on view A must not dirty view B"
+
+    # Read worlds from view B FIRST.  With a per-stage flag, B's
+    # ``_sync_world_from_local_if_dirty`` would fire and clear the flag, leaving A
+    # stale.  With the per-view flag, B's read is a no-op sync-wise.
+    torch.testing.assert_close(view_b.get_world_poses()[0].torch, expected_b0, atol=1e-5, rtol=0)
+    assert view_b._world_dirty is False
+    assert view_a._world_dirty is True, "view B's world read must not clear view A's dirty flag"
+
+    # Now read view A's worlds — sync fires, world reflects the new local.
+    expected_a1 = torch.tensor([[1.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(view_a.get_world_poses()[0].torch, expected_a1, atol=1e-5, rtol=0)
+    assert view_a._world_dirty is False
+
+    # Symmetric pass: write on B, ensure A is undisturbed.
+    new_local_b = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_b, 3.0, 0.0, 0.0], device=device)
+    view_b.set_local_poses(translations=new_local_b, orientations=identity_quat)
+    assert view_a._world_dirty is False
+    assert view_b._world_dirty is True
+
+    # A's worlds must still read back the post-set-local value from above; no
+    # cross-view stomp on the world matrix.
+    torch.testing.assert_close(view_a.get_world_poses()[0].torch, expected_a1, atol=1e-5, rtol=0)
+    expected_b1 = torch.tensor([[3.0, 0.0, 2.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(view_b.get_world_poses()[0].torch, expected_b1, atol=1e-5, rtol=0)
+    assert view_a._world_dirty is False
+    assert view_b._world_dirty is False
