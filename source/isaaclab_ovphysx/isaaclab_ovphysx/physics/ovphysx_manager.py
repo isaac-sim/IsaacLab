@@ -390,6 +390,26 @@ class OvPhysxManager(PhysicsManager):
         avoids mutating the live stage (which other consumers -- sensors,
         visualizers -- still see in its full N-env form).
 
+        Limitations:
+            * **Homogeneous-env assumption.** Every env is treated as an
+              identical copy of env_0 from the physics runtime's point of view.
+              Anything authored *only* under ``/World/envs/env_<i>`` for
+              ``i != 0`` (per-env mass overrides, per-env friction, per-env
+              collision filters, etc.) is dropped from the file handed to
+              ``physx.add_usd`` and therefore not seen by PhysX. Sensors and
+              visualizers still see those overrides in USD (the live stage is
+              unmodified), so a divergence is possible.  Per-env physics state
+              must instead be written via the runtime APIs
+              (``RigidObject.write_root_state_to_sim_index``, etc.).
+            * **Global path convention.** Any physics-relevant prim that lives
+              under ``/World/envs/env_<i!=0>/`` (e.g. an asset-specific
+              ``PhysicsScene``, a per-env material) gets stripped. Globals must
+              live outside ``/World/envs`` (or under ``/World/envs/env_0``) to
+              survive the export.
+            * **Static topology.** Envs added or removed at runtime after
+              warmup are not supported by ``physx.clone()`` lineage and would
+              require a re-warmup with a re-exported stage.
+
         Args:
             sim_stage: Live USD stage held by ``SimulationContext``.
             target_file: Output ``.usda`` file path.  Overwritten if it exists.
