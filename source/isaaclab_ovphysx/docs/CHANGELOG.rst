@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.4 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX articulation tensor reads and writes for ``ovphysx`` 0.4
+  compatibility.
+* Restored DirectGPU startup settings for OvPhysX GPU simulations.
+
+
 0.1.3 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 

@@ -17,6 +17,7 @@ from unittest import mock
 
 import pytest
 
+import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
@@ -66,6 +67,167 @@ def _make_site_packages(
         for sub in subs:
             (site_pkgs / pkg / sub).mkdir(parents=True, exist_ok=True)
     return site_pkgs
+
+
+# ---------------------------------------------------------------------------
+# _install_isaaclab_submodules targeted dependency upgrades
+# ---------------------------------------------------------------------------
+
+
+class TestInstallSubmodulesTargetedDependencyUpgrades:
+    """Tests for extension.toml-driven dependency upgrades."""
+
+    def _make_extension(self, tmp_path, extension_toml: str) -> Path:
+        """Create a minimal installable extension fixture."""
+        source_dir = tmp_path / "source"
+        extension_dir = source_dir / "isaaclab_teleop"
+        config_dir = extension_dir / "config"
+        config_dir.mkdir(parents=True)
+        (extension_dir / "setup.py").write_text("# test fixture\n", encoding="utf-8")
+        (config_dir / "extension.toml").write_text(extension_toml, encoding="utf-8")
+        return extension_dir
+
+    def test_installs_editable_then_upgrades_declared_dependency_from_metadata(self, tmp_path):
+        """An opted-in dependency is upgraded using the requirement recorded in installed metadata."""
+        extension_dir = self._make_extension(
+            tmp_path,
+            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+        )
+
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+        isaacteleop_req = 'isaacteleop[cloudxr,retargeters,ui] ~=1.2.0; platform_system == "Linux"'
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.ISAACLAB_ROOT", tmp_path),
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch(
+                "isaaclab.cli.commands.install._get_installed_distribution_requirements",
+                return_value=[isaacteleop_req],
+            ),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_isaaclab_submodules(["isaaclab_teleop"])
+
+        assert [call.args[0] for call in mock_run.call_args_list] == [
+            pip_cmd + ["install", "--editable", str(extension_dir)],
+            pip_cmd + ["install", "--upgrade", isaacteleop_req],
+        ]
+
+    def test_uv_install_uses_upgrade_package_for_declared_dependency(self, tmp_path):
+        """uv upgrades only the declared package rather than using a global upgrade."""
+        extension_dir = self._make_extension(
+            tmp_path,
+            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+        )
+
+        python_exe = str(tmp_path / "python")
+        pip_cmd = ["uv", "pip"]
+        isaacteleop_req = 'isaacteleop[cloudxr,retargeters,ui] ~=1.2.0; platform_system == "Linux"'
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.ISAACLAB_ROOT", tmp_path),
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch(
+                "isaaclab.cli.commands.install._get_installed_distribution_requirements",
+                return_value=[isaacteleop_req],
+            ),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_isaaclab_submodules(["isaaclab_teleop"])
+
+        assert [call.args[0] for call in mock_run.call_args_list] == [
+            pip_cmd + ["install", "--editable", str(extension_dir)],
+            pip_cmd + ["install", "--upgrade-package", "isaacteleop", isaacteleop_req],
+        ]
+
+    def test_upgrades_all_matching_metadata_requirements(self, tmp_path):
+        """Duplicate metadata entries are preserved instead of collapsing to one requirement."""
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+        linux_req = 'example-package>=1.0; platform_system == "Linux"'
+        windows_req = 'example_package>=2.0; platform_system == "Windows"'
+
+        with (
+            mock.patch(
+                "isaaclab.cli.commands.install._get_installed_distribution_requirements",
+                return_value=[linux_req, windows_req],
+            ),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._upgrade_extension_pip_dependencies(
+                python_exe,
+                pip_cmd,
+                "isaaclab_teleop",
+                ["example-package"],
+            )
+
+        assert [call.args[0] for call in mock_run.call_args_list] == [
+            pip_cmd + ["install", "--upgrade", linux_req],
+            pip_cmd + ["install", "--upgrade", windows_req],
+        ]
+
+    def test_skips_duplicate_declared_dependency_names(self, tmp_path):
+        """Duplicate TOML dependency names do not trigger duplicate pip commands."""
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+        req = "isaacteleop~=1.2.0"
+
+        with (
+            mock.patch(
+                "isaaclab.cli.commands.install._get_installed_distribution_requirements",
+                return_value=[req],
+            ),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._upgrade_extension_pip_dependencies(
+                python_exe,
+                pip_cmd,
+                "isaaclab_teleop",
+                ["isaacteleop", "IsaacTeleop"],
+            )
+
+        mock_run.assert_called_once_with(pip_cmd + ["install", "--upgrade", req])
+
+    def test_skips_when_toml_has_no_upgrade_dependencies(self, tmp_path):
+        """Extensions without pip upgrade opt-ins do not trigger metadata probes."""
+        extension_dir = self._make_extension(tmp_path, "[isaac_lab_settings]\n")
+
+        assert install_cmd._get_extension_pip_upgrade_dependencies(extension_dir) == []
+
+    def test_warns_and_skips_invalid_upgrade_dependency_names(self, tmp_path):
+        """Invalid TOML value types warn and disable targeted upgrades."""
+        extension_dir = self._make_extension(
+            tmp_path,
+            '[isaac_lab_settings]\npip_upgrade_dependencies = "isaacteleop"\n',
+        )
+
+        with mock.patch("isaaclab.cli.commands.install.print_warning") as mock_warning:
+            assert install_cmd._get_extension_pip_upgrade_dependencies(extension_dir) == []
+
+        mock_warning.assert_called_once()
+
+    def test_warns_when_declared_dependency_missing_from_metadata(self, tmp_path):
+        """A declared dependency name must exist in installed package metadata."""
+        with (
+            mock.patch(
+                "isaaclab.cli.commands.install._get_installed_distribution_requirements",
+                return_value=["dex-retargeting==0.5.0"],
+            ),
+            mock.patch("isaaclab.cli.commands.install.print_warning") as mock_warning,
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._upgrade_extension_pip_dependencies(
+                str(tmp_path / "python"),
+                [str(tmp_path / "python"), "-m", "pip"],
+                "isaaclab_teleop",
+                ["isaacteleop"],
+            )
+
+        mock_warning.assert_called_once()
+        mock_run.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

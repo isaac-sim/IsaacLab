@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
+
+import tomllib
 
 from ..utils import (
     ISAACLAB_ROOT,
@@ -159,22 +162,22 @@ def _maybe_uninstall_prebundled_torch(
     )
 
 
-# Pinocchio stack required by isaaclab.controllers.pink_ik. Installed via the cmeel
-# ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
+# via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
-# ``cmeel.pth`` hook.
-_PINOCCHIO_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.7.2")
+# ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
+_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.8.5")
 
 
-def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
-    """Ensure ``pinocchio`` is importable, force-installing the cmeel pin stack if not.
+def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
+    """Ensure the Pink IK dependency stack is importable, force-installing it if not.
 
     Recent Isaac Sim base images preinstall ``pin-pink`` into the kit's bundled
     ``site-packages`` without its ``pin`` (cmeel pinocchio) dependency.  Pip then
     treats the ``pin-pink`` requirement as satisfied and never resolves the
-    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This probes
-    for ``pinocchio`` at runtime and force-installs the cmeel stack when needed
-    so the pink IK controller and its tests work out of the box.
+    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This checks
+    the runtime dependencies and force-installs the cmeel stack when needed so
+    the pink IK controller and its tests work out of the box.
 
     Only runs on Linux x86_64 / aarch64 — the same platforms that have
     pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
@@ -194,7 +197,13 @@ def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_en
         return
 
     probe_result = run_command(
-        [python_exe, "-c", "import pinocchio"],
+        [
+            python_exe,
+            "-c",
+            "import inspect, pinocchio, daqp, qpsolvers; "
+            "assert 'daqp' in qpsolvers.available_solvers; "
+            "assert 'primal_start' in inspect.signature(daqp.solve).parameters",
+        ],
         env=probe_env,
         check=False,
         capture_output=True,
@@ -203,19 +212,16 @@ def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_en
     if probe_result.returncode == 0:
         return
 
-    print_info(
-        "``import pinocchio`` failed — the kit-bundled ``pin-pink`` likely shipped without its"
-        " ``pin`` dep. Force-installing the cmeel pinocchio stack."
-    )
+    print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     install_result = run_command(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINOCCHIO_STACK],
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINK_IK_STACK],
         check=False,
     )
     if install_result.returncode != 0:
         print_warning(
-            "Force-installing the cmeel pinocchio stack failed (returncode "
+            "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
             f"{install_result.returncode}). The pink IK controller and its tests will not be"
-            " usable until ``pin pin-pink==3.1.0 daqp==0.7.2`` is installed manually."
+            " usable until ``pin pin-pink==3.1.0 daqp==0.8.5`` is installed manually."
         )
 
 
@@ -281,6 +287,111 @@ def _ensure_cuda_torch() -> None:
 ISAACSIM_VERSION_SPEC = ">=6.0.0"
 ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
+
+
+def _normalize_package_name(name: str) -> str:
+    """Normalize a Python package name for metadata comparisons."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _requirement_name(requirement: str) -> str:
+    """Extract the distribution name from a requirement string."""
+    requirement = requirement.split(";", 1)[0].strip()
+    return re.split(r"\s|<|>|=|!|~|\[|@", requirement, maxsplit=1)[0]
+
+
+def _get_installed_distribution_requirements(python_exe: str, distribution_name: str) -> list[str]:
+    """Return installed ``Requires-Dist`` requirements for a distribution."""
+    probe = """import importlib.metadata
+import sys
+
+try:
+    dist = importlib.metadata.distribution(sys.argv[1])
+except importlib.metadata.PackageNotFoundError:
+    sys.exit(1)
+
+for requirement in dist.requires or []:
+    print(requirement)
+"""
+    result = run_command(
+        [python_exe, "-c", probe, distribution_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print_warning(f"Could not read installed metadata for {distribution_name}; skipping dependency upgrades.")
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _get_extension_pip_upgrade_dependencies(extension_dir: Path) -> list[str]:
+    """Read dependency names opted into targeted pip upgrades from ``extension.toml``."""
+    extension_toml = extension_dir / "config" / "extension.toml"
+    if not extension_toml.is_file():
+        return []
+
+    try:
+        with extension_toml.open("rb") as fd:
+            extension_data = tomllib.load(fd)
+    except tomllib.TOMLDecodeError as exc:
+        print_warning(f"Could not parse {extension_toml}: {exc}; skipping targeted dependency upgrades.")
+        return []
+
+    isaac_lab_settings = extension_data.get("isaac_lab_settings", {})
+    if not isinstance(isaac_lab_settings, dict):
+        print_warning(
+            f"Ignoring invalid isaac_lab_settings in {extension_toml}; expected a table with pip_upgrade_dependencies."
+        )
+        return []
+
+    upgrade_dependencies = isaac_lab_settings.get("pip_upgrade_dependencies", [])
+    if not isinstance(upgrade_dependencies, list) or not all(isinstance(item, str) for item in upgrade_dependencies):
+        print_warning(f"Ignoring invalid pip_upgrade_dependencies in {extension_toml}; expected a list of strings.")
+        return []
+
+    return upgrade_dependencies
+
+
+def _get_pip_upgrade_command(pip_cmd: list[str], dependency_name: str, requirement: str) -> list[str]:
+    """Return a pip command that upgrades one dependency requirement."""
+    if pip_cmd[0] == "uv":
+        return pip_cmd + ["install", "--upgrade-package", dependency_name, requirement]
+    return pip_cmd + ["install", "--upgrade", requirement]
+
+
+def _upgrade_extension_pip_dependencies(
+    python_exe: str,
+    pip_cmd: list[str],
+    distribution_name: str,
+    dependency_names: list[str],
+) -> None:
+    """Upgrade selected dependencies using installed distribution metadata requirements."""
+    if not dependency_names:
+        return
+
+    requirements = _get_installed_distribution_requirements(python_exe, distribution_name)
+    seen_dependency_names = set()
+
+    for dependency_name in dependency_names:
+        normalized_dependency_name = _normalize_package_name(dependency_name)
+        if normalized_dependency_name in seen_dependency_names:
+            continue
+        seen_dependency_names.add(normalized_dependency_name)
+
+        matching_requirements = [
+            req for req in requirements if _normalize_package_name(_requirement_name(req)) == normalized_dependency_name
+        ]
+        if not matching_requirements:
+            print_warning(
+                f"Could not find dependency '{dependency_name}' in installed metadata for {distribution_name}; "
+                "skipping targeted upgrade."
+            )
+            continue
+
+        for requirement in matching_requirements:
+            print_info(f"Upgrading {dependency_name} for {distribution_name}: {requirement}")
+            run_command(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
 
 
 def _install_isaacsim() -> None:
@@ -411,6 +522,12 @@ def _install_isaaclab_submodules(
         editable = (submodule_extras or {}).get(item.name, "")
         install_target = f"{item}{editable}"
         run_command(pip_cmd + ["install", "--editable", install_target])
+        _upgrade_extension_pip_dependencies(
+            python_exe,
+            pip_cmd,
+            item.name,
+            _get_extension_pip_upgrade_dependencies(item),
+        )
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
@@ -735,10 +852,10 @@ def command_install(install_type: str = "all") -> None:
         # Can prevent that from happening.
         _ensure_cuda_torch()
 
-        # Ensure ``pinocchio`` is actually importable.  The kit-bundled ``pin-pink`` in recent
-        # Isaac Sim images ships without its cmeel ``pin`` dependency, so the transitive
-        # requirement from ``pip install -e source/isaaclab`` can be silently skipped.
-        _ensure_pinocchio_installed(python_exe, pip_cmd, probe_env=probe_env)
+        # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
+        # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
+        # ``pip install -e source/isaaclab`` to be silently skipped.
+        _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
 
         # Repoint prebundled packages in Isaac Sim to the environment's copies so
         # the active venv/conda versions are always loaded regardless of PYTHONPATH

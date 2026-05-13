@@ -5,35 +5,29 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import torch
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ClonePlan:
-    """Per-group mapping from prototype prims to per-environment clones.
+    """Flat cloning source of truth.
 
-    Produced by :func:`~isaaclab.cloner.clone_from_template` for each prototype group it
-    discovers under the template root. Lets downstream consumers (e.g. mesh samplers,
-    ray-cast sensors) read prototype geometry once and scatter to environments via
-    :attr:`clone_mask` instead of walking per-env USD paths.
-
-    Attributes are population-time invariants and the dataclass is frozen. Hash and
-    equality operate on :attr:`dest_template` only (the natural identity — it is the key
-    in :attr:`SimulationContext.get_clone_plans`); the mutable list/tensor fields are
-    excluded since ``torch.Tensor`` is not hashable and structural equality is rarely the
-    semantics consumers want.
+    Produced by scene planning after representative source prims are assigned. The
+    three fields are the same flat replication contract consumed by USD, physics,
+    and downstream scene-data providers: each source path maps to the destination
+    template at the same index, and :attr:`clone_mask` selects the environments
+    populated from that source.
     """
 
-    dest_template: str
-    """Destination path template for this group, e.g. ``"/World/envs/env_{}/Object"``."""
+    sources: tuple[str, ...]
+    """Source prim paths used for replication."""
 
-    prototype_paths: list[str] = field(hash=False, compare=False)
-    """Prototype prim paths in this group, e.g.
-    ``["/World/template/Object/proto_asset_0", "/World/template/Object/proto_asset_1"]``."""
+    destinations: tuple[str, ...]
+    """Destination path templates, one per source path."""
 
-    clone_mask: torch.Tensor = field(hash=False, compare=False)
-    """Boolean tensor of shape ``[num_prototypes_in_group, num_envs]``;
+    clone_mask: torch.Tensor
+    """Boolean tensor of shape ``[len(sources), num_envs]``;
     ``clone_mask[i, j]`` is ``True`` iff env ``j`` was populated from
-    :attr:`prototype_paths` ``[i]``. Each column sums to exactly one."""
+    :attr:`sources` ``[i]``."""

@@ -858,6 +858,77 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_pose_b_ta
 
     """
+    Dynamics quantities (task-space controllers).
+    """
+
+    @property
+    def body_com_jacobian_w(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
+
+        PhysX implementation: passthrough of ``_root_view.get_jacobians()``, which is
+        natively Center-Of-Mass-referenced. Refresh is gated by ``_sim_timestamp`` and
+        invalidated by ``write_*_to_sim_index``; the ``ProxyArray`` wrapper is lazy-init
+        once and reused thereafter.
+        """
+        if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
+            self._body_com_jacobian_w.data = self._root_view.get_jacobians()
+            self._body_com_jacobian_w.timestamp = self._sim_timestamp
+        if self._body_com_jacobian_w_ta is None:
+            self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
+        return self._body_com_jacobian_w_ta
+
+    @property
+    def body_link_jacobian_w(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`.
+
+        PhysX implementation: applies the COM→origin shift kernel to
+        :attr:`body_com_jacobian_w` (PhysX's engine output is COM-referenced).
+        """
+        wp.launch(
+            articulation_kernels.shift_jacobian_com_to_origin,
+            dim=self._body_link_jacobian_w_buf.shape[:2] + (self._body_link_jacobian_w_buf.shape[3],),
+            inputs=[
+                self.body_link_pose_w.warp,
+                self.body_com_pos_b.warp,
+                self._jacobian_link_offset,
+                self.body_com_jacobian_w.warp,
+            ],
+            outputs=[self._body_link_jacobian_w_buf],
+            device=self.device,
+        )
+        return self._body_link_jacobian_w_ta
+
+    @property
+    def mass_matrix(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
+
+        PhysX implementation: passthrough of ``_root_view.get_generalized_mass_matrices()``.
+        Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
+        the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
+        """
+        if self._mass_matrix.timestamp < self._sim_timestamp:
+            self._mass_matrix.data = self._root_view.get_generalized_mass_matrices()
+            self._mass_matrix.timestamp = self._sim_timestamp
+        if self._mass_matrix_ta is None:
+            self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
+        return self._mass_matrix_ta
+
+    @property
+    def gravity_compensation_forces(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
+
+        PhysX implementation: passthrough of ``_root_view.get_gravity_compensation_forces()``.
+        Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
+        the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
+        """
+        if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
+            self._gravity_compensation_forces.data = self._root_view.get_gravity_compensation_forces()
+            self._gravity_compensation_forces.timestamp = self._sim_timestamp
+        if self._gravity_compensation_forces_ta is None:
+            self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
+        return self._gravity_compensation_forces_ta
+
+    """
     Joint state properties.
     """
 
@@ -1370,6 +1441,46 @@ class ArticulationData(BaseArticulationData):
         self._root_com_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
         self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
 
+        # -- dynamics quantities for task-space controllers
+        # PhysX's Jacobian rows include the root body for floating-base and exclude only the
+        # fixed root for fixed-base (``_jacobian_link_offset`` handles the body axis). PhysX's
+        # raw Jacobian / mass matrix / gravity-comp prepend 6 base-DoF columns on floating-
+        # base (the engine's natural form), matching the industry-standard convention used by
+        # Pinocchio, Drake, MuJoCo, RBDL, OCS2, and iDynTree. We pass through the full DoF
+        # axis: shape ``(N, num_jacobi_bodies, 6, num_joints + num_base_dofs)``. Newton wraps
+        # ``eval_jacobian`` to match the same column layout. ``body_com_jacobian_w`` /
+        # ``mass_matrix`` / ``gravity_compensation_forces`` pass through the engine buffer on
+        # every read; we only own a buffer for the link-origin Jacobian (output of the shift
+        # kernel).
+        is_fixed_base = self._root_view.shared_metatype.fixed_base
+        self._jacobian_link_offset = 1 if is_fixed_base else 0
+        num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
+        num_base_dofs = 0 if is_fixed_base else 6
+        self._body_link_jacobian_w_buf = wp.zeros(
+            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
+            dtype=wp.float32,
+            device=self.device,
+        )
+        # ``TimestampedBuffer``s for the three engine-passthrough properties. The placeholder
+        # ``wp.zeros`` allocation is replaced on first read by the engine view returned from
+        # ``_root_view.get_*()``; timestamps are advanced on each refresh and invalidated by
+        # write-paths.
+        self._body_com_jacobian_w = TimestampedBuffer(
+            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
+            self.device,
+            wp.float32,
+        )
+        self._mass_matrix = TimestampedBuffer(
+            (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
+            self.device,
+            wp.float32,
+        )
+        self._gravity_compensation_forces = TimestampedBuffer(
+            (self._num_instances, self._num_joints + num_base_dofs),
+            self.device,
+            wp.float32,
+        )
+
         # Default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
@@ -1532,6 +1643,16 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
+        # Dynamics quantities (task-space controllers). ``_body_link_jacobian_w`` wraps our
+        # own pre-allocated buffer (pointer-stable, eager wrap). The three engine-passthrough
+        # wrappers are lazy-init inside their property bodies on first read, matching the
+        # ``TimestampedBuffer`` + ``ProxyArray`` cache pattern used by ``body_link_pose_w``,
+        # ``joint_pos``, and the rest of this file. Refresh is gated by ``_sim_timestamp`` and
+        # invalidated by ``write_*_to_sim_index`` setting ``timestamp = -1.0``.
+        self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
+        self._body_com_jacobian_w_ta: ProxyArray | None = None
+        self._mass_matrix_ta: ProxyArray | None = None
+        self._gravity_compensation_forces_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
