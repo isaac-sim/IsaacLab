@@ -172,25 +172,37 @@ def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
 # ---------------------------------------------------------------------------
 
 
-def test_peek_task_finds_equals_form(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0"])
-    from isaaclab_tasks.utils.preset_cli import _peek_task
+def test_argv_helper_finds_task_equals_form():
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
 
-    assert _peek_task() == "Foo-v0"
-
-
-def test_peek_task_finds_separated_form(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Foo-v0"])
-    from isaaclab_tasks.utils.preset_cli import _peek_task
-
-    assert _peek_task() == "Foo-v0"
+    argv = _ArgvHelper(["train.py", "--task=Foo-v0"])
+    assert argv.task_name == "Foo-v0"
+    assert argv.help_requested is False
 
 
-def test_peek_task_missing_returns_none(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["train.py", "--physics", "newton_mjwarp"])
-    from isaaclab_tasks.utils.preset_cli import _peek_task
+def test_argv_helper_finds_task_separated_form():
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
 
-    assert _peek_task() is None
+    argv = _ArgvHelper(["train.py", "--task", "Foo-v0"])
+    assert argv.task_name == "Foo-v0"
+
+
+def test_argv_helper_task_missing_returns_none():
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
+
+    argv = _ArgvHelper(["train.py", "--physics", "newton_mjwarp"])
+    assert argv.task_name is None
+    assert argv.help_requested is False
+
+
+def test_argv_helper_detects_help_flag():
+    """``--help`` and ``-h`` both flip ``help_requested``."""
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
+
+    assert _ArgvHelper(["train.py", "--help"]).help_requested is True
+    assert _ArgvHelper(["train.py", "-h"]).help_requested is True
+    assert _ArgvHelper(["train.py", "--task=Foo", "--help"]).help_requested is True
+    assert _ArgvHelper(["train.py", "env.sim.dt=0.001"]).help_requested is False
 
 
 def test_bucket_variants_routes_by_base_class_isinstance():
@@ -363,15 +375,12 @@ def test_hydra_argv_keeps_presets_token_for_telemetry(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_peek_task_returns_last_value(monkeypatch):
-    """argparse's ``store`` action uses the last ``--task``; ``_peek_task``
-    must match so ``--help`` shows variants for the task argparse will actually
-    use."""
-    from isaaclab_tasks.utils.preset_cli import _peek_task
+def test_argv_helper_task_returns_last_value():
+    """argparse's ``store`` action uses the last ``--task``; the scanner
+    must match so ``--help`` shows variants for the task argparse will
+    actually use."""
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
 
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Old", "--task=New"])
-    assert _peek_task() == "New"
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Old", "--task", "New"])
-    assert _peek_task() == "New"
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Old", "--task", "New"])
-    assert _peek_task() == "New"
+    assert _ArgvHelper(["train.py", "--task=Old", "--task=New"]).task_name == "New"
+    assert _ArgvHelper(["train.py", "--task", "Old", "--task", "New"]).task_name == "New"
+    assert _ArgvHelper(["train.py", "--task=Old", "--task", "New"]).task_name == "New"

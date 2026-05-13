@@ -25,6 +25,7 @@ classes, and (optional) legacy alias map. The CLI layer needs no other wiring.
 from __future__ import annotations
 
 import enum
+import functools
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -32,6 +33,21 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 
 class PresetTarget(enum.Enum):
     """Typed-flag preset categories.
+
+    **Bucketing contract.** Help-time bucketing in
+    :mod:`isaaclab_tasks.utils.preset_cli` routes each preset variant to a
+    typed target by checking ``isinstance(cfg_value, target.base_classes)``
+    against every typed target's bases. A variant whose cfg value does *not*
+    subclass any typed target's base falls into :attr:`DOMAIN` and shows up
+    under the ``--presets`` catch-all in ``--help``.
+
+    To opt into the typed ``--physics`` / ``--renderer`` help-text listing,
+    a backend's cfg class must subclass :class:`~isaaclab.physics.PhysicsCfg`
+    or :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` respectively.
+    A variant whose class does *not* subclass either base still **resolves
+    correctly at runtime** -- hydra applies the selected name across every
+    matching ``PresetCfg`` field regardless of class; the typed-flag
+    bucketing only governs which header it appears under in ``--help``.
 
     Adding a new target = appending one enum member.
     """
@@ -92,13 +108,16 @@ class PresetTarget(enum.Enum):
         return obj
 
     @classmethod
+    @functools.cache
     def all_legacy_aliases(cls) -> dict[str, str]:
         """Flat ``{deprecated: canonical}`` view across every target.
 
         Resolver-layer code (in :mod:`isaaclab_tasks.utils.hydra`) needs a
         target-agnostic lookup -- the ``presets=...`` token is target-agnostic
-        on the wire. Builds fresh from per-target tables so this enum stays
-        the single source of truth.
+        on the wire. Cached because per-member tables are immutable after
+        class construction, so the merged view never changes; this keeps
+        each lookup O(1) instead of rebuilding on every membership test or
+        ``[]`` access. Callers must not mutate the returned dict.
 
         Returns:
             Mapping of every legacy alias to its canonical replacement,
