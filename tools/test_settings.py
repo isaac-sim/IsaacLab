@@ -67,6 +67,7 @@ PER_TEST_TIMEOUTS = {
     "test_rendering_cartpole_kitless.py": 2000,
     "test_rendering_dexsuite_kuka_kitless.py": 2000,
     "test_rendering_shadow_hand_kitless.py": 2000,
+    "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
