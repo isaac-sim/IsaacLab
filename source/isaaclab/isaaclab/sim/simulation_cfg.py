@@ -181,7 +181,7 @@ class RenderCfg:
     Enabling this can reduce noise on rough reflective materials at the cost of performance.
 
     This is set by the variable: ``/rtx/rtpt/splitRoughReflection``.
-    """
+    """Enables separate rough reflection ray splitting (RT2). Default is False.
 
     ambient_light_intensity: float | None = None
     """Scene ambient light intensity. Default is 1.0.
