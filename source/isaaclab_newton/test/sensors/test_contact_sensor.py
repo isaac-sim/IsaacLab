@@ -26,6 +26,7 @@ import math
 
 import pytest
 import torch
+from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -778,6 +779,112 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
                         f"highest force, but '{other_finger}' had "
                         f"{peak_forces[other_finger][env_idx]:.4f}N"
                     )
+
+
+# ===================================================================
+# Sensor metadata
+# ===================================================================
+
+
+def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
+    """Scene with two distinct Cuboid bodies (BoxA, BoxB) per env."""
+    rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.0, angular_damping=0.0)
+    scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+    scene_cfg.object_a = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/BoxA",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.3, 0.3, 0.3),
+            rigid_props=rigid_props,
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            activate_contact_sensors=True,
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.5, 0.0, 1.0)),
+    )
+    scene_cfg.object_b = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/BoxB",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.3, 0.3, 0.3),
+            rigid_props=rigid_props,
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            activate_contact_sensors=True,
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 1.0)),
+    )
+    return scene_cfg
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_sensor_metadata(device: str):
+    """Verify sensor_names and filter_object_names match the underlying sensing and
+    counterpart configuration across body-mode, body-mode-with-filter, and shape-mode.
+    """
+    num_envs = 4
+    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
+
+    # (1) Body-mode, no filter: pattern matches two distinct body names per env.
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _make_two_box_scene_cfg(num_envs)
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Box.*",
+            update_period=0.0,
+            history_length=1,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        sensor: ContactSensor = scene["contact_sensor_a"]
+        assert sensor.num_sensors == 2, f"expected 2 sensors per env, got {sensor.num_sensors}"
+        assert sensor.sensor_names == ["BoxA", "BoxB"], f"unexpected sensor_names: {sensor.sensor_names}"
+        assert sensor.filter_object_names == [], (
+            f"expected empty filter_object_names with no filter, got {sensor.filter_object_names}"
+        )
+
+    # (2) Body-mode, with filter: one body matches the sensor pattern, one matches the filter pattern.
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _make_two_box_scene_cfg(num_envs)
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/BoxA",
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/BoxB"],
+            update_period=0.0,
+            history_length=1,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        sensor: ContactSensor = scene["contact_sensor_a"]
+        assert sensor.num_sensors == 1, f"expected 1 sensor per env, got {sensor.num_sensors}"
+        assert sensor.sensor_names == ["BoxA"], f"unexpected sensor_names: {sensor.sensor_names}"
+        assert sensor.num_filter_objects == 1, f"expected 1 filter object per sensor, got {sensor.num_filter_objects}"
+        assert sensor.filter_object_names == ["BoxB"], f"unexpected filter_object_names: {sensor.filter_object_names}"
+
+    # (3) Shape-mode, no filter: pattern matches shapes (not bodies).
+    # `sensor_shape_prim_expr` is a Newton-only extension, so this block uses the
+    # backend-specific NewtonContactSensorCfg subclass.
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _make_two_box_scene_cfg(num_envs)
+        scene_cfg.contact_sensor_a = NewtonContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Box.*",
+            sensor_shape_prim_expr=["{ENV_REGEX_NS}/Box.*"],
+            update_period=0.0,
+            history_length=1,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        sensor: ContactSensor = scene["contact_sensor_a"]
+        assert sensor.num_sensors == 2, f"expected 2 shape sensors per env, got {sensor.num_sensors}"
+        assert sensor.sensor_names == ["mesh", "mesh"], f"unexpected shape sensor_names: {sensor.sensor_names}"
+        assert sensor.filter_object_names == [], (
+            f"expected empty filter_object_names with no filter, got {sensor.filter_object_names}"
+        )
 
 
 # ===================================================================

@@ -93,6 +93,7 @@ _MATERIAL_GAP_REASON = (
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
 
+
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX TensorBinding into a torch tensor on *device*.
 

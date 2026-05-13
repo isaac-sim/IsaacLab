@@ -16,7 +16,6 @@ import warp as wp
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
-from isaaclab_ovphysx.physics import OvPhysxManager
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets.kernels import (
@@ -32,6 +31,7 @@ from isaaclab_ovphysx.assets.kernels import (
     get_body_link_vel_from_body_com_vel,
     vec13f,
 )
+from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .kernels import _fd_joint_acc
 

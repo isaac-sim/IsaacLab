@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.1.8 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton transform synchronization for Warp 1.13 compatibility in the
+  RTX renderer.
+
+
 0.1.7 (2026-05-12)
 ~~~~~~~~~~~~~~~~~~
 
