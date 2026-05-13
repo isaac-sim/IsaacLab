@@ -195,32 +195,72 @@ runs:
           # runner kills this step on cancellation, the `if: always()` cleanup
           # step can still `docker kill` the container reliably.
           # `docker logs -f` is the foreground process and is trivially killable.
+          #
+          # `docker run` is wrapped in a retry loop because self-hosted runners
+          # occasionally fail to spawn the container with a transient daemon error
+          # (e.g. "mkdir /var/lib/docker/containers/<id>: no such file or directory",
+          # registry/daemon timeouts).  We retry only on transient patterns so
+          # genuine failures (bad args, OOM) still fail fast.
+          local docker_run_max_attempts=3
+          local docker_run_delay=5
+          local docker_run_attempt=1
+          local docker_run_stderr
+          docker_run_stderr=$(mktemp)
           echo "🔵 Starting Docker container for tests..."
-          docker run -d --name $container_name \
-            --init --stop-timeout 5 \
-            --entrypoint bash --gpus all --network=host \
-            --security-opt=no-new-privileges:true \
-            --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
-            --cpus=$(echo "$(nproc) * 0.9" | bc) \
-            --oom-kill-disable=false \
-            --ulimit nofile=65536:65536 \
-            --ulimit nproc=4096:4096 \
-            $docker_volume_args \
-            $docker_env_vars \
-            $image_tag \
-            -c "
-              set -e
-              cd /workspace/isaaclab
-              mkdir -p tests
-              rm _isaac_sim || true
-              ln -s /isaac-sim _isaac_sim
-              if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
-                echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
-                ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
-              fi
-              echo 'Starting pytest with path: $test_path'
-              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
-            "
+          while :; do
+            # Remove any container left over from a previous attempt or aborted run.
+            docker rm -f "$container_name" 2>/dev/null || true
+
+            if docker run -d --name $container_name \
+              --init --stop-timeout 5 \
+              --entrypoint bash --gpus all --network=host \
+              --security-opt=no-new-privileges:true \
+              --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
+              --cpus=$(echo "$(nproc) * 0.9" | bc) \
+              --oom-kill-disable=false \
+              --ulimit nofile=65536:65536 \
+              --ulimit nproc=4096:4096 \
+              $docker_volume_args \
+              $docker_env_vars \
+              $image_tag \
+              -c "
+                set -e
+                cd /workspace/isaaclab
+                mkdir -p tests
+                rm _isaac_sim || true
+                ln -s /isaac-sim _isaac_sim
+                if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
+                  echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
+                  ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+                fi
+                echo 'Starting pytest with path: $test_path'
+                ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
+              " 2>"$docker_run_stderr"; then
+              rm -f "$docker_run_stderr"
+              break
+            fi
+            local docker_run_exit=$?
+            cat "$docker_run_stderr" >&2 || true
+
+            if [ "$docker_run_attempt" -ge "$docker_run_max_attempts" ]; then
+              echo "🔴 docker run failed after $docker_run_max_attempts attempts (exit $docker_run_exit)"
+              rm -f "$docker_run_stderr"
+              return $docker_run_exit
+            fi
+
+            if grep -qE "Error response from daemon|no such file or directory|cannot connect to the Docker daemon|connection refused|i/o timeout|context deadline exceeded" "$docker_run_stderr"; then
+              echo "🟠 docker run failed with transient error (attempt $docker_run_attempt/$docker_run_max_attempts, exit $docker_run_exit), retrying in ${docker_run_delay}s..."
+              sleep "$docker_run_delay"
+              docker_run_delay=$((docker_run_delay * 3))
+              docker_run_attempt=$((docker_run_attempt + 1))
+              : > "$docker_run_stderr"
+              continue
+            fi
+
+            echo "🔴 docker run failed with non-transient error (exit $docker_run_exit), not retrying"
+            rm -f "$docker_run_stderr"
+            return $docker_run_exit
+          done
 
           # Stream container logs in background.
           docker logs -f "$container_name" &
