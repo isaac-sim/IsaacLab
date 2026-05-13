@@ -28,6 +28,14 @@ __all__ = [
     "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionBaseCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "MujocoRigidBodyPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
     "RigidBodyBaseCfg",
 ]
 
@@ -60,3 +68,13 @@ from .schemas_cfg import (
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
 )
+
+# Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
+MujocoJointDrivePropertiesCfg = ...
+MujocoRigidBodyPropertiesCfg = ...
+NewtonArticulationRootPropertiesCfg = ...
+NewtonCollisionPropertiesCfg = ...
+NewtonJointDrivePropertiesCfg = ...
+NewtonMaterialPropertiesCfg = ...
+NewtonMeshCollisionPropertiesCfg = ...
+NewtonRigidBodyPropertiesCfg = ...

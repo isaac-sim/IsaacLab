@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import sys
+from copy import deepcopy
 
 import pytest
 import torch
@@ -32,16 +33,23 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+from isaaclab.controllers import (
+    DifferentialIKController,
+    DifferentialIKControllerCfg,
+    OperationalSpaceController,
+    OperationalSpaceControllerCfg,
+)
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 # , SHADOW_HAND_CFG  # isort:skip
 
 SIM_CFGs = {
@@ -353,6 +361,98 @@ def generate_articulation(
     return articulation, translations
 
 
+# ---------------------------------------------------------------------------
+# Franka task-space tracking helpers (shared between IK and OSC tests).
+# ---------------------------------------------------------------------------
+
+
+def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
+    """Build a Franka articulation at its configured home pose.
+
+    Constructs :data:`FRANKA_PANDA_HIGH_PD_CFG`, optionally zeroes the
+    arm-actuator PD gains, resets the simulator, and teleports the
+    arm joints to :attr:`default_joint_pos` (the env reset path that
+    normally does this is not invoked for standalone tests, so the
+    robot would otherwise sit at the URDF-neutral pose where the
+    Franka wrist is near-singular).
+
+    Args:
+        sim: The simulation context to use.
+        zero_actuator_pd: If True, sets the panda_shoulder/panda_forearm
+            actuator stiffness and damping to zero. Used by the OSC test
+            so OSC's joint-effort output is not opposed by the
+            implicit-PD's residual ``kp·(target − q)``.
+
+    Returns:
+        Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
+    """
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    if zero_actuator_pd:
+        cfg.actuators["panda_shoulder"].stiffness = 0.0
+        cfg.actuators["panda_shoulder"].damping = 0.0
+        cfg.actuators["panda_forearm"].stiffness = 0.0
+        cfg.actuators["panda_forearm"].damping = 0.0
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
+    robot = Articulation(cfg)
+    sim.reset()
+    assert robot.is_initialized
+
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+    ee_jacobi_idx = ee_frame_idx - 1
+    arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
+
+    robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch[:, :].clone())
+    robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch[:, :].clone())
+    return robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids
+
+
+def _compute_ee_pose_root(robot, ee_frame_idx):
+    """Return ``(ee_pos_b, ee_quat_b, root_pose_w)`` in the root frame."""
+    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+    root_pose_w = robot.data.root_pose_w.torch
+    ee_pos_b, ee_quat_b = subtract_frame_transforms(
+        root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+    )
+    return ee_pos_b, ee_quat_b, root_pose_w
+
+
+def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
+    """Return the EE Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame."""
+    jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, arm_joint_ids]
+    base_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
+    jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+    jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+    return jacobian
+
+
+def _compute_ee_vel_root(jacobian_b, joint_vel):
+    """Return the EE 6D velocity in the root frame as ``J · q_dot``.
+
+    Required to make OSC's ``kd * ee_vel_b`` damping term meaningful.
+    Passing zero EE velocity (the convenient hack) leaves the impedance
+    undamped and the EE oscillates around the target. We use ``J · q_dot``
+    rather than reading ``data.body_vel_w`` because Newton's lazy
+    velocity buffers can return stale/zero values until forced
+    materialization, while ``joint_vel`` and ``J`` are already pulled
+    by the loop. ``J`` correctness is pinned independently by
+    ``test_get_jacobians_link_origin_contract``.
+    """
+    return torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+
+
+def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz, device):
+    """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
+    initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+    target_pos_b = initial_ee_pos_b + torch.tensor([list(delta_xyz)], device=device, dtype=initial_ee_pos_b.dtype)
+    return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
+
+
+def _summarize_history(history, tail: int = 200):
+    """Return ``(min, mean)`` over the last ``tail`` samples."""
+    tail_slice = history[-tail:]
+    return min(tail_slice), sum(tail_slice) / len(tail_slice)
+
+
 @pytest.fixture
 def sim(request):
     """Create simulation context with the specified device."""
@@ -366,8 +466,13 @@ def sim(request):
     else:
         add_ground_plane = False  # default to no ground plane
     articulation_type = request.getfixturevalue("articulation_type")
-    sim_cfg = SIM_CFGs[articulation_type]
+    sim_cfg = deepcopy(SIM_CFGs[articulation_type])
     sim_cfg.device = device
+    # ``gravity_enabled`` is silently ignored by ``build_simulation_context``
+    # when an explicit ``sim_cfg`` is also passed; apply it here so the
+    # fixture honors what its parameter advertises.
+    if not gravity_enabled:
+        sim_cfg.gravity = (0.0, 0.0, 0.0)
     with build_simulation_context(
         device=device,
         auto_add_lighting=True,
@@ -715,7 +820,7 @@ def test_initialization_fixed_base_made_floating_base(
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.articulation_props.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
@@ -2440,6 +2545,648 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     updated_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model))
     torch.testing.assert_close(updated_margin, new_margin)
     torch.testing.assert_close(updated_gap, new_gap)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason=(
+        "Newton's ArticulationView exposes eval_fk / eval_jacobian /"
+        " eval_mass_matrix only — no inverse-dynamics primitive yet."
+        " Upstream Newton is actively working on this through the inverse-"
+        " dynamics feature request (https://github.com/newton-physics/newton/issues/2497)"
+        " and its sub-task for Coriolis + gravity compensation"
+        " (https://github.com/newton-physics/newton/issues/2529). A known"
+        " correctness bug for floating-base + non-identity root pose is"
+        " tracked separately at"
+        " https://github.com/newton-physics/newton/issues/2625, and"
+        " informs why we deliberately do NOT roll our own J^T·m·g shim in"
+        " this PR — Newton's eventual primitive is going through RNEA via"
+        " MuJoCo Warp and may differ at corner cases we wouldn't catch."
+        " Once the wrapper at"
+        " isaaclab_newton.assets.ArticulationData.gravity_compensation_forces"
+        " switches from a NotImplementedError stub to a real implementation"
+        " (likely calling the new Newton primitive), this XFAIL will turn"
+        " into XPASS and fail under strict=True. The maintainer should"
+        " then: (1) drop this xfail or invert it into a positive value"
+        " assertion against PhysX (the cross-backend accuracy diff), and"
+        " (2) remove the OSC config-time guidance about setting"
+        " gravity_compensation=False on Newton."
+    ),
+)
+def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_articulations, device, articulation_type):
+    """Pin the known Newton gravity-compensation gap.
+
+    See the ``xfail`` marker for full rationale. The body simply invokes the
+    wrapper and lets the strict-xfail marker handle the expected failure.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    _ = articulation.data.gravity_compensation_forces
+
+
+##
+# Shape-contract regression tests for the new BaseArticulation accessors.
+# These pin the public shape contract so future regressions (e.g., reverting
+# to model-wide max sizing or to the wrong fixed-base row offset) fail fast.
+##
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
+    """Fixed-base ``body_link_jacobian_w`` must drop the fixed-root row.
+
+    Contract: shape ``(N, num_bodies - 1, 6, num_joints)``. Catches
+    regressions of (a) the link_offset fix that drops Newton's row 0 for
+    fixed-base, and (b) the per-articulation output sizing — using
+    model-wide ``max_links`` here would over-allocate in heterogeneous
+    scenes.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base, "panda fixture must be fixed-base for this test"
+
+    J = articulation.data.body_link_jacobian_w.torch
+
+    expected_shape = (num_articulations, articulation.num_bodies - 1, 6, articulation.num_joints)
+    assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
+    assert J.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
+    """Fixed-base ``mass_matrix`` shape + non-singularity.
+
+    Contract: shape ``(N, num_joints, num_joints)`` and the matrix must be
+    non-singular. The non-singularity check catches the heterogeneous
+    padding bug — if the wrapper accidentally returns ``model.max_dofs``
+    sized output, the padded zero rows/cols make the matrix rank-deficient.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = articulation.data.mass_matrix.torch
+
+    expected_shape = (num_articulations, articulation.num_joints, articulation.num_joints)
+    assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
+    assert M.dtype == torch.float32
+
+    # Each diagonal entry is a joint's effective inertia and must be strictly
+    # positive for any physical articulation. Padded zero rows/cols (the
+    # heterogeneous bug) would surface as zero diagonal entries — much more
+    # sensitive than checking the determinant, which can be small purely from
+    # numerical conditioning of a well-formed 9x9 mass matrix (Franka det
+    # is ~1e-13 in practice).
+    diag = M.diagonal(dim1=-2, dim2=-1)
+    assert (diag > 1e-6).all(), f"mass matrix has non-positive diagonal entries: min={diag.min()}"
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Floating-base ``body_link_jacobian_w`` keeps every body row and prepends 6 base-DoF columns.
+
+    Contract for floating-base: shape
+    ``(N, num_bodies, 6, num_joints + num_base_dofs)`` — no fixed-root row
+    to drop, and the leading 6 DoF columns are the floating-base spatial-
+    velocity columns Newton's ``eval_jacobian`` writes for the free root
+    joint. Matches the cross-library industry convention (Pinocchio, Drake,
+    MuJoCo, RBDL, OCS2, iDynTree).
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert not articulation.is_fixed_base, "anymal fixture must be floating-base for this test"
+
+    J = articulation.data.body_link_jacobian_w.torch
+
+    expected_shape = (
+        num_articulations,
+        articulation.num_bodies,
+        6,
+        articulation.num_joints + articulation.num_base_dofs,
+    )
+    assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
+    assert J.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Floating-base ``mass_matrix`` shape ``(N, num_joints + 6, num_joints + 6)``.
+
+    Includes the 6 floating-base rows/cols on the DoF axis, matching the
+    cross-library industry convention.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = articulation.data.mass_matrix.torch
+
+    expected_dofs = articulation.num_joints + articulation.num_base_dofs
+    expected_shape = (num_articulations, expected_dofs, expected_dofs)
+    assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
+    assert M.dtype == torch.float32
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, articulation_type):
+    """Mixed-articulation scene: each view returns ITS OWN asset's shape.
+
+    Direct regression test for the Codex round-2 finding. With Franka
+    (9 DoFs) and Anymal-C (18 DoFs) co-resident in the model,
+    ``model.max_dofs_per_articulation == 18`` and
+    ``model.max_joints_per_articulation == anymal.num_bodies``. The Franka
+    view's ``body_link_jacobian_w`` / ``mass_matrix`` outputs must use
+    Franka's per-asset counts, NOT the model-wide maxima — otherwise
+    Franka's mass matrix would carry zero-padded rows/cols and be
+    singular.
+
+    Uses the ``anymal`` ``SIM_CFGs`` entry (more capable solver settings)
+    for the host sim; the ``articulation_type`` parametrize is only there
+    so the ``sim`` fixture picks a config — the test itself constructs
+    both Anymal and Franka articulations directly.
+    """
+    # ``num_per_type=1`` keeps the actuator-default replication path off —
+    # Newton's USD default loader hits a (1, num_joints) vs (num_envs,
+    # num_joints) shape mismatch with multi-instance multi-type scenes; one
+    # of each is the minimum heterogeneous setup that still exercises the
+    # per-articulation shape gate without that pre-existing quirk.
+    num_per_type = 1
+
+    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_.*/Robot")
+    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_.*/Robot")
+
+    for i in range(num_per_type):
+        sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))
+        sim_utils.create_prim(f"/World/Env_anymal_{i}", "Xform", translation=(2.5 * i, 5.0, 0.0))
+
+    franka = Articulation(franka_cfg)
+    anymal = Articulation(anymal_cfg)
+    sim.reset()
+    assert franka.is_initialized and anymal.is_initialized
+    assert franka.is_fixed_base and not anymal.is_fixed_base
+
+    # Sanity: the model-wide maxima are larger than at least one view's
+    # per-asset count, so a regression to model-wide sizing would manifest
+    # as wrong shapes here. Assert that precondition explicitly so the test
+    # fails clearly if the fixture stops being heterogeneous.
+    model = SimulationManager.get_model()
+    assert model.max_dofs_per_articulation > min(franka.num_joints, anymal.num_joints), (
+        "scene is no longer heterogeneous; this test relies on model.max_dofs > one view's num_joints"
+    )
+
+    franka_J = franka.data.body_link_jacobian_w.torch
+    anymal_J = anymal.data.body_link_jacobian_w.torch
+
+    # Each view's output uses its OWN per-asset count, not the model-wide max.
+    # Floating-base assets prepend ``num_base_dofs`` floating-base columns; fixed-base
+    # assets have ``num_base_dofs == 0``.
+    franka_dofs = franka.num_joints + franka.num_base_dofs
+    anymal_dofs = anymal.num_joints + anymal.num_base_dofs
+    assert franka_J.shape == torch.Size((num_per_type, franka.num_bodies - 1, 6, franka_dofs)), (
+        f"Franka jacobian leaked model-wide shape: got {tuple(franka_J.shape)}"
+    )
+    assert anymal_J.shape == torch.Size((num_per_type, anymal.num_bodies, 6, anymal_dofs)), (
+        f"Anymal jacobian leaked model-wide shape: got {tuple(anymal_J.shape)}"
+    )
+
+    sim.step()
+    franka.update(sim.cfg.dt)
+    anymal.update(sim.cfg.dt)
+
+    franka_M = franka.data.mass_matrix.torch
+    anymal_M = anymal.data.mass_matrix.torch
+
+    assert franka_M.shape == torch.Size((num_per_type, franka_dofs, franka_dofs))
+    assert anymal_M.shape == torch.Size((num_per_type, anymal_dofs, anymal_dofs))
+
+    # Each view's mass matrix must have positive diagonals — padded zero
+    # rows/cols (the round-2 bug) would surface as zero diagonals on the
+    # smaller-DoF view. Using a per-diagonal check here instead of det()
+    # because det of a real Franka mass matrix is naturally ~1e-13.
+    assert (franka_M.diagonal(dim1=-2, dim2=-1) > 1e-6).all(), (
+        "Franka mass matrix has non-positive diagonal under heterogeneous scene"
+    )
+    assert (anymal_M.diagonal(dim1=-2, dim2=-1) > 1e-6).all(), (
+        "Anymal mass matrix has non-positive diagonal under heterogeneous scene"
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_link_origin_contract(sim, num_articulations, device, articulation_type, gravity_enabled):
+    """``J · q_dot`` must encode the link-origin twist (after the COM->origin shift).
+
+    The IsaacLab task-space controllers (IK / OSC / RMPFlow) silently
+    rely on :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+    returning a Jacobian whose linear rows reference each link's origin
+    (the body's USD prim transform), not its COM. Newton's ``eval_jacobian``
+    natively produces COM-referenced rows; the wrapper applies a per-column
+    shift ``v_origin = v_com - omega x (R · body_com_pos_b)`` to honor the
+    contract. This test asserts the identity by computing both sides
+    independently:
+
+    * Predicted by ``J · q_dot``: takes the (already-shifted) Jacobian
+      and the same ``q_dot`` Newton has post-step. Linear rows should
+      equal v_origin.
+    * Ground truth from ``state.body_qd``: read Newton's per-body spatial
+      twist directly via ``ArticulationView.get_link_velocities`` (which
+      returns ``(v_com_world, omega_world)``), then apply the same shift
+      in python and compare.
+
+    Reading the velocity from the ArticulationView state rather than
+    ``data.body_com_lin_vel_w`` bypasses the IsaacLab lazy-buffer chain,
+    which is irrelevant to the contract being tested.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Reproducible non-trivial q_dot — large enough to drive omega well above
+    # the floor where COM offset effects would round into noise.
+    torch.manual_seed(0)
+    qdot = torch.randn(num_articulations, articulation.num_joints, device=device) * 0.5
+    articulation.write_joint_velocity_to_sim_index(velocity=qdot)
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # body_link_jacobian_w prepends ``num_base_dofs`` floating-base columns; slice past
+    # them so the joint axis aligns with joint_vel (actuated-only).
+    J = articulation.data.body_link_jacobian_w.torch[..., articulation.num_base_dofs :]
+    qdot_view = articulation.data.joint_vel.torch
+    v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)  # (N, B_jac, 6)
+    v_pred_lin = v_pred[..., 0:3]
+    v_pred_ang = v_pred[..., 3:6]
+
+    # Ground truth from Newton state. ``get_link_velocities`` returns shape
+    # (num_instances, 1, num_bodies, 6) — per-articulation grouping with
+    # one articulation per instance — so we squeeze the inner dim.
+    state = SimulationManager.get_state_0()
+    body_qd_view = wp.to_torch(articulation.root_view.get_link_velocities(state)).squeeze(1)
+    body_v_com = body_qd_view[..., :3]
+    body_omega = body_qd_view[..., 3:]
+
+    # World-frame COM-to-origin offset, derived from already-computed
+    # data layer outputs (avoids quaternion-convention pitfalls).
+    body_com_pos_w = articulation.data.body_com_pos_w.torch  # (N, num_bodies, 3)
+    body_link_pos_w = articulation.data.body_link_pos_w.torch  # (N, num_bodies, 3)
+    c_world = body_com_pos_w - body_link_pos_w
+
+    if articulation.is_fixed_base:
+        body_v_com = body_v_com[:, 1:]
+        body_omega = body_omega[:, 1:]
+        c_world = c_world[:, 1:]
+
+    # Expected v_origin = v_com - omega x c_world.
+    v_origin_expected = body_v_com - torch.cross(body_omega, c_world, dim=-1)
+
+    # Tolerance: 5 mm absolute. The COM-offset bug produces a ~3 cm bias
+    # on the panda hand under the 0.5-rad/s injected qdot, well above
+    # this floor; numerical noise from kernel ordering stays under 1 mm.
+    torch.testing.assert_close(v_pred_ang, body_omega, atol=5e-3, rtol=1e-2)
+    torch.testing.assert_close(v_pred_lin, v_origin_expected, atol=5e-3, rtol=1e-2)
+
+
+@pytest.mark.parametrize("num_articulations", [4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulation_type, gravity_enabled):
+    """The joint-space mass matrix ``M(q)`` must be square, symmetric, and positive-definite.
+
+    This pins three structural properties of
+    :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`:
+
+    * **Square**: shape ``(N, num_joints + num_base_dofs, num_joints + num_base_dofs)``.
+      A transposed gather or a non-square scratch buffer would be caught
+      here before downstream OSC inversion silently propagates garbage.
+    * **Symmetric**: ``M == M.T`` to numerical precision. The joint-
+      space inertia tensor is symmetric by construction; an asymmetric
+      result indicates a wrong-axis gather, half-populated buffer, or
+      Cholesky-input bug.
+    * **Positive-definite**: ``torch.linalg.cholesky(M)`` succeeds. OSC
+      computes ``M_b = (J · M^-1 · J^T)^-1`` which requires PD on every
+      step. A non-PD M would fail downstream as ``LinAlgError``; this
+      test catches it earlier and pinpoints the source.
+
+    Parameterized on both fixed-base (panda) and floating-base (anymal).
+    Both backends include the floating-base DoF rows/cols on the front of
+    the DoF axis for floating-base assets.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = articulation.data.mass_matrix.torch  # (N, J, J)
+    assert M.dim() == 3, f"expected 3-D mass matrix, got shape {tuple(M.shape)}"
+    assert M.shape[0] == num_articulations
+    assert M.shape[1] == M.shape[2], f"mass matrix is not square: {tuple(M.shape)}"
+
+    # Symmetric to numerical precision.
+    asym = (M - M.transpose(-1, -2)).abs().max().item()
+    assert asym < 1e-4, f"|M - M^T|_max = {asym:.3e} — mass matrix is not symmetric"
+
+    # Positive-definite via Cholesky. Adds a tiny diagonal jitter to
+    # tolerate the floor of float32 PD eigenvalues without masking real
+    # non-PD bugs (the jitter is well below realistic inertia scales).
+    eye = torch.eye(M.shape[-1], device=M.device, dtype=M.dtype).expand_as(M)
+    torch.linalg.cholesky(M + 1e-6 * eye)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_jacobian_refreshes_after_manual_joint_write(
+    sim, num_articulations, device, articulation_type, gravity_enabled
+):
+    """After ``write_joint_position_to_sim_index`` (no sim step), the Jacobian read
+    must reflect the new joint state — not the previous one.
+
+    Catches:
+      - Missing FK trigger in :attr:`body_com_jacobian_w` (eval_jacobian uses stale
+        ``state.body_q``).
+      - Missing FK trigger in :attr:`body_link_jacobian_w` shift kernel.
+
+    The contract: ``J`` read directly after a manual write must equal ``J`` read
+    after ``sim.step + update`` — the latter is the ground-truth fresh-FK reference.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # Read J / M at the baseline joint state.
+    q_baseline = articulation.data.joint_pos.torch.clone()
+    J_link_0 = articulation.data.body_link_jacobian_w.torch.clone()
+    J_com_0 = articulation.data.body_com_jacobian_w.torch.clone()
+
+    # Manually write a different joint state — large delta to make Jacobian change visible.
+    # No sim.step / update — FK becomes stale (write_joint_position_to_sim sets _fk_timestamp = -1).
+    q_target = q_baseline + 0.5
+    env_ids = wp.array([0], dtype=wp.int32, device=device)
+    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
+
+    # If the FK trigger works: forward() runs, body_q is refreshed to match q_target,
+    # eval_jacobian / shift kernel see fresh body poses, J reflects q_target → differs from J at baseline.
+    # If the trigger is missing: body_q stays at baseline, J unchanged from J_link_0 / J_com_0.
+    J_link_1 = articulation.data.body_link_jacobian_w.torch.clone()
+    J_com_1 = articulation.data.body_com_jacobian_w.torch.clone()
+
+    assert not torch.allclose(J_link_0, J_link_1, atol=1e-3), (
+        "body_link_jacobian_w did not change after manual joint write — "
+        "FK trigger likely missing (eval_jacobian / shift kernel reading stale state.body_q)."
+    )
+    assert not torch.allclose(J_com_0, J_com_1, atol=1e-3), (
+        "body_com_jacobian_w did not change after manual joint write — FK trigger likely missing before eval_jacobian."
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_mass_matrix_refreshes_after_manual_joint_write(
+    sim, num_articulations, device, articulation_type, gravity_enabled
+):
+    """After ``write_joint_position_to_sim_index`` (no sim step), the mass matrix read
+    must reflect the new joint state.
+
+    The mass matrix depends on ``q`` (joint positions) through the body-spatial-inertia
+    transformation in eval_mass_matrix's ``compute_body_spatial_inertia`` step, which
+    reads ``state.body_q``. Same FK-staleness pattern as the Jacobian.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M_0 = articulation.data.mass_matrix.torch.clone()
+    q_target = articulation.data.joint_pos.torch.clone() + 0.5
+    env_ids = wp.array([0], dtype=wp.int32, device=device)
+    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
+    M_1 = articulation.data.mass_matrix.torch.clone()
+
+    assert not torch.allclose(M_0, M_1, atol=1e-3), (
+        "mass_matrix did not change after manual joint write — "
+        "FK trigger likely missing before eval_mass_matrix (compute_body_spatial_inertia "
+        "reads stale state.body_q)."
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_enabled):
+    """Newton-side IK convergence sentinel.
+
+    Runs a full IK tracking loop end-to-end through the new
+    ``robot.data.body_link_jacobian_w`` accessor and records the steady-state EE
+    pose error. With the robot teleported to its configured init_state
+    home pose and scene gravity off, Newton's IK converges to
+    machine-precision tracking (sub-mm). A bridge regression
+    (wrong-reference-frame Jacobian, missing COM->origin shift, DoF
+    mis-ordering) would push the steady-state error well above the
+    threshold below.
+
+    The pose teleport is deliberate: the standalone test path does not
+    invoke a manager-based env reset (which is what normally pushes
+    :attr:`~isaaclab.assets.ArticulationData.default_joint_pos` to sim).
+    Without it, the robot starts at the URDF-neutral pose where the
+    Franka wrist axes nearly align (rank-deficient Jacobian) and DLS
+    plateaus at multi-cm error -- a kinematic-singularity artifact, not
+    a bridge or Newton issue.
+
+    See ``test_get_jacobians_link_origin_contract`` (above) for the
+    sharper unit-level pin on the Jacobian's reference-point contract.
+    """
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(sim)
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+    target_pose_b = _build_relative_pose_target(robot, ee_frame_idx, (0.05, 0.0, 0.0), device)
+
+    ik = DifferentialIKController(
+        DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        num_envs=1,
+        device=device,
+    )
+    ik.set_command(target_pose_b)
+
+    pos_history: list[float] = []
+    rot_history: list[float] = []
+    for _ in range(800):
+        jacobian = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
+        ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+        joint_pos = robot.data.joint_pos.torch[:, arm_joint_ids]
+
+        joint_pos_des = ik.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
+
+        robot.set_joint_position_target(joint_pos_des, joint_ids=arm_joint_ids)
+        robot.write_data_to_sim()
+        sim.step()
+        robot.update(sim.cfg.dt)
+
+        pos_error, rot_error = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+        pos_history.append(pos_error.norm(dim=-1).max().item())
+        rot_history.append(rot_error.norm(dim=-1).max().item())
+
+    pos_min, pos_mean = _summarize_history(pos_history)
+    rot_min, rot_mean = _summarize_history(rot_history)
+
+    # Print metrics every run for stress-test capture.
+    print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
+
+    # Regression sentinel: assert on tail mean rather than min. Tail
+    # min is the bottom of any oscillation envelope and can be tiny
+    # while the actual tracking error is much larger. With the
+    # configured home pose and scene gravity off, Newton converges to
+    # machine precision (sub-mm). The 5 mm bound absorbs any CUDA-
+    # kernel-ordering noise while remaining well below the "totally
+    # broken" regime: a bridge regression (wrong-frame Jacobian,
+    # missing COM->origin shift, DoF mis-ordering) would push the
+    # steady-state error well past this bound.
+    assert pos_mean < 5e-3, f"IK pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"IK rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_enabled):
+    """Newton-side OSC pose tracking sentinel.
+
+    Mirror of the existing PhysX-side OSC tests in
+    :mod:`isaaclab.test.controllers.test_operational_space`, scoped to
+    Franka pose-abs tracking on Newton. Like the IK sentinel above, this
+    test exercises the full controller-bridge pipeline
+    (:attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` +
+    :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`) end-to-end
+    and asserts a loose regression bound rather than a tight correctness
+    oracle.
+
+    Newton lacks a gravity-comp primitive (see ``xfail`` test below;
+    upstream Newton issues #2497, #2529, #2625), so OSC runs with
+    ``gravity_compensation=False`` and the test isolates from gravity by
+    disabling scene gravity. ``inertial_dynamics_decoupling=True``
+    exercises ``mass_matrix`` and the Newton COM-referenced J →
+    M_b → J product. The actuator PD is zeroed at cfg time so OSC's
+    joint-effort output is not opposed by ``kp·(target − q)``.
+    """
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(sim, zero_actuator_pd=True)
+
+    osc = OperationalSpaceController(
+        OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        ),
+        num_envs=1,
+        device=device,
+    )
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+    target_pose_b = _build_relative_pose_target(robot, ee_frame_idx, (0.05, 0.0, 0.0), device)
+
+    pos_history: list[float] = []
+    rot_history: list[float] = []
+    for _ in range(800):
+        jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
+        mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+        ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+        ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+        ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
+
+        osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
+        joint_efforts = osc.compute(
+            jacobian_b=jacobian_b,
+            current_ee_pose_b=ee_pose_b,
+            current_ee_vel_b=ee_vel_b,
+            mass_matrix=mass_matrix,
+            gravity=None,
+        )
+
+        robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+        robot.write_data_to_sim()
+        sim.step()
+        robot.update(sim.cfg.dt)
+
+        pos_error, rot_error = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+        pos_history.append(pos_error.norm(dim=-1).max().item())
+        rot_history.append(rot_error.norm(dim=-1).max().item())
+
+    pos_min, pos_mean = _summarize_history(pos_history)
+    rot_min, rot_mean = _summarize_history(rot_history)
+
+    print(f"OSC_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
+
+    # Regression sentinel: assert on tail mean rather than min. With
+    # ``current_ee_vel_b = J · q_dot`` providing OSC's damping term and
+    # the actuator PD zeroed, the impedance settles to machine
+    # precision -- same ballpark as the IK test. The 5 mm bound is a
+    # bridge regression sentinel: a wrong J, wrong mass matrix, or
+    # DoF mis-ordering pushes the steady-state error well past it
+    # because OSC consumes both ``body_link_jacobian_w`` and
+    # ``mass_matrix`` per step.
+    assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
 if __name__ == "__main__":

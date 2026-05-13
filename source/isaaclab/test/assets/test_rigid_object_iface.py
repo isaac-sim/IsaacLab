@@ -13,16 +13,42 @@ the base rigid object class advertises. All rigid object interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Launch Isaac Sim Simulator first (when available)."""
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
+import os
+import sys
 from unittest.mock import MagicMock
+
+# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
+# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
+# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
+# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
+# set (bare Python, no Kit at all).
+_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
+    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+)
+
+if not _kitless:
+    from isaaclab.app import AppLauncher
+
+    simulation_app = AppLauncher(headless=True).app
+else:
+    simulation_app = None
+    # Stub out the Kit/Omniverse modules that are not present under
+    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
+    # ``omni`` is a real namespace package, so missing submodules also need
+    # to be installed as attributes on it -- ``sys.modules`` alone is not
+    # enough because attribute access on the real ``omni`` won't fall
+    # through to ``sys.modules``.
+    import omni as _omni
+
+    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
+        _stub = MagicMock()
+        sys.modules[f"omni.{_mod}"] = _stub
+        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
+        setattr(_omni, _mod.split(".", 1)[0], _stub)
+    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
+        sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
 import pytest
@@ -64,6 +90,15 @@ try:
 
     BACKENDS.append("newton")
 except ImportError:
+    pass
+
+try:
+    from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
+    from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
+    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+
+    BACKENDS.append("ovphysx")
+except (ImportError, AttributeError):
     pass
 
 
@@ -206,6 +241,62 @@ def create_newton_rigid_object(
     return rigid_object, mock_view
 
 
+def create_ovphysx_rigid_object(
+    num_instances: int = 2,
+    device: str = "cuda:0",
+):
+    """Create a test OvPhysX RigidObject instance with mocked tensor bindings."""
+    body_names = ["base_link"]
+
+    obj = object.__new__(OvPhysxRigidObject)
+
+    obj.cfg = RigidObjectCfg(prim_path="/World/object")
+
+    # Create mock binding set
+    mock_bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=0,
+        num_bodies=1,
+        body_names=body_names,
+        asset_kind="rigid_object",
+    )
+    mock_bindings.set_random_data()
+
+    object.__setattr__(obj, "_device", device)
+    object.__setattr__(obj, "_ovphysx", MagicMock())
+    object.__setattr__(obj, "_bindings", mock_bindings.bindings)
+    object.__setattr__(obj, "_num_instances", num_instances)
+    object.__setattr__(obj, "_num_bodies", 1)
+    object.__setattr__(obj, "_body_names", body_names)
+
+    # Create RigidObjectData
+    data = OvPhysxRigidObjectData(mock_bindings.bindings, device)
+    data.num_instances = num_instances
+    data.num_bodies = 1
+    data._is_primed = True
+    object.__setattr__(obj, "_data", data)
+
+    # Build the buffers RigidObject normally allocates in _initialize_impl
+    # (_ALL_INDICES, _ALL_*_MASK, pinned CPU staging buffers, wrench buf).
+    # _create_buffers also instantiates real WrenchComposers; those get
+    # replaced with mocks just below.
+    obj._create_buffers()
+
+    # Replace the real wrench composers with mocks for iface coverage.
+    mock_inst_wrench = MockWrenchComposer(obj)
+    mock_perm_wrench = MockWrenchComposer(obj)
+    object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(obj, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising
+    object.__setattr__(obj, "_initialize_handle", None)
+    object.__setattr__(obj, "_invalidate_initialize_handle", None)
+    object.__setattr__(obj, "_prim_deletion_handle", None)
+    object.__setattr__(obj, "_debug_vis_handle", None)
+
+    return obj, mock_bindings
+
+
 def create_mock_rigid_object(
     num_instances: int = 2,
     device: str = "cuda:0",
@@ -226,6 +317,8 @@ def get_rigid_object(
 ):
     if backend == "physx":
         return create_physx_rigid_object(num_instances, device)
+    elif backend == "ovphysx":
+        return create_ovphysx_rigid_object(num_instances, device)
     elif backend == "newton":
         return create_newton_rigid_object(num_instances, device)
     elif backend.lower() == "mock":

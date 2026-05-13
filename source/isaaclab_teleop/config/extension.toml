@@ -1,6 +1,6 @@
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "0.3.10"
+version = "0.3.11"
 
 # Description
 title =  "Isaac Lab Teleop"
@@ -12,6 +12,10 @@ keywords = ["kit", "robotics", "teleoperation", "xr", "isaaclab"]
 
 [dependencies]
 "isaaclab" = {}
+
+[isaac_lab_settings]
+# Names only. Version ranges, extras, and platform markers come from setup.py metadata.
+pip_upgrade_dependencies = ["isaacteleop"]
 
 [core]
 reloadable = false

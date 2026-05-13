@@ -1,0 +1,298 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+defaults:
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+
+cluster:
+  num_nodes: 1
+  component_placement:
+      actor,env,rollout: all
+
+runner:
+  task_type: embodied
+  logger:
+    log_path: "../results"
+    project_name: rlinf
+    experiment_name: "test_gr00t"
+    logger_backends: ["tensorboard"] # wandb, swanlab
+
+  max_epochs: 1000
+  max_steps: -1
+
+  only_eval: False
+  eval_policy_path: null # Optional: .pt file or None, if None, will use the checkpoint in rollout.model.model_path
+  val_check_interval: -1
+  save_interval: 2
+  seq_length: 4096
+  max_prompt_length: 30
+
+  resume_dir: null
+
+algorithm:
+  normalize_advantages: True
+  kl_penalty: kl  # how to estimate kl divergence: kl or kl_penalty
+  group_size: 1
+  reward_coef: 1.0
+  rollout_epoch: 2
+  eval_rollout_epoch: 1 # set eval_rollout_epoch > 0 when enable runner.only_eval or runner.val_check_interval > 0
+
+  reward_type: chunk_level
+  logprob_type: chunk_level
+  entropy_type: chunk_level
+
+  update_epoch: 4
+  adv_type: gae
+  loss_type: actor_critic
+  loss_agg_func: "token-mean"
+  kl_beta: 0.0
+  entropy_bonus: 0
+  clip_ratio_high: 0.2
+  clip_ratio_low: 0.2
+  clip_ratio_c: 3.0
+  value_clip: 0.2
+  huber_delta: 10.0
+
+  gamma: 0.99
+  gae_lambda: 0.95
+
+  filter_rewards: False
+  rewards_lower_bound: 0.1
+  rewards_upper_bound: 0.9
+  # params for generation
+  sampling_params:
+    do_sample: True
+    temperature_train: 1.0
+    temperature_eval: 0.6
+    top_k: 50
+    top_p: 1.0
+    repetition_penalty: 1.0
+    add_BOS: False
+
+  # length argument for autoregressive sampling
+  # max length means max amount of tokens to generate
+  length_params:
+    max_new_token: null
+    max_length: 1024
+    min_length: 1
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
+env:
+  group_name: "EnvGroup"
+  channel:
+    name: "env_buffer_list"
+    queue_name: "obs_buffer"
+    queue_size: 0
+  enable_offload: False
+
+  train:
+    env_type: isaaclab
+    total_num_envs: 4
+    auto_reset: False
+    ignore_terminations: False
+    use_rel_reward: True
+    seed: 0
+    group_size: 1
+    reward_coef: 1.0
+    use_fixed_reset_state_ids: True
+    max_steps_per_rollout_epoch: 256
+    max_episode_steps: 256
+    video_cfg:
+      save_video: False
+      info_on_video: True
+      video_base_dir: ${runner.logger.log_path}/video/train
+    init_params:
+      id: "Isaac-Assemble-Trocar-G129-Dex3-v0"
+      num_envs: null
+      max_episode_steps: ${env.train.max_episode_steps}
+      task_description: "assemble trocar from tray"
+
+    # ========================================================================
+    # IsaacLab -> RLinf -> GR00T observation/action mapping configuration
+    # This section defines how IsaacLab observations are converted to GR00T format
+    # ========================================================================
+    isaaclab: &isaaclab_config  # YAML anchor for reuse in eval
+      # Task description for language conditioning
+      task_description: "assemble trocar from tray"
+
+      # --- IsaacLab -> RLinf observation mapping ---
+      # main_images: single camera key for main view
+      main_images: "front_camera"
+      # extra_view_images: list of camera keys to stack as (B, N, H, W, C)
+      extra_view_images:
+        - "left_wrist_camera"
+        - "right_wrist_camera"
+      # states: list of state specs with optional slicing
+      # Each entry can be a string (use full tensor) or dict with "key" and "slice"
+      states:
+        - key: "robot_joint_state"
+          slice: [15, 29]  # G129 shoulder joints
+        - key: "robot_dex3_joint_state"
+          # slice: null  # Use full tensor
+
+      # --- RLinf -> GR00T format conversion ---
+      gr00t_mapping:
+        video:
+          main_images: "video.room_view"
+          extra_view_images:
+            - "video.left_wrist_view"
+            - "video.right_wrist_view"
+        state:
+          # Slice concatenated states into GR00T state keys
+          # Total states: 14 (shoulder) + 14 (dex3) = 28 dims
+          - gr00t_key: "state.left_arm"
+            slice: [0, 7]
+          - gr00t_key: "state.right_arm"
+            slice: [7, 14]
+          - gr00t_key: "state.left_hand"
+            slice: [14, 21]
+          - gr00t_key: "state.right_hand"
+            slice: [21, 28]
+
+      # --- GR00T -> IsaacLab action conversion ---
+      action_mapping:
+        prefix_pad: 15  # Pad zeros at front for G129 body joints (not controlled)
+        suffix_pad: 0
+
+      # --- GR00T model configuration (single source of truth) ---
+      # actor.model.embodiment_tag and obs_converter_type reference these values via ${}
+      obs_converter_type: "dex3"
+      embodiment_tag: "new_embodiment"
+      embodiment_tag_id: 31
+      data_config_class: "gr00t_config:IsaacLabDataConfig"
+
+  eval:
+    env_type: isaaclab
+    total_num_envs: 4
+    auto_reset: True
+    ignore_terminations: True
+    use_rel_reward: True
+    seed: 0
+    group_size: 1
+    reward_coef: 1.0
+    use_fixed_reset_state_ids: True
+    max_steps_per_rollout_epoch: 256
+    max_episode_steps: 256
+    video_cfg:
+      save_video: True
+      info_on_video: True
+      video_base_dir: ${runner.logger.log_path}/video/eval
+    init_params:
+      id: "Isaac-Assemble-Trocar-G129-Dex3-Eval-v0"
+      num_envs: null
+      max_episode_steps: ${env.eval.max_episode_steps}
+      task_description: "install trocar from box"
+    # Reuse IsaacLab config from train section via YAML anchor
+    isaaclab: *isaaclab_config
+
+# ---------------------------------------------------------------------------
+# Rollout
+# ---------------------------------------------------------------------------
+rollout:
+  group_name: "RolloutGroup"
+  channel:
+    name: ${env.channel.name}
+    queue_name: "action_buffer"
+    queue_size: 0
+  mode: "colocate"
+  backend: "huggingface"
+  enable_offload: True
+  pipeline_stage_num: 1
+
+  model:
+    model_path: "/mnt/ckpt/g1_install_trocar_sim_box_v3_60_train_bs32_1_gpus_cos_30k_tune_visual/"
+    precision: ${actor.model.precision}
+    obs_converter_type: ${env.train.isaaclab.obs_converter_type}
+    embodiment_tag: ${env.train.isaaclab.embodiment_tag}
+
+# ---------------------------------------------------------------------------
+# Actor
+# ---------------------------------------------------------------------------
+actor:
+  group_name: "ActorGroup"
+  channel:
+    name: ${env.channel.name}
+    queue_name: "replay_buffer"
+    queue_size: 0
+  training_backend: "fsdp"
+  micro_batch_size: 2
+  global_batch_size: 4
+  seed: 1234
+  enable_offload: False
+
+  model:
+    model_type: "gr00t"
+    model_path: "/mnt/ckpt/g1_install_trocar_sim_box_v3_60_train_bs32_1_gpus_cos_30k_tune_visual/"
+    precision: "bf16"
+    trust_remote_code: True
+    is_lora: false
+    action_dim: 28
+    num_action_chunks: 1
+    denoising_steps: 4
+    policy_setup: "widowx_bridge"
+    obs_converter_type: ${env.train.isaaclab.obs_converter_type}
+    embodiment_tag: ${env.train.isaaclab.embodiment_tag}
+    add_value_head: True
+    rl_head_config:
+      joint_logprob: False
+      noise_method: "flow_sde"
+      ignore_last: False
+      safe_get_logprob: False
+      noise_anneal: False
+      noise_params: [0.7, 0.3, 400]
+      noise_level: 0.3
+      add_value_head: ${actor.model.add_value_head}
+      chunk_critic_input: False
+      detach_critic_input: True
+      disable_dropout: True
+      use_vlm_value: False
+      value_vlm_mode: "mean_token"
+      padding_value: 850
+
+  optim:
+    lr: 5e-6
+    value_lr: 1e-4
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-08
+    clip_grad: 1.0
+    weight_decay: 0.01
+    critic_warmup_steps: 0
+
+  fsdp_config:
+    strategy: "fsdp"
+    sharding_strategy: "full_shard"
+    gradient_checkpointing: False
+    cpu_offload: False
+    offload_pin_memory: False
+    reshard_after_forward: True
+    enable_gradient_accumulation: True
+    forward_prefetch: False
+    limit_all_gathers: False
+    backward_prefetch: null
+    use_orig_params: False
+    use_liger_kernel: False
+    fsdp_size: -1
+    mixed_precision:
+      param_dtype: ${actor.model.precision}
+      reduce_dtype: ${actor.model.precision}
+      buffer_dtype: ${actor.model.precision}
+    amp:
+      enabled: False
+      precision: "bf16"
+      use_grad_scaler: False
+
+reward:
+  use_reward_model: False
+
+critic:
+  use_critic_model: False

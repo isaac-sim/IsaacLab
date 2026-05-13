@@ -5,7 +5,7 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticRecurrentCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlRNNModelCfg
 
 
 @configclass
@@ -17,18 +17,22 @@ class Rizon4sGearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     clip_actions = 1.0
     resume = False
     obs_groups = {
-        "policy": ["policy"],
+        "actor": ["policy"],
         "critic": ["critic"],
     }
-    policy = RslRlPpoActorCriticRecurrentCfg(
-        state_dependent_std=True,
-        init_noise_std=1.0,
-        actor_obs_normalization=True,
-        critic_obs_normalization=True,
-        actor_hidden_dims=[256, 128, 64],
-        critic_hidden_dims=[256, 128, 64],
-        noise_std_type="log",
+    actor = RslRlRNNModelCfg(
+        hidden_dims=[256, 128, 64],
         activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg(init_std=1.0, std_type="log"),
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=2,
+    )
+    critic = RslRlRNNModelCfg(
+        hidden_dims=[256, 128, 64],
+        activation="elu",
+        obs_normalization=True,
         rnn_type="lstm",
         rnn_hidden_dim=256,
         rnn_num_layers=2,

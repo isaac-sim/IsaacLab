@@ -191,6 +191,9 @@ def run_simulator(
 
     ee_body_name = "panda_hand"
     ee_body_idx = robot.body_names.index(ee_body_name)
+    # ``body_link_jacobian_w`` drops the fixed-root body row for fixed-base assets,
+    # so the Jacobian-axis body index is ``body_idx - 1`` in that case.
+    ee_jacobi_body_idx = ee_body_idx - 1 if robot.is_fixed_base else ee_body_idx
 
     joint_pos = robot.data.default_joint_pos.torch.clone()
     joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
@@ -307,8 +310,11 @@ def run_simulator(
         ee_pos_w = robot.data.body_pos_w.torch[:, ee_body_idx]
         ee_quat_w = robot.data.body_quat_w.torch[:, ee_body_idx]
 
-        # get jacobian to IK controller
-        jacobian = robot.root_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
+        # get jacobian to IK controller. The DoF axis prepends ``num_base_dofs``
+        # floating-base columns (0 for fixed-base, 6 for floating-base); shift the
+        # actuated-joint ids by ``num_base_dofs`` to address the actuated columns.
+        jacobi_joint_ids = [j + robot.num_base_dofs for j in arm_joint_indices]
+        jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_body_idx, :, jacobi_joint_ids]
         ik_controller.set_command(command=target_pos_tensor, ee_quat=ee_quat_w)
         joint_pos_des = ik_controller.compute(ee_pos_w, ee_quat_w, jacobian, current_joint_pos)
 
