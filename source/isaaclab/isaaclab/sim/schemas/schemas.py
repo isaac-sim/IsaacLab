@@ -416,14 +416,14 @@ def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseC
 def modify_rigid_body_properties(
     prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
-    """Modify PhysX parameters for a rigid body prim.
+    """Modify parameters for a rigid body prim.
 
-    A `rigid body`_ is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
-    A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by the user, but does not
-    respond to forces. They are similar to having static bodies that can be moved around.
+    A `rigid body`_ is a single body that can be simulated by a physics engine. It can be either dynamic
+    or kinematic. A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by
+    the user, but does not respond to forces.
 
-    The schema comprises of attributes that belong to the `RigidBodyAPI`_ and `PhysxRigidBodyAPI`_.
-    schemas. The latter contains the PhysX parameters for the rigid body.
+    Solver-common properties (from `RigidBodyAPI`_) are always written. Solver-specific properties are
+    written based on the cfg subclass metadata (``_usd_namespace``, ``_usd_applied_schema``).
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
@@ -432,11 +432,13 @@ def modify_rigid_body_properties(
     .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/RigidBodyOverview.html
     .. _kinematic body: https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies
     .. _RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
-    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
 
     Args:
         prim_path: The prim path to the rigid body.
-        cfg: The configuration for the rigid body.
+        cfg: The configuration for the rigid body. Accepts
+            :class:`~schemas_cfg.RigidBodyBaseCfg` for solver-common properties,
+            :class:`~schemas_cfg.PhysxRigidBodyPropertiesCfg` for PhysX properties, or
+            :class:`~schemas_cfg.MujocoRigidBodyPropertiesCfg` for Newton (MuJoCo) properties.
         stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
@@ -727,15 +729,14 @@ Joint drive properties.
 def modify_joint_drive_properties(
     prim_path: str, cfg: schemas_cfg.JointDriveBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
-    """Modify PhysX parameters for a joint prim.
+    """Modify parameters for a joint prim.
 
     This function checks if the input prim is a prismatic or revolute joint and applies the joint drive schema
     on it. If the joint is a tendon (i.e., it has the `PhysxTendonAxisAPI`_ schema applied on it), then the joint
     drive schema is not applied.
 
-    Based on the configuration, this method modifies the properties of the joint drive. These properties are
-    based on the `UsdPhysics.DriveAPI`_ schema. For more information on the properties, please refer to the
-    official documentation.
+    Solver-common properties (from `UsdPhysics.DriveAPI`_) are always written. Solver-specific properties
+    are written based on the cfg subclass metadata (``_usd_namespace``, ``_usd_applied_schema``).
 
     .. caution::
 
@@ -748,7 +749,10 @@ def modify_joint_drive_properties(
 
     Args:
         prim_path: The prim path where to apply the joint drive schema.
-        cfg: The configuration for the joint drive.
+        cfg: The configuration for the joint drive. Accepts
+            :class:`~schemas_cfg.JointDriveBaseCfg` for solver-common properties,
+            :class:`~schemas_cfg.PhysxJointDrivePropertiesCfg` for PhysX properties, or
+            :class:`~schemas_cfg.MujocoJointDrivePropertiesCfg` for Newton (MuJoCo) properties.
         stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 

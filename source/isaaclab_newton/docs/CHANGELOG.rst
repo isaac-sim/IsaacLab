@@ -1,6 +1,65 @@
 Changelog
 ---------
 
+0.8.1 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton integration to use the packaged Newton 1.2.0 release candidate
+  and updated transform conversion calls for Warp 1.13 compatibility.
+
+Fixed
+^^^^^
+
+* Fixed a spurious ``[Error][carb] Client passed into the framework is nullptr.``
+  log emitted from :meth:`~isaaclab_newton.physics._cubric.CubricBindings.initialize`
+  when the first ``tryAcquireInterfaceWithClient`` attempt returned null. The
+  helper used to retry with ``clientName=None``, which Carbonite has rejected as
+  invalid since 2018 — the retry only emitted a misleading error log. Removed
+  the null-client retry; the existing ``acquireInterfaceWithClient`` fallback
+  with the ``isaaclab.cubric`` client name still handles configurations where
+  the plugin needs to be loaded on demand.
+
+
+0.8.0 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonRigidBodyPropertiesCfg` and
+  :class:`~isaaclab_newton.sim.schemas.NewtonJointDrivePropertiesCfg` as Newton-targeted
+  bases for solver-specific subclasses. Currently empty (no Newton-native ``newton:*``
+  rigid-body or joint-drive attributes today); reserved as the family root for any
+  future Newton-native fields.
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` (subclasses
+  :class:`NewtonRigidBodyPropertiesCfg`) with :attr:`gravcomp` for body-level gravity
+  compensation (``mjc:gravcomp``).
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` (subclasses
+  :class:`NewtonJointDrivePropertiesCfg`) with :attr:`actuatorgravcomp` for joint-level
+  gravity compensation routing (``mjc:actuatorgravcomp`` via ``MjcJointAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg` with
+  :attr:`contact_margin` and :attr:`contact_gap` (``newton:*`` via ``NewtonCollisionAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg` with
+  :attr:`max_hull_vertices` (``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg` with
+  :attr:`torsional_friction` and :attr:`rolling_friction` (``newton:*`` via ``NewtonMaterialAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg` with
+  :attr:`self_collision_enabled` (``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``).
+
+Changed
+^^^^^^^
+
+* Split :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` construction
+  into a pre-physics ``__init__`` (stores cfg and registers the Newton-Warp
+  scene-data requirement on
+  :class:`~isaaclab.sim.SimulationContext`) and a post-physics
+  :meth:`~isaaclab_newton.renderers.NewtonWarpRenderer.initialize` (reads
+  the built Newton model.
+
+
 0.7.2 (2026-05-11)
 ~~~~~~~~~~~~~~~~~~
 

@@ -161,11 +161,8 @@ class CubricBindings:
             version=_Version(0, 1),
         )
 
-        # Try several acquisition strategies — the required client name
-        # varies across Kit configurations.
-        ia_ptr = try_acquire_fn(b"carb.scripting-python.plugin", desc, None)
-        if not ia_ptr:
-            ia_ptr = try_acquire_fn(None, desc, None)
+        # Try tryAcquire first (non-loading); fall back to acquire (will load the plugin if registered).
+        ia_ptr = try_acquire_fn(b"isaaclab.cubric", desc, None)
         if not ia_ptr:
             acquire_addr = _read_u64(fw_ptr + 16)  # acquireInterfaceWithClient
             if acquire_addr:
