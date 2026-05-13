@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import warnings
 from collections.abc import Sequence
@@ -26,13 +27,7 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
-try:
-    from isaaclab_newton.actuators import NewtonActuatorAdapter, build_implicit_dof_mask, build_newton_actuator_defaults
-    from isaaclab_newton.actuators import kernels as actuator_kernels
-
-    _HAS_NEWTON_ACTUATORS = True
-except ImportError:
-    _HAS_NEWTON_ACTUATORS = False
+_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
@@ -49,6 +44,7 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -3582,6 +3578,12 @@ class Articulation(BaseArticulation):
         if _use_newton_actuators and _HAS_NEWTON_ACTUATORS:
             from newton import Model as NewtonModel  # noqa: PLC0415
 
+            from isaaclab_newton.actuators import (  # noqa: PLC0415
+                build_implicit_dof_mask,
+                build_newton_actuator_defaults,
+            )
+            from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
             # Enable the fast path even for all-implicit articulations:
             # the solver runs PD internally; Lab only forwards targets.
             self._has_newton_actuators = True
@@ -3716,9 +3718,13 @@ class Articulation(BaseArticulation):
             )
 
         if self.cfg.actuator_value_resolution_debug_print:
+            if _HAS_NEWTON_ACTUATORS:
+                from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+            else:
+                NewtonActuatorAdapter = None  # type: ignore[assignment]
             t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
             for actuator_group, actuator in self.actuators.items():
-                if _HAS_NEWTON_ACTUATORS and isinstance(actuator, NewtonActuatorAdapter):
+                if NewtonActuatorAdapter is not None and isinstance(actuator, NewtonActuatorAdapter):
                     continue
                 group_count = 0
                 for property, resolution_details in actuator.joint_property_resolution_table.items():

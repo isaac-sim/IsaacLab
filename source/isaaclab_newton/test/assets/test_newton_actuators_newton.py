@@ -1184,7 +1184,13 @@ class TestDecimationRemotizedPD(_DecimationMixin, TestRemotizedPDEquivalence):
 
 
 class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
-    """Regression test for Newton actuator authoring in manager-based clone paths."""
+    """Regression test for Newton actuator authoring in manager-based clone paths.
+
+    The default G1 config uses ``ImplicitActuatorCfg`` for every group, which
+    intentionally skips ``NewtonActuator`` USD authoring. To exercise the
+    authoring path we override the scene's robot actuators with explicit
+    ``DCMotorCfg`` groups covering the same joint patterns.
+    """
 
     def test_newton_actuators_present_for_g1_manager_env(self):
         env_cfg = G1FlatEnvCfg()
@@ -1206,6 +1212,44 @@ class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
             debug_mode=False,
         )
         env_cfg.sim.use_newton_actuators = True
+        env_cfg.scene.robot.actuators = {
+            "legs": DCMotorCfg(
+                joint_names_expr=[
+                    ".*_hip_yaw_joint",
+                    ".*_hip_roll_joint",
+                    ".*_hip_pitch_joint",
+                    ".*_knee_joint",
+                    "torso_joint",
+                ],
+                saturation_effort=300.0,
+                effort_limit=300.0,
+                velocity_limit=20.0,
+                stiffness=150.0,
+                damping=5.0,
+            ),
+            "feet": DCMotorCfg(
+                joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+                saturation_effort=20.0,
+                effort_limit=20.0,
+                velocity_limit=20.0,
+                stiffness=20.0,
+                damping=2.0,
+            ),
+            "arms": DCMotorCfg(
+                joint_names_expr=[
+                    ".*_shoulder_pitch_joint",
+                    ".*_shoulder_roll_joint",
+                    ".*_shoulder_yaw_joint",
+                    ".*_elbow_pitch_joint",
+                    ".*_elbow_roll_joint",
+                ],
+                saturation_effort=300.0,
+                effort_limit=300.0,
+                velocity_limit=20.0,
+                stiffness=40.0,
+                damping=10.0,
+            ),
+        }
         env = ManagerBasedRLEnv(cfg=env_cfg)
         try:
             stage = env.unwrapped.sim.stage
