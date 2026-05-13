@@ -211,7 +211,8 @@ def main():
 
         # configure_seed must be called after Runner() so that PyTorch deterministic settings
         # do not interfere with Runner's internal initialization.
-        configure_seed(env_cfg.seed, args_cli.deterministic)
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         runner.load(agent_cfg)
         runner.reset()

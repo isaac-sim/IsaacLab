@@ -20,6 +20,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -156,6 +157,10 @@ def main():
         # create agent from stable baselines
         print(f"Loading checkpoint from: {checkpoint_path}")
         agent = PPO.load(checkpoint_path, env, print_system_info=True)
+        # configure_seed must be called after PPO.load so that PyTorch deterministic settings
+        # do not interfere with SB3's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         dt = env.unwrapped.step_dt
 

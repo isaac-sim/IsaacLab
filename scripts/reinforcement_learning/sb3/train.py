@@ -26,6 +26,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
@@ -187,6 +188,10 @@ def main():
         agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
         if args_cli.checkpoint is not None:
             agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+        # configure_seed must be called after PPO construction (and optional load) so that PyTorch
+        # deterministic settings do not interfere with SB3's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         # callbacks for agent
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)

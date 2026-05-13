@@ -20,6 +20,7 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_rl.rsl_rl import (
@@ -158,6 +159,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+        # configure_seed must be called after runner construction so that PyTorch deterministic settings
+        # do not interfere with the runner's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
         runner.load(resume_path)
 
         # obtain the trained policy for inference

@@ -27,6 +27,7 @@ from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
@@ -213,6 +214,10 @@ def main():
 
         # configure and instantiate the skrl runner
         runner = Runner(env, agent_cfg)
+        # configure_seed must be called after Runner() so that PyTorch deterministic settings
+        # do not interfere with Runner's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         # load checkpoint (if specified)
         if resume_path:

@@ -32,6 +32,8 @@ def _called_name(call: ast.Call) -> str | None:
     if isinstance(func, ast.Name):
         return func.id
     if isinstance(func, ast.Attribute):
+        if func.attr == "load" and isinstance(func.value, ast.Name) and func.value.id == "PPO":
+            return "PPO.load"
         return func.attr
     return None
 
@@ -56,12 +58,39 @@ def test_app_launcher_adds_deterministic_cli_flag():
 
 
 def test_train_scripts_call_configure_seed_after_runner_or_agent_construction():
-    """RL-Games train script wires strict PyTorch determinism after ``Runner`` construction."""
+    """RL train scripts wire strict PyTorch determinism after runner / agent construction."""
     train_scripts = {
         "scripts/reinforcement_learning/rl_games/train.py": {"Runner"},
+        "scripts/reinforcement_learning/skrl/train.py": {"Runner"},
+        "scripts/reinforcement_learning/rsl_rl/train.py": {"OnPolicyRunner", "DistillationRunner"},
+        "scripts/reinforcement_learning/sb3/train.py": {"PPO"},
     }
 
     for relative_path, constructors in train_scripts.items():
+        tree = _load_tree(relative_path)
+        configure_seed_lines = _call_lines(tree, {"configure_seed"})
+        constructor_lines = _call_lines(tree, constructors)
+        launcher_hook_lines = _call_lines(tree, {"add_launcher_args"})
+
+        assert launcher_hook_lines, f"{relative_path}: expected add_launcher_args(parser) call."
+        assert configure_seed_lines, f"{relative_path}: expected configure_seed(...) call."
+        assert constructor_lines, f"{relative_path}: expected runner/agent constructor call {constructors}."
+        assert min(configure_seed_lines) > max(constructor_lines), (
+            f"{relative_path}: configure_seed must be called after runner/agent construction. "
+            f"configure_seed lines={configure_seed_lines}, constructor lines={constructor_lines}"
+        )
+
+
+def test_play_scripts_call_configure_seed_after_runner_or_agent_construction():
+    """RL play scripts wire strict PyTorch determinism after runner / agent construction."""
+    play_scripts = {
+        "scripts/reinforcement_learning/rl_games/play.py": {"Runner"},
+        "scripts/reinforcement_learning/skrl/play.py": {"Runner"},
+        "scripts/reinforcement_learning/rsl_rl/play.py": {"OnPolicyRunner", "DistillationRunner"},
+        "scripts/reinforcement_learning/sb3/play.py": {"PPO.load"},
+    }
+
+    for relative_path, constructors in play_scripts.items():
         tree = _load_tree(relative_path)
         configure_seed_lines = _call_lines(tree, {"configure_seed"})
         constructor_lines = _call_lines(tree, constructors)

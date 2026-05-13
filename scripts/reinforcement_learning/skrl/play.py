@@ -24,6 +24,7 @@ from packaging import version
 
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
@@ -188,6 +189,10 @@ def main():
         experiment_cfg["agent"]["experiment"]["write_interval"] = 0
         experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
         runner = Runner(env, experiment_cfg)
+        # configure_seed must be called after Runner() so that PyTorch deterministic settings
+        # do not interfere with Runner's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         print(f"[INFO] Loading model checkpoint from: {resume_path}")
         runner.agent.load(resume_path)
