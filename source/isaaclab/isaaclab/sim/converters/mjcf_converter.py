@@ -90,4 +90,7 @@ class MjcfConverter(AssetConverterBase):
             debug_mode=cfg.debug_mode,
         )
 
-        MJCFImporter(import_config).import_mjcf()
+        generated_usd_path = MJCFImporter(import_config).import_mjcf()
+        if generated_usd_path:
+            generated_usd_path = os.path.normpath(generated_usd_path)
+            self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)

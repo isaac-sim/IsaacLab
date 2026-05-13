@@ -78,7 +78,13 @@ def test_no_change(sim_config):
 @pytest.mark.isaacsim_ci
 def test_config_change(sim_config):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+
     sim, config = sim_config
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_config_change")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
     time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
@@ -86,7 +92,7 @@ def test_config_change(sim_config):
     new_config = config
     new_config.fix_base = not config.fix_base
     # define the usd directory
-    new_config.usd_dir = urdf_converter.usd_dir
+    new_config.usd_dir = output_dir
     # convert to usd but this time in the same directory as previous step
     new_urdf_converter = UrdfConverter(new_config)
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
@@ -360,7 +366,12 @@ def test_no_collision_from_visuals(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_self_collision(sim_config):
-    """Verify that self_collision=True enables self-collision on the articulation."""
+    """Verify that ``self_collision=True`` enables self-collision on the Newton articulation root.
+
+    The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
+    attribute on prims tagged as articulation roots (``UsdPhysics.ArticulationRootAPI``,
+    ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
+    """
     sim, config = sim_config
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "urdf_self_collision")
@@ -371,21 +382,29 @@ def test_self_collision(sim_config):
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
 
-    from pxr import PhysxSchema, Usd
+    from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(urdf_converter.usd_path)
 
-    # find prim with PhysxArticulationAPI and check self-collision flag
-    found_self_collision = False
-    for prim in stage.Traverse():
-        if prim.HasAPI(PhysxSchema.PhysxArticulationAPI):
-            physx_api = PhysxSchema.PhysxArticulationAPI(prim)
-            sc_attr = physx_api.GetEnabledSelfCollisionsAttr()
-            if sc_attr and sc_attr.HasValue() and sc_attr.Get():
-                found_self_collision = True
-                break
+    articulation_roots = [
+        prim
+        for prim in stage.Traverse()
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        or prim.HasAPI("PhysicsArticulationRootAPI")
+        or prim.HasAPI("NewtonArticulationRootAPI")
+    ]
+    assert articulation_roots, "Expected at least one articulation root in the converted USD"
 
-    assert found_self_collision, "Expected self-collision to be enabled on the articulation"
+    found_self_collision = False
+    for prim in articulation_roots:
+        print(prim.GetName())
+        print(prim.GetAttribute("newton:selfCollisionEnabled"))
+        sc_attr = prim.GetAttribute("newton:selfCollisionEnabled")
+        if sc_attr and sc_attr.HasValue() and sc_attr.Get():
+            found_self_collision = True
+            break
+
+    assert found_self_collision, "Expected ``newton:selfCollisionEnabled`` to be True on a Newton articulation root"
 
 
 @pytest.mark.isaacsim_ci

@@ -109,7 +109,10 @@ class UrdfConverter(AssetConverterBase):
             debug_mode=cfg.debug_mode,
         )
 
-        URDFImporter(import_config).import_urdf()
+        generated_usd_path = URDFImporter(import_config).import_urdf()
+        if generated_usd_path:
+            generated_usd_path = os.path.normpath(generated_usd_path)
+            self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)
 
     @staticmethod
     def _warn_unsupported_features(cfg: UrdfConverterCfg):

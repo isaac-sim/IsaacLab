@@ -102,7 +102,12 @@ def test_create_prim_from_usd(test_setup_teardown):
 
 @pytest.mark.isaacsim_ci
 def test_self_collision(test_setup_teardown):
-    """Verify that ``self_collision=True`` enables self-collisions on the articulation."""
+    """Verify that ``self_collision=True`` enables self-collisions on the Newton articulation root.
+
+    The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
+    attribute on prims tagged as articulation roots (``UsdPhysics.ArticulationRootAPI``,
+    ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
+    """
     sim, config = test_setup_teardown
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "mjcf_self_collision")
@@ -113,19 +118,27 @@ def test_self_collision(test_setup_teardown):
     config.usd_dir = output_dir
     mjcf_converter = MjcfConverter(config)
 
-    from pxr import PhysxSchema, Usd
+    from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(mjcf_converter.usd_path)
-    found_self_collision = False
-    for prim in stage.Traverse():
-        if prim.HasAPI(PhysxSchema.PhysxArticulationAPI):
-            physx_api = PhysxSchema.PhysxArticulationAPI(prim)
-            sc_attr = physx_api.GetEnabledSelfCollisionsAttr()
-            if sc_attr and sc_attr.HasValue() and sc_attr.Get():
-                found_self_collision = True
-                break
 
-    assert found_self_collision, "Expected self-collision to be enabled on the articulation"
+    articulation_roots = [
+        prim
+        for prim in stage.Traverse()
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        or prim.HasAPI("PhysicsArticulationRootAPI")
+        or prim.HasAPI("NewtonArticulationRootAPI")
+    ]
+    assert articulation_roots, "Expected at least one articulation root in the converted USD"
+
+    found_self_collision = False
+    for prim in articulation_roots:
+        sc_attr = prim.GetAttribute("newton:selfCollisionEnabled")
+        if sc_attr and sc_attr.HasValue() and sc_attr.Get():
+            found_self_collision = True
+            break
+
+    assert found_self_collision, "Expected ``newton:selfCollisionEnabled`` to be True on a Newton articulation root"
 
 
 @pytest.mark.isaacsim_ci
