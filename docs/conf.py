@@ -171,6 +171,7 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "ovphysx",
     "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
