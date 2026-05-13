@@ -21,9 +21,17 @@ from __future__ import annotations
 
 # Pyglet must use HeadlessWindow (EGL) before ``pyglet.window`` is imported so Newton
 # ViewerGL can construct without an X11 display (matches ``headless=True`` on NewtonVisualizerCfg).
+import types
+
 import pyglet
+import warp as wp
 
 pyglet.options["headless"] = True
+
+# TODO(mtrepte): check if this is still needed on TOT Lab/Sim before merge
+# Replicator 1.13 expects older Warp API aliases during Kit startup.
+wp.context = types.SimpleNamespace(Kernel=wp.Kernel)
+wp.types.array = wp.array
 
 from isaaclab.app import AppLauncher
 
@@ -38,7 +46,6 @@ import socket
 import numpy as np
 import pytest
 import torch
-import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 
