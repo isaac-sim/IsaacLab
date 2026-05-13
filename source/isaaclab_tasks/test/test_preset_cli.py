@@ -416,7 +416,43 @@ def test_does_not_mutate_sys_argv(monkeypatch):
     # The folded form is exposed via the second return value.
     assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001"]
     # Parsed namespace still carries the typed values.
-    assert args.physics == "newton_mjwarp"
+    # Parsed namespace exposes the value via the ``<label>_preset`` dest so it
+    # doesn't shadow other framework code that introspects the namespace
+    # (notably AppLauncher's ``renderer`` SimulationApp config key).
+    assert args.physics_preset == "newton_mjwarp"
+    assert not hasattr(args, "physics"), "typed-flag dest must not write the bare label onto the namespace"
+
+
+def test_typed_flag_dest_does_not_collide_with_app_launcher_config(monkeypatch):
+    """Locks the namespace contract that prevents the AppLauncher crash.
+
+    AppLauncher reads ``args.renderer`` (and other SimulationApp config keys)
+    off the args namespace and forwards each value to SimulationApp's config.
+    If ``--renderer NAME`` had landed at ``args.renderer = <preset name or
+    None>`` it would either crash SimulationApp (``None.lower()``) or push the
+    preset string into Kit's renderer mode field. The typed flags must store
+    under ``<label>_preset`` to avoid that. This test fails the moment that
+    contract regresses.
+
+    The bare attributes that would collide are listed by name rather than
+    looked up dynamically so the test still fires if someone changes the
+    PresetTarget label values without updating the dest mapping in
+    ``setup_preset_cli``.
+    """
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer=newton_renderer"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    args, _ = setup_preset_cli(_make_parser())
+    # The value lands at the namespaced dest, not at the bare label.
+    assert getattr(args, "renderer_preset", None) == "newton_renderer"
+    # The bare label MUST NOT be on the namespace. AppLauncher's
+    # ``_SIM_APP_CFG_TYPES`` includes a ``renderer`` key with type ``[str]``,
+    # so any attribute named ``renderer`` on args_cli leaks into SimulationApp.
+    assert not hasattr(args, "renderer"), (
+        "setup_preset_cli set ``args.renderer`` -- this collides with"
+        " AppLauncher's SimulationApp ``renderer`` config key and crashes Kit."
+        " Use ``dest=f'{label}_preset'`` on the argparse registration."
+    )
 
 
 def test_hydra_argv_keeps_presets_token_for_telemetry(monkeypatch):

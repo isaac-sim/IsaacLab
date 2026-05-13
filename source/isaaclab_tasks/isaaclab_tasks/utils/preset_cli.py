@@ -138,11 +138,18 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
                 help=_help_text(target, actual_variants),
             )
         else:
+            # Use ``dest=f"{label}_preset"`` (e.g. ``renderer_preset``) so the
+            # parsed namespace key doesn't shadow attributes other framework code
+            # reads off the namespace -- notably ``AppLauncher`` reads
+            # ``args.renderer`` as the SimulationApp ``renderer`` config string,
+            # and a raw ``--renderer`` dest would inject ``None`` there. The
+            # user-facing flag stays ``--renderer NAME``; the dest is internal.
             group.add_argument(
                 f"--{target.value}",
                 type=str,
                 default=None,
                 metavar="NAME",
+                dest=f"{target.value}_preset",
                 help=_help_text(target, actual_variants),
             )
 
@@ -156,7 +163,7 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
             if raw:
                 names.extend(name.strip() for name in raw.split(",") if name.strip())
         else:
-            value = getattr(args, target.value, None)
+            value = getattr(args, f"{target.value}_preset", None)
             if value:
                 names.append(value)
 
