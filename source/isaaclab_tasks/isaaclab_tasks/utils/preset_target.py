@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Closed enum of typed CLI preset categories with per-target metadata.
+"""Closed enum of typed preset categories with per-target metadata.
 
 Each :class:`PresetTarget` member carries everything the preset CLI layer
 needs to know about that category in one place:
 
-* ``label`` -- the typed-flag suffix and ``self.value`` (e.g. ``"physics"`` for
-  ``--physics``).
+* ``label`` -- the Hydra-style selector key (e.g. ``"physics"`` for
+  ``physics=NAME``) and ``self.value``.
 * ``base_classes`` -- the cfg base classes whose subclass instances belong to
   this bucket. Help-time bucketing in :mod:`isaaclab_tasks.utils.preset_cli`
   routes variants by ``isinstance`` against these. Empty for
@@ -32,22 +32,22 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 
 
 class PresetTarget(enum.Enum):
-    """Typed-flag preset categories.
+    """Typed preset categories.
 
     **Bucketing contract.** Help-time bucketing in
     :mod:`isaaclab_tasks.utils.preset_cli` routes each preset variant to a
     typed target by checking ``isinstance(cfg_value, target.base_classes)``
     against every typed target's bases. A variant whose cfg value does *not*
     subclass any typed target's base falls into :attr:`DOMAIN` and shows up
-    under the ``--presets`` catch-all in ``--help``.
+    under the ``presets:`` catch-all in ``--help``.
 
-    To opt into the typed ``--physics`` / ``--renderer`` help-text listing,
+    To opt into the typed ``physics`` / ``renderer`` help-text listing,
     a backend's cfg class must subclass :class:`~isaaclab.physics.PhysicsCfg`
     or :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` respectively.
     A variant whose class does *not* subclass either base still **resolves
     correctly at runtime** -- hydra applies the selected name across every
-    matching ``PresetCfg`` field regardless of class; the typed-flag
-    bucketing only governs which header it appears under in ``--help``.
+    matching ``PresetCfg`` field regardless of class; the typed bucketing only
+    governs which header it appears under in ``--help``.
 
     Adding a new target = appending one enum member.
     """
@@ -56,7 +56,7 @@ class PresetTarget(enum.Enum):
     # enum metaclass collects the whole namespace before constructing members,
     # so ``__new__`` below unpacks each tuple regardless of declaration order.
     PHYSICS = ("physics", (PhysicsCfg,), {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
-    """Physics backends -- ``--physics`` flag.
+    """Physics backends -- ``physics=NAME`` selector.
 
     Legacy aliases ``newton`` -> ``newton_mjwarp`` and ``kamino`` -> ``newton_kamino``
     exist because Newton-backend solver presets were renamed to use the
@@ -69,13 +69,13 @@ class PresetTarget(enum.Enum):
     """
 
     RENDERER = ("renderer", (RendererCfg,))
-    """Camera-sensor renderers -- ``--renderer`` flag."""
+    """Camera-sensor renderers -- ``renderer=NAME`` selector."""
 
     DOMAIN = ("domain",)
-    """Free-form env-specific presets -- ``--presets`` flag (catch-all).
+    """Free-form env-specific presets -- ``presets=NAME[,...]`` selector (catch-all).
 
     No ``base_classes`` -- any variant whose cfg class doesn't subclass a typed
-    target's base ends up here. The ``--presets`` token also acts as a
+    target's base ends up here. The ``presets=`` token also acts as a
     broadcast: hydra's resolver applies a DOMAIN-bucketed name to every
     matching ``PresetCfg`` regardless of target.
     """
@@ -89,8 +89,8 @@ class PresetTarget(enum.Enum):
         """Construct a member from its ``(label, base_classes, legacy_aliases)`` tuple.
 
         Args:
-            label: Lowercase CLI flag suffix (e.g. ``"physics"`` becomes
-                ``--physics`` and ``self.value``).
+            label: Hydra-style selector key (e.g. ``"physics"`` is recognized
+                as the ``physics=NAME`` token and becomes ``self.value``).
             base_classes: Cfg base classes whose instances route to this
                 target via :func:`isinstance`. Defaults to ``()`` (no typed
                 routing).
