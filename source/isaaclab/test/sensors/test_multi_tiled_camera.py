@@ -21,6 +21,7 @@ import random
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
 
 import omni.replicator.core as rep
@@ -234,17 +235,17 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # access image data and compare dtype
         output = camera.data.output
         info = camera.data.info
-        assert output["rgb"].dtype == torch.uint8
-        assert output["rgba"].dtype == torch.uint8
-        assert output["albedo"].dtype == torch.uint8
-        assert output["depth"].dtype == torch.float
-        assert output["distance_to_camera"].dtype == torch.float
-        assert output["distance_to_image_plane"].dtype == torch.float
-        assert output["normals"].dtype == torch.float
-        assert output["motion_vectors"].dtype == torch.float
-        assert output["semantic_segmentation"].dtype == torch.uint8
-        assert output["instance_segmentation_fast"].dtype == torch.uint8
-        assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+        assert output["rgb"].dtype == wp.uint8
+        assert output["rgba"].dtype == wp.uint8
+        assert output["albedo"].dtype == wp.uint8
+        assert output["depth"].dtype == wp.float32
+        assert output["distance_to_camera"].dtype == wp.float32
+        assert output["distance_to_image_plane"].dtype == wp.float32
+        assert output["normals"].dtype == wp.float32
+        assert output["motion_vectors"].dtype == wp.float32
+        assert output["semantic_segmentation"].dtype == wp.uint8
+        assert output["instance_segmentation_fast"].dtype == wp.uint8
+        assert output["instance_id_segmentation_fast"].dtype == wp.uint8
         assert isinstance(info["semantic_segmentation"], dict)
         assert isinstance(info["instance_segmentation_fast"], dict)
         assert isinstance(info["instance_id_segmentation_fast"], dict)
