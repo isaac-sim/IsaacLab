@@ -1411,10 +1411,11 @@ class ArticulationData(BaseArticulationData):
         if self._root_view.tendon_count > 0:
             self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute(
                 "mujoco.tendon_stiffness", SimulationManager.get_model()
-            )[:,0]
+            )[:, 0]
             self._sim_bind_fixed_tendon_damping = self._root_view.get_attribute(
-                "mujoco.tendon_damping", SimulationManager.get_model(),
-            )[:,0]
+                "mujoco.tendon_damping",
+                SimulationManager.get_model(),
+            )[:, 0]
         else:
             self._sim_bind_fixed_tendon_stiffness = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device

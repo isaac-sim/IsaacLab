@@ -2621,11 +2621,11 @@ class Articulation(BaseArticulation):
     """
 
     def set_fixed_tendon_stiffness_index(
-            self,
-            *,
-            stiffness: float | torch.Tensor | wp.array,
-            fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers using indices.
 
@@ -2650,9 +2650,7 @@ class Articulation(BaseArticulation):
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(
-            stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness"
-        )
+        self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
@@ -2685,11 +2683,11 @@ class Articulation(BaseArticulation):
         # Only updates internal buffers, does not apply the stiffness to the simulation.
 
     def set_fixed_tendon_stiffness_mask(
-            self,
-            *,
-            stiffness: float | torch.Tensor | wp.array,
-            fixed_tendon_mask: wp.array | None = None,
-            env_mask: wp.array | None = None,
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers using masks.
 
@@ -2718,11 +2716,11 @@ class Articulation(BaseArticulation):
         )
 
     def set_fixed_tendon_damping_index(
-            self,
-            *,
-            damping: float | torch.Tensor | wp.array,
-            fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers using indices.
 
@@ -2869,12 +2867,12 @@ class Articulation(BaseArticulation):
         raise NotImplementedError()
 
     def set_fixed_tendon_position_limit_index(
-            self,
-            *,
-            limit: float | torch.Tensor | wp.array,
-            fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            full_data: bool = False,
+        self,
+        *,
+        limit: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set fixed tendon position limit into internal buffers using indices.
 
@@ -2899,11 +2897,11 @@ class Articulation(BaseArticulation):
         raise NotImplementedError()
 
     def set_fixed_tendon_position_limit_mask(
-            self,
-            *,
-            limit: float | torch.Tensor | wp.array,
-            fixed_tendon_mask: wp.array | None = None,
-            env_mask: wp.array | None = None,
+        self,
+        *,
+        limit: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon position limit into internal buffers using masks.
 
@@ -3036,9 +3034,9 @@ class Articulation(BaseArticulation):
         raise NotImplementedError()
 
     def write_fixed_tendon_properties_to_sim_index(
-            self,
-            *,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        self,
+        *,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using indices.
 

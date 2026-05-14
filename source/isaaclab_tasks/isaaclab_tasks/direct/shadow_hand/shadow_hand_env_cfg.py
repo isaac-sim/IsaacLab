@@ -149,9 +149,8 @@ class ShadowHandRobotCfg(PresetCfg):
     newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            # newton requires implicitactuators be specified in usd and there's a bug with physx tendons
-            #usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable_newton.usd",
-            usd_path=f"/home/rgresia/Repositories/mujoco_menagerie/shadow_hand/right_hand.usd/right_shadow_hand.usda",
+            # newton/mujoco have separate usd schema
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_newton.usd/right_shadow_hand.usda",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -159,7 +158,7 @@ class ShadowHandRobotCfg(PresetCfg):
                 max_depenetration_velocity=1000.0,
             ),
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force"),
+            joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
             fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
@@ -263,7 +262,7 @@ class ShadowHandSceneCfg(PresetCfg):
     newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
-    default: InteractiveSceneCfg = newton_mjwarp
+    default: InteractiveSceneCfg = physx
 
 
 @configclass

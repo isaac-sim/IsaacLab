@@ -896,8 +896,9 @@ def modify_fixed_tendon_properties(
     else:
         # only stiffness and damping in the cfg map to mjc attributes
         for attr_name, value in cfg.items():
-            safe_set_attribute_on_usd_prim(tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value,
-                                           camel_case=False)
+            safe_set_attribute_on_usd_prim(
+                tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+            )
     # success
     return True
 
