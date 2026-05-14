@@ -70,10 +70,13 @@ Stats output:
     steady-state replay workload rather than agent bookkeeping
     overhead. Per-run samples are summarised into mean / p50 / p90 /
     p95 / p99 / min / max / stddev (under ``cpu_frame_time_ms``) plus
-    render FPS metrics (under ``fps``). The ``fps`` block reports
-    Kit's viewport-render rate (= per-step rate * ``decimation /
-    render_interval``), so the numbers there line up with Kit's HUD;
-    for raw env.step throughput, use ``1000 / cpu_frame_time_ms.mean``.
+    derived FPS metrics (under ``fps``). The two blocks measure the
+    same ``env.step`` event and stay self-consistent: ``fps.mean``
+    equals ``1000 / cpu_frame_time_ms.mean`` (harmonic mean of FPS
+    = total frames / total step time). Kit's HUD displays the render
+    rate, which is this FPS multiplied by ``decimation /
+    render_interval`` (Kit pumps multiple frames per ``env.step``);
+    derive that from the env config if you need it.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
     call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
@@ -376,13 +379,6 @@ class _RunStats:
     active_frame_times_ms: list[float] = field(default_factory=list)
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
-    # ``env.step`` pumps Kit ``decimation / render_interval`` times per
-    # call; the ``fps`` block reports render FPS (what Kit's viewport
-    # HUD displays), so we need this multiplier to convert from the
-    # raw 1 / env.step rate that ``active_frame_times_ms`` captures.
-    # Defaults to 1.0 so configs that haven't set it (or have render
-    # disabled) still produce a self-consistent step rate.
-    renders_per_step: float = 1.0
     # Filled in at run end from ``GpuStatsProvider.summary()``.
     # Defaults to ``{}`` so a run that never reached the active loop
     # produces a missing-but-not-None ``"gpu_stats"`` slot.
@@ -390,7 +386,7 @@ class _RunStats:
 
     def to_dict(self, run_index: int) -> dict:
         cpu_stats = _compute_frame_stats(self.active_frame_times_ms)
-        fps_stats = _compute_fps_stats(self.active_frame_times_ms, self.renders_per_step)
+        fps_stats = _compute_fps_stats(self.active_frame_times_ms)
         return {
             "run_index": run_index,
             "outcome": self.outcome,
@@ -457,37 +453,37 @@ def _compute_frame_stats(samples_ms: list[float]) -> dict:
     }
 
 
-def _compute_fps_stats(samples_ms: list[float], renders_per_step: float) -> dict:
-    """Compute render-FPS stats from per-``env.step`` CPU times.
+def _compute_fps_stats(samples_ms: list[float]) -> dict:
+    """Compute env.step-throughput FPS stats from per-step CPU times.
 
-    All three fields report **render FPS** -- the rate at which Kit
-    pumps the viewport, which is what Kit's HUD displays. A single
-    ``env.step`` does ``cfg.decimation / cfg.sim.render_interval``
-    render pumps (see :class:`isaaclab.envs.ManagerBasedRLEnv.step`),
-    so the per-step rate derived from ``samples_ms`` is multiplied by
-    that ratio.
+    All three fields are derived from the same ``samples_ms`` series
+    that feeds ``cpu_frame_time_ms`` and stay self-consistent with it:
+    ``mean == 1000 / cpu_frame_time_ms.mean`` (harmonic mean of FPS =
+    total frames / total step time). The harmonic mean is what
+    Devdeep's "use harmonic mean for FPS and it will agree with the
+    arithmetic mean of frame time" prescription expects -- it avoids
+    the upward bias of arithmetic-mean-of-instantaneous-FPS
+    (dominated by the fastest frames) and the downward bias of
+    ``n / active_duration_s`` (dragged down by inter-step
+    bookkeeping).
 
-    ``mean`` uses the harmonic mean of per-step time
-    (``renders_per_step * 1000 / fmean(samples_ms)`` = total renders /
-    total step time). It avoids both biases the alternatives have:
-    arithmetic mean of instantaneous FPS would be dominated by the
-    fastest frames, while ``total_frames / active_duration_s`` would
-    be dragged down by inter-step bookkeeping (teleop pipeline +
-    terminator GPU syncs + control polling). For raw step throughput
-    (1 / env.step), divide ``mean`` by ``renders_per_step`` or read
-    ``cpu_frame_time_ms.mean`` directly.
+    Note that this is the ``env.step`` rate, not Kit's render rate:
+    Kit pumps ``cfg.decimation / cfg.sim.render_interval`` frames per
+    ``env.step`` call, so the HUD shows a higher number than what is
+    reported here. Compute the render rate as
+    ``fps.mean * decimation / render_interval`` from the env config
+    if needed.
 
     ``min_instantaneous`` and ``max_instantaneous`` are derived from
-    the slowest / fastest individual step respectively (also scaled
-    by ``renders_per_step``).
+    the slowest / fastest individual step respectively.
     """
     n = len(samples_ms)
     if n == 0:
         return {"mean": None, "min_instantaneous": None, "max_instantaneous": None}
     return {
-        "mean": renders_per_step * 1000.0 / statistics.fmean(samples_ms),
-        "min_instantaneous": renders_per_step * 1000.0 / max(samples_ms),
-        "max_instantaneous": renders_per_step * 1000.0 / min(samples_ms),
+        "mean": 1000.0 / statistics.fmean(samples_ms),
+        "min_instantaneous": 1000.0 / max(samples_ms),
+        "max_instantaneous": 1000.0 / min(samples_ms),
     }
 
 
@@ -1040,12 +1036,7 @@ def _run_single_replay(
         total_runs: Total number of runs in the batch; used only for log
             framing ("Replay 1/5: ...").
     """
-    # ``env.step`` pumps Kit ``decimation / render_interval`` times per
-    # call (see :meth:`ManagerBasedRLEnv.step`); scale per-step times by
-    # that ratio in :func:`_compute_fps_stats` so the ``fps`` block
-    # reads in render FPS (matches Kit's HUD).
-    renders_per_step = env.cfg.decimation / env.cfg.sim.render_interval
-    stats = _RunStats(renders_per_step=renders_per_step)
+    stats = _RunStats()
 
     # Default NVML-backed provider samples GPU utilization + used
     # memory once per active iteration. ``NvmlGpuStatsProvider``
@@ -1248,8 +1239,13 @@ def _run_single_replay(
                         break
             except Exception:
                 # ``logger.exception`` preserves the full traceback; bare
-                # ``logger.error`` would only log the message.
+                # ``logger.error`` would only log the message. Classify as
+                # ``failure`` so the per-run outcome and the batch exit
+                # code reflect that the recorded trajectory did not
+                # complete -- staying at the default ``incomplete`` would
+                # silently mask a crash mid-replay in CI reports.
                 logger.exception("Error during simulation step")
+                stats.outcome = "failure"
                 break
 
     # Stamp the active window duration. Falls back to 0.0 when no env

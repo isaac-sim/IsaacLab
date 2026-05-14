@@ -49,7 +49,8 @@ def _xr_anchor_prim_exists(prim_path: str) -> bool:
         if stage is None:
             return False
         return stage.GetPrimAtPath(prim_path).IsValid()
-    except Exception:
+    except Exception as exc:
+        logger.debug("_xr_anchor_prim_exists(%r) failed: %s", prim_path, exc)
         return False
 
 

@@ -596,6 +596,14 @@ class TeleopSessionLifecycle:
         assert self._mcap_replay_path is not None, "replay path missing in replay mode"
         assert self._pipeline is not None, "pipeline must be built before starting the session"
 
+        # Fail fast on a missing MCAP file
+        if not os.path.exists(self._mcap_replay_path):
+            raise FileNotFoundError(
+                f"MCAP replay file not found: '{self._mcap_replay_path}'. "
+                "Check the ``mcap_replay_path`` passed to ``create_isaac_teleop_device`` "
+                "(or the ``--replay_file`` CLI arg on the replay agent)."
+            )
+
         mcap_config = McapReplayConfig(self._mcap_replay_path)
         session_config = TeleopSessionConfig(
             app_name=self._cfg.app_name,
