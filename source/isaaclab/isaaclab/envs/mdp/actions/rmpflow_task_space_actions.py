@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -56,15 +55,8 @@ class RMPFlowAction(ActionTerm):
         self._body_idx = body_ids[0]
         self._body_name = body_names[0]
 
-        # check if articulation is fixed-base
-        # if fixed-base then the jacobian for the base is not computed
-        # this means that number of bodies is one less than the articulation's number of bodies
-        if self._asset.is_fixed_base:
-            self._jacobi_body_idx = self._body_idx - 1
-            self._jacobi_joint_ids = self._joint_ids
-        else:
-            self._jacobi_body_idx = self._body_idx
-            self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
+        self._jacobi_body_idx = self._body_idx - 1 if self._asset.is_fixed_base else self._body_idx
+        self._jacobi_joint_ids = [j + self._asset.num_base_dofs for j in self._joint_ids]
 
         # log info for debugging
         logger.info(
@@ -128,7 +120,7 @@ class RMPFlowAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.root_view.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
     @property
     def jacobian_b(self) -> torch.Tensor:

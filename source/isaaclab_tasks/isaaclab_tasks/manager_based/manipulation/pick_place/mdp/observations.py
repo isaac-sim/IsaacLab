@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import torch
@@ -77,10 +78,34 @@ def get_robot_joint_state(
     return robot_joint_states
 
 
+def get_all_robot_link_pose(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Robot link poses in the world frame.
+
+    Returns:
+        Link poses with shape ``[num_envs, num_bodies, 7]`` and layout
+        ``[x, y, z, qx, qy, qz, qw]`` where position is in ``[m]``.
+    """
+    return env.scene["robot"].data.body_link_pose_w.torch
+
+
+def get_all_robot_link_velocity(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Robot link velocities in the world frame.
+
+    Returns:
+        Link velocities with shape ``[num_envs, num_bodies, 6]`` and layout
+        ``[linear_velocity(3), angular_velocity(3)]`` in ``[m/s, rad/s]``.
+    """
+    return env.scene["robot"].data.body_link_vel_w.torch
+
+
 def get_all_robot_link_state(
     env: ManagerBasedRLEnv,
 ) -> torch.Tensor:
-    body_pos_w = env.scene["robot"].data.body_link_state_w.torch[:, :, :]
-    all_robot_link_pos = body_pos_w
-
-    return all_robot_link_pos
+    # TODO: Remove this compatibility helper in IsaacLab 4.0.
+    warnings.warn(
+        "`get_all_robot_link_state` is deprecated and will be removed in IsaacLab 4.0. "
+        "Use `get_all_robot_link_pose` and `get_all_robot_link_velocity` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return torch.cat((get_all_robot_link_pose(env), get_all_robot_link_velocity(env)), dim=-1)

@@ -3,6 +3,14 @@
 # Use when ovphysx is installed into Kit's Python.
 #
 # Usage: ./scripts/run_ovphysx.sh [your_script.py or -m pytest ...]
+#
+# CI note: the OVPhysX wheel's device mode is a process-global C++/Carbonite
+# static (gap G5 in docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md).
+# To exercise both CPU and GPU coverage, invoke this script TWICE in separate
+# processes -- e.g.
+#   ./scripts/run_ovphysx.sh -m pytest <path> -k 'cpu'
+#   ./scripts/run_ovphysx.sh -m pytest <path> -k 'cuda:0'
+# A single invocation locks to whichever device is requested first.
 set -e
 
 ISAACLAB_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

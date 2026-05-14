@@ -121,6 +121,7 @@ Guidelines for modifications:
 * Louis Le Lay
 * Lukas Fröhlich
 * Manuel Schweiger
+* Marco Alesiani
 * Masoud Moghani
 * Mateo Guaman Castro
 * Maurice Rahme
@@ -135,6 +136,7 @@ Guidelines for modifications:
 * Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
+* Nicholas Blauch
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov

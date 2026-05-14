@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def get_default_render_cfg() -> RendererCfg:
+def get_default_renderer_cfg() -> RendererCfg:
     """Return the default :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` for cameras.
 
     Lazily imports :mod:`isaaclab_physx.renderers` and returns a new

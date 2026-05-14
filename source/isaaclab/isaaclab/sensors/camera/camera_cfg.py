@@ -190,12 +190,8 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
-    renderer_cfg: RendererCfg | None = field(default=None)
-    """Renderer configuration for camera sensor.
-
-    If ``None``, :meth:`__post_init__` assigns :func:`~isaaclab.utils.backend_utils.get_default_render_cfg`
-    (lazy import of ``isaaclab_physx.renderers``; requires ``isaaclab_physx``).
-    """
+    renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
+    """Renderer configuration for camera sensor."""
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
@@ -204,8 +200,14 @@ class CameraCfg(SensorBaseCfg):
         :class:`DeprecationWarning` and is copied onto ``self.renderer_cfg``
         when that cfg defines the same-named field.
         """
-        if self.renderer_cfg is None:
-            self.renderer_cfg = get_default_render_cfg()
+        # TODO when Camera.__init__ moves rtx_sensor setting out of camera initialization
+        # the default renderer config instantiation can be moved into the render factory
+        # and get_default_render_cfg method can be removed from backend_utils
+        renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
+        if renderer_type == "default":
+            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+
+            self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
         for field_name, default in _DEPRECATED_RENDERER_FIELD_DEFAULTS.items():
             value = getattr(self, field_name)

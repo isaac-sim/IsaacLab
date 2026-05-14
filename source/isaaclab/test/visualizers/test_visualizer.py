@@ -79,6 +79,10 @@ class _FakeProvider:
         self._num_envs = num_envs
         self._transforms = transforms
 
+    @property
+    def num_envs(self) -> int:
+        return self._num_envs
+
     def get_metadata(self) -> dict:
         return {"num_envs": self._num_envs}
 

@@ -36,14 +36,24 @@ __all__ = [
     "ArticulationRootPropertiesCfg",
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
-    "CollisionPropertiesCfg",
+    "CollisionBaseCfg",
     "ConvexDecompositionPropertiesCfg",
     "ConvexHullPropertiesCfg",
     "FixedTendonPropertiesCfg",
-    "JointDrivePropertiesCfg",
+    "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionPropertiesCfg",
-    "RigidBodyPropertiesCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "MujocoRigidBodyPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
+    "PhysxJointDrivePropertiesCfg",
+    "PhysxRigidBodyPropertiesCfg",
+    "RigidBodyBaseCfg",
     "SDFMeshPropertiesCfg",
     "SpatialTendonPropertiesCfg",
     "TriangleMeshPropertiesCfg",
@@ -202,19 +212,31 @@ from .schemas import (
     ArticulationRootPropertiesCfg,
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
-    CollisionPropertiesCfg,
+    CollisionBaseCfg,
     ConvexDecompositionPropertiesCfg,
     ConvexHullPropertiesCfg,
     FixedTendonPropertiesCfg,
-    JointDrivePropertiesCfg,
+    JointDriveBaseCfg,
     MassPropertiesCfg,
     MeshCollisionPropertiesCfg,
-    RigidBodyPropertiesCfg,
+    PhysxJointDrivePropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+    RigidBodyBaseCfg,
     SDFMeshPropertiesCfg,
     SpatialTendonPropertiesCfg,
     TriangleMeshPropertiesCfg,
     TriangleMeshSimplificationPropertiesCfg,
 )
+
+# Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
+MujocoJointDrivePropertiesCfg = ...
+MujocoRigidBodyPropertiesCfg = ...
+NewtonArticulationRootPropertiesCfg = ...
+NewtonCollisionPropertiesCfg = ...
+NewtonJointDrivePropertiesCfg = ...
+NewtonMaterialPropertiesCfg = ...
+NewtonMeshCollisionPropertiesCfg = ...
+NewtonRigidBodyPropertiesCfg = ...
 from .spawners import (
     SpawnerCfg,
     RigidObjectSpawnerCfg,
