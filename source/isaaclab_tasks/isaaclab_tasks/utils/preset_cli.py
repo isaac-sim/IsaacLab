@@ -152,41 +152,50 @@ class _PresetHelpFormatter(argparse.HelpFormatter):
 def _build_description(actual_variants: dict[PresetTarget, set[str]] | None) -> str:
     """Build the preset-selection ``argument_group`` description.
 
-    Emits ``\\n``-separated bulleted variant lists; the caller sets the
-    parser's ``formatter_class`` to one that preserves them.
+    Renders each selector entry inline with its available variants directly
+    underneath, so users see the bucketed variants at the point where they
+    decide which selector to use. Emits ``\\n``-separated lines; the caller
+    sets the parser's ``formatter_class`` to one that preserves them.
 
     Args:
         actual_variants: ``None`` when no ``--task=X --help`` is in argv;
             otherwise a ``{target: set[name]}`` bucketed view from
             :func:`_enumerate_variants`.
     """
-    intro = (
-        "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):\n"
-        "    physics=NAME              (typed) selects a PhysicsCfg variant\n"
-        "    renderer=NAME             (typed) selects a RendererCfg variant\n"
-        "    presets=NAME[,NAME,...]   broadcast: applied to every matching PresetCfg"
-    )
+    intro = "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"
     epilog = "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
 
     if actual_variants is None:
+        # No task yet -- just describe each selector; variants are task-
+        # specific and listed only when --task=X is also given.
+        selector_block = (
+            "    physics=NAME              (typed) selects a PhysicsCfg variant\n"
+            "    renderer=NAME             (typed) selects a RendererCfg variant\n"
+            "    presets=NAME[,NAME,...]   broadcast: applied to every matching PresetCfg"
+        )
         hint = "Pass `--task=X` along with `--help` to see preset variants available for that task."
-        return f"{intro}\n\n{hint}\n\n{epilog}"
+        return f"{intro}\n{selector_block}\n\n{hint}\n\n{epilog}"
 
-    sections = [intro, "Available in this task:"]
-    for target in PresetTarget:
-        if target is PresetTarget.DOMAIN:
-            continue
-        available = sorted(actual_variants.get(target, set()))
-        bullets = "\n".join(f"    - {n}" for n in available) if available else "    (none)"
-        sections.append(f"  {target.value}:\n{bullets}")
-    # DOMAIN listing is the catch-all: variants whose cfg type does not subclass
-    # any typed target's base. Typed variants stay listed under their own
-    # section above and are intentionally not duplicated here.
-    domain_names = sorted(actual_variants.get(PresetTarget.DOMAIN, set()))
-    domain_bullets = "\n".join(f"    - {n}" for n in domain_names) if domain_names else "    (none)"
-    sections.append(f"  presets:\n{domain_bullets}")
-    sections.append(epilog)
-    return "\n\n".join(sections)
+    def _variant_lines(names: list[str]) -> str:
+        return "\n".join(f"        - {n}" for n in names) if names else "        (none)"
+
+    physics = sorted(actual_variants.get(PresetTarget.PHYSICS, set()))
+    renderer = sorted(actual_variants.get(PresetTarget.RENDERER, set()))
+    # DOMAIN is the catch-all: variants whose cfg type doesn't subclass any typed
+    # target's base. Typed variants stay only under their typed selector and are
+    # intentionally not duplicated under ``presets=`` (which would be
+    # broadcast-applied if used).
+    domain = sorted(actual_variants.get(PresetTarget.DOMAIN, set()))
+
+    phys_header = "physics=NAME              (typed) selects a PhysicsCfg variant. Available:"
+    rend_header = "renderer=NAME             (typed) selects a RendererCfg variant. Available:"
+    dom_header = "presets=NAME[,NAME,...]   broadcast: applied to every matching PresetCfg. Available:"
+    body = (
+        f"    {phys_header}\n{_variant_lines(physics)}\n"
+        f"    {rend_header}\n{_variant_lines(renderer)}\n"
+        f"    {dom_header}\n{_variant_lines(domain)}"
+    )
+    return f"{intro}\n{body}\n\n{epilog}"
 
 
 # ============================================================================

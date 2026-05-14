@@ -286,22 +286,38 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
     [
         pytest.param(
             "empty",
-            ["physics: (none)", "renderer: (none)", "presets: (none)"],
+            [
+                "physics=NAME (typed) selects a PhysicsCfg variant. Available: (none)",
+                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
+            ],
             id="zero_variants_everywhere",
         ),
         pytest.param(
             "physics_only",
-            ["physics: - alpha - beta", "renderer: (none)", "presets: (none)"],
+            [
+                "physics=NAME (typed) selects a PhysicsCfg variant. Available: - alpha - beta",
+                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
+            ],
             id="typed_populated_other_typed_empty",
         ),
         pytest.param(
             "domain_only",
-            ["physics: (none)", "renderer: (none)", "presets: - heavy - light"],
+            [
+                "physics=NAME (typed) selects a PhysicsCfg variant. Available: (none)",
+                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
+            ],
             id="domain_bucket_only",
         ),
         pytest.param(
             "mixed",
-            ["physics: - my_phys", "renderer: - my_rend", "presets: - heavy - light"],
+            [
+                "physics=NAME (typed) selects a PhysicsCfg variant. Available: - my_phys",
+                "renderer=NAME (typed) selects a RendererCfg variant. Available: - my_rend",
+                "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
+            ],
             id="all_three_buckets_populated",
         ),
     ],
