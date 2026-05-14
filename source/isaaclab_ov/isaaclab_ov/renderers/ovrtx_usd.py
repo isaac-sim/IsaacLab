@@ -178,21 +178,22 @@ def create_scene_partition_attributes(stage, num_envs: int = 1, use_cloning: boo
         use_cloning: Whether OVRTX cloning is enabled.
     """
     env_indices = [0] if use_cloning else range(num_envs)
-    for env_idx in env_indices:
-        env_path = f"/World/envs/env_{env_idx}"
-        env_prim = stage.GetPrimAtPath(env_path)
-        if not env_prim.IsValid():
-            logger.warning("Failed to get env root prim at '%s'", env_path)
-            continue
+    with Sdf.ChangeBlock():
+        for env_idx in env_indices:
+            env_path = f"/World/envs/env_{env_idx}"
+            env_prim = stage.GetPrimAtPath(env_path)
+            if not env_prim.IsValid():
+                logger.warning("Failed to get env root prim at '%s'", env_path)
+                continue
 
-        scene_partition = f"env_{env_idx}"
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-        logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
+            scene_partition = f"env_{env_idx}"
+            env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+            logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
 
-        for prim in Usd.PrimRange(env_prim):
-            if prim.IsA(UsdGeom.Camera):
-                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-                logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
+            for prim in Usd.PrimRange(env_prim):
+                if prim.IsA(UsdGeom.Camera):
+                    prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+                    logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
 
 
 def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: bool = True) -> str:
