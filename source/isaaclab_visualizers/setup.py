@@ -13,20 +13,27 @@ INSTALL_REQUIRES = [
     "numpy",
 ]
 
+# Every Newton declaration in the repo must use the SAME extra spec (`newton[sim]`).
+# Pip resolves a git-URL requirement once per URL: if any package declares bare
+# `newton @ git+...` while another declares `newton[sim] @ git+...`, the first
+# resolution wins and silently drops the `[sim]` extra. That breaks `isaaclab_newton`
+# at import time because `mujoco` / `mujoco-warp` go missing. So even the rerun/viser
+# extras — which don't use the MuJoCo solver directly — must pin `newton[sim]` to
+# stay consistent with `isaaclab_newton`.
 EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton==1.2.0rc3",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.5",
     ],
     "rerun": [
-        "newton==1.2.0rc3",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
         "rerun-sdk>=0.29.0",
     ],
     "viser": [
-        "newton==1.2.0rc3",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
         "viser>=1.0.16",
     ],
 }

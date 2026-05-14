@@ -314,10 +314,9 @@ class OVRTXRenderer(BaseRenderer):
     def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
-            from isaaclab.sim import SimulationContext
+            from isaaclab_newton.physics import NewtonManager
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_model = provider.get_newton_model()
+            newton_model = NewtonManager.get_model()
             if newton_model is None:
                 logger.info("Newton model not available, skipping object bindings")
                 return
@@ -419,10 +418,9 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         try:
-            from isaaclab.sim import SimulationContext
+            from isaaclab_newton.physics import NewtonManager
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_state = provider.get_newton_state()
+            newton_state = NewtonManager.get_state()
             if newton_state is None:
                 return
             body_q = getattr(newton_state, "body_q", None)

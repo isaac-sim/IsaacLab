@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
-RSL_RL_VERSION = "3.0.1"
+RSL_RL_VERSION = "5.0.1"
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
