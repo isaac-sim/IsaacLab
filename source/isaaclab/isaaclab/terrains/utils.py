@@ -17,7 +17,7 @@ from isaaclab.utils.warp import raycast_mesh
 def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
     """
     Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex,
-    using the Turbo colormap. If the z-coordinates are all the same, the vertices will be colored
+    using the Viridis colormap. If the z-coordinates are all the same, the vertices will be colored
     with a single color.
 
     Args:
@@ -27,7 +27,7 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
         color: A list of 3 integers in the range [0,255] representing the RGB
             color of the mesh. Used when the z-coordinates of all vertices are the same.
             Defaults to [172, 216, 230].
-        color_map: The name of the color map to be used. Defaults to "turbo".
+        color_map: The name of the color map to be used. Defaults to "viridis".
 
     Returns:
         A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.
@@ -49,7 +49,7 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
         # clip lower and upper bounds to have better color mapping
         heights_normalized = np.clip(heights_normalized, 0.1, 0.9)
         # Get the color for each vertex based on the height
-        color_map = kwargs.pop("color_map", "turbo")
+        color_map = kwargs.pop("color_map", "viridis") # options: magma, inferno, plasma, viridis
         colors = trimesh.visual.color.interpolate(heights_normalized, color_map=color_map)
         # Set the vertex colors
         mesh.visual.vertex_colors = colors
