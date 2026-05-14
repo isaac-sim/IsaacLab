@@ -74,6 +74,17 @@ Stats output:
     Kit's viewport-render rate (= per-step rate * ``decimation /
     render_interval``), so the numbers there line up with Kit's HUD;
     for raw env.step throughput, use ``1000 / cpu_frame_time_ms.mean``.
+
+    Each active iteration also emits one ``GpuStatsProvider.sample()``
+    call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
+    utilization (%) and used memory (MB) via ``pynvml``, summarised
+    under ``gpu_stats`` with the same percentile shape as
+    ``cpu_frame_time_ms``. It soft-fails when ``nvidia-ml-py`` is
+    missing or the driver is unreachable (``gpu_stats.available =
+    false`` + reason). Renderer-specific providers (Kit viewport
+    telemetry, Newton, ...) can be slotted in by implementing the
+    :class:`GpuStatsProvider` Protocol.
+
     A multi-run batch aggregates by taking the mean-of-means,
     mean-of-p90s, etc. across runs.
 
@@ -99,7 +110,13 @@ Stats output:
                 "mean": ..., "p50": ..., "p90": ..., "p95": ..., "p99": ...,
                 "min": ..., "max": ..., "stddev": ..., "n": ...
               },
-              "fps": {"mean": ..., "min_instantaneous": ..., "max_instantaneous": ...}
+              "fps": {"mean": ..., "min_instantaneous": ..., "max_instantaneous": ...},
+              "gpu_stats": {
+                "backend": "nvml", "available": True,
+                "device_index": 0, "device_name": ..., "memory_total_mb": ...,
+                "utilization_percent": {<cpu_frame_time_ms shape>},
+                "memory_used_mb": {<cpu_frame_time_ms shape>}
+              }
             }
           ],
           "aggregate": {
@@ -317,6 +334,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 import gymnasium as gym
 import torch
@@ -365,6 +383,10 @@ class _RunStats:
     # Defaults to 1.0 so configs that haven't set it (or have render
     # disabled) still produce a self-consistent step rate.
     renders_per_step: float = 1.0
+    # Filled in at run end from ``GpuStatsProvider.summary()``.
+    # Defaults to ``{}`` so a run that never reached the active loop
+    # produces a missing-but-not-None ``"gpu_stats"`` slot.
+    gpu_stats: dict = field(default_factory=dict)
 
     def to_dict(self, run_index: int) -> dict:
         cpu_stats = _compute_frame_stats(self.active_frame_times_ms)
@@ -377,6 +399,7 @@ class _RunStats:
             "success_step_count": self.success_step_count,
             "cpu_frame_time_ms": cpu_stats,
             "fps": fps_stats,
+            "gpu_stats": self.gpu_stats,
         }
 
 
@@ -468,6 +491,130 @@ def _compute_fps_stats(samples_ms: list[float], renders_per_step: float) -> dict
     }
 
 
+# =============================================================================
+# GPU statistics
+# =============================================================================
+#
+# ``GpuStatsProvider`` is the modularity seam. The agent constructs a
+# provider at the start of each run, calls :meth:`sample` once per
+# active iteration, and consumes :meth:`summary` at run end to embed
+# the resulting dict under ``"gpu_stats"`` in the per-run report.
+#
+# ``NvmlGpuStatsProvider`` (default) is renderer-agnostic: it queries
+# NVML directly via ``pynvml`` and works wherever an NVIDIA driver is
+# installed -- no Kit dependency, no CUDA context needed. If you swap
+# the renderer out (e.g. move to a non-Kit visualization), this
+# provider still works.
+#
+# To add a renderer-specific provider in the future (Kit viewport
+# telemetry, Newton, etc.), define a class with the same
+# ``sample`` / ``summary`` signature and instantiate it inside
+# ``_run_single_replay`` in place of ``NvmlGpuStatsProvider``.
+
+
+@runtime_checkable
+class GpuStatsProvider(Protocol):
+    """Per-run GPU telemetry source.
+
+    Renderer-agnostic interface for sampling GPU state during a
+    replay. Implementations are expected to be cheap on
+    :meth:`sample` (<<1 ms; the agent calls it once per active
+    iteration in the hot path) and to return a JSON-serializable
+    dict from :meth:`summary` matching the shape documented on the
+    concrete impl.
+    """
+
+    def sample(self) -> None:
+        """Snapshot current GPU state. Called once per active iteration."""
+        ...
+
+    def summary(self) -> dict:
+        """Return the aggregated stats fragment for the run, embedded
+        as the ``"gpu_stats"`` value in the run's report dict."""
+        ...
+
+
+class NvmlGpuStatsProvider:
+    """NVML-backed :class:`GpuStatsProvider`.
+
+    Snapshots GPU utilization (%) and used memory (MB) for one
+    device per :meth:`sample` call via ``pynvml``. Per-call cost is
+    <100 us so per-frame sampling is fine at any realistic frame
+    rate. Soft-fails when ``pynvml`` is missing or initialization
+    fails (no NVIDIA driver, etc.); :meth:`sample` is then a no-op
+    and :meth:`summary` reports the failure reason.
+
+    Args:
+        device_index: NVML device index (typically 0 for the
+            workstation's primary GPU). Defaults to 0.
+
+    Summary shape on success::
+
+        {
+          "backend": "nvml",
+          "available": True,
+          "device_index": 0,
+          "device_name": "NVIDIA GeForce RTX 4090",
+          "memory_total_mb": 24564.0,
+          "utilization_percent": {<frame_stats shape>},
+          "memory_used_mb": {<frame_stats shape>}
+        }
+
+    On failure the ``"backend"`` / ``"available"`` fields are still
+    present plus a ``"reason"`` string.
+    """
+
+    def __init__(self, device_index: int = 0):
+        self._device_index = device_index
+        self._available = False
+        self._reason: str | None = None
+        self._device_name: str | None = None
+        self._memory_total_mb: float | None = None
+        self._util_samples: list[float] = []
+        self._mem_used_samples_mb: list[float] = []
+        try:
+            import pynvml
+
+            self._pynvml = pynvml
+            pynvml.nvmlInit()
+            self._handle = pynvml.nvmlDeviceGetHandleByIndex(device_index)
+            self._memory_total_mb = pynvml.nvmlDeviceGetMemoryInfo(self._handle).total / (1024 * 1024)
+            # nvmlDeviceGetName returns bytes on older bindings and str on newer ones; coerce both.
+            name = pynvml.nvmlDeviceGetName(self._handle)
+            self._device_name = name.decode("utf-8") if isinstance(name, bytes) else str(name)
+            self._available = True
+        except ImportError:
+            self._reason = "pynvml not installed (`pip install nvidia-ml-py` to enable)"
+        except Exception as exc:
+            self._reason = f"NVML init failed: {exc}"
+
+    def sample(self) -> None:
+        if not self._available:
+            return
+        try:
+            util = self._pynvml.nvmlDeviceGetUtilizationRates(self._handle)
+            mem = self._pynvml.nvmlDeviceGetMemoryInfo(self._handle)
+            self._util_samples.append(float(util.gpu))
+            self._mem_used_samples_mb.append(mem.used / (1024 * 1024))
+        except Exception:
+            # Transient NVML query failures shouldn't kill the replay loop;
+            # missing samples are reflected in the final ``n`` count.
+            pass
+
+    def summary(self) -> dict:
+        if not self._available:
+            return {"backend": "nvml", "available": False, "reason": self._reason}
+        return {
+            "backend": "nvml",
+            "available": True,
+            "device_index": self._device_index,
+            "device_name": self._device_name,
+            "memory_total_mb": round(self._memory_total_mb, 1) if self._memory_total_mb is not None else None,
+            "utilization_percent": _compute_frame_stats(self._util_samples),
+            "memory_used_mb": _compute_frame_stats(self._mem_used_samples_mb),
+        }
+
+
 def _build_report(args, all_runs: list[_RunStats]) -> dict:
     """Build the structured JSON report dict from a list of completed runs."""
     outcomes_count = {"success": 0, "failure": 0, "incomplete": 0, "timeout": 0}
@@ -533,6 +680,18 @@ def _aggregate_runs(run_dicts: list[dict]) -> dict:
         "fps": {
             "mean_of_means": _mean_or_none(_gather(["fps", "mean"])),
         },
+        "gpu_stats": {
+            "utilization_percent": {
+                "mean_of_means": _mean_or_none(_gather(["gpu_stats", "utilization_percent", "mean"])),
+                "mean_of_p90s": _mean_or_none(_gather(["gpu_stats", "utilization_percent", "p90"])),
+                "max_overall": _max_or_none(_gather(["gpu_stats", "utilization_percent", "max"])),
+            },
+            "memory_used_mb": {
+                "mean_of_means": _mean_or_none(_gather(["gpu_stats", "memory_used_mb", "mean"])),
+                "mean_of_p90s": _mean_or_none(_gather(["gpu_stats", "memory_used_mb", "p90"])),
+                "max_overall": _max_or_none(_gather(["gpu_stats", "memory_used_mb", "max"])),
+            },
+        },
     }
 
 
@@ -543,6 +702,14 @@ def _print_stdout_summary(report: dict) -> None:
 
     def _fmt(value: float | None, suffix: str = "") -> str:
         return f"{value:.2f}{suffix}" if isinstance(value, (int, float)) else "n/a"
+
+    def _gpu_segment(gpu_stats: dict) -> str:
+        """Render a compact GPU summary suffix, or empty when unavailable."""
+        if not isinstance(gpu_stats, dict) or not gpu_stats.get("available"):
+            return ""
+        util = gpu_stats.get("utilization_percent") or {}
+        mem = gpu_stats.get("memory_used_mb") or {}
+        return f" | gpu={_fmt(util.get('mean'), '%')} mem={_fmt(mem.get('max'), 'MB')}"
 
     print("--- Replay stats ---")
     for run in runs:
@@ -557,14 +724,20 @@ def _print_stdout_summary(report: dict) -> None:
             f" p90={_fmt(cpu['p90'], 'ms')}"
             f" p99={_fmt(cpu['p99'], 'ms')}"
             f" | mean_fps={_fmt(fps['mean'])}"
+            f"{_gpu_segment(run.get('gpu_stats', {}))}"
         )
 
     succ = report["outcomes"].get("success", 0)
     agg = report["aggregate"]
+    agg_gpu = agg.get("gpu_stats", {})
+    agg_util = agg_gpu.get("utilization_percent", {}) if isinstance(agg_gpu, dict) else {}
+    agg_mem = agg_gpu.get("memory_used_mb", {}) if isinstance(agg_gpu, dict) else {}
     print(
         f"Aggregate: success_rate={succ}/{total} ({report['success_rate']:.2f})"
         f" | mean_fps={_fmt(agg['fps']['mean_of_means'])}"
         f" | mean_p90={_fmt(agg['cpu_frame_time_ms']['mean_of_p90s'], 'ms')}"
+        f" | mean_gpu={_fmt(agg_util.get('mean_of_means'), '%')}"
+        f" | max_mem={_fmt(agg_mem.get('max_overall'), 'MB')}"
     )
 
 
@@ -874,6 +1047,18 @@ def _run_single_replay(
     renders_per_step = env.cfg.decimation / env.cfg.sim.render_interval
     stats = _RunStats(renders_per_step=renders_per_step)
 
+    # Default NVML-backed provider samples GPU utilization + used
+    # memory once per active iteration. ``NvmlGpuStatsProvider``
+    # soft-fails (the summary dict carries ``available: False`` and a
+    # reason) when ``nvidia-ml-py`` is missing or the driver is
+    # unreachable, so a missing GPU never blocks the replay. To swap
+    # in a renderer-specific provider (Kit viewport telemetry, Newton,
+    # ...) implement the :class:`GpuStatsProvider` Protocol and
+    # construct it here in place of :class:`NvmlGpuStatsProvider`.
+    gpu_stats_provider: GpuStatsProvider = NvmlGpuStatsProvider()
+    if run_index == 0 and not getattr(gpu_stats_provider, "_available", False):
+        print(f"[GPU stats] disabled: {getattr(gpu_stats_provider, '_reason', 'unknown reason')}")
+
     # CloudXR is owned by the agent (see ``_maybe_launch_cloudxr`` in
     # ``main``), so the per-run lifecycle must not try to launch -- or
     # stop -- it. ``cloudxr_env_file=None`` + ``auto_launch_cloudxr=False``
@@ -1013,6 +1198,12 @@ def _run_single_replay(
                     stats.active_frame_times_ms.append((iter_end_s - iter_start_s) * 1000.0)
                     last_active_end_s = iter_end_s
 
+                    # Snapshot GPU state right after env.step so the
+                    # sample reflects the active workload (post-render
+                    # for that frame). Provider is cheap (~50 us for
+                    # NVML, no-op when disabled).
+                    gpu_stats_provider.sample()
+
                     # Failure path: ``env.step`` already invoked
                     # ``_reset_idx`` for any env whose task-specific
                     # failure term fired (``time_out`` was cleared by
@@ -1067,6 +1258,7 @@ def _run_single_replay(
     if active_start_s is not None and last_active_end_s is not None:
         stats.active_duration_s = last_active_end_s - active_start_s
     stats.success_step_count = success_step_count
+    stats.gpu_stats = gpu_stats_provider.summary()
     return stats
 
 
