@@ -415,43 +415,74 @@ def test_does_not_mutate_sys_argv(monkeypatch):
     assert sys.argv == original
     # The folded form is exposed via the second return value.
     assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001"]
-    # Parsed namespace still carries the typed values.
-    # Parsed namespace exposes the value via the ``<label>_preset`` dest so it
-    # doesn't shadow other framework code that introspects the namespace
-    # (notably AppLauncher's ``renderer`` SimulationApp config key).
-    assert args.physics_preset == "newton_mjwarp"
-    assert not hasattr(args, "physics"), "typed-flag dest must not write the bare label onto the namespace"
+    # The preset value was consumed off the namespace -- ``--physics`` was
+    # registered with argparse (so ``--help`` lists it), but ``setup_preset_cli``
+    # pops the value when it folds into hydra_argv. The namespace AppLauncher
+    # reads off ``args_cli`` carries no preset attributes.
+    assert not hasattr(args, "physics"), "preset value must not remain on args after setup_preset_cli"
 
 
-def test_typed_flag_dest_does_not_collide_with_app_launcher_config(monkeypatch):
+def test_preset_values_popped_from_namespace(monkeypatch):
     """Locks the namespace contract that prevents the AppLauncher crash.
 
-    AppLauncher reads ``args.renderer`` (and other SimulationApp config keys)
-    off the args namespace and forwards each value to SimulationApp's config.
-    If ``--renderer NAME`` had landed at ``args.renderer = <preset name or
-    None>`` it would either crash SimulationApp (``None.lower()``) or push the
-    preset string into Kit's renderer mode field. The typed flags must store
-    under ``<label>_preset`` to avoid that. This test fails the moment that
-    contract regresses.
+    AppLauncher reads attributes off the args namespace by name (via the
+    ``set(_SIM_APP_CFG_TYPES) & set(vars(args))`` intersection) and forwards
+    each match into SimulationApp's config. If ``--renderer NAME`` left
+    ``args.renderer`` on the namespace, that would land at
+    ``SimulationApp.config["renderer"]`` and crash on ``None.lower()``.
 
-    The bare attributes that would collide are listed by name rather than
-    looked up dynamically so the test still fires if someone changes the
-    PresetTarget label values without updating the dest mapping in
-    ``setup_preset_cli``.
+    ``setup_preset_cli`` pops the preset attributes off the namespace after
+    folding them into the hydra token. This test fails the moment a preset
+    flag value leaks back onto ``args``.
     """
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--renderer=newton_renderer"])
+    monkeypatch.setattr(
+        "sys.argv",
+        ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp", "--renderer=newton_renderer", "--presets=albedo"],
+    )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     args, _ = setup_preset_cli(_make_parser())
-    # The value lands at the namespaced dest, not at the bare label.
-    assert getattr(args, "renderer_preset", None) == "newton_renderer"
-    # The bare label MUST NOT be on the namespace. AppLauncher's
-    # ``_SIM_APP_CFG_TYPES`` includes a ``renderer`` key with type ``[str]``,
-    # so any attribute named ``renderer`` on args_cli leaks into SimulationApp.
-    assert not hasattr(args, "renderer"), (
-        "setup_preset_cli set ``args.renderer`` -- this collides with"
-        " AppLauncher's SimulationApp ``renderer`` config key and crashes Kit."
-        " Use ``dest=f'{label}_preset'`` on the argparse registration."
+    for attr in ("physics", "renderer", "presets"):
+        assert not hasattr(args, attr), (
+            f"setup_preset_cli left ``args.{attr}`` on the namespace -- AppLauncher's name-based"
+            " forwarding can then push it into SimulationApp config. Pop the preset attributes"
+            " off ``vars(args)`` after folding into hydra_argv."
+        )
+
+
+def test_setup_does_not_leak_into_app_launcher_sim_app_intersection(monkeypatch):
+    """End-to-end regression for the CI crash: after ``setup_preset_cli`` runs,
+    the exact intersection :class:`~isaaclab.app.AppLauncher` computes on
+    line 681 (``set(_SIM_APP_CFG_TYPES) & set(vars(args))``) must not
+    contain any preset values.
+
+    This is the strongest available regression because it mirrors the
+    real bug shape rather than checking specific attribute names. If a
+    future :class:`PresetTarget` adds a flag whose value happens to alias
+    a Kit config key (``experience`` / ``width`` / ``renderer`` / ...), the
+    pop-after-parse loop still runs over the full enum so the intersection
+    stays clean; the moment the pop is bypassed, this test fails with the
+    leaked key surfaced verbatim. Locking the actual line that crashed --
+    not the named-attribute symptom -- keeps the contract durable across
+    renames of either side.
+    """
+    monkeypatch.setattr(
+        "sys.argv",
+        ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp", "--renderer=newton_renderer", "--presets=albedo"],
+    )
+    from isaaclab.app import AppLauncher
+
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.preset_target import PresetTarget
+
+    args, _ = setup_preset_cli(_make_parser())
+    intersection = set(AppLauncher._SIM_APP_CFG_TYPES.keys()) & set(vars(args).keys())
+    leaked = {t.value for t in PresetTarget} & intersection
+    assert not leaked, (
+        f"setup_preset_cli leaked preset value(s) {sorted(leaked)} into the AppLauncher"
+        " SimulationApp forwarding set -- they would land in SimulationApp.config and crash"
+        " Kit (``None.lower()`` for ``renderer``). Ensure every PresetTarget is popped off"
+        " ``vars(args)`` after folding into hydra_argv."
     )
 
 

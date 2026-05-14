@@ -138,32 +138,30 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
                 help=_help_text(target, actual_variants),
             )
         else:
-            # Use ``dest=f"{label}_preset"`` (e.g. ``renderer_preset``) so the
-            # parsed namespace key doesn't shadow attributes other framework code
-            # reads off the namespace -- notably ``AppLauncher`` reads
-            # ``args.renderer`` as the SimulationApp ``renderer`` config string,
-            # and a raw ``--renderer`` dest would inject ``None`` there. The
-            # user-facing flag stays ``--renderer NAME``; the dest is internal.
             group.add_argument(
                 f"--{target.value}",
                 type=str,
                 default=None,
                 metavar="NAME",
-                dest=f"{target.value}_preset",
                 help=_help_text(target, actual_variants),
             )
 
     args, remaining = parser.parse_known_args()
 
-    # Collect names in declaration order: typed first, then free-form --presets.
+    # Pop the preset-flag values off the namespace as we collect them. Leaving
+    # them on ``args`` would let AppLauncher's name-based forwarding pick up,
+    # e.g., ``args.renderer`` and push it into ``SimulationApp.config["renderer"]``
+    # (which then crashes on ``None.lower()``). After this loop the namespace
+    # carries no preset attributes; the values live only in ``hydra_argv``.
+    ns = vars(args)
     names: list[str] = []
     for target in PresetTarget:
         if target is PresetTarget.DOMAIN:
-            raw = args.presets
+            raw = ns.pop("presets", None)
             if raw:
                 names.extend(name.strip() for name in raw.split(",") if name.strip())
         else:
-            value = getattr(args, f"{target.value}_preset", None)
+            value = ns.pop(target.value, None)
             if value:
                 names.append(value)
 
