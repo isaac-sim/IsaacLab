@@ -3877,10 +3877,6 @@ class Articulation(BaseArticulation):
         # convert table to string
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
-        # read out all fixed tendon parameters from simulation
-        # if self.num_fixed_tendons > 0:
-        #     raise NotImplementedError("Fixed tendons are not supported yet.")
-
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Spatial tendons are not supported yet.")
 
