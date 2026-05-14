@@ -18,9 +18,11 @@ from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.envs.utils.camera_view import (
     apply_debug_oblique_env_camera_poses,
+    apply_camera_follow_positions,
     apply_camera_view_from_origins,
     camera_rgb_batch,
     compose_rgb_grid,
+    compose_rgb_grid_tensor,
     compute_tile_resolution,
     create_visualizer_camera,
     find_camera_by_prim_path,
@@ -78,6 +80,10 @@ class KitVisualizer(BaseVisualizer):
         self._camera_debug_frame = 0
         self._camera_update_count = 0
         self._camera_last_checksum: int | None = None
+        self._camera_pose_update_count = 0
+        self._camera_last_pose_debug: tuple[float, ...] | None = None
+        self._camera_gpu_upload_tensor = None
+        self._warned_gpu_upload_failure = False
         self._physics_backend: str | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
@@ -452,15 +458,38 @@ class KitVisualizer(BaseVisualizer):
             )
             return
         if self.cfg.cam_follow_prim_path:
-            origins = prim_world_positions(
-                self._scene_data_provider.get_usd_stage(), self.cfg.cam_follow_prim_path, self._camera_env_indices
+            follow_positions = prim_world_positions(
+                self._scene_data_provider.get_usd_stage(),
+                self.cfg.cam_follow_prim_path,
+                self._camera_env_indices,
+                scene=self._scene_data_provider.get_interactive_scene(),
             )
+            eyes, targets = apply_camera_follow_positions(self._camera_sensor, follow_positions, self.cfg.eye)
+            self._log_camera_pose_debug(eyes, targets)
+            return
         else:
             env_origins = self._scene_data_provider.get_interactive_scene().env_origins
             origins = env_origins[self._camera_env_indices].detach().cpu()
         apply_camera_view_from_origins(
             self._camera_sensor, origins, self.cfg.eye, self.cfg.lookat, self._camera_env_indices
         )
+
+    def _log_camera_pose_debug(self, eyes, targets) -> None:
+        """Log generated camera pose changes for follow-mode debugging."""
+        self._camera_pose_update_count += 1
+        first_eye = tuple(float(v) for v in eyes[0])
+        first_target = tuple(float(v) for v in targets[0])
+        pose_key = (*first_eye, *first_target)
+        changed = self._camera_last_pose_debug is None or pose_key != self._camera_last_pose_debug
+        if self._camera_pose_update_count <= 5 or self._camera_pose_update_count % 30 == 0:
+            logger.warning(
+                "[KitVisualizer] Camera pose update #%s first_eye=%s first_target=%s changed=%s",
+                self._camera_pose_update_count,
+                first_eye,
+                first_target,
+                changed,
+            )
+        self._camera_last_pose_debug = pose_key
 
     def _update_camera_image_panel(self, dt: float) -> None:
         """Refresh the non-interactive Kit image panel from camera RGB output."""
@@ -508,11 +537,31 @@ class KitVisualizer(BaseVisualizer):
             except Exception as exc:
                 logger.warning("[KitVisualizer] Failed to save individual camera debug tiles: %s", exc)
             self._logged_camera_panel_after_data = True
-        image = compose_rgb_grid(rgb) if self.cfg.tiled_cam_view else rgb[0].detach().contiguous().cpu().numpy()
+        image = compose_rgb_grid_tensor(rgb) if self.cfg.tiled_cam_view else rgb[0].contiguous()
         self._upload_camera_image_to_panel(image)
 
-    def _upload_camera_image_to_panel(self, image: np.ndarray) -> None:
+    def _upload_camera_image_to_panel(self, image: np.ndarray | torch.Tensor) -> None:
         """Upload an RGB/RGBA image to the Kit image provider."""
+        if isinstance(image, torch.Tensor):
+            if image.is_cuda:
+                try:
+                    import omni.gpu_foundation_factory as gf
+
+                    if image.ndim == 3 and image.shape[2] == 3:
+                        alpha = torch.full((*image.shape[:2], 1), 255, dtype=torch.uint8, device=image.device)
+                        image = torch.cat((image, alpha), dim=2)
+                    image = image.to(dtype=torch.uint8).contiguous()
+                    self._camera_gpu_upload_tensor = image
+                    self._camera_image_provider.set_bytes_data_from_gpu(
+                        int(image.data_ptr()), [int(image.shape[1]), int(image.shape[0])], gf.TextureFormat.RGBA8_UNORM
+                    )
+                    return
+                except Exception as exc:
+                    if not self._warned_gpu_upload_failure:
+                        logger.warning("[KitVisualizer] GPU image upload failed; falling back to CPU upload: %s", exc)
+                        self._warned_gpu_upload_failure = True
+            image = image.detach().contiguous().cpu().numpy()
+
         if not hasattr(self, "_logged_camera_panel_image_stats"):
             channel_mean = image[..., :3].reshape(-1, 3).mean(axis=0)
             logger.warning(

@@ -163,6 +163,20 @@ def compose_rgb_grid(rgb_batch: torch.Tensor) -> np.ndarray:
     return rgb_np.reshape(rows, cols, h, w, 3).transpose(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3)
 
 
+def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
+    """Compose an RGB batch into a near-square uint8 image grid without leaving its device."""
+    if rgb_batch.ndim == 3:
+        return rgb_batch[..., :3].contiguous()
+    n, h, w, _ = rgb_batch.shape
+    cols = max(1, math.ceil(math.sqrt(n)))
+    rows = math.ceil(n / cols)
+    rgb = rgb_batch[..., :3]
+    pad = rows * cols - n
+    if pad > 0:
+        rgb = torch.cat([rgb, torch.zeros((pad, h, w, 3), dtype=rgb.dtype, device=rgb.device)], dim=0)
+    return rgb.reshape(rows, cols, h, w, 3).permute(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3).contiguous()
+
+
 def compute_tile_resolution(window_width: int, window_height: int, num_tiles: int) -> tuple[int, int]:
     """Derive a conservative per-tile resolution from the visualizer window."""
     cols = max(1, math.ceil(math.sqrt(max(1, num_tiles))))
@@ -170,20 +184,66 @@ def compute_tile_resolution(window_width: int, window_height: int, num_tiles: in
     return max(1, int(window_width) // cols), max(1, int(window_height) // rows)
 
 
-def prim_world_positions(stage: Any, prim_path_template: str, env_indices: list[int]) -> torch.Tensor:
-    """Return world-space translations for concrete prim paths resolved from env ids."""
+def _normalize_env0_path(path_template: str) -> str:
+    """Resolve env template spellings to env_0 for path comparison."""
+    return env_path_from_template(path_template, 0)
+
+
+def _scene_articulation_positions(scene: Any, prim_path_template: str, env_indices: list[int]) -> torch.Tensor | None:
+    """Resolve follow positions from scene articulation state when the path targets an asset/body."""
+    follow_env0 = _normalize_env0_path(prim_path_template)
+    for asset in getattr(scene, "articulations", {}).values():
+        asset_path = _normalize_env0_path(getattr(asset.cfg, "prim_path", ""))
+        if not asset_path:
+            continue
+        if follow_env0 == asset_path:
+            return asset.data.root_pos_w.torch[env_indices].detach().cpu()
+        prefix = asset_path + "/"
+        if not follow_env0.startswith(prefix):
+            continue
+        body_name = follow_env0.removeprefix(prefix).split("/")[-1]
+        if body_name not in asset.body_names:
+            continue
+        body_ids, _ = asset.find_bodies(body_name)
+        if not body_ids:
+            continue
+        return asset.data.body_pos_w.torch[env_indices, int(body_ids[0])].detach().cpu()
+    return None
+
+
+def prim_world_positions(stage: Any, prim_path_template: str, env_indices: list[int], scene: Any | None = None) -> torch.Tensor:
+    """Return world-space translations for concrete prim paths resolved from env ids.
+
+    Uses ``FrameView`` first so PhysX/Fabric-backed transforms are current; falls
+    back to USD only if the backend view cannot be constructed.
+    """
     from pxr import UsdGeom
+
+    from isaaclab.sim.views import FrameView
+
+    if scene is not None:
+        positions = _scene_articulation_positions(scene, prim_path_template, env_indices)
+        if positions is not None:
+            return positions
 
     xform_cache = UsdGeom.XformCache()
     positions = []
     for env_id in env_indices:
         prim_path = env_path_from_template(prim_path_template, env_id)
-        prim = stage.GetPrimAtPath(prim_path)
-        if not prim.IsValid():
-            raise RuntimeError(f"cam_follow_prim_path resolved to missing prim: {prim_path!r}.")
-        transform = xform_cache.GetLocalToWorldTransform(prim)
-        translation = transform.ExtractTranslation()
-        positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
+        try:
+            view = FrameView(prim_path, device="cpu", stage=stage)
+            if view.count != 1:
+                raise RuntimeError(f"expected one prim, got {view.count}")
+            pos_w, _ = view.get_world_poses()
+            pos = pos_w.torch[0].detach().cpu()
+            positions.append((float(pos[0]), float(pos[1]), float(pos[2])))
+        except Exception:
+            prim = stage.GetPrimAtPath(prim_path)
+            if not prim.IsValid():
+                raise RuntimeError(f"cam_follow_prim_path resolved to missing prim: {prim_path!r}.")
+            transform = xform_cache.GetLocalToWorldTransform(prim)
+            translation = transform.ExtractTranslation()
+            positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
     return torch.tensor(positions, dtype=torch.float32)
 
 
@@ -199,13 +259,24 @@ def apply_camera_view_from_origins(
     origins = origins.to(device=device)
     eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
     lookat_offset = torch.tensor(lookat, dtype=torch.float32, device=device).unsqueeze(0)
-    # Temporary validation mode: force every generated camera to the same pose
-    # as tile 0. If renderer batching is correct, all tiles should match.
-    origin0 = origins[:1]
-    eyes = (origin0 + eye_offset).repeat(origins.shape[0], 1)
-    targets = (origin0 + lookat_offset).repeat(origins.shape[0], 1)
+    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset)
+    camera._update_poses(None)
+
+
+def apply_camera_follow_positions(
+    camera: Camera,
+    follow_positions: torch.Tensor,
+    eye: tuple[float, float, float],
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Set generated camera poses to look at followed prim positions."""
+    device = camera.device
+    follow_positions = follow_positions.to(device=device)
+    eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
+    eyes = follow_positions + eye_offset
+    targets = follow_positions
     camera.set_world_poses_from_view(eyes, targets)
     camera._update_poses(None)
+    return eyes.detach().cpu(), targets.detach().cpu()
 
 
 def apply_debug_top_down_grid_camera_poses(camera: Camera, env_indices: list[int], spacing: float = 20.0) -> None:

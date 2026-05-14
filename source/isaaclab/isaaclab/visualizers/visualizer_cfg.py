@@ -34,11 +34,15 @@ class VisualizerCfg:
     enable_live_plots: bool = True
     """Enable live plotting of data."""
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Initial camera eye position (x, y, z) in world coordinates."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera look-at point (x, y, z) in world coordinates."""
+    """Initial camera look-at point (x, y, z) in world coordinates.
+
+    Ignored for generated camera views when ``cam_follow_prim_path`` is set; those cameras
+    always look at the followed prim position.
+    """
 
     cam_source: Literal["cfg", "prim_path"] = "cfg"
     """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' uses Isaac Lab camera sensor output."""
@@ -46,18 +50,18 @@ class VisualizerCfg:
     cam_prim_path: str = "/World/envs/*/Camera"
     """Camera prim path or env wildcard path when cam_source='prim_path'."""
 
-    cam_follow_prim_path: str | None = None
+    cam_follow_prim_path: str | None = "/World/envs/*/Robot/base"
     """Optional prim path whose world pose anchors generated camera views.
 
-    When set, camera controls are disabled and eye/lookat are interpreted relative
-    to the matched follow prim. Wildcards resolve to env_0 for mono view and to
-    selected envs for tiled view.
+    When set, camera controls are disabled. ``eye`` is interpreted as a world-axis
+    offset from each matched follow prim, and ``lookat`` is ignored. Wildcards
+    resolve to env_0 for mono view and to selected envs for tiled view.
     """
 
-    tiled_cam_view: bool = True
+    tiled_cam_view: bool = False
     """Enable a non-interactive tiled camera image view."""
 
-    tiled_cam_num: int = 24
+    tiled_cam_num: int = 100
     """Number of camera tiles to show when tiled_cam_env_indices is None."""
 
     tiled_cam_env_indices: list[int] | None = None

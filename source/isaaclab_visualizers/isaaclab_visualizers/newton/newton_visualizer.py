@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -18,6 +19,7 @@ from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.envs.utils.camera_view import (
     apply_debug_oblique_env_camera_poses,
+    apply_camera_follow_positions,
     apply_camera_view_from_origins,
     camera_rgb_batch,
     compute_tile_resolution,
@@ -299,6 +301,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._logged_camera_stats = False
         self._camera_update_count = 0
         self._camera_last_checksum: int | None = None
+        self._camera_pose_update_count = 0
+        self._camera_last_pose_debug: tuple[float, ...] | None = None
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -319,9 +323,12 @@ class NewtonVisualizer(BaseVisualizer):
         self._model = scene_data_provider.get_newton_model()
         self._state = scene_data_provider.get_newton_state()
 
-        # Use pyglet's EGL headless backend when requested. Must run before the first
-        # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
-        if self.cfg.headless:
+        runtime_headless = self.cfg.headless or not os.environ.get("DISPLAY")
+
+        # Use pyglet's EGL headless backend when requested or when no X display is available.
+        # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
+        # :class:`~pyglet.window.headless.HeadlessWindow`.
+        if runtime_headless:
             import pyglet
 
             pyglet.options["headless"] = True
@@ -329,7 +336,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
-            headless=self.cfg.headless,
+            headless=runtime_headless,
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
         )
@@ -548,15 +555,38 @@ class NewtonVisualizer(BaseVisualizer):
             )
             return
         if self.cfg.cam_follow_prim_path:
-            origins = prim_world_positions(
-                self._scene_data_provider.get_usd_stage(), self.cfg.cam_follow_prim_path, self._camera_env_indices
+            follow_positions = prim_world_positions(
+                self._scene_data_provider.get_usd_stage(),
+                self.cfg.cam_follow_prim_path,
+                self._camera_env_indices,
+                scene=self._scene_data_provider.get_interactive_scene(),
             )
+            eyes, targets = apply_camera_follow_positions(self._camera_sensor, follow_positions, self.cfg.eye)
+            self._log_camera_pose_debug(eyes, targets)
+            return
         else:
             env_origins = self._scene_data_provider.get_interactive_scene().env_origins
             origins = env_origins[self._camera_env_indices].detach().cpu()
         apply_camera_view_from_origins(
             self._camera_sensor, origins, self.cfg.eye, self.cfg.lookat, self._camera_env_indices
         )
+
+    def _log_camera_pose_debug(self, eyes, targets) -> None:
+        """Log generated camera pose changes for follow-mode debugging."""
+        self._camera_pose_update_count += 1
+        first_eye = tuple(float(v) for v in eyes[0])
+        first_target = tuple(float(v) for v in targets[0])
+        pose_key = (*first_eye, *first_target)
+        changed = self._camera_last_pose_debug is None or pose_key != self._camera_last_pose_debug
+        if self._camera_pose_update_count <= 5 or self._camera_pose_update_count % 30 == 0:
+            logger.warning(
+                "[NewtonVisualizer] Camera pose update #%s first_eye=%s first_target=%s changed=%s",
+                self._camera_pose_update_count,
+                first_eye,
+                first_target,
+                changed,
+            )
+        self._camera_last_pose_debug = pose_key
 
     def _log_camera_sensor_image(self) -> None:
         """Log the selected camera sensor RGB output into Newton's image panel."""
