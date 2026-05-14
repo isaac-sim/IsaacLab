@@ -86,12 +86,11 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
     # Help-only group: no add_argument() calls means no preset attributes on
     # the Namespace, so AppLauncher can't accidentally forward one (notably
     # ``renderer``) into SimulationApp config.
-    parser.add_argument_group("preset selection", description=_build_description(actual_variants))
+    parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
     args, remaining = parser.parse_known_args()
 
     typed_labels = {t.value for t in PresetTarget if t.base_classes}
-    domain_label = PresetTarget.DOMAIN.value  # "presets" -- the broadcast selector key
     names: list[str] = []
     kept: list[str] = []
     for token in remaining:
@@ -104,7 +103,7 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
             stripped = val.strip()
             if stripped:
                 names.append(stripped)
-        elif key == domain_label:
+        elif key == PresetTarget.DOMAIN.value:
             names.extend(name.strip() for name in val.split(",") if name.strip())
         else:
             kept.append(token)
@@ -150,68 +149,70 @@ class _PresetHelpFormatter(argparse.HelpFormatter):
         return "\n\n".join(rendered)
 
 
-def _selector_syntax(target: PresetTarget) -> str:
-    """User-facing selector form for *target*: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
-    if target.base_classes:  # typed: single name
-        return f"{target.value}=NAME"
-    return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
+class _DescriptionBuilder:
+    """Renders the preset-selection ``argument_group`` description.
 
-
-def _selector_description(target: PresetTarget) -> str:
-    """One-line description of what *target*'s selector does, including the
-    cfg base class name for typed targets so users see what they're selecting.
+    Groups the column constants and per-row formatting that build the
+    selector table. Iterates :class:`PresetTarget` to produce one row per
+    selector; each row's syntax and description come from the enum, so
+    adding a new typed target needs no changes here.
     """
-    if target.base_classes:
-        return f"(typed) selects a {target.base_classes[0].__name__} variant"
-    return "broadcast: applied to every matching PresetCfg"
 
+    # Column widths. ``SELECTOR_COL`` = width of the longest selector syntax
+    # (``presets=NAME[,NAME,...]`` = 23 chars); shorter selectors right-pad
+    # to this width. ``DESC_GAP`` is the gap between syntax and description.
+    SELECTOR_COL = 23
+    DESC_GAP = 3
+    ROW_PREFIX = "    "
 
-# Column widths for the selector table. ``_SELECTOR_COL`` is the width of the
-# longest selector syntax (``presets=NAME[,NAME,...]`` = 23 chars); shorter
-# selectors are right-padded to this width. ``_DESC_GAP`` is the gap between
-# the syntax column and the description.
-_SELECTOR_COL = 23
-_DESC_GAP = 3
-_ROW_PREFIX = "    "  # leading indent for each selector row inside the group description
+    INTRO = "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"
+    EPILOG = "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
+    HINT = "Pass `--task=X` along with `--help` to see preset variants available for that task."
 
+    @classmethod
+    def build(cls, actual_variants: dict[PresetTarget, set[str]] | None) -> str:
+        """Build the description text.
 
-def _build_description(actual_variants: dict[PresetTarget, set[str]] | None) -> str:
-    """Build the preset-selection ``argument_group`` description.
+        Args:
+            actual_variants: ``None`` when no ``--task=X --help`` is in argv;
+                otherwise a ``{target: set[name]}`` bucketed view from
+                :func:`_enumerate_variants`.
+        """
+        with_available = actual_variants is not None
+        rows = [
+            cls._row(t, with_available=with_available, variants=sorted((actual_variants or {}).get(t, set())))
+            for t in PresetTarget
+        ]
+        middle = f"{cls.HINT}\n\n" if not with_available else ""
+        return f"{cls.INTRO}\n" + "\n".join(rows) + f"\n\n{middle}{cls.EPILOG}"
 
-    Iterates :class:`PresetTarget` to produce one row per selector; each row's
-    syntax and description come from the enum (no hardcoded labels). When
-    ``actual_variants`` is given, each row's available variants render as
-    bulleted lines underneath, indented to align with the description column.
-
-    Args:
-        actual_variants: ``None`` when no ``--task=X --help`` is in argv;
-            otherwise a ``{target: set[name]}`` bucketed view from
-            :func:`_enumerate_variants`.
-    """
-    intro = "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"
-    epilog = "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
-
-    # Bullet indent aligns with the description column once argparse prepends
-    # its 2-space group-description indent. = row prefix + selector column + gap.
-    bullet_indent = " " * (len(_ROW_PREFIX) + _SELECTOR_COL + _DESC_GAP)
-
-    def _row(target: PresetTarget, *, with_available: bool, variants: list[str]) -> str:
-        syntax = _selector_syntax(target).ljust(_SELECTOR_COL)
-        desc = _selector_description(target)
+    @classmethod
+    def _row(cls, target: PresetTarget, *, with_available: bool, variants: list[str]) -> str:
+        syntax = cls._syntax(target).ljust(cls.SELECTOR_COL)
+        desc = cls._description(target)
         suffix = ". Available:" if with_available else ""
-        header = f"{_ROW_PREFIX}{syntax}{' ' * _DESC_GAP}{desc}{suffix}"
+        header = f"{cls.ROW_PREFIX}{syntax}{' ' * cls.DESC_GAP}{desc}{suffix}"
         if not with_available:
             return header
+        # Bullet indent aligns with the description column once argparse
+        # prepends its 2-space group-description indent.
+        bullet_indent = " " * (len(cls.ROW_PREFIX) + cls.SELECTOR_COL + cls.DESC_GAP)
         body = "\n".join(f"{bullet_indent}- {n}" for n in variants) if variants else f"{bullet_indent}(none)"
         return f"{header}\n{body}"
 
-    if actual_variants is None:
-        rows = [_row(t, with_available=False, variants=[]) for t in PresetTarget]
-        hint = "Pass `--task=X` along with `--help` to see preset variants available for that task."
-        return f"{intro}\n" + "\n".join(rows) + f"\n\n{hint}\n\n{epilog}"
+    @staticmethod
+    def _syntax(target: PresetTarget) -> str:
+        """User-facing selector form: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
+        if target.base_classes:  # typed: single name
+            return f"{target.value}=NAME"
+        return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
 
-    rows = [_row(t, with_available=True, variants=sorted(actual_variants.get(t, set()))) for t in PresetTarget]
-    return f"{intro}\n" + "\n".join(rows) + f"\n\n{epilog}"
+    @staticmethod
+    def _description(target: PresetTarget) -> str:
+        """One-line description; for typed targets includes the cfg base class name."""
+        if target.base_classes:
+            return f"(typed) selects a {target.base_classes[0].__name__} variant"
+        return "broadcast: applied to every matching PresetCfg"
 
 
 # ============================================================================
