@@ -2626,7 +2626,6 @@ class Articulation(BaseArticulation):
             stiffness: float | torch.Tensor | wp.array,
             fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
             env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            full_data: bool = False,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers using indices.
 
@@ -2651,14 +2650,9 @@ class Articulation(BaseArticulation):
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        if full_data:
-            self.assert_shape_and_dtype(
-                stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "stiffness"
-            )
-        else:
-            self.assert_shape_and_dtype(
-                stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness"
-            )
+        self.assert_shape_and_dtype(
+            stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness"
+        )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
@@ -2729,7 +2723,6 @@ class Articulation(BaseArticulation):
             damping: float | torch.Tensor | wp.array,
             fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
             env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            full_data: bool = False,
     ) -> None:
         """Set fixed tendon damping into internal buffers using indices.
 
@@ -2749,15 +2742,13 @@ class Articulation(BaseArticulation):
                 (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        if full_data:
-            self.assert_shape_and_dtype(damping, (self.num_instances, self.num_fixed_tendons), wp.float32, "damping")
-        else:
-            self.assert_shape_and_dtype(damping, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
+
+        self.assert_shape_and_dtype(damping, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
+
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
@@ -2790,11 +2781,11 @@ class Articulation(BaseArticulation):
         # Only updates internal buffers, does not apply the damping to the simulation.
 
     def set_fixed_tendon_damping_mask(
-            self,
-            *,
-            damping: float | torch.Tensor | wp.array,
-            fixed_tendon_mask: wp.array | None = None,
-            env_mask: wp.array | None = None,
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers using masks.
 
@@ -3060,6 +3051,7 @@ class Articulation(BaseArticulation):
                 (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # TODO: Combine into one
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
