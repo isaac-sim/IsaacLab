@@ -126,7 +126,16 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
     if actual_variants is None:
         # Hoist the "no task yet" hint to the section header so it prints once,
         # instead of repeating identical text in each typed flag's help string.
-        description += " Pass `--task=X` along with `--help` to see preset variants available for that task."
+        # The "\n\n" puts the hint on its own paragraph so it stands out from
+        # the surrounding description blurb.
+        description += "\n\nPass `--task=X` along with `--help` to see preset variants available for that task."
+    # Default formatter reflows argument help into wrapped paragraphs, which
+    # would collapse the per-variant bullets emitted by ``_help_text`` into one
+    # line. Switch to a formatter that honors ``\n`` in argument help while
+    # still wrapping unmarked text -- AppLauncher's own help strings have no
+    # explicit newlines so they keep wrapping. Respect a caller-set formatter.
+    if parser.formatter_class is argparse.HelpFormatter:
+        parser.formatter_class = _PresetHelpFormatter
     group = parser.add_argument_group("preset selection", description=description)
     for target in PresetTarget:
         if target is PresetTarget.DOMAIN:
@@ -190,6 +199,39 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
 # ============================================================================
 
 
+class _PresetHelpFormatter(argparse.HelpFormatter):
+    """Argparse help formatter that wraps each paragraph separately and
+    preserves ``\\n`` inside argument help strings.
+
+    Default :class:`argparse.HelpFormatter` reflows the entire description
+    into one paragraph, merging the ``Pass --task=X`` hint into the surrounding
+    prose, and collapses the per-variant bullets emitted by :func:`_help_text`
+    into one line. :class:`~argparse.RawDescriptionHelpFormatter` solves the
+    first issue but drops wrapping entirely, leaving descriptions as one long
+    line. The overrides below do both: ``_fill_text`` wraps each
+    blank-line-separated paragraph independently, and ``_split_lines`` honors
+    explicit newlines in argument help. Arguments without ``\\n``
+    (AppLauncher's flags) wrap exactly as before.
+    """
+
+    def _fill_text(self, text: str, width: int, indent: str) -> str:
+        import textwrap
+
+        paragraphs = text.split("\n\n")
+        return "\n\n".join(textwrap.fill(p, width, initial_indent=indent, subsequent_indent=indent) for p in paragraphs)
+
+    def _split_lines(self, text: str, width: int) -> list[str]:
+        if "\n" not in text:
+            return super()._split_lines(text, width)
+        out: list[str] = []
+        for segment in text.splitlines():
+            if segment == "":
+                out.append("")
+            else:
+                out.extend(super()._split_lines(segment, width))
+        return out
+
+
 def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str]] | None) -> str:
     """Argparse ``help=`` string for a typed flag.
 
@@ -223,14 +265,15 @@ def _help_text(target: PresetTarget, actual_variants: dict[PresetTarget, set[str
     if target is PresetTarget.DOMAIN:
         # Free-form --presets accepts any name; list every variant we found.
         all_names = sorted({n for variants in actual_variants.values() for n in variants})
+        prefix = f"{label} (broadcast to every matching PresetCfg)."
         if not all_names:
-            return f"{label}. No preset variants in this task."
-        return f"{label} (broadcast to every matching PresetCfg). Available: {', '.join(all_names)}."
+            return f"{prefix} No preset variants in this task."
+        return f"{prefix} Available:\n" + "\n".join(f"  - {name}" for name in all_names)
 
     available = sorted(actual_variants.get(target, set()))
     if not available:
         return f"{label}. No {target.value} preset variants in this task."
-    return f"{label}. Available: {', '.join(available)}."
+    return f"{label}. Available:\n" + "\n".join(f"  - {name}" for name in available)
 
 
 # ============================================================================

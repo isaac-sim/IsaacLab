@@ -25,7 +25,9 @@ Added
   :func:`~isaaclab_tasks.utils.hydra.collect_presets`) and buckets them by
   ``isinstance`` against
   :attr:`~isaaclab_tasks.utils.preset_target.PresetTarget.base_classes` so
-  typed flags list only their own kind. Unknown names pass through verbatim;
+  typed flags list only their own kind. Variants render one per line as
+  ``- name`` bullets and the ``Pass --task=X`` hint sits on its own
+  paragraph when no task is given. Unknown names pass through verbatim;
   hydra's existing
   :func:`~isaaclab_tasks.utils.hydra._format_unknown_presets_error` produces
   the rich error at resolve time as before.

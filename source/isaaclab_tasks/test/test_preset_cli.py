@@ -293,16 +293,19 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
             [
                 "Physics preset name. No physics preset variants in this task.",
                 "Renderer preset name. No renderer preset variants in this task.",
-                "Comma-separated preset names. No preset variants in this task.",
+                (
+                    "Comma-separated preset names (broadcast to every matching PresetCfg)."
+                    " No preset variants in this task."
+                ),
             ],
             id="zero_variants_everywhere",
         ),
         pytest.param(
             "physics_only",
             [
-                "Physics preset name. Available: alpha, beta.",
+                "Physics preset name. Available: - alpha - beta",
                 "Renderer preset name. No renderer preset variants in this task.",
-                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: alpha, beta.",
+                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: - alpha - beta",
             ],
             id="typed_populated_other_typed_empty",
         ),
@@ -311,18 +314,18 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
             [
                 "Physics preset name. No physics preset variants in this task.",
                 "Renderer preset name. No renderer preset variants in this task.",
-                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: heavy, light.",
+                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: - heavy - light",
             ],
             id="domain_bucket_only",
         ),
         pytest.param(
             "mixed",
             [
-                "Physics preset name. Available: my_phys.",
-                "Renderer preset name. Available: my_rend.",
+                "Physics preset name. Available: - my_phys",
+                "Renderer preset name. Available: - my_rend",
                 (
                     "Comma-separated preset names (broadcast to every matching PresetCfg)."
-                    " Available: heavy, light, my_phys, my_rend."
+                    " Available: - heavy - light - my_phys - my_rend"
                 ),
             ],
             id="all_three_buckets_populated",
