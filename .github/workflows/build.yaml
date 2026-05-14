@@ -347,6 +347,8 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
+        # TEMP: Single test for SIGSEGV repro
+        include-files: "test_sensor_base.py"
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
