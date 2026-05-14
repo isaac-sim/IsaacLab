@@ -175,13 +175,18 @@ def _rename_builder_labels(
                 world_id = int(worlds[k])
                 if world_id not in world_roots:
                     continue
-                # ``removeprefix`` returns the suffix after src_root, or the original
-                # string when src_root isn't a prefix at all. Two legitimate match
-                # shapes: suffix == "" (exact root match) or suffix starts with "/"
-                # (descendant). Anything else is a boundary-bleed sibling like
-                # "/Sources/protoAB/x" (suffix "B/x" when src_root is "/Sources/protoA")
-                # — skip it.
-                suffix = v.removeprefix(src_root)
+                # Gate on an explicit prefix test before slicing. ``str.removeprefix``
+                # is tempting but conflates "match with empty suffix" and "no match"
+                # (both return a string starting with "/"), so a label already
+                # rewritten in an earlier source-iteration would be re-prepended to
+                # the next iteration's dst root.
+                if not v.startswith(src_root):
+                    continue
+                suffix = v[len(src_root) :]
+                # ``suffix == ""``     -> exact source-root match (rewrite to dst root).
+                # ``suffix[0] == "/"`` -> child path under source.
+                # otherwise           -> boundary-bleed sibling like "/Sources/protoAB/x"
+                #                        when src_root is "/Sources/protoA" -> skip.
                 if suffix and not suffix.startswith("/"):
                     continue
                 values[k] = world_roots[world_id] + suffix
