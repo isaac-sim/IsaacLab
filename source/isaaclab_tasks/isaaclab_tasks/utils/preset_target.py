@@ -71,13 +71,15 @@ class PresetTarget(enum.Enum):
     RENDERER = ("renderer", (RendererCfg,))
     """Camera-sensor renderers -- ``renderer=NAME`` selector."""
 
-    DOMAIN = ("domain",)
+    DOMAIN = ("presets",)
     """Free-form env-specific presets -- ``presets=NAME[,...]`` selector (catch-all).
 
     No ``base_classes`` -- any variant whose cfg class doesn't subclass a typed
     target's base ends up here. The ``presets=`` token also acts as a
     broadcast: hydra's resolver applies a DOMAIN-bucketed name to every
-    matching ``PresetCfg`` regardless of target.
+    matching ``PresetCfg`` regardless of target. ``self.value`` matches the
+    CLI selector key (``"presets"``) so the CLI layer can dispatch by
+    enum value without a hardcoded constant.
     """
 
     def __new__(

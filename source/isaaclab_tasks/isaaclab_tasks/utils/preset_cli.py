@@ -90,7 +90,8 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
 
     args, remaining = parser.parse_known_args()
 
-    typed_labels = {t.value for t in PresetTarget if t is not PresetTarget.DOMAIN}
+    typed_labels = {t.value for t in PresetTarget if t.base_classes}
+    domain_label = PresetTarget.DOMAIN.value  # "presets" -- the broadcast selector key
     names: list[str] = []
     kept: list[str] = []
     for token in remaining:
@@ -103,7 +104,7 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
             stripped = val.strip()
             if stripped:
                 names.append(stripped)
-        elif key == "presets":
+        elif key == domain_label:
             names.extend(name.strip() for name in val.split(",") if name.strip())
         else:
             kept.append(token)
@@ -149,13 +150,38 @@ class _PresetHelpFormatter(argparse.HelpFormatter):
         return "\n\n".join(rendered)
 
 
+def _selector_syntax(target: PresetTarget) -> str:
+    """User-facing selector form for *target*: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
+    if target.base_classes:  # typed: single name
+        return f"{target.value}=NAME"
+    return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
+
+
+def _selector_description(target: PresetTarget) -> str:
+    """One-line description of what *target*'s selector does, including the
+    cfg base class name for typed targets so users see what they're selecting.
+    """
+    if target.base_classes:
+        return f"(typed) selects a {target.base_classes[0].__name__} variant"
+    return "broadcast: applied to every matching PresetCfg"
+
+
+# Column widths for the selector table. ``_SELECTOR_COL`` is the width of the
+# longest selector syntax (``presets=NAME[,NAME,...]`` = 23 chars); shorter
+# selectors are right-padded to this width. ``_DESC_GAP`` is the gap between
+# the syntax column and the description.
+_SELECTOR_COL = 23
+_DESC_GAP = 3
+_ROW_PREFIX = "    "  # leading indent for each selector row inside the group description
+
+
 def _build_description(actual_variants: dict[PresetTarget, set[str]] | None) -> str:
     """Build the preset-selection ``argument_group`` description.
 
-    Renders each selector entry inline with its available variants directly
-    underneath, so users see the bucketed variants at the point where they
-    decide which selector to use. Emits ``\\n``-separated lines; the caller
-    sets the parser's ``formatter_class`` to one that preserves them.
+    Iterates :class:`PresetTarget` to produce one row per selector; each row's
+    syntax and description come from the enum (no hardcoded labels). When
+    ``actual_variants`` is given, each row's available variants render as
+    bulleted lines underneath, indented to align with the description column.
 
     Args:
         actual_variants: ``None`` when no ``--task=X --help`` is in argv;
@@ -165,42 +191,27 @@ def _build_description(actual_variants: dict[PresetTarget, set[str]] | None) -> 
     intro = "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"
     epilog = "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
 
+    # Bullet indent aligns with the description column once argparse prepends
+    # its 2-space group-description indent. = row prefix + selector column + gap.
+    bullet_indent = " " * (len(_ROW_PREFIX) + _SELECTOR_COL + _DESC_GAP)
+
+    def _row(target: PresetTarget, *, with_available: bool, variants: list[str]) -> str:
+        syntax = _selector_syntax(target).ljust(_SELECTOR_COL)
+        desc = _selector_description(target)
+        suffix = ". Available:" if with_available else ""
+        header = f"{_ROW_PREFIX}{syntax}{' ' * _DESC_GAP}{desc}{suffix}"
+        if not with_available:
+            return header
+        body = "\n".join(f"{bullet_indent}- {n}" for n in variants) if variants else f"{bullet_indent}(none)"
+        return f"{header}\n{body}"
+
     if actual_variants is None:
-        # No task yet -- just describe each selector; variants are task-
-        # specific and listed only when --task=X is also given.
-        selector_block = (
-            "    physics=NAME              (typed) selects a PhysicsCfg variant\n"
-            "    renderer=NAME             (typed) selects a RendererCfg variant\n"
-            "    presets=NAME[,NAME,...]   broadcast: applied to every matching PresetCfg"
-        )
+        rows = [_row(t, with_available=False, variants=[]) for t in PresetTarget]
         hint = "Pass `--task=X` along with `--help` to see preset variants available for that task."
-        return f"{intro}\n{selector_block}\n\n{hint}\n\n{epilog}"
+        return f"{intro}\n" + "\n".join(rows) + f"\n\n{hint}\n\n{epilog}"
 
-    # 30 spaces -> bullets land at column 33 once argparse prepends its 2-space
-    # group-description indent, aligning with where the inline ``(typed)`` /
-    # ``broadcast:`` descriptions begin under each selector header.
-    bullet_indent = " " * 30
-
-    def _variant_lines(names: list[str]) -> str:
-        return "\n".join(f"{bullet_indent}- {n}" for n in names) if names else f"{bullet_indent}(none)"
-
-    physics = sorted(actual_variants.get(PresetTarget.PHYSICS, set()))
-    renderer = sorted(actual_variants.get(PresetTarget.RENDERER, set()))
-    # DOMAIN is the catch-all: variants whose cfg type doesn't subclass any typed
-    # target's base. Typed variants stay only under their typed selector and are
-    # intentionally not duplicated under ``presets=`` (which would be
-    # broadcast-applied if used).
-    domain = sorted(actual_variants.get(PresetTarget.DOMAIN, set()))
-
-    phys_header = "physics=NAME              (typed) selects a PhysicsCfg variant. Available:"
-    rend_header = "renderer=NAME             (typed) selects a RendererCfg variant. Available:"
-    dom_header = "presets=NAME[,NAME,...]   broadcast: applied to every matching PresetCfg. Available:"
-    body = (
-        f"    {phys_header}\n{_variant_lines(physics)}\n"
-        f"    {rend_header}\n{_variant_lines(renderer)}\n"
-        f"    {dom_header}\n{_variant_lines(domain)}"
-    )
-    return f"{intro}\n{body}\n\n{epilog}"
+    rows = [_row(t, with_available=True, variants=sorted(actual_variants.get(t, set()))) for t in PresetTarget]
+    return f"{intro}\n" + "\n".join(rows) + f"\n\n{epilog}"
 
 
 # ============================================================================
