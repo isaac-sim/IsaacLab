@@ -162,10 +162,15 @@ def inject_cameras_into_usd(
     return temp_path, render_product_path
 
 
-def create_scene_partition_attributes(stage, num_envs: int = 1, use_cloning: bool = True) -> None:
+def create_scene_partition_attributes(
+    stage,
+    num_envs: int = 1,
+    use_ovrtx_cloning: bool = True,
+    enable_scene_partition_workaround: bool = False,
+) -> None:
     """Create scene partition attributes for env roots and cameras.
 
-    If use_cloning is True, only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
+    If use_ovrtx_cloning is True, only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
     OVRTX clones env_0 internally and _update_scene_partitions_after_clone sets partition attributes on the clones.
     So we only need to set attributes on env_0 here.
 
@@ -175,28 +180,34 @@ def create_scene_partition_attributes(stage, num_envs: int = 1, use_cloning: boo
     Args:
         stage: USD stage to modify.
         num_envs: Number of environments.
-        use_cloning: Whether OVRTX cloning is enabled.
+        use_ovrtx_cloning: Whether OVRTX cloning is enabled.
+        enable_scene_partition_workaround: Whether to enable the scene partition workaround for OVRTX 0.2.0 because it
+            doesn't support primvar inheritance.
     """
-    env_indices = [0] if use_cloning else range(num_envs)
-    with Sdf.ChangeBlock():
-        for env_idx in env_indices:
-            env_path = f"/World/envs/env_{env_idx}"
-            env_prim = stage.GetPrimAtPath(env_path)
-            if not env_prim.IsValid():
-                logger.warning("Failed to get env root prim at '%s'", env_path)
+    env_indices = [0] if use_ovrtx_cloning else range(num_envs)
+    for env_idx in env_indices:
+        env_path = f"/World/envs/env_{env_idx}"
+        env_prim = stage.GetPrimAtPath(env_path)
+        if not env_prim.IsValid():
+            logger.warning("Failed to get env root prim at '%s'", env_path)
+            continue
+
+        scene_partition = f"env_{env_idx}"
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+        logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
+
+        for prim in Usd.PrimRange(env_prim):
+            if prim.GetPath() == env_prim.GetPath():
                 continue
-
-            scene_partition = f"env_{env_idx}"
-            env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-            logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
-
-            for prim in Usd.PrimRange(env_prim):
-                if prim.IsA(UsdGeom.Camera):
-                    prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-                    logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
+            if prim.IsA(UsdGeom.Camera):
+                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+                logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
+            elif enable_scene_partition_workaround:
+                prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+                logger.debug("Set scene partition '%s' on prim '%s'", scene_partition, prim.GetPath())
 
 
-def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: bool = True) -> str:
+def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_ovrtx_cloning: bool = True) -> str:
     """Export the stage to a USD file; when num_envs > 1, only env_0 is exported for OVRTX cloning.
 
     When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
@@ -211,7 +222,7 @@ def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_cloning: 
         export_path (same as input).
     """
     deactivated = []
-    if use_cloning and num_envs > 1:
+    if use_ovrtx_cloning and num_envs > 1:
         logger.info("Deactivating %d cloned environments...", num_envs - 1)
         for env_idx in range(1, num_envs):
             env_path = f"/World/envs/env_{env_idx}"

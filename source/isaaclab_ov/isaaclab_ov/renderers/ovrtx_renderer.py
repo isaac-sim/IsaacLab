@@ -161,7 +161,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
 
-        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning
+        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning and _IS_OVRTX_0_3_0_OR_NEWER
 
         if self._use_ovrtx_cloning:
             clone_plan = SimulationContext.instance().get_clone_plan()
@@ -194,7 +194,7 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
-        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning)
+        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning, not _IS_OVRTX_0_3_0_OR_NEWER)
 
         export_path = "/tmp/stage_before_ovrtx.usda"
         export_stage_for_ovrtx(stage, export_path, num_envs, self._use_ovrtx_cloning)
