@@ -176,8 +176,13 @@ def _build_description(actual_variants: dict[PresetTarget, set[str]] | None) -> 
         hint = "Pass `--task=X` along with `--help` to see preset variants available for that task."
         return f"{intro}\n{selector_block}\n\n{hint}\n\n{epilog}"
 
+    # 30 spaces -> bullets land at column 33 once argparse prepends its 2-space
+    # group-description indent, aligning with where the inline ``(typed)`` /
+    # ``broadcast:`` descriptions begin under each selector header.
+    bullet_indent = " " * 30
+
     def _variant_lines(names: list[str]) -> str:
-        return "\n".join(f"        - {n}" for n in names) if names else "        (none)"
+        return "\n".join(f"{bullet_indent}- {n}" for n in names) if names else f"{bullet_indent}(none)"
 
     physics = sorted(actual_variants.get(PresetTarget.PHYSICS, set()))
     renderer = sorted(actual_variants.get(PresetTarget.RENDERER, set()))
