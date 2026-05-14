@@ -102,8 +102,8 @@ The following shows how to launch the container in a detached state and enter it
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
     ./docker/container.py enter base
 
-Some image extensions, such as the cuRobo image used in CI, run as a non-root user with uid/gid 1000
-to keep bind-mounted workspaces writable on GitHub runners. If you run one of these images directly with
+The Isaac Lab base, ROS 2, and cuRobo images run as a non-root user with uid/gid 1000 to keep
+bind-mounted workspaces writable on GitHub runners. If you run one of these images directly with
 ``docker run`` and your host uid/gid differs, pass Docker's ``--user "$(id -u):$(id -g)"`` option so
 new files on bind mounts are owned by your host user.
 

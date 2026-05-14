@@ -15,11 +15,12 @@ ROOT_USERS = {"root", "0"}
 # Keep every Dockerfile in this map so new containers must make an explicit
 # runtime-user decision instead of silently escaping this regression test.
 DOCKERFILE_RUNTIME_USERS = {
-    "Dockerfile.base": None,
+    "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
     "Dockerfile.installci": None,
-    "Dockerfile.ros2": None,
+    "Dockerfile.ros2": "isaaclab",
 }
+DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo"}
 
 USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")
 
@@ -60,9 +61,16 @@ def test_non_root_runtime_dockerfiles(dockerfile: Path):
     assert final_user not in ROOT_USERS
 
 
-def test_curobo_dockerfile_creates_non_root_runtime_user():
-    dockerfile_text = (DOCKER_DIR / "Dockerfile.curobo").read_text(encoding="utf-8")
+@pytest.mark.parametrize("dockerfile_name", sorted(DOCKERFILES_CREATING_RUNTIME_USER))
+def test_dockerfile_creates_non_root_runtime_user(dockerfile_name: str):
+    dockerfile_text = (DOCKER_DIR / dockerfile_name).read_text(encoding="utf-8")
 
     assert re.search(r"\bgroupadd\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
     assert re.search(r"\buseradd\b.*--uid\s+1000\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
     assert "USER isaaclab" in dockerfile_text
+
+
+def test_ros2_dockerfile_restores_non_root_runtime_user():
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.ros2").read_text(encoding="utf-8")
+
+    assert _user_directives(dockerfile_text) == ["root", "isaaclab"]

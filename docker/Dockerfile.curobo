@@ -26,9 +26,10 @@ ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
 # Path to the Isaac Lab directory
 ARG ISAACLAB_PATH_ARG
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
-# Home dir of docker user, typically '/root'
+# Home dir of the runtime docker user, typically '/root'
 ARG DOCKER_USER_HOME_ARG
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+ENV HOME=${DOCKER_USER_HOME}
 
 # Set environment variables
 ENV LANG=C.UTF-8
@@ -178,14 +179,14 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --editable ${ISAACLAB_PATH}/source/isaaclab_teleop
 
 # aliasing isaaclab.sh and python for convenience
-RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
-    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
-    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
+RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
 
@@ -200,9 +201,12 @@ RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
         ${DOCKER_USER_HOME}
 
-# Open up traversal of the Isaac Sim root for the non-root runtime user. Inner
-# files keep their original permissions, so avoid chowning the full install.
-RUN chmod 755 ${ISAACSIM_ROOT_PATH}
+# Open up traversal of the Isaac Sim root and runtime home for non-root users.
+# Inner Isaac Sim files keep their original permissions, so avoid chowning the
+# full install.
+RUN chmod 755 \
+        ${ISAACSIM_ROOT_PATH} \
+        ${DOCKER_USER_HOME}
 
 # copy the rest of the files
 COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
