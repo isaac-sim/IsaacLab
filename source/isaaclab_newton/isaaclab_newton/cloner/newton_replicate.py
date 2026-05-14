@@ -127,6 +127,15 @@ def _rename_builder_labels(
 ) -> None:
     """Rename builder labels/keys from source roots to destination roots.
 
+    Walks both built-in label arrays (``body``, ``joint``, ``shape``,
+    ``articulation``, ``constraint_mimic``, ``equality_constraint``) and any
+    string-typed custom-attribute column whose frequency declares a sibling
+    world column (``references="world"``).
+    The ``startswith(src_prefix)`` guard makes the rewrite a no-op for strings that
+    are not paths under the source, so non-path custom string columns are passed
+    through untouched and any future solver-registered string column is handled
+    automatically without changes here.
+
     Args:
         builder: Newton model builder to update in-place.
         sources: Source prim root paths.
@@ -136,21 +145,55 @@ def _rename_builder_labels(
     """
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
-        src_prefix_len = len(src_path.rstrip("/"))
+        # Boundary-terminated prefix prevents over-matching when one source path is a
+        # prefix of another (e.g. ``/Sources/protoA`` vs ``/Sources/protoAB``).
+        src_prefix = src_path.rstrip("/") + "/"
+        src_prefix_len = len(src_prefix) - 1  # slice index keeps the leading "/" in the suffix
         swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
         # Map Newton world IDs (sequential) to destination paths using env_ids
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
-        for t in ("body", "joint", "shape", "articulation"):
+        def _rename_pair(values, worlds):
+            if len(values) != len(worlds):
+                raise ValueError(f"label/world column length mismatch: {len(values)} vs {len(worlds)}")
+            for k in range(len(values)):
+                world_id = int(worlds[k])
+                if world_id in world_roots and isinstance(values[k], str) and values[k].startswith(src_prefix):
+                    values[k] = swap(values[k], world_roots[world_id])
+
+        # Pass 1: built-in label arrays. Each has a paired ``*_world`` int column.
+        # Use ``is None`` (not ``or``) so an empty-but-defined ``*_label`` column
+        # is recognized — falling through to ``*_key`` would over-match a
+        # builder that legitimately exposes both attributes.
+        for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
             labels = getattr(builder, f"{t}_label", None)
             if labels is None:
-                labels = getattr(builder, f"{t}_key")
-            worlds_arr = getattr(builder, f"{t}_world")
-            for k, w in enumerate(worlds_arr):
-                world_id = int(w)
-                if world_id in world_roots and labels[k].startswith(src_path):
-                    labels[k] = swap(labels[k], world_roots[world_id])
+                labels = getattr(builder, f"{t}_key", None)
+            worlds_arr = getattr(builder, f"{t}_world", None)
+            if labels is None or worlds_arr is None:
+                continue
+            _rename_pair(labels, worlds_arr)
+
+        # Pass 2: string-typed custom-attribute columns (e.g. ``mujoco:tendon_label``)
+        # paired with a world companion declared via ``references="world"``. Index
+        # world companions by frequency for O(1) lookup, then walk the str columns.
+        custom = builder.custom_attributes
+        world_by_freq: dict[str, ModelBuilder.CustomAttribute] = {}
+        for attr in custom.values():
+            if getattr(attr, "references", None) == "world":
+                world_by_freq[attr.frequency] = attr
+        for attr in custom.values():
+            if attr.dtype is not str:
+                continue
+            world_attr = world_by_freq.get(attr.frequency)
+            if world_attr is None:
+                continue
+            values = attr.values
+            worlds = world_attr.values
+            if not values or not worlds:
+                continue
+            _rename_pair(values, worlds)
 
 
 def newton_physics_replicate(
