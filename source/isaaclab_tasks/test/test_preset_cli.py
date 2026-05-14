@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the typed-flag preset CLI translator.
+"""Tests for the typed-preset CLI translator.
 
-The CLI is a pure translator -- it folds typed flags into ``presets=<csv>``
-and registers help text. It does no validation. Name validation, alias
-rewriting, and resolution all live in :mod:`isaaclab_tasks.utils.hydra`
-and have their own tests in ``test_hydra.py``; this file does not
-re-cover them.
+The CLI is a pure translator -- it folds Hydra-style ``physics=`` / ``renderer=`` /
+``presets=`` tokens into a single ``presets=<csv>`` token and renders task-aware
+help. It does no validation. Name validation, alias rewriting, and resolution all
+live in :mod:`isaaclab_tasks.utils.hydra` and have their own tests in
+``test_hydra.py``; this file does not re-cover them.
 """
 
 from __future__ import annotations
@@ -54,11 +54,11 @@ def test_preset_target_carries_base_classes():
 
 
 # ---------------------------------------------------------------------------
-# setup_preset_cli: typed flags fold into a single presets=<csv> token
+# setup_preset_cli: hydra-style tokens fold into a single presets=<csv> token
 # ---------------------------------------------------------------------------
 
 
-def test_no_preset_flags_returns_remainder_only(monkeypatch):
+def test_no_preset_tokens_returns_remainder_only(monkeypatch):
     original = ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"]
     monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
@@ -70,10 +70,10 @@ def test_no_preset_flags_returns_remainder_only(monkeypatch):
     assert sys.argv == original
 
 
-def test_physics_flag_translates_to_presets_token(monkeypatch):
+def test_physics_token_translates_to_presets_token(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
-        ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "env.sim.dt=0.001"],
+        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "env.sim.dt=0.001"],
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
@@ -81,18 +81,15 @@ def test_physics_flag_translates_to_presets_token(monkeypatch):
     assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001"]
 
 
-def test_three_flags_merge_into_one_token(monkeypatch):
+def test_three_tokens_merge_into_one_token(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
         [
             "train.py",
             "--task=Foo-v0",
-            "--physics",
-            "newton_mjwarp",
-            "--renderer",
-            "newton_renderer",
-            "--presets",
-            "albedo,depth",
+            "physics=newton_mjwarp",
+            "renderer=newton_renderer",
+            "presets=albedo,depth",
         ],
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
@@ -101,21 +98,10 @@ def test_three_flags_merge_into_one_token(monkeypatch):
     assert hydra_argv == ["presets=newton_mjwarp,newton_renderer,albedo,depth"]
 
 
-def test_merges_with_existing_presets_token(monkeypatch):
-    monkeypatch.setattr(
-        "sys.argv",
-        ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "presets=albedo"],
-    )
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    _, hydra_argv = setup_preset_cli(_make_parser())
-    assert hydra_argv == ["presets=newton_mjwarp,albedo"]
-
-
 def test_dedupes_repeated_names(monkeypatch):
     monkeypatch.setattr(
         "sys.argv",
-        ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "presets=newton_mjwarp,albedo"],
+        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "presets=newton_mjwarp,albedo"],
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
@@ -123,12 +109,17 @@ def test_dedupes_repeated_names(monkeypatch):
     assert hydra_argv == ["presets=newton_mjwarp,albedo"]
 
 
-def test_equals_form_works(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp"])
+def test_path_targeted_overrides_pass_through(monkeypatch):
+    """Hydra path-targeted overrides like ``env.sim.dt=0.001`` are not preset
+    tokens; they flow through unchanged in the kept remainder."""
+    monkeypatch.setattr(
+        "sys.argv",
+        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "env.sim.dt=0.001", "agent.lr=3e-4"],
+    )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     _, hydra_argv = setup_preset_cli(_make_parser())
-    assert hydra_argv == ["presets=newton_mjwarp"]
+    assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001", "agent.lr=3e-4"]
 
 
 # ---------------------------------------------------------------------------
@@ -143,10 +134,7 @@ def test_unknown_physics_name_passes_through_silently(monkeypatch, capsys):
     preset name; the resolver has the loaded task's full vocabulary and
     produces the rich error at resolve time if the name truly doesn't exist.
     """
-    monkeypatch.setattr(
-        "sys.argv",
-        ["train.py", "--task=Foo-v0", "--physics", "newton_mujoco"],
-    )
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "physics=newton_mujoco"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     _, hydra_argv = setup_preset_cli(_make_parser())
@@ -155,10 +143,10 @@ def test_unknown_physics_name_passes_through_silently(monkeypatch, capsys):
     assert err == ""
 
 
-def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
+def test_custom_task_preset_via_broadcast_passes_through(monkeypatch, capsys):
     """A task-local custom preset name (e.g. Dexsuite's ``cube``) is accepted via
-    the typed flag with no fuss -- the registry is a hint, not a gate."""
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "--presets", "cube,peg_insert_4mm,mayank_solver"])
+    the broadcast selector with no fuss -- the registry is a hint, not a gate."""
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Foo-v0", "presets=cube,peg_insert_4mm,mayank_solver"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     _, hydra_argv = setup_preset_cli(_make_parser())
@@ -168,7 +156,7 @@ def test_custom_task_preset_via_typed_flag_passes_through(monkeypatch, capsys):
 
 
 # ---------------------------------------------------------------------------
-# Helpers: _peek_task and _bucket_variants_by_target
+# Helpers: _ArgvHelper and _bucket_variants_by_target
 # ---------------------------------------------------------------------------
 
 
@@ -190,7 +178,7 @@ def test_argv_helper_finds_task_separated_form():
 def test_argv_helper_task_missing_returns_none():
     from isaaclab_tasks.utils.preset_cli import _ArgvHelper
 
-    argv = _ArgvHelper(["train.py", "--physics", "newton_mjwarp"])
+    argv = _ArgvHelper(["train.py", "physics=newton_mjwarp"])
     assert argv.task_name is None
     assert argv.help_requested is False
 
@@ -205,14 +193,22 @@ def test_argv_helper_detects_help_flag():
     assert _ArgvHelper(["train.py", "env.sim.dt=0.001"]).help_requested is False
 
 
+def test_argv_helper_task_returns_last_value():
+    """argparse's ``store`` action uses the last ``--task``; the scanner
+    must match so ``--help`` shows variants for the task argparse will
+    actually use."""
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
+
+    assert _ArgvHelper(["train.py", "--task=Old", "--task=New"]).task_name == "New"
+    assert _ArgvHelper(["train.py", "--task", "Old", "--task", "New"]).task_name == "New"
+    assert _ArgvHelper(["train.py", "--task=Old", "--task", "New"]).task_name == "New"
+
+
 def test_bucket_variants_routes_by_base_class_isinstance():
     """Variants bucket by ``isinstance`` against ``PresetTarget.base_classes``.
 
     PhysicsCfg subclass instances route to PHYSICS, RendererCfg subclass
     instances route to RENDERER, and everything else falls into DOMAIN.
-    This also covers the wrapper-class case that motivated the design:
-    a wrapper cfg that subclasses ``PhysicsCfg`` (e.g., ``NewtonCfg``) is
-    routed correctly even when its inner solver class is something else.
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -255,7 +251,7 @@ def test_bucket_variants_routes_by_base_class_isinstance():
         },
     }
     result = _bucket_variants_by_target(walked)
-    # All four physics variants bucket to PHYSICS (including the wrapper-shaped ones).
+    # All physics variants bucket to PHYSICS (including the wrapper-shaped ones).
     assert {"physx", "newton_mjwarp", "newton_kamino"} <= result[PresetTarget.PHYSICS]
     assert "newton_renderer" in result[PresetTarget.RENDERER]
     # Primitive-typed variants land in DOMAIN.
@@ -266,7 +262,7 @@ def test_bucket_variants_routes_by_base_class_isinstance():
 
 
 # ---------------------------------------------------------------------------
-# --help: task-aware variant listing
+# --help: section description renders the variant listing
 # ---------------------------------------------------------------------------
 
 
@@ -290,56 +286,34 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
     [
         pytest.param(
             "empty",
-            [
-                "Physics preset name. No physics preset variants in this task.",
-                "Renderer preset name. No renderer preset variants in this task.",
-                (
-                    "Comma-separated preset names (broadcast to every matching PresetCfg)."
-                    " No preset variants in this task."
-                ),
-            ],
+            ["physics: (none)", "renderer: (none)", "presets: (none)"],
             id="zero_variants_everywhere",
         ),
         pytest.param(
             "physics_only",
-            [
-                "Physics preset name. Available: - alpha - beta",
-                "Renderer preset name. No renderer preset variants in this task.",
-                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: - alpha - beta",
-            ],
+            ["physics: - alpha - beta", "renderer: (none)", "presets: (none)"],
             id="typed_populated_other_typed_empty",
         ),
         pytest.param(
             "domain_only",
-            [
-                "Physics preset name. No physics preset variants in this task.",
-                "Renderer preset name. No renderer preset variants in this task.",
-                "Comma-separated preset names (broadcast to every matching PresetCfg). Available: - heavy - light",
-            ],
+            ["physics: (none)", "renderer: (none)", "presets: - heavy - light"],
             id="domain_bucket_only",
         ),
         pytest.param(
             "mixed",
-            [
-                "Physics preset name. Available: - my_phys",
-                "Renderer preset name. Available: - my_rend",
-                (
-                    "Comma-separated preset names (broadcast to every matching PresetCfg)."
-                    " Available: - heavy - light - my_phys - my_rend"
-                ),
-            ],
+            ["physics: - my_phys", "renderer: - my_rend", "presets: - heavy - light"],
             id="all_three_buckets_populated",
         ),
     ],
 )
 def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phrases):
-    """Each branch of :func:`_help_text` renders the documented string for
-    its variant shape. ``PhysicsCfg`` subclass instances land in
-    ``--physics``; ``RendererCfg`` subclass instances land in ``--renderer``;
-    primitives and task-local cfg classes fall into the ``--presets``
-    DOMAIN catch-all. The parametrize id captures which branch each case
-    locks; argparse line-wrapping is normalized away before substring
-    assertions so wording changes are deliberate.
+    """Each branch of :func:`_build_description` renders the documented strings
+    for its variant shape. Typed-bucketed names (PhysicsCfg/RendererCfg subclass
+    instances) appear only under their typed section; the DOMAIN bucket
+    (``presets:``) lists only variants that fell into the catch-all. The
+    parametrize id captures which branch each case locks; argparse line-
+    wrapping is normalized away before substring assertions so wording changes
+    are deliberate.
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -408,70 +382,52 @@ def test_does_not_mutate_sys_argv(monkeypatch):
     rely on so an ``--external_callback`` hook invoked after ``setup_preset_cli``
     can still read the user's original command line. If mutation happened
     here, the callback would see the folded ``presets=...`` token instead of
-    ``--physics newton_mjwarp`` and fail to recognize the user's intent."""
-    original = ["train.py", "--task=Foo-v0", "--physics", "newton_mjwarp", "env.sim.dt=0.001"]
+    ``physics=newton_mjwarp`` and fail to recognize the user's intent."""
+    original = ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "env.sim.dt=0.001"]
     monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    args, hydra_argv = setup_preset_cli(_make_parser())
+    _, hydra_argv = setup_preset_cli(_make_parser())
     # sys.argv must remain exactly what the user typed.
     assert sys.argv == original
     # The folded form is exposed via the second return value.
     assert hydra_argv == ["presets=newton_mjwarp", "env.sim.dt=0.001"]
-    # The preset value was consumed off the namespace -- ``--physics`` was
-    # registered with argparse (so ``--help`` lists it), but ``setup_preset_cli``
-    # pops the value when it folds into hydra_argv. The namespace AppLauncher
-    # reads off ``args_cli`` carries no preset attributes.
-    assert not hasattr(args, "physics"), "preset value must not remain on args after setup_preset_cli"
 
 
-def test_preset_values_popped_from_namespace(monkeypatch):
-    """Locks the namespace contract that prevents the AppLauncher crash.
+def test_namespace_carries_no_preset_attributes(monkeypatch):
+    """Hydra-style tokens are never registered with argparse, so the parsed
+    Namespace gains no ``physics`` / ``renderer`` / ``presets`` attribute.
 
-    AppLauncher reads attributes off the args namespace by name (via the
-    ``set(_SIM_APP_CFG_TYPES) & set(vars(args))`` intersection) and forwards
-    each match into SimulationApp's config. If ``--renderer NAME`` left
-    ``args.renderer`` on the namespace, that would land at
-    ``SimulationApp.config["renderer"]`` and crash on ``None.lower()``.
-
-    ``setup_preset_cli`` pops the preset attributes off the namespace after
-    folding them into the hydra token. This test fails the moment a preset
-    flag value leaks back onto ``args``.
+    This is the bug-class-level guarantee against AppLauncher's name-based
+    forwarding (``set(_SIM_APP_CFG_TYPES) & set(vars(args))``,
+    ``app_launcher.py:681``): an attribute that doesn't exist can't collide.
     """
     monkeypatch.setattr(
         "sys.argv",
-        ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp", "--renderer=newton_renderer", "--presets=albedo"],
+        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "renderer=newton_renderer", "presets=albedo"],
     )
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     args, _ = setup_preset_cli(_make_parser())
     for attr in ("physics", "renderer", "presets"):
         assert not hasattr(args, attr), (
-            f"setup_preset_cli left ``args.{attr}`` on the namespace -- AppLauncher's name-based"
-            " forwarding can then push it into SimulationApp config. Pop the preset attributes"
-            " off ``vars(args)`` after folding into hydra_argv."
+            f"setup_preset_cli wrote ``args.{attr}`` to the namespace -- AppLauncher's name-based"
+            " forwarding can then push it into SimulationApp config. Drop the argparse registration"
+            " for preset selectors and use Hydra-style tokens instead."
         )
 
 
 def test_setup_does_not_leak_into_app_launcher_sim_app_intersection(monkeypatch):
-    """End-to-end regression for the CI crash: after ``setup_preset_cli`` runs,
-    the exact intersection :class:`~isaaclab.app.AppLauncher` computes on
-    line 681 (``set(_SIM_APP_CFG_TYPES) & set(vars(args))``) must not
-    contain any preset values.
-
-    This is the strongest available regression because it mirrors the
-    real bug shape rather than checking specific attribute names. If a
-    future :class:`PresetTarget` adds a flag whose value happens to alias
-    a Kit config key (``experience`` / ``width`` / ``renderer`` / ...), the
-    pop-after-parse loop still runs over the full enum so the intersection
-    stays clean; the moment the pop is bypassed, this test fails with the
-    leaked key surfaced verbatim. Locking the actual line that crashed --
-    not the named-attribute symptom -- keeps the contract durable across
-    renames of either side.
+    """Mirrors the literal intersection :class:`~isaaclab.app.AppLauncher`
+    computes (``set(_SIM_APP_CFG_TYPES) & set(vars(args))``,
+    ``app_launcher.py:681``). After ``setup_preset_cli`` runs with all three
+    preset selectors, no preset name can be in that intersection -- the only
+    keys present are those AppLauncher itself registered on the parser
+    (``headless``, ``experience``, ...).
     """
     monkeypatch.setattr(
         "sys.argv",
-        ["train.py", "--task=Foo-v0", "--physics=newton_mjwarp", "--renderer=newton_renderer", "--presets=albedo"],
+        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "renderer=newton_renderer", "presets=albedo"],
     )
     from isaaclab.app import AppLauncher
 
@@ -484,34 +440,18 @@ def test_setup_does_not_leak_into_app_launcher_sim_app_intersection(monkeypatch)
     assert not leaked, (
         f"setup_preset_cli leaked preset value(s) {sorted(leaked)} into the AppLauncher"
         " SimulationApp forwarding set -- they would land in SimulationApp.config and crash"
-        " Kit (``None.lower()`` for ``renderer``). Ensure every PresetTarget is popped off"
-        " ``vars(args)`` after folding into hydra_argv."
+        " Kit (``None.lower()`` for ``renderer``). The hydra-style grammar keeps the namespace"
+        " clean of preset attributes; this test guards against accidentally re-introducing them."
     )
 
 
 def test_hydra_argv_keeps_presets_token_for_telemetry(monkeypatch):
     """Benchmarks capture ``hydra_argv`` for ``get_preset_string`` telemetry.
     Verify ``hydra_argv[0]`` is the folded ``presets=...`` token whenever any
-    preset flag was given, so ``get_preset_string`` keeps reporting the
+    preset selector was given, so ``get_preset_string`` keeps reporting the
     active preset selection."""
-    monkeypatch.setattr("sys.argv", ["bench.py", "--task=Foo-v0", "--physics=newton_mjwarp"])
+    monkeypatch.setattr("sys.argv", ["bench.py", "--task=Foo-v0", "physics=newton_mjwarp"])
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     _, hydra_argv = setup_preset_cli(_make_parser())
     assert hydra_argv[0] == "presets=newton_mjwarp"
-
-
-# ---------------------------------------------------------------------------
-# _peek_task: argparse-compatible semantics for repeated / malformed --task
-# ---------------------------------------------------------------------------
-
-
-def test_argv_helper_task_returns_last_value():
-    """argparse's ``store`` action uses the last ``--task``; the scanner
-    must match so ``--help`` shows variants for the task argparse will
-    actually use."""
-    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
-
-    assert _ArgvHelper(["train.py", "--task=Old", "--task=New"]).task_name == "New"
-    assert _ArgvHelper(["train.py", "--task", "Old", "--task", "New"]).task_name == "New"
-    assert _ArgvHelper(["train.py", "--task=Old", "--task", "New"]).task_name == "New"
