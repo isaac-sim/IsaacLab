@@ -180,15 +180,22 @@ runs:
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
           fi
 
-          echo "Docker environment variables: '$docker_env_vars'"
-
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
           # source code over /workspace/isaaclab instead of baking it into the image.
           docker_volume_args=""
+          docker_user_args=""
           if [ -n "$volume_mount_source" ]; then
+            host_uid="$(id -u)"
+            host_gid="$(id -g)"
+            host_user="$(id -un)"
             docker_volume_args="-v ${volume_mount_source}:/workspace/isaaclab"
+            docker_user_args="--user ${host_uid}:${host_gid}"
+            docker_env_vars="$docker_env_vars -e HOME=/workspace/isaaclab -e XDG_CACHE_HOME=/workspace/isaaclab/.cache -e USER=${host_user} -e LOGNAME=${host_user}"
             echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"
+            echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
           fi
+
+          echo "Docker environment variables: '$docker_env_vars'"
 
           # Run tests in a detached container and follow logs.  Running detached
           # means the container lifecycle is independent of the shell - if the
@@ -206,6 +213,7 @@ runs:
             --ulimit nofile=65536:65536 \
             --ulimit nproc=4096:4096 \
             $docker_volume_args \
+            $docker_user_args \
             $docker_env_vars \
             $image_tag \
             -c "
