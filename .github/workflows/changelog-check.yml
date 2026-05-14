@@ -44,5 +44,11 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin ${{ steps.base.outputs.ref }}
 
+      - name: Install docutils
+        # Used by tools/changelog/cli.py to parse the rendered fragment-merge
+        # with the same engine ``sphinx-build`` uses, so structural RST issues
+        # that would fail the doc build are caught at the PR gate.
+        run: pip install docutils
+
       - name: Verify changelog fragments
         run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}

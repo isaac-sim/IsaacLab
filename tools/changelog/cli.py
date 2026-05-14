@@ -299,28 +299,6 @@ class Fragment:
                 f"section(s) {', '.join(repr(s) for s in empty)} have no bullet entries — "
                 "use ``* `` to start each entry, or remove the heading"
             )
-        # Every line inside a section body must be a bullet (``* ``), a
-        # continuation (leading whitespace), or blank. A column-0 non-blank
-        # line that isn't a bullet terminates the list under RST rules and
-        # then sits as a paragraph adjacent to the next ``* `` — which the
-        # compile step splices into ``CHANGELOG.rst`` under the same
-        # ``^^^`` subheading and Sphinx then rejects with
-        # ``Unexpected indentation``. Catch it here before merge.
-        for section, lines in sections.items():
-            for offset, line in enumerate(lines):
-                if not line.strip():
-                    continue
-                if line[0].isspace() or line.lstrip().startswith("*"):
-                    continue
-                snippet = line.strip()[:80]
-                return (
-                    f"section {section!r} contains an orphan paragraph "
-                    f"(non-bullet line {offset + 1}: {snippet!r}). Every line under "
-                    "a section heading must start with ``* `` (new bullet) or whitespace "
-                    "(continuation of the previous bullet). A flush-left paragraph here "
-                    "splits the bullet list and Sphinx fails the doc build with "
-                    "``Unexpected indentation``."
-                )
         return None
 
 
@@ -398,6 +376,136 @@ class FragmentBatch:
     def merged_sections(self) -> dict[str, list[str]]:
         """Cross-fragment merged section map for this batch."""
         return self._merge_sections([s for _, s in self.parsed()])
+
+    def validate_compile_output(self, package_name: str) -> str | None:
+        """Lint the rendered fragment-merge output with docutils.
+
+        Compiles every parsed fragment via :meth:`_merge_sections` +
+        :meth:`_format_entry` into the exact RST block the nightly bot
+        would prepend to ``CHANGELOG.rst``, then parses that block with
+        the same engine the doc build uses. Any docutils WARNING+ on the
+        compiled output would also fail ``sphinx-build -W`` downstream,
+        so flagging here keeps doc-build green.
+
+        Returns ``None`` on a clean parse, or a human-readable error
+        string naming the package and listing each diagnostic with its
+        line number in the would-be entry.
+        """
+        if not self.valid:
+            return None  # nothing to compile yet
+        entry = self._format_entry("0.0.0", self.merged_sections())
+        errors = self._CompiledLinter.lint(entry, f"<{package_name} compiled fragments>")
+        if not errors:
+            return None
+        joined = "\n  ".join(errors)
+        return (
+            f"package {package_name!r}: compiled fragment output would fail "
+            f"the doc build (docutils WARNING+ on the merged section text). "
+            f"This usually means two fragments collide at a section seam (e.g. "
+            f"one ends a section with a paragraph, the next starts with a "
+            f"bullet) or a single fragment has malformed RST (unclosed ``...``, "
+            f"under-indented continuation, etc.). Diagnostics:\n  {joined}"
+        )
+
+    class _CompiledLinter:
+        """docutils-based lint of the rendered fragment-merge output.
+
+        Nested on :class:`FragmentBatch` to keep the two cooperating helpers
+        (:meth:`_register_sphinx_role_stubs`, :meth:`lint`) in the same
+        namespace — they serve a single purpose (parse a compiled fragment
+        block exactly the way ``sphinx-build`` would) and the role-stub
+        registration must run before :meth:`lint` parses anything.
+        """
+
+        # Sphinx interpreted-text roles used across IsaacLab fragments.
+        # Vanilla docutils doesn't know any of these, so without stubs every
+        # ``:class:`` / ``:meth:`` / ``:attr:`` etc. would emit a spurious
+        # ``Unknown interpreted text role`` warning that drowns out the real
+        # structural issues we want to catch.
+        SPHINX_STUB_ROLES = (
+            "attr",
+            "class",
+            "meth",
+            "func",
+            "mod",
+            "data",
+            "exc",
+            "obj",
+            "paramref",
+            "ref",
+            "doc",
+            "term",
+            "kbd",
+            "file",
+            "envvar",
+        )
+
+        @classmethod
+        def _register_sphinx_role_stubs(cls) -> None:
+            """Register Sphinx roles as no-op literals so docutils doesn't warn.
+
+            Idempotent — docutils' registry stores the latest registration per
+            name and re-registering the same stub is harmless.
+            """
+            from docutils import nodes
+            from docutils.parsers.rst import roles
+
+            def _stub(role, rawtext, text, lineno, inliner, options=None, content=None):
+                return [nodes.literal(rawtext, text)], []
+
+            for name in cls.SPHINX_STUB_ROLES:
+                roles.register_local_role(name, _stub)
+
+        @classmethod
+        def lint(cls, text: str, source_label: str) -> list[str]:
+            """Parse ``text`` as RST and return WARNING+ system messages.
+
+            The parser is the same engine that backs ``sphinx-build``, so
+            structural issues docutils flags here would also fail the doc
+            build under ``-W``. Sphinx roles are pre-registered as no-ops
+            via :meth:`_register_sphinx_role_stubs`.
+
+            Args:
+                text: RST source — typically the output of
+                    :meth:`FragmentBatch._format_entry` (the would-be
+                    ``CHANGELOG.rst`` entry the bot will write next).
+                source_label: Human-readable label that appears in
+                    docutils' error messages.
+
+            Returns:
+                Deduplicated list of error strings ``"line N: <msg>"``;
+                empty list means clean.
+            """
+            import io  # local — keep cli.py importable when docutils is absent
+
+            from docutils import frontend, utils
+            from docutils.parsers.rst import Parser
+
+            cls._register_sphinx_role_stubs()
+
+            settings = frontend.OptionParser(components=(Parser,)).get_default_values()
+            settings.report_level = 0  # collect every diagnostic; filter below
+            settings.halt_level = 5  # never halt
+            settings.warning_stream = io.StringIO()  # suppress stderr; we observe
+
+            doc = utils.new_document(source_label, settings)
+            collected: list = []
+            # Observe every system_message the reporter emits, even ones the
+            # parser swallows during recovery (e.g. inline literal warnings).
+            doc.reporter.attach_observer(lambda msg: collected.append(msg))
+            Parser().parse(text, doc)
+
+            seen: set[str] = set()
+            out: list[str] = []
+            for msg in collected:
+                if int(msg["level"]) < 2:
+                    continue  # WARNING (2), ERROR (3), SEVERE (4) only
+                line = msg.get("line", "?")
+                entry = f"line {line}: {msg.astext()}"
+                if entry not in seen:
+                    seen.add(entry)
+                    out.append(entry)
+            return out
 
     def compile_to_entry(
         self,
@@ -818,10 +926,20 @@ class PRDiff:
                     continue
                 added_slugs[slug] = path.name
 
+            # Rule 4: the rendered fragment-merge must parse cleanly with docutils.
+            # Only run when this PR touches the package's changelog.d/ — otherwise
+            # the compiled output is identical to what already shipped on the base
+            # branch and is the next bot run's problem, not this PR's. Run after
+            # all per-fragment checks so the lint sees only well-formed inputs.
+            if added_slugs:
+                lint_err = FragmentBatch.from_dir(existing_dir).validate_compile_output(pkg.name)
+                if lint_err:
+                    invalid_fragments.append((f"source/{pkg.name}/changelog.d/", lint_err))
+
             if not source_changed:
                 continue
 
-            # Rule 4: this PR must add at least one valid fragment for the package.
+            # Rule 5: this PR must add at least one valid fragment for the package.
             owned = [
                 f
                 for f in fragment_changes

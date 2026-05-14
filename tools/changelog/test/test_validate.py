@@ -70,12 +70,27 @@ def test_validate_rejects_section_without_bullets_from_fixture():
     assert err is not None and "bullet" in err.lower()
 
 
-def test_validate_rejects_orphan_paragraph_from_fixture():
-    """A flush-left paragraph between bullets / after the last bullet must be
-    rejected — the compile step would splice it verbatim into ``CHANGELOG.rst``
-    and Sphinx then fails the doc build with ``Unexpected indentation``."""
-    err = cli.Fragment(FIXTURES / "invalid_content" / "3004.rst").validate()
-    assert err is not None and "orphan" in err.lower()
+def test_validate_accepts_orphan_paragraph_in_isolation():
+    """A single fragment with a paragraph between its bullets and the next
+    section header is valid RST (Sphinx accepts it). The structural bug
+    only appears when the merged ``CHANGELOG.rst`` chains the orphan-tail
+    of fragment A onto the bullet-head of fragment B with no blank line;
+    that case lives in the batch-level check, not here."""
+    body = (
+        "Added\n^^^^^\n\n"
+        "* First bullet.\n"
+        "* Second bullet.\n\n"
+        "This is a stand-alone note about the additions above.\n"
+        "\n"
+        "Changed\n^^^^^^^\n\n"
+        "* Something else.\n"
+    )
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "1234.rst"
+        p.write_text(body, encoding="utf-8")
+        assert cli.Fragment(p).validate() is None
 
 
 # ---------------------------------------------------------------------------
