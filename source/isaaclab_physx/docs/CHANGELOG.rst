@@ -1,6 +1,67 @@
 Changelog
 ---------
 
+0.7.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX implementations of
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`, and
+  :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  on :class:`~isaaclab_physx.assets.ArticulationData`. The COM
+  variant is a passthrough to ``physx.ArticulationView.get_jacobians``;
+  the link-origin variant applies a new
+  :func:`~isaaclab_physx.assets.articulation.kernels.shift_jacobian_com_to_origin`
+  Warp kernel to convert the COM-referenced linear-velocity rows to
+  link-origin references using each body's pose and COM offset. All
+  four properties preserve the full DoF axis, including the 6 leading
+  floating-base columns/rows PhysX's raw tensor view prepends on
+  floating-base assets — matching the cross-library industry convention
+  (Pinocchio, Drake, MuJoCo, RBDL, OCS2, iDynTree) and Newton's
+  ``ArticulationView`` layout.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.pre_render` so the
+  PhysX backend can drive
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  once per render frame when the active visualizer/renderer set requires a
+  Newton model.
+
+Changed
+^^^^^^^
+
+* Switched the Newton install spec to ``newton[sim]`` in the ``newton``
+  extra so the MuJoCo solver dependencies are pulled in transitively.
+  Required because pip resolves a git-URL requirement once for the URL;
+  a bare ``newton @ git+...`` here would shadow the ``[sim]`` extra
+  requested elsewhere.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_physx.scene_data_providers`` package
+  (``PhysxSceneDataProvider``). The Warp-native
+  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` now exposes
+  PhysX rigid-body transforms via
+  :class:`~isaaclab_physx.physics.PhysxSceneDataBackend`, and the
+  PhysX→Newton state sync used by Newton visualizers/renderers moved to
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`.
+
+Fixed
+^^^^^
+
+* Fixed a latent correctness bug in IK / OSC controllers on the PhysX
+  backend, where the previously-exposed Jacobian was COM-referenced but
+  the controllers used :attr:`~isaaclab_physx.assets.ArticulationData.body_link_pose_w`
+  as the EE pose setpoint. The frame mismatch caused tracking error on
+  bodies whose COM offset is non-trivial. The new
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+  applies the COM→origin shift so the Jacobian and pose share a
+  reference point.
+
+
 0.6.4 (2026-05-13)
 ~~~~~~~~~~~~~~~~~~
 
