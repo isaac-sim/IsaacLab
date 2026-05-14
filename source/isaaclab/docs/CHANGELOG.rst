@@ -25,15 +25,15 @@ Added
   base). Use it to map an actuated-joint index ``j`` to its column in the
   Jacobian / mass matrix / gravity vector via ``j + num_base_dofs``.
 
-The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
-base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
-num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
-num_joints + num_base_dofs)`` for the mass matrix. This matches the
-cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
-Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
-``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
-6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
-returning ``(6 + dofs, 6 + dofs)``).
+* The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
+  base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
+  num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
+  num_joints + num_base_dofs)`` for the mass matrix. This matches the
+  cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
+  Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
+  ``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
+  6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
+  returning ``(6 + dofs, 6 + dofs)``).
 * Added :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.usd_stage`,
   :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`, and
   :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
