@@ -11,22 +11,46 @@ fastest way to get started and is ideal for users who only need the Newton physi
 Cloning and installing Isaac Lab
 --------------------------------
 
-With the virtual environment activated, clone the repository and run the kit-less installer:
+With the virtual environment activated, clone the repository:
 
 .. code-block:: bash
 
-   # Clone Isaac Lab
    git clone https://github.com/isaac-sim/IsaacLab.git
    cd IsaacLab
 
-   # Install Isaac Lab (Newton backend, no Isaac Sim required)
-   ./isaaclab.sh --install   # or ./isaaclab.sh -i
+Then install Isaac Lab (Newton backend, no Isaac Sim required) and kickoff training
+with MJWarp physics and the Newton visualizer:
 
-   # Kickoff training with MJWarp physics and Newton visualizer
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-   --task=Isaac-Cartpole-Direct-v0 \
-   --num_envs=16 --max_iterations=10 \
-   presets=newton_mjwarp --visualizer newton
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         # Install Isaac Lab (Newton backend, no Isaac Sim required)
+         ./isaaclab.sh --install   # or ./isaaclab.sh -i
+
+         # Kickoff training with MJWarp physics and Newton visualizer
+         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         --task=Isaac-Cartpole-Direct-v0 \
+         --num_envs=16 --max_iterations=10 \
+         presets=newton_mjwarp --visualizer newton
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         :: Install Isaac Lab (Newton backend, no Isaac Sim required)
+         isaaclab.bat --install   :: or isaaclab.bat -i
+
+         :: Kickoff training with MJWarp physics and Newton visualizer
+         isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
+         --task=Isaac-Cartpole-Direct-v0 ^
+         --num_envs=16 --max_iterations=10 ^
+         presets=newton_mjwarp --visualizer newton
 
 
 **Features available in kit-less mode (Newton backend, no Isaac Sim):**
@@ -92,13 +116,30 @@ sub-package names:
 
 Examples:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   # Minimal Newton setup
-   ./isaaclab.sh -i newton,tasks,assets,ov,rl[rsl_rl]
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-   # Newton with OVRTX, RSL-RL, and Newton visualizer
-   ./isaaclab.sh -i newton,tasks,assets,ov[ovrtx],rl[rsl_rl],visualizers[newton]
+      .. code-block:: bash
+
+         # Minimal Newton setup
+         ./isaaclab.sh -i newton,tasks,assets,ov,rl[rsl_rl]
+
+         # Newton with OVRTX, RSL-RL, and Newton visualizer
+         ./isaaclab.sh -i newton,tasks,assets,ov[ovrtx],rl[rsl_rl],visualizers[newton]
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         :: Minimal Newton setup
+         isaaclab.bat -i newton,tasks,assets,ov,rl[rsl_rl]
+
+         :: Newton with OVRTX, RSL-RL, and Newton visualizer
+         isaaclab.bat -i newton,tasks,assets,ov[ovrtx],rl[rsl_rl],visualizers[newton]
 
 
 .. _installation-ovrtx:
@@ -108,19 +149,50 @@ OVRTX Rendering
 
 OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -i ov[ovrtx]
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
-     --headless --enable_cameras --num_envs 16 --max_iterations 10 \
-     presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
+      .. code-block:: bash
+
+         ./isaaclab.sh -i ov[ovrtx]
+
+         ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+           --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
+           --headless --enable_cameras --num_envs 16 --max_iterations 10 \
+           presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -i ov[ovrtx]
+
+         isaaclab.bat -p scripts\benchmarks\benchmark_rsl_rl.py ^
+           --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 ^
+           --headless --enable_cameras --num_envs 16 --max_iterations 10 ^
+           presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
 
 
 Running Installation Tests
 --------------------------
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p -m pytest source/isaaclab/test/cli/test_cli_utils.py -v
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p -m pytest source/isaaclab/test/cli/test_cli_utils.py -v
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p -m pytest source\isaaclab\test\cli\test_cli_utils.py -v

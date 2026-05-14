@@ -274,6 +274,17 @@ class SimulationContext:
             "enable_shadows": "/rtx/shadows/enabled",
             "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
             "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+            "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
+            "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
+            "subpixel_mode": "/rtx/raytracing/subpixel/mode",
+            "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
+            "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
+            "view_tile_limit": "/rtx/viewTile/limit",
+            # RT2 path tracing settings
+            "max_bounces": "/rtx/rtpt/maxBounces",
+            "split_glass": "/rtx/rtpt/splitGlass",
+            "split_clearcoat": "/rtx/rtpt/splitClearcoat",
+            "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
         }
 
         for key, value in vars(render_cfg).items():
