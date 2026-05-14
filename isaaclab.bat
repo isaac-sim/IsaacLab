@@ -29,8 +29,13 @@ set "PYTHONPATH=%ISAACLAB_PATH%\source\isaaclab;%PYTHONPATH%"
 rem If a local Isaac Sim binary is present, source its env setup so that
 rem PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
 rem activate.d hook (those don't fire under e.g. `conda run` on Windows).
-if exist "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" (
-    call "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" >NUL
+if exist "%ISAACLAB_PATH%\_isaac_sim\" (
+    if exist "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" (
+        call "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" >NUL
+    ) else (
+        echo [WARNING] _isaac_sim is present but _isaac_sim\setup_conda_env.bat is missing; Isaac Sim env vars not exported. 1>&2
+        echo [WARNING] Re-extract the Isaac Sim Windows zip if you intend to use the bundled binary. 1>&2
+    )
 )
 
 rem Execute CLI.

@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX scene data provider backends."""
+__all__ = [
+    "RigidObject",
+    "RigidObjectData",
+]
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
+from .rigid_object import RigidObject
+from .rigid_object_data import RigidObjectData

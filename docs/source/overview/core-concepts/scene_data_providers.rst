@@ -1,85 +1,104 @@
-Scene Data Providers
-====================
+Scene Data Provider
+===================
 
-Scene Data Providers bridge physics simulation backends and visualization/rendering systems in
-Isaac Lab. They provide a unified interface for accessing scene data (transforms, velocities,
-Newton model/state) regardless of which physics backend is active.
+The :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` bridges physics simulation
+backends and the visualizers/renderers that consume scene data. It exposes a single Warp-native
+read path for body transforms regardless of which physics backend (PhysX or Newton) is active,
+so renderers and visualizers can stay backend-agnostic.
 
 Overview
 --------
 
 Isaac Lab supports multiple physics backends (PhysX and Newton) and multiple visualizers
-(Omniverse Kit, Newton, Rerun, Viser). Each combination requires scene data to flow from the
-physics engine to the renderer. Scene Data Providers handle this translation automatically
-through a factory pattern.
+(Omniverse Kit, Newton, Rerun, Viser). Each combination needs scene data to flow from the
+physics engine into the renderer or visualizer. The :class:`SceneDataProvider` owns this flow:
+the physics manager provides a :class:`~isaaclab.physics.SceneDataBackend` that wraps its
+native tensor views, and the provider handles format conversion and re-mapping on top of it.
 
 .. code-block:: python
 
-   from isaaclab.physics import SceneDataProvider
+   from isaaclab.sim import SimulationContext
 
-   # Factory auto-selects the correct implementation based on active physics backend
-   provider = SceneDataProvider(stage, simulation_context)
+   # The SimulationContext owns the active provider; consumers fetch it instead of
+   # constructing one directly.
+   provider = SimulationContext.instance().get_scene_data_provider()
 
 Architecture
 ------------
 
 The system has three layers:
 
-1. **BaseSceneDataProvider** — abstract interface defining the contract:
+1. :class:`~isaaclab.physics.SceneDataBackend` — small interface implemented by each physics
+   manager. It exposes the backend's transform array directly as one of the
+   :class:`~isaaclab.physics.SceneDataFormat` Warp structs, plus the per-transform prim paths
+   and total count. There is no per-frame "update" call — the property accessors return live
+   views into the underlying tensor each time they're read.
 
-   - ``update()`` — refresh cached scene data (full Newton model/state sync when applicable)
-   - ``get_newton_model()`` — return Newton model handle (if available)
-   - ``get_newton_state()`` — return Newton state handle (if available)
-   - ``get_usd_stage()`` — return USD stage handle (if available)
-   - ``get_transforms()`` — return body transforms
-   - ``get_velocities()`` — return body velocities
-   - ``get_contacts()`` — return contact data
-   - ``get_camera_transforms()`` — return per-camera, per-env transforms
-   - ``get_metadata()`` — return backend metadata (num_envs, gravity, etc.)
+   - :attr:`SceneDataBackend.transforms` — current transforms as a Warp struct (one of
+     :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
+     :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
+   - :attr:`SceneDataBackend.transform_count` — number of transforms.
+   - :attr:`SceneDataBackend.transform_paths` — list of USD prim paths, one per transform.
 
-2. **SceneDataProvider** — factory that auto-selects the backend-specific implementation
-   based on the active :class:`~isaaclab.physics.PhysicsManager`.
+2. :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` — wraps a backend and offers
+   format conversion plus index re-mapping:
 
-3. **Backend implementations:**
+   - :meth:`SceneDataProvider.get_transforms` — write the backend's transforms into a
+     consumer-provided :class:`SceneDataFormat` struct, optionally converting format
+     (e.g. ``Vec3_Quat`` → ``Transform``) and applying an index mapping. When the backend
+     format matches the output format and no mapping is provided, the result is a zero-copy
+     passthrough.
+   - :meth:`SceneDataProvider.create_mapping` — build a remap array from the backend's prim
+     paths to a consumer's desired ordering. Used when a renderer or visualizer wants
+     transforms indexed by its own body list rather than by the physics view order.
+   - :meth:`SceneDataProvider.get_camera_transforms` — discover per-camera, per-env
+     world transforms from the USD stage.
+   - :attr:`SceneDataProvider.usd_stage` — USD stage handle for stage-walking consumers.
+   - :attr:`SceneDataProvider.num_envs` — environment count inferred from
+     ``/World/envs/env_<id>`` prims.
 
-   - :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`
-   - :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`
+3. Backend implementations:
 
-PhysX Scene Data Provider
--------------------------
+   - ``PhysxSceneDataBackend`` (internal to :mod:`isaaclab_physx.physics`) wraps PhysX's
+     ``RigidBodyView`` and exposes its transforms as :class:`SceneDataFormat.Transform`.
+   - ``NewtonSceneDataBackend`` (internal to :mod:`isaaclab_newton.physics`) wraps the
+     Newton model's ``body_q`` and exposes it as :class:`SceneDataFormat.Transform`.
 
-When PhysX is the active physics backend, the provider **builds and maintains a Newton model
-from the USD stage**, then syncs PhysX transforms into it each frame. This is necessary because
-Newton-based visualizers (Newton, Rerun, Viser) require a Newton model/state to render.
+PhysX backend
+-------------
 
-The sync pipeline:
+When PhysX is the active physics backend, the provider reads transforms directly from PhysX's
+``RigidBodyView`` (a wildcard-expanded tensor view covering every rigid body across all envs).
+The transforms are returned as :class:`SceneDataFormat.Transform` (Warp ``transformf`` array),
+so consumers that want this format get them zero-copy.
 
-1. Reads transforms from PhysX ``RigidBodyView`` (fast tensor API)
-2. Falls back to :class:`~isaaclab.sim.views.FrameView` for bodies not covered by the rigid body view
-3. Converts and writes merged poses into the Newton state via Warp kernels
+Newton-native consumers (Newton visualizer, Rerun, Viser, Newton Warp renderer, OVRTX renderer)
+additionally need a Newton ``Model``/``State`` to render against. To satisfy that requirement,
+:class:`~isaaclab_newton.physics.NewtonManager` builds a **shadow Newton model** from the USD
+stage on first access and updates its ``body_q`` from the PhysX backend each render frame.
+This is hidden behind :meth:`NewtonManager.get_model` / :meth:`NewtonManager.get_state`, so
+renderers don't need to know which physics backend is active.
 
-Newton Scene Data Provider
---------------------------
+Newton backend
+--------------
 
-When Newton is the active physics backend, the provider **delegates directly to the Newton
-manager** — no building or syncing required. Newton already owns the authoritative model and
-state.
+When Newton is the active physics backend, the backend wraps the Newton model's ``body_q``
+directly. No shadow model or per-frame sync is needed — Newton already owns the authoritative
+model and state, and the provider exposes that state as
+:class:`SceneDataFormat.Transform`.
 
-The only additional work is **optional USD sync**: when an Omniverse Kit visualizer is active,
-the provider syncs Newton transforms to the USD stage so Kit can render them. For Newton-only
-or Rerun/Viser visualizers, this sync is skipped.
-
-Data Requirements
+Data requirements
 -----------------
 
-Visualizers and renderers declare their data needs, and the provider is configured accordingly:
+Visualizers and renderers declare what they need from the scene data path. This is resolved at
+simulation-context construction time and is what triggers the shadow-model build for PhysX:
 
 .. list-table::
    :header-rows: 1
 
    * - Component
-     - Requires Newton Model
-     - Requires USD Stage
+     - Requires Newton model
+     - Requires USD stage
    * - Kit visualizer
      - No
      - Yes
@@ -92,7 +111,7 @@ Visualizers and renderers declare their data needs, and the provider is configur
    * - Viser visualizer
      - Yes
      - No
-   * - RTX renderer
+   * - Isaac RTX renderer
      - No
      - Yes
    * - Newton Warp renderer
