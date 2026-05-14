@@ -20,7 +20,7 @@ INSTALL_REQUIRES = []
 
 EXTRAS_REQUIRE = {
     "newton": [
-        "newton==1.2.0rc3",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
     ],
 }
 
