@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import math
 import os
-import weakref
 from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,8 @@ logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 import warp as wp
+
+import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 
 # The ovrtx C library links to its own version of the USD libraries. Having
 # the pxr Python package available can cause the C library to load an
@@ -62,9 +63,9 @@ from .ovrtx_usd import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 # Shared integration floor for this module; reuse for ovrtx features that share one support floor.
 _OVRTX_VERSION = Version(ovrtx.__version__)
@@ -108,19 +109,14 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
 
 
 class OVRTXRenderData:
-    """OVRTX-specific RenderData. Holds warp output buffers and a weakref to the sensor.
+    """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
 
-    The sensor is stored as a weakref to avoid a Sensor ↔ RenderData reference cycle
-    (the sensor already owns this object).
-    """
-
-    def __init__(self, sensor: SensorBase, device):
-        """Create render data from sensor. Holds weak ref to avoid circular reference."""
-        self.sensor: weakref.ref[object] | None = weakref.ref(sensor)
-        self.width = sensor.cfg.width
-        self.height = sensor.cfg.height
-        self.num_envs = sensor.num_instances
-        self.data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
+    def __init__(self, spec: CameraRenderSpec, device):
+        """Create render data from a camera render specification."""
+        self.width = spec.cfg.width
+        self.height = spec.cfg.height
+        self.num_envs = spec.num_instances
+        self.data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
@@ -159,10 +155,24 @@ class OVRTXRenderer(BaseRenderer):
         self._object_binding = None
         self._object_newton_indices: wp.array | None = None
         self._initialized_scene = False
-        self._sensor_ref: weakref.ref[object] | None = None
         self._exported_usd_path: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
+
+        logger.info("Creating OVRTX renderer...")
+        OVRTX_CONFIG = RendererConfig(
+            log_file_path=self.cfg.log_file_path,
+            log_level=self.cfg.log_level,
+            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
+            keep_system_alive=True,
+        )
+        self._renderer = Renderer(OVRTX_CONFIG)
+        if not self._renderer:
+            raise RuntimeError(
+                "Failed to create OVRTX Renderer; the underlying ovrtx.Renderer constructor returned a falsy"
+                " value. Check that ovrtx is installed correctly and its native dependencies are available."
+            )
+        logger.info("OVRTX renderer created successfully")
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
@@ -183,38 +193,25 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_path = export_path
         logger.info("Exported to %s", export_path)
 
-    def initialize(self, sensor: SensorBase):
+    def _initialize_from_spec(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
 
-
         Args:
-            sensor: The Camera sensor. width, height, num_envs, data_types are
-                obtained from sensor when needed. Weak ref stored to avoid circular ref.
+            spec: Tiled camera description (resolution, paths, data types).
         """
-        self._sensor_ref = weakref.ref(sensor)
-        width = sensor.cfg.width
-        height = sensor.cfg.height
-        num_envs = sensor.num_instances
-        data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
+        width = spec.cfg.width
+        height = spec.cfg.height
+        num_envs = spec.num_instances
+        data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
 
         env_0_prefix = "/World/envs/env_0/"
-        first_cam_path = sensor._view.prims[0].GetPath().pathString
+        first_cam_path = spec.camera_prim_paths[0]
         if not first_cam_path.startswith(env_0_prefix):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = first_cam_path.removeprefix(env_0_prefix)
+        self._camera_rel_path = spec.camera_path_relative_to_env_0
 
         usd_scene_path = self._exported_usd_path
         use_cloning = self.cfg.use_cloning
-
-        logger.info("Creating OVRTX renderer...")
-        OVRTX_CONFIG = RendererConfig(
-            log_file_path=self.cfg.log_file_path,
-            log_level=self.cfg.log_level,
-            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
-        )
-        self._renderer = Renderer(OVRTX_CONFIG)
-        assert self._renderer, "Renderer should be valid after creation"
-        logger.info("OVRTX renderer created successfully")
 
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
@@ -233,9 +230,13 @@ class OVRTXRenderer(BaseRenderer):
 
             logger.info("Loading USD into OvRTX...")
             try:
-                handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
-                self._usd_handles.append(handle)
-                logger.info("USD loaded (path: %s, handle: %s)", combined_usd_path, handle)
+                if _IS_OVRTX_0_3_0_OR_NEWER:
+                    self._renderer.open_usd(combined_usd_path)
+                    logger.info("USD loaded as root layer (path: %s)", combined_usd_path)
+                else:
+                    handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
+                    self._usd_handles.append(handle)
+                    logger.info("USD loaded (path: %s, handle: %s)", combined_usd_path, handle)
             except Exception as e:
                 logger.exception("Error loading USD: %s", e)
                 raise
@@ -313,10 +314,9 @@ class OVRTXRenderer(BaseRenderer):
     def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
-            from isaaclab.sim import SimulationContext
+            from isaaclab_newton.physics import NewtonManager
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_model = provider.get_newton_model()
+            newton_model = NewtonManager.get_model()
             if newton_model is None:
                 logger.info("Newton model not available, skipping object bindings")
                 return
@@ -363,16 +363,15 @@ class OVRTXRenderer(BaseRenderer):
         except Exception as e:
             logger.warning("Error setting up object bindings: %s", e)
 
-    def create_render_data(self, sensor: SensorBase) -> OVRTXRenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
-        RenderData holds weak ref to sensor (Newton pattern) to avoid circular reference.
         """
         if not self._initialized_scene:
-            self.initialize(sensor)
-        return OVRTXRenderData(sensor, DEVICE)
+            self._initialize_from_spec(spec)
+        return OVRTXRenderData(spec, DEVICE)
 
     # Map torch dtypes to their warp counterparts for zero-copy wrapping.
     _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
@@ -419,10 +418,9 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         try:
-            from isaaclab.sim import SimulationContext
+            from isaaclab_newton.physics import NewtonManager
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_state = provider.get_newton_state()
+            newton_state = NewtonManager.get_state()
             if newton_state is None:
                 return
             body_q = getattr(newton_state, "body_q", None)
@@ -632,9 +630,6 @@ class OVRTXRenderer(BaseRenderer):
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data is not None:
-            render_data.sensor = None  # Break weak ref (Newton pattern)
-        self._sensor_ref = None
 
         # Unbind before tearing down renderer
         def _safe_unbind(binding, name: str) -> None:

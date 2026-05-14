@@ -18,17 +18,16 @@ from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
-
-from .kernels import (
-    _compose_body_com_poses,
+from isaaclab_ovphysx.assets.kernels import (
     _compose_root_com_pose,
     _compute_heading,
     _copy_first_body,
-    _fd_joint_acc,
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
 )
+
+from .kernels import _compose_body_com_poses, _fd_joint_acc
 
 
 class ArticulationData(BaseArticulationData):
@@ -810,23 +809,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
 
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Incoming joint wrenches on each body in the body frame [N, N*m].
-
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
-        (num_instances, num_bodies, 6).
-
-        All body reaction wrenches are provided including the root body to the world of an articulation.
-        """
-        self._read_spatial_vector_binding(
-            TT.LINK_INCOMING_JOINT_FORCE,
-            self._body_incoming_joint_wrench_buf,
-        )
-        if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_buf.data)
-        return self._body_incoming_joint_wrench_b_ta
-
     """
     Joint state properties.
     """
@@ -1361,8 +1343,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-        self._body_incoming_joint_wrench_buf = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
@@ -1584,7 +1564,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
@@ -1704,10 +1683,24 @@ class ArticulationData(BaseArticulationData):
 
         Reads directly into the target array -- no scratch buffer, no extra copy.
         """
+        self._read_binding_into_view(tensor_type, wp_array)
+
+    def _read_binding_into_view(self, tensor_type: int, view: wp.array) -> None:
+        """Read an ovphysx binding into a float32 warp view."""
         binding = self._get_binding(tensor_type)
         if binding is None:
             return
-        binding.read(wp_array)
+
+        from isaaclab_ovphysx.tensor_types import _CPU_ONLY_TYPES
+
+        if tensor_type in _CPU_ONLY_TYPES and str(view.device) != "cpu":
+            scratch = self._get_read_scratch(tensor_type)
+            if scratch is None:
+                return
+            binding.read(scratch)
+            wp.copy(view, scratch)
+        else:
+            binding.read(view)
 
     def _read_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
         """Read from an ovphysx binding into a TimestampedBuffer, skipping if fresh."""
@@ -1716,7 +1709,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data)
         if view is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._read_binding_into_view(tensor_type, view)
         buf.timestamp = self._sim_timestamp
 
     def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
@@ -1726,7 +1719,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data, 7)
         if view is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._read_binding_into_view(tensor_type, view)
         buf.timestamp = self._sim_timestamp
 
     def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
@@ -1736,7 +1729,7 @@ class ArticulationData(BaseArticulationData):
         view = self._get_read_view(tensor_type, buf.data, 6)
         if view is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._read_binding_into_view(tensor_type, view)
         buf.timestamp = self._sim_timestamp
 
     """

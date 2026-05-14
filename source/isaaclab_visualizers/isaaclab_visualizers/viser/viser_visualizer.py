@@ -19,6 +19,7 @@ from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
@@ -26,7 +27,7 @@ from .viser_visualizer_cfg import ViserVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
+    from isaaclab.scene.scene_data_provider import SceneDataProvider
 
 
 def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
@@ -129,13 +130,17 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._resolved_visible_env_ids: list[int] | None = None
+        self._warned_marker_render_failure = False
 
-    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
@@ -143,16 +148,18 @@ class ViserVisualizer(BaseVisualizer):
             raise RuntimeError("Viser visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        metadata = scene_data_provider.get_metadata()
+        num_envs = scene_data_provider.num_envs
+        metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state()
+        self._model = NewtonManager.get_model()
+        self._state = NewtonManager.get_state()
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
-        num_envs_meta = int(metadata.get("num_envs", 0))
-        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs_meta)
-        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs_meta
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
+        )
         viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,
@@ -175,6 +182,8 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
@@ -182,11 +191,28 @@ class ViserVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
-        self._state = self._scene_data_provider.get_newton_state()
+        self._state = NewtonManager.get_state()
+        num_envs = NewtonManager.get_num_envs()
+
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
-        self._viewer.log_state(self._state)
-        self._viewer.end_frame()
+        try:
+            self._viewer.log_state(self._state)
+            if self.cfg.enable_markers:
+                self._render_markers(num_envs)
+        finally:
+            self._viewer.end_frame()
+
+    def _render_markers(self, num_envs: int) -> None:
+        """Render marker overlays without letting them interrupt Viser body updates."""
+        try:
+            render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+        except Exception as exc:
+            if not self._warned_marker_render_failure:
+                logger.warning("[ViserVisualizer] Marker rendering failed; continuing body updates: %s", exc)
+                self._warned_marker_render_failure = True
+            else:
+                logger.debug("[ViserVisualizer] Marker rendering failed: %s", exc)
 
     def close(self) -> None:
         """Close viewer resources and finalize optional recording."""
@@ -223,8 +249,8 @@ class ViserVisualizer(BaseVisualizer):
         return False
 
     def supports_markers(self) -> bool:
-        """Viser backend currently does not expose Isaac Lab marker primitives."""
-        return False
+        """Viser backend supports Isaac Lab markers through Newton viewer primitives."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Viser backend currently does not expose Isaac Lab live-plot widgets."""

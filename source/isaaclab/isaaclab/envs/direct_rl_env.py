@@ -150,6 +150,7 @@ class DirectRLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
+                self.scene.initialize_renderers()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -182,8 +183,8 @@ class DirectRLEnv(gym.Env):
             self.cfg.video_recorder.env_render_mode = render_mode
             # Perspective --video uses same eye/lookat as task viewer (Kit persp + Newton GL).
             vr = self.cfg.video_recorder
-            vr.camera_position = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.camera_target = tuple(float(x) for x in self.cfg.viewer.lookat)
+            vr.eye = tuple(float(x) for x in self.cfg.viewer.eye)
+            vr.lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None

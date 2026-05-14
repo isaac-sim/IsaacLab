@@ -87,8 +87,11 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         if self.scene.height_scanner:
             self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
-        # H1 uses "torso_link" as base body — disable mass randomization for bipeds
-        self.events.add_base_mass = None
+        # H1 uses "torso_link" as base body; inherits the shared log-uniform mass
+        # randomization scale from EventsCfg (no per-H1 override needed).
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
+        # H1 has precise initial pose — don't scale joint defaults randomly on reset
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*torso_link"
 

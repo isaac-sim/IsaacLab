@@ -8,6 +8,7 @@ This section we introduce core concepts in Isaac Lab.
 
 
   multi_backend_architecture
+  schema_cfgs
   task_workflows
   actuators
   sensors/index.rst

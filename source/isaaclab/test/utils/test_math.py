@@ -554,12 +554,15 @@ def test_combine_frame_transform(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_interpolate_poses(device):
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+def test_interpolate_poses(device, seed):
     """Test interpolate_poses function.
 
     This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_poses` function against
     the output from :func:`scipy.spatial.transform.Slerp` and :func:`np.linspace`.
     """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
     for _ in range(100):
         mat1 = math_utils.generate_random_transformation_matrix()
         mat2 = math_utils.generate_random_transformation_matrix()

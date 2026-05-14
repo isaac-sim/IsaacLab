@@ -22,10 +22,11 @@ from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
+from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, _scatter_rows_partial
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .articulation_data import ArticulationData
-from .kernels import _body_wrench_to_world, _scatter_rows_partial, update_soft_joint_pos_limits
+from .kernels import update_soft_joint_pos_limits
 
 if TYPE_CHECKING:
     from isaaclab.actuators import ActuatorBase
@@ -1759,7 +1760,7 @@ class Articulation(BaseArticulation):
         # (keyed on object identity) handles the fast path automatically.
         self._effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
         if self._effort_binding is not None:
-            torque = self._data.applied_torque
+            torque = self._data._applied_torque
             shape = self._effort_binding.shape
             self._effort_write_view = wp.array(
                 ptr=torque.ptr,
@@ -1780,10 +1781,10 @@ class Articulation(BaseArticulation):
             return b, v
 
         self._pos_target_binding, self._pos_target_write_view = _make_write_view(
-            TT.DOF_POSITION_TARGET, self._data.joint_pos_target
+            TT.DOF_POSITION_TARGET, self._data._joint_pos_target
         )
         self._vel_target_binding, self._vel_target_write_view = _make_write_view(
-            TT.DOF_VELOCITY_TARGET, self._data.joint_vel_target
+            TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target
         )
 
         # Let the articulation data know that it is fully instantiated and ready to use.

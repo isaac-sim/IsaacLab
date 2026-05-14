@@ -30,20 +30,19 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    "mujoco==3.6.0",
-    "mujoco-warp==3.6.0",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.12.0",
+    "warp-lang==1.13.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",
     # required by omni.replicator.core S3 backend
     "botocore",
     # livestream
-    "starlette==0.49.1",
-    "omniverseclient",
+    # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
+    "starlette>=0.46.0,<0.50",
+    "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
     "pytest-mock",
@@ -54,6 +53,8 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     "psutil",
+    # cross-platform file locking (used to serialize USD spawn across distributed ranks)
+    "filelock",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",
@@ -66,7 +67,7 @@ INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
     f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [

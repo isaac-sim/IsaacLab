@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -26,7 +27,8 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg()
     physx = PhysxCfg()
-    newton = NewtonCfg()
+    newton_mjwarp = NewtonCfg()
+    ovphysx = OvPhysxCfg()
 
 
 @configclass

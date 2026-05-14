@@ -480,7 +480,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         sim.reset()
 
         scene["contact_sensor"].reset()
-        scene["shape"].write_root_pose_to_sim(
+        scene["shape"].write_root_pose_to_sim_index(
             root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0], device=device).unsqueeze(0)
         )
 
@@ -703,7 +703,7 @@ def _test_sensor_contact(
         duration = durations[idx]
         while current_test_time < duration:
             # set object states to contact the ground plane
-            shape.write_root_pose_to_sim(root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0))
+            shape.write_root_pose_to_sim_index(root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0))
             # perform simulation step
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
@@ -735,7 +735,7 @@ def _test_sensor_contact(
             _test_friction_forces(shape, sensor, mode)
 
         # switch the contact mode for 1 dt step before the next contact test begins.
-        shape.write_root_pose_to_sim(root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0))
+        shape.write_root_pose_to_sim_index(root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0))
         # perform simulation step
         _perform_sim_step(sim, scene, sim_dt)
         # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time
@@ -750,9 +750,9 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
         return
 
     # check shape of the friction_forces_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
-    num_bodies = sensor.num_bodies
+    num_sensors = sensor.num_sensors
     friction_torch = sensor._data.friction_forces_w.torch
-    assert friction_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
+    assert friction_torch.shape == (sensor.num_instances // num_sensors, num_sensors, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
         assert torch.any(torch.abs(friction_torch) > 1e-5).item()
@@ -762,14 +762,14 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
         friction_forces_t = wp.to_torch(friction_forces)
         buffer_count_t = wp.to_torch(buffer_count).to(torch.int32)
         buffer_start_t = wp.to_torch(buffer_start_indices).to(torch.int32)
-        for i in range(sensor.num_instances * num_bodies):
+        for i in range(sensor.num_instances * num_sensors):
             for j in range(sensor.contact_view.filter_count):
                 start_index_ij = buffer_start_t[i, j]
                 count_ij = buffer_count_t[i, j]
                 force = torch.sum(friction_forces_t[start_index_ij : (start_index_ij + count_ij), :], dim=0)
-                env_idx = i // num_bodies
-                body_idx = i % num_bodies
-                assert torch.allclose(force, friction_torch[env_idx, body_idx, j, :], atol=1e-5)
+                env_idx = i // num_sensors
+                sensor_idx = i % num_sensors
+                assert torch.allclose(force, friction_torch[env_idx, sensor_idx, j, :], atol=1e-5)
 
     elif mode == ContactTestMode.NON_CONTACT:
         assert torch.all(friction_torch == 0.0).item()
@@ -788,9 +788,9 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
         return
 
     # check shape of the contact_pos_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
-    num_bodies = sensor.num_bodies
+    num_sensors = sensor.num_sensors
     contact_pos_torch = sensor._data.contact_pos_w.torch
-    assert contact_pos_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
+    assert contact_pos_torch.shape == (sensor.num_instances // num_sensors, num_sensors, 1, 3)
     # check contact positions
     if mode == ContactTestMode.IN_CONTACT:
         pos_w_torch = sensor._data.pos_w.torch

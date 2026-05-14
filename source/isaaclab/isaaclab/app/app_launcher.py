@@ -231,6 +231,7 @@ class AppLauncher:
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
+        self.device: str  # resolved device string (e.g. "cuda:0" or "cpu")
         self.local_rank: int  # local rank of GPUs in the current node
         self.global_rank: int  # global rank for multi-node training
 
@@ -953,7 +954,20 @@ class AppLauncher:
             # global rank (GPU id) in multi-gpu multi-node mode
             self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
-            self.device_id = self.local_rank
+            # When CUDA_VISIBLE_DEVICES restricts each process to a single GPU,
+            # local_rank may exceed the visible device count. Fall back to cuda:0
+            # so the process uses the one GPU it can see.
+            # We compare local_rank against device_count (not WORLD_SIZE) so that
+            # multi-node setups work correctly: WORLD_SIZE is global across all
+            # nodes, but device_count is local.
+            import torch
+
+            num_visible_gpus = torch.cuda.device_count()
+            if self.local_rank < num_visible_gpus:
+                self.device_id = self.local_rank
+            else:
+                self.device_id = 0
+
             device = "cuda:" + str(self.device_id)
             launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
@@ -970,6 +984,17 @@ class AppLauncher:
         # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
+
+        # Set the current CUDA device early so that physics backends (e.g. Newton/Warp)
+        # that allocate on the "current" device during initialization get the correct GPU.
+        # Without this, all ranks may default to cuda:0 for early allocations.
+        if "cuda" in device:
+            import torch
+
+            torch.cuda.set_device(self.device_id)
+
+        # Store the resolved device string for downstream consumers (e.g. sim_launcher)
+        self.device = device
 
         logger.info("Using device: %s", device)
 

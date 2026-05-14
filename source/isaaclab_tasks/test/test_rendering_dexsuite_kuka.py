@@ -31,7 +31,6 @@ _generate_html_report_fixture = make_generate_html_report_fixture(_COMPARISON_SC
 _attach_comparison_properties_fixture = make_attach_comparison_properties_fixture(_COMPARISON_SCORES)
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
 @pytest.mark.parametrize("physics_backend,renderer,data_type", PHYSICS_RENDERER_AOV_COMBINATIONS)
 def test_rendering_dexsuite_kuka(physics_backend, renderer, data_type):
     """Test dexsuite kuka allegro lift environment rendering correctness."""
