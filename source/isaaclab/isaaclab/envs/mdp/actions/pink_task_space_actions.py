@@ -9,7 +9,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 from pink.tasks import FrameTask
 
 import isaaclab.utils.math as math_utils
@@ -59,9 +58,6 @@ class PinkInverseKinematicsAction(ActionTerm):
         # Initialize action tensors
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
-
-        # PhysX Articulation Floating joint indices offset from IsaacLab Articulation joint indices
-        self._physx_floating_joint_indices_offset = 6
 
         # Pre-allocate tensors for runtime use
         self._initialize_helper_tensors()
@@ -324,20 +320,24 @@ class PinkInverseKinematicsAction(ActionTerm):
         )
 
     def _apply_gravity_compensation(self) -> None:
-        """Apply gravity compensation to arm joints if not disabled in props."""
+        """Apply gravity compensation to arm joints if not disabled in props.
+
+        Reads :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`,
+        which raises :class:`NotImplementedError` on the Newton backend (no upstream
+        primitive). That is intentional — if a user opts into gravity compensation on
+        Newton via ``enable_gravity_compensation=True``, they should see a loud failure
+        rather than silently receive zeros. To use Pink IK on Newton, keep
+        ``enable_gravity_compensation=False``.
+        """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
-            # Get gravity compensation forces using cached tensor
+            # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``.
+            # Shift actuated-joint ids by ``num_base_dofs`` to skip the leading floating-
+            # base columns (0 for fixed-base, 6 for floating-base).
+            jacobi_ids = self._controlled_joint_ids_tensor + self._asset.num_base_dofs
             if self._asset.is_fixed_base:
-                gravity = torch.zeros_like(
-                    wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[
-                        :, self._controlled_joint_ids_tensor
-                    ]
-                )
+                gravity = torch.zeros_like(self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids])
             else:
-                # If floating base, then need to skip the first 6 joints (base)
-                gravity = wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[
-                    :, self._controlled_joint_ids_tensor + self._physx_floating_joint_indices_offset
-                ]
+                gravity = self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids]
 
             # Apply gravity compensation to arm joints
             self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._controlled_joint_ids)

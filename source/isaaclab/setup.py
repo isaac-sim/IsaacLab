@@ -30,8 +30,6 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    "mujoco==3.8.0",
-    "mujoco-warp==3.8.0.1",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -69,7 +67,7 @@ INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
     f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [

@@ -84,8 +84,7 @@ class FabricNoticeBindings:
 
         desc = _InterfaceDesc(name=b"omni::fabric::IFabricUsd", version=_Version(1, 0))
 
-        # clientName varies across Kit configurations — same fallback chain as _cubric.py
-        ptr = try_acquire(b"carb.scripting-python.plugin", desc, None) or try_acquire(None, desc, None)
+        ptr = try_acquire(b"isaaclab.cloner", desc, None)
         if not ptr:
             return False
         self._iface_ptr = ptr

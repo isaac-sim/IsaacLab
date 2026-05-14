@@ -502,6 +502,7 @@ class TeleopSessionLifecycle:
             teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
+            retargeting_execution=self._cfg.retargeting_execution,
         )
 
         # Create and enter the TeleopSession

@@ -295,6 +295,52 @@ def log_success(benchmark, tracker, framework_iteration_count: int | None = None
         )
 
 
+def log_rl_training_metrics(
+    benchmark: BaseIsaacLabBenchmark,
+    log_data: dict[str, list[float]],
+    reward_tag: str,
+    episode_length_tag: str,
+    task: str,
+    workflow: str,
+    should_check_convergence: bool = False,
+    reward_threshold: float | None = None,
+    convergence_config: str = "full",
+) -> None:
+    """Log optional RL training metrics from TensorBoard data.
+
+    Short smoke-test runs can finish before the RL framework emits reward or
+    episode-length scalars. Missing tags should skip those measurements instead
+    of failing the whole benchmark.
+    """
+    rewards = log_data.get(reward_tag)
+    episode_lengths = log_data.get(episode_length_tag)
+    if rewards:
+        log_rl_policy_rewards(benchmark, rewards)
+    else:
+        print(f"[WARNING] TensorBoard log is missing '{reward_tag}'; skipping reward benchmark metrics.")
+    if episode_lengths:
+        log_rl_policy_episode_lengths(benchmark, episode_lengths)
+    else:
+        print(f"[WARNING] TensorBoard log is missing '{episode_length_tag}'; skipping episode-length metrics.")
+
+    success_rates = get_success_rate_log(log_data)
+    if success_rates is not None:
+        log_rl_policy_success_rates(benchmark, success_rates)
+
+    if rewards:
+        log_convergence(
+            benchmark,
+            rewards,
+            task,
+            workflow=workflow,
+            should_check_convergence=should_check_convergence,
+            reward_threshold=reward_threshold,
+            convergence_config=convergence_config,
+        )
+    elif should_check_convergence:
+        print(f"[WARNING] Cannot check convergence because '{reward_tag}' was not logged.")
+
+
 def parse_cprofile_stats(
     profile: cProfile.Profile,
     isaaclab_prefixes: list[str],
