@@ -1,6 +1,125 @@
 Changelog
 ---------
 
+5.2.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` and
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w` properties,
+  exposing the per-body geometric Jacobian referenced at the link origin and
+  body center of mass respectively. The pair mirrors the existing
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_pose_w` /
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_pose_w` and
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_vel_w` /
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_vel_w` exposure pattern.
+  Backends without a native primitive raise :class:`NotImplementedError`.
+* Added :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix` property,
+  exposing the joint-space generalized mass matrix ``M(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  property, exposing the joint-space gravity-loading torque vector ``g(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` — number of
+  free DoFs of the floating base (``0`` for fixed-base, ``6`` for floating-
+  base). Use it to map an actuated-joint index ``j`` to its column in the
+  Jacobian / mass matrix / gravity vector via ``j + num_base_dofs``.
+
+The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
+base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
+num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
+num_joints + num_base_dofs)`` for the mass matrix. This matches the
+cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
+Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
+``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
+6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
+returning ``(6 + dofs, 6 + dofs)``).
+* Added :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.usd_stage`,
+  :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`, and
+  :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
+  so visualizers and renderers can pull stage-derived data through the same
+  Warp-native provider that already exposes transforms.
+
+Changed
+^^^^^^^
+
+* Migrated :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`,
+  :class:`~isaaclab.envs.mdp.actions.task_space_actions.OperationalSpaceControllerAction`,
+  and :class:`~isaaclab.envs.mdp.actions.rmpflow_task_space_actions.RMPFlowAction`
+  to fetch dynamic quantities through the new
+  :class:`~isaaclab.assets.BaseArticulationData` properties instead of the
+  PhysX-only ``root_view``. The OSC action term now also gates the
+  per-step mass-matrix and gravity-compensation fetches behind the
+  controller cfg's :attr:`inertial_dynamics_decoupling`,
+  :attr:`nullspace_control`, and :attr:`gravity_compensation` flags
+  so backends without a native primitive are not invoked when the
+  controller does not consume the result.
+* Action terms (DiffIK / OSC / RMPFlow / Pink) compute their Jacobian
+  joint-axis indices via
+  ``[j + asset.num_base_dofs for j in joint_ids]``, which is ``0`` for
+  fixed-base and ``+6`` for floating-base. Pink IK previously hardcoded
+  a private ``_physx_floating_joint_indices_offset = 6``; that was
+  removed in favor of the cross-backend property.
+* PhysX backend's :attr:`body_link_jacobian_w` applies the COM→origin shift to
+  PhysX's natively COM-referenced Jacobian. The previously-exposed
+  ``Articulation.get_jacobians()`` was a passthrough that returned the raw
+  COM-referenced Jacobian, while IK / OSC consumers also read
+  :attr:`body_link_pose_w` as the EE pose setpoint — a frame mismatch that
+  produced a ``ω × r_com_w`` per-body bias in tracking. The new property
+  reads the same engine buffer and applies the shift so ``J · q_dot`` matches
+  ``body_link_lin_vel_w``. Consumers that intentionally want the raw
+  COM-referenced form can read :attr:`body_com_jacobian_w`.
+* **Breaking:** :class:`~isaaclab.visualizers.base_visualizer.BaseVisualizer`
+  subclasses now receive a
+  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
+  :meth:`~isaaclab.visualizers.base_visualizer.BaseVisualizer.initialize`
+  instead of the removed ``BaseSceneDataProvider``. Read environment count
+  from :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`
+  and call
+  :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
+  on the new provider; both replace the previous ``get_metadata()`` /
+  ``get_camera_transforms()`` calls on the legacy interface.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.physics.BaseSceneDataProvider``,
+  ``isaaclab.physics.SceneDataProvider`` (the legacy factory),
+  ``SimulationContext.initialize_scene_data_provider()``, and
+  ``SimulationContext.update_scene_data_provider()``. Use
+  :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_scene_data_provider`
+  to obtain the new provider; consumers that previously called
+  ``get_newton_model()`` / ``get_newton_state()`` should call
+  ``NewtonManager.get_model()`` / ``NewtonManager.get_state()`` instead.
+* Removed explicit ``mujoco`` and ``mujoco-warp`` dependencies from
+  :mod:`isaaclab`. These packages are not used by ``isaaclab`` core and are
+  now resolved transitively through Newton's ``[sim]`` extra in
+  :mod:`isaaclab_newton`. Users installing only the PhysX or Kit backends no
+  longer pull in MuJoCo.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~envs.LeappDeploymentEnv` crashing on ``reset()`` with
+  ``AttributeError: 'LeappDeploymentEnv' object has no attribute 'extras'``
+  by initializing ``self.extras`` in ``__init__``.
+* Fixed ``./isaaclab.sh -p -m pip ...`` failing with ``No module named pip``
+  in the conda env created from ``environment.yml`` on Linux aarch64
+  (e.g. DGX Spark / GB10). The conda-forge solver was not pulling
+  ``pip`` in transitively on aarch64, so the resulting ``env_isaaclab``
+  had no pip. ``environment.yml`` now lists ``pip`` explicitly so it
+  is seeded on every platform.
+* Fixed ``pip install isaaclab[isaacsim,all]==3.0.0`` failing with
+  ``No solution found`` (UV) or ``error: resolution-too-deep`` (pip) when
+  resolving against ``isaacsim==6.0.0.0``. ``viser>=1.0.16`` was a base
+  dependency of the built ``isaaclab`` wheel and transitively requires
+  ``websockets>=13.1``, but ``isaacsim-kernel==6.0.0.0`` pins
+  ``websockets==12.0``. Moved ``viser`` to an opt-in ``viser`` extra in
+  ``tools/wheel_builder/res/python_packages.toml`` so the base wheel is
+  installable alongside ``isaacsim==6.0.0.0``. Users who want the Viser
+  visualizer can request it explicitly with ``isaaclab[viser]``.
+
+
 5.1.1 (2026-05-13)
 ~~~~~~~~~~~~~~~~~~
 
