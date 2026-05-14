@@ -33,8 +33,12 @@ Gating:
     by running the full sim/env/teleop reset cycle.
 
 End-of-replay termination:
-    Four distinct signals ask Kit to ``post_quit`` and short-circuit
-    the loop body to ``env.sim.render()`` until Kit drains:
+    Four distinct signals end the current run by breaking out of the
+    inner loop. ``_run_single_replay`` returns its populated
+    :class:`_RunStats`, and the outer batch driver in :func:`main`
+    moves on to the next replay (or returns from ``main`` when the
+    batch is done; ``__main__`` then calls ``simulation_app.close()``).
+    The signals are:
 
     1. **The recorded operator STOP**, replayed via the
        ``_teleop_control`` ``MessageChannelTracker`` at the same
@@ -53,13 +57,69 @@ End-of-replay termination:
        recordings that produce neither a STOP, a success, nor a failure
        within the configured window.
 
-Exit codes:
-    The process exits with a status code that CI can branch on:
+    With ``--num_replays N > 1`` each run is independently terminated by
+    one of the four signals above; the agent then rebuilds the
+    :class:`IsaacTeleopDevice` (reopening the MCAP at frame 0) and runs
+    again. The USD stage is loaded only once.
 
-    * ``0`` -- the recorded ``success_term`` fired.
-    * ``1`` -- the env terminated/truncated mid-trajectory, or the
-      loop exited without any explicit terminator firing.
-    * ``2`` -- ``--max_replay_duration_s`` was hit.
+Stats output:
+    Every iteration where ``env.step()`` actually ran contributes one
+    CPU frame-time sample (``time.perf_counter()`` delta in ms). Pre-
+    START render-only frames, warmup ticks, and post-quit render-only
+    spin-down are excluded so the resulting numbers reflect the
+    steady-state replay workload rather than agent bookkeeping
+    overhead. Per-run samples are summarised into mean / p50 / p90 /
+    p95 / p99 / min / max / stddev (under ``cpu_frame_time_ms``) plus
+    render FPS metrics (under ``fps``). The ``fps`` block reports
+    Kit's viewport-render rate (= per-step rate * ``decimation /
+    render_interval``), so the numbers there line up with Kit's HUD;
+    for raw env.step throughput, use ``1000 / cpu_frame_time_ms.mean``.
+    A multi-run batch aggregates by taking the mean-of-means,
+    mean-of-p90s, etc. across runs.
+
+    A one-line-per-run stdout summary is always printed at the end of
+    the batch. Pass ``--stats_output_file <path>`` to additionally
+    persist the report as JSON. Schema (schema_version 1)::
+
+        {
+          "schema_version": 1,
+          "task": "Isaac-PickPlace-GR1T2-Abs-v0",
+          "replay_file": "/tmp/pickplace_gr1t2.mcap",
+          "num_replays": 5,
+          "outcomes": {"success": 4, "failure": 1, "incomplete": 0, "timeout": 0},
+          "success_rate": 0.8,
+          "runs": [
+            {
+              "run_index": 0,
+              "outcome": "success",
+              "active_iterations": 322,
+              "active_duration_s": 21.503,
+              "success_step_count": 1,
+              "cpu_frame_time_ms": {
+                "mean": ..., "p50": ..., "p90": ..., "p95": ..., "p99": ...,
+                "min": ..., "max": ..., "stddev": ..., "n": ...
+              },
+              "fps": {"mean": ..., "min_instantaneous": ..., "max_instantaneous": ...}
+            }
+          ],
+          "aggregate": {
+            "cpu_frame_time_ms": {"mean_of_means": ..., "mean_of_p90s": ...,
+                                  "mean_of_p99s": ..., "min_overall": ...,
+                                  "max_overall": ...},
+            "fps": {"mean_of_means": ...}
+          }
+        }
+
+Exit codes:
+    The process exits with a status code that CI can branch on. With
+    ``--num_replays N`` the worst-of-N outcome wins (precedence
+    ``timeout > failure > incomplete > success``):
+
+    * ``0`` -- every run reproduced the recording (``success_term``
+      fired on each run).
+    * ``1`` -- one or more runs terminated/truncated mid-trajectory,
+      or finished without any explicit terminator firing.
+    * ``2`` -- one or more runs hit ``--max_replay_duration_s``.
 
 Warmup:
     Before stepping the env, the agent waits deterministically for Kit
@@ -121,6 +181,15 @@ XR-active replay:
     The headset is purely a viewer / anchor source -- the recorded MCAP
     remains the sole source of action; live controller input from the
     spectator's headset does not displace the replayed trajectory.
+
+    Multi-run note: ``--num_replays > 1`` IS supported in XR-active
+    mode. The CloudXR runtime is launched once at the agent (batch)
+    scope and shared across runs (``_maybe_launch_cloudxr``); each
+    per-run :class:`~isaaclab_teleop.IsaacTeleopDevice` is constructed
+    with ``auto_launch_cloudxr=False`` so the per-run lifecycle does
+    not stop the runtime on teardown. Only the per-run
+    ``TeleopSession`` is torn down between replays; Kit's OpenXR
+    instance/session stay alive.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -157,10 +226,33 @@ parser.add_argument(
     type=float,
     default=600.0,
     help=(
-        "Maximum wall-clock seconds to keep the replay loop running before asking Kit to quit,"
-        " measured from the end of the warmup window. Safety net for malformed MCAPs that omit"
-        " the operator's STOP gesture -- with a clean recording the agent exits on the replayed"
-        " STOP edge well before this cap. Default is 600s (10 min)."
+        "Maximum wall-clock seconds to keep a single replay running before ending it with the"
+        " ``timeout`` outcome, measured from the end of the warmup window. Safety net for"
+        " malformed MCAPs that omit the operator's STOP gesture -- with a clean recording the"
+        " agent ends the run on the replayed STOP edge well before this cap. Applies per run when"
+        " ``--num_replays > 1``. Default is 600s (10 min)."
+    ),
+)
+parser.add_argument(
+    "--num_replays",
+    type=int,
+    default=1,
+    help=(
+        "Number of times to replay the MCAP back-to-back. Each replay rebuilds the IsaacTeleopDevice"
+        " (re-opens the MCAP at frame 0) and resets the env in place without reloading Kit; the"
+        " CloudXR runtime and Kit's OpenXR session stay alive across runs so subsequent replays"
+        " start ~instantly. Per-run and aggregated success/failure rates are reported in the stats"
+        " summary; the exit code reflects the worst outcome across runs. Default 1."
+    ),
+)
+parser.add_argument(
+    "--stats_output_file",
+    type=str,
+    default=None,
+    help=(
+        "Optional path to write a JSON stats report (CPU frame time, FPS, outcome) to after the"
+        " run(s) complete. When omitted only a stdout summary is printed. Schema is documented"
+        " in the 'Stats output' section of the script's module docstring."
     ),
 )
 parser.add_argument(
@@ -217,9 +309,14 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+import json
 import logging
+import os
+import statistics
 import sys
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
 
 import gymnasium as gym
 import torch
@@ -234,6 +331,266 @@ from isaaclab_tasks.utils import parse_env_cfg
 logger = logging.getLogger(__name__)
 
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
+
+
+# ----------------------------------------------------------------------
+# Perf stats: per-run collection + multi-run reporting
+# ----------------------------------------------------------------------
+
+_STATS_SCHEMA_VERSION = 1
+"""Bump when the JSON shape produced by :func:`_build_report` changes in a
+non-additive way (renamed / removed keys). Additive changes (new optional
+keys) do not require a bump."""
+
+
+@dataclass
+class _RunStats:
+    """Per-replay performance + outcome record.
+
+    ``active_frame_times_ms`` is sampled only on iterations where
+    ``env.step()`` actually ran (post-START, pre-terminator). Pre-START
+    render-only frames, warmup ticks, and post-quit render-only spin-down
+    are intentionally excluded so the resulting stats reflect the steady-
+    state replay workload rather than the agent's bookkeeping overhead.
+    """
+
+    outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
+    active_frame_times_ms: list[float] = field(default_factory=list)
+    active_duration_s: float = 0.0
+    success_step_count: int = 0  # final consecutive-success counter at terminator
+    # ``env.step`` pumps Kit ``decimation / render_interval`` times per
+    # call; the ``fps`` block reports render FPS (what Kit's viewport
+    # HUD displays), so we need this multiplier to convert from the
+    # raw 1 / env.step rate that ``active_frame_times_ms`` captures.
+    # Defaults to 1.0 so configs that haven't set it (or have render
+    # disabled) still produce a self-consistent step rate.
+    renders_per_step: float = 1.0
+
+    def to_dict(self, run_index: int) -> dict:
+        cpu_stats = _compute_frame_stats(self.active_frame_times_ms)
+        fps_stats = _compute_fps_stats(self.active_frame_times_ms, self.renders_per_step)
+        return {
+            "run_index": run_index,
+            "outcome": self.outcome,
+            "active_iterations": len(self.active_frame_times_ms),
+            "active_duration_s": round(self.active_duration_s, 6),
+            "success_step_count": self.success_step_count,
+            "cpu_frame_time_ms": cpu_stats,
+            "fps": fps_stats,
+        }
+
+
+def _compute_frame_stats(samples_ms: list[float]) -> dict:
+    """Compute summary stats for a list of per-frame CPU times (in ms).
+
+    Uses :func:`statistics.quantiles` with ``n=100, method="inclusive"`` so
+    the result is a stable in-process measurement with no numpy dependency.
+    The 99 quantile cut-points returned by ``quantiles`` are interpreted as
+    p1..p99; we sample p50 / p90 / p95 / p99 plus mean / min / max /
+    stddev / n. Handles empty (``n=0``, all numeric fields ``None``) and
+    single-sample (``n=1``, all numeric fields equal to the single sample,
+    ``stddev=0.0``) inputs without raising.
+    """
+    n = len(samples_ms)
+    if n == 0:
+        return {
+            "mean": None,
+            "p50": None,
+            "p90": None,
+            "p95": None,
+            "p99": None,
+            "min": None,
+            "max": None,
+            "stddev": None,
+            "n": 0,
+        }
+    sample_min = min(samples_ms)
+    sample_max = max(samples_ms)
+    sample_mean = statistics.fmean(samples_ms)
+    if n == 1:
+        return {
+            "mean": sample_mean,
+            "p50": samples_ms[0],
+            "p90": samples_ms[0],
+            "p95": samples_ms[0],
+            "p99": samples_ms[0],
+            "min": sample_min,
+            "max": sample_max,
+            "stddev": 0.0,
+            "n": 1,
+        }
+    # quantiles(n=100) returns 99 cut points; cuts[i] is the (i+1)-th percentile.
+    cuts = statistics.quantiles(samples_ms, n=100, method="inclusive")
+    return {
+        "mean": sample_mean,
+        "p50": cuts[49],
+        "p90": cuts[89],
+        "p95": cuts[94],
+        "p99": cuts[98],
+        "min": sample_min,
+        "max": sample_max,
+        "stddev": statistics.stdev(samples_ms),
+        "n": n,
+    }
+
+
+def _compute_fps_stats(samples_ms: list[float], renders_per_step: float) -> dict:
+    """Compute render-FPS stats from per-``env.step`` CPU times.
+
+    All three fields report **render FPS** -- the rate at which Kit
+    pumps the viewport, which is what Kit's HUD displays. A single
+    ``env.step`` does ``cfg.decimation / cfg.sim.render_interval``
+    render pumps (see :class:`isaaclab.envs.ManagerBasedRLEnv.step`),
+    so the per-step rate derived from ``samples_ms`` is multiplied by
+    that ratio.
+
+    ``mean`` uses the harmonic mean of per-step time
+    (``renders_per_step * 1000 / fmean(samples_ms)`` = total renders /
+    total step time). It avoids both biases the alternatives have:
+    arithmetic mean of instantaneous FPS would be dominated by the
+    fastest frames, while ``total_frames / active_duration_s`` would
+    be dragged down by inter-step bookkeeping (teleop pipeline +
+    terminator GPU syncs + control polling). For raw step throughput
+    (1 / env.step), divide ``mean`` by ``renders_per_step`` or read
+    ``cpu_frame_time_ms.mean`` directly.
+
+    ``min_instantaneous`` and ``max_instantaneous`` are derived from
+    the slowest / fastest individual step respectively (also scaled
+    by ``renders_per_step``).
+    """
+    n = len(samples_ms)
+    if n == 0:
+        return {"mean": None, "min_instantaneous": None, "max_instantaneous": None}
+    return {
+        "mean": renders_per_step * 1000.0 / statistics.fmean(samples_ms),
+        "min_instantaneous": renders_per_step * 1000.0 / max(samples_ms),
+        "max_instantaneous": renders_per_step * 1000.0 / min(samples_ms),
+    }
+
+
+def _build_report(args, all_runs: list[_RunStats]) -> dict:
+    """Build the structured JSON report dict from a list of completed runs."""
+    outcomes_count = {"success": 0, "failure": 0, "incomplete": 0, "timeout": 0}
+    for r in all_runs:
+        outcomes_count[r.outcome] = outcomes_count.get(r.outcome, 0) + 1
+
+    total = max(len(all_runs), 1)
+    success_rate = outcomes_count.get("success", 0) / total
+
+    run_dicts = [r.to_dict(i) for i, r in enumerate(all_runs)]
+
+    return {
+        "schema_version": _STATS_SCHEMA_VERSION,
+        "task": args.task,
+        "replay_file": args.replay_file,
+        "num_replays": len(all_runs),
+        "outcomes": outcomes_count,
+        "success_rate": success_rate,
+        "runs": run_dicts,
+        "aggregate": _aggregate_runs(run_dicts),
+    }
+
+
+def _aggregate_runs(run_dicts: list[dict]) -> dict:
+    """Aggregate per-run CPU / FPS stats across a multi-run batch.
+
+    Returns ``mean_of_means``, ``p90_of_p90s``, etc. so reviewers can scan
+    a one-line summary without recomputing from individual runs. Runs that
+    produced no active frames (e.g. the recording never reached START)
+    contribute no samples and are skipped for that field; if no run had
+    samples the aggregate value is ``None``.
+    """
+
+    def _gather(key_path: list[str]) -> list[float]:
+        out: list[float] = []
+        for run in run_dicts:
+            value = run
+            for key in key_path:
+                if value is None:
+                    break
+                value = value.get(key) if isinstance(value, dict) else None
+            if isinstance(value, (int, float)):
+                out.append(float(value))
+        return out
+
+    def _mean_or_none(values: list[float]) -> float | None:
+        return statistics.fmean(values) if values else None
+
+    def _min_or_none(values: list[float]) -> float | None:
+        return min(values) if values else None
+
+    def _max_or_none(values: list[float]) -> float | None:
+        return max(values) if values else None
+
+    return {
+        "cpu_frame_time_ms": {
+            "mean_of_means": _mean_or_none(_gather(["cpu_frame_time_ms", "mean"])),
+            "mean_of_p90s": _mean_or_none(_gather(["cpu_frame_time_ms", "p90"])),
+            "mean_of_p99s": _mean_or_none(_gather(["cpu_frame_time_ms", "p99"])),
+            "min_overall": _min_or_none(_gather(["cpu_frame_time_ms", "min"])),
+            "max_overall": _max_or_none(_gather(["cpu_frame_time_ms", "max"])),
+        },
+        "fps": {
+            "mean_of_means": _mean_or_none(_gather(["fps", "mean"])),
+        },
+    }
+
+
+def _print_stdout_summary(report: dict) -> None:
+    """Print a one-line-per-run summary plus an aggregate line to stdout."""
+    runs = report.get("runs", [])
+    total = report.get("num_replays", len(runs))
+
+    def _fmt(value: float | None, suffix: str = "") -> str:
+        return f"{value:.2f}{suffix}" if isinstance(value, (int, float)) else "n/a"
+
+    print("--- Replay stats ---")
+    for run in runs:
+        idx = run["run_index"] + 1
+        cpu = run["cpu_frame_time_ms"]
+        fps = run["fps"]
+        print(
+            f"Replay {idx}/{total}: outcome={run['outcome']}"
+            f" | frames={run['active_iterations']}"
+            f" | active={run['active_duration_s']:.2f}s"
+            f" | mean={_fmt(cpu['mean'], 'ms')}"
+            f" p90={_fmt(cpu['p90'], 'ms')}"
+            f" p99={_fmt(cpu['p99'], 'ms')}"
+            f" | mean_fps={_fmt(fps['mean'])}"
+        )
+
+    succ = report["outcomes"].get("success", 0)
+    agg = report["aggregate"]
+    print(
+        f"Aggregate: success_rate={succ}/{total} ({report['success_rate']:.2f})"
+        f" | mean_fps={_fmt(agg['fps']['mean_of_means'])}"
+        f" | mean_p90={_fmt(agg['cpu_frame_time_ms']['mean_of_p90s'], 'ms')}"
+    )
+
+
+def _write_json_report(path: str, report: dict) -> None:
+    """Persist the report to ``path`` as a UTF-8 JSON file (pretty-printed)."""
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(report, fh, indent=2, sort_keys=False)
+        fh.write("\n")
+    print(f"Stats report written to {path}")
+
+
+def _exit_code_for_outcomes(all_runs: list[_RunStats]) -> int:
+    """Map the worst-of-N replay outcome to a CI-friendly exit code.
+
+    Precedence: ``timeout`` > ``failure`` > ``incomplete`` > ``success``.
+    Any single bad run fails the whole batch; timeouts get their own code
+    so CI can distinguish a perf cliff from a broken trajectory.
+    """
+    if not all_runs:
+        return 1
+    outcomes = {r.outcome for r in all_runs}
+    if outcomes <= {"success"}:
+        return 0
+    if "timeout" in outcomes:
+        return 2
+    return 1  # any "failure" or "incomplete"
 
 
 def _resolve_cloudxr_env(value: str | None) -> str | None:
@@ -252,6 +609,54 @@ def _resolve_cloudxr_env(value: str | None) -> str | None:
         _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
+
+
+def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
+    """Launch a CloudXR runtime owned at the agent (batch) scope.
+
+    The CloudXR runtime is process-scoped, not session-scoped: tearing it
+    down between teleop sessions in the same Kit process severs Kit's
+    OpenXR runtime IPC, so the next session's ``xrCreateInstance`` fails
+    with ``XR_ERROR_RUNTIME_UNAVAILABLE`` and the XR pipeline hangs. To
+    support multi-run XR replay we hoist CloudXR ownership out of the
+    per-run :class:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle`
+    (which would otherwise stop it on every device teardown) into the
+    agent. Each replay's ``IsaacTeleopDevice`` is constructed with
+    ``auto_launch_cloudxr=False`` so the lifecycle leaves the runtime
+    alone; the agent terminates the launcher in its ``finally`` block.
+
+    Mirrors the gating in :meth:`TeleopSessionLifecycle._ensure_cloudxr_runtime`
+    (``--cloudxr_env`` set, ``--auto_launch_cloudxr`` enabled,
+    ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` env var not set) so behavior parity
+    is preserved.
+
+    Args:
+        cloudxr_env_path: Resolved CloudXR ``.env`` file path, or ``None``
+            to skip launching.
+        auto_launch: Whether to honor the request (mirrors
+            ``--auto_launch_cloudxr``).
+
+    Returns:
+        The launched ``CloudXRLauncher`` instance, or ``None`` when
+        nothing should be launched. Caller is responsible for calling
+        ``.stop()`` at the end of the batch.
+    """
+    if cloudxr_env_path is None or not auto_launch:
+        return None
+
+    if os.environ.get("ISAACLAB_CXR_SKIP_AUTOLAUNCH", "").strip() == "1":
+        logger.info("CloudXR auto-launch skipped (ISAACLAB_CXR_SKIP_AUTOLAUNCH=1)")
+        return None
+
+    from isaacteleop.cloudxr import CloudXRLauncher
+
+    launcher = CloudXRLauncher(
+        install_dir=str(Path.home() / ".cloudxr"),
+        env_config=cloudxr_env_path,
+        accept_eula=False,
+    )
+    logger.info("CloudXR runtime launched (process-scoped, shared across replays)")
+    return launcher
 
 
 def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBasedRLEnvCfg, object | None]:
@@ -429,133 +834,82 @@ def _wait_for_stage_load(simulation_app, max_wait_s: float) -> None:
         simulation_app.update()
 
 
-def _request_kit_quit() -> None:
-    """Ask Kit to drain its event loop and exit.
+def _run_single_replay(
+    env: gym.Env,
+    isaac_teleop_cfg,
+    success_term: object | None,
+    run_index: int,
+    total_runs: int,
+) -> _RunStats:
+    """Run a single replay pass against ``env`` and return the per-run stats.
 
-    Called from the main loop on any of:
-      * the replayed STOP edge from the ``_teleop_control`` message
-        channel (operator pressed Stop during recording),
-      * the env's success condition firing for the required number of
-        consecutive steps (natural end of a ``record_demos.py``
-        single-episode capture),
-      * the env terminating/truncating mid-trajectory (failed replay --
-        recorded actions did not reproduce the recorded outcome),
-      * the wall-clock ``--max_replay_duration_s`` safety cap.
+    Builds a fresh :class:`IsaacTeleopDevice` so each call re-opens the MCAP
+    reader at frame 0 -- exiting and re-entering the device's context manager
+    tears down the previous ``TeleopSession`` and constructs a new one. The
+    USD stage is left untouched; the caller (``main``) is responsible for
+    building / closing ``env`` once across the full multi-run batch.
 
-    The caller is expected to update ``replay_outcome`` before calling
-    this function so ``main()`` can map it to the correct exit code.
+    Per-frame sampling is restricted to iterations where ``env.step()``
+    actually ran (post-START, pre-terminator). Pre-START render-only
+    frames, warmup ticks, and reset cycles do not contribute to the
+    returned stats so the numbers reflect the steady-state replay
+    workload rather than agent bookkeeping overhead.
 
-    ``post_quit`` runs on Kit's event loop asynchronously, so the caller
-    must keep ``simulation_app.update()`` / ``env.sim.render()`` ticking
-    until ``simulation_app.is_running()`` flips False -- which is what
-    the main loop's ``if quit_requested: env.sim.render(); continue``
-    short-circuit does.
+    Args:
+        env: The (already built) Isaac Lab environment, shared across runs.
+        isaac_teleop_cfg: The :class:`IsaacTeleopCfg` extracted from
+            ``env_cfg.isaac_teleop``.
+        success_term: The original ``success`` termination term (or ``None``);
+            forwarded to :func:`_process_success_condition` each frame.
+        run_index: Zero-indexed run number within the multi-run batch.
+            Used to gate one-time work (the deterministic stage-load wait
+            only runs on ``run_index == 0``).
+        total_runs: Total number of runs in the batch; used only for log
+            framing ("Replay 1/5: ...").
     """
-    try:
-        import omni.kit.app
+    # ``env.step`` pumps Kit ``decimation / render_interval`` times per
+    # call (see :meth:`ManagerBasedRLEnv.step`); scale per-step times by
+    # that ratio in :func:`_compute_fps_stats` so the ``fps`` block
+    # reads in render FPS (matches Kit's HUD).
+    renders_per_step = env.cfg.decimation / env.cfg.sim.render_interval
+    stats = _RunStats(renders_per_step=renders_per_step)
 
-        omni.kit.app.get_app().post_quit()
-    except Exception:
-        logger.exception("Failed to post_quit at end of replay; the loop will keep running")
-
-
-def main() -> int:
-    """Replay a captured Isaac Teleop session against an Isaac Lab environment.
-
-    Builds the env, attaches a replay-mode :class:`IsaacTeleopDevice`, and
-    pumps the simulation loop until the recorded STOP edge fires, until
-    ``--max_replay_duration_s`` elapses as a safety cap, or until Kit is
-    closed.
-
-    Control flow:
-        * Pre-loop warmup: ``_wait_for_stage_load`` polls
-          ``omni.usd.UsdContext.get_stage_loading_status`` until Kit
-          reports zero pending assets, then renders a fixed number of
-          settle frames. An optional ``--replay_start_delay_s`` buffer
-          can be appended for hardware that needs more grace.
-          ``advance()`` is not called during warmup so
-          ``ReplaySession.update`` does not consume MCAP frames yet.
-        * Main loop: :meth:`IsaacTeleopDevice.advance` returns an action
-          tensor derived from the MCAP-replayed tracker stream and
-          :func:`poll_control_events` returns the START / STOP / RESET
-          edges replayed from the ``_teleop_control`` channel. The env
-          steps only when ``ctrl.is_active`` is True, mirroring
-          ``teleop_se3_agent.py`` and ``record_demos.py`` exactly --
-          pre-START operator-setup frames render only.
-        * End-of-replay terminators (any of these flips
-          ``quit_requested = True`` and switches the loop into render-
-          only mode until Kit drains, then maps to an exit code via
-          ``replay_outcome``):
-            1. Replayed STOP edge from ``_teleop_control`` -- the
-               operator pressed Stop during recording. Does not
-               overwrite ``replay_outcome``: if success fired earlier
-               in this run, the exit code stays 0; otherwise it stays
-               1 (``"incomplete"``), since stopping without reaching
-               success is not a successful reproduction.
-            2. Success condition met for ``--num_success_steps``
-               consecutive steps -- the natural end of a
-               ``record_demos.py`` single-episode capture. Sets
-               ``replay_outcome = "success"`` (exit code 0). We
-               intentionally skip ``_handle_reset`` here because the
-               post-success MCAP tail is operator wind-down, not demo
-               data.
-            3. ``env.step`` ``terminated`` / ``truncated`` -- a task-
-               specific failure term fired during the recorded
-               trajectory. The recording did not reproduce; we have no
-               operator agency to recover. Sets
-               ``replay_outcome = "failure"`` (exit code 1).
-            4. Wall-clock ``--max_replay_duration_s`` safety cap. Sets
-               ``replay_outcome = "timeout"`` (exit code 2).
-
-    Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
-    always runs, even when device construction or any subsequent setup
-    raises -- otherwise the USD stage would leak across CI runs.
-
-    Returns:
-        The host process exit code for CI: ``0`` if the recording's
-        ``success_term`` fired, ``1`` if the env terminated or truncated
-        mid-trajectory (or the loop exited without any explicit
-        terminator), ``2`` if ``--max_replay_duration_s`` was hit.
-    """
-    env: gym.Env | None = None
-    replay_outcome = "incomplete"
-    try:
-        env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
-        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-
-        if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
-            raise ValueError(
-                f"Task '{args_cli.task}' does not configure an IsaacTeleop pipeline. "
-                "MCAP replay requires env_cfg.isaac_teleop to be set."
-            )
-
-        teleop_interface = create_isaac_teleop_device(
-            env_cfg.isaac_teleop,
-            sim_device=args_cli.device,
-            callbacks={},
-            cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
-            auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
-            mcap_replay_path=args_cli.replay_file,
-        )
+    # CloudXR is owned by the agent (see ``_maybe_launch_cloudxr`` in
+    # ``main``), so the per-run lifecycle must not try to launch -- or
+    # stop -- it. ``cloudxr_env_file=None`` + ``auto_launch_cloudxr=False``
+    # short-circuits ``TeleopSessionLifecycle._ensure_cloudxr_runtime`` so
+    # the runtime survives across replays and Kit's OpenXR session keeps
+    # its IPC connection.
+    teleop_interface = create_isaac_teleop_device(
+        isaac_teleop_cfg,
+        sim_device=args_cli.device,
+        callbacks={},
+        cloudxr_env_file=None,
+        auto_launch_cloudxr=False,
+        mcap_replay_path=args_cli.replay_file,
+    )
+    if run_index == 0:
         print(f"Using teleop device: {teleop_interface}")
 
-        with teleop_interface:
-            # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
-            # does a hard physics reinit (re-binds articulation views, plays the
-            # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
-            # ``data.joint_pos.torch`` every step to seed Pinocchio's configuration
-            # and to compute ``target = curr + delta``; if the articulation view is
-            # stale, every IK call produces zero-delta arm targets while the
-            # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
-            env.sim.reset()
-            env.reset()
-            teleop_interface.reset()
+    with teleop_interface:
+        # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
+        # does a hard physics reinit (re-binds articulation views, plays the
+        # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
+        # ``data.joint_pos.torch`` every step to seed Pinocchio's configuration
+        # and to compute ``target = curr + delta``; if the articulation view is
+        # stale, every IK call produces zero-delta arm targets while the
+        # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
+        env.sim.reset()
+        env.reset()
+        teleop_interface.reset()
 
-            # Deterministic warmup: block until omni.usd reports zero pending
-            # assets, then pump a fixed number of renderer-settle frames.
-            # ``TeleopSession.__enter__`` already opened the MCAP, but
-            # ``ReplaySession.update`` only advances when ``advance()`` is
-            # called -- so no MCAP frames are consumed during this window.
+        # Deterministic warmup is only required on the first run -- once the
+        # stage has been streamed in and the renderer settled, subsequent
+        # runs share the same stage and only need the per-run ``env.sim.reset``
+        # above. Skipping it on later runs saves the renderer-settle frames
+        # at the cost of doing nothing measurable (the wait returns
+        # immediately on a fully-loaded stage anyway).
+        if run_index == 0:
             _wait_for_stage_load(simulation_app, args_cli.max_stage_load_wait_s)
 
             # Optional extra wall-clock buffer on top of the deterministic
@@ -570,168 +924,282 @@ def main() -> int:
                 while simulation_app.is_running() and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s:
                     env.sim.render()
 
-            print(
-                f"Replay agent started; replaying MCAP from {args_cli.replay_file}"
-                f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
+        print(
+            f"Replay {run_index + 1}/{total_runs} started; replaying MCAP from {args_cli.replay_file}"
+            f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
+        )
+        teleop_active = False
+        teleop_was_active = False  # only terminate on STOP after a real START
+        success_step_count = 0
+        replay_start_s = time.monotonic()
+        # First time we run env.step on this replay; used to bound the
+        # active duration that drives mean-FPS. Stays None until a sample
+        # is recorded so render-only / pre-START frames don't widen the
+        # window.
+        active_start_s: float | None = None
+        # End-of-active-window timestamp. Updated each sampled iteration
+        # so the active duration is always "first active iter -> last
+        # active iter" even when a terminator fires mid-loop and the
+        # subsequent renders are excluded.
+        last_active_end_s: float | None = None
+
+        while simulation_app.is_running():
+            try:
+                with torch.inference_mode():
+                    # Wall-clock safety cap. Only hit when the recording
+                    # never reaches a natural terminator -- e.g. it omits
+                    # an operator STOP AND the env's success/failure
+                    # terms never fire within the configured window. A
+                    # clean ``record_demos.py``-style capture exits on
+                    # the success edge well before this triggers.
+                    elapsed_s = time.monotonic() - replay_start_s
+                    if elapsed_s >= args_cli.max_replay_duration_s:
+                        print(f"Replay reached max_replay_duration_s={args_cli.max_replay_duration_s:.1f}; ending run.")
+                        stats.outcome = "timeout"
+                        break
+
+                    action = teleop_interface.advance()
+                    ctrl = poll_control_events(teleop_interface)
+
+                    # Track active state from the replayed _teleop_control
+                    # channel. ``ctrl.is_active`` follows the same shape
+                    # that ``record_demos.py`` and ``teleop_se3_agent.py``
+                    # consume; None means "no transition this frame."
+                    prev_active = teleop_active
+                    if ctrl.is_active is not None:
+                        teleop_active = ctrl.is_active
+                    if teleop_active:
+                        teleop_was_active = True
+
+                    # End-of-run on the first STOP edge after a real
+                    # START -- the operator pressed Stop during
+                    # recording, and ``ReplayMessageChannelTrackerImpl``
+                    # surfaces that payload at the same recording-frame
+                    # index it was captured at. Per-frame tracker EOF on
+                    # its own does NOT trigger this branch:
+                    # :class:`TeleopMessageProcessor` keeps emitting
+                    # valid False booleans for KILL / RUN_TOGGLE / RESET
+                    # after the message-channel MCAP exhausts, so the
+                    # state manager stays in its last state and
+                    # ``ctrl.is_active`` does not flip. Recordings
+                    # without an operator STOP are terminated instead by
+                    # the success / failure / wall-clock terminators
+                    # below.
+                    if prev_active and not teleop_active and teleop_was_active:
+                        print("Replay end observed (STOP edge); ending run.")
+                        break
+
+                    if ctrl.should_reset:
+                        _handle_reset(env, teleop_interface)
+                        success_step_count = 0
+                        continue
+
+                    # Gate stepping on the active state (mirrors
+                    # teleop_se3_agent.py:309-328). Pre-START operator
+                    # setup frames render only; the recorded START flips
+                    # us into the stepping branch.
+                    if action is None or not teleop_active:
+                        env.sim.render()
+                        continue
+
+                    # Sample CPU frame time across the env.step call only
+                    # (the active-frame window the stats report covers).
+                    iter_start_s = time.perf_counter()
+                    if active_start_s is None:
+                        active_start_s = iter_start_s
+                    actions = action.repeat(env.num_envs, 1)
+                    _, _, terminated, truncated, _ = env.step(actions)
+                    iter_end_s = time.perf_counter()
+                    stats.active_frame_times_ms.append((iter_end_s - iter_start_s) * 1000.0)
+                    last_active_end_s = iter_end_s
+
+                    # Failure path: ``env.step`` already invoked
+                    # ``_reset_idx`` for any env whose task-specific
+                    # failure term fired (``time_out`` was cleared by
+                    # ``_prepare_env_cfg``; ``success`` is handled
+                    # below).
+                    #
+                    # Replay-specific behavior: a failure mid-trajectory
+                    # means the recorded demo did not reproduce -- the
+                    # operator has no agency to recover here, so the
+                    # rest of the MCAP would just feed retargeted
+                    # actions to a freshly-reset env, which is not
+                    # meaningful replay. End the run with a failure
+                    # outcome so the batch's exit code reflects it.
+                    if bool(terminated.any().item()) or bool(truncated.any().item()):
+                        print("Replay failure: env terminated/truncated mid-trajectory; ending run.")
+                        stats.outcome = "failure"
+                        break
+
+                    # Success path: ``success_term`` was cleared from the
+                    # env cfg so ``env.step`` does not auto-reset on it.
+                    # ``_process_success_condition`` consults the original
+                    # success term and reports when it has held for
+                    # ``--num_success_steps`` consecutive steps.
+                    #
+                    # Replay-specific behavior: success is the natural
+                    # end-of-replay for ``record_demos.py``-style single
+                    # episode captures, so end the run here instead of
+                    # invoking ``_handle_reset`` like the live agent
+                    # does. The alternative -- resetting and continuing
+                    # into the post-success MCAP tail -- would just
+                    # replay operator wind-down frames (controller
+                    # releases, idle motion before they hit Stop on
+                    # recording), which is not meaningful demo data and
+                    # quickly exhausts the per-frame tracker streams
+                    # anyway.
+                    success_step_count, reset_on_success = _process_success_condition(
+                        env, success_term, success_step_count, args_cli.num_success_steps
+                    )
+                    if reset_on_success:
+                        print("Recorded demo succeeded; ending run.")
+                        stats.outcome = "success"
+                        break
+            except Exception:
+                # ``logger.exception`` preserves the full traceback; bare
+                # ``logger.error`` would only log the message.
+                logger.exception("Error during simulation step")
+                break
+
+    # Stamp the active window duration. Falls back to 0.0 when no env
+    # step ever ran (recording never reached START, or terminated before
+    # the first active frame).
+    if active_start_s is not None and last_active_end_s is not None:
+        stats.active_duration_s = last_active_end_s - active_start_s
+    stats.success_step_count = success_step_count
+    return stats
+
+
+def main() -> int:
+    """Replay a captured Isaac Teleop session against an Isaac Lab environment.
+
+    Builds the env once, then loops :func:`_run_single_replay` for
+    ``--num_replays`` iterations. Each iteration builds a fresh
+    :class:`IsaacTeleopDevice` (so the MCAP reader reopens at frame 0) and
+    resets the env in place; the USD stage stays loaded between runs so
+    multi-run batches start essentially instantly.
+
+    Per-replay control flow (see :func:`_run_single_replay` for details):
+        * Pre-loop warmup: ``_wait_for_stage_load`` polls
+          ``omni.usd.UsdContext.get_stage_loading_status`` until Kit
+          reports zero pending assets, then renders a fixed number of
+          settle frames (only on ``run_index == 0``). An optional
+          ``--replay_start_delay_s`` buffer can be appended for hardware
+          that needs more grace. ``advance()`` is not called during
+          warmup so ``ReplaySession.update`` does not consume MCAP
+          frames yet.
+        * Main loop: :meth:`IsaacTeleopDevice.advance` returns an action
+          tensor derived from the MCAP-replayed tracker stream and
+          :func:`poll_control_events` returns the START / STOP / RESET
+          edges replayed from the ``_teleop_control`` channel. The env
+          steps only when ``ctrl.is_active`` is True, mirroring
+          ``teleop_se3_agent.py`` and ``record_demos.py`` exactly --
+          pre-START operator-setup frames render only.
+        * End-of-replay terminators (any of these breaks the inner
+          loop and sets ``_RunStats.outcome`` accordingly; the function
+          returns and the outer batch driver moves to the next replay):
+            1. Replayed STOP edge from ``_teleop_control`` -- the
+               operator pressed Stop during recording. Does not
+               overwrite ``outcome``: if success fired earlier in this
+               run, the outcome stays ``"success"``; otherwise it stays
+               ``"incomplete"``, since stopping without reaching
+               success is not a successful reproduction.
+            2. Success condition met for ``--num_success_steps``
+               consecutive steps -- the natural end of a
+               ``record_demos.py`` single-episode capture. Sets
+               outcome ``"success"``. ``_handle_reset`` is intentionally
+               skipped here because the post-success MCAP tail is
+               operator wind-down, not demo data.
+            3. ``env.step`` ``terminated`` / ``truncated`` -- a task-
+               specific failure term fired during the recorded
+               trajectory. Sets outcome ``"failure"``.
+            4. Wall-clock ``--max_replay_duration_s`` safety cap. Sets
+               outcome ``"timeout"``.
+
+        Kit itself is left running between replays so a fresh
+        :class:`IsaacTeleopDevice` can be constructed without reloading
+        the USD stage; ``__main__`` calls ``simulation_app.close()``
+        after the whole batch finishes.
+
+    Stats output:
+        Each iteration where ``env.step()`` ran contributes one CPU
+        frame-time sample (``perf_counter`` delta in ms). At the end of
+        the run the samples are summarised into mean / p50 / p90 / p95 /
+        p99 / min / max / stddev + a mean / instantaneous-min / max FPS
+        triple, then serialised into the ``runs[]`` array of the report
+        dict. ``--stats_output_file`` controls whether the dict is
+        persisted to disk; a one-line-per-run stdout summary is always
+        printed. See the module docstring for the full JSON schema.
+
+    Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
+    always runs, even when device construction or any subsequent setup
+    raises -- otherwise the USD stage would leak across CI runs.
+
+    Returns:
+        The host process exit code, mapped from the worst-of-N outcome
+        across the multi-run batch: ``0`` if every run's
+        ``success_term`` fired, ``2`` if any run hit
+        ``--max_replay_duration_s``, otherwise ``1`` (any failure or
+        incomplete run).
+    """
+    env: gym.Env | None = None
+    cloudxr_launcher = None
+    all_runs: list[_RunStats] = []
+
+    if args_cli.num_replays < 1:
+        raise ValueError(f"--num_replays must be >= 1; got {args_cli.num_replays}")
+
+    try:
+        # CloudXR launch is hoisted to the agent (batch scope) so it
+        # survives across per-run device teardown; per-run lifecycles
+        # are explicitly told not to launch / stop it (see the
+        # ``cloudxr_env_file=None, auto_launch_cloudxr=False`` call in
+        # ``_run_single_replay``). This is what lets ``--num_replays > 1``
+        # work in XR-active mode without losing Kit's OpenXR runtime
+        # IPC between runs.
+        cloudxr_launcher = _maybe_launch_cloudxr(
+            _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
+        )
+
+        env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
+        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+
+        if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
+            raise ValueError(
+                f"Task '{args_cli.task}' does not configure an IsaacTeleop pipeline. "
+                "MCAP replay requires env_cfg.isaac_teleop to be set."
             )
-            teleop_active = False
-            teleop_was_active = False  # only post_quit on STOP after a real START
-            quit_requested = False
-            success_step_count = 0
-            replay_start_s = time.monotonic()
 
-            while simulation_app.is_running():
-                try:
-                    with torch.inference_mode():
-                        # Wall-clock safety cap. Only hit when the recording
-                        # never reaches a natural terminator -- e.g. it omits
-                        # an operator STOP AND the env's success/failure
-                        # terms never fire within the configured window. A
-                        # clean ``record_demos.py``-style capture exits on
-                        # the success edge well before this triggers.
-                        elapsed_s = time.monotonic() - replay_start_s
-                        if not quit_requested and elapsed_s >= args_cli.max_replay_duration_s:
-                            print(
-                                f"Replay reached max_replay_duration_s={args_cli.max_replay_duration_s:.1f};"
-                                " asking Kit to quit."
-                            )
-                            replay_outcome = "timeout"
-                            _request_kit_quit()
-                            quit_requested = True
-
-                        # Once we have asked Kit to quit, do not touch the
-                        # teleop session or the env again. ``post_quit`` runs
-                        # asynchronously on Kit's event loop, so we just spin
-                        # ``env.sim.render()`` to keep the loop alive until
-                        # ``simulation_app.is_running()`` flips to False.
-                        # Skipping ``advance()`` and ``_handle_reset`` here
-                        # prevents any late MCAP events (e.g. a recorded
-                        # RESET emitted after the success edge) from
-                        # re-triggering env work that would race
-                        # ``post_quit`` -- which is the actual mechanism
-                        # behind the "arms snap back to initial pose"
-                        # end-of-replay regression we previously hit.
-                        if quit_requested:
-                            env.sim.render()
-                            continue
-
-                        action = teleop_interface.advance()
-                        ctrl = poll_control_events(teleop_interface)
-
-                        # Track active state from the replayed _teleop_control
-                        # channel. ``ctrl.is_active`` follows the same shape
-                        # that ``record_demos.py`` and ``teleop_se3_agent.py``
-                        # consume; None means "no transition this frame."
-                        prev_active = teleop_active
-                        if ctrl.is_active is not None:
-                            teleop_active = ctrl.is_active
-                        if teleop_active:
-                            teleop_was_active = True
-
-                        # Clean exit on the first STOP edge after a real
-                        # START -- the operator pressed Stop during
-                        # recording, and ``ReplayMessageChannelTrackerImpl``
-                        # surfaces that payload at the same recording-frame
-                        # index it was captured at. Per-frame tracker EOF on
-                        # its own does NOT trigger this branch:
-                        # :class:`TeleopMessageProcessor` keeps emitting
-                        # valid False booleans for KILL / RUN_TOGGLE / RESET
-                        # after the message-channel MCAP exhausts, so the
-                        # state manager stays in its last state and
-                        # ``ctrl.is_active`` does not flip. Recordings
-                        # without an operator STOP are terminated instead by
-                        # the success / failure / wall-clock terminators
-                        # below.
-                        if prev_active and not teleop_active and teleop_was_active:
-                            print("Replay end observed (STOP edge); asking Kit to quit.")
-                            _request_kit_quit()
-                            quit_requested = True
-                            env.sim.render()
-                            continue
-
-                        if ctrl.should_reset:
-                            _handle_reset(env, teleop_interface)
-                            success_step_count = 0
-                            continue
-
-                        # Gate stepping on the active state (mirrors
-                        # teleop_se3_agent.py:309-328). Pre-START operator
-                        # setup frames render only; the recorded START flips
-                        # us into the stepping branch.
-                        if action is None or not teleop_active:
-                            env.sim.render()
-                            continue
-
-                        actions = action.repeat(env.num_envs, 1)
-                        _, _, terminated, truncated, _ = env.step(actions)
-
-                        # Failure path: ``env.step`` already invoked
-                        # ``_reset_idx`` for any env whose task-specific
-                        # failure term fired (``time_out`` was cleared by
-                        # ``_prepare_env_cfg``; ``success`` is handled
-                        # below).
-                        #
-                        # Replay-specific behavior: a failure mid-trajectory
-                        # means the recorded demo did not reproduce -- the
-                        # operator has no agency to recover here, so the
-                        # rest of the MCAP would just feed retargeted
-                        # actions to a freshly-reset env, which is not
-                        # meaningful replay. Treat it as a failed
-                        # end-of-replay (same shape as the success branch
-                        # below) and surface a non-zero exit code so CI
-                        # can fail the job.
-                        if bool(terminated.any().item()) or bool(truncated.any().item()):
-                            print("Replay failure: env terminated/truncated mid-trajectory; asking Kit to quit.")
-                            replay_outcome = "failure"
-                            _request_kit_quit()
-                            quit_requested = True
-                            env.sim.render()
-                            continue
-
-                        # Success path: ``success_term`` was cleared from the
-                        # env cfg so ``env.step`` does not auto-reset on it.
-                        # ``_process_success_condition`` consults the original
-                        # success term and reports when it has held for
-                        # ``--num_success_steps`` consecutive steps.
-                        #
-                        # Replay-specific behavior: success is the natural
-                        # end-of-replay for ``record_demos.py``-style single
-                        # episode captures, so treat it as a terminator (ask
-                        # Kit to quit, short-circuit) instead of doing a
-                        # ``_handle_reset`` like the live agent does. The
-                        # alternative -- resetting and continuing into the
-                        # post-success MCAP tail -- would just replay
-                        # operator wind-down frames (controller releases,
-                        # idle motion before they hit Stop on recording),
-                        # which is not meaningful demo data and quickly
-                        # exhausts the per-frame tracker streams anyway.
-                        success_step_count, reset_on_success = _process_success_condition(
-                            env, success_term, success_step_count, args_cli.num_success_steps
-                        )
-                        if reset_on_success:
-                            print("Recorded demo succeeded; asking Kit to quit.")
-                            replay_outcome = "success"
-                            _request_kit_quit()
-                            quit_requested = True
-                            env.sim.render()
-                            continue
-                except Exception:
-                    # ``logger.exception`` preserves the full traceback; bare
-                    # ``logger.error`` would only log the message.
-                    logger.exception("Error during simulation step")
-                    break
+        for run_idx in range(args_cli.num_replays):
+            run_stats = _run_single_replay(
+                env=env,
+                isaac_teleop_cfg=env_cfg.isaac_teleop,
+                success_term=success_term,
+                run_index=run_idx,
+                total_runs=args_cli.num_replays,
+            )
+            all_runs.append(run_stats)
+            print(f"Replay {run_idx + 1}/{args_cli.num_replays} outcome: {run_stats.outcome}")
+            if not simulation_app.is_running():
+                # Kit was closed externally mid-batch; stop the outer loop
+                # rather than spawning a fresh device against a dead app.
+                break
     finally:
         if env is not None:
             env.close()
             print("Environment closed")
+        if cloudxr_launcher is not None:
+            try:
+                cloudxr_launcher.stop()
+                logger.info("CloudXR runtime stopped (end of batch)")
+            except Exception:
+                logger.exception("Failed to stop CloudXR launcher cleanly")
 
-    # Map the terminal outcome to a CI-friendly exit code.
-    print(f"Replay outcome: {replay_outcome}")
-    if replay_outcome == "success":
-        return 0
-    if replay_outcome == "timeout":
-        return 2
-    return 1  # "failure" or "incomplete"
+    report = _build_report(args_cli, all_runs)
+    _print_stdout_summary(report)
+    if args_cli.stats_output_file is not None:
+        _write_json_report(args_cli.stats_output_file, report)
+    return _exit_code_for_outcomes(all_runs)
 
 
 if __name__ == "__main__":
