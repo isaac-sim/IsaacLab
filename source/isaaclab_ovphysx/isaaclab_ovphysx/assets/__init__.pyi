@@ -6,6 +6,9 @@
 __all__ = [
     "Articulation",
     "ArticulationData",
+    "RigidObject",
+    "RigidObjectData",
 ]
 
 from .articulation import Articulation, ArticulationData
+from .rigid_object import RigidObject, RigidObjectData

@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from isaaclab.physics import SceneDataProvider
+    from isaaclab.scene.scene_data_provider import SceneDataProvider
 
     from .visualizer_cfg import VisualizerCfg
 
@@ -147,9 +147,9 @@ class BaseVisualizer(ABC):
         if self._scene_data_provider is None:
             return None
         cfg = self.cfg
-        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
+        num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
-            logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env selection disabled.")
+            logger.debug("[Visualizer] num_envs is 0 or missing from provider; env selection disabled.")
             return None
         # Explicit list wins; never combine with random cap-only mode.
         if cfg.visible_env_indices is not None:

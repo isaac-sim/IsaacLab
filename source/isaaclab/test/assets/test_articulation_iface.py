@@ -20,9 +20,13 @@ import sys
 from unittest.mock import MagicMock
 
 # When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely when LD_PRELOAD is cleared
-# (the signature of run_ovphysx.sh) or when EXP_PATH is not set.
-_kitless = os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
+# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
+# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
+# set (bare Python, no Kit at all).
+_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
+    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+)
 
 if not _kitless:
     from isaaclab.app import AppLauncher
@@ -30,6 +34,19 @@ if not _kitless:
     simulation_app = AppLauncher(headless=True).app
 else:
     simulation_app = None
+    # Stub out the Kit/Omniverse modules that are not present under
+    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
+    # ``omni`` is a real namespace package, so missing submodules also need
+    # to be installed as attributes on it -- ``sys.modules`` alone is not
+    # enough because attribute access on the real ``omni`` won't fall
+    # through to ``sys.modules``.
+    import omni as _omni
+
+    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
+        _stub = MagicMock()
+        sys.modules[f"omni.{_mod}"] = _stub
+        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
+        setattr(_omni, _mod.split(".", 1)[0], _stub)
     for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
         sys.modules.setdefault(_mod, MagicMock())
 
@@ -329,6 +346,14 @@ def create_newton_articulation(
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
     mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    # Sizes consumed by the task-space scratch buffers in NewtonArticulationData.__init__.
+    # Model-wide counts equal the per-articulation counts here because the mock contains a
+    # single homogeneous world.
+    mock_model.articulation_count = num_instances
+    mock_model.max_joints_per_articulation = num_bodies
+    mock_model.max_dofs_per_articulation = num_joints
+    mock_model.joint_dof_count = num_instances * num_joints
+    mock_model.body_count = num_instances * num_bodies
     mock_state = MagicMock()
     mock_control = MagicMock()
 

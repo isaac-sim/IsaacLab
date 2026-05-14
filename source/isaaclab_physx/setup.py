@@ -20,7 +20,7 @@ INSTALL_REQUIRES = []
 
 EXTRAS_REQUIRE = {
     "newton": [
-        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
     ],
 }
 
@@ -50,7 +50,6 @@ setup(
         "isaaclab_physx.cloner",
         "isaaclab_physx.physics",
         "isaaclab_physx.renderers",
-        "isaaclab_physx.scene_data_providers",
         "isaaclab_physx.sensors",
         "isaaclab_physx.sensors.contact_sensor",
         "isaaclab_physx.sensors.frame_transformer",

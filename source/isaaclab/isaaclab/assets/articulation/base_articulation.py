@@ -175,6 +175,19 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base.
+
+        A floating-base articulation can translate and rotate freely in space, so
+        its base contributes 6 DoFs (3 linear, 3 angular). A fixed-base articulation
+        is bolted to the world and contributes 0.
+
+        Use this to map an actuated-joint index ``j`` to its column in the Jacobian
+        / mass matrix / gravity vector: ``column = j + num_base_dofs``.
+        """
+        return 0 if self.is_fixed_base else 6
+
+    @property
     @abstractmethod
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer.
