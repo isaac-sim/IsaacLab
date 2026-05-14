@@ -50,7 +50,6 @@ setup(
         "isaaclab_physx.cloner",
         "isaaclab_physx.physics",
         "isaaclab_physx.renderers",
-        "isaaclab_physx.scene_data_providers",
         "isaaclab_physx.sensors",
         "isaaclab_physx.sensors.contact_sensor",
         "isaaclab_physx.sensors.frame_transformer",
