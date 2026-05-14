@@ -3,8 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "NewtonSceneDataProvider",
-]
-
-from .newton_scene_data_provider import NewtonSceneDataProvider
+"""Configurations for the assemble trocar environments."""

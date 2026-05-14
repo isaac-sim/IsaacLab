@@ -51,10 +51,10 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab.renderers.Renderer`
      - :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`
      - :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`
-   * - Scene Data Provider
-     - :class:`~isaaclab.physics.SceneDataProvider`
-     - :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`
-     - :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`
+   * - Scene Data Backend
+     - :class:`~isaaclab.physics.SceneDataBackend`
+     - ``PhysxSceneDataBackend`` (in :mod:`isaaclab_physx.physics`)
+     - ``NewtonSceneDataBackend`` (in :mod:`isaaclab_newton.physics`)
    * - Cloner
      - :func:`~isaaclab.cloner.usd_replicate`
      - :func:`~isaaclab_physx.cloner.physx_replicate`
@@ -261,23 +261,53 @@ the established conventions:
         │   └── ...
         ├── renderers/
         │   └── ...
-        ├── cloner/
-        │   └── ...
-        └── scene_data_providers/
+        └── cloner/
             └── ...
 
 **2. Implement the physics manager:**
 
+The manager must expose a :class:`~isaaclab.physics.SceneDataBackend` so that
+:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` can read your backend's body
+transforms in a Warp-native format that renderers and visualizers consume directly.
+
 .. code-block:: python
 
     # isaaclab_mybackend/physics/mybackend_manager.py
-    from isaaclab.physics import PhysicsManager
+    from isaaclab.physics import PhysicsManager, SceneDataBackend, SceneDataFormat
+
+
+    class MyBackendSceneDataBackend(SceneDataBackend):
+        def __init__(self):
+            self._scene_data = SceneDataFormat.Transform()
+
+        @property
+        def transforms(self) -> SceneDataFormat.Transform:
+            # Return current world-space body transforms as a Warp ``transformf`` array.
+            self._scene_data.transforms = ...  # backend-native tensor view
+            return self._scene_data
+
+        @property
+        def transform_count(self) -> int:
+            ...
+
+        @property
+        def transform_paths(self) -> list[str]:
+            # Prim path per row of ``transforms``; used by ``SceneDataProvider.create_mapping``.
+            ...
+
 
     class MyBackendManager(PhysicsManager):
+        _scene_data_backend: ClassVar[MyBackendSceneDataBackend | None] = None
+
         @classmethod
         def initialize(cls, sim_context):
             super().initialize(sim_context)
+            cls._scene_data_backend = MyBackendSceneDataBackend()
             # Initialize your physics engine
+
+        @classmethod
+        def get_scene_data_backend(cls) -> SceneDataBackend:
+            return cls._scene_data_backend
 
         @classmethod
         def step(cls):

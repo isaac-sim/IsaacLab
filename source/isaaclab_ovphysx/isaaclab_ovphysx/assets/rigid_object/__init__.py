@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "PhysxSceneDataProvider",
-]
+"""Sub-module for ovphysx-backed rigid object assets."""
 
-from .physx_scene_data_provider import PhysxSceneDataProvider
+from isaaclab.utils.module import lazy_export
+
+lazy_export()
