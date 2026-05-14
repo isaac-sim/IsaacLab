@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Nvidia Dockerfiles: https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles
-# Please check above link for license information.
+# Isaac Sim base container: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
+# Please check the NGC container page for license information.
 
 # Base image
 ARG ISAACSIM_BASE_IMAGE_ARG

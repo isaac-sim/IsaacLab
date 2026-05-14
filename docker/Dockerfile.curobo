@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Nvidia Dockerfiles: https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles
-# Please check above link for license information.
+# Isaac Sim base container: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
+# Please check the NGC container page for license information.
 
 # Base image
 ARG ISAACSIM_BASE_IMAGE_ARG
@@ -34,6 +34,8 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Base image may end with a non-root user; switch to root for system-level
+# setup and package installation.
 USER root
 
 # Install dependencies
@@ -184,11 +186,28 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
-    echo "shopt -s histappend" >> /root/.bashrc && \
-    echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
+    echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
+
+# Create the non-root runtime user after root-only image setup is complete.
+# The uid/gid 1000 match GitHub runner bind mounts used by the cuRobo tests.
+# --non-unique is required because some base image revisions already carry
+# another user or group at uid/gid 1000.
+RUN groupadd --non-unique --gid 1000 isaaclab \
+ && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
+
+RUN chown -R isaaclab:isaaclab \
+        ${ISAACLAB_PATH} \
+        ${DOCKER_USER_HOME}
+
+# Open up traversal of the Isaac Sim root for the non-root runtime user. Inner
+# files keep their original permissions, so avoid chowning the full install.
+RUN chmod 755 ${ISAACSIM_ROOT_PATH}
 
 # copy the rest of the files
-COPY ../ ${ISAACLAB_PATH}/
+COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
+
+USER isaaclab
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
