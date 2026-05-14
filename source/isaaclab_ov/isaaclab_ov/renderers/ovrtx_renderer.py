@@ -42,7 +42,9 @@ import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
+from isaaclab.cloner.cloner_utils import is_homogeneous
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
@@ -159,6 +161,14 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
 
+        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning
+
+        if self._use_ovrtx_cloning:
+            clone_plan = SimulationContext.instance().get_clone_plan()
+            if clone_plan and not is_homogeneous(clone_plan):
+                logger.warning("OVRTX cloning disabled because the simulation uses a heterogeneous env setup")
+                self._use_ovrtx_cloning = False
+
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
@@ -183,13 +193,11 @@ class OVRTXRenderer(BaseRenderer):
         if stage is None:
             return
 
-        use_cloning = self.cfg.use_cloning
-
-        logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
-        create_scene_partition_attributes(stage, num_envs, use_cloning)
+        logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
+        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning)
 
         export_path = "/tmp/stage_before_ovrtx.usda"
-        export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
+        export_stage_for_ovrtx(stage, export_path, num_envs, self._use_ovrtx_cloning)
         self._exported_usd_path = export_path
         logger.info("Exported to %s", export_path)
 
@@ -211,7 +219,6 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path = spec.camera_path_relative_to_env_0
 
         usd_scene_path = self._exported_usd_path
-        use_cloning = self.cfg.use_cloning
 
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
@@ -241,7 +248,7 @@ class OVRTXRenderer(BaseRenderer):
                 logger.exception("Error loading USD: %s", e)
                 raise
 
-            if use_cloning and num_envs > 1:
+            if self._use_ovrtx_cloning and num_envs > 1:
                 logger.info("Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx(num_envs)
                 self._update_scene_partitions_after_clone(combined_usd_path, num_envs)
