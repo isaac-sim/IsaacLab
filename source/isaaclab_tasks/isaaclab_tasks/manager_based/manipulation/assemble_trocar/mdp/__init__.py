@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton scene data provider backends."""
+"""MDP utilities for the assemble_trocar task."""
 
 from isaaclab.utils.module import lazy_export
 

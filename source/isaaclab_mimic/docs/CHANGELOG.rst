@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.2.7 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :mod:`isaaclab_mimic.datagen` imports in packaged installs and avoided
+  importing task configuration modules until data generation config setup.
+
+
 1.2.6 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~
 

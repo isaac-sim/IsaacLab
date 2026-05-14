@@ -47,12 +47,23 @@ class OvPhysxManager(PhysicsManager):
     _stage_path: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
     _tmp_dir: ClassVar[tempfile.TemporaryDirectory | None] = None
+    # Device the process is locked to once :meth:`_warmup_and_load` constructs the
+    # ``ovphysx.PhysX`` instance for the first time.  ``ovphysx<=0.3.7`` enforces
+    # a process-global device-mode lock at the C++ layer (see HACK note on
+    # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
+    # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
+    _locked_device: ClassVar[str | None] = None
     # Pending (source, targets, parent_positions) triples registered by
     # ovphysx_replicate() before the PhysX instance exists.  Replayed via
     # physx.clone() in _warmup_and_load().
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     _atexit_registered: ClassVar[bool] = False
+
+    @classmethod
+    def get_dt(cls) -> float:
+        """Get the physics timestep. Alias for get_physics_dt()."""
+        return cls.get_physics_dt()
 
     @classmethod
     def register_clone(
@@ -80,13 +91,20 @@ class OvPhysxManager(PhysicsManager):
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
 
-        This stores the config and device but does not create the ovphysx
-        instance yet -- the USD stage may not be fully populated at this point.
-        The actual creation happens lazily in :meth:`reset`.
+        This stores the config and device but does not load the USD stage yet --
+        the stage may not be fully populated at this point.  The actual load
+        happens lazily in :meth:`reset`.
+
+        ``cls._physx`` is intentionally not cleared here: the ovphysx C++ instance
+        is process-global (see HACK on :meth:`_release_physx`).  When a previous
+        :class:`SimulationContext` has already constructed it, we reuse it rather
+        than dropping the only Python reference (which would trigger the
+        destructor race) or re-constructing (which would hit the wheel's
+        device-mode lock).  ``cls._locked_device`` carries the device the cached
+        instance is bound to.
         """
         super().initialize(sim_context)
         cls._warmup_done = False
-        cls._physx = None
         cls._usd_handle = None
         cls._stage_path = None
         cls._pending_clones = []
@@ -139,15 +157,27 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _release_physx(cls) -> None:
-        """Release the ovphysx instance if it exists.  Safe to call multiple times.
+        """Soft-reset the ovphysx runtime stage; keep the C++ instance alive.
 
-        With ovphysx<=0.3.7 and Kit's pxr in the same process, physx.release()
-        deadlocks due to dual-Carbonite static destructor races.  Skip the
-        native release and let os._exit() (registered via atexit) terminate the
-        process; GPU resources are reclaimed by the driver.
+        Calls ``physx.reset()`` to clear the loaded scene, but does **not** drop
+        the Python reference.  The cached :class:`ovphysx.PhysX` is reused by the
+        next :class:`~isaaclab.sim.SimulationContext` via the reuse path in
+        :meth:`_warmup_and_load`.  Safe to call multiple times.
+
+        HACK(ovphysx<=0.3.7): the wheel's bundled libcarb.so and Kit's libcarb.so
+        coexist in the same process whenever ``import pxr`` runs (Kit USD plugins
+        on ``LD_LIBRARY_PATH`` pull in Kit's Carbonite).  Both register C++ static
+        destructors that race at process exit -- and crucially, also race when
+        ``ovphysx.PhysX``'s Python destructor fires mid-process via refcount drop.
+        So we must never let the only Python reference go to zero while the
+        process is alive.  ``os._exit(0)`` (registered via ``atexit`` in
+        :meth:`_warmup_and_load`) sidesteps the static-destructor phase entirely
+        at process exit.  Remove this workaround once the wheel ships a
+        namespace-isolated Carbonite (different soname / hidden visibility).
         """
         if cls._physx is not None:
-            cls._physx = None
+            op = cls._physx.reset()
+            cls._physx.wait_op(op)
 
     @classmethod
     def get_physx_instance(cls) -> Any:
@@ -160,7 +190,22 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _warmup_and_load(cls) -> None:
-        """Export the USD stage, create the ovphysx instance, and load the scene."""
+        """Export the USD stage and load it into the ovphysx runtime.
+
+        On the first call per process, constructs the :class:`ovphysx.PhysX`
+        instance, registers the ``atexit`` handler, and locks the process to
+        the resolved device.  On subsequent calls, reuses the cached instance
+        (see HACK on :meth:`_release_physx`) -- exporting the new USD,
+        re-attaching it via ``add_usd``, replaying pending clones, and (on GPU)
+        re-running ``warmup_gpu`` so the new stage's bodies are resident.
+
+        Raises:
+            RuntimeError: if ``SimulationContext`` is not set, or if a device
+                different from the process-locked one is requested.  The wheel
+                enforces a process-global device-mode lock at the C++ layer;
+                we surface it here as a clear Python error before the wheel
+                would raise :exc:`ovphysx.types.PhysXDeviceError`.
+        """
         sim = PhysicsManager._sim
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
@@ -174,9 +219,16 @@ class OvPhysxManager(PhysicsManager):
             gpu_index = 0
             ovphysx_device = "cpu"
 
+        if cls._locked_device is not None and ovphysx_device != cls._locked_device:
+            raise RuntimeError(
+                f"OvPhysxManager is locked to device {cls._locked_device!r} for the lifetime of this process; "
+                f"cannot switch to {ovphysx_device!r}.  ovphysx<=0.3.7 binds device mode at the C++ layer on the "
+                "first ovphysx.PhysX(...) construction and it cannot be changed without restarting the process."
+            )
+
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid() and ovphysx_device == "gpu":
-            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg)
+        if scene_prim.IsValid():
+            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Export the current USD stage to a temporary file so ovphysx can load it.
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
@@ -185,6 +237,66 @@ class OvPhysxManager(PhysicsManager):
         cls._stage_path = stage_file
         logger.info("OvPhysxManager: exported USD stage to %s", stage_file)
 
+        if cls._physx is None:
+            cls._construct_physx(ovphysx_device, gpu_index)
+            cls._locked_device = ovphysx_device
+        else:
+            # Reuse path: the cached PhysX may still hold the prior stage (the
+            # wheel allows only one loaded USD at a time).  ``physx.reset()`` is
+            # idempotent on an already-cleared stage and required when this is
+            # a second :meth:`_warmup_and_load` within the same SimulationContext
+            # (e.g. when a caller manually clears ``_warmup_done`` to force a
+            # re-warmup).
+            op = cls._physx.reset()
+            cls._physx.wait_op(op)
+
+        usd_handle, op_idx = cls._physx.add_usd(stage_file)
+        cls._physx.wait_op(op_idx)
+        cls._usd_handle = usd_handle
+        logger.info("OvPhysxManager: loaded USD into ovphysx (device=%s)", ovphysx_device)
+
+        # Replay pending physics clones registered by ovphysx_replicate().
+        # The USD stage contains only env_0's physics; env_1..N are empty
+        # Xform containers.  physx.clone() creates the remaining environments
+        # in the physics runtime without modifying the USD file.
+        if cls._pending_clones:
+            # ovphysx_replicate() only registers pending clones when clone_usd=False,
+            # meaning the USD contains only env_0 physics and physx.clone() is required
+            # to populate env_1..N in the physics runtime.  Execute unconditionally —
+            # no USD content heuristic is needed.
+            for source, targets, parent_positions in cls._pending_clones:
+                logger.info(
+                    "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
+                    source,
+                    len(targets),
+                    targets[0],
+                    targets[-1],
+                )
+                if parent_positions:
+                    transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
+                else:
+                    transforms = None
+                op_idx = cls._physx.clone(source, targets, transforms)
+                cls._physx.wait_op(op_idx)
+            cls._pending_clones = []
+
+        # GPU bodies must be re-warmed after every add_usd: the cached PhysX
+        # instance carries its old buffer layout from the previous stage.
+        if ovphysx_device == "gpu":
+            cls._physx.warmup_gpu()
+
+        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+        cls._warmup_done = True
+
+    @classmethod
+    def _construct_physx(cls, ovphysx_device: str, gpu_index: int) -> None:
+        """Bootstrap the ``ovphysx`` wheel and create the :class:`ovphysx.PhysX` instance.
+
+        Runs once per process.  Configures worker threads, registers the
+        process-exit ``os._exit(0)`` handler, and stores the result on
+        ``cls._physx``.  See HACK on :meth:`_release_physx` for why the
+        instance must outlive every individual :class:`SimulationContext`.
+        """
         # HACK (temporary): hide pxr from sys.modules during ovphysx bootstrap.
         # IsaacSim's pxr reports version 0.25.5 (pip convention) while ovphysx
         # expects 25.11 (OpenUSD release convention).  Hiding pxr causes
@@ -270,52 +382,25 @@ class OvPhysxManager(PhysicsManager):
             atexit.register(_atexit_release_and_exit)
             cls._atexit_registered = True
 
-        usd_handle, op_idx = cls._physx.add_usd(stage_file)
-        cls._physx.wait_op(op_idx)
-        cls._usd_handle = usd_handle
-        logger.info("OvPhysxManager: loaded USD into ovphysx (device=%s)", ovphysx_device)
-
-        # Replay pending physics clones registered by ovphysx_replicate().
-        # The USD stage contains only env_0's physics; env_1..N are empty
-        # Xform containers.  physx.clone() creates the remaining environments
-        # in the physics runtime without modifying the USD file.
-        if cls._pending_clones:
-            # ovphysx_replicate() only registers pending clones when clone_usd=False,
-            # meaning the USD contains only env_0 physics and physx.clone() is required
-            # to populate env_1..N in the physics runtime.  Execute unconditionally —
-            # no USD content heuristic is needed.
-            for source, targets, parent_positions in cls._pending_clones:
-                logger.info(
-                    "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
-                    source,
-                    len(targets),
-                    targets[0],
-                    targets[-1],
-                )
-                if parent_positions:
-                    transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
-                else:
-                    transforms = None
-                op_idx = cls._physx.clone(source, targets, transforms)
-                cls._physx.wait_op(op_idx)
-            cls._pending_clones = []
-
-        if ovphysx_device == "gpu":
-            cls._physx.warmup_gpu()
-
-        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
-        cls._warmup_done = True
-
     @staticmethod
-    def _configure_physx_scene_prim(scene_prim, cfg) -> None:
-        """Apply PhysxSceneAPI schema and GPU dynamics attributes to a scene prim.
+    def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
+        """Apply PhysxSceneAPI schema and device-specific scene attributes to the
+        scene prim.
 
         The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode,
         so we write the apiSchemas list entry and scene attributes directly via
         raw Sdf metadata manipulation instead of using the high-level USD API.
 
-        Without these attributes PhysX defaults to CPU broadphase even when
-        ovphysx is created with device="gpu".
+        The schema and scene-query-support attribute are applied regardless of
+        device. The GPU-specific dynamics/broadphase/capacity attributes are
+        applied only when ``device == "gpu"`` — without them PhysX defaults to
+        CPU broadphase even when ovphysx is created with ``device="gpu"``.
+
+        Args:
+            scene_prim: The /World/PhysicsScene prim to configure.
+            cfg: The :class:`OvPhysxCfg` carrying GPU buffer-capacity values.
+                Only consulted when ``device == "gpu"``.
+            device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
         from pxr import Sdf
 
@@ -326,22 +411,24 @@ class OvPhysxManager(PhysicsManager):
             items.append("PhysxSceneAPI")
         schemas.prependedItems = items
         scene_prim.SetMetadata("apiSchemas", schemas)
-        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
-        scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
-
-        if cfg is not None:
-            for attr, val in [
-                ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
-                ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
-                ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
-                ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
-                ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
-                ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
-            ]:
-                scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
 
         # Propagate scene query support from SimulationCfg so omni.physx creates
         # the scene with the correct query mode.  OvPhysxCfg does not carry this field.
         sim_cfg = PhysicsManager._sim.cfg if PhysicsManager._sim is not None else None
         enable_sq = getattr(sim_cfg, "enable_scene_query_support", False)
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
+
+        if device == "gpu":
+            scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
+            scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
+
+            if cfg is not None:
+                for attr, val in [
+                    ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
+                    ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
+                    ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
+                    ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
+                    ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
+                    ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
+                ]:
+                    scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)

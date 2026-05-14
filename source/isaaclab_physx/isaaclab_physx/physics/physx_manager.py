@@ -21,6 +21,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
+import warp as wp
 
 import carb
 import omni.kit.app
@@ -28,10 +29,10 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import Sdf, UsdUtils
+from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
@@ -153,6 +154,71 @@ class AnimationRecorder:
                 f.write(content)
 
 
+class PhysxSceneDataBackend(SceneDataBackend):
+    def __init__(self):
+        self._simulation_view: omni.physics.tensors.SimulationView | None = None
+        self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
+        self._scene_data = SceneDataFormat.Transform()
+
+    @property
+    def simulation_view(self) -> omni.physics.tensors.SimulationView | None:
+        return self._simulation_view
+
+    @simulation_view.setter
+    def simulation_view(self, simulation_view: omni.physics.tensors.SimulationView | None):
+        self._simulation_view = simulation_view
+        self._rigid_body_view = None
+
+    def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
+        """Lazily create a rigid body view covering all rigid bodies in the scene.
+
+        Discovers rigid body prims by traversing the USD stage and converts
+        per-environment paths (``/World/envs/env_N/...``) into wildcard
+        patterns so a single PhysX view covers every environment instance.
+        """
+        if self._rigid_body_view is not None:
+            return self._rigid_body_view
+
+        if self._simulation_view is None:
+            return None
+
+        stage: Usd.Stage = omni.usd.get_context().get_stage()
+        if stage is None:
+            return None
+
+        patterns: set[str] = set()
+        for prim in stage.Traverse():
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+
+        if not patterns:
+            return None
+
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(list(patterns))
+        return self._rigid_body_view
+
+    @property
+    def transforms(self) -> SceneDataFormat.Transform:
+        """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
+        if view := self.get_rigid_body_view():
+            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
+        return self._scene_data
+
+    @property
+    def transform_count(self) -> int:
+        """Return the number of rigid body transforms in the PhysX sim."""
+        if view := self.get_rigid_body_view():
+            return view.count
+        return 0
+
+    @property
+    def transform_paths(self) -> list[str]:
+        """Return the prim paths for each rigid body transform."""
+        if view := self.get_rigid_body_view():
+            return list(view.prim_paths)
+        return []
+
+
 class PhysxManager(PhysicsManager):
     """Manages PhysX physics simulation lifecycle.
 
@@ -165,6 +231,7 @@ class PhysxManager(PhysicsManager):
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
     _physx: ClassVar[omni.physx.IPhysx] = omni.physx.get_physx_interface()
     _physx_sim: ClassVar[omni.physx.IPhysxSimulation] = omni.physx.get_physx_simulation_interface()
+    _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
 
     _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
     _view_warp: ClassVar[omni.physics.tensors.SimulationView | None] = None
@@ -210,6 +277,7 @@ class PhysxManager(PhysicsManager):
         cls._configure_physics()
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context)
+        cls._scene_data_backend = PhysxSceneDataBackend()
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -247,6 +315,11 @@ class PhysxManager(PhysicsManager):
             if cls._view is not None and sim is not None and sim.is_playing():
                 cls._view.update_articulations_kinematic()
             cls._update_fabric(0.0, 0.0)
+
+    @classmethod
+    def get_scene_data_backend(cls) -> SceneDataBackend:
+        """Return the SceneDataBackend for the SceneDataProvider."""
+        return cls._scene_data_backend
 
     @classmethod
     def step(cls) -> None:
@@ -689,6 +762,7 @@ class PhysxManager(PhysicsManager):
         # Final update after view creation
         cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
+        cls._scene_data_backend.simulation_view = cls._view
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
