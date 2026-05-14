@@ -119,6 +119,7 @@ Fixed
   installable alongside ``isaacsim==6.0.0.0``. Users who want the Viser
   visualizer can request it explicitly with ``isaaclab[viser]``.
 
+
 5.1.1 (2026-05-13)
 ~~~~~~~~~~~~~~~~~~
 
@@ -140,6 +141,7 @@ Fixed
   a valid interface. The fallback has been removed; the helper still fails closed
   when Fabric is unavailable, with no impact on the cloning speedup when Fabric
   is present.
+
 
 5.1.0 (2026-05-12)
 ~~~~~~~~~~~~~~~~~~
@@ -189,6 +191,7 @@ Fixed
 
 * Fixed extension installation to honor ``pip_upgrade_dependencies`` declared
   in ``config/extension.toml``.
+
 
 5.0.0 (2026-05-11)
 ~~~~~~~~~~~~~~~~~~

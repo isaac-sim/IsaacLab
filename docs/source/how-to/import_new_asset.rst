@@ -47,7 +47,7 @@ The URDF importer has various configuration parameters that can be set to contro
 The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
 
 Articulation and joint structure
-""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.UrdfConverterCfg.fix_base` * - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
@@ -72,7 +72,7 @@ Articulation and joint structure
       ``PDGainsCfg`` instead.
 
 Geometry, collisions, and materials
-"""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.UrdfConverterCfg.collision_from_visuals` - Whether to create collision geometry
   from visual geometry when no explicit ``<collision>`` is defined for a link. Defaults to ``False``.
@@ -86,7 +86,7 @@ Geometry, collisions, and materials
   ``<inertial>`` properties are missing. ``0.0`` (default) leaves densities unchanged.
 
 Asset resolution and output
-"""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.UrdfConverterCfg.ros_package_paths` - List of ROS package name/path mappings used
   to resolve ``package://`` URLs in the URDF. Each entry is a dict with keys ``name`` and ``path``.
@@ -101,7 +101,7 @@ Asset resolution and output
   output USD for inspection. Defaults to ``False``.
 
 Deprecated (no-op in URDF importer 3.0)
-"""""""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following options are retained for backwards compatibility but are ignored by the URDF importer 3.0.
 A warning is logged when they are set.
@@ -225,7 +225,7 @@ parameters, please check the the documentation at `MJCF importer`_.
    longer needed — the converter now handles these automatically based on the MJCF file content.
 
 Geometry, collisions, and materials
-"""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.MjcfConverterCfg.merge_mesh` * - Whether to merge meshes where possible to
   optimize the model. The command-line flag is ``--merge-mesh``.
@@ -238,7 +238,7 @@ Geometry, collisions, and materials
   between links of the articulation. The command-line flag is ``--self-collision``.
 
 Articulation and physics
-""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.MjcfConverterCfg.fix_base` - Whether to add a fixed joint between the world
   and the root rigid-body link. Defaults to ``False``.
@@ -249,7 +249,7 @@ Articulation and physics
   ``--import-physics-scene``.
 
 Actuator overrides
-""""""""""""""""""
+~~~~~~~~~~~~~~~~~~
 
 MuJoCo models actuators as an affine transformation ``tau = gain @ control + bias``. The following
 options override the values parsed from the MJCF on a per-actuator basis. Each defaults to ``None``,
@@ -265,7 +265,7 @@ which leaves the parsed values unchanged.
   Example for position control: ``[0, -kp, -kd, 0, 0, 0, 0, 0, 0, 0]``.
 
 Asset resolution and output
-"""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.MjcfConverterCfg.robot_type` - Robot type applied by the USD robot schema.
   Defaults to ``"Default"``. Must be one of: ``"Default"``, ``"End Effector"``, ``"Manipulator"``,
