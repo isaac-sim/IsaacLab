@@ -22,3 +22,8 @@ Fixed
 * Fixed Kit / Fabric viewport sync for Newton cables by updating
   ``UsdGeomBasisCurves`` points from Newton cable body transforms at render
   cadence.
+* Fixed cable explosion under the Kit visualizer by overriding
+  :meth:`~isaaclab_contrib.deformable.vbd_manager.NewtonVBDManager.forward` to
+  mask out cable articulations. Newton's ``eval_fk`` has no
+  :attr:`newton.JointType.CABLE` case and was collapsing rod segments onto
+  their parent anchors every time Kit triggered a pre-render FK pass.

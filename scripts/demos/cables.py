@@ -35,9 +35,9 @@ import math
 import random
 
 import tqdm
+from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 
 from isaaclab_contrib.cable import CableObject, CableObjectCfg
 
@@ -137,7 +137,7 @@ def main():
     # spikes when many cable segments pile onto one segment. mu=1.0 keeps
     # cables from sliding off the pile.
     physics_cfg.model_cfg = NewtonModelCfg(
-        shape_material_ke=1.0e4,
+        shape_material_ke=1.0e3,
         shape_material_kd=1.0e1,
         shape_material_mu=1.0,
     )
