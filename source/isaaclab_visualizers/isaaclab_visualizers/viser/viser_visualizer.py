@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import contextlib
+import io
 import logging
 import os
 import webbrowser
@@ -89,12 +90,15 @@ class NewtonViewerViser(ViewerViser):
 
         def _viser_server_with_bind_address(*args, **kwargs):
             kwargs["host"] = bind_address
-            kwargs.setdefault("verbose", verbose)
+            kwargs["verbose"] = verbose
             return original_viser_server(*args, **kwargs)
 
         with contextlib.ExitStack() as stack:
             viser.ViserServer = _viser_server_with_bind_address
             stack.callback(setattr, viser, "ViserServer", original_viser_server)
+            if not verbose:
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
             super().__init__(
                 port=port,
                 label=label,

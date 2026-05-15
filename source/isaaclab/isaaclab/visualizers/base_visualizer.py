@@ -330,7 +330,7 @@ class BaseVisualizer(ABC):
         visualizer_label = visualizer_name.removesuffix("Visualizer").lower()
         title = f" {visualizer_label} (listening *:{parsed_url.port}) " if parsed_url.port else f" {visualizer_label} "
         label = "URL"
-        label_width = max(9, len(label))
+        label_width = len(label)
         value_width = max(len(viewer_url), len(title) + 2, 21)
         inner_width = label_width + value_width + 9
         left_rule_width = max((inner_width - len(title)) // 2, 1)
@@ -343,7 +343,7 @@ class BaseVisualizer(ABC):
             f"│{' ' * (label_width + 4)}╵{' ' * (value_width + 4)}│",
             f"╰{'─' * inner_width}╯",
         ]
-        self._deferred_startup_messages.append("\n".join(lines))
+        self._deferred_startup_messages.append("\n" + "\n".join(lines) + "\n")
 
     def flush_startup_messages(self) -> None:
         """Print deferred startup messages immediately before the workflow update loop starts."""
