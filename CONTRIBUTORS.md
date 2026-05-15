@@ -136,6 +136,7 @@ Guidelines for modifications:
 * Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
+* Nicholas Blauch
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
@@ -187,6 +188,7 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xu Li
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo

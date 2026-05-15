@@ -44,6 +44,19 @@ _PHYSX_FORWARDS = frozenset(
     }
 )
 
+_NEWTON_FORWARDS = frozenset(
+    {
+        "MujocoRigidBodyPropertiesCfg",
+        "MujocoJointDrivePropertiesCfg",
+        "NewtonRigidBodyPropertiesCfg",
+        "NewtonJointDrivePropertiesCfg",
+        "NewtonCollisionPropertiesCfg",
+        "NewtonMeshCollisionPropertiesCfg",
+        "NewtonMaterialPropertiesCfg",
+        "NewtonArticulationRootPropertiesCfg",
+    }
+)
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
@@ -54,9 +67,20 @@ def __getattr__(name):
                 f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
                 " 'isaaclab_physx.sim.schemas.schemas_cfg'. Install the isaaclab_physx"
                 " extension or update your import. This forwarding shim is scheduled for"
-                " removal in 5.0."
+                " removal in 4.0."
             ) from e
         return getattr(_physx_cfg, name)
+    if name in _NEWTON_FORWARDS:
+        try:
+            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
+                " 'isaaclab_newton.sim.schemas.schemas_cfg'. Install the isaaclab_newton"
+                " extension or update your import. This forwarding shim is scheduled for"
+                " removal in 4.0."
+            ) from e
+        return getattr(_newton_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
 
 
@@ -71,7 +95,7 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     if value is None:
         return
     warnings.warn(
-        f"'{alias}' is deprecated; use '{canonical}' instead. The alias is scheduled for removal in 5.0.",
+        f"'{alias}' is deprecated; use '{canonical}' instead. The alias is scheduled for removal in 4.0.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -367,7 +391,7 @@ class JointDriveBaseCfg:
         Use :attr:`max_force` instead. The cfg field is renamed so its
         snake_case name maps identity-style to the USD camelCase attribute
         (``maxForce`` on ``UsdPhysics.DriveAPI``). The alias is forwarded to
-        :attr:`max_force` in :meth:`__post_init__` and will be removed in 5.0.
+        :attr:`max_force` in :meth:`__post_init__` and will be removed in 4.0.
     """
 
     stiffness: float | None = None
@@ -421,7 +445,7 @@ class JointDriveBaseCfg:
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its
         snake_case name maps identity-style to the USD camelCase attribute
         (``physxJoint:maxJointVelocity``). The alias is forwarded to
-        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 5.0.
+        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 4.0.
     """
 
 
@@ -468,7 +492,7 @@ class MeshCollisionBaseCfg:
         """
         if name == "usd_api":
             warnings.warn(
-                "'usd_api' attribute is deprecated and will be removed in 5.0. Use class-level"
+                "'usd_api' attribute is deprecated and will be removed in 4.0. Use class-level"
                 " metadata via getattr(cfg, '_usd_applied_schema').",
                 DeprecationWarning,
                 stacklevel=2,
@@ -479,7 +503,7 @@ class MeshCollisionBaseCfg:
             return "MeshCollisionAPI" if schema is not None else None
         if name == "physx_api":
             warnings.warn(
-                "'physx_api' attribute is deprecated and will be removed in 5.0. Use class-level"
+                "'physx_api' attribute is deprecated and will be removed in 4.0. Use class-level"
                 " metadata via getattr(cfg, '_usd_applied_schema').",
                 DeprecationWarning,
                 stacklevel=2,

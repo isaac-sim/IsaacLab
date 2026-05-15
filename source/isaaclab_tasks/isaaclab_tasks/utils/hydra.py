@@ -36,14 +36,9 @@ from omegaconf import OmegaConf
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
-_LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
+from .preset_target import PresetTarget
 
-# Map of deprecated preset name -> current name. Newton-backend solver presets are
-# now prefixed with ``newton_`` so they group together in autocomplete and read
-# distinctly from backend/package/visualizer names that also use the word
-# ``newton``. Aliases keep legacy CLI invocations and ``PresetCfg`` field accesses
-# working with a :class:`FutureWarning`; they will be removed in a future release.
-_LEGACY_PRESET_ALIASES = {"newton": "newton_mjwarp", "kamino": "newton_kamino"}
+_LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
 def _user_stacklevel() -> int:
@@ -83,7 +78,7 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
     """
-    replacement = _LEGACY_PRESET_ALIASES.get(name)
+    replacement = PresetTarget.all_legacy_aliases().get(name)
     if replacement is None or replacement not in known_names or name in known_names:
         return name
     warnings.warn(
@@ -124,7 +119,7 @@ class PresetCfg:
         real field on the subclass, so a user redefining the deprecated name
         shadows the alias.
         """
-        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        replacement = PresetTarget.all_legacy_aliases().get(name)
         fields = getattr(type(self), "__dataclass_fields__", {})
         if replacement is not None and replacement in fields and name not in fields:
             warnings.warn(
@@ -407,9 +402,9 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
         fingerprint_to_names.setdefault(key, []).append(name)
 
     lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
-    deprecated_hits = sorted(name for name in unknown if name in _LEGACY_PRESET_ALIASES)
+    deprecated_hits = sorted(name for name in unknown if name in PresetTarget.all_legacy_aliases())
     for legacy in deprecated_hits:
-        replacement = _LEGACY_PRESET_ALIASES[legacy]
+        replacement = PresetTarget.all_legacy_aliases()[legacy]
         lines.append(f"  '{legacy}' was renamed to '{replacement}'; this task does not declare '{replacement}' either.")
     lines += [
         "",
@@ -583,8 +578,8 @@ def apply_overrides(
         if name not in presets[sec][path]:
             avail = list(presets[sec][path].keys())
             hint = ""
-            if name in _LEGACY_PRESET_ALIASES:
-                replacement = _LEGACY_PRESET_ALIASES[name]
+            if name in PresetTarget.all_legacy_aliases():
+                replacement = PresetTarget.all_legacy_aliases()[name]
                 hint = f" '{name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
             raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}.{hint}")
         full_path = f"{sec}.{path}" if path else sec

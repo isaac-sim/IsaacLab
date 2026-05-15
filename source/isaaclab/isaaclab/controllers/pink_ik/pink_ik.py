@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from pink import solve_ik
 from pink.tasks import Task
+from qpsolvers.exceptions import SolverNotFound
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.controllers import utils as controller_utils
@@ -32,6 +33,9 @@ from .pink_task_cfg import PinkIKTaskCfg
 
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg
+
+
+_QP_SOLVER = "daqp"
 
 
 class PinkIKController:
@@ -240,30 +244,45 @@ class PinkIKController:
         # Update Pink's robot configuration with the current joint positions
         self.pink_configuration.update(joint_positions_pink)
 
+        def _return_current_joint_positions(error: Exception) -> torch.Tensor:
+            if self.cfg.show_ik_warnings:
+                print(
+                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
+                    f" positions.\nError: {error}"
+                )
+
+            if self.cfg.xr_enabled:
+                from isaaclab.ui.xr_widgets import XRVisualization
+
+                XRVisualization.push_event("ik_error", {"error": error})
+            return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
+
         # Solve IK using Pink's solver
         try:
             velocity = solve_ik(
                 self.pink_configuration,
                 self._variable_input_tasks + self._fixed_input_tasks,
                 dt,
-                solver="daqp",
+                solver=_QP_SOLVER,
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
             assert not np.isnan(velocity).any(), "Solution to IK contains NaN."
             joint_angle_changes = velocity * dt
+        except SolverNotFound as e:
+            raise RuntimeError(
+                f"Pink IK requires the '{_QP_SOLVER}' QP solver. Install the Pink IK stack with "
+                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.8.5``."
+            ) from e
+        except TypeError as e:
+            if "primal_start" in str(e):
+                raise RuntimeError(
+                    "Pink IK requires a DAQP version compatible with qpsolvers warm-start arguments. "
+                    "Install the Pink IK stack with ``./isaaclab.sh -i`` or manually install "
+                    "``pin pin-pink==3.1.0 daqp==0.8.5``."
+                ) from e
+            return _return_current_joint_positions(e)
         except (AssertionError, Exception) as e:
-            # Print warning and return the current joint positions as the target
-            if self.cfg.show_ik_warnings:
-                print(
-                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
-                    f" positions.\nError: {e}"
-                )
-
-            if self.cfg.xr_enabled:
-                from isaaclab.ui.xr_widgets import XRVisualization
-
-                XRVisualization.push_event("ik_error", {"error": e})
-            return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
+            return _return_current_joint_positions(e)
 
         # Reorder the joint angle changes back to Isaac Lab conventions
         joint_vel_isaac_lab = torch.tensor(

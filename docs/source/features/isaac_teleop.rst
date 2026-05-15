@@ -685,6 +685,14 @@ Key ``IsaacTeleopCfg`` fields:
 * ``xr_cfg`` -- :class:`~isaaclab_teleop.XrCfg` for anchor configuration (see below).
 * ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
 * ``sim_device`` -- torch device string (default ``"cuda:0"``).
+* ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
+  Defaults to ``RetargetingExecutionConfig(mode="pipelined")`` with
+  ``DeadlinePacingConfig(safety_margin_s=0.025)`` so retargeting can run on
+  the IsaacTeleop worker instead of blocking the simulation loop.
+  The 25 ms safety margin staggers IsaacTeleop's Python work behind Isaac
+  Lab's step Python, giving native work such as rendering time to overlap
+  instead of having both Python stacks contend for the GIL at the start of
+  the step.
 
 .. warning::
 

@@ -20,10 +20,10 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
+from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
@@ -139,12 +139,15 @@ class NewtonWarpRenderer(BaseRenderer):
     RenderData = RenderData
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
+        """Pre-physics initialization."""
         from isaaclab.physics.scene_data_requirements import (
             aggregate_requirements,
             requirement_for_renderer_type,
         )
 
         self.cfg = cfg
+        self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
+
         sim = SimulationContext.instance()
         current_req = sim.get_scene_data_requirements()
         renderer_req = requirement_for_renderer_type("newton_warp")
@@ -152,23 +155,25 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
-        newton_model = self.get_scene_data_provider().get_newton_model()
-        if newton_model is None:
+    def initialize(self) -> None:
+        """Post-physics setup: read the built Newton model and construct the sensor."""
+        self._newton_model: newton.Model = NewtonManager.get_model()
+        if self._newton_model is None:
             raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but the scene data provider returned None. "
+                "NewtonWarpRenderer requires a Newton model but NewtonManager.get_model() returned None. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
             )
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
-            newton_model,
+            self._newton_model,
             config=newton.sensors.SensorTiledCamera.RenderConfig(
-                enable_textures=cfg.enable_textures,
-                enable_shadows=cfg.enable_shadows,
-                enable_ambient_lighting=cfg.enable_ambient_lighting,
-                enable_backface_culling=cfg.enable_backface_culling,
-                max_distance=cfg.max_distance,
+                enable_textures=self.cfg.enable_textures,
+                enable_shadows=self.cfg.enable_shadows,
+                enable_ambient_lighting=self.cfg.enable_ambient_lighting,
+                enable_backface_culling=self.cfg.enable_backface_culling,
+                max_distance=self.cfg.max_distance,
             ),
         )
 
@@ -177,11 +182,11 @@ class NewtonWarpRenderer(BaseRenderer):
         # ``RenderContext.render`` raises if ``build_bvh_shape`` was never called for the model.
         # Build it once per model — idempotent across multiple sensors that share ``newton_model``
         # because subsequent calls overwrite the same model-level BVH attributes.
-        if newton_model.shape_count > 0 and newton_model.bvh_shapes is None:
-            newton.geometry.build_bvh_shape(newton_model, newton_model.state())
+        if self._newton_model.shape_count > 0 and self._newton_model.bvh_shapes is None:
+            newton.geometry.build_bvh_shape(self._newton_model, self._newton_model.state())
 
-        if cfg.create_default_light:
-            self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
+        if self.cfg.create_default_light:
+            self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
@@ -217,7 +222,9 @@ class NewtonWarpRenderer(BaseRenderer):
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        SimulationContext.instance().update_scene_data_provider(True)
+        sim = SimulationContext.instance()
+        sim.physics_manager.forward()
+        NewtonManager.update_visualization_state()
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -228,11 +235,14 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        newton_state = self.get_scene_data_provider().get_newton_state()
+
+        newton_state: newton.State = NewtonManager.get_state()
+
         # Refit the shape BVH against the current state since env body poses move every frame.
         # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
         if self.newton_sensor.model.shape_count > 0:
             newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
+
         self.newton_sensor.update(
             newton_state,
             render_data.camera_transforms,
@@ -261,7 +271,5 @@ class NewtonWarpRenderer(BaseRenderer):
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        pass
-
-    def get_scene_data_provider(self) -> BaseSceneDataProvider:
-        return SimulationContext.instance().initialize_scene_data_provider()
+        if render_data:
+            render_data.sensor = None
