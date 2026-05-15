@@ -124,7 +124,7 @@ jobs:
           local files="$1" entry regex
           for entry in "${patterns[@]}"; do
             IFS=$'\t' read -r regex _ <<< "$entry"
-            if printf '%s\n' "$files" | grep -qE "$regex"; then
+            if grep -qE "$regex" <<< "$files"; then
               return 0
             fi
           done
