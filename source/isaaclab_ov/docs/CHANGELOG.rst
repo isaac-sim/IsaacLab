@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.1.9 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :class:`~isaaclab_ov.renderers.OVRTXRenderer` now reads the
+  Newton ``Model`` and ``State`` it binds OVRTX attributes against from
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_state` instead of the
+  removed ``BaseSceneDataProvider.get_newton_model()`` /
+  ``get_newton_state()``.
+
+
 0.1.8 (2026-05-13)
 ~~~~~~~~~~~~~~~~~~
 
