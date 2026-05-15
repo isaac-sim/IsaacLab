@@ -36,7 +36,7 @@ import isaaclab_tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-RSL_RL_VERSION = "3.0.1"
+RSL_RL_VERSION = "5.0.1"
 RL_ROOT = Path(__file__).resolve().parents[1]
 CLI_ARGS = import_local_module("isaaclab_rsl_rl_cli_args", RL_ROOT / "rsl_rl" / "cli_args.py")
 

@@ -52,7 +52,7 @@ def dispatch_library_entrypoint(
         argv = sys.argv[1:]
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--rl_library", choices=sorted(entrypoints), default="rsl_rl")
+    parser.add_argument("--rl_library", choices=sorted(entrypoints), required=True)
     args_cli, library_args = parser.parse_known_args(argv)
 
     if args_cli.rl_library is None:
