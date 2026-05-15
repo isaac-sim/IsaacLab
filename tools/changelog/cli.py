@@ -922,7 +922,7 @@ class PRDiff:
                 # By construction ``parse_slug`` returns a valid slug here:
                 # ``.skip`` files passed the ``is_skip`` filter (which only
                 # accepts a successfully parsed filename), and ``.rst`` files
-                # passed ``validate()`` (which rejects unparseable names).
+                # passed ``validate()`` (which rejects unparsable names).
                 slug = Fragment.parse_slug(path.name)
                 assert slug is not None, f"unreachable: {path.name!r} reached Rule 3 without a valid slug"
                 if slug in existing_slugs and existing_slugs[slug] != path.name:
