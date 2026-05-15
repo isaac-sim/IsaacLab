@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import faulthandler
 import importlib.metadata as metadata
 import os
 import sys
@@ -37,9 +36,6 @@ if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
 import cli_args  # isort: skip
 
 
-_TIMING_PREFIX = "[LEAPP_EXPORT_TIMING]"
-_PROCESS_START = time.perf_counter()
-_CLOSE_HANG_TRACEBACK_TIMEOUT = 120
 _RUNTIME_IMPORTS_LOADED = False
 
 gym = None
@@ -54,48 +50,6 @@ ensure_env_spec_id = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
-
-
-def _emit_timing(message: str) -> None:
-    """Print timing diagnostics to the original stderr stream."""
-    print(message, file=sys.__stderr__ or sys.stderr, flush=True)
-
-
-@contextlib.contextmanager
-def _timed_phase(task_name: str | None, phase: str):
-    """Print timing information for a single export phase."""
-    start = time.perf_counter()
-    task_label = task_name or "<unknown>"
-    _emit_timing(
-        f"{_TIMING_PREFIX} task={task_label} phase={phase} status=start "
-        f"pid={os.getpid()} total_elapsed={start - _PROCESS_START:.2f}s"
-    )
-    status = "done"
-    try:
-        yield
-    except Exception:
-        status = "failed"
-        raise
-    finally:
-        end = time.perf_counter()
-        _emit_timing(
-            f"{_TIMING_PREFIX} task={task_label} phase={phase} status={status} "
-            f"phase_elapsed={end - start:.2f}s total_elapsed={end - _PROCESS_START:.2f}s"
-        )
-
-
-def _close_simulation_app(simulation_app) -> None:
-    """Close Isaac Sim without waiting for Replicator workflows."""
-    traceback_stream = sys.__stderr__ or sys.stderr
-    faulthandler.dump_traceback_later(
-        _CLOSE_HANG_TRACEBACK_TIMEOUT,
-        repeat=True,
-        file=traceback_stream,
-    )
-    try:
-        simulation_app.close(wait_for_replicator=False)
-    finally:
-        faulthandler.cancel_dump_traceback_later()
 
 
 def create_arg_parser() -> argparse.ArgumentParser:
@@ -267,76 +221,68 @@ def export_rsl_rl_agent(
 
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
-    task_start = time.perf_counter()
-    _emit_timing(f"{_TIMING_PREFIX} task={task_name} phase=main status=start")
 
-    with _timed_phase(task_name, "agent_config"):
-        agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
-        env_cfg.scene.num_envs = 1
+    agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+    env_cfg.scene.num_envs = 1
 
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
-        # note: certain randomizations occur in the environment initialization so we set the seed here
-        env_cfg.seed = agent_cfg.seed
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    # note: certain randomizations occur in the environment initialization so we set the seed here
+    env_cfg.seed = agent_cfg.seed
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
-    with _timed_phase(task_name, "checkpoint_resolution"):
-        if args_cli.use_pretrained_checkpoint:
-            resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
-            if not resume_path:
-                print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
-                return False
-        elif args_cli.checkpoint:
-            resume_path = retrieve_file_path(args_cli.checkpoint)
-        else:
-            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+    if args_cli.use_pretrained_checkpoint:
+        resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
+        if not resume_path:
+            print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
+            return False
+    elif args_cli.checkpoint:
+        resume_path = retrieve_file_path(args_cli.checkpoint)
+    else:
+        resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
     log_dir = os.path.dirname(resume_path)
 
     env_cfg.log_dir = log_dir
 
     env = None
-    env_closed = False
     leapp_started = False
     try:
-        with _timed_phase(task_name, "gym_make"):
-            env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
-            policy_node_name = ensure_env_spec_id(env)
+        env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
+        policy_node_name = ensure_env_spec_id(env)
 
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
-            with _timed_phase(task_name, "patch_env_for_export"):
-                # Patch only the observation groups consumed by the actor policy.
-                # This filters out the critic and teacher observation groups.
-                obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
-                if isinstance(obs_groups_cfg, Mapping):
-                    required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
-                else:
-                    required_obs_groups = {"policy"}
-                patch_env_for_export(
-                    env,
-                    export_method=args_cli.export_method,
-                    required_obs_groups=required_obs_groups,
-                )
+            # Patch only the observation groups consumed by the actor policy.
+            # This filters out the critic and teacher observation groups.
+            obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
+            if isinstance(obs_groups_cfg, Mapping):
+                required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+            else:
+                required_obs_groups = {"policy"}
+            patch_env_for_export(
+                env,
+                export_method=args_cli.export_method,
+                required_obs_groups=required_obs_groups,
+            )
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        with _timed_phase(task_name, "runner_init_load"):
-            if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-            elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-            else:
-                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-            runner.load(resume_path)
+        if agent_cfg.class_name == "OnPolicyRunner":
+            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+        elif agent_cfg.class_name == "DistillationRunner":
+            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+        else:
+            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+        runner.load(resume_path)
 
-            policy = runner.get_inference_policy(device=env.unwrapped.device)
-            policy_nn = getattr(policy, "__self__", None)
+        policy = runner.get_inference_policy(device=env.unwrapped.device)
+        policy_nn = getattr(policy, "__self__", None)
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
@@ -345,59 +291,51 @@ def export_rsl_rl_agent(
             save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
         else:
             save_path = log_dir
-        with _timed_phase(task_name, "leapp_trace"):
-            leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
-            leapp_started = True
-            obs = env.reset()[0]
-            while not simulation_app.is_running():
-                time.sleep(0.5)
+        leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
+        leapp_started = True
+        obs = env.reset()[0]
+        while not simulation_app.is_running():
+            time.sleep(0.5)
 
-            for _ in range(max(args_cli.validation_steps, 2)):
-                with torch.inference_mode():
-                    if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                        actor_hidden = ensure_actor_hidden_state_initialized(
-                            policy_nn,
-                            batch_size=env.num_envs,
-                            device=env.unwrapped.device,
-                            dtype=next(policy_nn.parameters()).dtype,
-                        )
-                        registered_state = annotate.state_tensors(
-                            policy_node_name,
-                            state_dict_from_actor_hidden(actor_hidden),
-                        )
-                        actor_memory = get_actor_memory_module(policy_nn)
-                        if actor_memory is not None:
-                            actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
+        for _ in range(max(args_cli.validation_steps, 2)):
+            with torch.inference_mode():
+                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
+                    actor_hidden = ensure_actor_hidden_state_initialized(
+                        policy_nn,
+                        batch_size=env.num_envs,
+                        device=env.unwrapped.device,
+                        dtype=next(policy_nn.parameters()).dtype,
+                    )
+                    registered_state = annotate.state_tensors(
+                        policy_node_name,
+                        state_dict_from_actor_hidden(actor_hidden),
+                    )
+                    actor_memory = get_actor_memory_module(policy_nn)
+                    if actor_memory is not None:
+                        actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
 
-                    actions = policy(obs)
+                actions = policy(obs)
 
-                    if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                        actor_hidden_after = policy_nn.get_hidden_states()[0]
-                        annotate.update_state(
-                            policy_node_name,
-                            state_dict_from_actor_hidden(actor_hidden_after),
-                        )
+                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
+                    actor_hidden_after = policy_nn.get_hidden_states()[0]
+                    annotate.update_state(
+                        policy_node_name,
+                        state_dict_from_actor_hidden(actor_hidden_after),
+                    )
 
-                    obs, _, _, _ = env.step(actions)
+                obs, _, _, _ = env.step(actions)
 
-            leapp.stop()
-            leapp_started = False
+        leapp.stop()
+        leapp_started = False
         validate = args_cli.validation_steps > 0
-        with _timed_phase(task_name, "leapp_compile_graph"):
-            leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):
                 leapp.stop()
-        if env is not None and not env_closed:
-            with _timed_phase(task_name, "env_close"):
-                env.close()
-            env_closed = True
+        if env is not None:
+            env.close()
 
-    _emit_timing(
-        f"{_TIMING_PREFIX} task={task_name} phase=main status=done "
-        f"phase_elapsed={time.perf_counter() - task_start:.2f}s"
-    )
     return True
 
 
@@ -427,17 +365,13 @@ def main_cli(argv: list[str] | None = None) -> bool:
     """Run the command-line export flow."""
     args_cli, hydra_args = parse_export_args(argv)
 
-    _emit_timing(f"[INFO] LEAPP version: {metadata.version('leapp')}")
-    simulation_app = None
-    with _timed_phase(args_cli.task, "app_launcher"):
-        app_launcher = AppLauncher(args_cli)
-        simulation_app = app_launcher.app
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
 
     try:
         return run_export_with_hydra(args_cli, hydra_args, simulation_app)
     finally:
-        with _timed_phase(args_cli.task, "simulation_app_close"):
-            _close_simulation_app(simulation_app)
+        simulation_app.close()
 
 
 if __name__ == "__main__":

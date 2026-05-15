@@ -16,7 +16,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -29,7 +28,6 @@ _THIS_SCRIPT = Path(__file__).resolve()
 _EXPORT_BATCH_SIZE = 8
 _EXPORT_BATCH_TIMEOUT = 600
 _OUTPUT_TAIL_CHARS = 5000
-_TIMING_PREFIXES = ("[EXPORT_TEST_TIMING]", "[LEAPP_EXPORT_TIMING]", "[INFO] LEAPP version:")
 
 
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
@@ -125,16 +123,6 @@ def _ensure_text(output: str | bytes | None) -> str:
     return output
 
 
-def _extract_timing_lines(*outputs: str | bytes | None) -> str:
-    """Extract timing lines from subprocess output."""
-    lines = []
-    for output in outputs:
-        for line in _ensure_text(output).splitlines():
-            if line.startswith(_TIMING_PREFIXES):
-                lines.append(line)
-    return "\n".join(lines)
-
-
 def _leapp_log_tail(export_dir: str) -> str:
     """Return the tail of the LEAPP log when it exists."""
     log_txt_path = os.path.join(export_dir, "log.txt")
@@ -190,11 +178,9 @@ def _export_args(task_name: str):
 def _run_export_task(task_name: str, simulation_app, sim_utils, get_settings_manager, resolve_task_config) -> None:
     """Export one task inside an already running Isaac Sim process."""
     export_dir = _export_dir(task_name)
-    start_time = time.perf_counter()
     export_module = _load_export_module()
 
     try:
-        print(f"[EXPORT_TEST_TIMING] task={task_name} status=start", flush=True)
         sim_utils.create_new_stage()
         get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
 
@@ -205,19 +191,11 @@ def _run_export_task(task_name: str, simulation_app, sim_utils, get_settings_man
             exported = export_module.export_rsl_rl_agent(args_cli, env_cfg, agent_cfg, simulation_app)
         except Exception as exc:
             if "actor_state_dict" in str(exc):
-                print(
-                    f"[EXPORT_TEST_TIMING] task={task_name} status=skipped reason=older_rsl_rl_checkpoint_architecture",
-                    flush=True,
-                )
                 return
             raise RuntimeError(f"export.py failed for {task_name}: {exc!r}{_leapp_log_tail(export_dir)}") from exc
 
-        elapsed = time.perf_counter() - start_time
-        print(f"[EXPORT_TEST_TIMING] task={task_name} status=finished elapsed={elapsed:.2f}s", flush=True)
-
         # Gracefully skip tasks whose checkpoint isn't published yet
         if not exported:
-            print(f"[EXPORT_TEST_TIMING] task={task_name} status=skipped reason=no_pretrained_checkpoint", flush=True)
             return
 
         assert os.path.isfile(os.path.join(export_dir, f"{task_name}.onnx")), "Missing .onnx export"
@@ -240,19 +218,15 @@ def _run_export_batch(task_names: list[str]) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    export_module = _load_export_module()
-
     # This flag matches the environment wrapper tests and avoids random stalls
     # when many environments are constructed sequentially in one Kit process.
     get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
-    print(f"[EXPORT_TEST_TIMING] batch={','.join(task_names)} status=start", flush=True)
     try:
         for task_name in task_names:
             _run_export_task(task_name, simulation_app, sim_utils, get_settings_manager, resolve_task_config)
     finally:
-        print(f"[EXPORT_TEST_TIMING] batch={','.join(task_names)} status=simulation_app_close", flush=True)
-        export_module._close_simulation_app(simulation_app)
+        simulation_app.close()
 
 
 def _export_batch_command(task_names: list[str]) -> list[str]:
@@ -271,11 +245,6 @@ def _run_export_batch_entrypoint() -> None:
 @pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)
 def test_export_flow(task_names: list[str]):
     """Run export.py for a task batch and assert the expected artifacts are created."""
-    start_time = time.perf_counter()
-    print(
-        f"[EXPORT_TEST_TIMING] batch={','.join(task_names)} status=start timeout={_EXPORT_BATCH_TIMEOUT}s",
-        flush=True,
-    )
     try:
         result = subprocess.run(
             _export_batch_command(task_names),
@@ -287,29 +256,15 @@ def test_export_flow(task_names: list[str]):
     except subprocess.TimeoutExpired as exc:
         stdout = _ensure_text(exc.stdout)
         stderr = _ensure_text(exc.stderr)
-        timing_lines = _extract_timing_lines(stdout, stderr)
-        elapsed = time.perf_counter() - start_time
         pytest.fail(
-            f"export batch timed out after {_EXPORT_BATCH_TIMEOUT}s for {task_names} (elapsed {elapsed:.2f}s).\n"
-            f"--- timing lines ---\n{timing_lines or '<none>'}\n"
+            f"export batch timed out after {_EXPORT_BATCH_TIMEOUT}s for {task_names}.\n"
             f"--- stdout tail ---\n{stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
 
-    elapsed = time.perf_counter() - start_time
-    timing_lines = _extract_timing_lines(result.stdout, result.stderr)
-    print(
-        f"[EXPORT_TEST_TIMING] batch={','.join(task_names)} status=finished "
-        f"returncode={result.returncode} elapsed={elapsed:.2f}s",
-        flush=True,
-    )
-    if timing_lines:
-        print(f"--- timing lines for batch {task_names} ---\n{timing_lines}", flush=True)
-
     if result.returncode != 0:
         pytest.fail(
             f"export batch exited with code {result.returncode} for {task_names}.\n"
-            f"--- timing lines ---\n{timing_lines or '<none>'}\n"
             f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
