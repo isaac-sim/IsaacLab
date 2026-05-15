@@ -43,16 +43,6 @@ INSTALL_REQUIRES = [
     # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
     "starlette>=0.46.0,<0.50",
     "omniverseclient==2.71.1.7015",
-    # testing
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "coverage==7.6.1",
-    "debugpy>=1.8.20",
-    "flatdict>=4.1.0",
-    "flaky",
-    "packaging",
-    "psutil",
     # cross-platform file locking (used to serialize USD spawn across distributed ranks)
     "filelock",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
@@ -104,6 +94,17 @@ EXTRAS_REQUIRE = {
     "visualizers-newton": ["isaaclab_visualizers[newton]"],
     "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
     "visualizers-viser": ["isaaclab_visualizers[viser]"],
+    "testing": [
+        "pytest",
+        "pytest-mock",
+        "junitparser",
+        "coverage==7.6.1",
+        "debugpy>=1.8.20",
+        "flatdict>=4.1.0",
+        "flaky",
+        "packaging",
+        "psutil",
+    ],
     # Convenience: all sub-packages (does not include isaacsim)
     "all": [
         "isaaclab_assets",
