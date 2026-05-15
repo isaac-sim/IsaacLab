@@ -133,6 +133,9 @@ runs:
             -e ISAAC_SIM_LOW_MEMORY=1 \
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
+            -e OMP_NUM_THREADS=1 \
+            -e OPENBLAS_NUM_THREADS=1 \
+            -e MKL_NUM_THREADS=1 \
             -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
             -e TEST_RESULT_FILE=$result_file"
 
