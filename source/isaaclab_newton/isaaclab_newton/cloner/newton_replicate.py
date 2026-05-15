@@ -118,6 +118,20 @@ def _build_newton_builder_from_mapping(
     return builder, stage_info, site_index_map
 
 
+# Built-in label arrays that ``_rename_builder_labels`` rewrites in Pass 1.
+# Each type ``t`` has a paired ``<t>_label`` (or ``<t>_key``) string column
+# and a ``<t>_world`` int column on Newton's ``ModelBuilder``. Exposed as a
+# module-level constant so tests can import it instead of duplicating.
+_BUILTIN_LABEL_TYPES: tuple[str, ...] = (
+    "body",
+    "joint",
+    "shape",
+    "articulation",
+    "constraint_mimic",
+    "equality_constraint",
+)
+
+
 def _rename_builder_labels(
     builder: ModelBuilder,
     sources: Sequence[str],
@@ -127,14 +141,13 @@ def _rename_builder_labels(
 ) -> None:
     """Rename builder labels/keys from source roots to destination roots.
 
-    Walks both built-in label arrays (``body``, ``joint``, ``shape``,
-    ``articulation``, ``constraint_mimic``, ``equality_constraint``) and any
+    Walks both built-in label arrays (see :data:`_BUILTIN_LABEL_TYPES`) and any
     string-typed custom-attribute column whose frequency declares a sibling
     world column (``references="world"``).
-    The ``startswith(src_prefix)`` guard makes the rewrite a no-op for strings that
-    are not paths under the source, so non-path custom string columns are passed
-    through untouched and any future solver-registered string column is handled
-    automatically without changes here.
+    The boundary-safe match (exact source root, or source root followed by ``/``)
+    makes the rewrite a no-op for strings that are not paths under the source.
+    Non-path custom string columns are passed through untouched and any future
+    solver-registered string column is handled automatically without changes here.
 
     Args:
         builder: Newton model builder to update in-place.
@@ -145,11 +158,9 @@ def _rename_builder_labels(
     """
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
-        # Boundary-terminated prefix prevents over-matching when one source path is a
-        # prefix of another (e.g. ``/Sources/protoA`` vs ``/Sources/protoAB``).
-        src_prefix = src_path.rstrip("/") + "/"
-        src_prefix_len = len(src_prefix) - 1  # slice index keeps the leading "/" in the suffix
-        swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
+        # Canonicalize the source root (drop any trailing ``/``) so the
+        # boundary-safe match logic in ``_rename_pair`` is unambiguous.
+        src_root = src_path.rstrip("/")
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
         # Map Newton world IDs (sequential) to destination paths using env_ids
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
@@ -158,15 +169,33 @@ def _rename_builder_labels(
             if len(values) != len(worlds):
                 raise ValueError(f"label/world column length mismatch: {len(values)} vs {len(worlds)}")
             for k in range(len(values)):
+                v = values[k]
+                if not isinstance(v, str):
+                    continue
                 world_id = int(worlds[k])
-                if world_id in world_roots and isinstance(values[k], str) and values[k].startswith(src_prefix):
-                    values[k] = swap(values[k], world_roots[world_id])
+                if world_id not in world_roots:
+                    continue
+                # Gate on an explicit prefix test before slicing. ``str.removeprefix``
+                # is tempting but conflates "match with empty suffix" and "no match"
+                # (both return a string starting with "/"), so a label already
+                # rewritten in an earlier source-iteration would be re-prepended to
+                # the next iteration's dst root.
+                if not v.startswith(src_root):
+                    continue
+                suffix = v[len(src_root) :]
+                # ``suffix == ""``     -> exact source-root match (rewrite to dst root).
+                # ``suffix[0] == "/"`` -> child path under source.
+                # otherwise           -> boundary-bleed sibling like "/Sources/protoAB/x"
+                #                        when src_root is "/Sources/protoA" -> skip.
+                if suffix and not suffix.startswith("/"):
+                    continue
+                values[k] = world_roots[world_id] + suffix
 
         # Pass 1: built-in label arrays. Each has a paired ``*_world`` int column.
         # Use ``is None`` (not ``or``) so an empty-but-defined ``*_label`` column
         # is recognized — falling through to ``*_key`` would over-match a
         # builder that legitimately exposes both attributes.
-        for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
+        for t in _BUILTIN_LABEL_TYPES:
             labels = getattr(builder, f"{t}_label", None)
             if labels is None:
                 labels = getattr(builder, f"{t}_key", None)

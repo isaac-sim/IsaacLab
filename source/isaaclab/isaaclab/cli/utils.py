@@ -17,6 +17,12 @@ ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
 
+# Short script names supported by ``isaaclab -p``.
+_PYTHON_SCRIPT_ALIASES = {
+    "train.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+    "play.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
+}
+
 # ANSI colors.
 _ANSI_COLOR_RESET = "\033[0m"
 _ANSI_COLOR_INFO = "\033[36m"  # cyan
@@ -239,24 +245,40 @@ def run_command(
         sys.exit(130)
 
 
+def _is_virtualenv_python(python_exe: str | Path) -> bool:
+    """Check whether a Python executable belongs to a virtual environment.
+
+    Args:
+        python_exe: Python executable path.
+
+    Returns:
+        True when the executable is inside a Python virtual environment.
+    """
+    python_path = Path(python_exe)
+    return (python_path.parent.parent / "pyvenv.cfg").is_file()
+
+
 def get_pip_command(python_exe: str | None = None) -> list[str]:
     """Return the base pip command tokens for the current environment.
 
     When ``uv`` is available and a virtual environment is active, returns
-    ``["uv", "pip"]``.  Otherwise returns ``[python_exe, "-m", "pip"]``
-    so that the target interpreter's own pip is used (e.g. Isaac Sim's
-    bundled ``python.sh``).
+    ``["uv", "pip"]``.  When the target Python belongs to a virtual
+    environment, ``UV_PYTHON`` is set so ``uv pip`` installs into that
+    environment even if the process itself is not activated.  Otherwise returns
+    ``[python_exe, "-m", "pip"]`` so that the target interpreter's own pip is
+    used (e.g. Isaac Sim's bundled ``python.sh``).
 
     Args:
         python_exe: Python executable path.  Resolved via
             :func:`extract_python_exe` when ``None``.
     """
-    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
-    if shutil.which("uv") and in_venv:
-        return ["uv", "pip"]
-
     if python_exe is None:
         python_exe = extract_python_exe()
+
+    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
+    if shutil.which("uv") and (in_venv or _is_virtualenv_python(python_exe)):
+        os.environ["UV_PYTHON"] = python_exe
+        return ["uv", "pip"]
 
     return [python_exe, "-m", "pip"]
 
@@ -300,17 +322,22 @@ def extract_python_exe() -> str:
         else:
             print_debug("extract_python_exe(): No CONDA_PREFIX found.")
 
-    # Try the default Isaac Lab uv venv (env_isaaclab/) in the repo root.
+    # Try the current interpreter when already inside a virtual environment.
+    if (not python_exe or not Path(python_exe).exists()) and sys.prefix != sys.base_prefix:
+        python_exe = Path(sys.executable)
+        print_debug(f"extract_python_exe(): Using active virtual environment python: {python_exe}")
+
+    # Try repo-local virtual environments.
     if not python_exe or not Path(python_exe).exists():
-        default_venv = ISAACLAB_ROOT / "env_isaaclab"
-        if default_venv.is_dir():
+        for default_venv in (ISAACLAB_ROOT / "env_isaaclab", ISAACLAB_ROOT / ".venv"):
             if is_windows():
                 candidate = default_venv / "Scripts" / "python.exe"
             else:
                 candidate = default_venv / "bin" / "python"
             if candidate.exists():
-                print_debug(f"extract_python_exe(): Found default venv python: {candidate}")
+                print_debug(f"extract_python_exe(): Found repo-local venv python: {candidate}")
                 python_exe = candidate
+                break
 
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
@@ -525,6 +552,8 @@ def run_python_command(
 
     if is_module:
         cmd.append("-m")
+    else:
+        script_or_module = _PYTHON_SCRIPT_ALIASES.get(str(script_or_module), script_or_module)
 
     cmd.append(str(script_or_module))
     cmd.extend(args)
