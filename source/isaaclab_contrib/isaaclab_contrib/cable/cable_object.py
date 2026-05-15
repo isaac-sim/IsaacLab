@@ -17,7 +17,7 @@ differ from deformables in two respects only:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import newton
@@ -47,6 +47,10 @@ class CableRegistryEntry:
     stretch_damping: float = 0.0
     bend_damping: float = 0.0
     density: float = 1500.0
+
+    # Filled by :func:`add_cable_entry_to_builder`.
+    body_offsets: list[int] = field(default_factory=list)
+    last_edge_length: float = 0.0
 
 
 from isaaclab_newton.assets.articulation.articulation import Articulation  # noqa: E402
@@ -84,6 +88,10 @@ def add_cable_entry_to_builder(
         env_position: World translation ``[x, y, z]`` [m] for this environment.
         env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this environment.
     """
+    if env_idx == 0:
+        entry.body_offsets.clear()
+        entry.last_edge_length = 0.0
+
     env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
     env_rot = wp.quat(
         float(env_rotation[0]),
@@ -114,6 +122,7 @@ def add_cable_entry_to_builder(
     # ``label`` is load-bearing: Newton suffixes ``_articulation`` to produce
     # ``{prim_path}/cable_articulation``, which is the path :class:`ArticulationView`
     # searches for per env after the cloner rewrites the source prefix.
+    entry.body_offsets.append(builder.body_count)
     builder.add_rod_graph(
         node_positions=world_nodes,
         edges=entry.edges,
@@ -126,6 +135,9 @@ def add_cable_entry_to_builder(
         label=f"{entry.prim_path}/cable",
         wrap_in_articulation=True,
     )
+    if env_idx == 0:
+        u, v = entry.edges[-1]
+        entry.last_edge_length = float(wp.length(entry.node_positions[v] - entry.node_positions[u]))
 
 
 def add_registered_cables_to_builder(

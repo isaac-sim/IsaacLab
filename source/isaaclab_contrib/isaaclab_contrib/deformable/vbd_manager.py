@@ -17,6 +17,7 @@ from newton import Model, ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
+from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 
 from isaaclab_contrib.cable.cable_object import install_cable_builder_hooks
@@ -30,11 +31,38 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel(enable_backward=False)
+def _sync_cable_curve_points(
+    fabric_points: wp.fabricarrayarray(dtype=wp.vec3f),
+    fabric_world_matrices: wp.fabricarray(dtype=wp.mat44d),
+    body_offsets: wp.fabricarray(dtype=wp.uint32),
+    body_counts: wp.fabricarray(dtype=wp.uint32),
+    last_edge_lengths: wp.fabricarray(dtype=wp.float32),
+    body_q: wp.array(ndim=1, dtype=wp.transformf),
+):
+    """Reconstruct ``UsdGeomBasisCurves`` control points from cable body transforms."""
+    i = wp.tid()
+    offset = int(body_offsets[i])
+    count = int(body_counts[i])
+    inv_world = wp.inverse(wp.transpose(wp.mat44f(fabric_world_matrices[i])))
+
+    for j in range(count):
+        node_world = wp.transform_get_translation(body_q[offset + j])
+        fabric_points[i][j] = wp.transform_point(inv_world, node_world)
+
+    tail_world = wp.transform_point(body_q[offset + count - 1], wp.vec3(0.0, 0.0, float(last_edge_lengths[i])))
+    fabric_points[i][count] = wp.transform_point(inv_world, tail_world)
+
+
 class NewtonVBDManager(NewtonManager):
     """:class:`NewtonManager` specialization for the VBD solver.
 
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
+
+    _newton_cable_body_offset_attr = "newton:cableBodyOffset"
+    _newton_cable_body_count_attr = "newton:cableBodyCount"
+    _newton_cable_last_edge_length_attr = "newton:cableLastEdgeLength"
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -93,8 +121,6 @@ class NewtonVBDManager(NewtonManager):
         # Apply global model parameters from :class:`NewtonModelCfg` to the finalized model.
         # Sets ``soft_contact_ke/kd/mu`` and optionally overrides per-shape
         # ``shape_material_ke/kd/mu`` on the Newton model.
-        from isaaclab.physics import PhysicsManager
-
         cfg = PhysicsManager._cfg
         if cfg is not None and hasattr(cfg, "model_cfg") and cfg.model_cfg is not None:
             model = cls._model
@@ -149,6 +175,84 @@ class NewtonVBDManager(NewtonManager):
 
             cls._mark_particles_dirty()
             cls.sync_particles_to_usd()
+
+        if not cls._clone_physics_only and cls._cable_registry:
+            import re
+
+            import usdrt
+
+            if NewtonManager._usdrt_stage is None:
+                NewtonManager._usdrt_stage = get_current_stage(fabric=True)
+
+            stage = get_current_stage()
+            for entry in cls._cable_registry:
+                curve_template_path = f"{entry.prim_path}/geometry/mesh"
+                for inst_idx, body_offset in enumerate(entry.body_offsets):
+                    resolved = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), curve_template_path)
+                    resolved = re.sub(r"\.\*", str(inst_idx), resolved)
+                    curve_prim = stage.GetPrimAtPath(resolved)
+                    usd_points = curve_prim.GetAttribute("points").Get()
+                    fab_prim = NewtonManager._usdrt_stage.GetPrimAtPath(curve_prim.GetPath().pathString)
+                    # Pre-seed Fabric ``points``: without this Hydra reads an empty array on frame 0.
+                    fab_prim.GetAttribute("points").Set(
+                        usdrt.Vt.Vec3fArray([usdrt.Gf.Vec3f(float(p[0]), float(p[1]), float(p[2])) for p in usd_points])
+                    )
+                    fab_prim.CreateAttribute(cls._newton_cable_body_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                    fab_prim.GetAttribute(cls._newton_cable_body_offset_attr).Set(int(body_offset))
+                    fab_prim.CreateAttribute(cls._newton_cable_body_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                    fab_prim.GetAttribute(cls._newton_cable_body_count_attr).Set(len(entry.edges))
+                    fab_prim.CreateAttribute(
+                        cls._newton_cable_last_edge_length_attr, usdrt.Sdf.ValueTypeNames.Float, True
+                    )
+                    fab_prim.GetAttribute(cls._newton_cable_last_edge_length_attr).Set(float(entry.last_edge_length))
+
+    @classmethod
+    def sync_curves_to_usd(cls) -> None:
+        """Update cable ``UsdGeomBasisCurves.points`` from Newton ``body_q``.
+
+        Runs on the CPU Fabric device: Kit's FSD does not stream the GPU Fabric
+        ``points`` bucket back to Hydra for runtime-spawned ``UsdGeomBasisCurves``
+        (see ``scripts/debug/basis_curves_fsd_gpu_bug_repro.py``).
+        """
+        if cls._usdrt_stage is None:
+            return
+        import usdrt
+
+        selection = cls._usdrt_stage.SelectPrims(
+            require_attrs=[
+                (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.ReadWrite),
+                (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_body_offset_attr, usdrt.Usd.Access.Read),
+                (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_body_count_attr, usdrt.Usd.Access.Read),
+                (usdrt.Sdf.ValueTypeNames.Float, cls._newton_cable_last_edge_length_attr, usdrt.Usd.Access.Read),
+                (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
+            ],
+            device="cpu",
+        )
+        if selection.GetCount() == 0:
+            return
+
+        # wp.launch requires inputs on the same device as the launch.
+        body_q_cpu = wp.empty_like(cls._state_0.body_q, device="cpu")
+        wp.copy(body_q_cpu, cls._state_0.body_q)
+
+        wp.launch(
+            _sync_cable_curve_points,
+            dim=selection.GetCount(),
+            inputs=[
+                wp.fabricarrayarray(data=selection, attrib="points", dtype=wp.vec3f),
+                wp.fabricarray(data=selection, attrib="omni:fabric:worldMatrix"),
+                wp.fabricarray(data=selection, attrib=cls._newton_cable_body_offset_attr),
+                wp.fabricarray(data=selection, attrib=cls._newton_cable_body_count_attr),
+                wp.fabricarray(data=selection, attrib=cls._newton_cable_last_edge_length_attr),
+                body_q_cpu,
+            ],
+            device="cpu",
+        )
+
+    @classmethod
+    def pre_render(cls) -> None:
+        super().pre_render()
+        cls.sync_curves_to_usd()
 
     @classmethod
     def instantiate_builder_from_stage(cls):

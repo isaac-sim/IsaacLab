@@ -1013,6 +1013,9 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._usdrt_stage = get_current_stage(fabric=True)
                 for i, prim_path in enumerate(body_paths):
                     prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
+                    # Cable segment bodies have no per-body USD prim.
+                    if not prim.IsValid():
+                        continue
                     prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                     prim.GetAttribute(cls._newton_index_attr).Set(i)
                     # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
