@@ -203,9 +203,10 @@ RUN chown -R isaaclab:isaaclab \
 
 # Open up traversal of the Isaac Sim root and runtime home for non-root users.
 # Inner Isaac Sim files keep their original permissions, so avoid chowning the
-# full install.
+# full install. Keep the runtime home closed to unrelated users.
 RUN chmod 755 \
         ${ISAACSIM_ROOT_PATH} \
+ && chmod 750 \
         ${DOCKER_USER_HOME}
 
 # copy the rest of the files
