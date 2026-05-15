@@ -68,9 +68,9 @@ jobs:
             echo "|---|---|---|"
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex desc <<< "$entry"
-              count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
+              count=$(grep -cE "$regex" <<< "$files" || true)
               if [ "$count" -gt 0 ]; then
-                sample=$(printf '%s\n' "$files" | grep -m 3 -E "$regex" | paste -sd ', ' -)
+                sample=$(grep -m 3 -E "$regex" <<< "$files" | paste -sd ', ' -)
                 [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
                 echo "| \`$regex\` | $desc | $sample |"
               else
