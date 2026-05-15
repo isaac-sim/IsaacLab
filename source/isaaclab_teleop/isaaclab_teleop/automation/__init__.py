@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton scene data provider backends."""
+from .xcr_replay import XcrReplayConfig, start_xcr_replay
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
+__all__ = ["XcrReplayConfig", "start_xcr_replay"]

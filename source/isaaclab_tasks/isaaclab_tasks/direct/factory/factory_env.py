@@ -5,7 +5,6 @@
 
 import numpy as np
 import torch
-import warp as wp
 
 import carb
 
@@ -131,12 +130,12 @@ class FactoryEnv(DirectRLEnv):
         self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w.torch[:, self.fingertip_body_idx]
         self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w.torch[:, self.fingertip_body_idx]
 
-        jacobians = wp.to_torch(self._robot.root_view.get_jacobians())
+        jacobians = self._robot.data.body_link_jacobian_w.torch
 
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = wp.to_torch(self._robot.root_view.get_generalized_mass_matrices())[:, 0:7, 0:7]
+        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7]
         self.joint_pos = self._robot.data.joint_pos.torch.clone()
         self.joint_vel = self._robot.data.joint_vel.torch.clone()
 

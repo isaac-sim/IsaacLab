@@ -234,7 +234,16 @@ class TestEnsureIsaacRtxRenderUpdate:
         viz.pumps_app_update.return_value = True
         return viz
 
-    def test_first_call_with_visualizer_still_pumps(self, mock_sim, pumping_visualizer, mock_omni_kit_app):
+    @pytest.fixture()
+    def mock_sim_context(self, monkeypatch):
+        """Patch ``sim_utils`` without importing the real ``SimulationContext``."""
+        sim_context = MagicMock()
+        monkeypatch.setattr(rtx_utils, "sim_utils", types.SimpleNamespace(SimulationContext=sim_context))
+        return sim_context
+
+    def test_first_call_with_visualizer_still_pumps(
+        self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
+    ):
         """Regression: first call for a new sim must pump even with a visualizer.
 
         Without the fix (commit 2e8ace7), a visualizer returning
@@ -246,31 +255,25 @@ class TestEnsureIsaacRtxRenderUpdate:
         mock_sim.visualizers = [pumping_visualizer]
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
 
         with (
-            patch.object(
-                rtx_utils.sim_utils.SimulationContext,
-                "instance",
-                return_value=mock_sim,
-            ),
             patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False),
         ):
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_called_once()
 
-    def test_second_call_with_visualizer_skips_pump(self, mock_sim, pumping_visualizer, mock_omni_kit_app):
+    def test_second_call_with_visualizer_skips_pump(
+        self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
+    ):
         """After the first call, a visualizer that pumps causes the skip."""
         mock_sim.visualizers = [pumping_visualizer]
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
 
         with (
-            patch.object(
-                rtx_utils.sim_utils.SimulationContext,
-                "instance",
-                return_value=mock_sim,
-            ),
             patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False),
         ):
             rtx_utils.ensure_isaac_rtx_render_update()
@@ -282,31 +285,23 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         mock_app.update.assert_not_called()
 
-    def test_no_sim_is_noop(self, mock_omni_kit_app):
+    def test_no_sim_is_noop(self, mock_sim_context, mock_omni_kit_app):
         """No-op when SimulationContext.instance() returns None."""
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = None
 
-        with patch.object(
-            rtx_utils.sim_utils.SimulationContext,
-            "instance",
-            return_value=None,
-        ):
-            rtx_utils.ensure_isaac_rtx_render_update()
+        rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
 
-    def test_dedup_same_step(self, mock_sim, mock_omni_kit_app):
+    def test_dedup_same_step(self, mock_sim, mock_sim_context, mock_omni_kit_app):
         """Second call in the same physics step is a no-op (dedup)."""
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
 
         with (
-            patch.object(
-                rtx_utils.sim_utils.SimulationContext,
-                "instance",
-                return_value=mock_sim,
-            ),
             patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False),
         ):
             rtx_utils.ensure_isaac_rtx_render_update()
@@ -317,17 +312,13 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         mock_app.update.assert_not_called()
 
-    def test_not_rendering_skips(self, mock_sim, mock_omni_kit_app):
+    def test_not_rendering_skips(self, mock_sim, mock_sim_context, mock_omni_kit_app):
         """No ``app.update()`` when rendering is disabled."""
         mock_sim.is_rendering = False
         mock_app = MagicMock()
         mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
 
-        with patch.object(
-            rtx_utils.sim_utils.SimulationContext,
-            "instance",
-            return_value=mock_sim,
-        ):
-            rtx_utils.ensure_isaac_rtx_render_update()
+        rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()

@@ -34,11 +34,21 @@ class _FakePhysicsManager:
 
 
 class _FakeProvider:
-    def __init__(self):
-        self.update_calls = []
+    """Fake new-style SceneDataProvider for tests; only provides what visualizers read."""
 
-    def update(self):
-        self.update_calls.append(True)
+    def __init__(self, num_envs: int = 0):
+        self._num_envs = num_envs
+
+    @property
+    def num_envs(self) -> int:
+        return self._num_envs
+
+    @property
+    def usd_stage(self):
+        return None
+
+    def get_camera_transforms(self):
+        return None
 
 
 class _FakeVisualizer:
@@ -110,30 +120,30 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers = list(visualizers)
     ctx._scene_data_provider = provider
     ctx.physics_manager = _FakePhysicsManager()
-    ctx._visualizer_step_counter = 0
     return ctx
 
 
-def test_update_scene_data_provider_forwards_and_updates_provider():
+def test_update_visualizers_runs_forward_when_a_visualizer_requires_it():
     provider = _FakeProvider()
     viz_a = _FakeVisualizer(env_ids=[0, 2], requires_forward=True)
     viz_b = _FakeVisualizer(env_ids=[2, 3])
-    viz_c = _FakeVisualizer(env_ids=None)
-    ctx = _make_context([viz_a, viz_b, viz_c], provider=provider)
+    ctx = _make_context([viz_a, viz_b], provider=provider)
 
-    ctx.update_scene_data_provider()
+    ctx.update_visualizers(0.1)
 
     assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [True]
-    assert ctx._visualizer_step_counter == 1
+    assert viz_a.step_calls == [0.1]
+    assert viz_b.step_calls == [0.1]
 
 
-def test_update_scene_data_provider_force_forward_with_no_visualizers():
+def test_update_visualizers_skips_forward_when_no_visualizer_requires_it():
     provider = _FakeProvider()
-    ctx = _make_context([], provider=provider)
-    ctx.update_scene_data_provider(force_require_forward=True)
-    assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [True]
+    viz = _FakeVisualizer(env_ids=[0])
+    ctx = _make_context([viz], provider=provider)
+
+    ctx.update_visualizers(0.1)
+
+    assert ctx.physics_manager.forward_calls == 0
 
 
 def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
@@ -199,19 +209,13 @@ def test_vis_marker_registry_dispatch_allows_callback_mutation():
 
 
 class _DummyViserSceneDataProvider:
-    def __init__(self):
-        self._metadata = {"num_envs": 4}
-        self.state_calls: list[list[int] | None] = []
+    @property
+    def num_envs(self) -> int:
+        return 4
 
-    def get_metadata(self) -> dict:
-        return self._metadata
-
-    def get_newton_model(self):
-        return "dummy-model"
-
-    def get_newton_state(self):
-        self.state_calls.append(None)
-        return {"state_call": len(self.state_calls)}
+    @property
+    def usd_stage(self):
+        return None
 
     def get_camera_transforms(self):
         return {}
@@ -234,27 +238,47 @@ class _DummyViserViewer:
         return True
 
 
-def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: pytest.MonkeyPatch):
+def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypatch: pytest.MonkeyPatch):
     provider = _DummyViserSceneDataProvider()
     viewer = _DummyViserViewer()
 
     def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
         assert record_to_viser is None
-        assert metadata == provider.get_metadata()
+        assert metadata == {"num_envs": provider.num_envs}
         self._viewer = viewer
 
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
+
+    state_calls: list[None] = []
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state():
+            state_calls.append(None)
+            return {"state_call": len(state_calls)}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
 
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider))
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
-    assert provider.state_calls == [None, None]
+    assert state_calls == [None, None]
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    # log_state passes through get_newton_state() as-is; no env_ids (or other) keys are merged in.
+    # log_state passes NewtonManager.get_state() through as-is; no env_ids merged in.
     assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
 
@@ -275,6 +299,26 @@ def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates
 
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
     monkeypatch.setattr(viser_visualizer, "render_newton_visualization_markers", _raise_marker_render)
+
+    state_calls: list[None] = []
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state():
+            state_calls.append(None)
+            return {"state_call": len(state_calls)}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
 
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider))
@@ -586,17 +630,33 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             captured["closed"] = True
 
     class _DummyRerunSceneDataProvider:
-        def get_metadata(self) -> dict:
-            return {"num_envs": 4}
+        @property
+        def num_envs(self) -> int:
+            return 4
 
-        def get_newton_model(self):
-            return "dummy-model"
-
-        def get_newton_state(self):
-            return {"ok": True}
+        @property
+        def usd_stage(self):
+            return None
 
         def get_camera_transforms(self):
             return {}
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state():
+            return {"ok": True}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
@@ -654,6 +714,23 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
         raise RuntimeError("marker render failed")
 
     monkeypatch.setattr(rerun_visualizer, "render_newton_visualization_markers", _raise_marker_render)
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state():
+            return {"ok": True}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 4
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
 
     visualizer = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
     viewer = _FakeRerunViewer()
@@ -794,7 +871,6 @@ def _make_context_with_settings(
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
     ctx._clone_plan = None
-    ctx._visualizer_step_counter = 0
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
     return ctx

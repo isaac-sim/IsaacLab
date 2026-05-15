@@ -33,6 +33,7 @@ class RenderContext:
 
     __slots__ = (
         "_renderer_entries",
+        "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
         "_last_transforms_step",
@@ -40,6 +41,7 @@ class RenderContext:
 
     def __init__(self) -> None:
         self._renderer_entries: list[tuple[RendererCfg, BaseRenderer]] = []
+        self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
         self._last_transforms_step: int | None = None
@@ -65,7 +67,17 @@ class RenderContext:
             "Created new renderer for simulation: %s",
             type(new_renderer).__name__,
         )
+        if self._physics_initialized:
+            new_renderer.initialize()
         return new_renderer
+
+    def ensure_initialize(self) -> None:
+        """Idempotent call fired after PHYSICS_READY callback."""
+        if self._physics_initialized:
+            return
+        self._physics_initialized = True
+        for _cfg, renderer in self._renderer_entries:
+            renderer.initialize()
 
     def ensure_prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Call :meth:`BaseRenderer.prepare_stage` for each registered backend (once per backend).

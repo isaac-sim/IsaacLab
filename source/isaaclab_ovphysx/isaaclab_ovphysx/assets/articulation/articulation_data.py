@@ -18,17 +18,16 @@ from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
-
-from .kernels import (
-    _compose_body_com_poses,
+from isaaclab_ovphysx.assets.kernels import (
     _compose_root_com_pose,
     _compute_heading,
     _copy_first_body,
-    _fd_joint_acc,
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
 )
+
+from .kernels import _compose_body_com_poses, _fd_joint_acc
 
 
 class ArticulationData(BaseArticulationData):
