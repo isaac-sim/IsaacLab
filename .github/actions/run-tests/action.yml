@@ -214,9 +214,19 @@ runs:
               mkdir -p tests
               rm _isaac_sim || true
               ln -s /isaac-sim _isaac_sim
+              # Allow OmniHub to start in the test container. Some base images
+              # set this detect-only flag, which makes cold asset downloads
+              # fall back to slow repeated retries.
+              unset HUB__ARGS__DETECT_ONLY
               if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
                 echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
                 ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+                case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
+                  *\" leapp\"*)
+                    echo \"Resolved LEAPP package:\"
+                    ./isaaclab.sh -p -m pip show leapp || true
+                    ;;
+                esac
               fi
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
