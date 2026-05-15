@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+5.2.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.math.create_rotation_matrix_from_view` returning a singular
+  matrix when the look-at direction was parallel to the up axis. The function now produces
+  a valid orthonormal frame via an alternate reference vector, and fills NaN for rows with
+  truly undefined forward direction (``eyes == targets`` or non-finite input). Callers
+  detect per-row failure with ``torch.isnan(R).any(dim=(-2, -1))``.
+* Fixed :func:`~isaaclab.utils.math.quat_from_matrix` silently returning a non-unit
+  quaternion for non-rotation input (singular, reflection, or scale-error matrices).
+  Such inputs now return NaN, detectable via :func:`torch.isnan`.
+* Fixed :meth:`~isaaclab.sensors.camera.Camera.set_world_poses_from_view` and
+  :meth:`~isaaclab.sensors.ray_caster.RayCasterCamera.set_world_poses_from_view` silently
+  applying garbage poses when an eye position equaled its target. Degenerate rows are now
+  skipped (with a logged warning), and ``ValueError`` is raised if every row in the batch
+  is degenerate.
+
+
 5.2.0 (2026-05-14)
 ~~~~~~~~~~~~~~~~~~
 
@@ -25,15 +46,15 @@ Added
   base). Use it to map an actuated-joint index ``j`` to its column in the
   Jacobian / mass matrix / gravity vector via ``j + num_base_dofs``.
 
-The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
-base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
-num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
-num_joints + num_base_dofs)`` for the mass matrix. This matches the
-cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
-Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
-``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
-6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
-returning ``(6 + dofs, 6 + dofs)``).
+* The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
+  base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
+  num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
+  num_joints + num_base_dofs)`` for the mass matrix. This matches the
+  cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
+  Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
+  ``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
+  6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
+  returning ``(6 + dofs, 6 + dofs)``).
 * Added :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.usd_stage`,
   :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`, and
   :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
