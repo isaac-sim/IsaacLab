@@ -21,6 +21,18 @@ class ViserVisualizerCfg(VisualizerCfg):
     port: int = 8080
     """Port of the local viser web server."""
 
+    bind_address: str = "0.0.0.0"
+    """Host/interface for the Viser server to bind.
+
+    Use ``"0.0.0.0"`` to listen on all interfaces for remote access.
+    """
+
+    display_address: str = "localhost"
+    """Host name or IP address shown in the printed browser URL.
+
+    For remote access, set this to the hostname/IP reachable from your browser.
+    """
+
     open_browser: bool = False
     """Whether to attempt opening the viser web viewer URL in a browser.
 

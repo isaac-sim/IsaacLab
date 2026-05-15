@@ -11,6 +11,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+import carb
 from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
@@ -72,8 +73,6 @@ class KitVisualizer(BaseVisualizer):
         usd_stage = scene_data_provider.usd_stage
         if usd_stage is None:
             raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
-        metadata = scene_data_provider.get_metadata()
-        self._physics_backend = str(metadata.get("physics_backend", "")).lower()
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
@@ -122,16 +121,10 @@ class KitVisualizer(BaseVisualizer):
             if app is not None and app.is_running():
                 # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
                 # Disable playSimulations around app.update() so Kit does not advance its own physics here.
-                # Newton is not driven by Kit's player loop, so avoid toggling the setting; the Kit
-                # play/pause UI needs to control the timeline without this visualizer overwriting it.
-                settings = get_settings_manager()
-                guard_play_simulations = self._physics_backend != "newton"
-                play_before = settings.get("/app/player/playSimulations")
-                if guard_play_simulations:
-                    settings.set_bool("/app/player/playSimulations", False)
+                settings = carb.settings.get_settings()
+                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
-                if guard_play_simulations:
-                    settings.set_bool("/app/player/playSimulations", True if play_before is None else bool(play_before))
+                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first

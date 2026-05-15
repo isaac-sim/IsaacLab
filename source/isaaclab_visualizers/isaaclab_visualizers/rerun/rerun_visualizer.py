@@ -87,6 +87,7 @@ def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
 
 def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
     """Return rerun web UI URL with prefilled endpoint."""
+    # Keep the nested URL readable while still encoding '+' in the rerun+http scheme.
     return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe=':/')}"
 
 
