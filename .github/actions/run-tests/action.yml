@@ -221,6 +221,12 @@ runs:
               if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
                 echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
                 ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+                case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
+                  *\" leapp\"*)
+                    echo \"Resolved LEAPP package:\"
+                    ./isaaclab.sh -p -m pip show leapp || true
+                    ;;
+                esac
               fi
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file

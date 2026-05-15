@@ -14,12 +14,16 @@ per-task export subdirectory is removed after each test.
 import os
 import shutil
 import subprocess
+import time
 
 import pytest
 
 # Root of the repository (three levels up from this file).
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 _EXPORT_SCRIPT = os.path.join("scripts", "reinforcement_learning", "leapp", "rsl_rl", "export.py")
+_EXPORT_TIMEOUT = 600
+_OUTPUT_TAIL_CHARS = 5000
+_TIMING_PREFIXES = ("[EXPORT_TEST_TIMING]", "[LEAPP_EXPORT_TIMING]", "[INFO] LEAPP version:")
 
 
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
@@ -94,28 +98,83 @@ def _export_dir(task_name: str) -> str:
     return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rsl_rl", train_task, task_name)
 
 
+def _ensure_text(output: str | bytes | None) -> str:
+    """Return subprocess output as text."""
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output
+
+
+def _extract_timing_lines(*outputs: str | bytes | None) -> str:
+    """Extract timing lines from subprocess output."""
+    lines = []
+    for output in outputs:
+        for line in _ensure_text(output).splitlines():
+            if line.startswith(_TIMING_PREFIXES):
+                lines.append(line)
+    return "\n".join(lines)
+
+
+def _leapp_log_tail(export_dir: str) -> str:
+    """Return the tail of the LEAPP log when it exists."""
+    log_txt_path = os.path.join(export_dir, "log.txt")
+    if not os.path.isfile(log_txt_path):
+        return ""
+    with open(log_txt_path) as f:
+        last_lines = f.readlines()[-50:]
+    return f"\n--- leapp log.txt (last 50 lines) ---\n{''.join(last_lines)}"
+
+
 @pytest.mark.parametrize("task_name", TASKS)
 def test_export_flow(task_name):
     """Run export.py for *task_name* and assert the expected artifacts are created."""
     export_dir = _export_dir(task_name)
+    start_time = time.perf_counter()
 
     try:
-        result = subprocess.run(
-            [
-                "./isaaclab.sh",
-                "-p",
-                _EXPORT_SCRIPT,
-                "--task",
-                task_name,
-                "--use_pretrained_checkpoint",
-                "--disable_graph_visualization",
-                "--headless",
-            ],
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=600,
+        command = [
+            "./isaaclab.sh",
+            "-p",
+            _EXPORT_SCRIPT,
+            "--task",
+            task_name,
+            "--use_pretrained_checkpoint",
+            "--disable_graph_visualization",
+            "--headless",
+        ]
+        print(f"[EXPORT_TEST_TIMING] task={task_name} status=start timeout={_EXPORT_TIMEOUT}s", flush=True)
+        try:
+            result = subprocess.run(
+                command,
+                cwd=_REPO_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=_EXPORT_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = _ensure_text(exc.stdout)
+            stderr = _ensure_text(exc.stderr)
+            timing_lines = _extract_timing_lines(stdout, stderr)
+            elapsed = time.perf_counter() - start_time
+            pytest.fail(
+                f"export.py timed out after {_EXPORT_TIMEOUT}s for {task_name} (elapsed {elapsed:.2f}s).\n"
+                f"--- timing lines ---\n{timing_lines or '<none>'}\n"
+                f"--- stdout tail ---\n{stdout[-_OUTPUT_TAIL_CHARS:]}\n"
+                f"--- stderr tail ---\n{stderr[-_OUTPUT_TAIL_CHARS:]}"
+                f"{_leapp_log_tail(export_dir)}"
+            )
+
+        elapsed = time.perf_counter() - start_time
+        timing_lines = _extract_timing_lines(result.stdout, result.stderr)
+        print(
+            f"[EXPORT_TEST_TIMING] task={task_name} status=finished "
+            f"returncode={result.returncode} elapsed={elapsed:.2f}s",
+            flush=True,
         )
+        if timing_lines:
+            print(f"--- timing lines for {task_name} ---\n{timing_lines}", flush=True)
 
         # Gracefully skip tasks whose checkpoint isn't published yet
         if "pre-trained checkpoint is currently unavailable" in result.stdout:
@@ -130,17 +189,12 @@ def test_export_flow(task_name):
 
         # Surface stdout/stderr on failure for easier debugging
         if result.returncode != 0:
-            log_txt_path = os.path.join(export_dir, "log.txt")
-            leapp_tail = ""
-            if os.path.isfile(log_txt_path):
-                with open(log_txt_path) as f:
-                    last_lines = f.readlines()[-50:]
-                leapp_tail = f"\n--- leapp log.txt (last 50 lines) ---\n{''.join(last_lines)}"
             pytest.fail(
                 f"export.py exited with code {result.returncode}.\n"
-                f"--- stdout ---\n{result.stdout[-3000:]}\n"
-                f"--- stderr ---\n{result.stderr[-3000:]}"
-                f"{leapp_tail}"
+                f"--- timing lines ---\n{timing_lines or '<none>'}\n"
+                f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
+                f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
+                f"{_leapp_log_tail(export_dir)}"
             )
 
         assert os.path.isfile(os.path.join(export_dir, f"{task_name}.onnx")), "Missing .onnx export"
