@@ -56,11 +56,13 @@ __all__ = [
     "FisheyeCameraCfg",
     "PinholeCameraCfg",
     "SensorFrameCfg",
+    "spawn_cable",
     "spawn_capsule",
     "spawn_cone",
     "spawn_cuboid",
     "spawn_cylinder",
     "spawn_sphere",
+    "CableCfg",
     "CapsuleCfg",
     "ConeCfg",
     "CuboidCfg",
@@ -128,11 +130,13 @@ from .meshes import (
 )
 from .sensors import spawn_camera, spawn_sensor_frame, FisheyeCameraCfg, PinholeCameraCfg, SensorFrameCfg
 from .shapes import (
+    spawn_cable,
     spawn_capsule,
     spawn_cone,
     spawn_cuboid,
     spawn_cylinder,
     spawn_sphere,
+    CableCfg,
     CapsuleCfg,
     ConeCfg,
     CuboidCfg,

@@ -40,6 +40,13 @@ class NewtonSolverCfg:
     override it.
     """
 
+    requires_graph_coloring: bool = False
+    """Whether the solver requires graph coloring of the model's vertices.
+
+    This is used by the model builder to determine whether to run the coloring
+    pass on the model's vertices. The coloring is used to parallelize vertex updates in solvers like VBD.
+    """
+
     solver_type: str = "None"
     """Solver type metadata (deprecated).
 

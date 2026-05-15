@@ -69,17 +69,22 @@ def _build_newton_builder_from_mapping(
     import re
 
     _deformable_ignore_paths: list[str] = []
+    registry_entries = []
     if hasattr(NewtonManager, "_deformable_registry"):
-        for entry in NewtonManager._deformable_registry:
-            pat = re.compile(entry.prim_path.replace(".*", "[^/]*") + "$")
-            for src_path in sources:
-                # Check if any prim under this source matches the deformable pattern
-                prim = stage.GetPrimAtPath(src_path)
-                if prim.IsValid():
-                    for child in Usd.PrimRange(prim):
-                        child_path = str(child.GetPath())
-                        if pat.match(child_path):
-                            _deformable_ignore_paths.append(child_path)
+        registry_entries.extend(NewtonManager._deformable_registry)
+    if hasattr(NewtonManager, "_cable_registry"):
+        registry_entries.extend(NewtonManager._cable_registry)
+
+    for entry in registry_entries:
+        pat = re.compile(entry.prim_path.replace(".*", "[^/]*") + "$")
+        for src_path in sources:
+            # Check if any prim under this source matches the deformable pattern
+            prim = stage.GetPrimAtPath(src_path)
+            if prim.IsValid():
+                for child in Usd.PrimRange(prim):
+                    child_path = str(child.GetPath())
+                    if pat.match(child_path):
+                        _deformable_ignore_paths.append(child_path)
 
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
@@ -136,10 +141,10 @@ def _build_newton_builder_from_mapping(
         # end the world context
         builder.end_world()
 
-    # Run post-replicate hooks (e.g. builder.color() for deformable coloring).
-    if hasattr(NewtonManager, "_post_replicate_hooks"):
-        for hook in NewtonManager._post_replicate_hooks:
-            hook(builder)
+    # Run graph coloring when solver requires it (e.g. VBD)
+    solver_cfg = getattr(NewtonManager._cfg, "solver_cfg", None)
+    if getattr(solver_cfg, "requires_graph_coloring", False):
+        builder.color()
 
     site_index_map = {
         **global_site_map,

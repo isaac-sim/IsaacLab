@@ -120,3 +120,39 @@ class ConeCfg(ShapeCfg):
     """Height of the v (in m)."""
     axis: Literal["X", "Y", "Z"] = "Z"
     """Axis of the cone. Defaults to "Z"."""
+
+
+@configclass
+class CableCfg(ShapeCfg):
+    """Configuration parameters for a 1D cable / rod prim.
+
+    Authors a ``UsdGeomBasisCurves`` prim at ``{prim_path}/curve`` from an
+    explicit list of control points. Physics is materialized at model-build time
+    by the Newton replicate hook calling :meth:`newton.ModelBuilder.add_rod_graph`.
+
+    The cable's stretch/bend stiffness, damping, and density live on
+    ``physics_material`` (a :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg` instance from
+    :mod:`isaaclab_newton.sim.spawners.materials`, inherited slot from
+    :class:`ShapeCfg`). ``rigid_props``, ``mass_props``, ``collision_props`` are
+    inherited from :class:`ShapeCfg` but are not used by cables — :func:`spawn_cable`
+    raises ``ValueError`` if any is non-None.
+    """
+
+    func: Callable | str = "{DIR}.shapes:spawn_cable"
+
+    positions: list[tuple[float, float, float]] = MISSING
+    """Control points in cable-local frame [m]. Must contain at least 2 points.
+    Adjacent pairs define one cable segment each."""
+
+    width: float = MISSING
+    """Capsule diameter for each segment [m]."""
+
+    visual_material_path: str = "visual_material"
+    """Path for the visual material prim, relative to ``prim_path``. Overrides
+    :attr:`ShapeCfg.visual_material_path` so visual and physics materials don't
+    collide at the same sub-path (cables don't use a ``/geometry/`` intermediate
+    like mesh spawners do)."""
+
+    physics_material_path: str = "physics_material"
+    """Path for the physics material prim, relative to ``prim_path``. Overrides
+    :attr:`ShapeCfg.physics_material_path`. See :attr:`visual_material_path`."""

@@ -19,11 +19,9 @@ from newton.solvers import SolverVBD
 
 from isaaclab.sim.utils.stage import get_current_stage
 
-from .deformable_object import (
-    add_deformable_entry_to_builder,
-    clear_deformable_builder_hooks,
-    install_deformable_builder_hooks,
-)
+from isaaclab_contrib.cable.cable_object import install_cable_builder_hooks
+
+from .deformable_object import install_deformable_builder_hooks
 from .newton_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
@@ -54,13 +52,9 @@ class NewtonVBDManager(NewtonManager):
         # Experimental deformable support registers callbacks here so the manager
         # and cloner can invoke them without hard-coding deformable logic.
         install_deformable_builder_hooks()
+        install_cable_builder_hooks()
 
         super().initialize(sim_context)
-
-    @classmethod
-    def _solver_specific_clear(cls):
-        """Clear VBD-specific state."""
-        clear_deformable_builder_hooks()
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
@@ -199,9 +193,11 @@ class NewtonVBDManager(NewtonManager):
             # No env Xforms — flat loading
             builder.add_usd(stage, ignore_paths=deformable_ignore_paths, schema_resolvers=schema_resolvers)
 
-            # Add deformable bodies from the registry (single world at origin).
-            for entry in cls._deformable_registry:
-                add_deformable_entry_to_builder(builder, entry, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
+            # Run per-world builder hooks for the single world at origin.
+            # Hooks include deformable and cable registries; each owns its own registration.
+            if hasattr(cls, "_per_world_builder_hooks"):
+                for hook in cls._per_world_builder_hooks:
+                    hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths] + deformable_ignore_paths
@@ -246,9 +242,10 @@ class NewtonVBDManager(NewtonManager):
                     for proto_shape_idx in proto_shape_indices:
                         local_site_map[label][col].append(offset + proto_shape_idx)
 
-                # Add deformable bodies from the registry into this world.
-                for entry in cls._deformable_registry:
-                    add_deformable_entry_to_builder(builder, entry, col, list(pos), quat)
+                # Run per-world builder hooks for this world (deformables, cables, ...).
+                if hasattr(cls, "_per_world_builder_hooks"):
+                    for hook in cls._per_world_builder_hooks:
+                        hook(builder, col, list(pos), list(quat))
 
                 builder.end_world()
 
@@ -258,9 +255,8 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # Call builder.color() if any deformable entries were added (required by VBD solver)
-        if cls._deformable_registry:
-            builder.color()
+        # run vbd builder coloring
+        builder.color()
 
         cls.set_builder(builder)
 
@@ -280,6 +276,11 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
-        if hasattr(cls._solver, "rebuild_bvh"):
+        # Guard against Newton versions where ``SolverVBD`` did not initialize
+        # ``particle_enable_self_contact`` when ``model.particle_count == 0``
+        # (rigid-body-only or cable-only scenes).  In that case ``rebuild_bvh``
+        # would raise ``AttributeError``; the call is a no-op anyway since there
+        # are no particles to rebuild BVH for.
+        if hasattr(cls._solver, "rebuild_bvh") and getattr(cls._solver, "particle_enable_self_contact", False):
             cls._solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()

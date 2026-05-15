@@ -47,6 +47,9 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 if args_cli.backend == "newton":
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
+        NewtonCableMaterialCfg as CableMaterialCfg,
+    )
+    from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
     )
     from isaaclab_newton.sim.spawners.materials import (
@@ -152,9 +155,18 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         "cloth": cfg_cloth,
         "usd": cfg_usd,
     }
+    if args_cli.backend == "newton":
+        cfg_cable = sim_utils.CableCfg(
+            positions=[(0.1 * i, 0.0, 0.0) for i in range(10)],
+            width=0.03,
+            visual_material=sim_utils.PreviewSurfaceCfg(),
+            physics_material=CableMaterialCfg(),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        )
+        objects_cfg["cable"] = cfg_cable
 
     # Create separate groups of deformable objects
-    origins = define_origins(num_origins=12, radius=1.5, center_height=2.0)
+    origins = define_origins(num_origins=16, radius=1.5, center_height=2.0)
     print("[INFO]: Spawning objects...")
     # Iterate over all the origins, spawn objects, and create a view for all the deformables
     # note: since we manually spawned random deformable meshes above, we don't need to
@@ -190,6 +202,16 @@ def design_scene() -> tuple[dict, list[list[float]]]:
                 init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
             )
             scene_entities[f"Surface{idx:02d}"] = DeformableObject(cfg=cfg)
+        elif obj_name in ["cable"]:
+            from isaaclab_contrib.cable import CableObject, CableObjectCfg
+
+            prim_path = f"/World/Origin/Cable{idx:02d}"
+            cfg = CableObjectCfg(
+                prim_path=prim_path,
+                spawn=obj_cfg,
+                init_state=CableObjectCfg.InitialStateCfg(pos=origin),
+            )
+            scene_entities[f"Cable{idx:02d}"] = CableObject(cfg=cfg)
         else:
             prim_path = f"/World/Origin/Volume{idx:02d}"
             cfg = DeformableObjectCfg(
@@ -216,13 +238,14 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
             count = 0
-            # reset deformable object state
-            for _, deform_body in enumerate(entities.values()):
-                # root state
-                nodal_state = deform_body.data.default_nodal_state_w.torch.clone()
-                deform_body.write_nodal_state_to_sim_index(nodal_state)
-                # reset the internal state
-                deform_body.reset()
+            # reset object state. Deformables snap back to their default nodal state;
+            # cables are articulations without a free root joint, so they have no
+            # equivalent "snap-back" — only the internal buffers are reset.
+            for body in entities.values():
+                if hasattr(body.data, "default_nodal_state_w"):
+                    nodal_state = body.data.default_nodal_state_w.torch.clone()
+                    body.write_nodal_state_to_sim_index(nodal_state)
+                body.reset()
             print("[INFO]: Resetting deformable object state...")
         # perform step
         sim.step()

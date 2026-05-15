@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     DeformableBodyMaterialBaseCfg,
+    PhysicsMaterialCfg,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from isaaclab.utils.configclass import configclass
@@ -77,3 +78,37 @@ class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCf
 
     edge_kd: float = 1e-2
     """Bending damping [N*m*s]. Used by Newton backend for cloth meshes."""
+
+
+@configclass
+class NewtonCableMaterialCfg(PhysicsMaterialCfg):
+    """Newton-specific physics material for cable rods.
+
+    Authored as a ``UsdShade.Material`` prim with ``newton:*`` attributes via the
+    generic :func:`spawn_deformable_body_material` helper. :class:`CableObject`
+    reads these fields directly from ``cfg.physics_material`` when constructing
+    the registry entry.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
+
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+
+    stretch_stiffness: float = 1.0e9
+    """Material-like axial stiffness EA [N]; normalized internally by segment length."""
+
+    bend_stiffness: float = 0.0
+    """Material-like bend/twist stiffness EI [N*m^2]; normalized internally by segment length."""
+
+    stretch_damping: float = 0.0
+    """Per-joint stretch damping [N*s/m]."""
+
+    bend_damping: float = 0.0
+    """Per-joint bend/twist damping [N*m*s/rad]."""
+
+    density: float = 1500.0
+    """Material density [kg/m^3]. Converted to per-segment mass via the capsule
+    shape's volume (``pi * radius^2 * segment_length * density``) by the cable
+    replicate hook before calling :meth:`newton.ModelBuilder.add_rod_graph`."""
