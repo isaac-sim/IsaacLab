@@ -136,6 +136,7 @@ Guidelines for modifications:
 * Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
+* Nicholas Blauch
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
