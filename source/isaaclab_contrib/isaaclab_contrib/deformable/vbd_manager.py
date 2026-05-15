@@ -11,9 +11,10 @@ import inspect
 import logging
 from typing import TYPE_CHECKING
 
+import numpy as np
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ModelBuilder
+from newton import JointType, Model, ModelBuilder, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -65,6 +66,13 @@ class NewtonVBDManager(NewtonManager):
     _newton_cable_last_edge_length_attr = "newton:cableLastEdgeLength"
     _curves_dirty: bool = False
     _cable_body_q_cpu = None
+    _non_cable_articulation_mask: wp.array | None = None
+    """(articulation_count,) wp.bool — False for articulations containing
+    :attr:`newton.JointType.CABLE` joints, True elsewhere. Used to skip cable
+    articulations in :meth:`forward` because Newton's ``eval_fk`` does not
+    handle cable joints (their relative transform falls through to identity,
+    collapsing rod segments onto their parent anchors).
+    """
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -92,6 +100,7 @@ class NewtonVBDManager(NewtonManager):
         super().clear()
         cls._curves_dirty = False
         cls._cable_body_q_cpu = None
+        cls._non_cable_articulation_mask = None
 
     @classmethod
     def _mark_curves_dirty(cls) -> None:
@@ -249,6 +258,66 @@ class NewtonVBDManager(NewtonManager):
                     curves_registered = True
             if curves_registered:
                 cls._mark_curves_dirty()
+
+        cls._build_non_cable_articulation_mask()
+
+    @classmethod
+    def _build_non_cable_articulation_mask(cls) -> None:
+        """Build :attr:`_non_cable_articulation_mask` from finalized joint topology. 
+        NOTE: Can be removed once Newton patches cable joints in eval_fk.
+
+        Walks :attr:`newton.Model.joint_type` and :attr:`newton.Model.joint_articulation`
+        to find articulations that contain at least one :attr:`newton.JointType.CABLE`
+        joint, then allocates a device-resident boolean mask that is ``False`` for
+        those articulations and ``True`` elsewhere. Leaves the mask as ``None``
+        when there are no cable articulations so :meth:`forward` can take the
+        unmasked fast path via ``super().forward()``.
+        """
+        model = cls._model
+        if model is None or model.articulation_count == 0:
+            return
+        if model.joint_type is None or model.joint_articulation is None:
+            return
+
+        joint_type_np = model.joint_type.numpy()
+        joint_articulation_np = model.joint_articulation.numpy()
+        cable_art_ids = {
+            int(joint_articulation_np[j])
+            for j in range(len(joint_type_np))
+            if int(joint_type_np[j]) == int(JointType.CABLE) and int(joint_articulation_np[j]) >= 0
+        }
+        if not cable_art_ids:
+            return
+
+        mask_np = np.ones(model.articulation_count, dtype=np.bool_)
+        for art_id in cable_art_ids:
+            mask_np[art_id] = False
+        cls._non_cable_articulation_mask = wp.array(mask_np, dtype=wp.bool, device=PhysicsManager._device)
+
+    @classmethod
+    def forward(cls) -> None:
+        """Update articulation kinematics, skipping cable articulations. 
+        NOTE: Can be removed once Newton patches cable joints in eval_fk.
+
+        Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so a
+        cable joint's relative transform falls through to the identity, snapping
+        each child segment onto its parent's joint anchor and destroying the
+        rod state that VBD integrated directly into ``body_q``. This override
+        passes :attr:`_non_cable_articulation_mask` so cable articulations are
+        excluded from the FK pass triggered by Kit-style visualizers (which set
+        :meth:`~isaaclab.visualizers.BaseVisualizer.requires_forward_before_step`
+        to ``True``).
+        """
+        if cls._non_cable_articulation_mask is None:
+            super().forward()
+            return
+        eval_fk(
+            cls._model,
+            cls._state_0.joint_q,
+            cls._state_0.joint_qd,
+            cls._state_0,
+            cls._non_cable_articulation_mask,
+        )
 
     @classmethod
     def sync_curves_to_usd(cls) -> None:
