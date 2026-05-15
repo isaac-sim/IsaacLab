@@ -263,7 +263,7 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def _build_non_cable_articulation_mask(cls) -> None:
-        """Build :attr:`_non_cable_articulation_mask` from finalized joint topology. 
+        """Build :attr:`_non_cable_articulation_mask` from finalized joint topology.
         NOTE: Can be removed once Newton patches cable joints in eval_fk.
 
         Walks :attr:`newton.Model.joint_type` and :attr:`newton.Model.joint_articulation`
@@ -296,7 +296,7 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def forward(cls) -> None:
-        """Update articulation kinematics, skipping cable articulations. 
+        """Update articulation kinematics, skipping cable articulations.
         NOTE: Can be removed once Newton patches cable joints in eval_fk.
 
         Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so a
