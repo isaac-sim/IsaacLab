@@ -201,7 +201,6 @@ class RerunVisualizer(BaseVisualizer):
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         viewer_host = _normalize_host(bind_address)
         viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
-        print()
         self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)

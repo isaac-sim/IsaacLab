@@ -280,7 +280,6 @@ class ViserVisualizer(BaseVisualizer):
         )
         viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
         if self.cfg.verbose:
-            print()
             self._log_viewer_url(
                 "ViserVisualizer",
                 viewer_url,
