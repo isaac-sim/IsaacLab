@@ -190,6 +190,29 @@ def _catheter_segment_data(pos_vol_mm: np.ndarray,
     return CatheterSegmentData(positions=pos_vol_mm, radii=radius, mu_values=mu)
 
 
+# ── physics diagnostics ───────────────────────────────────────────────────────
+
+def _catheter_bend_mm(pos_vol_mm: np.ndarray) -> float:
+    """Max perpendicular distance from the straight line between the two endpoints.
+
+    A straight, unconstrained catheter returns ~0 mm.
+    When vessel collision is actively deflecting the rod this grows to 5–30 mm,
+    providing a live confirmation that containment constraints are firing.
+    """
+    if len(pos_vol_mm) < 3:
+        return 0.0
+    start, end = pos_vol_mm[0], pos_vol_mm[-1]
+    axis = end - start
+    axis_len = float(np.linalg.norm(axis))
+    if axis_len < 1e-6:
+        return float(np.max(np.linalg.norm(pos_vol_mm - start, axis=1)))
+    axis_unit = axis / axis_len
+    vecs      = pos_vol_mm - start
+    proj      = np.outer(np.dot(vecs, axis_unit), axis_unit)
+    perp_dist = np.linalg.norm(vecs - proj, axis=1)
+    return float(np.max(perp_dist))
+
+
 # ── rendering helpers ─────────────────────────────────────────────────────────
 
 def _render(proj_name: str) -> Image.Image:
@@ -359,10 +382,16 @@ def _step_and_render(velocity: float, torque: float,
     t_render_ms = _sim['t_render_ms']
     t_loop_ms   = t_phys_ms + t_render_ms
     _sim['render_count'] += 1
-    tip = _sim['tip_ct_mm']
+    tip  = _sim['tip_ct_mm']
+
+    # Compute bend from the last known vol-mm positions (already computed in _render).
+    pos_vol_mm, _ = _pos_to_vol_mm(solver.positions.cpu().numpy())
+    bend_mm = _catheter_bend_mm(pos_vol_mm)
+    bend_flag = '  ← vessel wall deflecting rod' if bend_mm > 2.0 else '  (straight / unconstrained)'
 
     info = (f"Projection   : {proj_name}\n"
             f"Tip (CT mm)  : X={tip[0]:.1f}  Y={tip[1]:.1f}  Z={tip[2]:.1f}\n"
+            f"Catheter bend: {bend_mm:.1f} mm{bend_flag}\n"
             f"Physics step : {t_phys_ms:.1f} ms  ({steps} substep(s))\n"
             f"Render (GPU) : {t_render_ms:.1f} ms\n"
             f"Sim loop     : {t_loop_ms:.1f} ms  (~{1000/max(t_loop_ms, 1):.0f} fps)\n"
