@@ -252,13 +252,35 @@ class RayCasterCamera(RayCaster):
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
+            ValueError: If every eye position equals its target (look-at direction undefined for the
+                whole batch). When only some rows are degenerate, those rows are skipped and the
+                remaining poses are still applied; a warning is logged.
         """
+        # resolve env_ids to a tensor up front so we can index it during partial-failure filtering
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        if not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self._device)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
-        # camera position and rotation in opengl convention
-        orientations = math_utils.quat_from_matrix(
-            math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis=up_axis, device=self._device)
+        # camera position and rotation in opengl convention; degenerate rows (eye == target) come back as NaN
+        rotation_matrix = math_utils.create_rotation_matrix_from_view(
+            eyes, targets, up_axis=up_axis, device=self._device
         )
+        valid_indices = (~torch.isnan(rotation_matrix).any(dim=(-2, -1))).nonzero(as_tuple=True)[0]
+        n_valid = valid_indices.numel()
+        n_total = rotation_matrix.shape[0]
+        if n_valid == 0:
+            raise ValueError("look-at is undefined: every eye position equals its target")
+        if n_valid < n_total:
+            logger.warning(
+                "set_world_poses_from_view: skipping %d pose(s) where eye equals target",
+                n_total - n_valid,
+            )
+            rotation_matrix = rotation_matrix.index_select(0, valid_indices)
+            eyes = eyes.index_select(0, valid_indices)
+            env_ids = env_ids.index_select(0, valid_indices)
+        orientations = math_utils.quat_from_matrix(rotation_matrix)
         self.set_world_poses(eyes, orientations, env_ids, convention="opengl")
 
     """

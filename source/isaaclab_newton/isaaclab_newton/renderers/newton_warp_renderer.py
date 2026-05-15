@@ -21,10 +21,10 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
+from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
@@ -162,32 +162,33 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        newton_model = self.get_scene_data_provider().get_newton_model()
-        if newton_model is None:
+        self._newton_model: newton.Model = NewtonManager.get_model()
+        if self._newton_model is None:
             raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but the scene data provider returned None. "
+                "NewtonWarpRenderer requires a Newton model but NewtonManager.get_model() returned None. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
             )
 
-        sensor_cls = newton.sensors.SensorTiledCamera
-        sensor_config = self._create_sensor_config(sensor_cls)
-        self.newton_sensor = sensor_cls(newton_model, config=sensor_config)
-        self._apply_render_context_config()
+        self.newton_sensor = newton.sensors.SensorTiledCamera(
+            self._newton_model,
+            config=newton.sensors.SensorTiledCamera.RenderConfig(
+                enable_textures=self.cfg.enable_textures,
+                enable_shadows=self.cfg.enable_shadows,
+                enable_ambient_lighting=self.cfg.enable_ambient_lighting,
+                enable_backface_culling=self.cfg.enable_backface_culling,
+                max_distance=self.cfg.max_distance,
+            ),
+        )
 
         # Newton ``v1.2.0rc2`` made shape-BVH construction explicit; ``SensorTiledCamera.update``
         # no longer auto-builds when a non-``None`` state is passed, and the underlying
         # ``RenderContext.render`` raises if ``build_bvh_shape`` was never called for the model.
         # Build it once per model — idempotent across multiple sensors that share ``newton_model``
         # because subsequent calls overwrite the same model-level BVH attributes.
-        if (
-            newton_model.shape_count > 0
-            and hasattr(newton_model, "bvh_shapes")
-            and newton_model.bvh_shapes is None
-            and hasattr(newton.geometry, "build_bvh_shape")
-        ):
-            newton.geometry.build_bvh_shape(newton_model, newton_model.state())
+        if self._newton_model.shape_count > 0 and self._newton_model.bvh_shapes is None:
+            newton.geometry.build_bvh_shape(self._newton_model, self._newton_model.state())
 
         if self.cfg.create_default_light:
             if hasattr(self.newton_sensor, "utils"):
@@ -268,7 +269,9 @@ class NewtonWarpRenderer(BaseRenderer):
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        SimulationContext.instance().update_scene_data_provider(True)
+        sim = SimulationContext.instance()
+        sim.physics_manager.forward()
+        NewtonManager.update_visualization_state()
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -279,22 +282,26 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        newton_state = self.get_scene_data_provider().get_newton_state()
+
+        newton_state: newton.State = NewtonManager.get_state()
+
         # Refit the shape BVH against the current state since env body poses move every frame.
         # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
         if self.newton_sensor.model.shape_count > 0 and hasattr(newton.geometry, "refit_bvh_shape"):
             newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
-        update_kwargs = {
-            "color_image": render_data.outputs.color_image,
-            "albedo_image": render_data.outputs.albedo_image,
-            "depth_image": render_data.outputs.depth_image,
-            "normal_image": render_data.outputs.normals_image,
-            "shape_index_image": render_data.outputs.instance_segmentation_image,
-        }
-        if hasattr(newton.sensors.SensorTiledCamera, "ClearData"):
-            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background.
-            update_kwargs["clear_data"] = newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE)
-        self.newton_sensor.update(newton_state, render_data.camera_transforms, render_data.camera_rays, **update_kwargs)
+
+        self.newton_sensor.update(
+            newton_state,
+            render_data.camera_transforms,
+            render_data.camera_rays,
+            color_image=render_data.outputs.color_image,
+            albedo_image=render_data.outputs.albedo_image,
+            depth_image=render_data.outputs.depth_image,
+            normal_image=render_data.outputs.normals_image,
+            shape_index_image=render_data.outputs.instance_segmentation_image,
+            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
+            clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
+        )
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Copy rendered outputs to the camera data buffers.
@@ -311,7 +318,5 @@ class NewtonWarpRenderer(BaseRenderer):
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        pass
-
-    def get_scene_data_provider(self) -> BaseSceneDataProvider:
-        return SimulationContext.instance().initialize_scene_data_provider()
+        if render_data:
+            render_data.sensor = None

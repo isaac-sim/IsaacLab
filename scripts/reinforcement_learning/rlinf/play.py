@@ -26,6 +26,17 @@ Note:
     are too large to run on a single GPU without FSDP.
 """
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/rlinf/play.py is deprecated. Use "
+    "`./isaaclab.sh play --rl_library rlinf --config_name <CONFIG_NAME>` instead. "
+    "Example: `./isaaclab.sh play --rl_library rlinf "
+    "--config_name isaaclab_ppo_gr00t_assemble_trocar`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import logging
 import os

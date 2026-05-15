@@ -30,12 +30,10 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    "mujoco==3.8.0",
-    "mujoco-warp==3.8.0.2",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang>=1.13.0",
+    "warp-lang==1.13.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",
@@ -135,6 +133,13 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
+    entry_points={
+        "console_scripts": [
+            "isaaclab=isaaclab.cli:cli",
+            "play=isaaclab.cli:play",
+            "train=isaaclab.cli:train",
+        ],
+    },
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
