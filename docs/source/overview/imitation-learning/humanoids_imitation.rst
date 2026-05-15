@@ -636,6 +636,22 @@ Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencie
    MAX_JOBS=4 uv pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
    uv pip install diffusers decord zmq
 
+.. note::
+
+   **If you cannot install or use flash-attn**, an optional patch is provided that switches the
+   bundled Eagle 2.5 VL model to PyTorch SDPA. Use this if ``flash-attn`` fails to build for your
+   environment, or if it installs but raises a runtime error such as
+   ``RuntimeError: FlashAttention only supports Ampere GPUs or newer`` (for example on Blackwell
+   GPUs, which ``flash-attn==2.7.1.post4`` does not have prebuilt kernels for). After the patch,
+   finetune and rollout run on any CUDA arch supported by your PyTorch build, at the cost of
+   flash-attn's training speedup. Skip the ``flash-attn`` install line above, then apply the
+   patch from the **Isaac-GR00T** directory (the sibling layout above means the IsaacLab
+   checkout is at ``../IsaacLab``):
+
+   .. code:: bash
+
+      git apply ../IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
+
 Convert dataset to LeRobot format
 """""""""""""""""""""""""""""""""
 
