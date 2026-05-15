@@ -64,7 +64,9 @@ from .preset_target import PresetTarget
 # ============================================================================
 
 
-def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespace, list[str]]:
+def setup_preset_cli(
+    parser: argparse.ArgumentParser, argv: list[str] | None = None
+) -> tuple[argparse.Namespace, list[str]]:
     """Register the preset-selection help description and parse argv.
 
     Must be called *after* AppLauncher flags and script-specific arguments are
@@ -88,17 +90,25 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
         parser: Caller's argument parser. An ``argument_group`` is attached
             for help-time variant discovery; no ``add_argument`` calls are
             made, so the Namespace gains no preset attributes.
+        argv: Optional argument list to parse. When ``None`` (default),
+            ``parse_known_args`` reads from ``sys.argv``. Provided primarily
+            for in-process test paths that drive the parser with a synthetic
+            argv. Help-time variant enumeration always reads ``sys.argv`` --
+            the user's interactive command line is the only argv that
+            triggers ``--help`` rendering.
 
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
-        ``parser.parse_known_args()``. Apply :func:`fold_preset_tokens` to
-        ``remaining`` before handing it to Hydra.
+        ``parser.parse_known_args(argv)``. Apply :func:`fold_preset_tokens`
+        to ``remaining`` before handing it to Hydra.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
     # normal training runs cheap.
-    argv = _ArgvHelper(sys.argv)
-    actual_variants = _enumerate_variants(argv.task_name) if (argv.task_name and argv.help_requested) else None
+    argv_helper = _ArgvHelper(sys.argv)
+    actual_variants = (
+        _enumerate_variants(argv_helper.task_name) if (argv_helper.task_name and argv_helper.help_requested) else None
+    )
 
     # Argparse's default HelpFormatter reflows description text into one wrapped
     # paragraph, which would collapse the per-variant bullets we emit. Use a
@@ -112,7 +122,7 @@ def setup_preset_cli(parser: argparse.ArgumentParser) -> tuple[argparse.Namespac
     # ``renderer``) into SimulationApp config.
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
-    return parser.parse_known_args()
+    return parser.parse_known_args(argv)
 
 
 def fold_preset_tokens(tokens: list[str]) -> list[str]:
