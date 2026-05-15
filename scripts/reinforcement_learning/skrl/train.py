@@ -10,6 +10,16 @@ Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples s
 a more user-friendly way.
 """
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/skrl/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library skrl --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import logging

@@ -27,6 +27,17 @@ Note:
     The model_path should point to a HuggingFace format checkpoint directory.
 """
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/rlinf/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library rlinf --config_name <CONFIG_NAME>` instead. "
+    "Example: `./isaaclab.sh train --rl_library rlinf "
+    "--config_name isaaclab_ppo_gr00t_assemble_trocar`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import logging
 import os

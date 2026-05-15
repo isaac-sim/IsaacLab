@@ -6,6 +6,16 @@
 
 """Script to train RL agent with Stable Baselines3."""
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/sb3/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library sb3 --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import logging

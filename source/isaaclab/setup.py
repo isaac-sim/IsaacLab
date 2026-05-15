@@ -133,6 +133,13 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
+    entry_points={
+        "console_scripts": [
+            "isaaclab=isaaclab.cli:cli",
+            "play=isaaclab.cli:play",
+            "train=isaaclab.cli:train",
+        ],
+    },
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[

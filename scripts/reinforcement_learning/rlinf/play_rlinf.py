@@ -10,32 +10,21 @@ which is required for VLA model inference.
 
 Usage:
     # Evaluate a trained checkpoint (config YAML in the same directory as play.py)
-    python play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint
 
     # Evaluate with config YAML in a custom directory
-    python play.py --config_path /path/to/config/dir \\
+    ./isaaclab.sh play --rl_library rlinf --config_path /path/to/config/dir \\
         --config_name isaaclab_ppo_gr00t_assemble_trocar --model_path /path/to/checkpoint
 
     # Evaluate with video recording
-    python play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint --video
 
 Note:
     Evaluation requires the full RLinf infrastructure since VLA models
     are too large to run on a single GPU without FSDP.
 """
-
-import warnings
-
-warnings.warn(
-    "scripts/reinforcement_learning/rlinf/play.py is deprecated. Use "
-    "`./isaaclab.sh play --rl_library rlinf --config_name <CONFIG_NAME>` instead. "
-    "Example: `./isaaclab.sh play --rl_library rlinf "
-    "--config_name isaaclab_ppo_gr00t_assemble_trocar`.",
-    DeprecationWarning,
-    stacklevel=1,
-)
 
 import argparse
 import logging

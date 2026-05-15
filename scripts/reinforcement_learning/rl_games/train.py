@@ -5,6 +5,16 @@
 
 """Script to train RL agent with RL-Games."""
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/rl_games/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library rl_games --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import logging
