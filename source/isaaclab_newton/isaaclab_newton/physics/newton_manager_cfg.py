@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
