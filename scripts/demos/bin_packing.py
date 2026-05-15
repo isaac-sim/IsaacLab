@@ -53,8 +53,8 @@ from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollection,
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import Timer
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 ##
 # Scene Configuration
