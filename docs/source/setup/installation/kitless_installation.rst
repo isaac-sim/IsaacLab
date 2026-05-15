@@ -44,7 +44,8 @@ with MJWarp physics and the Newton visualizer:
       .. code-block:: batch
 
          :: Install Isaac Lab (Newton backend, no Isaac Sim required)
-         isaaclab.bat --install   :: or isaaclab.bat -i
+         :: or: isaaclab.bat -i
+         isaaclab.bat --install
 
          :: Kickoff training with MJWarp physics and Newton visualizer
          isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^

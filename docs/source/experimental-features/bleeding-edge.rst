@@ -11,7 +11,7 @@ To address this, some major features will be released as Experimental Feature Br
 This way, the community can experiment with and contribute to the feature before it's fully integrated, reducing the likelihood of being derailed by unexpected and new errors.
 
 RL Post-Training for VLA Models
----------------------------------
+-------------------------------
 
 `RLinf <https://github.com/RLinf/RLinf.git>`_ is a flexible and scalable open-source RL infrastructure designed for
 Embodied and Agentic AI. This integration enables **reinforcement learning fine-tuning of Vision-Language-Action
@@ -82,6 +82,9 @@ From the Isaac Lab root directory:
    git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
    pip install -e .[base] --no-deps
    cd ../
+
+   # Install flash-attn (must be built against the correct PyTorch)
+   pip install --no-build-isolation flash-attn==2.8.3
 
 Quick Start
 ~~~~~~~~~~~

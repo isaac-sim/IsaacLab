@@ -360,15 +360,17 @@ large VLA models that don't fit on a single GPU.
    .. code:: bash
 
       # Step 1: Install RLinf and its dependencies (from isaaclab_contrib)
-      pip install -e "source/isaaclab_contrib[rlinf]"
+      pip install -e "source/isaaclab_contrib[rlinf]" --ignore-requires-python
 
-      # Step 2: Clone and install Isaac-GR00T (for VLA model support)
-      cd scripts/reinforcement_learning/rlinf
+      # Step 2: Clone and install Isaac-GR00T (pinned version, for VLA model support)
       git clone https://github.com/NVIDIA/Isaac-GR00T.git
-      pip install -e Isaac-GR00T/.[base] --no-deps
+      cd Isaac-GR00T
+      git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
+      pip install -e .[base] --no-deps
+      cd ../
 
       # Step 3: Install flash-attn (must be built against the correct PyTorch)
-      pip install --no-build-isolation flash-attn==2.7.1.post4
+      pip install --no-build-isolation flash-attn==2.8.3
 
 -  Training a VLA agent with RLinf:
 

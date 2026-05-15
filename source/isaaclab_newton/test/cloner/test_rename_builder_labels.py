@@ -21,15 +21,12 @@ import unittest
 
 import newton
 import torch
-from isaaclab_newton.cloner.newton_replicate import _rename_builder_labels
+from isaaclab_newton.cloner.newton_replicate import _BUILTIN_LABEL_TYPES, _rename_builder_labels
 from newton.solvers import SolverMuJoCo
 
 _TENDON_FREQ = "mujoco:tendon"
 _SRC = "/Sources/protoA"
 _DST = "/World/envs/env_{}"
-
-
-# ─── helpers ─────────────────────────────────────────────────────────────────
 
 
 def _inject_builtins(builder: newton.ModelBuilder, types: tuple[str, ...], src_path: str, worlds: list[int]) -> None:
@@ -60,14 +57,9 @@ def _make_builder_with_entries(worlds: list[int]) -> newton.ModelBuilder:
     """Builder pre-populated with one row per world for every label class under test."""
     b = newton.ModelBuilder()
     SolverMuJoCo.register_custom_attributes(b)
-    _inject_builtins(
-        b, ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"), _SRC, worlds
-    )
+    _inject_builtins(b, _BUILTIN_LABEL_TYPES, _SRC, worlds)
     _inject_tendon_strings(b, _SRC, worlds)
     return b
-
-
-# ─── tests ───────────────────────────────────────────────────────────────────
 
 
 class TestRenameBuilderLabels(unittest.TestCase):
@@ -81,12 +73,10 @@ class TestRenameBuilderLabels(unittest.TestCase):
     def _rename(self, builder):
         _rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
 
-    # Pass 1 ---------------------------------------------------------------
-
     def test_builtin_labels_rewritten_per_world(self):
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
-        for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
+        for t in _BUILTIN_LABEL_TYPES:
             labels = getattr(b, f"{t}_label")
             worlds_arr = getattr(b, f"{t}_world")
             for k, w in enumerate(worlds_arr):
@@ -96,8 +86,6 @@ class TestRenameBuilderLabels(unittest.TestCase):
                     msg=f"{t}_label[{k}] not rewritten correctly",
                 )
 
-    # Pass 2 ---------------------------------------------------------------
-
     def test_tendon_label_string_custom_attr_rewritten(self):
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
@@ -106,14 +94,12 @@ class TestRenameBuilderLabels(unittest.TestCase):
         for k, w in enumerate(worlds_arr):
             self.assertEqual(labels[k], f"{_DST.format(int(w))}/Tendon_{int(w)}")
 
-    # Cross-pass consistency ----------------------------------------------
-
     def test_all_renamed_labels_share_the_per_env_root(self):
         """Every label written by either pass must live under ``/World/envs/env_<world>/``."""
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
         per_world = {int(w): _DST.format(int(w)) + "/" for w in self.env_ids.tolist()}
-        for t in ("body", "joint", "shape", "articulation", "constraint_mimic", "equality_constraint"):
+        for t in _BUILTIN_LABEL_TYPES:
             for label, w in zip(getattr(b, f"{t}_label"), getattr(b, f"{t}_world")):
                 self.assertTrue(label.startswith(per_world[int(w)]), msg=f"{t}: {label!r}")
         tendon_labels = b.custom_attributes["mujoco:tendon_label"].values
@@ -121,7 +107,29 @@ class TestRenameBuilderLabels(unittest.TestCase):
         for label, w in zip(tendon_labels, tendon_worlds):
             self.assertTrue(label.startswith(per_world[int(w)]), msg=f"tendon: {label!r}")
 
-    # Guards ---------------------------------------------------------------
+    def test_label_equal_to_source_root_is_rewritten(self):
+        """A label whose value is exactly ``src_path`` (no suffix) maps to the env root.
+
+        Newton may tag a proto's own root prim with a label/key whose value equals the
+        proto's source path. Regression: an earlier ``startswith(src_prefix)`` form
+        (where ``src_prefix = src_path + "/"``) silently dropped this case.
+        """
+        b = _make_builder_with_entries(self.worlds)
+        # Append an exact-root row to body_label (any builtin type would do).
+        b.body_label.append(_SRC)
+        b.body_world.append(self.worlds[0])
+        self._rename(b)
+        self.assertEqual(b.body_label[-1], _DST.format(self.worlds[0]))
+
+    def test_trailing_slash_on_source_path_is_canonicalized(self):
+        """``sources=["/Sources/protoA/"]`` (trailing /) must rewrite identically to no slash."""
+        b = _make_builder_with_entries(self.worlds)
+        _rename_builder_labels(b, [f"{_SRC}/"], [_DST], self.env_ids, self.mapping)
+        for t in _BUILTIN_LABEL_TYPES:
+            labels = getattr(b, f"{t}_label")
+            worlds_arr = getattr(b, f"{t}_world")
+            for k, w in enumerate(worlds_arr):
+                self.assertEqual(labels[k], f"{_DST.format(int(w))}/{t}_{int(w)}")
 
     def test_non_path_string_left_untouched(self):
         """Strings that don't start with ``src_path`` must pass through unchanged."""
@@ -144,6 +152,23 @@ class TestRenameBuilderLabels(unittest.TestCase):
     def test_sparse_env_ids(self):
         """Non-contiguous ``env_ids`` (e.g. [10, 20, 30]) must rewrite using the right per-env root."""
         worlds = [10, 20, 30]
+        b = newton.ModelBuilder()
+        SolverMuJoCo.register_custom_attributes(b)
+        _inject_builtins(b, ("body",), _SRC, worlds)
+        env_ids = torch.tensor(worlds, dtype=torch.int32)
+        mapping = torch.ones(1, len(worlds), dtype=torch.bool)
+        _rename_builder_labels(b, [_SRC], [_DST], env_ids, mapping)
+        for k, w in enumerate(b.body_world):
+            self.assertEqual(b.body_label[k], f"/World/envs/env_{int(w)}/body_{int(w)}")
+
+    def test_large_world_ids(self):
+        """Large/sparse ``env_ids`` round-trip — dispatch is by dict, not array index.
+
+        ``world_roots`` is a dict keyed on the actual world id, so id magnitude
+        does not affect correctness or storage. Cap kept inside ``int32`` since
+        Newton's ``*_world`` columns are typed int32.
+        """
+        worlds = [0, 1_000_000, 2_147_000_000]  # last entry within int32 range
         b = newton.ModelBuilder()
         SolverMuJoCo.register_custom_attributes(b)
         _inject_builtins(b, ("body",), _SRC, worlds)
