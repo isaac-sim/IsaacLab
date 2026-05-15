@@ -5,7 +5,15 @@
 
 """Installation script for the 'isaaclab_ov' python package."""
 
+import os
+
 import setuptools
+import toml
+
+# Obtain the extension data from the extension.toml file
+EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
+# Read the extension.toml file
+EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 EXTRAS_REQUIRE = {
     "ovrtx": [
@@ -18,12 +26,12 @@ EXTRAS_REQUIRE["all"] = sorted(set(dep for deps in EXTRAS_REQUIRE.values() for d
 
 setuptools.setup(
     name="isaaclab_ov",
-    version="0.1.1",
+    url=EXTENSION_TOML_DATA["package"]["repository"],
+    version=EXTENSION_TOML_DATA["package"]["version"],
+    description=EXTENSION_TOML_DATA["package"]["description"],
+    keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
-    url="https://github.com/isaac-sim/IsaacLab",
-    description="Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for IsaacLab.",
-    keywords=["robotics", "simulation", "rendering", "ovrtx", "omniverse"],
     license="BSD-3-Clause",
     include_package_data=True,
     python_requires=">=3.12",

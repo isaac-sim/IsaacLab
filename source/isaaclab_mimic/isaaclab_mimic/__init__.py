@@ -28,6 +28,8 @@
 # etc. directly. Tracking upstream at https://github.com/NVlabs/curobo —
 # follow up on the open issue / PR there to confirm the migration landed
 # before deleting this block.
+
+import importlib.metadata
 import sys as _sys
 import types as _types
 
@@ -53,5 +55,7 @@ if not hasattr(_wp, "torch"):
 
 del _sys, _types, _wp
 
-
-__version__ = "1.0.0"
+try:
+    __version__ = importlib.metadata.version("isaaclab_mimic")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
