@@ -68,11 +68,12 @@ def _build_newton_builder_from_mapping(
     )
     replace_newton_builder_shape_colors(builder, stage)
 
-    # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
+    # Deformable and cable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
     # can skip them via ignore_paths.
     deformable_patterns = tuple(
-        re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in NewtonManager._deformable_registry
+        re.compile(entry.prim_path.replace(".*", "[^/]*"))
+        for entry in (*NewtonManager._deformable_registry, *getattr(NewtonManager, "_cable_registry", ()))
     )
     deformable_ignore_paths = []
     if deformable_patterns:

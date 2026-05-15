@@ -184,9 +184,13 @@ def add_registered_deformables_to_builder(
 
 
 def color_registered_deformables(builder) -> None:
-    """Color the Newton builder when deformables were registered."""
-    if SimulationManager._deformable_registry:
-        builder.color()
+    """Run VBD graph coloring on the Newton builder.
+
+    Only installed as a post-replicate hook by the VBD managers, so it always
+    runs under a VBD solver. ``color()`` is idempotent and a no-op when there
+    are no particles, so it is called unconditionally.
+    """
+    builder.color()
 
 
 def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
@@ -250,27 +254,8 @@ def install_deformable_builder_hooks() -> None:
     SimulationManager._deformable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
-    if not hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
-        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
-
-
-def clear_deformable_builder_hooks() -> None:
-    """Clear deformable registry state and remove only deformable-owned builder hooks."""
-    SimulationManager._deformable_registry = []
-    if hasattr(SimulationManager, "_per_world_builder_hooks"):
-        SimulationManager._per_world_builder_hooks = [
-            hook
-            for hook in SimulationManager._per_world_builder_hooks
-            if hook is not add_registered_deformables_to_builder
-        ]
-    if hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = [
-            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_registered_deformables
-        ]
 
 
 class DeformableObject(BaseDeformableObject):

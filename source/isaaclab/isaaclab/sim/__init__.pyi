@@ -137,11 +137,13 @@ __all__ = [
     "FisheyeCameraCfg",
     "PinholeCameraCfg",
     "SensorFrameCfg",
+    "spawn_cable",
     "spawn_capsule",
     "spawn_cone",
     "spawn_cuboid",
     "spawn_cylinder",
     "spawn_sphere",
+    "CableCfg",
     "CapsuleCfg",
     "ConeCfg",
     "CuboidCfg",
@@ -301,6 +303,7 @@ NewtonMeshCollisionPropertiesCfg = ...
 NewtonRigidBodyPropertiesCfg = ...
 NewtonSDFCollisionPropertiesCfg = ...
 from .spawners import (
+    CableCfg,
     CapsuleCfg,
     ConeCfg,
     CuboidCfg,
@@ -343,6 +346,7 @@ from .spawners import (
     UsdFileCfg,
     UsdFileWithCompliantContactCfg,
     VisualMaterialCfg,
+    spawn_cable,
     spawn_camera,
     spawn_capsule,
     spawn_cone,

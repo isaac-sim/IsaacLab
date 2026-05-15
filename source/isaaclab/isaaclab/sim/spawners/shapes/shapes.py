@@ -233,6 +233,70 @@ def spawn_cone(
     return stage.GetPrimAtPath(prim_path)
 
 
+@clone
+def spawn_cable(
+    prim_path: str,
+    cfg: shapes_cfg.CableCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Create a ``UsdGeomBasisCurves`` cable prim.
+
+    Authors a USD curve under ``{prim_path}/geometry/mesh`` (same layout as the
+    other shape spawners) and binds the visual / physics material via the shared
+    helper. Cable physics is materialized later by the Newton replicate hook
+    calling :meth:`newton.ModelBuilder.add_rod_graph`; ``rigid_props`` and
+    ``mass_props`` are rejected up front because they don't apply to cables.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or regex pattern to spawn at.
+        cfg: Cable configuration. ``positions``, ``radius`` and ``physics_material``
+            (a :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`)
+            are required.
+        translation: World-space translation of the parent ``Xform``.
+        orientation: World-space orientation ``(x, y, z, w)`` of the parent ``Xform``.
+        **kwargs: Forwarded to the :func:`clone` decorator (e.g. ``clone_in_fabric``).
+
+    Returns:
+        The spawned cable ``Xform`` prim.
+
+    Raises:
+        ValueError: If ``cfg.physics_material`` is not a
+            ``NewtonCableMaterialCfg`` instance, or any of ``cfg.rigid_props`` or
+            ``cfg.mass_props`` is non-None.
+    """
+    # Import here to avoid a hard dep on isaaclab_newton in core.
+    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
+
+    # -- validate (rejects misconfiguration up-front) --
+    if not isinstance(cfg.physics_material, NewtonCableMaterialCfg):
+        raise ValueError(
+            "CableCfg requires `physics_material` to be a NewtonCableMaterialCfg instance,"
+            f" got {type(cfg.physics_material).__name__}."
+        )
+    if cfg.rigid_props is not None:
+        raise ValueError("CableCfg does not support `rigid_props`.")
+    if cfg.mass_props is not None:
+        raise ValueError("CableCfg does not support `mass_props`.")
+
+    n_points = len(cfg.positions)
+    attributes = {
+        "points": cfg.positions,
+        "curveVertexCounts": [n_points],
+        "widths": [cfg.width] * n_points,
+        "type": "linear",
+    }
+    stage = get_current_stage()
+    _spawn_geom_from_prim_type(prim_path, cfg, "BasisCurves", attributes, translation, orientation, stage=stage)
+    return stage.GetPrimAtPath(prim_path)
+
+
 """
 Helper functions.
 """
