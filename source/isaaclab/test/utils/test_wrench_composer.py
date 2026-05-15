@@ -3,17 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-
-def teardown_module():
-    """Close the Omniverse app after module tests complete."""
-    simulation_app.close()
-
-
 import numpy as np
 import pytest
 import torch
