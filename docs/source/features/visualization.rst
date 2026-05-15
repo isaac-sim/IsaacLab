@@ -507,7 +507,7 @@ Currently, live plots are only available in the Kit Visualizer.
 **Viser Visualizer Renderer Requirement**
 
 The Viser visualizer requires a Newton model, which is provided automatically by
-:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` regardless of the active physics
+:class:`~isaaclab.scene_data.SceneDataProvider` regardless of the active physics
 backend or renderer. It is compatible with all rendering backends (RTX, Newton Warp, OVRTX).
 
 

@@ -11,7 +11,7 @@ use, :meth:`NewtonManager._ensure_visualization_model` must build the manager's
 :meth:`NewtonManager._build_visualization_model_from_stage`), and
 :meth:`NewtonManager.update_visualization_state` must copy fresh transforms into
 ``_state_0.body_q`` via the new
-:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+:class:`~isaaclab.scene_data.SceneDataProvider`.
 """
 
 from __future__ import annotations

@@ -29,7 +29,7 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene.scene_data_provider import SceneDataProvider
+from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit

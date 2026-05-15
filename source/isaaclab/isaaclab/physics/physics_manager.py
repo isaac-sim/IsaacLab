@@ -15,7 +15,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
-    from isaaclab.physics.scene_data_backend import SceneDataBackend
+    from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)

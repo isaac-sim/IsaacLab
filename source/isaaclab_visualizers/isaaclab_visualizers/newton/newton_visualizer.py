@@ -24,7 +24,7 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.scene.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):

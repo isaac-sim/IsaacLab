@@ -33,7 +33,8 @@ from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverNotifyFlags
 
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -1360,7 +1361,7 @@ class NewtonManager(PhysicsManager):
         :meth:`_build_visualization_model_from_stage` and finalizing the resulting
         :class:`~newton.ModelBuilder`. Per-frame body transforms are pushed into
         ``_state_0.body_q`` by :meth:`update_visualization_state` using the new
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+        :class:`~isaaclab.scene_data.SceneDataProvider`.
         """
 
         if cls._model is not None and cls._state_0 is not None:
@@ -1554,7 +1555,7 @@ class NewtonManager(PhysicsManager):
         already advanced by :meth:`step` / forward kinematics.
 
         PhysX sim backend: pull rigid-body transforms from the
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` and write
+        :class:`~isaaclab.scene_data.SceneDataProvider` and write
         them into the shadow ``_state_0.body_q`` so Newton-native consumers
         (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
         GL video) see fresh poses.
