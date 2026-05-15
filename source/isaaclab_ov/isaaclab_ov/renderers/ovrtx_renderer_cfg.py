@@ -5,9 +5,6 @@
 
 """Configuration for OVRTX Renderer."""
 
-import tempfile
-from pathlib import Path
-
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 
@@ -26,7 +23,7 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
-    temp_usd_dir: str = str(Path(tempfile.gettempdir()) / "ovrtx")
+    temp_usd_dir: str | None = None
     """Directory for temporary combined USD files (scene + injected cameras).
     Used by the OVRTX renderer when building the render scope; must be writable.
     """
