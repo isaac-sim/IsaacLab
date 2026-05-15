@@ -1472,12 +1472,6 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 f" '{cfg.params['operation']}'."
             )
 
-        manager_name = env.sim.physics_manager.__name__.lower()
-        if "newton" in manager_name:
-            self.newton = True
-        else:
-            self.newton = False
-
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -1493,6 +1487,8 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         operation: Literal["add", "scale", "abs"] = "abs",
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ):
+        _backend = env.sim.physics_manager.__name__.lower()
+
         # resolve environment ids
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
@@ -1534,7 +1530,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
-            if not self.newton:
+            if _backend == "physx":
                 limit_stiffness = _randomize_prop_by_op(
                     self.asset.data.fixed_tendon_limit_stiffness.torch.clone(),
                     limit_stiffness_distribution_params,
@@ -1551,7 +1547,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         # position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            if not self.newton:
+            if _backend == "physx":
                 limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
                 # -- lower limit
                 if lower_limit_distribution_params is not None:
@@ -1589,7 +1585,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         # rest length
         if rest_length_distribution_params is not None:
-            if not self.newton:
+            if _backend == "physx":
                 rest_length = _randomize_prop_by_op(
                     self.asset.data.fixed_tendon_rest_length.torch.clone(),
                     rest_length_distribution_params,
@@ -1605,7 +1601,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 raise NotImplementedError("Rest length is not yet implemented with Newton.")
         # offset
         if offset_distribution_params is not None:
-            if not self.newton:
+            if _backend == "physx":
                 offset = _randomize_prop_by_op(
                     self.asset.data.fixed_tendon_offset.torch.clone(),
                     offset_distribution_params,
