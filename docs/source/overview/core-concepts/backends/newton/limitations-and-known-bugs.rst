@@ -1,12 +1,12 @@
 Limitations
 ===========
 
-During the early development phase of both Newton and this Isaac Lab integration,
-you are likely to encounter breaking changes as well as limited documentation.
+The Newton backend is in beta. Breaking changes and incomplete documentation are
+still expected, and official support or debugging assistance will only be
+available once the integration reaches an official release.
 
-We do not expect to be able to provide support or debugging assistance until the framework has reached an official release.
-
-Here is a non-exhaustive list of capabilities currently supported in the Newton experimental feature branch grouped by extension:
+Here is a non-exhaustive list of capabilities currently supported by the Newton
+backend, grouped by extension:
 
 * isaaclab:
     * Articulation API (supports both articulations and single-body articulations as rigid bodies)

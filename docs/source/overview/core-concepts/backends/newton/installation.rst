@@ -1,7 +1,7 @@
 Installation
 ============
 
-Installing the Newton physics integration requires three things:
+Installing the Newton backend requires three things:
 
 1) The ``develop`` branch of Isaac Lab
 2) Ubuntu 22.04 or 24.04

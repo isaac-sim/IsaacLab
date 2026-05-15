@@ -21,7 +21,7 @@ from the default PhysX to Newton:
 
    **Not all environments support the Newton backend yet.** Using ``presets=newton_mjwarp`` with an
    environment that has not been configured for Newton will raise an error at launch. See
-   :doc:`/source/experimental-features/newton-physics-integration/index`
+   :doc:`/source/overview/core-concepts/backends/newton/index`
    for more details, and the :ref:`migrating-to-isaaclab-3-0`
    guide for how to add Newton support to your own environments.
 
