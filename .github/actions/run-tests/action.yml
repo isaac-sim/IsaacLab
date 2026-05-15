@@ -218,6 +218,14 @@ runs:
                 echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
                 ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
               fi
+              # Diagnostic: dump numpy/scipy/openblas state so we can correlate
+              # SIGSEGV crashes with the OpenBLAS atfork regression tracked at
+              # https://github.com/numpy/numpy/issues/30092 and
+              # https://github.com/scipy/scipy/issues/23686.
+              echo '=== Dep manifest (numpy/scipy/openblas) ==='
+              ./isaaclab.sh -p -m pip show numpy scipy 2>/dev/null | grep -E '^(Name|Version|Location):' || true
+              ./isaaclab.sh -p -c \"import numpy, scipy; print('numpy', numpy.__version__); print('scipy', scipy.__version__); import os; [print('bundled openblas:', os.path.join(d, f)) for d in [os.path.dirname(numpy.__file__) + '/../numpy.libs', os.path.dirname(scipy.__file__) + '/../scipy.libs'] if os.path.isdir(d) for f in os.listdir(d) if 'openblas' in f.lower()]\" 2>/dev/null || true
+              echo '=== /Dep manifest ==='
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
             "
