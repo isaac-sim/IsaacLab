@@ -1326,3 +1326,117 @@ def test_euler_xyz_from_quat():
         wrapped = expected % (2 * torch.pi)
         output = torch.stack(math_utils.euler_xyz_from_quat(quat, wrap_to_2pi=True), dim=-1)
         torch.testing.assert_close(output, wrapped)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_lookat_along_up_axis_z(device):
+    """Camera above target on +Z axis with Z-up should return a valid orthonormal frame."""
+    eyes = torch.tensor([[0.0, 0.0, 5.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert R is not None
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_lookat_along_up_axis_y(device):
+    """Camera at +Y looking at origin with Y-up should return a valid orthonormal frame."""
+    eyes = torch.tensor([[0.0, 5.0, 0.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Y", device=device)
+    assert R is not None
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_lookat_along_negative_up_axis(device):
+    """Camera below target looking up (-Z alignment with Z-up) should return a valid orthonormal frame."""
+    eyes = torch.tensor([[0.0, 0.0, -5.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert R is not None
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_zero_forward_returns_nan(device):
+    """When eyes == targets the forward direction is undefined; all entries of the row are NaN."""
+    eyes = torch.tensor([[1.0, 2.0, 3.0]], device=device)
+    targets = eyes.clone()
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert torch.isnan(R).all()
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_batched_partial_failure(device):
+    """Mixed batch with one degenerate row should produce NaN in that row and a valid rotation in the other."""
+    eyes = torch.tensor([[1.0, 2.0, 3.0], [0.0, 0.0, 5.0]], device=device)
+    targets = torch.tensor([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert torch.isnan(R[0]).any()
+    torch.testing.assert_close(R[1] @ R[1].T, torch.eye(3, device=device), atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R[1]), torch.tensor(1.0, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_quat_from_matrix_unit_norm_on_valid_input(device):
+    """quat_from_matrix should produce unit quaternions for any valid rotation matrix."""
+    n = 100
+    q_rand = math_utils.random_orientation(num=n, device=device)
+    rot_mat = math_utils.matrix_from_quat(q_rand)
+    q_value = math_utils.quat_from_matrix(rot_mat)
+    norms = torch.linalg.norm(q_value, dim=-1)
+    torch.testing.assert_close(norms, torch.ones(n, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_quat_from_matrix_singular_matrix_returns_nan(device):
+    """quat_from_matrix on a singular (non-rotation) matrix should signal NaN, not garbage."""
+    singular = torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]]], device=device)
+    q = math_utils.quat_from_matrix(singular)
+    assert torch.isnan(q).all()
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_standard(device):
+    """Sanity: off-axis eye produces an orthonormal frame whose z-axis points from target back to eye."""
+    eyes = torch.tensor([[3.0, 0.0, 4.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+    # z_axis is back-of-camera in OpenGL convention: points from target to eye
+    expected_z = torch.tensor([[0.6, 0.0, 0.8]], device=device)
+    torch.testing.assert_close(R[:, :, 2], expected_z, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_create_rotation_matrix_from_view_non_finite_returns_nan(device):
+    """Non-finite input (NaN or Inf in eyes/targets) should produce NaN rows."""
+    eyes = torch.tensor([[float("nan"), 0.0, 0.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert torch.isnan(R).all()
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_quat_from_matrix_reflection_returns_nan(device):
+    """A reflection matrix (det = -1) is not a proper rotation; the safeguard should signal NaN."""
+    reflection = torch.diag(torch.tensor([1.0, 1.0, -1.0], device=device)).unsqueeze(0)
+    q = math_utils.quat_from_matrix(reflection)
+    assert torch.isnan(q).all()
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+def test_quat_from_matrix_non_orthonormal_returns_nan(device):
+    """A non-orthonormal matrix (1% scale error on one axis) is not a valid rotation; expect NaN."""
+    R = torch.diag(torch.tensor([1.01, 1.0, 1.0], device=device)).unsqueeze(0)
+    q = math_utils.quat_from_matrix(R)
+    assert torch.isnan(q).all()

@@ -341,6 +341,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             sys.executable,
             "-m",
             "pytest",
+            "-s",
             "--no-header",
             f"--config-file={workspace_root}/pyproject.toml",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",
