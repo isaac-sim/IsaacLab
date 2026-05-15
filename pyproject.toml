@@ -3,6 +3,69 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+[project]
+name = "isaaclab-dev"
+version = "0.1.0"
+description = "Isaac Lab source checkout development environment."
+requires-python = ">=3.12"
+dependencies = [
+    "isaaclab",
+    "isaaclab-assets",
+    "isaaclab-contrib",
+    "isaaclab-newton[all]",
+    "isaaclab-ov",
+    "isaaclab-ovphysx",
+    "isaaclab-physx[newton]",
+    "isaaclab-rl[rsl-rl]",
+    "isaaclab-tasks",
+    "torch==2.10.0",
+    "torchaudio==2.10.0",
+    "torchvision==0.25.0",
+]
+
+[project.optional-dependencies]
+assets = [
+    "isaaclab-assets",
+]
+contrib = [
+    "isaaclab-contrib",
+]
+mimic = [
+    "isaaclab-mimic",
+]
+newton = [
+    "isaaclab-newton[all]",
+    "isaaclab-physx[newton]",
+]
+ov = [
+    "isaaclab-ovphysx[ovphysx]",
+]
+physx = [
+    "isaaclab-physx",
+]
+rl = [
+    "isaaclab-rl[rsl-rl]",
+]
+rl-all = [
+    "isaaclab-rl[all]",
+]
+rtx = [
+    "isaaclab-ov[ovrtx]",
+]
+tasks = [
+    "isaaclab-assets",
+    "isaaclab-contrib",
+    "isaaclab-ov",
+    "isaaclab-ovphysx",
+    "isaaclab-tasks",
+]
+tasks-experimental = [
+    "isaaclab-tasks-experimental",
+]
+visualizers = [
+    "isaaclab-visualizers[all]",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"
@@ -147,14 +210,61 @@ markers = [
 url = "https://pypi.nvidia.com"
 explicit = false
 
-# Some Isaac Sim dependencies (e.g. mujoco-usd-converter, tinyobjloader) have
-# mismatched versions across pypi.nvidia.com and PyPI.  unsafe-best-match lets uv
-# resolve the correct version from any index, and prerelease=allow covers packages
-# that only publish pre-release wheels (e.g. tinyobjloader==2.0.0rc13).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+# Some NVIDIA-hosted dependencies have mismatched versions across pypi.nvidia.com
+# and PyPI. unsafe-best-match lets uv resolve the correct version from any index,
+# and prerelease=allow covers packages that only publish pre-release wheels.
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 override-dependencies = ["numpy>=2"]
+package = false
+
+[tool.uv.sources]
+isaaclab = { path = "source/isaaclab", editable = true }
+"isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
+"isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
+"isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
+"isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
+"isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
+"isaaclab-ovphysx" = { path = "source/isaaclab_ovphysx", editable = true }
+"isaaclab-physx" = { path = "source/isaaclab_physx", editable = true }
+"isaaclab-rl" = { path = "source/isaaclab_rl", editable = true }
+"isaaclab-tasks" = { path = "source/isaaclab_tasks", editable = true }
+"isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
+"isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
+"isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'arm64'" },
+]
+torchaudio = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'arm64'" },
+]
+torchvision = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'arm64'" },
+]
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"

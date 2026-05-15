@@ -10,16 +10,6 @@ Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples s
 a more user-friendly way.
 """
 
-import warnings
-
-warnings.warn(
-    "scripts/reinforcement_learning/skrl/play.py is deprecated. Use "
-    "`./isaaclab.sh play --rl_library skrl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library skrl --task Isaac-Cartpole-v0`.",
-    DeprecationWarning,
-    stacklevel=1,
-)
-
 import argparse
 import contextlib
 import os
@@ -48,7 +38,7 @@ SKRL_VERSION = "2.0.0"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -186,7 +176,7 @@ def main():
                 "video_length": args_cli.video_length,
                 "disable_logger": True,
             }
-            print("[INFO] Recording videos during training.")
+            print("[INFO] Recording videos during play.")
             print_dict(video_kwargs, nesting=4)
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
