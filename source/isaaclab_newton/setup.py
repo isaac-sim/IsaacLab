@@ -20,7 +20,7 @@ INSTALL_REQUIRES = [
     # generic
     "numpy>=2",
     "torch>=2.7",
-    "prettytable==3.3.0",
+    "prettytable>=3.3.0",
     "toml",
     # reinforcement learning
     "pyglet>=2.1.6",
@@ -28,7 +28,7 @@ INSTALL_REQUIRES = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict==4.0.1",
+    "flatdict>=4.0.1",
     # fluoroscopy renderer (separate editable install required in dev)
     "fluorosim",
     # newton
