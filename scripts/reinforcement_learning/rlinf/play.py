@@ -10,15 +10,15 @@ which is required for VLA model inference.
 
 Usage:
     # Evaluate a trained checkpoint (config YAML in the same directory as play.py)
-    ./isaaclab.sh play --library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint
 
     # Evaluate with config YAML in a custom directory
-    ./isaaclab.sh play --library rlinf --config_path /path/to/config/dir \\
+    ./isaaclab.sh play --rl_library rlinf --config_path /path/to/config/dir \\
         --config_name isaaclab_ppo_gr00t_assemble_trocar --model_path /path/to/checkpoint
 
     # Evaluate with video recording
-    ./isaaclab.sh play --library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint --video
 
 Note:
@@ -30,8 +30,8 @@ import warnings
 
 warnings.warn(
     "scripts/reinforcement_learning/rlinf/play.py is deprecated. Use "
-    "`./isaaclab.sh play --library rlinf --config_name <CONFIG_NAME>` instead. "
-    "Example: `./isaaclab.sh play --library rlinf "
+    "`./isaaclab.sh play --rl_library rlinf --config_name <CONFIG_NAME>` instead. "
+    "Example: `./isaaclab.sh play --rl_library rlinf "
     "--config_name isaaclab_ppo_gr00t_assemble_trocar`.",
     DeprecationWarning,
     stacklevel=1,

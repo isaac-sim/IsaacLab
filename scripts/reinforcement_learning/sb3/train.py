@@ -10,8 +10,8 @@ import warnings
 
 warnings.warn(
     "scripts/reinforcement_learning/sb3/train.py is deprecated. Use "
-    "`./isaaclab.sh -p scripts/reinforcement_learning/train.py --library sb3 --task <TASK>` instead. "
-    "Example: `./isaaclab.sh -p scripts/reinforcement_learning/train.py --library sb3 --task Isaac-Cartpole-v0`.",
+    "`./isaaclab.sh -p scripts/reinforcement_learning/train.py --rl_library sb3 --task <TASK>` instead. "
+    "Example: `./isaaclab.sh -p scripts/reinforcement_learning/train.py --rl_library sb3 --task Isaac-Cartpole-v0`.",
     DeprecationWarning,
     stacklevel=1,
 )

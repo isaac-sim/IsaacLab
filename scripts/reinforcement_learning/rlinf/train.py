@@ -12,14 +12,14 @@ Tasks can be either:
 
 Usage:
     # Train an IsaacLab task (config YAML in the same directory as train.py)
-    ./isaaclab.sh train --library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar
+    ./isaaclab.sh train --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar
 
     # Train with config YAML in a custom directory
-    ./isaaclab.sh train --library rlinf --config_path /path/to/config/dir \\
+    ./isaaclab.sh train --rl_library rlinf --config_path /path/to/config/dir \\
         --config_name isaaclab_ppo_gr00t_assemble_trocar
 
     # Train with task override and custom settings
-    ./isaaclab.sh train --library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    ./isaaclab.sh train --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --task Isaac-Assemble-Trocar-G129-Dex3-RLinf-v0 --num_envs 64 --max_epochs 1000
 
 Note:
@@ -31,8 +31,8 @@ import warnings
 
 warnings.warn(
     "scripts/reinforcement_learning/rlinf/train.py is deprecated. Use "
-    "`./isaaclab.sh train --library rlinf --config_name <CONFIG_NAME>` instead. "
-    "Example: `./isaaclab.sh train --library rlinf "
+    "`./isaaclab.sh train --rl_library rlinf --config_name <CONFIG_NAME>` instead. "
+    "Example: `./isaaclab.sh train --rl_library rlinf "
     "--config_name isaaclab_ppo_gr00t_assemble_trocar`.",
     DeprecationWarning,
     stacklevel=1,

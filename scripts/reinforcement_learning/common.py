@@ -42,7 +42,7 @@ def dispatch_library_entrypoint(
         entrypoints: Mapping from library name to implementation path.
         action: Action name used to create a unique module name.
         description: Top-level parser description.
-        library_help: Help text for the ``--library`` argument.
+        library_help: Help text for the ``--rl_library`` argument.
         run_as_script: Whether to execute the selected implementation as a script.
 
     Returns:
@@ -52,17 +52,17 @@ def dispatch_library_entrypoint(
         argv = sys.argv[1:]
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--library", choices=sorted(entrypoints))
+    parser.add_argument("--rl_library", choices=sorted(entrypoints), default="rsl_rl")
     args_cli, library_args = parser.parse_known_args(argv)
 
-    if args_cli.library is None:
+    if args_cli.rl_library is None:
         help_parser = argparse.ArgumentParser(description=description)
-        help_parser.add_argument("--library", choices=sorted(entrypoints), required=True, help=library_help)
+        help_parser.add_argument("--rl_library", choices=sorted(entrypoints), required=True, help=library_help)
         help_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments forwarded to the selected library.")
         help_parser.print_help()
         return 0 if "-h" in argv or "--help" in argv else 2
 
-    module_path = entrypoints[args_cli.library]
+    module_path = entrypoints[args_cli.rl_library]
     if run_as_script:
         original_argv = sys.argv
         original_path = list(sys.path)
@@ -75,7 +75,7 @@ def dispatch_library_entrypoint(
             sys.path[:] = original_path
         return 0
 
-    module = import_local_module(f"isaaclab_rl_{action}_{args_cli.library}", module_path)
+    module = import_local_module(f"isaaclab_rl_{action}_{args_cli.rl_library}", module_path)
     module.run(library_args)
     return 0
 

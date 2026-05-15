@@ -14,8 +14,8 @@ import warnings
 
 warnings.warn(
     "scripts/reinforcement_learning/skrl/play.py is deprecated. Use "
-    "`./isaaclab.sh play --library skrl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --library skrl --task Isaac-Cartpole-v0`.",
+    "`./isaaclab.sh play --rl_library skrl --task <TASK>` instead. "
+    "Example: `./isaaclab.sh play --rl_library skrl --task Isaac-Cartpole-v0`.",
     DeprecationWarning,
     stacklevel=1,
 )
