@@ -136,9 +136,7 @@ RENDERING_CORRECTNESS_KITLESS_TESTS = [
 ]
 """Kitless rendering-correctness tests (OVRTX golden-image comparisons).
 
-These tests launch a kit-less subprocess (see :func:`tools.conftest._install_ovrtx_optional_dep`),
-require the optional ``ovrtx`` pip package, and use a longer per-test
-timeout. They are skipped in the generic ``isaaclab_tasks [N/3]`` CI jobs
+These tests are skipped in the generic ``isaaclab_tasks [N/3]`` CI jobs
 and run in the dedicated ``test-rendering-correctness-kitless`` CI job.
 """
 
