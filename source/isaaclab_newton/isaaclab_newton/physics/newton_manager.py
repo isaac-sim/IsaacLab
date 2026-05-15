@@ -1154,6 +1154,16 @@ class NewtonManager(PhysicsManager):
                 # Non-replicated Newton stages do not pass through NewtonReplicateContext.
                 body_bindings = [(body_path, i) for i, body_path in enumerate(body_paths)]
 
+            # Cable segment bodies (from add_rod_graph) have no per-body USD prim and are
+            # rendered via the synced BasisCurves, so exclude them from fabric body sync to
+            # avoid creating spurious per-segment Xform prims.
+            cable_body_indices: set[int] = set()
+            for entry in getattr(cls, "_cable_registry", ()):
+                for offset in entry.body_offsets:
+                    cable_body_indices.update(range(offset, offset + len(entry.edges)))
+            if cable_body_indices:
+                body_bindings = [binding for binding in body_bindings if binding[1] not in cable_body_indices]
+
             fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                 cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
             )

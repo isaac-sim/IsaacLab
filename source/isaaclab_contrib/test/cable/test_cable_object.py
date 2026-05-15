@@ -86,10 +86,11 @@ class _FakeBuilder:
 
     def __init__(self):
         self.calls = []
+        self.body_count = 0
 
     def add_rod_graph(self, **kwargs):
         self.calls.append(kwargs)
-        return [], []  # body_indices, joint_indices — match Newton's signature
+        self.body_count += len(kwargs.get("edges", []))
 
 
 @pytest.mark.parametrize(
@@ -157,6 +158,33 @@ def test_add_cable_entry_to_builder(env_rotation, env_position, init_pos, init_r
     assert call["bend_damping"] == pytest.approx(1.0e-4)
     assert call["label"] == "/World/Cable/cable"
     assert float(call["cfg"].density) == pytest.approx(1200.0)
+
+
+def test_add_cable_entry_populates_body_offsets_and_last_edge_length():
+    """``add_cable_entry_to_builder`` records per-env body offsets and the last edge length."""
+    from isaaclab_contrib.cable.cable_object import add_cable_entry_to_builder
+
+    class _BodyCountingBuilder:
+        def __init__(self):
+            self.body_count = 0
+
+        def add_rod_graph(self, *, edges, **_kwargs):
+            self.body_count += len(edges)
+
+    entry = CableRegistryEntry(
+        prim_path="/World/Cable",
+        node_positions=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.2, 0.0, 0.0), wp.vec3(0.5, 0.0, 0.0), wp.vec3(0.9, 0.0, 0.0)],
+        edges=[(0, 1), (1, 2), (2, 3)],
+        radius=0.005,
+    )
+    builder = _BodyCountingBuilder()
+    builder.body_count = 7
+    add_cable_entry_to_builder(builder, entry, env_idx=0, env_position=[0, 0, 0], env_rotation=[0, 0, 0, 1])
+    builder.body_count += 5
+    add_cable_entry_to_builder(builder, entry, env_idx=1, env_position=[1, 0, 0], env_rotation=[0, 0, 0, 1])
+
+    assert entry.body_offsets == [7, 15]
+    assert entry.last_edge_length == pytest.approx(0.4)
 
 
 def test_cable_object_cfg_defaults():
