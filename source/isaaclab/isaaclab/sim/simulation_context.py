@@ -634,21 +634,13 @@ class SimulationContext:
                 viz.set_camera_view(eye, target)
             self._pending_camera_view = None
 
-<<<<<<< HEAD
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
             if callable(close_provider):
                 close_provider()
             self._scene_data_provider = None
 
-    def initialize_scene_data_provider(self) -> BaseSceneDataProvider:
-        if self._scene_data_provider is None:
-            self._scene_data_provider = SceneDataProvider(self.stage, self)
-            if self._interactive_scene is not None:
-                self._scene_data_provider.set_interactive_scene(self._interactive_scene)
-=======
     def get_scene_data_provider(self) -> SceneDataProvider:
->>>>>>> develop
         return self._scene_data_provider
 
     def register_interactive_scene(self, scene) -> None:
