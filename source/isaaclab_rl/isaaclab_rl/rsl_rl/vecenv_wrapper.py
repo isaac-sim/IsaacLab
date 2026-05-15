@@ -167,8 +167,7 @@ class RslRlVecEnvWrapper(VecEnv):
     def reset(self) -> tuple[TensorDict, dict]:  # noqa: D102
         # reset the environment
         obs_dict, extras = self.env.reset()
-        result = TensorDict(obs_dict, batch_size=[self.num_envs]), extras
-        return result
+        return TensorDict(obs_dict, batch_size=[self.num_envs]), extras
 
     def get_observations(self) -> TensorDict:
         """Returns the current observations of the environment."""
@@ -176,8 +175,7 @@ class RslRlVecEnvWrapper(VecEnv):
             obs_dict = self.unwrapped.observation_manager.compute()
         else:
             obs_dict = self.unwrapped._get_observations()
-        result = TensorDict(obs_dict, batch_size=[self.num_envs])
-        return result
+        return TensorDict(obs_dict, batch_size=[self.num_envs])
 
     def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:
         # clip actions

@@ -119,6 +119,9 @@ class _FakeVisualizer:
     def supports_markers(self):
         return False
 
+    def flush_startup_messages(self):
+        pass
+
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
@@ -536,6 +539,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
             self,
             *,
             port: int,
+            bind_address: str,
             label: str | None,
             verbose: bool,
             share: bool,
@@ -544,6 +548,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         ):
             captured["init"] = {
                 "port": port,
+                "bind_address": bind_address,
                 "label": label,
                 "verbose": verbose,
                 "share": share,
@@ -559,6 +564,10 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
+
+        @property
+        def share_url(self) -> str | None:
+            return None
 
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
     monkeypatch.setattr(
@@ -579,19 +588,20 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
-    assert captured["init"]["open_browser"] is False
+    assert captured["init"]["bind_address"] == cfg.bind_address
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
 def test_viser_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch):
-    opened_ports = []
+    opened_urls = []
 
     class _FakeNewtonViewerViser:
         def __init__(
             self,
             *,
             port: int,
+            bind_address: str,
             label: str | None,
             verbose: bool,
             share: bool,
@@ -609,8 +619,12 @@ def test_viser_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch
         def set_world_offsets(self, spacing) -> None:
             pass
 
+        @property
+        def share_url(self) -> str | None:
+            return None
+
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
-    monkeypatch.setattr(viser_visualizer, "_open_viser_web_viewer", lambda port: opened_ports.append(port))
+    monkeypatch.setattr(viser_visualizer, "_open_viser_web_viewer", lambda url: opened_urls.append(url))
     monkeypatch.setattr(
         viser_visualizer.ViserVisualizer,
         "_resolve_initial_camera_pose",
@@ -618,13 +632,13 @@ def test_viser_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
 
-    cfg = ViserVisualizerCfg(open_browser=True)
+    cfg = ViserVisualizerCfg(open_browser=True, display_address="robot.example.com")
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer._model = "dummy-model"
     visualizer._env_ids = None
     visualizer._create_viewer(record_to_viser=None, metadata={"num_envs": 1})
 
-    assert opened_ports == [cfg.port]
+    assert opened_urls == [f"http://robot.example.com:{cfg.port}"]
 
 
 @pytest.mark.parametrize(
@@ -766,6 +780,8 @@ def test_rerun_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch
             pass
 
     class _DummyRerunSceneDataProvider:
+        num_envs = 1
+
         def get_metadata(self) -> dict:
             return {"num_envs": 1}
 

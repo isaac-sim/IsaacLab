@@ -70,21 +70,6 @@ class KitVisualizer(BaseVisualizer):
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
         self._controlled_camera_path: str | None = None
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._generated_camera_prim_paths: list[str] = []
-        self._camera_image_provider = None
-        self._camera_image_window = None
-        self._camera_debug_frame = 0
-        self._camera_update_count = 0
-        self._camera_last_checksum: int | None = None
-        self._camera_pose_update_count = 0
-        self._camera_last_pose_debug: tuple[float, ...] | None = None
-        self._camera_gpu_upload_tensor = None
-        self._warned_gpu_upload_failure = False
-        self._physics_backend: str | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -153,16 +138,10 @@ class KitVisualizer(BaseVisualizer):
             if app is not None and app.is_running():
                 # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
                 # Disable playSimulations around app.update() so Kit does not advance its own physics here.
-                # Newton is not driven by Kit's player loop, so avoid toggling the setting; the Kit
-                # play/pause UI needs to control the timeline without this visualizer overwriting it.
                 settings = get_settings_manager()
-                guard_play_simulations = self._physics_backend != "newton"
-                play_before = settings.get("/app/player/playSimulations")
-                if guard_play_simulations:
-                    settings.set_bool("/app/player/playSimulations", False)
+                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
-                if guard_play_simulations:
-                    settings.set_bool("/app/player/playSimulations", True if play_before is None else bool(play_before))
+                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
         self._update_camera_image_panel(dt)

@@ -30,6 +30,12 @@ Choosing a renderer backend
 | Newton Warp         | No (kit-less)                 | Newton backend, fast training   |
 +---------------------+-------------------------------+---------------------------------+
 
+.. note::
+
+   Visualization markers are not yet supported by Newton-based renderer backends,
+   including the Newton Warp renderer. Use an RTX-based renderer, such as the
+   Isaac RTX renderer or OVRTX renderer, when marker visualization is needed.
+
 Architecture Overview
 ---------------------
 

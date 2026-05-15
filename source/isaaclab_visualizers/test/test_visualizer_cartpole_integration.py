@@ -19,19 +19,12 @@ fail on WARNING-level records from those loggers; by default only ERROR+ fails.
 
 from __future__ import annotations
 
-# Pyglet must use HeadlessWindow (EGL) before ``pyglet.window`` is imported so Newton
-# ViewerGL can construct without an X11 display (matches ``headless=True`` on NewtonVisualizerCfg).
-import types
-
 import pyglet
 import warp as wp
 
+# Pyglet must use HeadlessWindow (EGL) before ``pyglet.window`` is imported so Newton
+# ViewerGL can construct without an X11 display (matches ``headless=True`` on NewtonVisualizerCfg).
 pyglet.options["headless"] = True
-
-# TODO(mtrepte): check if this is still needed on TOT Lab/Sim before merge
-# Replicator 1.13 expects older Warp API aliases during Kit startup.
-wp.context = types.SimpleNamespace(Kernel=wp.Kernel)
-wp.types.array = wp.array
 
 from isaaclab.app import AppLauncher
 
@@ -42,6 +35,7 @@ import contextlib
 import copy
 import logging
 import socket
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -61,11 +55,14 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 # When True, tests also fail on WARNING-level records from visualizer-related loggers.
 ASSERT_VISUALIZER_WARNINGS = False
 
-_MAX_NON_BLACK_STEPS = 8
-"""Steps for tiled camera / Rerun / Viser smoke tests (early exit ok when non-black)."""
+_MAX_FRAME_CHECK_STEPS = 8
+"""Steps for tiled camera / Rerun / Viser smoke tests (early exit ok when frame is non-flat)."""
 
 _CARTPOLE_INTEGRATION_NUM_ENVS = 1
 """Vectorized env count for cartpole + visualizer integration tests."""
+
+# TODO: Compare these direct-env visualizer checks with RSL-RL train runs;
+# manager-based training can show different frozen-visualizer behavior.
 
 _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (3.0, 3.0, 3.0)
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
@@ -74,27 +71,20 @@ _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (-4.0, -4.
 """Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
 
 # Resolution overrides for this test module (cartpole preset defaults: tiled camera 100×100; Kit helper was 320×240).
-_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (600, 600)
+_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (500, 500)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
-_CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (600, 600)
+_CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (500, 500)
 """Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
 
-_CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (600, 600)
+_CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (500, 500)
 """Tiled camera per-env tile width/height (preset default is 100×100); keeps ``observation_space`` consistent."""
 
-_VIS_FRAME_TEST_STEPS = 10
-"""Steps for Kit / Newton frame capture: no early exit."""
+_START_BUFFER_STEPS = 5
+"""Warmup steps before capturing the first motion-test frame."""
 
-_PAUSED_FRAME_TEST_STEPS = 5
-"""Visualizer frames to pump while simulation is paused."""
-
-# Motion check compares the 2nd vs last captured frame (e.g. 2nd vs 60th when *_STEPS* is 60).
-_MOTION_FRAME_EARLY_IDX = 1
-"""0-based index of the *early* frame (2nd capture)."""
-
-_MOTION_FRAME_LATE_IDX = _VIS_FRAME_TEST_STEPS - 1
-"""0-based index of the *late* frame (e.g. 60th capture when :data:`_VIS_FRAME_TEST_STEPS` is 60)."""
+_CYCLE_FRAME_STEPS = 10
+"""Steps to run for each motion, pause, and play segment."""
 
 # Early vs late frame motion: void background stays similar; only count *strongly* differing pixels.
 _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD = 50
@@ -103,11 +93,20 @@ _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD = 50
 _FRAME_MOTION_MIN_DIFFERING_PIXELS = 100
 """Minimum number of such pixels between early and late frames (stale/frozen viz should be near zero)."""
 
+_FRAME_MIN_CHANNEL_RANGE = 10
+"""Minimum per-frame channel range to reject all-one-color images."""
+
 _VIS_LOGGER_PREFIXES = (
     "isaaclab.visualizers",
     "isaaclab_visualizers",
     "isaaclab.sim.simulation_context",
 )
+
+_WRITE_VIS_DEBUG_FRAMES = False
+"""Whether to emit visualizer debug PNGs during integration tests."""
+
+_VIS_DEBUG_IMAGE_DIR = Path("logs/visualizer_debug")
+"""Directory for opt-in visualizer debug images emitted by integration tests."""
 
 
 def _logger_name_matches_visualizer_scope(logger_name: str) -> bool:
@@ -250,16 +249,20 @@ def _get_physics_cfg(backend_kind: str):
     raise ValueError(f"Unknown backend: {backend_kind!r}")
 
 
-def _assert_non_black_tensor(image_tensor: torch.Tensor, *, min_nonzero_pixels: int = 1) -> None:
-    """Assert camera-like tensor contains non-black pixels."""
+def _assert_non_flat_tensor(image_tensor: torch.Tensor) -> None:
+    """Assert every camera-like tensor image has non-flat content."""
     assert isinstance(image_tensor, torch.Tensor), f"Expected torch.Tensor, got {type(image_tensor)!r}"
     assert image_tensor.numel() > 0, "Image tensor is empty."
     finite_tensor = torch.where(torch.isfinite(image_tensor), image_tensor, torch.zeros_like(image_tensor))
-    if finite_tensor.dtype.is_floating_point:
-        nonzero = torch.count_nonzero(torch.abs(finite_tensor) > 1e-6).item()
-    else:
-        nonzero = torch.count_nonzero(finite_tensor > 0).item()
-    assert nonzero >= min_nonzero_pixels, "Rendered frame appears black (no non-zero pixels)."
+    finite_tensor = finite_tensor.float()
+    if finite_tensor.numel() > 0 and float(finite_tensor.max().item()) <= 1.0 + 1e-6:
+        finite_tensor = finite_tensor * 255.0
+    flat = finite_tensor.reshape(finite_tensor.shape[0], -1)
+    channel_ranges = flat.max(dim=1).values - flat.min(dim=1).values
+    min_range = float(channel_ranges.min().item())
+    assert min_range >= _FRAME_MIN_CHANNEL_RANGE, (
+        f"Rendered frame appears flat / single-color (min channel range {min_range:.3f} < {_FRAME_MIN_CHANNEL_RANGE})."
+    )
 
 
 def _frame_to_numpy(frame) -> np.ndarray:
@@ -276,17 +279,17 @@ def _frame_to_numpy(frame) -> np.ndarray:
     return np.asarray(frame)
 
 
-def _assert_non_black_frame_array(frame) -> None:
-    """Assert viewer-captured frame has visible, non-black content."""
+def _assert_non_flat_frame_array(frame) -> None:
+    """Assert viewer-captured frame has non-flat content."""
     frame_arr = _frame_to_numpy(frame)
     assert frame_arr.size > 0, "Viewer returned an empty frame."
-    if frame_arr.ndim == 2:
-        color = frame_arr
-    else:
+    if frame_arr.ndim != 2:
         assert frame_arr.shape[-1] >= 3, f"Expected at least 3 channels, got shape {frame_arr.shape}."
-        color = frame_arr[..., :3]
-    finite = np.where(np.isfinite(color), color, 0)
-    assert np.count_nonzero(finite) > 0, "Viewer frame appears fully black."
+    rgb = _frame_rgb_255_space(frame)
+    channel_range = float(np.max(rgb) - np.min(rgb))
+    assert channel_range >= _FRAME_MIN_CHANNEL_RANGE, (
+        f"Viewer frame appears flat / single-color (channel range {channel_range:.3f} < {_FRAME_MIN_CHANNEL_RANGE})."
+    )
 
 
 def _frame_rgb_255_space(frame) -> np.ndarray:
@@ -301,6 +304,43 @@ def _frame_rgb_255_space(frame) -> np.ndarray:
     if rgb.size > 0 and float(np.nanmax(rgb)) <= 1.0 + 1e-6:
         rgb = rgb * 255.0
     return rgb
+
+
+def _save_visualizer_debug_frame(frame, *, viz_kind: str, physics_kind: str, phase: str, frame_idx: int) -> None:
+    """Save a visualizer frame to a clearly named PNG for pause/motion debugging."""
+    if not _WRITE_VIS_DEBUG_FRAMES:
+        return
+    from PIL import Image
+
+    rgb = np.clip(_frame_rgb_255_space(frame), 0, 255).astype(np.uint8)
+    _VIS_DEBUG_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    file_name = f"{viz_kind}_viz_{physics_kind}_physics_{phase}_frame_{frame_idx:03d}.png"
+    Image.fromarray(rgb).save(_VIS_DEBUG_IMAGE_DIR / file_name)
+
+
+def _save_visualizer_debug_delta(
+    frame_a, frame_b, *, viz_kind: str, physics_kind: str, phase: str, frame_idx: int
+) -> None:
+    """Save an amplified absolute-difference image for a start/end frame pair."""
+    if not _WRITE_VIS_DEBUG_FRAMES:
+        return
+    from PIL import Image
+
+    a = _frame_rgb_255_space(frame_a)
+    b = _frame_rgb_255_space(frame_b)
+    assert a.shape == b.shape, f"Frame shape mismatch for delta image: {a.shape} vs {b.shape}."
+    delta = np.clip(np.abs(a - b) * 4.0, 0, 255).astype(np.uint8)
+    _VIS_DEBUG_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    file_name = f"{viz_kind}_viz_{physics_kind}_physics_{phase}_delta_frame_{frame_idx:03d}.png"
+    Image.fromarray(delta).save(_VIS_DEBUG_IMAGE_DIR / file_name)
+
+
+def _clear_visualizer_debug_frames(viz_kind: str, physics_kind: str) -> None:
+    if not _WRITE_VIS_DEBUG_FRAMES:
+        return
+    _VIS_DEBUG_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    for path in _VIS_DEBUG_IMAGE_DIR.glob(f"{viz_kind}_viz_{physics_kind}_physics_*.png"):
+        path.unlink()
 
 
 def _count_significantly_differing_pixels(
@@ -325,31 +365,17 @@ def _assert_frames_remain_stable(frame_a, frame_b, *, max_differing_pixels: int 
     )
 
 
-def _assert_early_and_late_motion_frames_differ(
-    frames: list,
+def _assert_frames_differ(
+    frame_a,
+    frame_b,
     *,
     channel_diff_threshold: float = _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD,
     min_differing_pixels: int = _FRAME_MOTION_MIN_DIFFERING_PIXELS,
 ) -> None:
-    """Fail if early vs late frames lack enough strongly differing pixels (stale/frozen bodies).
-
-    Compares :data:`_MOTION_FRAME_EARLY_IDX` vs :data:`_MOTION_FRAME_LATE_IDX` (e.g. 2nd vs 60th capture).
-
-    Voids/background stay near-identical; we only count pixels that change by at least
-    *channel_diff_threshold* on some channel (0–255).
-    """
-    assert len(frames) >= _VIS_FRAME_TEST_STEPS, (
-        f"Need at least {_VIS_FRAME_TEST_STEPS} frames for motion check, got {len(frames)}."
-    )
-    i_early = _MOTION_FRAME_EARLY_IDX
-    i_late = _MOTION_FRAME_LATE_IDX
-    early_1 = i_early + 1
-    late_1 = i_late + 1
-    n_diff = _count_significantly_differing_pixels(
-        frames[i_early], frames[i_late], channel_diff_threshold=channel_diff_threshold
-    )
+    """Fail if two frames lack enough strongly differing pixels (stale/frozen bodies)."""
+    n_diff = _count_significantly_differing_pixels(frame_a, frame_b, channel_diff_threshold=channel_diff_threshold)
     assert n_diff >= min_differing_pixels, (
-        f"Viewport captures #{early_1} and #{late_1} have too few strongly differing pixels "
+        "Viewport frame pair has too few strongly differing pixels "
         f"({n_diff} < {min_differing_pixels}; threshold per channel={channel_diff_threshold} in 0–255 space). "
         "Possible frozen or stale robot visualization."
     )
@@ -357,12 +383,12 @@ def _assert_early_and_late_motion_frames_differ(
 
 def _assert_frame_sequence_has_motion(frames: list) -> None:
     """Assert a captured frame sequence is visible and changes over time."""
-    _assert_non_black_frame_array(frames[-1])
-    _assert_early_and_late_motion_frames_differ(frames)
+    _assert_non_flat_frame_array(frames[-1])
+    _assert_frames_differ(frames[0], frames[-1])
 
 
-def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
-    """Step env until the env's tiled camera RGB tensor is non-black, bounded by *max_steps*."""
+def _step_until_non_flat_camera(env, actions: torch.Tensor, *, max_steps: int = _MAX_FRAME_CHECK_STEPS) -> None:
+    """Step env until the env's tiled camera RGB tensor is non-flat, bounded by *max_steps*."""
     last_rgb = None
     for _ in range(max_steps):
         env.step(action=actions)
@@ -371,11 +397,11 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
             rgb = env._tiled_camera.data.output[env.cfg.tiled_camera.data_types[0]]
         last_rgb = rgb
         try:
-            _assert_non_black_tensor(rgb)
+            _assert_non_flat_tensor(rgb)
             return
         except AssertionError:
             continue
-    _assert_non_black_tensor(last_rgb)
+    _assert_non_flat_tensor(last_rgb)
 
 
 def _select_newton_training_control_button(viewer, target_label: str) -> None:
@@ -425,44 +451,150 @@ def _run_newton_viewer_frame_motion_test(
     viz_kind: str = "newton",
 ) -> None:
     """Check Newton viewer simulation pause, rendering pause, then resumed motion."""
-    frames: list = []
-    for _ in range(_VIS_FRAME_TEST_STEPS):
+    _clear_visualizer_debug_frames(viz_kind, physics_kind)
+    for _ in range(_START_BUFFER_STEPS):
         step_hook()
-        frames.append(viewer.get_frame())
-    _assert_frame_sequence_has_motion(frames)
+    motion_start_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        motion_start_frame, viz_kind=viz_kind, physics_kind=physics_kind, phase="motion_start", frame_idx=0
+    )
+    for _ in range(_CYCLE_FRAME_STEPS):
+        step_hook()
+    motion_end_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        motion_end_frame, viz_kind=viz_kind, physics_kind=physics_kind, phase="motion_end", frame_idx=_CYCLE_FRAME_STEPS
+    )
+    _save_visualizer_debug_delta(
+        motion_start_frame,
+        motion_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="motion",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _assert_non_flat_frame_array(motion_end_frame)
+    _assert_frames_differ(motion_start_frame, motion_end_frame)
 
     _select_newton_pause_simulation_button(viewer)
-    paused_frame = viewer.get_frame()
-    for _ in range(_PAUSED_FRAME_TEST_STEPS):
+    paused_start_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        paused_start_frame, viz_kind=viz_kind, physics_kind=physics_kind, phase="simulation_pause_start", frame_idx=0
+    )
+    for _ in range(_CYCLE_FRAME_STEPS):
         visualizer.step(0.0)
-    _assert_frames_remain_stable(paused_frame, viewer.get_frame())
+    paused_end_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        paused_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="simulation_pause_end",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _save_visualizer_debug_delta(
+        paused_start_frame,
+        paused_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="simulation_pause",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _assert_frames_remain_stable(paused_start_frame, paused_end_frame)
 
     _select_newton_pause_simulation_button(viewer)
-    resumed_frames: list = []
-    for _ in range(_VIS_FRAME_TEST_STEPS):
+    simulation_play_start_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        simulation_play_start_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="simulation_play_start",
+        frame_idx=0,
+    )
+    for _ in range(_CYCLE_FRAME_STEPS):
         step_hook()
-        resumed_frames.append(viewer.get_frame())
-    _assert_frame_sequence_has_motion(resumed_frames)
+    simulation_play_end_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        simulation_play_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="simulation_play_end",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _save_visualizer_debug_delta(
+        simulation_play_start_frame,
+        simulation_play_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="simulation_play",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _assert_non_flat_frame_array(simulation_play_end_frame)
+    _assert_frames_differ(simulation_play_start_frame, simulation_play_end_frame)
 
     _select_newton_pause_rendering_button(viewer)
-    rendering_paused_frame = viewer.get_frame()
+    rendering_paused_start_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        rendering_paused_start_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="rendering_pause_start",
+        frame_idx=0,
+    )
     physics_step_before_render_pause = get_physics_step_count()
-    for _ in range(_PAUSED_FRAME_TEST_STEPS):
+    for _ in range(_CYCLE_FRAME_STEPS):
         step_hook()
-    _assert_frames_remain_stable(rendering_paused_frame, viewer.get_frame())
+    rendering_paused_end_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        rendering_paused_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="rendering_pause_end",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _save_visualizer_debug_delta(
+        rendering_paused_start_frame,
+        rendering_paused_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="rendering_pause",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _assert_frames_remain_stable(rendering_paused_start_frame, rendering_paused_end_frame)
     assert get_physics_step_count() > physics_step_before_render_pause, (
         "Physics did not advance while Newton visualizer rendering was paused."
     )
 
     _select_newton_pause_rendering_button(viewer)
-    render_resumed_frames: list = []
-    for _ in range(_VIS_FRAME_TEST_STEPS):
+    rendering_play_start_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        rendering_play_start_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="rendering_play_start",
+        frame_idx=0,
+    )
+    for _ in range(_CYCLE_FRAME_STEPS):
         step_hook()
-        render_resumed_frames.append(viewer.get_frame())
-    _assert_frame_sequence_has_motion(render_resumed_frames)
+    rendering_play_end_frame = viewer.get_frame()
+    _save_visualizer_debug_frame(
+        rendering_play_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="rendering_play_end",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _save_visualizer_debug_delta(
+        rendering_play_start_frame,
+        rendering_play_end_frame,
+        viz_kind=viz_kind,
+        physics_kind=physics_kind,
+        phase="rendering_play",
+        frame_idx=_CYCLE_FRAME_STEPS,
+    )
+    _assert_non_flat_frame_array(rendering_play_end_frame)
+    _assert_frames_differ(rendering_play_start_frame, rendering_play_end_frame)
 
 
-def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
+def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int = _MAX_FRAME_CHECK_STEPS) -> None:
     """Step the env to exercise visualizers that do not implement ``get_frame`` (e.g. Rerun, Viser)."""
     for _ in range(max_steps):
         env.step(action=actions)
@@ -500,6 +632,7 @@ def _run_kit_viewport_frame_motion_test(
     viz_kind: str = "kit",
 ) -> None:
     """Check Kit viewport motion, timeline pause freeze, then resumed motion."""
+    _clear_visualizer_debug_frames(viz_kind, physics_kind)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
     assert camera_path, "Kit visualizer does not expose a controlled viewport camera path."
 
@@ -508,30 +641,88 @@ def _run_kit_viewport_frame_motion_test(
     try:
         annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        frames: list = []
-        for _ in range(_VIS_FRAME_TEST_STEPS):
+        for _ in range(_START_BUFFER_STEPS):
             env.step(action=actions)
-            rgb_data = annotator.get_data()
-            frames.append(_annotator_rgb_to_numpy(rgb_data))
-        _assert_frame_sequence_has_motion(frames)
+        motion_start_frame = _capture_kit_viewport_rgb(annotator)
+        _save_visualizer_debug_frame(
+            motion_start_frame, viz_kind=viz_kind, physics_kind=physics_kind, phase="motion_start", frame_idx=0
+        )
+        for _ in range(_CYCLE_FRAME_STEPS):
+            env.step(action=actions)
+        motion_end_frame = _capture_kit_viewport_rgb(annotator)
+        _save_visualizer_debug_frame(
+            motion_end_frame,
+            viz_kind=viz_kind,
+            physics_kind=physics_kind,
+            phase="motion_end",
+            frame_idx=_CYCLE_FRAME_STEPS,
+        )
+        _save_visualizer_debug_delta(
+            motion_start_frame,
+            motion_end_frame,
+            viz_kind=viz_kind,
+            physics_kind=physics_kind,
+            phase="motion",
+            frame_idx=_CYCLE_FRAME_STEPS,
+        )
+        _assert_non_flat_frame_array(motion_end_frame)
+        _assert_frames_differ(motion_start_frame, motion_end_frame)
 
         timeline = omni.timeline.get_timeline_interface()
         timeline.pause()
         simulation_app.update()
-        paused_frame = _capture_kit_viewport_rgb(annotator)
+        paused_start_frame = _capture_kit_viewport_rgb(annotator)
+        _save_visualizer_debug_frame(
+            paused_start_frame, viz_kind=viz_kind, physics_kind=physics_kind, phase="timeline_pause_start", frame_idx=0
+        )
         try:
-            for _ in range(_PAUSED_FRAME_TEST_STEPS):
+            for _ in range(_CYCLE_FRAME_STEPS):
                 env.sim.render()
-            _assert_frames_remain_stable(paused_frame, _capture_kit_viewport_rgb(annotator))
+            paused_end_frame = _capture_kit_viewport_rgb(annotator)
+            _save_visualizer_debug_frame(
+                paused_end_frame,
+                viz_kind=viz_kind,
+                physics_kind=physics_kind,
+                phase="timeline_pause_end",
+                frame_idx=_CYCLE_FRAME_STEPS,
+            )
+            _save_visualizer_debug_delta(
+                paused_start_frame,
+                paused_end_frame,
+                viz_kind=viz_kind,
+                physics_kind=physics_kind,
+                phase="timeline_pause",
+                frame_idx=_CYCLE_FRAME_STEPS,
+            )
+            _assert_frames_remain_stable(paused_start_frame, paused_end_frame)
         finally:
             timeline.play()
             simulation_app.update()
 
-        resumed_frames: list = []
-        for _ in range(_VIS_FRAME_TEST_STEPS):
+        play_start_frame = _capture_kit_viewport_rgb(annotator)
+        _save_visualizer_debug_frame(
+            play_start_frame, viz_kind=viz_kind, physics_kind=physics_kind, phase="timeline_play_start", frame_idx=0
+        )
+        for _ in range(_CYCLE_FRAME_STEPS):
             env.step(action=actions)
-            resumed_frames.append(_capture_kit_viewport_rgb(annotator))
-        _assert_frame_sequence_has_motion(resumed_frames)
+        play_end_frame = _capture_kit_viewport_rgb(annotator)
+        _save_visualizer_debug_frame(
+            play_end_frame,
+            viz_kind=viz_kind,
+            physics_kind=physics_kind,
+            phase="timeline_play_end",
+            frame_idx=_CYCLE_FRAME_STEPS,
+        )
+        _save_visualizer_debug_delta(
+            play_start_frame,
+            play_end_frame,
+            viz_kind=viz_kind,
+            physics_kind=physics_kind,
+            phase="timeline_play",
+            frame_idx=_CYCLE_FRAME_STEPS,
+        )
+        _assert_non_flat_frame_array(play_end_frame)
+        _assert_frames_differ(play_start_frame, play_end_frame)
     finally:
         if annotator is not None and render_product is not None:
             with contextlib.suppress(Exception):
@@ -539,7 +730,13 @@ def _run_kit_viewport_frame_motion_test(
 
 
 def _capture_kit_viewport_rgb(annotator) -> np.ndarray:
-    return _annotator_rgb_to_numpy(annotator.get_data())
+    frame = _annotator_rgb_to_numpy(annotator.get_data())
+    for _ in range(5):
+        if frame.shape[:2] != (1, 1) or np.count_nonzero(frame) > 0:
+            return frame
+        simulation_app.update()
+        frame = _annotator_rgb_to_numpy(annotator.get_data())
+    return frame
 
 
 def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> CartpoleCameraEnv:
@@ -577,7 +774,7 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
 def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
     backend_kind: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Kit + cartpole: Replicator RGB on viewport camera; last frame non-black; early vs late frame differ; logs."""
+    """Kit + cartpole: Replicator RGB on viewport camera; frames are non-flat and motion changes pixels; logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -598,10 +795,10 @@ def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
+def test_cartpole_newton_visualizer_tiled_camera_rgb_non_flat(
     backend_kind: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Newton visualizer + cartpole: env tiled-camera RGB becomes non-black within a few steps; clean logs."""
+    """Newton visualizer + cartpole: env tiled-camera RGB becomes non-flat within a few steps; clean logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -610,7 +807,7 @@ def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
         with caplog.at_level(logging.WARNING):
             env.reset()
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-            _step_until_non_black_camera(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
+            _step_until_non_flat_camera(env, actions, max_steps=_MAX_FRAME_CHECK_STEPS)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
@@ -622,7 +819,7 @@ def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Newton GL (``ViewerGL.get_frame``): full motion steps, last frame non-black; early vs late differ; logs."""
+    """Newton GL (``ViewerGL.get_frame``): frames are non-flat and motion changes pixels; logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -674,7 +871,7 @@ def test_cartpole_rerun_visualizer_smoke_steps_and_logs(backend_kind: str, caplo
             rerun_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, RerunVisualizer)]
             assert rerun_visualizers, "Expected an initialized Rerun visualizer."
             assert getattr(rerun_visualizers[0], "_viewer", None) is not None, "Rerun viewer was not created."
-            _step_env_without_frame_check(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
+            _step_env_without_frame_check(env, actions, max_steps=_MAX_FRAME_CHECK_STEPS)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
@@ -703,7 +900,7 @@ def test_cartpole_viser_visualizer_smoke_steps_and_logs(backend_kind: str, caplo
             viser_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, ViserVisualizer)]
             assert viser_visualizers, "Expected an initialized Viser visualizer."
             assert getattr(viser_visualizers[0], "_viewer", None) is not None, "Viser viewer was not created."
-            _step_env_without_frame_check(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
+            _step_env_without_frame_check(env, actions, max_steps=_MAX_FRAME_CHECK_STEPS)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
