@@ -14,7 +14,13 @@ from isaaclab.utils import configclass
 
 @configclass
 class UrdfConverterCfg(AssetConverterBaseCfg):
-    """The configuration class for UrdfConverter."""
+    """The configuration class for UrdfConverter.
+
+    Maps to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig` from the Isaac Sim
+    URDF importer. IsaacLab exposes a user-friendly nested :class:`JointDriveCfg` that is
+    translated into the importer's flat ``joint_drive_type`` / ``joint_target_type`` /
+    ``override_joint_stiffness`` / ``override_joint_damping`` fields at conversion time.
+    """
 
     @configclass
     class JointDriveCfg:
@@ -102,11 +108,16 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """The name of the root link. Defaults to None.
 
     If None, the root link will be set by PhysX.
+
+    .. deprecated::
+        This option is no longer supported by the URDF importer 3.0. A warning is logged if set.
     """
 
     link_density: float = 0.0
     """Default density in ``kg/m^3`` for links whose ``"inertial"`` properties are missing in the URDF.
     Defaults to 0.0.
+
+    A value of ``0.0`` leaves density unchanged.
     """
 
     merge_fixed_joints: bool = True
@@ -115,7 +126,8 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     When enabled, a URDF XML pre-processing step removes all fixed joints and merges each
     child link's visual, collision, and inertial elements into the parent link before USD
     conversion. Downstream joints are re-parented with composed transforms. Chains of
-    consecutive fixed joints are handled automatically.
+    consecutive fixed joints are handled automatically. The pre-processing is performed by
+    :func:`isaacsim.asset.importer.urdf.impl.urdf_utils.merge_fixed_joints`.
     """
 
     convert_mimic_joints_to_normal_joints: bool = False
@@ -128,19 +140,23 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     joint_drive: JointDriveCfg | None = JointDriveCfg()
     """The joint drive settings. Defaults to :class:`JointDriveCfg`.
 
-    The parameter can be set to ``None`` for URDFs without joints.
+    The parameter can be set to ``None`` for URDFs without joints, in which case no joint drive
+    overrides are sent to the importer.
     """
 
-    collision_from_visuals = False
+    collision_from_visuals: bool = False
     """Whether to create collision geometry from visual geometry. Defaults to False."""
 
-    collision_type: Literal["Convex Hull", "Convex Decomposition"] = "Convex Hull"
-    """The collision shape simplification. Defaults to "convex_hull".
+    collision_type: Literal["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"] = "Convex Hull"
+    """The collision shape simplification. Defaults to ``"Convex Hull"``.
 
-    Supported values are:
+    Supported values match the ``collision_type`` field of
+    :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`:
 
     * ``"Convex Hull"``: The collision shape is simplified to a convex hull.
     * ``"Convex Decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
+    * ``"Bounding Sphere"``: The collision shape is approximated by a bounding sphere.
+    * ``"Bounding Cube"``: The collision shape is approximated by a bounding cube.
     """
 
     self_collision: bool = False
@@ -155,3 +171,44 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
 
     merge_mesh: bool = False
     """Merge meshes where possible to optimize the model. Defaults to False."""
+
+    ros_package_paths: list[dict[str, str]] = []
+    """ROS package name/path mappings used to resolve ``package://`` URLs in the URDF.
+
+    Each entry is a dictionary with keys ``name`` and ``path``. The list is forwarded directly
+    to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
+    """
+
+    robot_type: str = "Default"
+    """Robot type applied by the USD robot schema. Defaults to ``"Default"``.
+
+    Supported types are: ``Default``, ``End Effector``, ``Manipulator``, ``Humanoid``, ``Wheeled``,
+    ``Holonomic``, ``Quadruped``, ``Mobile Manipulators``, ``Aerial``.
+    Forwarded to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
+    """
+
+    run_asset_transformer: bool = True
+    """Run the asset transformation profile to convert the flattened USD into a layered USD asset. Defaults to True.
+
+    After running this profile, the USD asset will be a layered USD asset with the following structure:
+    - robot_name.usda (interface usd)
+    - payloads/base.usda (base usd with links, meshes, and materials)
+    - payloads/instances.usda (usd with visual and collision geometry)
+    - payloads/geometry.usd (binary usd with meshes)
+    - payloads/materials.usda (materials)
+    - payloads/Physics/physics.usda (neutral physics format)
+    - payloads/Physics/physX.usda (PhysX attributes)
+    - payloads/Physics/mujoco.usda (MuJoCo attributes)
+    """
+
+    run_multi_physics_conversion: bool = True
+    """Enable to generate compatible MuJoCo attributes from the URDF joint attributes alongside PhysX.
+    Defaults to True.
+    """
+
+    debug_mode: bool = False
+    """Enable debug mode in the underlying URDF importer. Defaults to False.
+
+    When enabled, the importer writes intermediate conversion artifacts next to the output
+    USD for inspection instead of using a temporary scratch directory.
+    """

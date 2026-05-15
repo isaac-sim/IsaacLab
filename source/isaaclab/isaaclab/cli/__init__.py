@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import sys
+from pathlib import Path
 
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
@@ -17,17 +19,46 @@ from .commands.misc import (
     command_vscode_settings,
 )
 from .utils import (
+    ISAACLAB_ROOT,
     is_windows,
     run_python_command,
 )
 
 
+def train(args: list[str] | None = None) -> None:
+    """Run the unified reinforcement learning training script."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py", args, check=True)
+
+
+def play(args: list[str] | None = None) -> None:
+    """Run the unified reinforcement learning play script."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py", args, check=True)
+
+
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
+    if len(sys.argv) > 1 and sys.argv[1] == "train":
+        train(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "play":
+        play(sys.argv[2:])
+        return
+
+    executable_name = Path(sys.argv[0]).name
+    default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
-        prog="isaaclab" + (".bat" if is_windows() else ".sh"),
+        prog=executable_name if executable_name != "__main__.py" else default_prog,
         formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "commands:\n"
+            "  train  Run scripts/reinforcement_learning/train.py\n"
+            "  play   Run scripts/reinforcement_learning/play.py"
+        ),
     )
 
     _submodules_str = ", ".join(sorted(VALID_ISAACLAB_SUBMODULES))
