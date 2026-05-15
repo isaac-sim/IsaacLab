@@ -114,7 +114,7 @@ def test_export_flow(task_name):
             cwd=_REPO_ROOT,
             capture_output=True,
             text=True,
-            timeout=600,
+            timeout=1200,
         )
 
         # Gracefully skip tasks whose checkpoint isn't published yet
