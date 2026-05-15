@@ -57,6 +57,16 @@ class HydroelasticSDFCfg:
     Defaults to ``False`` (same as Newton's default).
     """
 
+    moment_matching: bool = False
+    """Whether to redistribute reduced contact forces to preserve moment balance per normal bin.
+
+    PhysX patch-friction analog: keeps friction torque per normal bin under
+    contact reduction so a held object doesn't spin out under asymmetric
+    pinch. Only active when ``reduce_contacts`` is True.
+
+    Defaults to ``False`` (same as Newton's default).
+    """
+
     margin_contact_area: float = 0.01
     """Contact area [m^2] used for non-penetrating contacts at the margin.
 
@@ -65,14 +75,6 @@ class HydroelasticSDFCfg:
 
     output_contact_surface: bool = False
     """Whether to output hydroelastic contact surface vertices for visualization.
-
-    Defaults to ``False`` (same as Newton's default).
-    """
-
-    moment_matching: bool = False
-    """Whether to adjust reduced contact friction so net max moment matches unreduced.
-
-    Only active when ``reduce_contacts`` is True.
 
     Defaults to ``False`` (same as Newton's default).
     """

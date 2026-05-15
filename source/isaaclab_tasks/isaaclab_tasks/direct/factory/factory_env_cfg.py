@@ -3,6 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import (
+    HydroelasticSDFCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+)
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -13,6 +19,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.utils import PresetCfg
 
 from .factory_tasks_cfg import ASSET_DIR, FactoryTask, GearMesh, NutThread, PegInsert
 
@@ -68,6 +76,95 @@ class CtrlCfg:
     kp_null = 10.0
     kd_null = 6.3246
 
+    # When True, skip the OSC null-space term in :func:`factory_control.compute_dof_torque`.
+    # Default ``False`` keeps the original Factory PhysX behaviour (null-space on);
+    # :meth:`FactoryEnv.__init__` overrides it to ``True`` on Newton because the
+    # null-space target ``default_dof_pos_tensor`` does not match the IK-converged
+    # "above bolt" arm config the env actually holds, so leaving null-space on
+    # leaks a constant TCP-direction torque under Newton's mjwarp OSC integration.
+    disable_nullspace: bool = False
+
+
+@configclass
+class FactoryPhysicsCfg(PresetCfg):
+    """Per-backend physics cfg for Factory tasks.
+
+    PhysX preserves the original Factory tuning. Newton uses the MuJoCo-Warp
+    solver:
+
+    * ``integrator='implicitfast'`` — better stability for contact-rich scenes.
+    * ``cone='elliptic'``, ``impratio=10`` — friction-vs-normal coupling tuned
+      for finger-on-nut/bolt threading.
+    * ``use_mujoco_contacts=False`` — routes hydroelastic contacts into the
+      MuJoCo solver so ``moment_matching`` / ``anchor_contact`` actually engage.
+    * ``njmax`` / ``nconmax`` raised vs default to fit threading-pair contacts.
+    """
+
+    physx = PhysxCfg(
+        solver_type=1,
+        max_position_iteration_count=192,  # Important to avoid interpenetration.
+        max_velocity_iteration_count=1,
+        bounce_threshold_velocity=0.2,
+        friction_offset_threshold=0.01,
+        friction_correlation_distance=0.00625,
+        gpu_max_rigid_contact_count=2**23,
+        gpu_max_rigid_patch_count=2**23,
+        gpu_collision_stack_size=2**28,
+        gpu_max_num_partitions=1,  # Important for stable simulation.
+    )
+    newton = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=4000,
+            nconmax=4000,
+            # impratio=10 keeps gripper-vs-nut friction loose enough for the
+            # fingers to close on the nut; higher values over-constrain the pad
+            # against the nut surface.
+            impratio=10.0,
+            cone="elliptic",
+            # Route hydroelastic contacts through MuJoCo so anchor_contact /
+            # moment_matching engage; the static value here is overridden by
+            # FactoryEnv.__init__ scaling rigid_contact_max with num_envs.
+            use_mujoco_contacts=False,
+            iterations=10,
+            ls_iterations=100,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(
+            broad_phase="explicit",
+            rigid_contact_max=32768,
+            sdf_hydroelastic_config=HydroelasticSDFCfg(
+                # PhysX patch-friction analogs — preserve force + torque balance
+                # per normal bin under contact reduction so the nut doesn't spin
+                # out under asymmetric finger pinch.
+                anchor_contact=True,
+                moment_matching=True,
+                output_contact_surface=False,
+            ),
+        ),
+        # 8 solver substeps per 8.33 ms physics tick (Newton runs at
+        # 120 Hz; see :func:`apply_cfg_overrides`) → 1.04 ms substep
+        # dt.  Re-collide every 2 substeps so contacts update 4× per
+        # tick.
+        num_substeps=8,
+        collision_substeps=2,
+        use_cuda_graph=True,
+    )
+    default = physx
+
+
+@configclass
+class FactorySceneCfg(PresetCfg):
+    """Per-backend scene cfg.
+
+    PhysX uses Fabric-layer scene cloning for throughput; Newton does not
+    support ``clone_in_fabric=True`` and must use the per-prim clone path.
+    """
+
+    physx: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=True)
+    newton: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=False)
+    default: InteractiveSceneCfg = physx
+
 
 @configclass
 class FactoryEnvCfg(DirectRLEnvCfg):
@@ -100,25 +197,14 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         device="cuda:0",
         dt=1 / 120,
         gravity=(0.0, 0.0, -9.81),
-        physics=PhysxCfg(
-            solver_type=1,
-            max_position_iteration_count=192,  # Important to avoid interpenetration.
-            max_velocity_iteration_count=1,
-            bounce_threshold_velocity=0.2,
-            friction_offset_threshold=0.01,
-            friction_correlation_distance=0.00625,
-            gpu_max_rigid_contact_count=2**23,
-            gpu_max_rigid_patch_count=2**23,
-            gpu_collision_stack_size=2**28,
-            gpu_max_num_partitions=1,  # Important for stable simulation.
-        ),
+        physics=FactoryPhysicsCfg(),
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
     )
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=True)
+    scene: InteractiveSceneCfg = FactorySceneCfg()
 
     robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
