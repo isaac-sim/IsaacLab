@@ -126,7 +126,7 @@ class ConeCfg(ShapeCfg):
 class CableCfg(ShapeCfg):
     """Configuration parameters for a 1D cable / rod prim.
 
-    Authors a ``UsdGeomBasisCurves`` prim at ``{prim_path}/curve`` from an
+    Authors a ``UsdGeomBasisCurves`` prim at ``{prim_path}/geometry/mesh`` from an
     explicit list of control points. Physics is materialized at model-build time
     by the Newton replicate hook calling :meth:`newton.ModelBuilder.add_rod_graph`.
 
@@ -143,7 +143,7 @@ class CableCfg(ShapeCfg):
     cables — :func:`spawn_cable` raises ``ValueError`` if either is non-None.
     ``collision_props`` is required because :func:`spawn_cable` relies on
     :class:`UsdPhysics.CollisionAPI` to author a usable physics-material binding;
-    the cable is in the Newton cloner's ``_cable_ignore_paths`` so this has no
+    the cable geometry is ignored by the Newton USD importer so this has no
     PhysX runtime effect.
     """
 
@@ -159,8 +159,7 @@ class CableCfg(ShapeCfg):
     visual_material_path: str = "visual_material"
     """Path for the visual material prim, relative to ``prim_path``. Overrides
     :attr:`ShapeCfg.visual_material_path` so visual and physics materials don't
-    collide at the same sub-path (cables don't use a ``/geometry/`` intermediate
-    like mesh spawners do)."""
+    collide at the same sub-path under ``{prim_path}/geometry``."""
 
     physics_material_path: str = "physics_material"
     """Path for the physics material prim, relative to ``prim_path``. Overrides

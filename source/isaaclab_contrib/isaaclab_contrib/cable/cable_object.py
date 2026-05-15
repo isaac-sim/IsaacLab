@@ -38,6 +38,7 @@ class CableRegistryEntry:
     node_positions: list[wp.vec3]
     edges: list[tuple[int, int]]
     radius: float
+    curve_prim_path: str = ""
 
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
@@ -261,15 +262,15 @@ class CableObject(Articulation):
             raise RuntimeError(f"Failed to find cable template prim for expression: '{lookup_path}'.")
         template_prim_path = template_prim.GetPrimPath()
 
-        # Find the single UsdGeomBasisCurves child authored by spawn_cable.
-        curve_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, lambda p: p.GetTypeName() == "BasisCurves"
-        )
-        if len(curve_prims) != 1:
+        # ``spawn_cable`` authors the curve at ``{prim_path}/geometry/mesh``.
+        stage = template_prim.GetStage()
+        expected_curve_prim_path = f"{template_prim_path}/geometry/mesh"
+        curve_prim = stage.GetPrimAtPath(expected_curve_prim_path)
+        if not curve_prim or not curve_prim.IsValid() or curve_prim.GetTypeName() != "BasisCurves":
             raise ValueError(
-                f"Expected exactly one UsdGeomBasisCurves prim under '{template_prim_path}', found {len(curve_prims)}."
+                f"Expected a UsdGeomBasisCurves prim at '{expected_curve_prim_path}', "
+                f"got '{curve_prim.GetTypeName() if curve_prim and curve_prim.IsValid() else None}'."
             )
-        curve_prim = curve_prims[0]
         curves = UsdGeom.BasisCurves(curve_prim)
 
         # Bake the curve prim's xform into the per-node positions so the replicate
@@ -305,7 +306,6 @@ class CableObject(Articulation):
             if curve_prim.HasAPI(UsdShade.MaterialBindingAPI)
             else []
         )
-        stage = curve_prim.GetStage()
         material_prim = None
         for mat_path in material_targets:
             mat_prim = stage.GetPrimAtPath(mat_path)
@@ -343,6 +343,7 @@ class CableObject(Articulation):
         # transform. Matches DeformableObject._register_deformable.
         entry = CableRegistryEntry(
             prim_path=self.cfg.prim_path,
+            curve_prim_path=f"{self.cfg.prim_path}/geometry/mesh",
             node_positions=node_positions,
             edges=edges,
             radius=radius,
