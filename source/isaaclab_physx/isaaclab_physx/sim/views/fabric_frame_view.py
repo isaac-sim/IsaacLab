@@ -50,29 +50,38 @@ def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
 class FabricFrameView(BaseFrameView):
     """FrameView with Fabric GPU acceleration for the PhysX backend.
 
-    Uses composition: holds a :class:`UsdFrameView` internally for USD
-    fallback and non-accelerated operations (visibility, scales when
-    Fabric is disabled).
+    World-pose, local-pose, and scale operations run on the GPU via Warp
+    kernels that read and write ``omni:fabric:worldMatrix`` and
+    ``omni:fabric:localMatrix`` directly.  Typical speedup vs. the
+    :class:`~isaaclab.sim.views.UsdFrameView` baseline at 1024 prims is
+    150-260× per call (see ``scripts/benchmarks/benchmark_view_comparison.py``).
 
-    When Fabric is enabled, world-pose, local-pose, and scale operations
-    use Warp kernels operating on ``omni:fabric:worldMatrix`` and
-    ``omni:fabric:localMatrix``.  All other operations delegate to the
-    internal USD view.
+    When Fabric is unavailable — ``/physics/fabricEnabled`` is false or the
+    device is unsupported — the view transparently falls back to
+    :class:`~isaaclab.sim.views.UsdFrameView` for all pose and scale
+    operations.  The ``count``, ``prims``, ``prim_paths`` properties and the
+    ``get_visibility`` / ``set_visibility`` methods always delegate to
+    :class:`~isaaclab.sim.views.UsdFrameView`; Fabric has no equivalent fast
+    path for those.
 
-    Every accessor for a selection's indexed fabric array
-    (:meth:`_get_world_ro_array`, :meth:`_get_local_ro_array`,
-    :meth:`_get_world_rw_array`, :meth:`_get_local_rw_array`,
-    :meth:`_get_parent_world_ro_array`) calls :meth:`PrepareForReuse` on its
-    backing ``PrimSelection`` to detect Fabric topology changes that would
-    require rebuilding the view→fabric index mapping.  ``PrepareForReuse``
-    is idempotent and cheap in the steady state (returns ``False`` with no
-    rebuild), so the per-access cost is negligible.  The two sync helpers
-    (:meth:`_sync_local_from_world`, :meth:`_sync_world_from_local_if_dirty`)
-    refresh ``trans_sel_ro`` at most once per call to avoid the redundant
-    USDRT round-trip that would otherwise occur when ``_world_ifa_ro``,
-    ``_local_ifa_ro`` and ``_parent_world_ifa_ro`` are read consecutively.
+    Behavior:
 
-    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
+    * **No write-back to USD.**  Fabric writes update only
+      ``omni:fabric:worldMatrix`` / ``omni:fabric:localMatrix``; the prim's
+      USD ``xformOp:*`` attributes are unchanged.  Downstream consumers that
+      read the prim's USD attributes after a Fabric write will see stale
+      values until the next USD-side sync.
+    * **World ↔ local consistency.**  After ``set_world_poses`` (or
+      ``set_scales``) the local matrix is updated so that subsequent
+      ``get_local_poses`` is consistent; after ``set_local_poses`` the world
+      matrix is recomputed on the next world read.  Both directions stay in
+      sync without round-tripping through USD.
+    * **Topology-adaptive.**  Fabric topology changes are detected on each
+      access; the view rebuilds its internal mapping automatically and no
+      manual refresh is required.  Steady-state overhead is negligible.
+
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; setters
+    accept :class:`wp.array`.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
