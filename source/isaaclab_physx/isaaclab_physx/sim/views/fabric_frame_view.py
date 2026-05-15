@@ -3,28 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX FrameView with Fabric GPU acceleration.
-
-Design:
-
-* Three persistent ``PrimSelection`` instances differing only in per-attribute access
-  mode (one for each of {trans_ro, world_rw, local_rw}).
-* ``omni:fabric:localMatrix`` is read/written directly — no software composition of
-  ``inv(parent_world) * child_world`` for ``get_local_poses``/``set_local_poses``.
-* View → Fabric index mapping is an integer Warp array computed from the selection's
-  ordered path list (``selection.GetPaths()``); no custom attributes are written to
-  prims.
-* Read/write happens via ``wp.indexedfabricarray``, so the view-to-fabric mapping is
-  baked into the array itself and the kernels just dereference ``ifa[view_index]``.
-* World ↔ local consistency is maintained:
-    - After ``set_local_poses``: the view is marked dirty; the next world read
-      fires a Warp kernel that recomputes ``child_world = parent_world *
-      child_local`` for this view's children.  Tracking is per-view so that
-      multiple views on the same stage don't clear each other's dirty flag.
-    - After ``set_world_poses``: a Warp kernel recomputes child localMatrix from
-      parent worldMatrix on the fly using a parent indexed fabric array, so the
-      next ``get_local_poses`` returns consistent values.
-"""
+"""PhysX FrameView with Fabric GPU acceleration."""
 
 from __future__ import annotations
 
