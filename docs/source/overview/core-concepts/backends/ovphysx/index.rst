@@ -50,6 +50,7 @@ Status and follow-up
 
 This page is intentionally a stub. Once the in-flight OvPhysX work merges, this
 section will be expanded with full installation, configuration, and supported
-feature lists matching the other backends.
+feature lists matching the other backends. The expansion is tracked in
+`issue #5634 <https://github.com/isaac-sim/IsaacLab/issues/5634>`_.
 
 For architectural context, see :doc:`../../multi_backend_architecture`.
