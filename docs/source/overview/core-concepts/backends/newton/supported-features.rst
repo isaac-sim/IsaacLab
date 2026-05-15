@@ -1,5 +1,5 @@
-Limitations
-===========
+Supported Features
+==================
 
 The Newton backend is in beta. Breaking changes and incomplete documentation are
 still expected, and official support or debugging assistance will only be
@@ -18,8 +18,8 @@ currently supports Newton:
     grep -rln "newton_mjwarp" source/isaaclab_tasks/
 
 Passing ``presets=newton_mjwarp`` to a task without that preset will raise an
-error at launch. The :doc:`solver-transitioning` page covers how to add a
-Newton preset to your own task.
+error at launch. The :doc:`mjwarp-solver` page covers how to add a Newton
+preset to your own task.
 
 
 Supported Surface
@@ -73,7 +73,7 @@ Solver Coverage
 * **MuJoCo-Warp solver**: the primary, validated path for every supported task.
 * **Kamino solver**: beta. Currently validated on ``Isaac-Cartpole-Direct-v0``,
   ``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. See
-  :doc:`using-kamino`.
+  :doc:`kamino-solver`.
 
 Other Newton solvers (e.g. VBD) are not yet exposed through Isaac Lab.
 

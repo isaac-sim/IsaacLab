@@ -19,9 +19,11 @@ have successfully deployed a Newton-trained locomotion policy to a G1 robot.
 
 Newton can support `multiple solvers
 <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for
-handling different types of physics simulation. The Isaac Lab integration focuses
-primarily on the MuJoCo-Warp solver, with beta support for the Kamino solver on
-selected classic tasks. See :doc:`using-kamino` for the Kamino workflow.
+handling different types of physics simulation. The Isaac Lab integration ships
+two solver pages:
+
+* :doc:`mjwarp-solver` — the primary, validated solver path.
+* :doc:`kamino-solver` — beta support on selected classic tasks.
 
 During the beta phase, breaking changes and incomplete documentation are still
 expected. Official support and debugging assistance will follow once the framework
@@ -36,6 +38,6 @@ new backend, see :doc:`../../multi_backend_architecture`.
   :titlesonly:
 
   installation
-  limitations-and-known-bugs
-  solver-transitioning
-  using-kamino
+  supported-features
+  mjwarp-solver
+  kamino-solver

@@ -1,7 +1,7 @@
-.. _newton-using-kamino:
+.. _newton-kamino-solver:
 
-Using the Kamino Solver
-=======================
+Kamino Solver
+=============
 
 Kamino is a Newton solver, not a separate Isaac Lab physics backend. In Isaac Lab,
 Kamino is enabled by selecting a :class:`~isaaclab_newton.physics.NewtonCfg` whose
