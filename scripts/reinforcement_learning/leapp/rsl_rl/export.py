@@ -11,6 +11,7 @@
 
 import argparse
 import contextlib
+import faulthandler
 import importlib.metadata as metadata
 import os
 import sys
@@ -40,6 +41,12 @@ import cli_args  # isort: skip
 
 _TIMING_PREFIX = "[LEAPP_EXPORT_TIMING]"
 _PROCESS_START = time.perf_counter()
+_CLOSE_HANG_TRACEBACK_TIMEOUT = 120
+
+
+def _emit_timing(message: str) -> None:
+    """Print timing diagnostics to the original stderr stream."""
+    print(message, file=sys.__stderr__ or sys.stderr, flush=True)
 
 
 @contextlib.contextmanager
@@ -47,10 +54,9 @@ def _timed_phase(task_name: str | None, phase: str):
     """Print timing information for a single export phase."""
     start = time.perf_counter()
     task_label = task_name or "<unknown>"
-    print(
+    _emit_timing(
         f"{_TIMING_PREFIX} task={task_label} phase={phase} status=start "
-        f"pid={os.getpid()} total_elapsed={start - _PROCESS_START:.2f}s",
-        flush=True,
+        f"pid={os.getpid()} total_elapsed={start - _PROCESS_START:.2f}s"
     )
     status = "done"
     try:
@@ -60,11 +66,24 @@ def _timed_phase(task_name: str | None, phase: str):
         raise
     finally:
         end = time.perf_counter()
-        print(
+        _emit_timing(
             f"{_TIMING_PREFIX} task={task_label} phase={phase} status={status} "
-            f"phase_elapsed={end - start:.2f}s total_elapsed={end - _PROCESS_START:.2f}s",
-            flush=True,
+            f"phase_elapsed={end - start:.2f}s total_elapsed={end - _PROCESS_START:.2f}s"
         )
+
+
+def _close_simulation_app() -> None:
+    """Close Isaac Sim without waiting for Replicator workflows."""
+    traceback_stream = sys.__stderr__ or sys.stderr
+    faulthandler.dump_traceback_later(
+        _CLOSE_HANG_TRACEBACK_TIMEOUT,
+        repeat=True,
+        file=traceback_stream,
+    )
+    try:
+        simulation_app.close(wait_for_replicator=False)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
@@ -125,7 +144,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 
 installed_version = metadata.version("rsl-rl-lib")
 
-print(f"[INFO] LEAPP version: {metadata.version('leapp')}", flush=True)
+_emit_timing(f"[INFO] LEAPP version: {metadata.version('leapp')}")
 with _timed_phase(args_cli.task, "app_launcher"):
     app_launcher = AppLauncher(args_cli)
     simulation_app = app_launcher.app
@@ -202,7 +221,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
     task_start = time.perf_counter()
-    print(f"{_TIMING_PREFIX} task={task_name} phase=main status=start", flush=True)
+    _emit_timing(f"{_TIMING_PREFIX} task={task_name} phase=main status=start")
 
     with _timed_phase(task_name, "agent_config"):
         agent_cfg: RslRlBaseRunnerCfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
@@ -317,10 +336,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     with _timed_phase(task_name, "env_close"):
         env.close()
 
-    print(
+    _emit_timing(
         f"{_TIMING_PREFIX} task={task_name} phase=main status=done "
-        f"phase_elapsed={time.perf_counter() - task_start:.2f}s",
-        flush=True,
+        f"phase_elapsed={time.perf_counter() - task_start:.2f}s"
     )
 
 
@@ -329,4 +347,4 @@ if __name__ == "__main__":
         main()
     finally:
         with _timed_phase(args_cli.task, "simulation_app_close"):
-            simulation_app.close()
+            _close_simulation_app()
