@@ -63,6 +63,8 @@ class NewtonVBDManager(NewtonManager):
     _newton_cable_body_offset_attr = "newton:cableBodyOffset"
     _newton_cable_body_count_attr = "newton:cableBodyCount"
     _newton_cable_last_edge_length_attr = "newton:cableLastEdgeLength"
+    _curves_dirty: bool = False
+    _cable_body_q_cpu = None
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -83,6 +85,24 @@ class NewtonVBDManager(NewtonManager):
         install_cable_builder_hooks()
 
         super().initialize(sim_context)
+
+    @classmethod
+    def clear(cls):
+        """Clear VBD-specific Fabric sync state."""
+        super().clear()
+        cls._curves_dirty = False
+        cls._cable_body_q_cpu = None
+
+    @classmethod
+    def _mark_curves_dirty(cls) -> None:
+        """Flag that cable curve points have changed and Fabric needs re-sync."""
+        cls._curves_dirty = True
+
+    @classmethod
+    def _mark_state_dirty(cls) -> None:
+        """Flag that all VBD state has changed and Fabric needs re-sync."""
+        super()._mark_state_dirty()
+        cls._mark_curves_dirty()
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
@@ -185,16 +205,37 @@ class NewtonVBDManager(NewtonManager):
                 NewtonManager._usdrt_stage = get_current_stage(fabric=True)
 
             stage = get_current_stage()
+            curves_registered = False
             for entry in cls._cable_registry:
-                curve_template_path = f"{entry.prim_path}/geometry/mesh"
+                curve_template_path = entry.curve_prim_path or f"{entry.prim_path}/geometry/mesh"
                 for inst_idx, body_offset in enumerate(entry.body_offsets):
                     resolved = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), curve_template_path)
                     resolved = re.sub(r"\.\*", str(inst_idx), resolved)
                     curve_prim = stage.GetPrimAtPath(resolved)
+                    if not curve_prim or not curve_prim.IsValid():
+                        logger.warning("[setup_fabric_cable_sync] curve prim not found at %s", resolved)
+                        continue
                     usd_points = curve_prim.GetAttribute("points").Get()
+                    expected_points = len(entry.edges) + 1
+                    if usd_points is None or len(usd_points) != expected_points:
+                        logger.warning(
+                            "[setup_fabric_cable_sync] curve %s has %s points, expected %d; skipping.",
+                            resolved,
+                            0 if usd_points is None else len(usd_points),
+                            expected_points,
+                        )
+                        continue
                     fab_prim = NewtonManager._usdrt_stage.GetPrimAtPath(curve_prim.GetPath().pathString)
+                    xformable_prim = usdrt.Rt.Xformable(fab_prim)
+                    if not xformable_prim.HasWorldXform():
+                        xformable_prim.SetWorldXformFromUsd()
                     # Pre-seed Fabric ``points``: without this Hydra reads an empty array on frame 0.
-                    fab_prim.GetAttribute("points").Set(
+                    fab_points_attr = fab_prim.GetAttribute("points")
+                    if not fab_points_attr.IsValid():
+                        fab_points_attr = fab_prim.CreateAttribute(
+                            "points", usdrt.Sdf.ValueTypeNames.Point3fArray, True
+                        )
+                    fab_points_attr.Set(
                         usdrt.Vt.Vec3fArray([usdrt.Gf.Vec3f(float(p[0]), float(p[1]), float(p[2])) for p in usd_points])
                     )
                     fab_prim.CreateAttribute(cls._newton_cable_body_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
@@ -205,16 +246,20 @@ class NewtonVBDManager(NewtonManager):
                         cls._newton_cable_last_edge_length_attr, usdrt.Sdf.ValueTypeNames.Float, True
                     )
                     fab_prim.GetAttribute(cls._newton_cable_last_edge_length_attr).Set(float(entry.last_edge_length))
+                    curves_registered = True
+            if curves_registered:
+                cls._mark_curves_dirty()
 
     @classmethod
     def sync_curves_to_usd(cls) -> None:
         """Update cable ``UsdGeomBasisCurves.points`` from Newton ``body_q``.
 
-        Runs on the CPU Fabric device: Kit's FSD does not stream the GPU Fabric
-        ``points`` bucket back to Hydra for runtime-spawned ``UsdGeomBasisCurves``
-        (see ``scripts/debug/basis_curves_fsd_gpu_bug_repro.py``).
+        Runs on the CPU Fabric device because Kit/Hydra reads that bucket for
+        runtime-spawned ``UsdGeomBasisCurves``.
         """
-        if cls._usdrt_stage is None:
+        if cls._usdrt_stage is None or cls._state_0 is None or cls._state_0.body_q is None:
+            return
+        if not getattr(cls, "_cable_registry", None) or not cls._curves_dirty:
             return
         import usdrt
 
@@ -232,8 +277,9 @@ class NewtonVBDManager(NewtonManager):
             return
 
         # wp.launch requires inputs on the same device as the launch.
-        body_q_cpu = wp.empty_like(cls._state_0.body_q, device="cpu")
-        wp.copy(body_q_cpu, cls._state_0.body_q)
+        if cls._cable_body_q_cpu is None or cls._cable_body_q_cpu.shape != cls._state_0.body_q.shape:
+            cls._cable_body_q_cpu = wp.empty_like(cls._state_0.body_q, device="cpu")
+        wp.copy(cls._cable_body_q_cpu, cls._state_0.body_q)
 
         wp.launch(
             _sync_cable_curve_points,
@@ -244,10 +290,11 @@ class NewtonVBDManager(NewtonManager):
                 wp.fabricarray(data=selection, attrib=cls._newton_cable_body_offset_attr),
                 wp.fabricarray(data=selection, attrib=cls._newton_cable_body_count_attr),
                 wp.fabricarray(data=selection, attrib=cls._newton_cable_last_edge_length_attr),
-                body_q_cpu,
+                cls._cable_body_q_cpu,
             ],
             device="cpu",
         )
+        cls._curves_dirty = False
 
     @classmethod
     def pre_render(cls) -> None:

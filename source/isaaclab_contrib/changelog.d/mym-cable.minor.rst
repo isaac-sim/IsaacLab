@@ -19,3 +19,6 @@ Fixed
   ``_init_particle_system`` for zero-particle scenes and leaves
   ``particle_enable_self_contact`` unset; the manager now reads it with
   ``getattr(..., False)`` to default to no-self-contact.
+* Fixed Kit / Fabric viewport sync for Newton cables by updating
+  ``UsdGeomBasisCurves`` points from Newton cable body transforms at render
+  cadence.
