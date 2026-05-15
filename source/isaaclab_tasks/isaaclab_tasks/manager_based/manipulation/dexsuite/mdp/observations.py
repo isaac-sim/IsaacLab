@@ -217,11 +217,6 @@ class vision_camera(ManagerTermBase):
     ) -> torch.Tensor:  # obtain the input image
         images = self.sensor.data.output[self.sensor_type]
         torch.nan_to_num_(images, nan=1e6)
-        # TEMP DEBUG: remove after verifying the Dexsuite table marker and robot motion in raw RTX observations.
-        debug_count = getattr(self, "_debug_collage_count", 0)
-        if debug_count < 8:
-            self.show_collage(images, f"observation_{debug_count:03d}.png")
-            self._debug_collage_count = debug_count + 1
         if normalize:
             images = self.norm_fn(images)
             images = images.permute(0, 3, 1, 2).contiguous()

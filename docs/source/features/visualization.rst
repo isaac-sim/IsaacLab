@@ -121,6 +121,8 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
             ),
             ViserVisualizerCfg(
                 port=8080,
+                bind_address="0.0.0.0",
+                display_address="localhost",
                 share=False,
             ),
         ]
@@ -402,7 +404,7 @@ Rerun Visualizer
 
       ╭─────────────────────────── rerun (listening *:9090) ───────────────────────────╮
       │             ╷                                                                  │
-      │   HTTP      │ http://127.0.0.1:9090/?url=rerun%2Bhttp://127.0.0.1:9876/proxy   │
+      │   URL       │ http://127.0.0.1:9090/?url=rerun%2Bhttp://127.0.0.1:9876/proxy   │
       │             ╵                                                                  │
       ╰────────────────────────────────────────────────────────────────────────────────╯
 
@@ -456,7 +458,8 @@ server, allowing you to view and interact with the scene from any browser.
 
    A highlighted Viser browser URL is printed in the logs before the main simulation or training loop begins.
    Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
-   open the browser tab instead.
+   open the browser tab instead. For remote access, keep ``bind_address="0.0.0.0"`` and set
+   ``display_address`` to the hostname or IP address reachable from your browser.
 
    Example:
 
@@ -464,8 +467,7 @@ server, allowing you to view and interact with the scene from any browser.
 
       ╭────── viser (listening *:8080) ───────╮
       │             ╷                         │
-      │   HTTP      │ http://localhost:8080   │
-      │   Websocket │ ws://localhost:8080     │
+      │   URL       │ http://localhost:8080   │
       │             ╵                         │
       ╰───────────────────────────────────────╯
 
@@ -478,6 +480,8 @@ server, allowing you to view and interact with the scene from any browser.
     visualizer_cfg = ViserVisualizerCfg(
         # Server settings
         port=8080,                                # Port for local Viser web server
+        bind_address="0.0.0.0",                  # Interface to listen on; use 0.0.0.0 for remote access
+        display_address="localhost",             # Host/IP shown in the printed browser URL
         open_browser=False,                       # Set True to auto-launch the browser
         label="Isaac Lab Simulation",             # Page title shown in the viewer
         share=False,                              # Request a public share URL for remote viewing
@@ -493,6 +497,12 @@ server, allowing you to view and interact with the scene from any browser.
         # Recording
         record_to_viser="recording.viser",        # Path to save .viser file (None = no recording)
     )
+
+Viser uses an in-process ``viser.ViserServer`` through ``newton.viewer.ViewerViser``. ``bind_address``
+controls the network interface that the server listens on, while ``display_address`` controls only the
+URL printed by Isaac Lab. On a remote machine, set ``display_address`` to the machine hostname/IP and
+ensure the configured ``port`` is reachable from your browser. Set ``share=True`` to request Viser's
+public share/tunnel URL when that service is available.
 
 .. note::
 
