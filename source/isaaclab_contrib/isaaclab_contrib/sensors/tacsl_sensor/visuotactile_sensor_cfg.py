@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:

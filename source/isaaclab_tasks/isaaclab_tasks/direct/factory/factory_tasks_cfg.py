@@ -5,7 +5,7 @@
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Factory"

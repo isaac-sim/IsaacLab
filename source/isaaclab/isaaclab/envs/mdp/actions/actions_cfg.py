@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
