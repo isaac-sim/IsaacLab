@@ -19,12 +19,27 @@ dormant during normal environment execution and only add a small amount of
 overhead until export time. They are activated by
 ``scripts/reinforcement_learning/leapp/rsl_rl/export.py`` when you run the export flow.
 
-This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as the example.
-The script is based on the existing ANYmal-C direct environment at
-``source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py`` and adds
-the annotations needed to make it compatible with the export script. Once you have added
-the annotations to your direct RL environment, you can export a trained policy
-with:
+This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
+example of adding LEAPP annotations to a Direct workflow environment. Apply the same
+annotation pattern to your own Direct RL environment.
+
+Before exporting, install LEAPP into the Isaac Lab Python environment:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p -m pip install leapp
+
+If you want to run the exported example with the existing
+``Isaac-Velocity-Rough-Anymal-C-Direct-v0`` task registration, copy the annotated
+tutorial environment into the task package:
+
+.. code-block:: bash
+
+   cp scripts/tutorials/06_deploy/anymal_c_env.py \
+      source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+
+After your environment includes the required LEAPP input, output, and state
+annotations, export a trained policy with:
 
 .. code-block:: bash
 
@@ -41,7 +56,7 @@ artifacts. If you omit it, the export is written next to the checkpoint.
 
 .. warning::
 
-   This tutorial covers exporting Direct workflow policies only. Direct workflow
+   This tutorial covers exporting direct rl policies only. direct rl
    policies are not currently supported by
    ``scripts/reinforcement_learning/leapp/deploy.py``.
 
@@ -54,7 +69,7 @@ For more information on the export arguments, see the
 
    .. literalinclude:: ../../../../scripts/tutorials/06_deploy/anymal_c_env.py
       :language: python
-      :emphasize-lines: 20, 100-118, 85-88
+      :emphasize-lines: 20, 75-77, 92-105
       :linenos:
 
 
