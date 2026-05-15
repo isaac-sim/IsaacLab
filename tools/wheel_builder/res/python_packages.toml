@@ -8,7 +8,7 @@ pyproject.dependencies.all = [
     # ================================================================================
     # generic
     "numpy>=2",
-    "torch>=2.10",
+    "torch>=2.12",
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
@@ -54,8 +54,8 @@ pyproject.dependencies.all = [
     # ================================================================================
     # generic
     "numpy>=2",
-    "torch>=2.10",
-    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
+    "torch>=2.12",
+    "torchvision>=0.27.0",  # ensure compatibility with torch 2.12
     "protobuf>=4.25.8,!=5.26.0",
     # configuration management
     "hydra-core",
@@ -72,8 +72,8 @@ pyproject.dependencies.all = [
     # ================================================================================
     # generic
     "numpy>=2",
-    "torch>=2.10",
-    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
+    "torch>=2.12",
+    "torchvision>=0.27.0",  # ensure compatibility with torch 2.12
     "protobuf>=4.25.8,!=5.26.0",
     # basic logger
     "tensorboard",
