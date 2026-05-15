@@ -130,12 +130,21 @@ class CableCfg(ShapeCfg):
     explicit list of control points. Physics is materialized at model-build time
     by the Newton replicate hook calling :meth:`newton.ModelBuilder.add_rod_graph`.
 
+    .. note::
+        Cables are currently **only supported on the Newton physics backend**.
+        ``physics_material`` must be a
+        :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`
+        (``ValueError`` otherwise), and any :class:`~isaaclab_contrib.cable.CableObject`
+        built from this cfg only registers in Newton's solver pipeline.
+
     The cable's stretch/bend stiffness, damping, and density live on
-    ``physics_material`` (a :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg` instance from
-    :mod:`isaaclab_newton.sim.spawners.materials`, inherited slot from
-    :class:`ShapeCfg`). ``rigid_props``, ``mass_props``, ``collision_props`` are
-    inherited from :class:`ShapeCfg` but are not used by cables — :func:`spawn_cable`
-    raises ``ValueError`` if any is non-None.
+    ``physics_material`` (inherited slot from :class:`ShapeCfg`). ``rigid_props``
+    and ``mass_props`` are inherited from :class:`ShapeCfg` but are not used by
+    cables — :func:`spawn_cable` raises ``ValueError`` if either is non-None.
+    ``collision_props`` is required because :func:`spawn_cable` relies on
+    :class:`UsdPhysics.CollisionAPI` to author a usable physics-material binding;
+    the cable is in the Newton cloner's ``_cable_ignore_paths`` so this has no
+    PhysX runtime effect.
     """
 
     func: Callable | str = "{DIR}.shapes:spawn_cable"
