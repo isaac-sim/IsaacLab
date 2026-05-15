@@ -23,20 +23,27 @@ Core Simulation
 Sensors
 -------
 
+PhysX implements the following sensors directly under
+``isaaclab_physx/sensors/``:
+
 * Contact Sensor
 * IMU
 * Frame Transformer
-* Ray Caster
-* PVA
 * Joint Wrench Sensor
-* Visuo-tactile sensor
-* Camera (RTX) — see :doc:`../../sensors/camera`
+* PVA
+
+The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
+and work transparently with PhysX:
+
+* Ray Caster
+* Camera — see :doc:`../../sensors/camera`
 
 
 Rendering
 ---------
 
-* RTX renderer (real-time and path-traced)
+* RTX renderer (real-time rasterized; path tracing available through the
+  underlying Omniverse RTX pipeline)
 * Tiled rendering for vectorized RGB / depth / segmentation
 
 

@@ -81,27 +81,27 @@ per-task support, see each backend's own ``limitations`` page.
     * - Articulation API
       - Yes
       - Yes
-      - Yes (subset)
+      - In-flight (PR #5459)
     * - Rigid Object API
       - Yes
       - Yes
-      - Yes (subset)
+      - Yes
     * - Contact Sensor
       - Yes
       - Yes
-      - Yes
-    * - IMU / Frame Transformer / Ray Caster
-      - Yes
-      - Yes
-      - Partial — see backend page
-    * - PVA / Joint-Wrench Sensor
+      - In-flight (PR #5422)
+    * - IMU
       - Yes
       - Yes
-      - Partial
+      - In-flight (PR #5421)
+    * - Frame Transformer / Ray Caster / PVA / Joint-Wrench Sensor
+      - Yes
+      - Yes
+      - Not yet
     * - Camera / Tiled Rendering
       - Yes (RTX)
       - Yes (Newton-Warp renderer)
-      - Yes (RTX) — depends on Isaac Sim
+      - Not yet
     * - Requires Isaac Sim
       - Yes
       - Optional (only for the Omniverse visualizer)

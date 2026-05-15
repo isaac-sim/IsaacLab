@@ -37,13 +37,25 @@ What works today
 ----------------
 
 The asset and sensor surface tracks PhysX, but only a subset is implemented and
-validated at the time of writing. Articulation, Rigid Object, and Contact
-Sensor are the primary covered surfaces. Other sensors and renderer
-combinations are partial — consult the in-flight pull requests below for the
-current status:
+validated at the time of writing. Rigid Object support is merged on
+``develop``; the remaining assets and sensors are landing through a series of
+stacked pull requests:
 
-* Articulation: `PR #5459 <https://github.com/isaac-sim/IsaacLab/pull/5459>`_
-* RigidObject: `PR #5426 <https://github.com/isaac-sim/IsaacLab/pull/5426>`_
+* RigidObject — merged via
+  `PR #5426 <https://github.com/isaac-sim/IsaacLab/pull/5426>`_.
+* Articulation — open in
+  `PR #5459 <https://github.com/isaac-sim/IsaacLab/pull/5459>`_.
+* Contact Sensor — open in
+  `PR #5422 <https://github.com/isaac-sim/IsaacLab/pull/5422>`_.
+* IMU — open in
+  `PR #5421 <https://github.com/isaac-sim/IsaacLab/pull/5421>`_.
+* RigidObjectCollection — open in
+  `PR #5570 <https://github.com/isaac-sim/IsaacLab/pull/5570>`_.
+* SceneDataProvider — open in
+  `PR #5589 <https://github.com/isaac-sim/IsaacLab/pull/5589>`_.
+
+Other sensors (Frame Transformer, Joint Wrench, PVA, Ray Caster) and the
+rendering surface are not yet wired up for OvPhysX.
 
 Status and follow-up
 --------------------

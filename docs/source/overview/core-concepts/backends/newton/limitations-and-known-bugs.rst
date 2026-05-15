@@ -5,51 +5,84 @@ The Newton backend is in beta. Breaking changes and incomplete documentation are
 still expected, and official support or debugging assistance will only be
 available once the integration reaches an official release.
 
-Here is a non-exhaustive list of capabilities currently supported by the Newton
-backend, grouped by extension:
 
-* isaaclab:
-    * Articulation API (supports both articulations and single-body articulations as rigid bodies)
-    * Contact Sensor
-    * Direct & Manager single agent workflows
-    * Omniverse Kit visualizer
-    * Newton visualizer
-* isaaclab_assets:
-    * Quadrupeds
-        * Anymal-B, Anymal-C, Anymal-D
-        * Unitree A1, Go1, Go2
-        * Spot
-    * Humanoids
-        * Unitree H1 & G1
-        * Cassie
-    * Arms and Hands
-        * Franka
-        * UR10
-        * Allegro Hand
-    * Toy examples
-        * Cartpole
-        * Ant
-        * Humanoid
-* isaaclab_tasks:
-    * Direct:
-        * Cartpole (State, RGB, Depth)
-        * Ant
-        * Humanoid
-        * Allegro Hand Repose Cube
-    * Manager based:
-        * Cartpole (State)
-        * Ant
-        * Humanoid
-        * Locomotion (velocity flat terrain)
-            * Anymal-B
-            * Anymal-C
-            * Anymal-D
-            * Cassie
-            * A1
-            * Go1
-            * Go2
-            * Unitree G1
-            * Unitree H1
-        * Manipulation reach
-            * Franka
-            * UR10
+Discovering Newton-Supported Tasks
+----------------------------------
+
+A task supports the Newton backend when its physics ``PresetCfg`` declares a
+``newton_mjwarp`` (or ``newton_kamino``) entry. To list every task that
+currently supports Newton:
+
+.. code-block:: bash
+
+    grep -rln "newton_mjwarp" source/isaaclab_tasks/
+
+Passing ``presets=newton_mjwarp`` to a task without that preset will raise an
+error at launch. The :doc:`solver-transitioning` page covers how to add a
+Newton preset to your own task.
+
+
+Supported Surface
+-----------------
+
+The following capabilities are covered by the Newton backend on ``develop`` at
+the time of writing. The list is non-exhaustive and continues to grow.
+
+isaaclab
+^^^^^^^^
+
+* Articulation API (multi-link and single-body articulations)
+* Rigid Object and Rigid Object Collection APIs
+* Sensors: Contact Sensor, IMU, Frame Transformer, Joint Wrench, PVA
+* Direct and Manager-based single-agent workflows
+* Omniverse Kit visualizer (when Isaac Sim is installed)
+* Newton-Warp visualizer (kit-less)
+* Tiled rendering via the Newton-Warp renderer
+
+isaaclab_assets
+^^^^^^^^^^^^^^^
+
+* Quadrupeds: Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree
+  Go2, Spot
+* Humanoids: Unitree H1, Unitree G1, Cassie
+* Arms and hands: Franka, UR10, Allegro Hand, Shadow Hand
+* Toy examples: Cartpole, Ant, Humanoid
+
+isaaclab_tasks
+^^^^^^^^^^^^^^
+
+Direct workflows:
+
+* Cartpole (state, RGB, depth)
+* Ant, Humanoid
+* Allegro Hand Repose Cube, Shadow Hand, Shadow Hand Over
+* Locomotion (shared base env)
+
+Manager-based workflows:
+
+* Classic: Cartpole, Ant, Humanoid
+* Locomotion velocity, flat terrain: A1, Anymal-B, Anymal-C, Anymal-D, Cassie,
+  Unitree G1, Go1, Go2, Unitree H1, Spot
+* Locomotion velocity, rough terrain: Anymal-C, Cassie, Go1, Go2
+* Manipulation: reach (Franka, UR10), cabinet, dexsuite
+
+
+Solver Coverage
+---------------
+
+* **MuJoCo-Warp solver**: the primary, validated path for every supported task.
+* **Kamino solver**: beta. Currently validated on ``Isaac-Cartpole-Direct-v0``,
+  ``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. See
+  :doc:`using-kamino`.
+
+Other Newton solvers (e.g. VBD) are not yet exposed through Isaac Lab.
+
+
+Known Gaps
+----------
+
+* Soft bodies, particles, and other non-rigid PhysX features are not yet
+  available through Newton.
+* Behaviour on stiff contact stacks can diverge from PhysX; expect to retune
+  contact and substep parameters when porting tasks across backends.
+* Multi-agent and self-play workflows are not yet wired up for Newton.
