@@ -249,6 +249,13 @@ def spawn_cable(
     calling :meth:`newton.ModelBuilder.add_rod_graph`; ``rigid_props`` and
     ``mass_props`` are rejected up front because they don't apply to cables.
 
+    .. warning::
+        Cables are currently **only supported on the Newton physics backend**. The
+        spawner itself only authors USD (which works on any backend), but the
+        resulting cable will not be simulated under PhysX —
+        :class:`~isaaclab_contrib.cable.CableObject` will refuse to register if
+        the active backend is not Newton.
+
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
         if the input prim path is a regex pattern. This is done to support spawning multiple assets
