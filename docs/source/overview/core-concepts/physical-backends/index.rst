@@ -17,6 +17,7 @@ backend-specific configuration, installation, and limitations.
     physx/index
     newton/index
     ovphysx/index
+    solver-comparison
 
 
 Choosing a Backend
