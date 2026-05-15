@@ -8,12 +8,12 @@
 import os
 import shutil
 
+import setuptools
+import setuptools.command.build_py
 import toml
-from setuptools import setup
-from setuptools.command.build_py import build_py as _build_py
 
 
-class build_py(_build_py):
+class build_py(setuptools.command.build_py.build_py):
     """Custom build command that bundles config/extension.toml into the package.
 
     This ensures the toml is available when installed as a regular (non-editable)
@@ -44,7 +44,7 @@ EXTRAS_REQUIRE = {
 }
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_newton",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -58,22 +58,7 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    packages=[
-        "isaaclab_newton",
-        "isaaclab_newton.assets",
-        "isaaclab_newton.assets.articulation",
-        "isaaclab_newton.assets.rigid_object",
-        "isaaclab_newton.assets.rigid_object_collection",
-        "isaaclab_newton.cloner",
-        "isaaclab_newton.physics",
-        "isaaclab_newton.renderers",
-        "isaaclab_newton.sensors",
-        "isaaclab_newton.sensors.contact_sensor",
-        "isaaclab_newton.sensors.frame_transformer",
-        "isaaclab_newton.test",
-        "isaaclab_newton.test.mock_interfaces",
-        "isaaclab_newton.test.mock_interfaces.views",
-    ],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_newton", "isaaclab_newton.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

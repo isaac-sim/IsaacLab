@@ -7,8 +7,8 @@
 
 import os
 
+import setuptools
 import toml
-from setuptools import setup
 
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
@@ -19,7 +19,7 @@ EXTRAS_REQUIRE = {
     "ovphysx": ["ovphysx"],
 }
 
-setup(
+setuptools.setup(
     name="isaaclab_ovphysx",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -33,16 +33,7 @@ setup(
     python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    packages=[
-        "isaaclab_ovphysx",
-        "isaaclab_ovphysx.assets",
-        "isaaclab_ovphysx.assets.articulation",
-        "isaaclab_ovphysx.cloner",
-        "isaaclab_ovphysx.physics",
-        "isaaclab_ovphysx.test",
-        "isaaclab_ovphysx.test.mock_interfaces",
-        "isaaclab_ovphysx.test.mock_interfaces.views",
-    ],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_ovphysx", "isaaclab_ovphysx.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.11",

@@ -7,8 +7,8 @@
 
 import os
 
+import setuptools
 import toml
-from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -30,7 +30,7 @@ INSTALL_REQUIRES = [
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_tasks",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -43,7 +43,7 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     dependency_links=PYTORCH_INDEX_URL,
-    packages=["isaaclab_tasks"],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_tasks", "isaaclab_tasks.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

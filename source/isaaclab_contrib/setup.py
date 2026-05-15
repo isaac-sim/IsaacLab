@@ -7,8 +7,8 @@
 
 import os
 
+import setuptools
 import toml
-from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -39,7 +39,7 @@ EXTRAS_REQUIRE = {
 }
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_contrib",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -51,7 +51,7 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.12",
     extras_require=EXTRAS_REQUIRE,
-    packages=["isaaclab_contrib"],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_contrib", "isaaclab_contrib.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

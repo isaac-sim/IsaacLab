@@ -9,8 +9,8 @@ import itertools
 import os
 import platform
 
+import setuptools
 import toml
-from setuptools import find_namespace_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -43,9 +43,9 @@ EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values
 EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_mimic",
-    packages=find_namespace_packages(include=["isaaclab_mimic", "isaaclab_mimic.*"]),
+    packages=setuptools.find_namespace_packages(include=["isaaclab_mimic", "isaaclab_mimic.*"]),
     author=EXTENSION_TOML_DATA["package"]["author"],
     maintainer=EXTENSION_TOML_DATA["package"]["maintainer"],
     url=EXTENSION_TOML_DATA["package"]["repository"],

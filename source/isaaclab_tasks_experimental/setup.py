@@ -7,8 +7,8 @@
 
 import os
 
+import setuptools
 import toml
-from setuptools import find_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -16,7 +16,7 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_tasks_experimental",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -27,7 +27,9 @@ setup(
     include_package_data=True,
     python_requires=">=3.12",
     install_requires=["isaaclab_tasks"],
-    packages=find_packages(),
+    packages=setuptools.find_namespace_packages(
+        include=["isaaclab_tasks_experimental", "isaaclab_tasks_experimental.*"]
+    ),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

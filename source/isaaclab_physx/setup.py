@@ -7,8 +7,8 @@
 
 import os
 
+import setuptools
 import toml
-from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -25,7 +25,7 @@ EXTRAS_REQUIRE = {
 }
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_physx",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -39,31 +39,7 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    packages=[
-        "isaaclab_physx",
-        "isaaclab_physx.assets",
-        "isaaclab_physx.assets.articulation",
-        "isaaclab_physx.assets.deformable_object",
-        "isaaclab_physx.assets.rigid_object",
-        "isaaclab_physx.assets.rigid_object_collection",
-        "isaaclab_physx.assets.surface_gripper",
-        "isaaclab_physx.cloner",
-        "isaaclab_physx.physics",
-        "isaaclab_physx.renderers",
-        "isaaclab_physx.sensors",
-        "isaaclab_physx.sensors.contact_sensor",
-        "isaaclab_physx.sensors.frame_transformer",
-        "isaaclab_physx.sensors.imu",
-        "isaaclab_physx.sim",
-        "isaaclab_physx.sim.schemas",
-        "isaaclab_physx.sim.spawners",
-        "isaaclab_physx.sim.spawners.materials",
-        "isaaclab_physx.test",
-        "isaaclab_physx.test.benchmark",
-        "isaaclab_physx.test.mock_interfaces",
-        "isaaclab_physx.test.mock_interfaces.utils",
-        "isaaclab_physx.test.mock_interfaces.views",
-    ],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_physx", "isaaclab_physx.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

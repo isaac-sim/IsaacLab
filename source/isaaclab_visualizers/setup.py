@@ -5,7 +5,7 @@
 
 """Installation script for the 'isaaclab_visualizers' python package."""
 
-from setuptools import setup
+import setuptools
 
 # Base requirements shared across visualizer backends.
 INSTALL_REQUIRES = [
@@ -40,7 +40,7 @@ EXTRAS_REQUIRE = {
 
 EXTRAS_REQUIRE["all"] = sorted({dep for group in EXTRAS_REQUIRE.values() for dep in group})
 
-setup(
+setuptools.setup(
     name="isaaclab_visualizers",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -54,7 +54,7 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
-    packages=["isaaclab_visualizers"],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_visualizers", "isaaclab_visualizers.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

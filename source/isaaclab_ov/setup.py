@@ -5,7 +5,7 @@
 
 """Installation script for the 'isaaclab_ov' python package."""
 
-from setuptools import setup
+import setuptools
 
 EXTRAS_REQUIRE = {
     "ovrtx": [
@@ -16,7 +16,7 @@ EXTRAS_REQUIRE = {
 # add "[all]" for convenience
 EXTRAS_REQUIRE["all"] = sorted(set(dep for deps in EXTRAS_REQUIRE.values() for dep in deps))
 
-setup(
+setuptools.setup(
     name="isaaclab_ov",
     version="0.1.1",
     author="Isaac Lab Project Developers",
@@ -29,7 +29,7 @@ setup(
     python_requires=">=3.12",
     install_requires=[],
     extras_require=EXTRAS_REQUIRE,
-    packages=["isaaclab_ov"],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_ov", "isaaclab_ov.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

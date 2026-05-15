@@ -8,8 +8,8 @@
 import itertools
 import os
 
+import setuptools
 import toml
-from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -59,7 +59,7 @@ EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values
 EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_rl",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -73,7 +73,7 @@ setup(
     install_requires=INSTALL_REQUIRES,
     dependency_links=PYTORCH_INDEX_URL,
     extras_require=EXTRAS_REQUIRE,
-    packages=["isaaclab_rl"],
+    packages=setuptools.find_namespace_packages(include=["isaaclab_rl", "isaaclab_rl.*"]),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.12",

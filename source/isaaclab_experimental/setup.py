@@ -7,8 +7,8 @@
 
 import os
 
+import setuptools
 import toml
-from setuptools import find_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -21,7 +21,7 @@ INSTALL_REQUIRES = [
 ]
 
 # Installation operation
-setup(
+setuptools.setup(
     name="isaaclab_experimental",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
@@ -33,7 +33,7 @@ setup(
     include_package_data=True,
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
-    packages=find_packages(),
+    packages=setuptools.find_namespace_packages(include=["isaaclab_experimental", "isaaclab_experimental.*"]),
     classifiers=[
         "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 6.0.0",
