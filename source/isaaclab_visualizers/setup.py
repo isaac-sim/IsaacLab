@@ -10,7 +10,8 @@ from setuptools import setup
 # Base requirements shared across visualizer backends.
 INSTALL_REQUIRES = [
     "isaaclab",
-    "numpy",
+    # !=2.3.5 dodges the broken OpenBLAS bundle; see source/isaaclab/setup.py.
+    "numpy>=2,!=2.3.5",
 ]
 
 # Every Newton declaration in the repo must use the SAME extra spec (`newton[sim]`).

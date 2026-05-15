@@ -18,7 +18,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy>=2",
+    # !=2.3.5 dodges the broken OpenBLAS bundle; see source/isaaclab/setup.py.
+    "numpy>=2,!=2.3.5",
     "torch>=2.10",
     "torchvision>=0.25.0",  # ensure compatibility with torch 2.10.0
     "protobuf>=4.25.8,!=5.26.0",

@@ -18,7 +18,11 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy>=2",
+    # !=2.3.5 dodges the broken OpenBLAS bundle (libscipy_openblas64_-fdde5778.so)
+    # whose pthread_atfork handler SIGSEGVs inside Kit's libomni.platforminfo fork()
+    # during CI startup. See numpy/numpy#30092 and OMPE-92261. The pin-pink ->
+    # pinocchio -> cmeel-boost transitive constraint already caps numpy <2.4.
+    "numpy>=2,!=2.3.5",
     "torch>=2.10",
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
