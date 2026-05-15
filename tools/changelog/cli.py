@@ -299,6 +299,28 @@ class Fragment:
                 f"section(s) {', '.join(repr(s) for s in empty)} have no bullet entries — "
                 "use ``* `` to start each entry, or remove the heading"
             )
+        # Every line inside a section body must be a bullet (``* ``), a
+        # continuation (leading whitespace), or blank. A column-0 non-blank
+        # line that isn't a bullet terminates the list under RST rules and
+        # then sits as a paragraph adjacent to the next ``* `` — which the
+        # compile step splices into ``CHANGELOG.rst`` under the same
+        # ``^^^`` subheading and Sphinx then rejects with
+        # ``Unexpected indentation``. Catch it here before merge.
+        for section, lines in sections.items():
+            for offset, line in enumerate(lines):
+                if not line.strip():
+                    continue
+                if line[0].isspace() or line.lstrip().startswith("*"):
+                    continue
+                snippet = line.strip()[:80]
+                return (
+                    f"section {section!r} contains an orphan paragraph "
+                    f"(non-bullet line {offset + 1}: {snippet!r}). Every line under "
+                    "a section heading must start with ``* `` (new bullet) or whitespace "
+                    "(continuation of the previous bullet). A flush-left paragraph here "
+                    "splits the bullet list and Sphinx fails the doc build with "
+                    "``Unexpected indentation``."
+                )
         return None
 
 
