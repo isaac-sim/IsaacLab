@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the acceleration-arrow debug visualizer in
+  :class:`~isaaclab_newton.sensors.pva.Pva` drawing arrows in undefined directions for
+  bodies with effectively zero acceleration. Such bodies are now skipped from the
+  visualization.
+
+
 0.9.0 (2026-05-14)
 ~~~~~~~~~~~~~~~~~~
 

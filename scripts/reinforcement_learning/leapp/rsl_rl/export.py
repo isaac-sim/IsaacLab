@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# ruff: noqa: E402
-
 """Script to export a checkpoint if an RL agent from RSL-RL."""
 
-"""Launch Isaac Sim Simulator first."""
+from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.metadata as metadata
+import os
 import sys
 import time
 from collections.abc import Mapping
@@ -36,85 +36,130 @@ if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
 import cli_args  # isort: skip
 
 
-parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
-parser.add_argument(
-    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
-)
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument(
-    "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
-)
-parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument(
-    "--use_pretrained_checkpoint",
-    action="store_true",
-    help="Use the pre-trained checkpoint from Nucleus.",
-)
+_RUNTIME_IMPORTS_LOADED = False
 
-# LEAPP arguments
-parser.add_argument(
-    "--export_task_name",
-    type=str,
-    default=None,
-    help="Name of the exported graph. Defaults to the task name.",
-)
-parser.add_argument(
-    "--export_method",
-    type=str,
-    default="onnx-dynamo",
-    choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-    help="Method to export the policy",
-)
-parser.add_argument(
-    "--export_save_path",
-    type=str,
-    default=None,
-    help="Path to save the exported model",
-)
-parser.add_argument(
-    "--validation_steps",
-    type=int,
-    default=5,
-    help="Number of steps to validate the exported model",
-)
-parser.add_argument(
-    "--disable_graph_visualization",
-    action="store_true",
-    default=False,
-    help="Disable LEAPP graph visualization during compile_graph().",
-)
+gym = None
+DistillationRunner = None
+OnPolicyRunner = None
+ManagerBasedRLEnv = None
+RslRlVecEnvWrapper = None
+handle_deprecated_rsl_rl_cfg = None
+retrieve_file_path = None
+patch_env_for_export = None
+ensure_env_spec_id = None
+get_published_pretrained_checkpoint = None
+get_checkpoint_path = None
+hydra_task_config = None
 
-cli_args.add_rsl_rl_args(parser)
-AppLauncher.add_app_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
-args_cli.headless = True
 
-# clear out sys.argv for Hydra
-sys.argv = [sys.argv[0]] + hydra_args
+def create_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for RSL-RL policy export."""
+    parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
+    parser.add_argument(
+        "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
+    )
+    parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+    parser.add_argument(
+        "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
+    )
+    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+    parser.add_argument(
+        "--use_pretrained_checkpoint",
+        action="store_true",
+        help="Use the pre-trained checkpoint from Nucleus.",
+    )
+
+    # LEAPP arguments
+    parser.add_argument(
+        "--export_task_name",
+        type=str,
+        default=None,
+        help="Name of the exported graph. Defaults to the task name.",
+    )
+    parser.add_argument(
+        "--export_method",
+        type=str,
+        default="onnx-dynamo",
+        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
+        help="Method to export the policy",
+    )
+    parser.add_argument(
+        "--export_save_path",
+        type=str,
+        default=None,
+        help="Path to save the exported model",
+    )
+    parser.add_argument(
+        "--validation_steps",
+        type=int,
+        default=5,
+        help="Number of steps to validate the exported model",
+    )
+    parser.add_argument(
+        "--disable_graph_visualization",
+        action="store_true",
+        default=False,
+        help="Disable LEAPP graph visualization during compile_graph().",
+    )
+
+    cli_args.add_rsl_rl_args(parser)
+    AppLauncher.add_app_launcher_args(parser)
+    return parser
+
+
+def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
+    """Parse export arguments and return remaining Hydra overrides."""
+    parser = create_arg_parser()
+    args_cli, hydra_args = parser.parse_known_args(argv)
+    args_cli.headless = True
+    return args_cli, hydra_args
+
+
+def _load_runtime_dependencies() -> None:
+    """Import runtime dependencies after Isaac Sim has been launched."""
+    global _RUNTIME_IMPORTS_LOADED
+    global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
+    global ensure_env_spec_id, get_published_pretrained_checkpoint, handle_deprecated_rsl_rl_cfg, hydra_task_config
+    global patch_env_for_export, retrieve_file_path
+
+    if _RUNTIME_IMPORTS_LOADED:
+        return
+
+    import gymnasium as gym_module
+    from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
+    from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
+
+    from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
+    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
+    from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
+    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
+
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper as RslRlVecEnvWrapperCls
+    from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg as handle_deprecated_rsl_rl_cfg_fn
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
+    )
+
+    __import__("isaaclab_tasks")
+    from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
+    from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
+
+    gym = gym_module
+    DistillationRunner = DistillationRunnerCls
+    OnPolicyRunner = OnPolicyRunnerCls
+    ManagerBasedRLEnv = ManagerBasedRLEnvCls
+    RslRlVecEnvWrapper = RslRlVecEnvWrapperCls
+    handle_deprecated_rsl_rl_cfg = handle_deprecated_rsl_rl_cfg_fn
+    retrieve_file_path = retrieve_file_path_fn
+    patch_env_for_export = patch_env_for_export_fn
+    ensure_env_spec_id = ensure_env_spec_id_fn
+    get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
+    get_checkpoint_path = get_checkpoint_path_fn
+    hydra_task_config = hydra_task_config_fn
+    _RUNTIME_IMPORTS_LOADED = True
+
 
 installed_version = metadata.version("rsl-rl-lib")
-
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
-import os
-
-import gymnasium as gym
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
-
-from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.leapp import patch_env_for_export
-from isaaclab.utils.leapp.utils import ensure_env_spec_id
-
-from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path
-from isaaclab_tasks.utils.hydra import hydra_task_config
 
 
 def get_actor_memory_module(policy_nn):
@@ -165,13 +210,19 @@ def actor_hidden_from_registered(registered_state, original_hidden):
     return registered_state
 
 
-@hydra_task_config(args_cli.task, args_cli.agent)
-def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
+def export_rsl_rl_agent(
+    args_cli: argparse.Namespace,
+    env_cfg,
+    agent_cfg,
+    simulation_app,
+) -> bool:
     """Export a RSL-RL agent."""
+    _load_runtime_dependencies()
+
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
 
-    agent_cfg: RslRlBaseRunnerCfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+    agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
 
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
@@ -187,7 +238,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
-            return
+            return False
     elif args_cli.checkpoint:
         resume_path = retrieve_file_path(args_cli.checkpoint)
     else:
@@ -197,86 +248,131 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
 
     env_cfg.log_dir = log_dir
 
-    env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
-    policy_node_name = ensure_env_spec_id(env)
+    env = None
+    leapp_started = False
+    try:
+        env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
+        policy_node_name = ensure_env_spec_id(env)
 
-    graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
+        graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
-    if isinstance(env.unwrapped, ManagerBasedRLEnv):
-        # Patch only the observation groups consumed by the actor policy.
-        # This filters out the critic and teacher observation groups.
-        obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
-        if isinstance(obs_groups_cfg, Mapping):
-            required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+        if isinstance(env.unwrapped, ManagerBasedRLEnv):
+            # Patch only the observation groups consumed by the actor policy.
+            # This filters out the critic and teacher observation groups.
+            obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
+            if isinstance(obs_groups_cfg, Mapping):
+                required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+            else:
+                required_obs_groups = {"policy"}
+            patch_env_for_export(
+                env,
+                export_method=args_cli.export_method,
+                required_obs_groups=required_obs_groups,
+            )
+
+        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+
+        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+        if agent_cfg.class_name == "OnPolicyRunner":
+            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+        elif agent_cfg.class_name == "DistillationRunner":
+            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         else:
-            required_obs_groups = {"policy"}
-        patch_env_for_export(
-            env,
-            export_method=args_cli.export_method,
-            required_obs_groups=required_obs_groups,
-        )
+            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+        runner.load(resume_path)
 
-    env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+        policy = runner.get_inference_policy(device=env.unwrapped.device)
+        policy_nn = getattr(policy, "__self__", None)
 
-    print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-    if agent_cfg.class_name == "OnPolicyRunner":
-        runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-    elif agent_cfg.class_name == "DistillationRunner":
-        runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-    else:
-        raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-    runner.load(resume_path)
+        if args_cli.export_save_path is not None:
+            save_path = args_cli.export_save_path
+        elif args_cli.use_pretrained_checkpoint:
+            # Use a predictable path independent of the Nucleus mirror directory structure.
+            save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
+        else:
+            save_path = log_dir
+        leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
+        leapp_started = True
+        obs = env.reset()[0]
+        while not simulation_app.is_running():
+            time.sleep(0.5)
 
-    policy = runner.get_inference_policy(device=env.unwrapped.device)
-    policy_nn = getattr(policy, "__self__", None)
+        for _ in range(max(args_cli.validation_steps, 2)):
+            with torch.inference_mode():
+                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
+                    actor_hidden = ensure_actor_hidden_state_initialized(
+                        policy_nn,
+                        batch_size=env.num_envs,
+                        device=env.unwrapped.device,
+                        dtype=next(policy_nn.parameters()).dtype,
+                    )
+                    registered_state = annotate.state_tensors(
+                        policy_node_name,
+                        state_dict_from_actor_hidden(actor_hidden),
+                    )
+                    actor_memory = get_actor_memory_module(policy_nn)
+                    if actor_memory is not None:
+                        actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
 
-    if args_cli.export_save_path is not None:
-        save_path = args_cli.export_save_path
-    elif args_cli.use_pretrained_checkpoint:
-        # Use a predictable path independent of the Nucleus mirror directory structure.
-        save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
-    else:
-        save_path = log_dir
-    leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
-    obs = env.reset()[0]
-    while not simulation_app.is_running():
-        time.sleep(0.5)
+                actions = policy(obs)
 
-    for _ in range(max(args_cli.validation_steps, 2)):
-        with torch.inference_mode():
-            if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                actor_hidden = ensure_actor_hidden_state_initialized(
-                    policy_nn,
-                    batch_size=env.num_envs,
-                    device=env.unwrapped.device,
-                    dtype=next(policy_nn.parameters()).dtype,
-                )
-                registered_state = annotate.state_tensors(
-                    policy_node_name,
-                    state_dict_from_actor_hidden(actor_hidden),
-                )
-                actor_memory = get_actor_memory_module(policy_nn)
-                if actor_memory is not None:
-                    actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
+                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
+                    actor_hidden_after = policy_nn.get_hidden_states()[0]
+                    annotate.update_state(
+                        policy_node_name,
+                        state_dict_from_actor_hidden(actor_hidden_after),
+                    )
 
-            actions = policy(obs)
+                obs, _, _, _ = env.step(actions)
 
-            if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                actor_hidden_after = policy_nn.get_hidden_states()[0]
-                annotate.update_state(
-                    policy_node_name,
-                    state_dict_from_actor_hidden(actor_hidden_after),
-                )
+        leapp.stop()
+        leapp_started = False
+        validate = args_cli.validation_steps > 0
+        leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+    finally:
+        if leapp_started:
+            with contextlib.suppress(Exception):
+                leapp.stop()
+        if env is not None:
+            env.close()
 
-            obs, _, _, _ = env.step(actions)
+    return True
 
-    leapp.stop()
-    validate = args_cli.validation_steps > 0
-    leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
 
-    env.close()
+def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], simulation_app) -> bool:
+    """Resolve Hydra task configuration and export one RSL-RL policy."""
+    _load_runtime_dependencies()
+
+    original_argv = sys.argv
+    sys.argv = [sys.argv[0]] + hydra_args
+    exported = False
+
+    try:
+
+        @hydra_task_config(args_cli.task, args_cli.agent)
+        def _main(env_cfg, agent_cfg) -> None:
+            nonlocal exported
+            exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg, simulation_app)
+
+        _main()
+    finally:
+        sys.argv = original_argv
+
+    return exported
+
+
+def main_cli(argv: list[str] | None = None) -> bool:
+    """Run the command-line export flow."""
+    args_cli, hydra_args = parse_export_args(argv)
+
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+
+    try:
+        return run_export_with_hydra(args_cli, hydra_args, simulation_app)
+    finally:
+        simulation_app.close()
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    main_cli()
