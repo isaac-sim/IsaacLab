@@ -29,6 +29,8 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "flatdict==4.0.1",
+    # fluoroscopy renderer (separate editable install required in dev)
+    "fluorosim",
     # newton
     "mujoco>=3.4.0.dev839962392",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@e9a67538f2c14486121635074c5a5fd6ca55fa83",
@@ -39,6 +41,11 @@ INSTALL_REQUIRES = [
 
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
+
+# Optional: Newton build that includes SolverXPBDRod (GPU XPBD Cosserat rods). Pin updates when merged.
+NEWTON_XPBD_ROD_EXTRA = [
+    "newton @ git+https://github.com/newton-physics/newton.git@refs/pull/1981/head",
+]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
 SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64'"
@@ -52,6 +59,10 @@ INSTALL_REQUIRES += [
 # Installation operation
 setup(
     name="isaaclab_newton",
+    extras_require={
+        # pip install -e ".[xpbd_rod]" — Newton with SolverXPBDRod (PR #1981); adjust ref when on PyPI/main.
+        "xpbd_rod": NEWTON_XPBD_ROD_EXTRA,
+    },
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -63,7 +74,15 @@ setup(
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     dependency_links=PYTORCH_INDEX_URL,
-    packages=["isaaclab_newton"],
+    packages=["isaaclab_newton", "isaaclab_newton.examples"],
+    package_dir={"isaaclab_newton.examples": "examples"},
+    entry_points={
+        "console_scripts": [
+            # Interactive X-ray fluoroscopy catheter simulator (Gradio web UI).
+            # Usage: xcath-fluoro [--ct-dir PATH] [--port PORT]
+            "xcath-fluoro = isaaclab_newton.examples.interactive_catheter_fluoro:main",
+        ],
+    },
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",

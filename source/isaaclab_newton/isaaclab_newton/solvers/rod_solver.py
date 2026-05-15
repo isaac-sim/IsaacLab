@@ -1056,6 +1056,58 @@ class RodSolver:
         """
         self._external_force_callback = callback
 
+    def apply_proximal_control(
+        self,
+        push_velocity: torch.Tensor,
+        rotate_velocity: torch.Tensor,
+        dt: float,
+    ) -> None:
+        """Apply kinematic push/rotate control to the root (segment 0) across all envs.
+
+        Segment 0 is assumed to be fixed (``inv_mass = 0``), so the XPBD solver
+        will not overwrite the position set here.
+
+        Args:
+            push_velocity: ``(num_envs,)`` insertion speed along the local rod
+                tangent at the root (m/s).  Positive = advance, negative = retract.
+            rotate_velocity: ``(num_envs,)`` axial rotation speed (rad/s).
+            dt: Time delta for this control step (seconds).
+        """
+        pos = self.data.positions
+        ori = self.data.orientations
+        n_seg = self.config.geometry.num_segments
+
+        if n_seg < 2:
+            return
+
+        tangent = pos[:, 1, :] - pos[:, 0, :]
+        tangent_len = tangent.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        tangent = tangent / tangent_len
+
+        pos[:, 0, :] += tangent * push_velocity.unsqueeze(-1) * dt
+
+        needs_rotation = rotate_velocity.abs() > 1e-10
+        if needs_rotation.any():
+            half_angle = 0.5 * rotate_velocity * dt
+            s = torch.sin(half_angle)
+            c = torch.cos(half_angle)
+            dq = torch.zeros_like(ori[:, 0, :])
+            dq[:, 0] = tangent[:, 0] * s
+            dq[:, 1] = tangent[:, 1] * s
+            dq[:, 2] = tangent[:, 2] * s
+            dq[:, 3] = c
+
+            q0 = ori[:, 0, :].clone()
+            ori[:, 0, 0] = dq[:, 3]*q0[:, 0] + dq[:, 0]*q0[:, 3] + dq[:, 1]*q0[:, 2] - dq[:, 2]*q0[:, 1]
+            ori[:, 0, 1] = dq[:, 3]*q0[:, 1] - dq[:, 0]*q0[:, 2] + dq[:, 1]*q0[:, 3] + dq[:, 2]*q0[:, 0]
+            ori[:, 0, 2] = dq[:, 3]*q0[:, 2] + dq[:, 0]*q0[:, 1] - dq[:, 1]*q0[:, 0] + dq[:, 2]*q0[:, 3]
+            ori[:, 0, 3] = dq[:, 3]*q0[:, 3] - dq[:, 0]*q0[:, 0] - dq[:, 1]*q0[:, 1] - dq[:, 2]*q0[:, 2]
+
+            n = ori[:, 0, :].norm(dim=-1, keepdim=True).clamp(min=1e-8)
+            ori[:, 0, :] /= n
+
+        self.data.sync_to_warp()
+
     def reset(self, env_indices: torch.Tensor | None = None):
         """Reset the simulation.
 

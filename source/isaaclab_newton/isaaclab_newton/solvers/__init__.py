@@ -31,8 +31,31 @@ from .rod_data import (
 )
 from .rod_solver import RodSolver
 
+# Newton GPU XPBD rod solver (requires Newton build with SolverXPBDRod, e.g. PR #1981)
+from .newton_xpbd_rod_wrapper import NewtonXPBDRodSolver, orientations_xyzw_along_polyline
+
+# Self-contained XPBD rod solver — no external newton dependency
+from .xpbd_rod_solver import XPBDRodSolver
+
+# Vessel mesh collision extension — catheter-in-vessel containment + track guidance
+from .xcath_rod_solver import (
+    XCathRodSolver,
+    COLLISION_PROJECTION_STAGE_POST,
+    COLLISION_PROJECTION_STAGE_PRE,
+    compute_smooth_vertex_normals,
+    compute_signed_distances,
+)
+
 __all__ = [
     "RodSolver",
+    "NewtonXPBDRodSolver",
+    "XPBDRodSolver",
+    "XCathRodSolver",
+    "COLLISION_PROJECTION_STAGE_POST",
+    "COLLISION_PROJECTION_STAGE_PRE",
+    "compute_smooth_vertex_normals",
+    "compute_signed_distances",
+    "orientations_xyzw_along_polyline",
     "RodConfig",
     "RodData",
     "RodMaterialConfig",

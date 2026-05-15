@@ -20,3 +20,4 @@ __version__ = ISAACLAB_NEWTON_METADATA["package"]["version"]
 
 # Import submodules
 from . import solvers  # noqa: E402, F401
+from . import envs  # noqa: E402, F401

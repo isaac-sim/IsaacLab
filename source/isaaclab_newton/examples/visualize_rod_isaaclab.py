@@ -19,6 +19,9 @@ Usage:
 
     # With options
     ./isaaclab.sh -p source/isaaclab_newton/examples/visualize_rod_isaaclab.py --num-segments 20 --stiffness 1e8
+
+    # Newton GPU XPBD rod (requires Newton with SolverXPBDRod, e.g. PR #1981)
+    ./isaaclab.sh -p source/isaaclab_newton/examples/visualize_rod_isaaclab.py --use-newton-xpbd
 """
 
 import argparse
@@ -35,6 +38,17 @@ parser.add_argument("--num-segments", type=int, default=15, help="Number of rod 
 parser.add_argument("--stiffness", type=float, default=1e8, help="Young's modulus (Pa)")
 parser.add_argument("--headless", action="store_true", help="Run in headless mode")
 parser.add_argument("--num-envs", type=int, default=1, help="Number of parallel environments")
+parser.add_argument(
+    "--use-newton-xpbd",
+    action="store_true",
+    help="Drive the scene with Newton SolverXPBDRod (install Newton PR #1981 branch)",
+)
+parser.add_argument(
+    "--newton-backend",
+    type=str,
+    default="block_thomas",
+    help="Newton direct solver backend when --use-newton-xpbd (e.g. block_thomas, split_thomas)",
+)
 args_cli = parser.parse_args()
 
 # Launch the simulation app
@@ -56,6 +70,7 @@ from isaaclab_newton.solvers import (
     RodSolver,
     RodSolverConfig,
 )
+# NewtonXPBDRodSolver / orientations_xyzw_along_polyline: imported lazily if --use-newton-xpbd
 
 
 def create_rod_config(
@@ -216,28 +231,37 @@ def main():
         radius=0.03,
         young_modulus=args_cli.stiffness,
     )
+    rod_config.solver.dt = sim_cfg.dt
 
     # Design the scene with markers
     segment_length = rod_config.geometry.segment_length
     segment_radius = rod_config.geometry.radius
     rod_markers = design_scene(args_cli.num_segments, segment_radius, segment_length)
 
-    # Create rod solver
-    solver = RodSolver(rod_config, num_envs=args_cli.num_envs)
+    initial_height = 1.0  # meters above ground (must match Newton rod build)
 
-    # Position the rod horizontally starting from origin
-    # Shift to start at world origin with segments along X axis, elevated in Z
-    initial_height = 1.0  # meters above ground
-    for i in range(rod_config.geometry.num_segments):
-        solver.data.positions[:, i, 0] = (i + 0.5) * segment_length  # X position
-        solver.data.positions[:, i, 1] = 0.0  # Y position
-        solver.data.positions[:, i, 2] = initial_height  # Z position (height)
+    if args_cli.use_newton_xpbd:
+        if args_cli.num_envs != 1:
+            raise SystemExit("--use-newton-xpbd requires --num-envs 1 (NewtonXPBDRodSolver).")
+        from isaaclab_newton.solvers import NewtonXPBDRodSolver, orientations_xyzw_along_polyline
 
-    # Fix the first segment (cantilever boundary condition)
-    solver.data.fix_segment(slice(None), 0)
-
-    # Sync to warp
-    solver.data.sync_to_warp()
+        solver = NewtonXPBDRodSolver(
+            rod_config,
+            num_envs=1,
+            solver_backend=args_cli.newton_backend,
+            floor_z=None,
+            initial_z=initial_height,
+        )
+        use_newton = True
+    else:
+        solver = RodSolver(rod_config, num_envs=args_cli.num_envs)
+        for i in range(rod_config.geometry.num_segments):
+            solver.data.positions[:, i, 0] = (i + 0.5) * segment_length
+            solver.data.positions[:, i, 1] = 0.0
+            solver.data.positions[:, i, 2] = initial_height
+        solver.data.fix_segment(slice(None), 0)
+        solver.data.sync_to_warp()
+        use_newton = False
 
     # Play the simulation (don't use reset which triggers Newton physics)
     sim.play()
@@ -245,6 +269,7 @@ def main():
     print("=" * 60)
     print("Rod Solver Visualization in Isaac Lab")
     print("=" * 60)
+    print(f"Backend: {'Newton SolverXPBDRod' if use_newton else 'RodSolver (isaaclab_newton)'}")
     print(f"Number of segments: {args_cli.num_segments}")
     print(f"Young's modulus: {args_cli.stiffness:.2e} Pa")
     print(f"Segment length: {segment_length:.4f} m")
@@ -269,14 +294,15 @@ def main():
     while simulation_app.is_running():
         # Step physics if simulation is playing
         if sim.is_playing():
-            # Step the rod solver
             solver.step(dt=sim_cfg.dt)
 
-            # Get positions and orientations from solver
-            positions = solver.data.positions[0].cpu()  # (num_segments, 3)
-            orientations = solver.data.orientations[0].cpu()  # (num_segments, 4)
+            if use_newton:
+                positions = solver.positions[0].cpu()
+                orientations = orientations_xyzw_along_polyline(solver.positions[0]).cpu()
+            else:
+                positions = solver.data.positions[0].cpu()
+                orientations = solver.data.orientations[0].cpu()
 
-            # Convert orientations to Isaac Lab format
             isaac_quats = rod_orientations_to_isaac_quats(orientations)
 
             # Update marker visualization

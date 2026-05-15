@@ -12,6 +12,11 @@ set up and works well for debugging purposes.
 
 Usage:
     ./isaaclab.sh -p source/isaaclab_newton/examples/visualize_rod_simple.py
+
+    ./isaaclab.sh -p source/isaaclab_newton/examples/visualize_rod_simple.py --use-xpbd
+
+    # Or with external Newton package (requires PR #1981 branch):
+    ./isaaclab.sh -p source/isaaclab_newton/examples/visualize_rod_simple.py --use-newton-xpbd
 """
 
 import argparse
@@ -24,6 +29,22 @@ parser = argparse.ArgumentParser(description="Simple Rod Solver Visualization")
 parser.add_argument("--num-segments", type=int, default=20, help="Number of rod segments")
 parser.add_argument("--stiffness", type=float, default=1e8, help="Young's modulus (Pa)")
 parser.add_argument("--headless", action="store_true", help="Run in headless mode")
+parser.add_argument(
+    "--use-newton-xpbd",
+    action="store_true",
+    help="Use Newton SolverXPBDRod (requires Newton PR #1981 branch)",
+)
+parser.add_argument(
+    "--use-xpbd",
+    action="store_true",
+    help="Use self-contained XPBD rod solver (no external newton dependency)",
+)
+parser.add_argument(
+    "--newton-backend",
+    type=str,
+    default="block_thomas",
+    help="Newton backend when --use-newton-xpbd",
+)
 args_cli = parser.parse_args()
 
 # Launch the simulation app
@@ -37,7 +58,8 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils import prim_utils
+from isaaclab.sim.utils import prims as prim_utils
+from isaaclab.sim.utils import stage as stage_utils
 
 # Import the rod solver
 from isaaclab_newton.solvers import (
@@ -49,99 +71,74 @@ from isaaclab_newton.solvers import (
 )
 
 
-def create_rod_visuals(
-    num_segments: int,
-    segment_radius: float,
-    segment_length: float,
-    base_path: str = "/World/Rod",
-) -> list:
-    """Create visual capsule primitives for each rod segment.
+class RodVisuals:
+    """Manages USD capsule prims for rod visualization with cached xform ops."""
 
-    Args:
-        num_segments: Number of rod segments.
-        segment_radius: Radius of each segment.
-        segment_length: Length of each segment.
-        base_path: Base USD prim path.
+    def __init__(
+        self,
+        num_segments: int,
+        segment_radius: float,
+        segment_length: float,
+        base_path: str = "/World/Rod",
+    ):
+        self.prim_paths: list[str] = []
+        self._translate_ops = []
+        self._orient_ops = []
 
-    Returns:
-        List of prim paths for each segment.
-    """
-    prim_paths = []
+        prim_utils.create_prim(base_path, "Xform")
 
-    # Create parent Xform for the rod
-    prim_utils.create_prim(base_path, "Xform")
+        for i in range(num_segments):
+            prim_path = f"{base_path}/Segment_{i:02d}"
 
-    for i in range(num_segments):
-        prim_path = f"{base_path}/Segment_{i:02d}"
+            if i == 0:
+                color = (0.9, 0.2, 0.2)
+            elif i == num_segments - 1:
+                color = (1.0, 0.8, 0.2)
+            else:
+                t = i / (num_segments - 1)
+                color = (0.2, 0.3 + 0.4 * t, 0.9 - 0.3 * t)
 
-        # Determine color based on position
-        if i == 0:
-            # Fixed segment - red
-            color = (0.9, 0.2, 0.2)
-        elif i == num_segments - 1:
-            # Tip segment - gold
-            color = (1.0, 0.8, 0.2)
-        else:
-            # Regular segment - blue gradient
-            t = i / (num_segments - 1)
-            color = (0.2, 0.3 + 0.4 * t, 0.9 - 0.3 * t)
+            cfg = sim_utils.CapsuleCfg(
+                radius=segment_radius,
+                height=segment_length,
+                axis="X",
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=color,
+                    metallic=0.5,
+                    roughness=0.3,
+                ),
+            )
+            cfg.func(prim_path, cfg)
+            self.prim_paths.append(prim_path)
 
-        # Create capsule using sim_utils
-        cfg = sim_utils.CapsuleCfg(
-            radius=segment_radius,
-            height=segment_length,
-            axis="X",
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=color,
-                metallic=0.5,
-                roughness=0.3,
-            ),
-        )
-        cfg.func(prim_path, cfg)
-        prim_paths.append(prim_path)
+        self._cache_xform_ops()
 
-    return prim_paths
+    def _cache_xform_ops(self):
+        """Create translate + orient ops once and cache the handles."""
+        stage = stage_utils.get_current_stage()
+        for prim_path in self.prim_paths:
+            prim = stage.GetPrimAtPath(prim_path)
+            xformable = UsdGeom.Xformable(prim)
+            xformable.ClearXformOpOrder()
+            self._translate_ops.append(xformable.AddTranslateOp())
+            self._orient_ops.append(xformable.AddOrientOp())
 
+    def update(self, positions: torch.Tensor, orientations: torch.Tensor):
+        """Update cached xform ops in-place (no ClearXformOpOrder per frame).
 
-def update_segment_transforms(
-    prim_paths: list,
-    positions: torch.Tensor,
-    orientations: torch.Tensor,
-):
-    """Update USD prim transforms from solver data.
-
-    Args:
-        prim_paths: List of USD prim paths.
-        positions: Segment positions (N, 3).
-        orientations: Segment orientations as quaternions (x, y, z, w) (N, 4).
-    """
-    stage = prim_utils.get_current_stage()
-
-    for i, prim_path in enumerate(prim_paths):
-        prim = stage.GetPrimAtPath(prim_path)
-        if not prim.IsValid():
-            continue
-
-        xformable = UsdGeom.Xformable(prim)
-
-        # Get position
-        pos = positions[i].cpu().numpy()
-        translation = Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2]))
-
-        # Get orientation (convert from x,y,z,w to USD quaternion w,x,y,z)
-        quat = orientations[i].cpu().numpy()
-        rotation = Gf.Quatd(float(quat[3]), float(quat[0]), float(quat[1]), float(quat[2]))
-
-        # Clear existing ops and set new transform
-        xformable.ClearXformOpOrder()
-
-        # Add translate operation
-        translate_op = xformable.AddTranslateOp()
-        translate_op.Set(translation)
-
-        # Add orient operation
-        orient_op = xformable.AddOrientOp()
-        orient_op.Set(rotation)
+        Args:
+            positions: (N, 3) segment centres.
+            orientations: (N, 4) quaternions in (x, y, z, w) layout.
+        """
+        for i in range(len(self.prim_paths)):
+            pos = positions[i].cpu().numpy()
+            self._translate_ops[i].Set(
+                Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2]))
+            )
+            q = orientations[i].cpu().numpy()
+            self._orient_ops[i].Set(
+                Gf.Quatf(float(q[3]), float(q[0]), float(q[1]), float(q[2]))
+            )
 
 
 def main():
@@ -154,14 +151,14 @@ def main():
     )
     sim = SimulationContext(sim_cfg)
 
-    # Set camera view
-    sim.set_camera_view(eye=(2.5, 2.5, 2.0), target=(0.75, 0.0, 0.7))
+    # Camera: isometric view looking at the rod centre
+    sim.set_camera_view(eye=(1.0, 2.0, 1.8), target=(0.75, 0.0, 0.5))
 
-    # Create rod configuration
+    # Rod configuration
     num_segments = args_cli.num_segments
     rod_length = 1.5
     segment_length = rod_length / num_segments
-    segment_radius = 0.025
+    segment_radius = 0.04  # big enough to be clearly visible
 
     rod_config = RodConfig(
         material=RodMaterialConfig(
@@ -175,96 +172,123 @@ def main():
             radius=segment_radius,
         ),
         solver=RodSolverConfig(
-            dt=1.0 / 120.0,
+            dt=sim_cfg.dt,
             num_substeps=2,
             newton_iterations=4,
             use_direct_solver=True,
-            gravity=(0.0, 0.0, -9.81),  # Z-up coordinate system
+            gravity=(0.0, 0.0, -9.81),
         ),
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
 
-    # Create ground plane
+    # Ground plane + lighting
     cfg_ground = sim_utils.GroundPlaneCfg()
     cfg_ground.func("/World/GroundPlane", cfg_ground)
 
-    # Add lighting
     cfg_light = sim_utils.DomeLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
     cfg_light.func("/World/DomeLight", cfg_light)
 
     cfg_dist_light = sim_utils.DistantLightCfg(intensity=3000.0, color=(1.0, 0.95, 0.9))
     cfg_dist_light.func("/World/DistantLight", cfg_dist_light, translation=(10.0, 10.0, 20.0))
 
-    # Create visual segments
+    # Create visual capsules (xform ops are cached internally)
     print("Creating rod visuals...")
-    prim_paths = create_rod_visuals(
+    rod_vis = RodVisuals(
         num_segments=num_segments,
         segment_radius=segment_radius,
         segment_length=segment_length,
     )
 
-    # Create rod solver
-    print("Initializing rod solver...")
-    solver = RodSolver(rod_config, num_envs=1)
-
-    # Position the rod horizontally at height 1.0m
     initial_height = 1.0
-    for i in range(num_segments):
-        solver.data.positions[:, i, 0] = (i + 0.5) * segment_length
-        solver.data.positions[:, i, 1] = 0.0
-        solver.data.positions[:, i, 2] = initial_height
 
-    # Fix the first segment (cantilever boundary condition)
-    solver.data.fix_segment(slice(None), 0)
-    solver.data.sync_to_warp()
+    # Solver instantiation
+    print("Initializing rod solver...")
+    if args_cli.use_xpbd:
+        from isaaclab_newton.solvers import XPBDRodSolver, orientations_xyzw_along_polyline
 
-    # Initial visualization update
-    update_segment_transforms(
-        prim_paths,
-        solver.data.positions[0],
-        solver.data.orientations[0],
-    )
+        solver = XPBDRodSolver(
+            rod_config,
+            num_envs=1,
+            floor_z=None,
+            initial_height=initial_height,
+        )
+        use_newton = True
+    elif args_cli.use_newton_xpbd:
+        from isaaclab_newton.solvers import NewtonXPBDRodSolver, orientations_xyzw_along_polyline
 
-    # Reset simulation
+        solver = NewtonXPBDRodSolver(
+            rod_config,
+            num_envs=1,
+            solver_backend=args_cli.newton_backend,
+            floor_z=None,
+            initial_z=initial_height,
+        )
+        use_newton = True
+    else:
+        solver = RodSolver(rod_config, num_envs=1)
+        for i in range(num_segments):
+            solver.data.positions[:, i, 0] = (i + 0.5) * segment_length
+            solver.data.positions[:, i, 1] = 0.0
+            solver.data.positions[:, i, 2] = initial_height
+        solver.data.fix_segment(slice(None), 0)
+        solver.data.sync_to_warp()
+        use_newton = False
+
+    # Helper to fetch solver state
+    def _get_pos_ori():
+        if args_cli.use_xpbd:
+            p = solver.positions
+            o = orientations_xyzw_along_polyline(p)
+        elif use_newton:
+            p = solver.positions[0]
+            o = orientations_xyzw_along_polyline(p)
+        else:
+            p = solver.data.positions[0]
+            o = solver.data.orientations[0]
+        return p, o
+
+    # Reset → set initial transforms → auto-play
     sim.reset()
+    pos0, ori0 = _get_pos_ori()
+    rod_vis.update(pos0, ori0)
+    sim.step()  # render one frame so capsules appear
+    sim.play()
+
+    if args_cli.use_xpbd:
+        backend_name = "XPBDRodSolver (self-contained)"
+    elif args_cli.use_newton_xpbd:
+        backend_name = "Newton SolverXPBDRod"
+    else:
+        backend_name = "RodSolver"
 
     print("=" * 60)
-    print("Rod Solver Visualization - Simple Version")
-    print("=" * 60)
-    print(f"Number of segments: {num_segments}")
-    print(f"Young's modulus: {args_cli.stiffness:.2e} Pa")
-    print()
-    print("Press PLAY button to start the simulation")
+    print("  Rod Solver Visualization")
+    print(f"  Backend:  {backend_name}")
+    print(f"  Segments: {num_segments}   Radius: {segment_radius}")
+    print(f"  Stiffness: {args_cli.stiffness:.2e} Pa")
+    print(f"  Initial pos[0]:  {pos0[0].tolist()}")
+    print(f"  Initial pos[-1]: {pos0[-1].tolist()}")
     print("=" * 60)
 
-    # Simulation loop
     sim_time = 0.0
     step_count = 0
 
     while simulation_app.is_running():
         if sim.is_playing():
-            # Step the rod solver
             solver.step(dt=sim_cfg.dt)
-
-            # Update visual transforms
-            update_segment_transforms(
-                prim_paths,
-                solver.data.positions[0],
-                solver.data.orientations[0],
-            )
+            pos, ori = _get_pos_ori()
+            rod_vis.update(pos, ori)
 
             sim_time += sim_cfg.dt
             step_count += 1
 
-            # Print status every second
             if step_count % 120 == 0:
-                tip_pos = solver.data.positions[0, -1].cpu().numpy()
+                tip_pos = pos[-1].cpu().numpy()
                 print(
                     f"Time: {sim_time:.2f}s | "
                     f"Tip: ({tip_pos[0]:.3f}, {tip_pos[1]:.3f}, {tip_pos[2]:.3f})"
                 )
 
-        # Step simulation (rendering)
         sim.step()
 
     simulation_app.close()
