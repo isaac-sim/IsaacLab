@@ -314,18 +314,15 @@ class BaseVisualizer(ABC):
 
     def _log_viewer_url(
         self,
-        logger: logging.Logger,
         visualizer_name: str,
         viewer_url: str,
     ) -> None:
         """Queue a visible browser URL block for web-based visualizers.
 
         Args:
-            logger: Unused; kept for call-site compatibility.
             visualizer_name: Name of the visualizer exposing the URL.
             viewer_url: Browser URL for the visualizer.
         """
-        del logger
         parsed_url = urlparse(viewer_url)
         visualizer_label = visualizer_name.removesuffix("Visualizer").lower()
         title = f" {visualizer_label} (listening *:{parsed_url.port}) " if parsed_url.port else f" {visualizer_label} "

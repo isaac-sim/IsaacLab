@@ -119,6 +119,9 @@ class _FakeVisualizer:
     def supports_markers(self):
         return False
 
+    def flush_startup_messages(self):
+        pass
+
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
@@ -562,6 +565,10 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
 
+        @property
+        def share_url(self) -> str | None:
+            return None
+
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
     monkeypatch.setattr(
         viser_visualizer.ViserVisualizer,
@@ -611,6 +618,10 @@ def test_viser_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch
 
         def set_world_offsets(self, spacing) -> None:
             pass
+
+        @property
+        def share_url(self) -> str | None:
+            return None
 
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
     monkeypatch.setattr(viser_visualizer, "_open_viser_web_viewer", lambda url: opened_urls.append(url))

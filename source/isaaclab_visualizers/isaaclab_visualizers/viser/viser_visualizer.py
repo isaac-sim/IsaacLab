@@ -108,6 +108,11 @@ class NewtonViewerViser(ViewerViser):
             )
         self._metadata = metadata or {}
 
+    @property
+    def share_url(self) -> str | None:
+        """Return the public share URL created by Viser, if any."""
+        return self._share_url
+
 
 class ViserVisualizer(BaseVisualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
@@ -273,13 +278,10 @@ class ViserVisualizer(BaseVisualizer):
             record_to_viser=record_to_viser,
             metadata=metadata or {},
         )
-        viewer_url = getattr(self._viewer, "_share_url", None) or _viser_web_viewer_url(
-            self.cfg.port, self.cfg.display_address
-        )
+        viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
         if self.cfg.verbose:
             print()
             self._log_viewer_url(
-                logger,
                 "ViserVisualizer",
                 viewer_url,
             )
