@@ -421,7 +421,7 @@ Before starting full training, launch a quick visualization run to verify the en
 
         .. code-block:: bash
 
-            ./isaaclab.sh train --library rsl_rl \
+            python scripts/reinforcement_learning/rsl_rl/train.py \
                 --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -430,7 +430,7 @@ Before starting full training, launch a quick visualization run to verify the en
 
         .. code-block:: bash
 
-            ./isaaclab.sh train --library rsl_rl \
+            python scripts/reinforcement_learning/rsl_rl/train.py \
                 --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -465,7 +465,7 @@ Launch full training with many parallel environments in headless mode:
 
         .. code-block:: bash
 
-            ./isaaclab.sh train --library rsl_rl \
+            python scripts/reinforcement_learning/rsl_rl/train.py \
                 --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
                 --headless \
                 --num_envs 4096 \
@@ -475,7 +475,7 @@ Launch full training with many parallel environments in headless mode:
 
         .. code-block:: bash
 
-            ./isaaclab.sh train --library rsl_rl \
+            python scripts/reinforcement_learning/rsl_rl/train.py \
                 --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
                 --headless \
                 --num_envs 4096 \
@@ -498,14 +498,18 @@ The training hyperparameters are the same for both robots:
     num_steps_per_env = 512
     max_iterations = 1500
     save_interval = 50
-    empirical_normalization = True
-    obs_groups = {"policy": ["policy"], "critic": ["policy"]}
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
 
-    policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.0,
-        actor_hidden_dims=[256, 128, 64],
-        critic_hidden_dims=[256, 128, 64],
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 64],
         activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+    )
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 64],
+        activation="elu",
+        obs_normalization=True,
     )
 
     algorithm = RslRlPpoAlgorithmCfg(
@@ -571,7 +575,7 @@ Once training completes, evaluate the policy in the play environment:
 
         .. code-block:: bash
 
-            ./isaaclab.sh play --library rsl_rl \
+            python scripts/reinforcement_learning/rsl_rl/play.py \
                 --task Isaac-Deploy-Reach-UR10e-Play-v0 \
                 --num_envs 50 \
                 --visualizer kit
@@ -580,7 +584,7 @@ Once training completes, evaluate the policy in the play environment:
 
         .. code-block:: bash
 
-            ./isaaclab.sh play --library rsl_rl \
+            python scripts/reinforcement_learning/rsl_rl/play.py \
                 --task Isaac-Deploy-Reach-Rizon4s-Play-v0 \
                 --num_envs 50 \
                 --visualizer kit
@@ -596,12 +600,12 @@ To load a specific checkpoint, use these arguments:
 .. code-block:: bash
 
     # Load from a specific run folder
-    ./isaaclab.sh play --library rsl_rl \
+    python scripts/reinforcement_learning/rsl_rl/play.py \
         --task Isaac-Deploy-Reach-UR10e-Play-v0 \
         --load_run 2025-01-15_14-30-00
 
     # Load a specific checkpoint file
-    ./isaaclab.sh play --library rsl_rl \
+    python scripts/reinforcement_learning/rsl_rl/play.py \
         --task Isaac-Deploy-Reach-UR10e-Play-v0 \
         --checkpoint /path/to/model_1500.pt
 

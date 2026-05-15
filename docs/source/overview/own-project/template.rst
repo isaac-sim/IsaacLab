@@ -178,14 +178,14 @@ Here are some general commands to get started with it:
 
         .. code-block:: bash
 
-          ./isaaclab.sh train --library <specific-rl-library> --task=<Task-Name>
+          python scripts/reinforcement_learning/<specific-rl-library>/train.py --task=<Task-Name>
 
     .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
 
         .. code-block:: batch
 
-          isaaclab.bat train --library <specific-rl-library> --task=<Task-Name>
+          python scripts\reinforcement_learning\<specific-rl-library>\train.py --task=<Task-Name>
 
 * Run a task with dummy agents.
 

@@ -28,28 +28,6 @@ There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab. Fo
 **without Isaac Sim** (Newton backend only), see the :ref:`kitless-installation` section of the
 installation guide — just clone the repo and run ``./isaaclab.sh -i``.
 
-If you are using ``uv`` from a source checkout, you can also let ``uv`` create and sync the
-environment directly from the command you want to run:
-
-.. code-block:: bash
-
-   git clone https://github.com/isaac-sim/IsaacLab.git
-   cd IsaacLab
-
-   # Default environment, useful for checking entrypoints
-   uv run train --help
-
-   # Newton backend training without Isaac Sim
-   uv run train --library rsl_rl \
-      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
-
-   # Add OVRTX/OVPhysX extras only when the workflow needs them
-   uv run --extra ov --extra rtx train --library rsl_rl \
-      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
-
-The default ``uv`` environment includes the RSL-RL, tasks, and Newton dependency stacks.
-Isaac Sim Kit workflows, including PhysX, should use the existing full installation path.
-
 For the full pip-based installation (recommended for most users), we use **uv** as the preferred
 package manager. To begin, create a virtual environment:
 
@@ -198,13 +176,12 @@ To try now, click the button below. To learn more about how to use this project,
 Launch Training
 -------------------
 
-The various reinforcement learning libraries in Isaac Lab are accessed through the unified
-``train`` and ``play`` commands.
-Invoking these commands will require a **Task Name** and a corresponding **Entry Point** to the gymnasium API. For example
+The various backends of Isaac Lab are accessed through their corresponding ``train.py`` and ``play.py`` scripts located in the ``scripts/reinforcement_learning`` directory.
+Invoking these scripts will require a **Task Name** and a corresponding **Entry Point** to the gymnasium API. For example
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --library skrl --task=Isaac-Ant-v0
+    python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Ant-v0
 
 This will train the mujoco ant to "run".  You can see the various launch option available to you with the ``--help`` flag.  Note specifically the ``--num_envs`` option and the ``--headless`` flag,
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
@@ -218,20 +195,20 @@ Use the ``presets=`` argument to select the physics backend at runtime:
 .. code-block:: bash
 
    # MJWarp (Newton backend, Kit-less) with Newton visualizer
-    ./isaaclab.sh train --library rsl_rl \
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit) — requires Isaac Sim installed
-    ./isaaclab.sh train --library rsl_rl \
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=physx
 
    # MJWarp with a specific visualizer
-    ./isaaclab.sh train --library rsl_rl \
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \

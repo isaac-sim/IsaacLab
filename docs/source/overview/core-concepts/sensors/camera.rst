@@ -149,13 +149,13 @@ The active preset is selected at launch via the ``presets=`` CLI argument:
 .. code-block:: bash
 
    # Use Newton Warp renderer
-   ./isaaclab.sh train --library rsl_rl --task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=newton_renderer
+   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=newton_renderer
 
    # Use OVRTX renderer
-   ./isaaclab.sh train --library rsl_rl --task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=ovrtx_renderer
 
    # Use default (Isaac RTX)
-   ./isaaclab.sh train --library rsl_rl --task=Isaac-Cartpole-RGB-Camera-Direct-v0
+   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0
 
 
 Accessing camera data
@@ -173,7 +173,7 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
 
 .. code-block:: shell
 
-    ./isaaclab.sh train --library rl_games \
+    python scripts/reinforcement_learning/rl_games/train.py \
         --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
 
 

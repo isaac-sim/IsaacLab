@@ -25,28 +25,28 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --library rsl_rl --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --library rl_games --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --library skrl --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --library sb3 --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run the training script with the task ``Isaac-Cartpole-v0`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
@@ -216,7 +216,7 @@ override is given:
 .. code-block:: bash
 
     # Use Newton physics backend
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Reach-Franka-v0 env.physics=newton_mjwarp
+    python train.py --task=Isaac-Reach-Franka-v0 env.physics=newton_mjwarp
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -236,10 +236,10 @@ disabled unless explicitly selected:
 .. code-block:: bash
 
     # camera is None -- no camera overhead
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Reach-Franka-v0
+    python train.py --task=Isaac-Reach-Franka-v0
 
     # activate camera with the "large" preset
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Reach-Franka-v0 env.scene.camera=large
+    python train.py --task=Isaac-Reach-Franka-v0 env.scene.camera=large
 
 
 .. _hydra-backend-solver-presets:
@@ -299,10 +299,10 @@ is currently beta.
 .. code-block:: bash
 
     # Select the Kamino solver preset everywhere it is defined
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Cartpole-v0 presets=newton_kamino
+    python train.py --task=Isaac-Cartpole-v0 presets=newton_kamino
 
     # Select the Kamino solver preset for a specific physics config path
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Cartpole-v0 env.sim.physics=newton_kamino
+    python train.py --task=Isaac-Cartpole-v0 env.sim.physics=newton_kamino
 
 The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct-v0``,
 ``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. Passing
@@ -352,7 +352,7 @@ including inside dict-valued fields such as ``actuators``:
 .. code-block:: bash
 
     # Select MJWarp preset globally -- sets armature to 0.01
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
 
 
 Using Presets
@@ -362,7 +362,7 @@ Using Presets
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
         env.events=newton_mjwarp
 
 **Global presets** -- apply the same preset name everywhere it exists:
@@ -370,21 +370,21 @@ Using Presets
 .. code-block:: bash
 
     # Apply "newton_mjwarp" preset to all configs that define it
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
         presets=newton_mjwarp
 
 **Multiple global presets** -- apply several non-conflicting presets:
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
         presets=newton_mjwarp,inference
 
 **Combined** -- global presets + scalar overrides:
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
         presets=newton_mjwarp \
         env.sim.dt=0.002
 
@@ -419,10 +419,10 @@ actuator armature is set to ``0.01``.
 .. code-block:: bash
 
     # Default (PhysX events, armature=0.0)
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
 
     # MJWarp (Newton events, armature=0.01)
-    ./isaaclab.sh train --library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
 
 
 Summary

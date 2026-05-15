@@ -3,8 +3,7 @@
 Quick Installation
 =======================
 
-The fastest path from a fresh clone is to let ``uv`` create and sync the environment for
-the command you are running:
+``./isaaclab.sh -i`` installs everything needed to run with Newton Physics out of the box.
 
 .. code-block:: bash
 
@@ -15,20 +14,16 @@ the command you are running:
    git clone https://github.com/isaac-sim/IsaacLab.git
    cd IsaacLab
 
-   # Check the unified training entrypoint
-   uv run train --help
+   # Create environment and install
+   uv venv --python 3.12 --seed env_isaaclab
+   source env_isaaclab/bin/activate
+   ./isaaclab.sh -i
 
-   # Run training with the default RSL-RL + Newton stack
-   uv run train --library rsl_rl \
+   # Run training (MJWarp on the Newton backend, 16 envs)
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task=Isaac-Cartpole-Direct-v0 \
      --num_envs=16 --max_iterations=10 \
      presets=newton_mjwarp --visualizer newton
-
-The default ``uv`` environment includes the RSL-RL, tasks, and Newton dependency
-stacks. Add extras such as ``ov`` or ``rtx`` only when a workflow needs them.
-Isaac Sim Kit workflows, including PhysX, should use the existing full installation
-path. The ``./isaaclab.sh -i`` installer remains available for users who prefer an
-explicit virtual environment setup.
 
 
 Running Tasks
@@ -39,20 +34,20 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
 .. code-block:: bash
 
    # MJWarp (Newton backend, Kit-less)
-    ./isaaclab.sh train --library rsl_rl \
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \
      --visualizer newton
 
-   # PhysX (Kit — requires Isaac Sim from the full installation path)
-    ./isaaclab.sh train --library rsl_rl \
+   # PhysX (Kit — requires Isaac Sim)
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=physx
 
    # MJWarp with a specific visualizer
-    ./isaaclab.sh train --library rsl_rl \
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \
