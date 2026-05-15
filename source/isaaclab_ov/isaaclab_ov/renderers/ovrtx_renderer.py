@@ -569,14 +569,14 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with frame.render_vars["LdrColor"].map(device=Device.CUDA, device_id=self._device_id) as mapping:
+                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
                     tiled_data = wp.from_dlpack(mapping.tensor)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
-            with frame.render_vars[depth_var].map(device=Device.CUDA, device_id=self._device_id) as mapping:
+            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
                 tiled_depth_data = wp.from_dlpack(mapping.tensor)
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
@@ -586,14 +586,12 @@ class OVRTXRenderer(BaseRenderer):
             break
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA, device_id=self._device_id) as mapping:
+            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentation"].map(
-                device=Device.CUDA, device_id=self._device_id
-            ) as mapping:
+            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
                 if tiled_semantic_data.dtype == wp.uint32:
