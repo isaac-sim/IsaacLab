@@ -1046,6 +1046,59 @@ Optimize XR Performance
    perceptible quality loss. Reduce further only if you still cannot hit the headset's display
    rate.
 
+.. dropdown:: Configure retargeting execution
+   :open:
+
+   Isaac Teleop can run retargeting either synchronously on the application thread or
+   asynchronously through a pipelined worker. This is controlled by
+   ``RetargetingExecutionConfig``.
+
+   In synchronous mode, retargeting runs inline with the simulation step. This can be the
+   best choice for lightweight retargeting or retargeting implemented mostly in Python,
+   since a background Python worker can still contend with the application thread through
+   the GIL.
+
+   In pipelined mode, Isaac Teleop submits retargeting work to a background worker and the
+   application uses the most recent completed result. This is useful when retargeting has
+   enough native work to overlap with simulation or rendering, or when the retargeting cost
+   is large enough that running it inline would directly extend the frame.
+
+   .. code-block:: python
+
+      retargeting_execution=RetargetingExecutionConfig(
+          mode="pipelined",
+          pacing=DeadlinePacingConfig(safety_margin_s=0.025),
+      )
+
+   ``DeadlinePacingConfig`` intentionally delays the background retargeting work until
+   closer to when the next result is needed, instead of starting it immediately when the
+   request is submitted. This helps avoid competing with the Python work Isaac Lab performs
+   at the beginning of the frame, and tends to line the retargeting work up with rendering
+   or other native work where overlap is more useful.
+
+   The ``safety_margin_s`` value controls how early retargeting starts before the predicted
+   deadline. A larger margin starts retargeting earlier, which gives heavier or more variable
+   retargeting work more time to finish before the next frame consumes the result. The
+   trade-off is that the input sample may be slightly older, and Python-heavy retargeting
+   may introduce more GIL contention.
+
+   If retargeting is mostly Python and lightweight, consider ``mode="sync"``. If retargeting
+   performs substantial native work or has occasional long spikes, use ``mode="pipelined"``
+   and increase ``safety_margin_s`` so the work starts earlier.
+
+.. dropdown:: Check CloudXR frame pacing
+   :open:
+
+   The CloudXR runtime frame pacer attempts to keep the client experience smooth. If the
+   application has repeated frame-time spikes, the pacer may settle at a lower stable frame
+   rate instead of oscillating between rates. This can make a connected client appear slower
+   even when Isaac Lab profiling does not show a proportional simulation-side regression.
+
+   To diagnose or mitigate this case, override CloudXR settings such as
+   ``NV_ENABLE_POSE_WAIT=false`` via a custom ``.env`` file, then point
+   ``teleop_se3_agent.py`` or ``record_demos.py`` at it with ``--cloudxr_env``.
+   See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
+
 
 .. _isaac-teleop-known-issues:
 
