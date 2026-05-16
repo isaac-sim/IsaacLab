@@ -51,15 +51,16 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
     def _build_solver(cls, model: Model, solver_cfg: ProxyCoupledMJWarpVBDSolverCfg) -> None:
         """Construct :class:`SolverProxyCoupled` and populate base-class slots.
 
-        Partitions bodies/joints/shapes between the two entries by
-        grep-matching each prim-path template from
-        :attr:`solver_cfg.mjwarp_prim_paths` / :attr:`solver_cfg.vbd_prim_paths`
-        against ``newton.Model.body_label``:
+        Partitions bodies/joints/shapes between the two entries by resolving
+        :attr:`solver_cfg.mjwarp_bodies` and :attr:`solver_cfg.vbd_bodies`
+        (both ``list[SceneEntityCfg]``) against ``newton.Model.body_label``,
+        using each entry's asset :attr:`prim_path` template (read from
+        :attr:`CoupledNewtonCfg.scene_cfg`) plus an optional
+        :attr:`~isaaclab.managers.SceneEntityCfg.body_names` regex filter:
 
-        - Body labels matching :attr:`solver_cfg.mjwarp_prim_paths` →
-          ``mjc`` entry.
-        - Body labels matching :attr:`solver_cfg.vbd_prim_paths` → ``vbd``
+        - Body labels matching :attr:`solver_cfg.mjwarp_bodies` → ``mjc``
           entry.
+        - Body labels matching :attr:`solver_cfg.vbd_bodies` → ``vbd`` entry.
         - Body labels matching both → :class:`ValueError` (overlapping
           partition is not allowed).
         - Body labels matching neither → :class:`ValueError` (every body must
@@ -73,12 +74,9 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         - Deformable particles (from the inherited registry) all go to the
           ``vbd`` entry.
 
-        Proxy bodies are resolved separately via
-        :meth:`_select_proxy_bodies`: each :class:`SceneEntityCfg` in
-        :attr:`solver_cfg.proxy_bodies` names a scene asset (whose prim_path
-        is read from :attr:`CoupledNewtonCfg.scene_cfg` on the outer cfg
-        accessed via :attr:`PhysicsManager._cfg`) and a list of body-name
-        regexes matched against that asset's body short names.
+        Proxy bodies are resolved separately via :meth:`_select_proxy_bodies`,
+        which uses the same :class:`SceneEntityCfg` machinery on
+        :attr:`solver_cfg.proxy_bodies` plus a ``COLLIDE_SHAPES`` filter.
         """
         # Filter sub-solver cfg dicts down to the kwargs accepted by each solver.
         mj_valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"}
@@ -86,15 +84,16 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         vbd_valid = set(inspect.signature(SolverVBD.__init__).parameters) - {"self", "model"}
         vbd_kw = {k: v for k, v in solver_cfg.vbd_cfg.to_dict().items() if k in vbd_valid}
 
-        mjc_bodies, vbd_bodies, mjc_joints, vbd_joints, mjc_shapes, vbd_shapes = cls._partition_model_by_prim_paths(
+        outer_cfg = PhysicsManager._cfg
+        scene_cfg = outer_cfg.scene_cfg if isinstance(outer_cfg, CoupledNewtonCfg) else None
+        mjc_bodies, vbd_bodies, mjc_joints, vbd_joints, mjc_shapes, vbd_shapes = cls._partition_model_by_entities(
             model,
-            solver_cfg.mjwarp_prim_paths,
-            solver_cfg.vbd_prim_paths,
+            solver_cfg.mjwarp_bodies,
+            solver_cfg.vbd_bodies,
+            scene_cfg,
         )
         vbd_particles = list(range(model.particle_count))
 
-        outer_cfg = PhysicsManager._cfg
-        scene_cfg = outer_cfg.scene_cfg if isinstance(outer_cfg, CoupledNewtonCfg) else None
         proxy_body_ids = cls._select_proxy_bodies(model, solver_cfg.proxy_bodies, scene_cfg)
         if solver_cfg.proxy_bodies and not proxy_body_ids:
             logger.warning(
@@ -193,69 +192,140 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         return re.compile(rf"^{pattern}(/|$)")
 
     @classmethod
-    def _partition_model_by_prim_paths(
+    def _resolve_entity_to_body_ids(
         cls,
         model: Model,
-        mjwarp_prim_paths: list[str],
-        vbd_prim_paths: list[str],
-    ) -> tuple[list[int], list[int], list[int], list[int], list[int], list[int]]:
-        """Split bodies/joints/shapes between MuJoCo and VBD entries by prim path.
+        entity_cfg: SceneEntityCfg,
+        scene_cfg: InteractiveSceneCfg,
+        field: str,
+    ) -> list[int]:
+        """Resolve one :class:`SceneEntityCfg` to a list of ``model.body_label`` indices.
 
-        Each body's owner is decided by matching its ``model.body_label`` (the
-        full USD prim path post-cloning) against the prim-path templates from
-        :attr:`ProxyCoupledMJWarpVBDSolverCfg.mjwarp_prim_paths` and
-        :attr:`vbd_prim_paths`. Joints inherit their child body's owner.
-        Shapes inherit their body's owner; static shapes (``body == -1``) are
-        duplicated into both buckets.
+        The asset's :attr:`prim_path` template (looked up on ``scene_cfg`` by
+        :attr:`SceneEntityCfg.name`) scopes the body-label match. If
+        :attr:`SceneEntityCfg.body_names` is set, each pattern is full-matched
+        against the body's short name (segment after the last ``/``) — same
+        convention as :func:`isaaclab.utils.string.resolve_matching_names`. If
+        :attr:`body_names` is ``None``, every body under the asset's
+        :attr:`prim_path` is matched.
+
+        Args:
+            field: Cfg attribute name (e.g. ``"mjwarp_bodies"``) used in error
+                messages so the user sees which field is misconfigured.
 
         Raises:
-            ValueError: If any body matches both partition lists (overlap), or
-                if any body matches neither (unclaimed).
+            ValueError: If the asset is not on ``scene_cfg``, or if any
+                ``body_names`` pattern matches zero bodies on the asset.
         """
+        asset_cfg = getattr(scene_cfg, entity_cfg.name, None)
+        if asset_cfg is None or not hasattr(asset_cfg, "prim_path"):
+            raise ValueError(
+                f"ProxyCoupledMJWarpVBDSolverCfg.{field} references scene entity "
+                f"{entity_cfg.name!r}, which is not on the attached scene cfg (or lacks `prim_path`)."
+            )
+        asset_regex = cls._prim_path_template_to_regex(asset_cfg.prim_path)
+        patterns = entity_cfg.body_names
+        if isinstance(patterns, str):
+            patterns = [patterns]
+
+        if patterns is None:
+            return [
+                body_id
+                for body_id in range(int(model.body_count))
+                if body_id < len(model.body_label) and asset_regex.match(model.body_label[body_id])
+            ]
+
+        compiled = [re.compile(p) for p in patterns]
+        matched_per_pattern: list[list[str]] = [[] for _ in compiled]
+        body_ids: list[int] = []
+        for body_id in range(int(model.body_count)):
+            if body_id >= len(model.body_label):
+                continue
+            lbl = model.body_label[body_id]
+            if not asset_regex.match(lbl):
+                continue
+            short = lbl.rsplit("/", 1)[-1] if "/" in lbl else lbl
+            hit_index = next((i for i, rx in enumerate(compiled) if rx.fullmatch(short)), None)
+            if hit_index is None:
+                continue
+            matched_per_pattern[hit_index].append(short)
+            body_ids.append(body_id)
+
+        unmatched = [p for p, m in zip(patterns, matched_per_pattern) if not m]
+        if unmatched:
+            raise ValueError(
+                f"ProxyCoupledMJWarpVBDSolverCfg.{field}: asset {entity_cfg.name!r} has no bodies "
+                f"matching {unmatched}. Check the regex against the asset's body short names."
+            )
+        return body_ids
+
+    @classmethod
+    def _partition_model_by_entities(
+        cls,
+        model: Model,
+        mjwarp_bodies: list[SceneEntityCfg],
+        vbd_bodies: list[SceneEntityCfg],
+        scene_cfg: InteractiveSceneCfg | None,
+    ) -> tuple[list[int], list[int], list[int], list[int], list[int], list[int]]:
+        """Split bodies/joints/shapes between MuJoCo and VBD entries.
+
+        Each body's owner is decided by resolving the
+        :class:`SceneEntityCfg` entries in
+        :attr:`ProxyCoupledMJWarpVBDSolverCfg.mjwarp_bodies` and
+        :attr:`vbd_bodies` via :meth:`_resolve_entity_to_body_ids`. Joints
+        inherit their child body's owner. Shapes inherit their body's owner;
+        static shapes (``body == -1``) always go to the VBD entry.
+
+        Raises:
+            ValueError: If ``scene_cfg`` is missing (and either partition is
+                non-empty), if any body matches both partition lists
+                (overlap), or if any body matches neither (unclaimed).
+        """
+        if scene_cfg is None and (mjwarp_bodies or vbd_bodies):
+            raise ValueError(
+                "ProxyCoupledMJWarpVBDSolverCfg requires the outer physics cfg to be a "
+                "`CoupledNewtonCfg` with `scene_cfg=self.scene` set so `mjwarp_bodies` / "
+                "`vbd_bodies` SceneEntityCfg specs can be resolved."
+            )
+
         body_count = int(model.body_count)
         joint_count = int(model.joint_count)
         shape_count = int(model.shape_count)
 
-        mjwarp_regexes = [cls._prim_path_template_to_regex(p) for p in mjwarp_prim_paths]
-        vbd_regexes = [cls._prim_path_template_to_regex(p) for p in vbd_prim_paths]
+        mjc_owned: set[int] = set()
+        for spec in mjwarp_bodies:
+            mjc_owned.update(cls._resolve_entity_to_body_ids(model, spec, scene_cfg, "mjwarp_bodies"))
+        vbd_owned: set[int] = set()
+        for spec in vbd_bodies:
+            vbd_owned.update(cls._resolve_entity_to_body_ids(model, spec, scene_cfg, "vbd_bodies"))
 
-        # Classify each body.
-        body_owner: list[str | None] = [None] * body_count
-        overlapping: list[tuple[int, str]] = []
-        unclaimed: list[tuple[int, str]] = []
-        for b in range(body_count):
-            if b >= len(model.body_label):
-                continue
-            lbl = model.body_label[b]
-            in_mj = any(rx.match(lbl) for rx in mjwarp_regexes)
-            in_vbd = any(rx.match(lbl) for rx in vbd_regexes)
-            if in_mj and in_vbd:
-                overlapping.append((b, lbl))
-                continue
-            if in_mj:
-                body_owner[b] = "mjc"
-            elif in_vbd:
-                body_owner[b] = "vbd"
-            else:
-                unclaimed.append((b, lbl))
-
-        if overlapping:
-            previews = ", ".join(f"{b}:{lbl!r}" for b, lbl in overlapping[:5])
+        overlapping_ids = sorted(mjc_owned & vbd_owned)
+        if overlapping_ids:
+            previews = ", ".join(f"{b}:{model.body_label[b]!r}" for b in overlapping_ids[:5])
             raise ValueError(
-                f"ProxyCoupledMJWarpVBDSolverCfg: {len(overlapping)} bodies match both "
-                f"mjwarp_entities and vbd_entities. First few: {previews}. Make sure each "
+                f"ProxyCoupledMJWarpVBDSolverCfg: {len(overlapping_ids)} bodies match both "
+                f"`mjwarp_bodies` and `vbd_bodies`. First few: {previews}. Make sure each "
                 f"scene entity is declared in at most one partition list."
             )
-        if unclaimed:
-            previews = ", ".join(f"{b}:{lbl!r}" for b, lbl in unclaimed[:5])
+        unclaimed_ids = [
+            b for b in range(body_count) if b < len(model.body_label) and b not in mjc_owned and b not in vbd_owned
+        ]
+        if unclaimed_ids:
+            previews = ", ".join(f"{b}:{model.body_label[b]!r}" for b in unclaimed_ids[:5])
             raise ValueError(
-                f"ProxyCoupledMJWarpVBDSolverCfg: {len(unclaimed)} bodies are not claimed by "
-                f"any entity in mjwarp_entities or vbd_entities. First few: {previews}. Add "
-                f"their scene entities to one of the partition lists."
+                f"ProxyCoupledMJWarpVBDSolverCfg: {len(unclaimed_ids)} bodies are not claimed by "
+                f"any entity in `mjwarp_bodies` or `vbd_bodies`. First few: {previews}. Add their "
+                f"scene entities to one of the partition lists."
             )
 
-        mjc_bodies = [b for b in range(body_count) if body_owner[b] == "mjc"]
-        vbd_bodies = [b for b in range(body_count) if body_owner[b] == "vbd"]
+        body_owner: list[str | None] = [None] * body_count
+        for b in mjc_owned:
+            body_owner[b] = "mjc"
+        for b in vbd_owned:
+            body_owner[b] = "vbd"
+
+        mjc_bodies_out = sorted(mjc_owned)
+        vbd_bodies_out = sorted(vbd_owned)
 
         # Joints follow their child body's owner. Joints with no child (or
         # whose child wasn't classified — only possible for body indices past
@@ -291,7 +361,7 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
             elif owner == "vbd":
                 vbd_shapes.append(s)
 
-        return mjc_bodies, vbd_bodies, mjc_joints, vbd_joints, mjc_shapes, vbd_shapes
+        return mjc_bodies_out, vbd_bodies_out, mjc_joints, vbd_joints, mjc_shapes, vbd_shapes
 
     @classmethod
     def _select_proxy_bodies(
@@ -302,21 +372,17 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
     ) -> list[int]:
         """Resolve proxy bodies from per-asset :class:`SceneEntityCfg` specs.
 
-        For each spec, the asset's :attr:`prim_path` template (looked up on
-        ``scene_cfg`` by :attr:`SceneEntityCfg.name`) scopes the search to
-        body labels descending from that asset, then each pattern in
-        :attr:`SceneEntityCfg.body_names` is full-matched against the short
-        name (last path segment) of the body label — same convention as
-        :func:`isaaclab.utils.string.resolve_matching_names` used by
-        :class:`~isaaclab.envs.mdp.BinaryJointPositionActionCfg`. Matched
-        bodies are then filtered to those owning at least one shape flagged
-        ``COLLIDE_SHAPES``.
+        Calls :meth:`_resolve_entity_to_body_ids` per entry (so the
+        asset-scoped + ``body_names``-regex semantics match
+        :attr:`mjwarp_bodies` / :attr:`vbd_bodies`), then filters to bodies
+        that own at least one shape flagged ``COLLIDE_SHAPES``.
+        :attr:`SceneEntityCfg.body_names` is **required** here — proxies are
+        a subset, not "every body under the asset".
 
         Raises:
             ValueError: If :attr:`proxy_bodies` is non-empty but ``scene_cfg``
-                is missing, if a referenced asset is not on the scene cfg, if
-                an entry has no ``body_names``, or if any body-name regex
-                matches zero bodies on its asset.
+                is missing, if any entry has ``body_names=None``, or if any
+                body-name regex matches zero bodies on its asset.
         """
         if not proxy_bodies:
             return []
@@ -342,47 +408,18 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         proxy_ids: list[int] = []
         seen: set[int] = set()
         for spec in proxy_bodies:
-            asset_cfg = getattr(scene_cfg, spec.name, None)
-            if asset_cfg is None or not hasattr(asset_cfg, "prim_path"):
-                raise ValueError(
-                    f"ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies references scene entity "
-                    f"{spec.name!r}, which is not on the attached scene cfg (or lacks `prim_path`)."
-                )
-            asset_regex = cls._prim_path_template_to_regex(asset_cfg.prim_path)
-            patterns = spec.body_names
-            if patterns is None:
+            if spec.body_names is None:
                 raise ValueError(
                     f"ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies entry for {spec.name!r} has "
-                    f"body_names=None. Set body_names to a list of regex patterns."
+                    f"body_names=None. Proxies are a subset of an asset's bodies, so body_names "
+                    f"must be a list of regex patterns."
                 )
-            if isinstance(patterns, str):
-                patterns = [patterns]
-            compiled = [re.compile(p) for p in patterns]
-            matched_per_pattern: list[list[str]] = [[] for _ in compiled]
-
-            for body_id in range(int(model.body_count)):
-                if body_id >= len(model.body_label):
-                    continue
-                lbl = model.body_label[body_id]
-                if not asset_regex.match(lbl):
-                    continue
-                short = lbl.rsplit("/", 1)[-1] if "/" in lbl else lbl
-                hit_index = next((i for i, rx in enumerate(compiled) if rx.fullmatch(short)), None)
-                if hit_index is None:
-                    continue
-                matched_per_pattern[hit_index].append(short)
+            for body_id in cls._resolve_entity_to_body_ids(model, spec, scene_cfg, "proxy_bodies"):
                 if not body_has_collide_shape.get(body_id, False):
                     continue
                 if body_id in seen:
                     continue
                 seen.add(body_id)
                 proxy_ids.append(body_id)
-
-            unmatched = [p for p, m in zip(patterns, matched_per_pattern) if not m]
-            if unmatched:
-                raise ValueError(
-                    f"ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies: asset {spec.name!r} has no "
-                    f"bodies matching {unmatched}. Check the regex against the asset's body short names."
-                )
 
         return proxy_ids
