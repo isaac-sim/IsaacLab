@@ -176,7 +176,8 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     repo_root = _find_repo_root()
 
     # Build the uv base image first.
-    uv_dockerfile = repo_root / "docker" / "Dockerfile.installci"
+    _install_ci_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
+    uv_dockerfile = _install_ci_dir / "Dockerfile.installci"
     uv_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
     rc = _build_image(repo_root, uv_dockerfile, uv_tag, {"BASE_IMAGE": args.base_image}, args.no_cache)
@@ -187,7 +188,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
 
     # If conda mode, build the conda layer on top.
     if getattr(args, "conda", False):
-        conda_dockerfile = repo_root / "docker" / "Dockerfile.installci-conda"
+        conda_dockerfile = _install_ci_dir / "Dockerfile.installci-conda"
         image_tag = f"{uv_tag}-conda"
         rc = _build_image(repo_root, conda_dockerfile, image_tag, {"UV_IMAGE": uv_tag}, args.no_cache)
         if rc != 0:

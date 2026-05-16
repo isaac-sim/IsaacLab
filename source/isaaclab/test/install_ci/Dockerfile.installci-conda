@@ -20,27 +20,30 @@ FROM ${UV_IMAGE}
 
 SHELL ["/bin/bash", "-c"]
 
-# Install Miniconda
+# Switch to root for system-level conda installation
+USER root
+
+# Install Miniconda into the isaaclab user's home directory so the runtime user
+# has full write access for creating environments and caching packages.
 ARG MINICONDA_VERSION=latest
 RUN curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh" \
       -o /tmp/miniconda.sh \
-    && bash /tmp/miniconda.sh -b -p /opt/conda \
-    && rm /tmp/miniconda.sh
+    && bash /tmp/miniconda.sh -b -p /home/isaaclab/miniconda3 \
+    && rm /tmp/miniconda.sh \
+    && chown -R isaaclab:isaaclab /home/isaaclab/miniconda3
 
-ENV PATH="/opt/conda/bin:${PATH}"
+ENV PATH="/home/isaaclab/miniconda3/bin:${PATH}"
 
-# Ensure conda is initialised for non-interactive bash
-RUN conda init bash && \
-    echo "conda activate base" >> ~/.bashrc
+# Drop back to the non-root runtime user for all subsequent steps
+USER isaaclab
 
 # Accept Miniconda default-channel Terms of Service non-interactively so that
 # `conda create` works without user prompts inside the container.
+# Runs as isaaclab so the acceptance is written to /home/isaaclab/.condarc.
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
     conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
-# Install test runner dependencies into the conda base Python so that the
-# ENTRYPOINT (which invokes 'python -m pytest') finds them after the PATH
-# change above shadows the system Python with /opt/conda/bin/python.
+# Install test runner dependencies into the conda base Python
 RUN pip install "pytest>=8.0" "pytest-timeout>=2.0"
 
 # Smoke-test: conda should be functional and pytest importable
