@@ -157,33 +157,33 @@ class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """VBD sub-solver configuration. ``integrate_with_external_rigid_solver``
     defaults to ``True`` because the rigid bodies live in the MuJoCo entry."""
 
-    mjwarp_prim_paths: list[str] = []
-    """USD prim-path templates whose bodies/joints/shapes go to the MuJoCo entry.
+    mjwarp_bodies: list[SceneEntityCfg] = []
+    """Scene-entity specs whose bodies/joints/shapes go to the MuJoCo entry.
 
-    Each pattern is grep-matched against ``newton.Model.body_label`` (which
-    holds the full USD prim path of each body after USD load and per-env
-    cloning); placeholders ``env_.*`` and ``{ENV_REGEX_NS}`` are handled.
+    Each entry is a :class:`~isaaclab.managers.SceneEntityCfg` whose
+    :attr:`~isaaclab.managers.SceneEntityCfg.name` references a scene-
+    registered asset; the asset's :attr:`prim_path` template scopes the
+    body-label match. Optionally
+    :attr:`~isaaclab.managers.SceneEntityCfg.body_names` narrows the match to
+    a list of body-short-name regexes (``re.fullmatch``, same convention as
+    :class:`~isaaclab.envs.mdp.BinaryJointPositionActionCfg.joint_names`);
+    leave it unset to claim every body under the asset's prim_path.
 
-    The env is expected to populate this list directly from its scene entity
-    cfgs, e.g. ``mjwarp_prim_paths=[self.scene.robot.prim_path]``. This keeps
-    the source of truth on the scene entity and stays refactor-safe (renaming
-    the scene field updates the reference).
+    Joints inherit their child body's owner; shapes inherit their body's
+    owner; static shapes (``body == -1``) always go to the VBD entry.
     """
 
-    vbd_prim_paths: list[str] = []
-    """USD prim-path templates whose bodies/joints/shapes/particles go to the
-    VBD entry. Same conventions as :attr:`mjwarp_prim_paths`."""
+    vbd_bodies: list[SceneEntityCfg] = []
+    """Scene-entity specs whose bodies/joints/shapes/particles go to the VBD
+    entry. Same conventions as :attr:`mjwarp_bodies`."""
 
     proxy_bodies: list[SceneEntityCfg] = []
     """Scene-entity specs naming the bodies to expose as proxies in the VBD view.
 
-    Each entry is a :class:`~isaaclab.managers.SceneEntityCfg` with
-    :attr:`~isaaclab.managers.SceneEntityCfg.name` set to a scene-registered
-    asset and :attr:`~isaaclab.managers.SceneEntityCfg.body_names` set to a
-    list of regex patterns (matched with ``re.fullmatch`` against the asset's
-    body short names, same convention as
-    :class:`~isaaclab.envs.mdp.BinaryJointPositionActionCfg.joint_names`).
-    Bodies matching any pattern that also own at least one shape flagged
+    Same shape as :attr:`mjwarp_bodies` / :attr:`vbd_bodies`, but
+    :attr:`~isaaclab.managers.SceneEntityCfg.body_names` is **required** —
+    proxies are a subset, not "every body under the asset". Matched bodies
+    that also own at least one shape flagged
     ``newton.ShapeFlags.COLLIDE_SHAPES`` are promoted to proxies. Empty list
     means no proxies (the solver still runs but rigid bodies are invisible
     to VBD).
