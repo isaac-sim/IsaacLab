@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
-
 from newton import Model
 from newton.solvers import SolverFeatherstone
 
@@ -29,8 +27,7 @@ class NewtonFeatherstoneManager(NewtonManager):
         Featherstone always uses Newton's :class:`CollisionPipeline` and steps
         with separate input/output states, so the flags are fixed.
         """
-        valid = set(inspect.signature(SolverFeatherstone.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = cls._filter_solver_kwargs(SolverFeatherstone, solver_cfg)
         NewtonManager._solver = SolverFeatherstone(model, **kwargs)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True

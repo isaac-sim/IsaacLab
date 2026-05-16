@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import gc
+import inspect
 import logging
 import re
 from abc import abstractmethod
@@ -1501,6 +1502,17 @@ class NewtonManager(PhysicsManager):
                 :class:`NewtonCfg`).
         """
         raise NotImplementedError("NewtonManager subclasses must implement _build_solver()")
+
+    @staticmethod
+    def _filter_solver_kwargs(solver_cls: type, solver_cfg) -> dict:
+        """Return cfg fields that match ``solver_cls.__init__`` parameters.
+
+        Drops keys that the solver constructor doesn't accept (e.g. cfg-only
+        metadata like ``solver_type`` / ``class_type``). ``self`` and ``model``
+        are always excluded — ``model`` is passed positionally at construction.
+        """
+        valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
+        return {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
 
     @classmethod
     def _step_solver(

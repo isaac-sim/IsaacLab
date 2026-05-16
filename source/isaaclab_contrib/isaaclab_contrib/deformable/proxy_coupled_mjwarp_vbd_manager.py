@@ -12,14 +12,12 @@ proxies in the VBD view.
 
 from __future__ import annotations
 
-import inspect
 import logging
 import re
 from typing import TYPE_CHECKING
 
-import newton
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ShapeFlags
+from newton import CollisionPipeline, Model, ShapeFlags
 from newton.solvers import SolverMuJoCo, SolverProxyCoupled, SolverVBD
 
 from isaaclab.managers import SceneEntityCfg
@@ -53,10 +51,8 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         resolves proxies via :meth:`_select_proxy_bodies` from
         :attr:`solver_cfg.proxy_bodies`.
         """
-        mj_valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"}
-        mjc_kw = {k: v for k, v in solver_cfg.mjwarp_cfg.to_dict().items() if k in mj_valid}
-        vbd_valid = set(inspect.signature(SolverVBD.__init__).parameters) - {"self", "model"}
-        vbd_kw = {k: v for k, v in solver_cfg.vbd_cfg.to_dict().items() if k in vbd_valid}
+        mjc_kw = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg.mjwarp_cfg)
+        vbd_kw = cls._filter_solver_kwargs(SolverVBD, solver_cfg.vbd_cfg)
 
         outer_cfg = PhysicsManager._cfg
         scene_cfg = outer_cfg.scene_cfg if isinstance(outer_cfg, CoupledNewtonCfg) else None
@@ -103,8 +99,9 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                     bodies=proxy_body_ids,
                     mode=solver_cfg.proxy_mode,
                     mass_scale=float(solver_cfg.proxy_mass_scale),
-                    collision_pipeline=lambda destination_model: newton.examples.create_collision_pipeline(
-                        destination_model, args=None
+                    collision_pipeline=lambda destination_model: CollisionPipeline(
+                        destination_model,
+                        broad_phase="explicit",
                     ),
                     collide_interval=int(solver_cfg.proxy_collide_interval),
                 )
@@ -187,29 +184,23 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
             patterns = [patterns]
 
         if patterns is None:
-            return [
-                body_id
-                for body_id in range(int(model.body_count))
-                if body_id < len(model.body_label) and asset_regex.match(model.body_label[body_id])
-            ]
+            return [b for b in range(int(model.body_count)) if asset_regex.match(model.body_label[b])]
 
         compiled = [re.compile(p) for p in patterns]
-        matched_per_pattern: list[list[str]] = [[] for _ in compiled]
+        matched_flags: list[bool] = [False] * len(compiled)
         body_ids: list[int] = []
         for body_id in range(int(model.body_count)):
-            if body_id >= len(model.body_label):
-                continue
             lbl = model.body_label[body_id]
             if not asset_regex.match(lbl):
                 continue
-            short = lbl.rsplit("/", 1)[-1] if "/" in lbl else lbl
+            short = lbl.rsplit("/", 1)[-1]
             hit_index = next((i for i, rx in enumerate(compiled) if rx.fullmatch(short)), None)
             if hit_index is None:
                 continue
-            matched_per_pattern[hit_index].append(short)
+            matched_flags[hit_index] = True
             body_ids.append(body_id)
 
-        unmatched = [p for p, m in zip(patterns, matched_per_pattern) if not m]
+        unmatched = [p for p, ok in zip(patterns, matched_flags) if not ok]
         if unmatched:
             raise ValueError(
                 f"ProxyCoupledMJWarpVBDSolverCfg.{field}: asset {entity_cfg.name!r} has no bodies "
@@ -261,9 +252,7 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                 f"`mjwarp_bodies` and `vbd_bodies`. First few: {previews}. Make sure each "
                 f"scene entity is declared in at most one partition list."
             )
-        unclaimed_ids = [
-            b for b in range(body_count) if b < len(model.body_label) and b not in mjc_owned and b not in vbd_owned
-        ]
+        unclaimed_ids = [b for b in range(body_count) if b not in mjc_owned and b not in vbd_owned]
         if unclaimed_ids:
             previews = ", ".join(f"{b}:{model.body_label[b]!r}" for b in unclaimed_ids[:5])
             raise ValueError(
@@ -341,13 +330,11 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         shape_body_np = model.shape_body.numpy() if shape_count else None
         shape_flags_np = model.shape_flags.numpy() if shape_count else None
         collide_flag = int(ShapeFlags.COLLIDE_SHAPES)
-        body_has_collide_shape: dict[int, bool] = {}
-        for s in range(shape_count):
-            body = int(shape_body_np[s])
-            if body < 0:
-                continue
-            if int(shape_flags_np[s]) & collide_flag:
-                body_has_collide_shape[body] = True
+        collide_bodies: set[int] = {
+            int(shape_body_np[s])
+            for s in range(shape_count)
+            if int(shape_body_np[s]) >= 0 and int(shape_flags_np[s]) & collide_flag
+        }
 
         proxy_ids: list[int] = []
         seen: set[int] = set()
@@ -359,9 +346,7 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                     f"must be a list of regex patterns."
                 )
             for body_id in cls._resolve_entity_to_body_ids(model, spec, scene_cfg, "proxy_bodies"):
-                if not body_has_collide_shape.get(body_id, False):
-                    continue
-                if body_id in seen:
+                if body_id not in collide_bodies or body_id in seen:
                     continue
                 seen.add(body_id)
                 proxy_ids.append(body_id)
