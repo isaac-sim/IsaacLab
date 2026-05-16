@@ -50,6 +50,7 @@ new backend, see :doc:`../../multi_backend_architecture`.
   mjwarp-solver
   kamino-solver
   using-vbd-solver
+  using-cables
   newton-manager-abstraction
   warp-environments
   warp-env-migration
