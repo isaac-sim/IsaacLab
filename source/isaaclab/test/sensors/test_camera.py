@@ -377,9 +377,9 @@ def test_intrinsic_matrix(setup_sim_camera):
     sim.reset()
     # Desired properties (obtained from realsense camera at 320x240 resolution)
     rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
+    rs_intrinsic_matrix = np.asarray(rs_intrinsic_matrix, dtype=float).reshape(1, 3, 3)
     # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
+    camera.set_intrinsic_matrices(rs_intrinsic_matrix)
 
     # Simulate physics
     for _ in range(10):
@@ -388,10 +388,10 @@ def test_intrinsic_matrix(setup_sim_camera):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices[0, 0, 2])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices[0, 1, 2])
+        assert np.isclose(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices.torch[0, 0, 0].item())
+        assert np.isclose(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices.torch[0, 1, 1].item())
+        assert np.isclose(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices.torch[0, 0, 2].item())
+        assert np.isclose(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2].item())
 
 
 def test_depth_clipping(setup_sim_camera):

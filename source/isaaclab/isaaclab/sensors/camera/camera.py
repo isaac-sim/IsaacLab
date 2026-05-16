@@ -23,9 +23,11 @@ from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
+    convert_camera_frame_orientation_convention_np,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from ..sensor_base import SensorBase
@@ -119,11 +121,11 @@ class Camera(SensorBase):
             get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # Compute camera orientation (convention conversion) and spawn
-        rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
-        rot_offset = convert_camera_frame_orientation_convention(
+        rot = np.asarray([self.cfg.offset.rot], dtype=np.float32)
+        rot_offset = convert_camera_frame_orientation_convention_np(
             rot, origin=self.cfg.offset.convention, target="opengl"
         )
-        rot_offset = rot_offset.squeeze(0).cpu().numpy()
+        rot_offset = rot_offset.squeeze(0)
         if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
             self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
         self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
@@ -171,7 +173,7 @@ class Camera(SensorBase):
         return self._data
 
     @property
-    def frame(self) -> torch.tensor:
+    def frame(self) -> ProxyArray:
         """Frame number when the measurement took place."""
         return self._frame
 
@@ -185,7 +187,7 @@ class Camera(SensorBase):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: torch.Tensor, focal_length: float | None = None, env_ids: Sequence[int] | None = None
+        self, matrices: np.ndarray, focal_length: float | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
@@ -209,16 +211,18 @@ class Camera(SensorBase):
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
-        # resolve env_ids
         if env_ids is None:
-            env_ids = self._ALL_INDICES
-        # convert matrices to numpy tensors
-        if isinstance(matrices, torch.Tensor):
-            matrices = matrices.cpu().numpy()
+            env_ids_np = np.arange(self._view.count)
+        elif isinstance(env_ids, slice):
+            env_ids_np = np.arange(self._view.count)[env_ids]
         else:
-            matrices = np.asarray(matrices, dtype=float)
+            env_ids_np = np.asarray(env_ids, dtype=np.int32).reshape(-1)
+
+        matrices = np.asarray(matrices, dtype=float)
+        if matrices.ndim == 2:
+            matrices = matrices[None, ...]
         # iterate over env_ids
-        for i, intrinsic_matrix in zip(env_ids, matrices):
+        for i, intrinsic_matrix in zip(env_ids_np, matrices):
             height, width = self.image_shape
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
@@ -239,7 +243,7 @@ class Camera(SensorBase):
                 # set value using pure USD API
                 param_attr().Set(param_value)
         # update the internal buffers
-        self._update_intrinsic_matrices(env_ids)
+        self._update_intrinsic_matrices(env_ids_np)
 
     """
     Operations - Set pose.
@@ -409,7 +413,7 @@ class Camera(SensorBase):
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
-        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
+        self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
 
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:

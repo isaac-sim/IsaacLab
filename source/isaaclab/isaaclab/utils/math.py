@@ -1611,6 +1611,54 @@ def convert_camera_frame_orientation_convention(
         return quat_gl.clone()
 
 
+def convert_camera_frame_orientation_convention_np(
+    orientation: np.ndarray,
+    origin: Literal["opengl", "ros", "world"] = "opengl",
+    target: Literal["opengl", "ros", "world"] = "ros",
+) -> np.ndarray:
+    r"""Converts camera-frame quaternions between conventions using NumPy.
+
+    This is the NumPy equivalent of :func:`convert_camera_frame_orientation_convention`.
+
+    Args:
+        orientation: Quaternion of form ``(x, y, z, w)`` with shape ``(..., 4)`` in source convention.
+        origin: Convention to convert from. Defaults to ``"opengl"``.
+        target: Convention to convert to. Defaults to ``"ros"``.
+
+    Returns:
+        Quaternion of form ``(x, y, z, w)`` with shape ``(..., 4)`` in target convention.
+    """
+    orientation = np.asarray(orientation)
+    if not np.issubdtype(orientation.dtype, np.floating):
+        orientation = orientation.astype(np.float32)
+
+    if target == origin:
+        return orientation.copy()
+
+    conversion_quat = {
+        ("opengl", "ros"): np.array((1.0, 0.0, 0.0, 0.0), dtype=orientation.dtype),
+        ("ros", "opengl"): np.array((1.0, 0.0, 0.0, 0.0), dtype=orientation.dtype),
+        ("world", "opengl"): np.array((0.5, -0.5, -0.5, 0.5), dtype=orientation.dtype),
+        ("opengl", "world"): np.array((-0.5, 0.5, 0.5, 0.5), dtype=orientation.dtype),
+        ("ros", "world"): np.array((0.5, -0.5, 0.5, 0.5), dtype=orientation.dtype),
+        ("world", "ros"): np.array((-0.5, 0.5, -0.5, 0.5), dtype=orientation.dtype),
+    }.get((origin, target))
+    if conversion_quat is None:
+        raise ValueError(f"Invalid camera frame convention conversion: {origin!r} to {target!r}.")
+
+    x1, y1, z1, w1 = np.moveaxis(orientation, -1, 0)
+    x2, y2, z2, w2 = conversion_quat
+    return np.stack(
+        (
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+        ),
+        axis=-1,
+    )
+
+
 def create_rotation_matrix_from_view(
     eyes: torch.Tensor,
     targets: torch.Tensor,
