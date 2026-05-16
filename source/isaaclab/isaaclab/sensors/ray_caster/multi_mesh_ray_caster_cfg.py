@@ -9,7 +9,7 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .ray_caster_cfg import RayCasterCfg
 

@@ -237,3 +237,4 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
    source_installation
    isaaclab_pip_installation
    asset_caching
+   uv run (experimental) <uv_run>

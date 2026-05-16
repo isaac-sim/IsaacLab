@@ -40,9 +40,9 @@ Once the container is up and running, we can enter it from our terminal.
    python docker/container.py enter
 
 
-On entering the Isaac Lab container, we are in the terminal as the superuser, ``root``. This environment contains a copy of the
+On entering the Isaac Lab container, we are in the terminal as a non-root user. This environment contains a copy of the
 Isaac Lab repository, but also has access to the directories and libraries of Isaac Sim. We can run experiments from this environment
-using a few convenient aliases that have been put into the ``root`` **.bashrc**. For instance, we have made the **isaaclab.sh** script
+using a few convenient aliases that have been put into the runtime user's **.bashrc**. For instance, we have made the **isaaclab.sh** script
 usable from anywhere by typing its alias ``isaaclab``.
 
 Additionally in the container, we have `bind mounted`_ the ``IsaacLab/source`` directory from the
