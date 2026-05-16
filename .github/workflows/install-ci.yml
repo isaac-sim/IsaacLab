@@ -148,6 +148,7 @@ jobs:
           RUNNER_ARGS="--base-image $BASE_IMAGE"
           RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
           RUNNER_ARGS="$RUNNER_ARGS --gpu"
+          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
 
           PYTEST_EXTRA_ARGS=(-sv -m uv)
           if [ -n "$TEST_FILTER" ]; then
@@ -174,6 +175,7 @@ jobs:
           RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results-conda"
           RUNNER_ARGS="$RUNNER_ARGS --gpu"
           RUNNER_ARGS="$RUNNER_ARGS --conda"
+          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
 
           PYTEST_EXTRA_ARGS=(-sv -m conda)
           if [ -n "$TEST_FILTER" ]; then

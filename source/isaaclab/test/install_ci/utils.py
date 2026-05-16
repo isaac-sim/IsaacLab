@@ -273,6 +273,12 @@ class Conda_Mixin:
                 self.destroy_conda_env()
     """
 
+    @property
+    def cli_script(self) -> Path:
+        """Path to ``isaaclab.sh`` (or ``.bat``) inside the repository root."""
+        root: Path = self._isaaclab_root  # type: ignore[attr-defined]
+        return root / ("isaaclab.bat" if _IS_WINDOWS else "isaaclab.sh")
+
     def create_conda_env(self, isaaclab_root: Path, env_name: str = "", python_version: str = "3.12") -> None:
         """Create an isolated conda environment.
 
@@ -288,7 +294,6 @@ class Conda_Mixin:
             env_name = f"isaaclab_ci_{uuid.uuid4().hex[:8]}"
         self._conda_env_name = env_name
         self._isaaclab_root = isaaclab_root
-        self.cli_script = isaaclab_root / ("isaaclab.bat" if _IS_WINDOWS else "isaaclab.sh")
 
         result = run_cmd(
             ["conda", "create", "-n", env_name, f"python={python_version}", "-y", "--quiet"],
