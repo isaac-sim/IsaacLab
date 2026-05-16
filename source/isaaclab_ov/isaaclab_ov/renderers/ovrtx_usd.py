@@ -7,14 +7,8 @@
 
 import logging
 import math
-import tempfile
-from pathlib import Path
-from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd, UsdGeom
-
-if TYPE_CHECKING:
-    from .ovrtx_renderer_cfg import OVRTXRendererCfg
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +99,7 @@ def _tiled_resolution(num_envs: int, width: int, height: int) -> tuple[int, int]
     return num_cols * width, num_rows * height
 
 
-def inject_cameras_into_usd(
-    usd_scene_path: str,
-    cfg: "OVRTXRendererCfg",
+def build_render_product_as_string(
     width: int,
     height: int,
     num_envs: int,
@@ -115,24 +107,21 @@ def inject_cameras_into_usd(
     minimal_mode: int | None = None,
     camera_rel_path: str = "Camera",
 ) -> tuple[str, str]:
-    """Inject camera and render product definitions into an existing USD file.
+    """Build the render product USD snippet as a string.
 
-    Reads the USD file, appends a Render scope (cameras + RenderProduct + Vars),
-    writes to a temp file in cfg.temp_usd_dir, and returns (path_to_combined_usd, render_product_path).
+    This string is meant to be appended to an exported stage (ASCII) before loading into OVRTX.
 
     Args:
-        usd_scene_path: Path to the base USD scene.
-        cfg: OVRTX renderer config (simple_shading_mode, temp_usd_dir, temp_usd_suffix).
-        width: Tile width from sensor config.
-        height: Tile height from sensor config.
+        width: Tile width from sensor config [px].
+        height: Tile height from sensor config [px].
         num_envs: Number of environments from scene.
         data_types: Data types from sensor config.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
         camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
-    """
-    with open(usd_scene_path) as f:
-        original_usd = f.read()
 
+    Returns:
+        Tuple of (render product USD snippet as a string, absolute render product prim path).
+    """
     data_types = data_types if data_types else ["rgb"]
     tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
 
@@ -152,14 +141,7 @@ def inject_cameras_into_usd(
         tiled_height,
         minimal_mode,
     )
-    combined_usd = original_usd.rstrip() + "\n\n" + camera_content
-
-    Path(cfg.temp_usd_dir).mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", suffix=cfg.temp_usd_suffix, delete=False, dir=cfg.temp_usd_dir) as f:
-        f.write(combined_usd)
-        temp_path = f.name
-    logger.info("Created combined USD: %s", temp_path)
-    return temp_path, render_product_path
+    return camera_content, render_product_path
 
 
 def create_scene_partition_attributes(
@@ -207,40 +189,38 @@ def create_scene_partition_attributes(
                 logger.debug("Set scene partition '%s' on prim '%s'", scene_partition, prim.GetPath())
 
 
-def export_stage_for_ovrtx(stage, export_path: str, num_envs: int, use_ovrtx_cloning: bool = True) -> str:
-    """Export the stage to a USD file; when num_envs > 1, only env_0 is exported for OVRTX cloning.
+def export_stage_to_string(stage, num_envs: int, use_ovrtx_cloning: bool = True) -> str:
+    """Export the stage to a string; when num_envs > 1, only env_0 is exported for OVRTX cloning.
 
     When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
-    them after, so the file contains only env_0. The stage is modified in place.
+    them after, so the exported content contains only env_0. The stage is modified in place.
 
     Args:
         stage: USD stage to export.
-        export_path: Path for the exported file.
         num_envs: Number of environments.
+        use_ovrtx_cloning: Whether OVRTX cloning is enabled.
 
     Returns:
-        export_path (same as input).
+        The exported stage as a string.
     """
-    deactivated = []
+    deactivated_prims = []
     if use_ovrtx_cloning and num_envs > 1:
-        logger.info("Deactivating %d cloned environments...", num_envs - 1)
+        logger.info("Deactivating %d environment roots...", num_envs - 1)
         for env_idx in range(1, num_envs):
             env_path = f"/World/envs/env_{env_idx}"
             prim = stage.GetPrimAtPath(env_path)
             if prim.IsValid() and prim.IsActive():
                 prim.SetActive(False)
-                deactivated.append(prim)
-                if env_idx <= 3 or env_idx == num_envs - 1:
-                    logger.info("Deactivated: %s", env_path)
-        if num_envs > 5:
-            logger.info("... (deactivated %d environments total)", len(deactivated))
+                deactivated_prims.append(prim)
+                logger.debug("Deactivated environment root: %s", env_path)
+
+        logger.info("Deactivated %d environment roots in total", len(deactivated_prims))
 
     try:
-        stage.Export(export_path)
-        return export_path
+        return stage.ExportToString()
     finally:
-        if deactivated:
-            logger.info("Reactivating %d environments...", len(deactivated))
-            for prim in deactivated:
+        if deactivated_prims:
+            logger.info("Reactivating %d environment roots...", len(deactivated_prims))
+            for prim in deactivated_prims:
                 if prim.IsValid():
                     prim.SetActive(True)

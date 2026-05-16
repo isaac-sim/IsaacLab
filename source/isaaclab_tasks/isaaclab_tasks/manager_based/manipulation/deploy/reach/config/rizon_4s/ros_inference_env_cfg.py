@@ -5,7 +5,7 @@
 
 import math
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .joint_pos_env_cfg import Rizon4sReachEnvCfg
 
