@@ -85,6 +85,7 @@ runs:
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
+          local docker_runtime_dir=""
 
           # Kill the container immediately if the runner is cancelled.
           # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
@@ -94,6 +95,7 @@ runs:
                 docker kill '${container_name}' 2>/dev/null || true; \
                 docker rm -f '${container_name}' 2>/dev/null || true; \
                 rm -f '${docker_wait_file}'; \
+                if [ -n \"\$docker_runtime_dir\" ]; then rm -rf \"\$docker_runtime_dir\" 2>/dev/null || true; fi; \
                 if [ -n \"\$logs_pid\" ]; then kill \"\$logs_pid\" 2>/dev/null || true; fi; \
                 if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
                 exit 130" HUP INT TERM
@@ -180,15 +182,55 @@ runs:
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
           fi
 
-          echo "Docker environment variables: '$docker_env_vars'"
-
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
           # source code over /workspace/isaaclab instead of baking it into the image.
           docker_volume_args=""
+          docker_user_args=""
           if [ -n "$volume_mount_source" ]; then
-            docker_volume_args="-v ${volume_mount_source}:/workspace/isaaclab"
+            host_uid="$(id -u)"
+            host_gid="$(id -g)"
+            host_user="$(id -un)"
+            # Kit writes generated cache, config, data, and log files outside
+            # the Isaac Lab source tree. Provide writable runtime storage for
+            # host-uid test runs, mirroring the compose/singularity mounts.
+            docker_runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/isaaclab-docker-runtime.XXXXXX")"
+            mkdir -p \
+              "${docker_runtime_dir}/home/.cache" \
+              "${docker_runtime_dir}/home/.local/share/ov/data" \
+              "${docker_runtime_dir}/home/.local/share/ov/pkg" \
+              "${docker_runtime_dir}/home/.nv/ComputeCache" \
+              "${docker_runtime_dir}/home/.nvidia-omniverse/config" \
+              "${docker_runtime_dir}/home/.nvidia-omniverse/logs" \
+              "${docker_runtime_dir}/home/Documents/Kit/shared" \
+              "${docker_runtime_dir}/isaac-sim/kit/cache" \
+              "${docker_runtime_dir}/isaac-sim/kit/data" \
+              "${docker_runtime_dir}/isaac-sim/kit/logs" \
+              "${docker_runtime_dir}/isaac-sim/cache" \
+              "${docker_runtime_dir}/isaac-sim/computecache" \
+              "${docker_runtime_dir}/isaac-sim/config" \
+              "${docker_runtime_dir}/isaac-sim/data" \
+              "${docker_runtime_dir}/isaac-sim/logs" \
+              "${docker_runtime_dir}/isaac-sim/pkg"
+            docker_volume_args="\
+              -v ${volume_mount_source}:/workspace/isaaclab:rw \
+              -v ${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw \
+              -v ${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw \
+              -v ${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw \
+              -v ${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw \
+              -v ${docker_runtime_dir}/isaac-sim/cache:/isaac-sim/.cache:rw \
+              -v ${docker_runtime_dir}/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw \
+              -v ${docker_runtime_dir}/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw \
+              -v ${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw \
+              -v ${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw \
+              -v ${docker_runtime_dir}/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw"
+            docker_user_args="--user ${host_uid}:${host_gid}"
+            docker_env_vars="$docker_env_vars -e HOME=/tmp/isaaclab-ci-home -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share -e USER=${host_user} -e LOGNAME=${host_user}"
             echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"
+            echo "🔵 Mounting writable Docker runtime storage from ${docker_runtime_dir}"
+            echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
           fi
+
+          echo "Docker environment variables: '$docker_env_vars'"
 
           # Run tests in a detached container and follow logs.  Running detached
           # means the container lifecycle is independent of the shell - if the
@@ -206,6 +248,7 @@ runs:
             --ulimit nofile=65536:65536 \
             --ulimit nproc=4096:4096 \
             $docker_volume_args \
+            $docker_user_args \
             $docker_env_vars \
             $image_tag \
             -c "
@@ -318,6 +361,9 @@ runs:
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
+          if [ -n "$docker_runtime_dir" ]; then
+            rm -rf "$docker_runtime_dir" || echo "🟠 Docker runtime storage cleanup failed, but continuing..."
+          fi
 
           return $DOCKER_EXIT
         }
