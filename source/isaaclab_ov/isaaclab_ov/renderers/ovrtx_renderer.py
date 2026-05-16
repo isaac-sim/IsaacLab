@@ -45,7 +45,7 @@ from packaging.version import Version
 from isaaclab.cloner.cloner_utils import is_homogeneous
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
@@ -65,6 +65,7 @@ from .ovrtx_usd import (
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.utils.warp import ProxyArray
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
@@ -136,16 +137,16 @@ class OVRTXRenderer(BaseRenderer):
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
         }
 
     @property
@@ -387,44 +388,19 @@ class OVRTXRenderer(BaseRenderer):
             self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, self._device)
 
-    # Map torch dtypes to their warp counterparts for zero-copy wrapping.
-    _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
-        torch.uint8: wp.uint8,
-        torch.float32: wp.float32,
-        torch.int32: wp.int32,
-    }
+    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
+        """Register pre-allocated warp output buffers for rendering.
 
-    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, torch.Tensor]) -> None:
-        """Wrap caller-owned torch output tensors as zero-copy warp arrays.
-
-        Aliased views over a contiguous sibling (e.g. ``rgb`` over ``rgba``) are
-        skipped; any other non-contiguous tensor raises ``ValueError``.
+        Each :class:`~isaaclab.utils.warp.ProxyArray` already carries the correct warp
+        dtype from :meth:`~isaaclab.sensors.camera.CameraData.allocate`; store
+        the underlying warp array directly. ``rgb`` is excluded because it is a
+        non-contiguous strided view into ``rgba`` and is updated automatically.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`.
         """
-        render_data.warp_buffers = {}
-        for name, tensor in output_data.items():
-            if not tensor.is_contiguous():
-                if tensor.data_ptr() in {t.data_ptr() for t in output_data.values() if t.is_contiguous()}:
-                    continue
-                raise ValueError(
-                    f"OVRTXRenderer.set_outputs: output '{name}' is non-contiguous and is not an"
-                    " alias of a contiguous output tensor; cannot wrap as a zero-copy warp array."
-                )
-            wp_dtype = self._TORCH_TO_WP_DTYPE.get(tensor.dtype)
-            if wp_dtype is None:
-                raise ValueError(
-                    f"OVRTXRenderer.set_outputs: unsupported torch dtype {tensor.dtype} for output"
-                    f" '{name}'. Add it to OVRTXRenderer._TORCH_TO_WP_DTYPE."
-                )
-            torch_array = wp.from_torch(tensor)
-            render_data.warp_buffers[name] = wp.array(
-                ptr=torch_array.ptr,
-                dtype=wp_dtype,
-                shape=tuple(tensor.shape),
-                device=torch_array.device,
-                copy=False,
-            )
+        render_data.warp_buffers = {
+            name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
+        }
 
     def update_transforms(self) -> None:
         """Sync physics objects to OVRTX."""
@@ -455,20 +431,25 @@ class OVRTXRenderer(BaseRenderer):
     def update_camera(
         self,
         render_data: OVRTXRenderData,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
-        camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
-        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
+        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
+        convert_camera_frame_orientation_convention_wp(
+            src=orientations.warp,
+            dst=converted_wp,
+            origin="world",
+            target="opengl",
+            device=self._device,
+        )
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
         wp.launch(
             kernel=create_camera_transforms_kernel,
             dim=num_envs,
-            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
+            inputs=[positions, converted_wp, camera_transforms],
             device=self._device,
         )
         if self._camera_binding is not None:
