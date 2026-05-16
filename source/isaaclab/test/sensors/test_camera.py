@@ -339,8 +339,8 @@ def test_camera_set_world_poses(setup_sim_camera):
     camera.set_world_poses(position, orientation, convention="world")
 
     # check if transform correctly set in output
-    np.testing.assert_close(camera.data.pos_w.warp.numpy(), position)
-    np.testing.assert_close(camera.data.quat_w_world.warp.numpy(), orientation)
+    np.testing.assert_allclose(camera.data.pos_w.warp.numpy(), position)
+    np.testing.assert_allclose(camera.data.quat_w_world.warp.numpy(), orientation)
 
 
 def test_camera_set_world_poses_from_view(setup_sim_camera):

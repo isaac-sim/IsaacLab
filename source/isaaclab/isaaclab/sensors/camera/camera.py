@@ -597,9 +597,7 @@ class Camera(SensorBase):
             intrinsic_matrices[matrix_id, 1, 2] = c_y
             intrinsic_matrices[matrix_id, 2, 2] = 1.0
 
-        intrinsic_matrices_wp = self._as_mat33f_array(
-            wp.array(intrinsic_matrices, dtype=wp.float32, device=self._device)
-        )
+        intrinsic_matrices_wp = wp.array(intrinsic_matrices, dtype=wp.mat33f, device=self._device)
         self._update_camera_state(
             env_ids=None if env_ids is None else self._resolve_env_ids_wp(env_ids_np),
             intrinsics_src=intrinsic_matrices_wp,
@@ -624,12 +622,16 @@ class Camera(SensorBase):
         # get the poses from the view (returns ProxyArray)
         env_ids_wp = None if env_mask is not None else self._resolve_env_ids_wp(env_ids)
         pos_w, quat_w = self._view.get_world_poses(env_ids_wp)
+        quat_w_wp = quat_w.warp
+        quat_w_wp = wp.array(
+            ptr=quat_w_wp.ptr, dtype=wp.quatf, shape=(quat_w_wp.shape[0],), device=quat_w_wp.device, copy=False
+        )
 
         self._update_camera_state(
             env_ids=env_ids_wp,
             env_mask=env_mask,
-            pos_src=self._as_vec3f_array(pos_w.warp),
-            quat_src=self._as_quatf_array(quat_w.warp),
+            pos_src=pos_w.warp,
+            quat_src=quat_w_wp,
             update_pose=True,
             frame_op=frame_op,
         )
@@ -702,27 +704,6 @@ class Camera(SensorBase):
     def _env_mask_has_any(env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
         return bool(np.any(env_mask.numpy()))
-
-    @staticmethod
-    def _as_vec3f_array(array: wp.array) -> wp.array:
-        """View a contiguous ``(N, 3)`` float array as ``wp.vec3f`` when needed."""
-        if array.dtype == wp.vec3f:
-            return array
-        return wp.array(ptr=array.ptr, dtype=wp.vec3f, shape=(array.shape[0],), device=array.device, copy=False)
-
-    @staticmethod
-    def _as_quatf_array(array: wp.array) -> wp.array:
-        """View a contiguous ``(N, 4)`` float array as ``wp.quatf`` when needed."""
-        if array.dtype == wp.quatf:
-            return array
-        return wp.array(ptr=array.ptr, dtype=wp.quatf, shape=(array.shape[0],), device=array.device, copy=False)
-
-    @staticmethod
-    def _as_mat33f_array(array: wp.array) -> wp.array:
-        """View a contiguous ``(N, 3, 3)`` float array as ``wp.mat33f`` when needed."""
-        if array.dtype == wp.mat33f:
-            return array
-        return wp.array(ptr=array.ptr, dtype=wp.mat33f, shape=(array.shape[0],), device=array.device, copy=False)
 
     """
     Internal simulation callbacks.
