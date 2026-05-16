@@ -67,6 +67,8 @@ def create_test_env(env_name, num_envs):
 
     try:
         env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
+        # Deterministic seed so IK convergence residual is reproducible across runs / machines.
+        env_cfg.seed = 42
         # Modify scene config to not spawn the packing table to avoid collision with the robot
         del env_cfg.scene.packing_table
         del env_cfg.terminations.object_dropping
