@@ -116,9 +116,9 @@ dependencies are added on top.
    * - ``isaacsim``
      - Isaac Sim pip package
    * - ``none``
-     - Core packages only — no optional submodules, no extra feature deps
+     - Core packages only — no optional submodules, no extra feature deps (default)
    * - ``all``
-     - Core + optional submodules + all extra features (default)
+     - Core + optional submodules + all extra features
 
 Examples:
 

@@ -73,7 +73,7 @@ def cli() -> None:
         "-i",
         "--install",
         nargs="?",
-        const="all",
+        const="none",
         help=(
             "Install Isaac Lab submodules and optional extra dependencies.\n"
             "\n"
@@ -96,13 +96,13 @@ def cli() -> None:
             "    --install 'rl[rsl-rl]'\n"
             "\n"
             "* Special values:\n"
-            "  all   - Core submodules + optional submodules + all extra features (default).\n"
-            "  none  - Core submodules only; no optional submodules, no extra features.\n"
-            "  <empty> (-i with no value) - Same as 'all'.\n"
+            "  none  - Core submodules only; no optional submodules, no extra features (default).\n"
+            "  all   - Core submodules + optional submodules + all extra features.\n"
+            "  <empty> (-i with no value) - Same as 'none'.\n"
             "\n"
             "Examples:\n"
             "  ./isaaclab.sh -i\n"
-            "  ./isaaclab.sh -i none\n"
+            "  ./isaaclab.sh -i all\n"
             "  ./isaaclab.sh -i newton,'rl[rsl-rl]'\n"
             "  ./isaaclab.sh -i mimic,teleop,'visualizer[rerun]'\n"
             "\n"

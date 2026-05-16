@@ -72,8 +72,8 @@ Installation
 
    **Special values**:
 
-   - ``all`` — core + optional submodules (mimic, teleop) + all extra features (default when ``-i`` is used with no argument)
-   - ``none`` — core submodules only; no optional submodules, no extra feature dependencies
+   - ``none`` — core submodules only; no optional submodules, no extra feature dependencies (default when ``-i`` is used with no argument)
+   - ``all`` — core + optional submodules (mimic, teleop) + all extra features
 
    Examples:
 
@@ -85,8 +85,8 @@ Installation
 
          .. code:: bash
 
-            # Core only (physx, tasks, assets, … always included — no optional extras)
-            ./isaaclab.sh -i none
+            # Core only — default when no argument is given
+            ./isaaclab.sh -i
 
             # Newton physics + RSL-RL framework
             ./isaaclab.sh -i newton,'rl[rsl-rl]'
@@ -94,8 +94,8 @@ Installation
             # Newton + rerun visualizer + mimic
             ./isaaclab.sh -i newton,'visualizer[rerun]',mimic
 
-            # All backends (default)
-            ./isaaclab.sh -i
+            # Everything: all submodules + all extra features
+            ./isaaclab.sh -i all
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
