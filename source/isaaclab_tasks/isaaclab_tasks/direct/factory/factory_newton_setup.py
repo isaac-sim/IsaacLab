@@ -117,18 +117,20 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
 
     # Hydroelastic grip force comes from kh × penetration, so a soft PD
     # spring (1000, 10) is enough. Under SDF-only the penalty spring is
-    # the only grip force, so the PD spring has to carry the load: stiffer
-    # (2000, 40) is the smallest pair that keeps the nut from slipping
-    # during threading without exciting finger oscillation.
+    # the only grip force, so the PD spring has to carry the load — but
+    # too stiff and the finger SDF punches into the nut SDF instead of
+    # gripping. A 64-env / 450-step sweep on
+    # Factory_develop_baseline.pth picked (8000, 160) as the success
+    # peak (0.66 vs 0.50 at the prior 2 k default, 0.59 at 12 k).
     if _use_hydroelastic:
         arm_actuators["panda_hand"].stiffness = 1000.0
         arm_actuators["panda_hand"].damping = 10.0
     else:
-        # Ad-hoc sweep knob: ``FACTORY_SDF_FINGER_KP`` / ``FACTORY_SDF_FINGER_KD``
-        # override the SDF-only finger PD without rebuilding the cfg surface.
-        # Defaults match the values picked in the SDF-only commit.
-        kp = float(os.environ.get("FACTORY_SDF_FINGER_KP", "2000"))
-        kd = float(os.environ.get("FACTORY_SDF_FINGER_KD", "40"))
+        # ``FACTORY_SDF_FINGER_KP`` / ``FACTORY_SDF_FINGER_KD`` env vars
+        # override the default for ad-hoc sweeps without rebuilding the
+        # cfg surface.
+        kp = float(os.environ.get("FACTORY_SDF_FINGER_KP", "8000"))
+        kd = float(os.environ.get("FACTORY_SDF_FINGER_KD", "160"))
         arm_actuators["panda_hand"].stiffness = kp
         arm_actuators["panda_hand"].damping = kd
         logger.info("SDF-only finger PD: stiffness=%.1f damping=%.1f", kp, kd)
