@@ -991,7 +991,7 @@ Optimize XR Performance
    To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
    select **RTX - Minimal**:
 
-   .. figure:: ../_static/teleop/recommended-render-select.png
+   .. figure:: ../_static/teleop/recommended-render-select.jpg
       :width: 80%
       :alt: Viewport renderer dropdown with RTX - Minimal selected
 
@@ -1000,7 +1000,7 @@ Optimize XR Performance
    For best results, open **Render Settings** from the top-right of the Isaac Lab UI, switch to
    the **Minimal** tab, and set **Minimal Shading Mode** to **Diffuse/Glossy/Emission**:
 
-   .. figure:: ../_static/teleop/recommended-render-settings.png
+   .. figure:: ../_static/teleop/recommended-render-settings.jpg
       :width: 80%
       :alt: Render Settings panel showing the Minimal Shading Mode options
 
@@ -1035,7 +1035,7 @@ Optimize XR Performance
    In the Isaac Lab UI, open the **XR** tab on the right-side panel, expand
    **Advanced Settings -> Render Resolution**, and drag the **Resolution Multiplier** slider:
 
-   .. figure:: ../_static/teleop/xr-resolution-slider.png
+   .. figure:: ../_static/teleop/xr-resolution-slider.jpg
       :width: 80%
       :alt: XR Render Resolution slider in the Advanced Settings panel
 
