@@ -273,9 +273,7 @@ class Conda_Mixin:
                 self.destroy_conda_env()
     """
 
-    def create_conda_env(
-        self, isaaclab_root: Path, env_name: str = "", python_version: str = "3.12"
-    ) -> None:
+    def create_conda_env(self, isaaclab_root: Path, env_name: str = "", python_version: str = "3.12") -> None:
         """Create an isolated conda environment.
 
         Args:
