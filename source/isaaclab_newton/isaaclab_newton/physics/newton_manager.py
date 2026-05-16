@@ -563,12 +563,17 @@ class NewtonManager(PhysicsManager):
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
-        # Ensure body_q is up-to-date before collision detection.
-        # After env resets, joint_q is written but body_q (used by
-        # broadphase/narrowphase) is stale until FK runs.
-        # Only runs FK for dirtied articulations via the accumulated mask.
-        if cls._needs_collision_pipeline:
-            eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, cls._fk_reset_mask)
+        # Ensure body_q is up-to-date after env resets. ``joint_q`` is written by reset
+        # events (``write_joint_position_to_sim_*``) which set :attr:`_fk_reset_mask`, but
+        # ``body_q`` is consumed by more than just the manager-owned collision pipeline:
+        # coupled-solver proxy sync (``SolverProxyCoupled.sync_proxy_states_kernel``),
+        # observation/reward accessors, IK Jacobian readers, and visualizers all read
+        # ``state_0.body_q`` directly. Gating this on :attr:`_needs_collision_pipeline`
+        # left the body_q stale for solvers that own their own contact pipeline
+        # (e.g. SolverProxyCoupled), so proxies started step 0 from pre-reset poses.
+        # ``_fk_reset_mask`` is zero outside post-reset steps, so this is cheap in the
+        # common case.
+        eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, cls._fk_reset_mask)
 
         # Zero both masks after consumption
         NewtonManager._world_reset_mask.zero_()

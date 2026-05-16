@@ -19,9 +19,12 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.utils import configclass
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 
 from isaaclab_contrib.cable.cable_object_cfg import CableObjectCfg
 from isaaclab_contrib.deformable.newton_manager_cfg import (
+    VBDSolverCfg,
     CoupledNewtonCfg,
     NewtonModelCfg,
     ProxyCoupledMJWarpVBDSolverCfg,
@@ -91,6 +94,29 @@ class CommandsCfg:
         ),
     )
 
+
+@configclass
+class ActionsCfg:
+    """7-dim absolute end-effector pose (xyz + quaternion) via differential IK + 1-dim binary gripper."""
+
+    arm_action = DifferentialInverseKinematicsActionCfg(
+        asset_name="robot",
+        joint_names=["panda_joint.*"],
+        body_name="panda_hand",
+        controller=DifferentialIKControllerCfg(
+            command_type="pose",
+            use_relative_mode=False,
+            ik_method="dls",
+            ik_params={"lambda_val": 0.6},
+        ),
+        body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+    )
+    gripper_action = mdp.BinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["panda_finger.*"],
+        open_command_expr={"panda_finger_.*": 0.05},
+        close_command_expr={"panda_finger_.*": 0.0},
+    )
 
 @configclass
 class ObservationsCfg:
@@ -202,6 +228,7 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     """Franka Panda lifting a Newton cable via proxy-coupled MJWarp+VBD."""
 
     scene: _FrankaCableSceneCfg = _FrankaCableSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -217,11 +244,18 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
             scene_cfg=self.scene,
             solver_cfg=ProxyCoupledMJWarpVBDSolverCfg(
                 mjwarp_cfg=MJWarpSolverCfg(
-                    njmax=40,
-                    nconmax=20,
+                    njmax=1000,
+                    nconmax=1000,
+                    cone="elliptic",
+                    ls_parallel=True,
                     ls_iterations=20,
                     integrator="implicitfast",
                     ccd_iterations=100,
+                    impratio=1000,
+                ),
+                vbd_cfg=VBDSolverCfg(
+                    iterations=10,
+                    rigid_avbd_beta=1e5
                 ),
                 mjwarp_bodies=[SceneEntityCfg("robot")],
                 vbd_bodies=[SceneEntityCfg("cable")],

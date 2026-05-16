@@ -109,6 +109,9 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                     collision_pipeline=lambda destination_model: CollisionPipeline(
                         destination_model,
                         broad_phase="explicit",
+                        contact_matching="sticky",
+                        contact_matching_pos_threshold=0.005,
+                        contact_matching_normal_dot_threshold=0.95,
                     ),
                     collide_interval=int(solver_cfg.proxy_collide_interval),
                 )

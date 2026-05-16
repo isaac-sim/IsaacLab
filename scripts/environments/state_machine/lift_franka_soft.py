@@ -60,7 +60,6 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift_franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
@@ -302,6 +301,17 @@ def main():
         )
         env_cfg.viewer.eye = (2.1, 1.0, 1.3)
         env = gym.make("Isaac-Lift-Cloth-Franka-v0", cfg=FrankaClothEnvCfg(), render_mode=render_mode)
+    elif args_cli.task == "Isaac-Lift-Cable-Franka-v0":
+        from isaaclab_tasks.manager_based.manipulation.lift_franka_soft.franka_cable_env_cfg import FrankaCableEnvCfg
+
+        # parse configuration
+        env_cfg: FrankaCableEnvCfg = parse_env_cfg(
+            "Isaac-Lift-Cable-Franka-v0",
+            device=args_cli.device,
+            num_envs=args_cli.num_envs,
+        )
+        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
+        env = gym.make("Isaac-Lift-Cable-Franka-v0", cfg=env_cfg, render_mode=render_mode)
     else:
         raise ValueError(f"Unknown task: {args_cli.task}")
 
@@ -353,12 +363,21 @@ def main():
             )
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
             # -- object frame
-            object_data: DeformableObjectData = env.unwrapped.scene["deformable"].data
-            object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
+            if "deformable" in env.unwrapped.scene.keys():
+                object_data = env.unwrapped.scene["deformable"].data
+                object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
+
+                # -- target object frame
+                desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
+            else:
+                object_data = env.unwrapped.scene["cable"].data
+                object_position = object_data.root_com_pos_w.torch - env.unwrapped.scene.env_origins
+
+                # -- target object frame
+                desired_position = env.unwrapped.command_manager.get_command("cable_pose")[..., :3]
+
             object_position += object_local_grasp_position
 
-            # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
 
             # advance state machine
             actions = pick_sm.compute(
