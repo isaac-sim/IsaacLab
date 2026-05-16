@@ -23,6 +23,9 @@ INSTALL_REQUIRES = [
     f"isaacteleop[retargeters,ui,cloudxr]~=1.2.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    # dex-retargeting pulls ``pin`` (cmeel pinocchio) -> cmeel-boost (``numpy<2.4``);
+    # without an exclusion here pip lands on numpy 2.3.5. See ``source/isaaclab/setup.py``.
+    "numpy!=2.3.5",
 ]
 
 # Installation operation

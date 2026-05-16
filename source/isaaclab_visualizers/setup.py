@@ -10,7 +10,8 @@ from setuptools import setup
 # Base requirements shared across visualizer backends.
 INSTALL_REQUIRES = [
     "isaaclab",
-    "numpy",
+    # See ``source/isaaclab/setup.py`` for the rationale on ``!=2.3.5``.
+    "numpy!=2.3.5",
 ]
 
 # Every Newton declaration in the repo must use the SAME extra spec (`newton[sim]`).

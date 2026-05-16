@@ -18,7 +18,13 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy>=2",
+    # numpy 2.3.5 ships a vendored OpenBLAS whose ``pthread_atfork`` handler crashes
+    # Kit's ``libomni.platforminfo`` ``fork()`` during ``SimulationApp`` startup.
+    # The exclusion is declared at every install site that pulls numpy (this
+    # setup.py, the other source/* setup.py files, the pin-pink force-reinstall in
+    # ``isaaclab.cli.commands.install``, and the standalone ``pip install`` lines in
+    # docker/Dockerfile.*). See numpy/numpy#30092 and OMPE-92261.
+    "numpy>=2,!=2.3.5",
     "torch>=2.10",
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
