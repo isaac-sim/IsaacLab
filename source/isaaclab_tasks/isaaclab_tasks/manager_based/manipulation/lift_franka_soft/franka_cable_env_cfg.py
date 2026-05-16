@@ -3,14 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Franka cable lifting environment.
-
-Mirrors :mod:`franka_soft_env_cfg` but replaces the volumetric deformable
-object with a single Newton cable and swaps the coupled solver for the
-proxy-coupled variant (:class:`ProxyCoupledMJWarpVBDSolverCfg`). The RL task
-is to lift the cable's midpoint to a randomised target position sampled in
-the robot's root frame.
-"""
+"""Franka Panda lifting a Newton cable via proxy-coupled MJWarp+VBD."""
 
 from __future__ import annotations
 
@@ -64,7 +57,6 @@ class _FrankaCableSceneCfg(InteractiveSceneCfg):
 
     robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
-    # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
         prim_path="/World/envs/env_.*/Robot/panda_link0",
         debug_vis=False,
@@ -77,7 +69,6 @@ class _FrankaCableSceneCfg(InteractiveSceneCfg):
         ],
     )
 
-    # Newton cable: 10 control points along local +X (27 cm total length), 1 cm diameter.
     cable: CableObjectCfg = CableObjectCfg(
         prim_path="/World/envs/env_.*/Cable",
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
@@ -96,21 +87,18 @@ class _FrankaCableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # static table matching the soft env: top surface at z = 0
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, 0.0], rot=[0.0, 0.0, 0.707, 0.707]),
         spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
     )
 
-    # ground plane
     ground: AssetBaseCfg = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, -1.05]),
         spawn=GroundPlaneCfg(),
     )
 
-    # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(
@@ -120,11 +108,10 @@ class _FrankaCableSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self) -> None:
-        # Disable gravity on the arm so the low-PD actuators don't fight gravity sag,
-        # which is the dominant source of steady-state IK tracking error.
+        # Disable arm gravity: low-PD actuators otherwise sag and dominate IK tracking error.
         self.robot.spawn.rigid_props.disable_gravity = True
 
-        # Increase Franka gripper stiffness so it can grip the cable firmly.
+        # Stiffer gripper so it can grip the cable firmly.
         self.robot.actuators["panda_hand"].effort_limit_sim = 500.0
         self.robot.actuators["panda_hand"].stiffness = 1000.0
         self.robot.actuators["panda_hand"].damping = 100.0
@@ -137,7 +124,7 @@ class _FrankaCableSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Commands for the cable goal pose (xyz + identity quat in robot root frame)."""
+    """Cable goal pose sampled in the robot root frame."""
 
     cable_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
@@ -169,7 +156,7 @@ class CommandsCfg:
 
 @configclass
 class ActionsCfg:
-    """7-dim absolute end-effector pose (xyz + quaternion) via differential IK + 1-dim binary gripper."""
+    """Absolute end-effector pose via differential IK plus a binary gripper command."""
 
     arm_action = DifferentialInverseKinematicsActionCfg(
         asset_name="robot",
@@ -193,7 +180,7 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Policy observations: joint state, cable segments in robot frame, target, last action."""
+    """Policy observations for the cable lifting task."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -215,7 +202,7 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Reset events: robot to default joint config. Cables have no nodal snap-back."""
+    """Reset events for the cable lifting task."""
 
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_scale,
@@ -272,7 +259,7 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Time out + table bounds/drop termination."""
+    """Time out and out-of-bounds terminations."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
@@ -303,25 +290,20 @@ class TerminationsCfg:
 
 @configclass
 class FrankaCableEnvCfg(ManagerBasedRLEnvCfg):
-    """Manager-based RL environment: Franka Panda lifting a Newton cable via proxy-coupled MJWarp+VBD."""
+    """Franka Panda lifting a Newton cable via proxy-coupled MJWarp+VBD."""
 
-    # Scene settings
     scene: _FrankaCableSceneCfg = _FrankaCableSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
-    # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
-    # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
     def __post_init__(self) -> None:
-        # general settings
         self.decimation = 1
         self.episode_length_s = 5.0
 
-        # simulation settings
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
@@ -344,14 +326,8 @@ class FrankaCableEnvCfg(ManagerBasedRLEnvCfg):
                     particle_enable_self_contact=False,
                     particle_collision_detection_interval=-1,
                 ),
-                # Declare which scene entities belong to which sub-solver.
-                # Each SceneEntityCfg resolves its asset's prim_path template
-                # against `model.body_label` to bucket bodies; joints/shapes
-                # follow their owning body.
                 mjwarp_bodies=[SceneEntityCfg("robot")],
                 vbd_bodies=[SceneEntityCfg("cable")],
-                # Expose the Franka gripper bodies as proxies in the VBD view so the
-                # cable feels gripper contacts and the gripper feels cable feedback.
                 proxy_bodies=[
                     SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
                 ],
@@ -371,7 +347,6 @@ class FrankaCableEnvCfg(ManagerBasedRLEnvCfg):
             use_cuda_graph=True,
         )
 
-        # viewer settings
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "robot"
         self.viewer.env_index = 0
