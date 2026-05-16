@@ -23,6 +23,9 @@ INSTALL_REQUIRES = [
     "ipywidgets==8.1.5",
     # data collection
     "h5py==3.15.1",
+    # h5py pulls numpy; without the exclusion the resolve can land on the broken
+    # 2.3.5. See ``source/isaaclab/setup.py``.
+    "numpy!=2.3.5",
 ]
 
 # nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels

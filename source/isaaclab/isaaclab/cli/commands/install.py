@@ -135,7 +135,7 @@ def _maybe_preinstall_arm_nlopt(pip_cmd: list[str]) -> None:
         return
     print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
     print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
-    run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
+    run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy!=2.3.5"])
     print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
     run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
 
@@ -213,8 +213,12 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
         return
 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
+    # Pass ``numpy!=2.3.5`` so this fresh resolve (which sees only pin-pink's deps
+    # plus cmeel-boost's ``numpy<2.4`` cap) cannot land on the broken numpy 2.3.5
+    # release. See numpy/numpy#30092 and the rationale in
+    # :file:`source/isaaclab/setup.py`.
     install_result = run_command(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINK_IK_STACK],
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", "numpy!=2.3.5", *_PINK_IK_STACK],
         check=False,
     )
     if install_result.returncode != 0:
