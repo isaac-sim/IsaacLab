@@ -467,6 +467,10 @@ VALID_EXTRA_FEATURES: set[str] = {
     "visualizer",
 }
 
+# Extra features excluded from the automatic ``-i all`` / ``-i`` install.
+# These must be explicitly requested, like optional submodules (mimic, teleop).
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib"}
+
 
 def _split_install_items(install_type: str) -> list[str]:
     """Split comma-separated install items, ignoring commas inside brackets."""
@@ -750,7 +754,7 @@ def command_install(install_type: str = "all") -> None:
 
     if install_type == "all":
         submodules_to_install += list(OPTIONAL_ISAACLAB_SUBMODULES.values())
-        extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES)]
+        extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
     elif install_type == "none":
         # Core only — no optional submodules, no extra features.
         pass

@@ -72,8 +72,13 @@ Installation
 
    **Special values**:
 
-   - ``none`` — core submodules only; no optional submodules, no extra feature dependencies (default when ``-i`` is used with no argument)
-   - ``all`` — core + optional submodules (mimic, teleop) + all extra features
+   - ``all`` — core + optional submodules (mimic, teleop) + auto extra features (newton, rl, visualizer, ov) — default when ``-i`` is used with no argument
+   - ``none`` — core submodules only; no optional submodules, no extra feature dependencies
+
+   .. note::
+
+      ``contrib`` must always be requested explicitly (e.g. ``-i contrib``).
+      It is not included in ``all``.
 
    Examples:
 
@@ -85,7 +90,7 @@ Installation
 
          .. code:: bash
 
-            # Core only — default when no argument is given
+            # Default: core + optional submodules + most extras (no contrib)
             ./isaaclab.sh -i
 
             # Newton physics + RSL-RL framework
@@ -94,8 +99,8 @@ Installation
             # Newton + rerun visualizer + mimic
             ./isaaclab.sh -i newton,'visualizer[rerun]',mimic
 
-            # Everything: all submodules + all extra features
-            ./isaaclab.sh -i all
+            # Core only — no optional submodules, no extras
+            ./isaaclab.sh -i none
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows

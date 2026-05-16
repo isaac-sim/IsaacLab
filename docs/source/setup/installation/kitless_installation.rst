@@ -115,10 +115,10 @@ dependencies are added on top.
      - OVRTX + OVPhysX extras for Omniverse rendering
    * - ``isaacsim``
      - Isaac Sim pip package
-   * - ``none``
-     - Core packages only — no optional submodules, no extra feature deps (default)
    * - ``all``
-     - Core + optional submodules + all extra features
+     - Core + optional submodules (mimic, teleop) + auto extras (newton, rl, visualizer, ov). Default. Does not include ``contrib``.
+   * - ``none``
+     - Core packages only — no optional submodules, no extra feature deps
 
 Examples:
 

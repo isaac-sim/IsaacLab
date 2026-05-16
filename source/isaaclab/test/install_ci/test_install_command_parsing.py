@@ -27,6 +27,7 @@ if str(_ISAACLAB_SRC) not in sys.path:
 
 from isaaclab.cli.commands.install import (
     CORE_ISAACLAB_SUBMODULES,
+    MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,
     VALID_EXTRA_FEATURES,
     _split_install_items,
@@ -127,6 +128,12 @@ class TestInstallConstants:
         expected = {"contrib", "newton", "ov", "rl", "visualizer"}
         assert expected == VALID_EXTRA_FEATURES
 
+    def test_manual_extra_features_subset_of_valid(self):
+        assert MANUAL_EXTRA_FEATURES <= VALID_EXTRA_FEATURES
+
+    def test_contrib_is_manual(self):
+        assert "contrib" in MANUAL_EXTRA_FEATURES
+
     def test_no_overlap_between_optional_submodules_and_extra_features(self):
         assert not (set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) & VALID_EXTRA_FEATURES)
 
@@ -208,10 +215,16 @@ class TestCommandInstallDispatch:
         for pkg in OPTIONAL_ISAACLAB_SUBMODULES.values():
             assert pkg in installed, f"Expected {pkg} (optional) in submodules for 'all'"
 
-    def test_all_installs_all_extra_features(self):
+    def test_all_installs_auto_extra_features_not_manual(self):
         mocks = self._run("all")
         called_features = {c.args[0] for c in mocks["_install_extra_feature"].call_args_list}
-        assert called_features == VALID_EXTRA_FEATURES
+        expected = VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES
+        assert called_features == expected, f"'all' should install {expected}, got {called_features}"
+
+    def test_all_does_not_install_contrib(self):
+        mocks = self._run("all")
+        called_features = {c.args[0] for c in mocks["_install_extra_feature"].call_args_list}
+        assert "contrib" not in called_features
 
     def test_all_does_not_call_install_isaacsim(self):
         mocks = self._run("all")
