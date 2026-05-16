@@ -62,7 +62,7 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
             f"Multi-Mesh Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(BaseMultiMeshRayCaster.meshes)}\n"
+            f"\tnumber of meshes     : {self._num_envs} x {sum(self._num_meshes_per_env.values())}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
