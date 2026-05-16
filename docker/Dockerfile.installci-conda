@@ -33,5 +33,10 @@ ENV PATH="/opt/conda/bin:${PATH}"
 RUN conda init bash && \
     echo "conda activate base" >> ~/.bashrc
 
-# Smoke-test: conda should be functional
-RUN conda --version && python --version
+# Install test runner dependencies into the conda base Python so that the
+# ENTRYPOINT (which invokes 'python -m pytest') finds them after the PATH
+# change above shadows the system Python with /opt/conda/bin/python.
+RUN pip install "pytest>=8.0" "pytest-timeout>=2.0"
+
+# Smoke-test: conda should be functional and pytest importable
+RUN conda --version && python --version && python -m pytest --version

@@ -29,6 +29,11 @@ INSTALL_REQUIRES = [
 if platform.machine() != "aarch64":
     INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
 
+# robomimic has no Windows/macOS wheels; gate it to Linux via a PEP 508 marker
+INSTALL_REQUIRES.append(
+    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0; sys_platform == 'linux'"
+)
+
 
 # Installation operation
 setup(
