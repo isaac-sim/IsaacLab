@@ -212,7 +212,9 @@ class BaseRayCasterCamera(BaseRayCaster):
         if orientations is not None:
             # convert rotation matrix from input convention to world
             quat_w_set = math_utils.convert_camera_frame_orientation_convention(
-                torch.as_tensor(orientations, dtype=torch.float32, device=self._device), origin=convention, target="world"
+                torch.as_tensor(orientations, dtype=torch.float32, device=self._device),
+                origin=convention,
+                target="world",
             )
             quat_w_set = quat_w_set.reshape(-1, 4)
             if quat_w_set.shape[0] == 1 and count != 1:
@@ -533,7 +535,9 @@ class BaseRayCasterCamera(BaseRayCaster):
             else:
                 raise ValueError(f"Received unknown data type: {name}. Please check the configuration.")
             # allocate tensor to store the data
-            self._data.output[name] = ProxyArray(wp.zeros((self._view.count, *shape), dtype=wp.float32, device=self._device))
+            self._data.output[name] = ProxyArray(
+                wp.zeros((self._view.count, *shape), dtype=wp.float32, device=self._device)
+            )
 
     def _compute_intrinsic_matrices(self):
         """Computes the intrinsic matrices for the camera based on the config provided."""

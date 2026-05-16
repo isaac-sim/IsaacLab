@@ -11,6 +11,7 @@ from typing import Any
 
 import torch
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 
 from pxr import UsdPhysics
 
@@ -22,8 +23,6 @@ from isaaclab.sensors.ray_caster.kernels import (
     update_ray_caster_kernel,
 )
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_newton.physics import NewtonManager
 
 
 @wp.kernel
