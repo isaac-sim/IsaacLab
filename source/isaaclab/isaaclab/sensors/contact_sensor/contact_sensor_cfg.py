@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import CONTACT_SENSOR_MARKER_CFG
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 

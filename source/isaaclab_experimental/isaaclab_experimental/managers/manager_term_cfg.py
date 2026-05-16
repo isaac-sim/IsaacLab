@@ -20,7 +20,7 @@ from dataclasses import MISSING
 
 from isaaclab.managers.manager_term_cfg import *  # noqa: F401,F403
 from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg as _ManagerTermBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

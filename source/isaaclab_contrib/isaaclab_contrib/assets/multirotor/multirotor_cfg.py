@@ -8,7 +8,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.actuators import ThrusterCfg
 

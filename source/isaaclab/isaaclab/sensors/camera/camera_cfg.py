@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 
