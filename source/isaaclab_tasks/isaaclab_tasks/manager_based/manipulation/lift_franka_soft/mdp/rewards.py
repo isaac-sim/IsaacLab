@@ -144,6 +144,114 @@ def deformable_outside_table_bounds(
     return torch.any(outside_x | outside_y, dim=1)
 
 
+def cable_lifted(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Reward if the cable's midpoint is above a minimum height.
+
+    The midpoint is the mean of the cable's per-segment positions.
+
+    Args:
+        env: The environment instance.
+        minimal_height: Minimum midpoint height [m].
+        asset_cfg: The cable articulation entity.
+
+    Returns:
+        Reward tensor with shape ``(num_envs,)``.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    com_z = asset.data.body_pos_w.torch.mean(dim=1)[:, 2]
+    return torch.where(com_z > minimal_height, 1.0, 0.0)
+
+
+def cable_ee_distance(
+    env: ManagerBasedRLEnv,
+    std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward reaching the cable's nearest segment with the end-effector.
+
+    Args:
+        env: The environment instance.
+        std: The tanh kernel standard deviation [m].
+        asset_cfg: The cable articulation entity.
+        ee_frame_cfg: The end-effector frame entity.
+
+    Returns:
+        Reward tensor with shape ``(num_envs,)``.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+    body_pos_w = asset.data.body_pos_w.torch
+    ee_w = wp.to_torch(ee_frame.data.target_pos_w)[..., 0, :]
+    distance = torch.linalg.norm(body_pos_w - ee_w.unsqueeze(1), dim=2).min(dim=1).values
+    return 1.0 - torch.tanh(distance / std)
+
+
+def cable_com_goal_distance(
+    env: ManagerBasedRLEnv,
+    std: float,
+    minimal_height: float,
+    command_name: str,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Reward tracking of the goal position by the cable's midpoint (tanh kernel).
+
+    Only credits when the midpoint is above ``minimal_height`` (i.e. the cable
+    is lifted). The command is interpreted as ``[x, y, z, qw, qx, qy, qz]`` in
+    the robot's root frame.
+    """
+    robot: Articulation = env.scene[robot_cfg.name]
+    asset: Articulation = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(
+        wp.to_torch(robot.data.root_pos_w), wp.to_torch(robot.data.root_quat_w), des_pos_b
+    )
+    com_w = asset.data.body_pos_w.torch.mean(dim=1)
+    distance = torch.linalg.norm(des_pos_w - com_w, dim=1)
+    return (com_w[:, 2] > minimal_height) * (1.0 - torch.tanh(distance / std))
+
+
+def cable_com_below_minimum(
+    env: ManagerBasedRLEnv,
+    minimum_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Termination signal when the cable's midpoint falls below ``minimum_height`` [m]."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    com_z = asset.data.body_pos_w.torch.mean(dim=1)[:, 2]
+    return com_z < minimum_height
+
+
+def cable_outside_table_bounds(
+    env: ManagerBasedRLEnv,
+    x_bounds: tuple[float, float],
+    y_bounds: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Terminate if any cable segment leaves the table footprint.
+
+    Args:
+        env: The environment instance.
+        x_bounds: Allowed x-position range in the environment frame [m].
+        y_bounds: Allowed y-position range in the environment frame [m].
+        asset_cfg: The cable articulation entity.
+
+    Returns:
+        Boolean tensor with shape ``(num_envs,)``.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    body_pos = asset.data.body_pos_w.torch - env.scene.env_origins.unsqueeze(1)
+    outside_x = (body_pos[..., 0] < x_bounds[0]) | (body_pos[..., 0] > x_bounds[1])
+    outside_y = (body_pos[..., 1] < y_bounds[0]) | (body_pos[..., 1] > y_bounds[1])
+    return torch.any(outside_x | outside_y, dim=1)
+
+
 def ee_below_minimum(
     env: ManagerBasedRLEnv,
     minimum_height: float,
