@@ -56,6 +56,13 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
 
         outer_cfg = PhysicsManager._cfg
         scene_cfg = outer_cfg.scene_cfg if isinstance(outer_cfg, CoupledNewtonCfg) else None
+        if (solver_cfg.mjwarp_bodies or solver_cfg.vbd_bodies or solver_cfg.proxy_bodies) and scene_cfg is None:
+            raise ValueError(
+                "ProxyCoupledMJWarpVBDSolverCfg requires the outer physics cfg to be a "
+                "`CoupledNewtonCfg` with `scene_cfg=self.scene` set (e.g. "
+                "`self.sim.physics = CoupledNewtonCfg(solver_cfg=..., scene_cfg=self.scene)`)."
+            )
+
         mjc_bodies, vbd_bodies, mjc_joints, vbd_joints, mjc_shapes, vbd_shapes = cls._partition_model_by_entities(
             model,
             solver_cfg.mjwarp_bodies,
@@ -107,7 +114,7 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                 )
             )
 
-        coupled = SolverProxyCoupled(
+        NewtonManager._solver = SolverProxyCoupled(
             model=model,
             entries=entries,
             coupling=SolverProxyCoupled.Config(
@@ -115,23 +122,8 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                 iterations=int(solver_cfg.proxy_iterations),
             ),
         )
-
-        NewtonManager._solver = coupled
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = False
-
-        logger.info(
-            "Proxy-coupled MJWarp+VBD: mjc bodies=%d joints=%d shapes=%d | "
-            "vbd bodies=%d joints=%d shapes=%d particles=%d | proxies=%d",
-            len(mjc_bodies),
-            len(mjc_joints),
-            len(mjc_shapes),
-            len(vbd_bodies),
-            len(vbd_joints),
-            len(vbd_shapes),
-            len(vbd_particles),
-            len(proxy_body_ids),
-        )
 
     @classmethod
     def _resolve_entity_to_body_ids(
@@ -209,19 +201,9 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         owner, except static shapes (``body == -1``) always go to VBD.
 
         Raises:
-            ValueError: If ``scene_cfg`` is missing (and either partition is
-                non-empty), or if any body matches both or neither partition.
+            ValueError: If any body matches both or neither partition.
         """
-        if scene_cfg is None and (mjwarp_bodies or vbd_bodies):
-            raise ValueError(
-                "ProxyCoupledMJWarpVBDSolverCfg requires the outer physics cfg to be a "
-                "`CoupledNewtonCfg` with `scene_cfg=self.scene` set so `mjwarp_bodies` / "
-                "`vbd_bodies` SceneEntityCfg specs can be resolved."
-            )
-
         body_count = int(model.body_count)
-        joint_count = int(model.joint_count)
-        shape_count = int(model.shape_count)
 
         mjc_owned: set[int] = set()
         for spec in mjwarp_bodies:
@@ -247,44 +229,29 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                 f"scene entities to one of the partition lists."
             )
 
-        body_owner: list[str | None] = [None] * body_count
-        for b in mjc_owned:
-            body_owner[b] = "mjc"
-        for b in vbd_owned:
-            body_owner[b] = "vbd"
-
-        mjc_bodies_out = sorted(mjc_owned)
-        vbd_bodies_out = sorted(vbd_owned)
-
-        joint_child_np = model.joint_child.numpy() if joint_count else None
         mjc_joints: list[int] = []
         vbd_joints: list[int] = []
-        for j in range(joint_count):
-            child = int(joint_child_np[j])
-            if 0 <= child < body_count:
-                owner = body_owner[child]
-                if owner == "mjc":
+        if int(model.joint_count):
+            for j, c in enumerate(model.joint_child.numpy()):
+                child = int(c)
+                if child in mjc_owned:
                     mjc_joints.append(j)
-                elif owner == "vbd":
+                elif child in vbd_owned:
                     vbd_joints.append(j)
 
         # Static shapes (body == -1) go to VBD: its proxy collision pipeline
         # tests rigid proxies against static colliders.
-        shape_body_np = model.shape_body.numpy() if shape_count else None
         mjc_shapes: list[int] = []
         vbd_shapes: list[int] = []
-        for s in range(shape_count):
-            body = int(shape_body_np[s])
-            if body < 0:
-                vbd_shapes.append(s)
-                continue
-            owner = body_owner[body] if 0 <= body < body_count else None
-            if owner == "mjc":
-                mjc_shapes.append(s)
-            elif owner == "vbd":
-                vbd_shapes.append(s)
+        if int(model.shape_count):
+            for s, b in enumerate(model.shape_body.numpy()):
+                body = int(b)
+                if body < 0 or body in vbd_owned:
+                    vbd_shapes.append(s)
+                elif body in mjc_owned:
+                    mjc_shapes.append(s)
 
-        return mjc_bodies_out, vbd_bodies_out, mjc_joints, vbd_joints, mjc_shapes, vbd_shapes
+        return sorted(mjc_owned), sorted(vbd_owned), mjc_joints, vbd_joints, mjc_shapes, vbd_shapes
 
     @classmethod
     def _select_proxy_bodies(
@@ -300,17 +267,10 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
         :attr:`SceneEntityCfg.body_names` is required: proxies are a subset.
 
         Raises:
-            ValueError: If :attr:`proxy_bodies` is non-empty but ``scene_cfg``
-                is missing, or if any entry has ``body_names=None``.
+            ValueError: If any entry has ``body_names=None``.
         """
         if not proxy_bodies:
             return []
-        if scene_cfg is None:
-            raise ValueError(
-                "ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies requires the outer physics cfg to be a "
-                "`CoupledNewtonCfg` with `scene_cfg=self.scene` set (e.g. "
-                "`self.sim.physics = CoupledNewtonCfg(solver_cfg=..., scene_cfg=self.scene)`)."
-            )
 
         shape_count = int(model.shape_count)
         shape_body_np = model.shape_body.numpy() if shape_count else None
