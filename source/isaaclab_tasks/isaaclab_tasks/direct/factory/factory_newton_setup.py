@@ -135,6 +135,21 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
         arm_actuators["panda_hand"].damping = kd
         logger.info("SDF-only finger PD: stiffness=%.1f damping=%.1f", kp, kd)
 
+    # Ad-hoc solver knobs. ``FACTORY_SOLVER_ITERATIONS`` / ``FACTORY_SOLVER_IMPRATIO``
+    # let us sweep MJWarp's main iteration count and friction-vs-normal
+    # coupling without rebuilding the cfg. Defaults below preserve current
+    # behavior (zero = leave the cfg value as-is).
+    solver_cfg = getattr(cfg.sim.physics, "solver_cfg", None)
+    if solver_cfg is not None:
+        iters_override = int(os.environ.get("FACTORY_SOLVER_ITERATIONS", "0"))
+        imp_override = float(os.environ.get("FACTORY_SOLVER_IMPRATIO", "0"))
+        if iters_override > 0 and hasattr(solver_cfg, "iterations"):
+            solver_cfg.iterations = iters_override
+            logger.info("MJWarp solver iterations override: %d", iters_override)
+        if imp_override > 0 and hasattr(solver_cfg, "impratio"):
+            solver_cfg.impratio = imp_override
+            logger.info("MJWarp solver impratio override: %.1f", imp_override)
+
     _monkey_patch_cloner_no_simplify()
 
     # Scale the contact buffer with num_envs so the gripper close doesn't
