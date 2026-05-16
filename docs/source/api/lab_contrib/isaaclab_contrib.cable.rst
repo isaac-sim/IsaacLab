@@ -29,7 +29,6 @@ Cable Object
 
 .. autoclass:: isaaclab_contrib.cable.cable_object_cfg.CableObjectCfg
   :members:
-  :inherited-members:
   :show-inheritance:
   :exclude-members: __init__
 
