@@ -86,5 +86,8 @@ _build
 # Isaac Lab CI environments in native mode
 **/_isaaclab_install_ci_*
 
+# Tuning results (raw run data, plots, writeup)
+/tuning_results/
+
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
