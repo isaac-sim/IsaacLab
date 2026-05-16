@@ -58,13 +58,10 @@ class HydroelasticSDFCfg:
     """
 
     moment_matching: bool = False
-    """Whether to redistribute reduced contact forces to preserve moment balance per normal bin.
+    """Redistribute reduced contact forces to preserve moment balance per normal bin.
 
-    PhysX patch-friction analog: keeps friction torque per normal bin under
-    contact reduction so a held object doesn't spin out under asymmetric
-    pinch. Only active when ``reduce_contacts`` is True.
-
-    Defaults to ``False`` (same as Newton's default).
+    PhysX patch-friction analog; only active when ``reduce_contacts`` is True.
+    Defaults to ``False`` (Newton default).
     """
 
     margin_contact_area: float = 0.01

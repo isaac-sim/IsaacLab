@@ -3,27 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory: procedural Newton-only post-load asset setup.
-
-Three entry points called from :class:`FactoryEnv`:
-
-* :func:`apply_cfg_overrides` — runs before ``super().__init__``. Raises
-  the physics rate, disables the OSC null-space term, wraps joint-less
-  Factory assets as :class:`RigidObjectCfg`, tunes the arm and finger
-  actuators, monkey-patches the cloner, and sizes the contact buffer.
-
-* :func:`register_model_init_callback` — registers a Newton
-  ``MODEL_INIT`` callback that runs before model finalization. Overrides
-  joint target mode + ctrl-source on the Franka, filters base ↔ table
-  contacts, retunes the nut/bolt contact materials, and builds per-shape
-  SDFs. The SDFs feed either Newton's hydroelastic pipeline or a
-  penalty-spring fallback, selected by the active ``NewtonCfg``.
-
-* :func:`warm_up_kernels` — runs after ``_init_tensors``. Pre-JITs the
-  Newton kernels the reset IK loop will hit.
-
-PhysX runs never import this module.
-"""
+"""Factory Newton-only setup: cfg overrides, model-init callback, kernel warm-up."""
 
 from __future__ import annotations
 
@@ -43,13 +23,9 @@ if TYPE_CHECKING:
 
 _ARM_JOINT_NAMES = [f"panda_joint{i}" for i in range(1, 8)]
 _FINGER_JOINT_NAMES = ["panda_finger_joint1", "panda_finger_joint2"]
-# Substring matched against ``builder.body_label`` to find every body
-# belonging to the Franka under the IsaacLab USD layout.
 _ROBOT_BODY_PATH_SUBSTR = "/Robot/"
 
-# Module-level latch set in :func:`apply_cfg_overrides` and read by the
-# ``MODEL_INIT`` callback (no ``cfg`` reachable there). ``True`` when the
-# Newton preset ships a non-None ``sdf_hydroelastic_config``.
+# Latched in :func:`apply_cfg_overrides`; read by the MODEL_INIT callback.
 _use_hydroelastic: bool = True
 
 
@@ -65,16 +41,7 @@ def register_model_init_callback() -> None:
 
 
 def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
-    """Apply Newton-only cfg overrides in place, *before* ``super().__init__``.
-
-    Keeps the physics rate at 120 Hz with ``decimation = 8`` to keep the
-    control rate at 15 Hz, disables the OSC null-space term, wraps joint-less
-    Factory assets as :class:`RigidObjectCfg` (kinematic for static targets),
-    bumps arm armature, zeroes arm damping, tunes the finger PD against the
-    active contact model (hydroelastic or SDF-only penalty), monkey-patches
-    the cloner to skip convex-hull simplification (so nut/bolt thread + hex
-    SDFs survive cloning), and scales the contact buffer with ``num_envs``.
-    """
+    """Apply Newton-only cfg overrides in place, before ``super().__init__``."""
     cfg.sim.dt = 1.0 / 120.0
     cfg.decimation = 8
     cfg.ctrl.disable_nullspace = True
@@ -99,56 +66,36 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
         new_init = bolt.init_state.replace(pos=(float(cur_pos[0]), float(cur_pos[1]), 0.0))
         cfg_task.fixed_asset = bolt.replace(init_state=new_init)
 
-    # Arm armature stabilises OSC Lambda; must be set before super().__init__
-    # so finalize bakes it into model.joint_armature.
+    # Arm armature stabilises OSC Lambda — must be set pre-super().__init__.
     arm_actuators = cfg.robot.actuators
     arm_actuators["panda_arm1"].armature = 0.3
     arm_actuators["panda_arm2"].armature = 0.11
     arm_actuators["panda_hand"].armature = 0.15
 
-    # kd=0: OSC Kd=2√Kp + armature already damp the 7th DOF; extra kd brakes
-    # OSC tracking (kd=10 → +12 mm step error vs PhysX +48 mm).
+    # OSC kd already damps via 2√Kp + armature; extra joint kd brakes tracking.
     arm_actuators["panda_arm1"].damping = 0.0
     arm_actuators["panda_arm2"].damping = 0.0
 
-    # Latch the contact model so the ``MODEL_INIT`` callback can branch.
     global _use_hydroelastic
     _use_hydroelastic = getattr(cfg.sim.physics.collision_cfg, "sdf_hydroelastic_config", None) is not None
 
-    # Hydroelastic grip force comes from kh × penetration, so a soft PD
-    # spring (1000, 10) is enough. Under SDF-only the penalty spring is
-    # the only grip force, so the PD spring has to carry the load — but
-    # too stiff and the finger SDF punches into the nut SDF instead of
-    # gripping. A 64-env / 450-step sweep on
-    # Factory_develop_baseline.pth picked (8000, 160) as the success
-    # peak (0.66 vs 0.50 at the prior 2 k default, 0.59 at 12 k).
     if _use_hydroelastic:
         arm_actuators["panda_hand"].stiffness = 1000.0
         arm_actuators["panda_hand"].damping = 10.0
     else:
-        # ``FACTORY_SDF_FINGER_KP`` / ``FACTORY_SDF_FINGER_KD`` env vars
-        # override the default for ad-hoc sweeps without rebuilding the
-        # cfg surface.
         kp = float(os.environ.get("FACTORY_SDF_FINGER_KP", "8000"))
         kd = float(os.environ.get("FACTORY_SDF_FINGER_KD", "160"))
         arm_actuators["panda_hand"].stiffness = kp
         arm_actuators["panda_hand"].damping = kd
-        logger.info("SDF-only finger PD: stiffness=%.1f damping=%.1f", kp, kd)
 
-    # Ad-hoc solver knobs. ``FACTORY_SOLVER_ITERATIONS`` / ``FACTORY_SOLVER_IMPRATIO``
-    # let us sweep MJWarp's main iteration count and friction-vs-normal
-    # coupling without rebuilding the cfg. Defaults below preserve current
-    # behavior (zero = leave the cfg value as-is).
     solver_cfg = getattr(cfg.sim.physics, "solver_cfg", None)
     if solver_cfg is not None:
         iters_override = int(os.environ.get("FACTORY_SOLVER_ITERATIONS", "0"))
         imp_override = float(os.environ.get("FACTORY_SOLVER_IMPRATIO", "0"))
         if iters_override > 0 and hasattr(solver_cfg, "iterations"):
             solver_cfg.iterations = iters_override
-            logger.info("MJWarp solver iterations override: %d", iters_override)
         if imp_override > 0 and hasattr(solver_cfg, "impratio"):
             solver_cfg.impratio = imp_override
-            logger.info("MJWarp solver impratio override: %.1f", imp_override)
 
     substeps_override = int(os.environ.get("FACTORY_NUM_SUBSTEPS", "0"))
     if substeps_override > 0 and hasattr(cfg.sim.physics, "num_substeps"):
@@ -156,10 +103,7 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
 
     _monkey_patch_cloner_no_simplify()
 
-    # Scale the contact buffer with num_envs so the gripper close doesn't
-    # overflow when the user bumps the world count. SDF-only mode emits
-    # ~3× more contacts than hydroelastic in our scene, so we expose
-    # ``FACTORY_NJMAX_MULT`` to pad the budget without re-deriving njmax.
+    # Scale contact buffer with num_envs; SDF-only emits ~3x hydroelastic.
     if (
         getattr(cfg.sim.physics, "collision_cfg", None) is not None
         and getattr(cfg.sim.physics, "solver_cfg", None) is not None
@@ -169,36 +113,16 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
         njmax = int(cfg.sim.physics.solver_cfg.njmax)
         num_worlds = int(cfg.scene.num_envs)
         cfg.sim.physics.collision_cfg.rigid_contact_max = int(njmax * num_worlds * njmax_mult)
-        if njmax_mult != 1.0:
-            logger.info(
-                "rigid_contact_max override: %d (njmax=%d × num_worlds=%d × mult=%.2f)",
-                cfg.sim.physics.collision_cfg.rigid_contact_max,
-                njmax,
-                num_worlds,
-                njmax_mult,
-            )
 
 
 def warm_up_kernels(env: FactoryEnv) -> None:
-    """Pre-JIT Newton's per-step kernels by running two dummy steps.
-
-    Factory's reset path runs a 30-iteration DLS IK loop where each iteration
-    calls ``step_sim_no_action``. On the first iteration Newton JIT-compiles
-    several kernels (``eval_fk``, the actuator-model kernels,
-    ``eval_jacobian``/``eval_mass_matrix``) that each take 10-30 s; pre-paying
-    that cost here keeps the 30 IK iterations on warm caches.
-    """
+    """Pre-JIT Newton's per-step kernels so the reset IK loop runs on warm caches."""
     for _ in range(2):
         env.step_sim_no_action()
 
 
 def _to_rigid_object_cfg(art_cfg: ArticulationCfg, kinematic: bool) -> RigidObjectCfg:
-    """Adapt a joint-less Factory ArticulationCfg into a RigidObjectCfg.
-
-    Wraps the asset as :class:`RigidObjectCfg` with
-    ``kinematic_enabled=True`` for static targets so ``cfg.class_type(cfg)``
-    constructs a :class:`RigidObject` at scene-setup time.
-    """
+    """Adapt a joint-less Factory ArticulationCfg into a RigidObjectCfg."""
     import isaaclab.sim as sim_utils  # noqa: PLC0415
 
     rigid_props = art_cfg.spawn.rigid_props
@@ -255,12 +179,8 @@ def _model_init_callback() -> None:
     _filter_base_table_contacts(builder)
     _tune_nut_bolt_contacts(builder)
     _build_collision_sdfs(builder)
-    # NOTE: Per-DOF armature is set on the Franka via ``ImplicitActuatorCfg``
-    # in :class:`FactoryEnvCfg.robot.actuators`, not via the builder.
-    # Newton's finalize step seeds ``model.joint_armature`` for the robot's
-    # DOFs from the actuator cfg and overwrites any per-DOF builder writes
-    # we make at those indices. The actuator-cfg path is the only reliable
-    # way to apply armature to a parsed-USD articulation today.
+    # Armature is applied via ImplicitActuatorCfg, not the builder — finalize
+    # overwrites builder writes at robot DOF indices with the actuator value.
 
 
 def _joint_label_indices(builder, name_substrs: list[str]) -> list[int]:
@@ -271,14 +191,9 @@ def _joint_label_indices(builder, name_substrs: list[str]) -> list[int]:
 def _joint_indices_to_dof_indices(builder, joint_idxs: list[int]) -> list[int]:
     """Translate joint indices into DOF indices via ``joint_qd_start``.
 
-    Newton's per-DOF arrays (``joint_target_mode``, ``joint_target_ke``, …)
-    are indexed by *DOF*, not joint. With free-floating joints in the
-    scene (each contributes 6 qd entries but only 1 joint label),
-    ``joint_index != dof_index`` past env 0. ``joint_qd_start[j]`` gives
-    the qd-index where joint ``j``'s DOFs begin; ``joint_qd_start[j+1]``
-    gives the end. We walk that range so a finger (1-DOF revolute) gives
-    1 entry and a free joint (6-DOF) would give 6 — though we only call
-    this for finite-DOF revolute joints.
+    Free-floating joints contribute 6 qd entries per joint, so
+    ``joint_index != dof_index`` past env 0; walk ``joint_qd_start`` to
+    cover every DOF the joint owns.
     """
     qd_start = list(builder.joint_qd_start)
     total_dofs = qd_start[-1] if qd_start else 0
@@ -308,13 +223,7 @@ def _robot_body_indices(builder) -> list[int]:
 
 
 def _set_joint_target_mode(builder) -> None:
-    """Force every robot DOF (arm + fingers) into POSITION mode.
-
-    With ``joint_target_ke = 0`` on the arm, the position target has no
-    effect on the arm; but ``joint_target_kd > 0`` then gives mjwarp a
-    per-joint ``-kd * qd`` damping term that kills the redundant-7th DOF
-    mode the OSC would otherwise have to chase.
-    """
+    """Force every robot DOF (arm + fingers) into POSITION mode."""
     for dof_idx in _arm_dof_indices(builder) + _finger_dof_indices(builder):
         builder.joint_target_mode[dof_idx] = int(newton.JointTargetMode.POSITION)
 
@@ -322,11 +231,9 @@ def _set_joint_target_mode(builder) -> None:
 def _set_ctrl_source_joint_target(builder) -> None:
     """Pin every robot DOF's ``mujoco:ctrl_source`` to ``JOINT_TARGET``.
 
-    With ``mujoco:ctrl_source = JOINT_TARGET``, mjwarp reads the actuator's
-    target from ``Control.joint_target_pos`` (which IsaacLab's
-    ``set_joint_position_target_index`` writes) instead of the unused
-    ``Control.mujoco.ctrl`` array. Required for the POSITION-mode arm
-    to actually consume our position targets.
+    Required so mjwarp reads targets from ``Control.joint_target_pos``
+    (set by ``set_joint_position_target_index``) rather than the unused
+    ``Control.mujoco.ctrl`` array.
     """
     from newton.solvers import SolverMuJoCo
 
@@ -345,12 +252,9 @@ def _set_ctrl_source_joint_target(builder) -> None:
 def _filter_base_table_contacts(builder) -> None:
     """Filter spurious robot-base ↔ table contacts.
 
-    The Franka base (``panda_link0``, ``panda_link1``) sits on the table.
-    Without explicit collision-filter pairs, mjwarp generates a continuous
-    contact between the base collision mesh and the table top surface every
-    step, even when there's no physical interpenetration. Those tiny contact
-    forces propagate through the kinematic chain and show up as
-    multi-millimeter TCP drift during OSC hold.
+    Without this filter mjwarp generates continuous tiny contacts between
+    base links and the table top; they propagate through the chain and
+    show up as multi-millimeter TCP drift during OSC hold.
     """
     base_suffixes = ("/panda_link0", "/panda_link1")
     table_substr = "/Table"
@@ -376,16 +280,9 @@ def _filter_base_table_contacts(builder) -> None:
 def _tune_nut_bolt_contacts(builder) -> None:
     """Tune contact-material gains on every nut/bolt collision shape.
 
-    Newton's parser defaults are too soft: the gripper bounces off the nut.
-    Both modes raise ``ke`` / ``kd`` and keep ``mu`` above ``MJ_MINMU``;
-    only the magnitudes differ.
-
-    - hydroelastic: ``ke=1e4`` / ``kd=100`` / ``gap=0`` — the hydroelastic
-      pipeline carries the dominant normal force; the penalty spring stays
-      low so the two paths don't double-count.
-    - sdf-only: ``ke=1e7`` / ``kd=1e4`` / ``gap=5 mm`` — the penalty spring
-      is now the *only* normal force, so it has to keep finger penetration
-      inside the SDF narrow band; ``kd`` is sized to ~critical damping.
+    Hydroelastic mode keeps the penalty spring soft so it doesn't
+    double-count the hydroelastic normal force; SDF-only inherits the
+    Newton nut/bolt example values (ke=1e7, kd=1e4, gap=5 mm).
     """
     if not all(hasattr(builder, attr) for attr in ("shape_label", "shape_material_mu", "shape_gap")):
         return
@@ -393,14 +290,9 @@ def _tune_nut_bolt_contacts(builder) -> None:
     if _use_hydroelastic:
         ke, kd, gap = 1.0e4, 100.0, 0.0
     else:
-        # SDF-only knobs:
-        #   ``FACTORY_SDF_NUT_BOLT_KE``   contact stiffness on nut + bolt shapes
-        #   ``FACTORY_SDF_NUT_BOLT_KD``   contact damping on nut + bolt shapes
-        #   ``FACTORY_SDF_NUT_BOLT_GAP``  contact-detection threshold
         ke = float(os.environ.get("FACTORY_SDF_NUT_BOLT_KE", "1.0e7"))
         kd = float(os.environ.get("FACTORY_SDF_NUT_BOLT_KD", "1.0e4"))
         gap = float(os.environ.get("FACTORY_SDF_NUT_BOLT_GAP", "0.005"))
-        logger.info("SDF-only nut/bolt contact: ke=%.1e kd=%.1e gap=%.4f", ke, kd, gap)
 
     for i in range(builder.shape_count):
         label = str(builder.shape_label[i]).lower()
@@ -434,55 +326,31 @@ _SDF_RES_TABLE = 32
 _SDF_BAND_FINGER = (-0.01, 0.01)
 _SDF_BAND_NUT_BOLT = (-0.005, 0.005)
 _SDF_BAND_PANDA = (-0.01, 0.01)
-# Wider outside band (2 cm) so the bolt + nut see the table SDF from
-# slightly above, with a narrower inside band — nothing should ever
-# be deep inside the table.
+# Wider outside band so bolt + nut see the table SDF from slightly above.
 _SDF_BAND_TABLE = (-0.005, 0.02)
 
-# Hydroelastic stiffness [Pa/m]. Rigid fingers + nut + bolt (1e11): at smaller
-# values the finger SDF visibly punches through the nut SDF since the
-# hydroelastic counter-force / penetration_volume can't push back the
-# ~187 N from the finger PD close.
+# Hydroelastic stiffness [Pa/m]. Smaller values let the finger SDF punch
+# through the nut SDF under the ~187 N PD close force.
 _KH_FINGER = 1e11
 _KH_NUT_BOLT = 1e11
 
-# SDF-only penalty spring on the fingers, used when ``_use_hydroelastic``
-# is False. The Newton nut/bolt example ships ``ke=1e7 / kd=1e4`` —
-# fine for nut-on-bolt but the example has no gripper, so finger pads
-# need stiffer contact to behave like real rubber-coated pads under
-# the gripper's saturated 40 N close force. A 64-env / 450-step
-# sweep on Factory_develop_baseline.pth at finger ke/kd combinations
-# picked (3e8, 3e5): success_rate 0.625 → 0.891, engage 0.656 → 0.953,
-# mean_engage_step 139 → 93 (vs hydroelastic reference 0.953 / 32).
-# Higher (1e9 / 1e6) starts oscillating in the solver and gives back
-# the gains.
+# SDF-only finger penalty spring. The Newton nut/bolt example ships
+# ke=1e7/kd=1e4, but its scene has no gripper; finger pads under the
+# saturated 40 N close force need ~30× stiffer contact. Sweep picked
+# (3e8, 3e5) on Factory_develop_baseline.pth (success 0.625 → 0.891);
+# higher values oscillate.
 _KE_FINGER = 3.0e8
 _KD_FINGER = 3.0e5
 
-# Finger-only friction extras.
 _FINGER_MU_TORSIONAL = 0.1
 _FINGER_CONDIM = 4
 
 
 def _build_collision_sdfs(builder) -> None:
-    """Build SDFs on Factory's collision meshes.
+    """Bake per-shape SDFs and tag finger/nut/bolt for the active contact model.
 
-    Categorises every collidable mesh shape by body label, builds an
-    SDF at the resolution appropriate for that category, and tags the
-    finger/nut/bolt shapes for the active contact model:
-
-    - hydroelastic: ``HYDROELASTIC`` flag + ``shape_material_kh`` on
-      finger/nut/bolt.
-    - sdf-only: ``shape_material_ke`` / ``shape_material_kd`` penalty
-      springs on the fingers; nut + bolt stay rigid-pipeline.
-
-    Finger torsional friction (``mu_torsional``) and ``condim=4`` apply
-    in both modes.
-
-    Idempotent per mesh: each :class:`newton.Mesh` whose ``sdf`` is
-    already populated is skipped, so re-runs on a hot builder don't
-    re-bake the SDF grids. Multiple shapes can share the same mesh,
-    but ``mesh.build_sdf`` is only called once per unique mesh.
+    Idempotent: meshes with a populated ``sdf`` are skipped, so re-runs
+    on a hot builder don't rebake.
     """
     finger_names = ("panda_leftfinger", "panda_rightfinger")
     finger_body_idxs = {i for i, label in enumerate(builder.body_label) if any(n in label for n in finger_names)}
@@ -530,22 +398,15 @@ def _build_collision_sdfs(builder) -> None:
             category = "panda"
             res, band = _SDF_RES_PANDA, _SDF_BAND_PANDA
         elif body_idx in table_body_idxs:
-            # Voxel SDF for visualisation under "Show Collision". Not
-            # flagged HYDROELASTIC — we want the bolt-on-table contact
-            # to stay on Newton's default rigid pipeline so it doesn't
-            # compete with the finger / nut / bolt hydroelastic mass
-            # balance.
+            # Voxel SDF for "Show Collision"; not HYDROELASTIC — keeps
+            # bolt-on-table contact off the hydroelastic mass balance.
             category = "table"
             res, band = _SDF_RES_TABLE, _SDF_BAND_TABLE
         else:
             continue
 
         if mesh.sdf is None:
-            # Bake non-unit shape_scale into the mesh vertices first —
-            # ``mesh.build_sdf`` doesn't honour shape_scale, so a mesh
-            # with shape_scale != 1 ends up with an SDF in the wrong
-            # coordinate system. Resetting shape_scale to (1,1,1) afterwards
-            # keeps shape vs. mesh in sync.
+            # build_sdf doesn't honour shape_scale, so bake it into vertices.
             shape_scale = builder.shape_scale[shape_idx]
             scale_arr = (float(shape_scale[0]), float(shape_scale[1]), float(shape_scale[2]))
             if not (
@@ -566,11 +427,6 @@ def _build_collision_sdfs(builder) -> None:
             builder.shape_flags[shape_idx] |= int(newton.ShapeFlags.HYDROELASTIC)
             builder.shape_material_kh[shape_idx] = _KH_FINGER if category == "finger" else _KH_NUT_BOLT
         elif not _use_hydroelastic and category == "finger":
-            # SDF-only finger contact-material env vars (defaults match the
-            # Newton nut/bolt example's contact stiffness/damping):
-            #   ``FACTORY_SDF_FINGER_CONTACT_KE`` (default 1e7)
-            #   ``FACTORY_SDF_FINGER_CONTACT_KD`` (default 1e4)
-            #   ``FACTORY_SDF_FINGER_GAP``        (default = parser value, ~5 mm)
             builder.shape_material_ke[shape_idx] = float(
                 os.environ.get("FACTORY_SDF_FINGER_CONTACT_KE", str(_KE_FINGER))
             )

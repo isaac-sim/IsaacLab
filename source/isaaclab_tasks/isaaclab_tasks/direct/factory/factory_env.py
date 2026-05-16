@@ -21,26 +21,14 @@ from .factory_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, FactoryEnvCfg
 
 
 def _set_sim_gravity(cfg: FactoryEnvCfg, gravity: tuple[float, float, float]) -> None:
-    """Set the live simulator gravity vector, dispatching by backend.
-
-    Factory's reset path temporarily zeroes gravity to settle assets, then
-    restores the cfg value. PhysX exposes ``physics_sim_view.set_gravity``
-    via ``carb.Float3``; Newton has no equivalent on ``physics_sim_view``
-    (which is a plain list of registered views), but exposes
-    ``NewtonManager._model.set_gravity`` directly. This helper hides the
-    difference at the two Factory call sites.
-    """
+    """Set the live simulator gravity, dispatching on backend."""
     if _is_newton_backend(cfg):
         from isaaclab_newton.physics import NewtonManager
         from newton.solvers import SolverNotifyFlags
 
         if NewtonManager._model is not None:
             NewtonManager._model.set_gravity(gravity)
-            # Newton's ``set_gravity`` only updates the host-side model; the
-            # active solver (e.g. mjwarp) keeps the previous gravity inside
-            # its ``opt.gravity`` device buffer until ``notify_model_changed``
-            # re-uploads model properties. Without this, "disable gravity"
-            # in the debug panel has no visible effect during stepping.
+            # Re-upload model properties so the solver picks up the change.
             NewtonManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
         return
     physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
@@ -48,14 +36,7 @@ def _set_sim_gravity(cfg: FactoryEnvCfg, gravity: tuple[float, float, float]) ->
 
 
 def _is_newton_backend(cfg: FactoryEnvCfg) -> bool:
-    """Return True when the cfg has been resolved to the Newton physics backend.
-
-    PresetCfg resolution swaps :attr:`FactoryEnvCfg.sim.physics` for either a
-    :class:`~isaaclab_physx.physics.PhysxCfg` or :class:`~isaaclab_newton.physics.NewtonCfg`
-    instance before the env is constructed. We dispatch on the runtime type of
-    ``cfg.sim.physics`` to avoid hard-importing :mod:`isaaclab_newton` on the
-    PhysX path.
-    """
+    """Return True when the cfg has been resolved to the Newton physics backend."""
     physics = getattr(cfg.sim, "physics", None)
     if physics is None:
         return False
@@ -72,8 +53,6 @@ class FactoryEnv(DirectRLEnv):
         cfg.observation_space += cfg.action_space
         cfg.state_space += cfg.action_space
         self.cfg_task = cfg.task
-        # Cache once: every other method reads ``self._is_newton`` instead of
-        # re-running the predicate.
         self._is_newton = _is_newton_backend(cfg)
 
         if self._is_newton:
@@ -83,9 +62,8 @@ class FactoryEnv(DirectRLEnv):
 
         super().__init__(cfg, render_mode, **kwargs)
 
-        # ``factory_utils.set_body_inertias`` / ``set_friction`` reach into
-        # PhysX's ``root_view`` API, which Newton's adapter doesn't expose; the
-        # friction value from the spawn cfg / USD is in effect on Newton.
+        # set_body_inertias / set_friction reach into PhysX root_view; not
+        # exposed on Newton's adapter — values from the spawn cfg take effect.
         if not self._is_newton:
             factory_utils.set_body_inertias(self._robot, self.scene.num_envs)
         self._init_tensors()
@@ -109,7 +87,7 @@ class FactoryEnv(DirectRLEnv):
             (self.num_envs, 1)
         )
 
-        # Set masses and frictions. See note in ``__init__`` on Newton.
+        # PhysX only — Newton's adapter doesn't expose root_view friction.
         if not self._is_newton:
             factory_utils.set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction, self.scene.num_envs)
             factory_utils.set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction, self.scene.num_envs)
@@ -146,12 +124,10 @@ class FactoryEnv(DirectRLEnv):
         """Initialize simulation scene."""
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -1.05))
 
-        # Newton: spawn a thin kinematic cuboid the size of the table top.
-        # The instanceable Seattle-lab-table USD has no
-        # ``UsdPhysics.RigidBodyAPI`` on its root so it can't be wrapped as a
-        # ``RigidObjectCfg`` directly. ``MeshCuboidCfg`` (not ``CuboidCfg``) so
-        # ``_build_collision_sdfs`` can bake a voxel SDF for "Show Collision".
-        # Top surface at z=0; bolt init_state.pos.z is remapped to match.
+        # Newton: spawn a thin kinematic cuboid as the table top.
+        # The lab-table USD has no UsdPhysics.RigidBodyAPI, so it can't be
+        # a RigidObjectCfg directly. MeshCuboidCfg (not CuboidCfg) so
+        # _build_collision_sdfs can bake a voxel SDF.
         if self._is_newton:
             table_cfg = RigidObjectCfg(
                 prim_path="/World/envs/env_.*/Table",
@@ -173,9 +149,8 @@ class FactoryEnv(DirectRLEnv):
             )
 
         self._robot = Articulation(self.cfg.robot)
-        # Joint-less assets dispatch via cfg.class_type so PhysX gets
-        # Articulation and Newton gets RigidObject (after the Newton-only
-        # cfg conversion in __init__). Same call site, both backends.
+        # ``class_type`` dispatch: PhysX → Articulation, Newton → RigidObject
+        # (after the Newton cfg conversion in ``__init__``).
         self._fixed_asset = self.cfg_task.fixed_asset.class_type(self.cfg_task.fixed_asset)
         self._held_asset = self.cfg_task.held_asset.class_type(self.cfg_task.held_asset)
         if self.cfg_task.name == "gear_mesh":
@@ -188,10 +163,7 @@ class FactoryEnv(DirectRLEnv):
             self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot
-        # Joint-less assets register on rigid_objects (Newton: RigidObject,
-        # PhysX: Articulation also satisfies the rigid-object dict contract;
-        # mirrors what shadow_hand_vision does). Either backend can read its
-        # own object back via the dict on reset/randomization paths.
+        # rigid_objects on Newton, articulations on PhysX — mirrors shadow_hand_vision.
         asset_registry = self.scene.rigid_objects if self._is_newton else self.scene.articulations
         asset_registry["fixed_asset"] = self._fixed_asset
         asset_registry["held_asset"] = self._held_asset
@@ -199,9 +171,7 @@ class FactoryEnv(DirectRLEnv):
             asset_registry["small_gear"] = self._small_gear_asset
             asset_registry["large_gear"] = self._large_gear_asset
 
-        # Newton-only: register the kinematic table RigidObject so the scene
-        # can clone/bind it and the data layer can resolve its body. PhysX
-        # spawned the table as a plain static prim and doesn't need this.
+        # Newton-only: register the kinematic table RigidObject for cloning.
         if self._is_newton:
             self.scene.rigid_objects["table"] = self._table
 
@@ -209,29 +179,22 @@ class FactoryEnv(DirectRLEnv):
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
-        # Register Newton's MODEL_INIT callback here (before model finalization)
-        # rather than in __init__ after super().__init__.
+        # Register MODEL_INIT here so it fires before model finalization.
         if self._is_newton:
             from . import factory_newton_setup
 
             factory_newton_setup.register_model_init_callback()
 
     def _compute_fingertip_velocity_from_newton_state(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Read fingertip linear + angular velocity directly from mjwarp state.
+        """Read fingertip velocity from mjwarp state and transport COM → link origin.
 
-        The IsaacLab Newton articulation data adapter returns 0 for
-        ``body_lin_vel_w`` / ``body_link_lin_vel_w`` on the
-        ``panda_fingertip_centered`` body (a zero-mass virtual link).
-        That kills the OSC's task-space Kd*e_dot damping term. The raw
-        mjwarp ``state.body_qd`` has the correct velocity for that body,
-        so we read it directly and apply the COM->link transport:
-
-            v_link = v_com + omega x (p_link - p_com)
+        Newton's data adapter zeros ``body_lin_vel_w`` on the zero-mass
+        ``panda_fingertip_centered`` virtual link; without this helper
+        the OSC's task-space damping term goes to zero.
 
         Returns:
-            Tuple ``(linvel, angvel)``, each ``(num_envs, 3)`` torch
-            tensors on the robot device, in world frame at the
-            fingertip body origin.
+            ``(linvel, angvel)`` each ``(num_envs, 3)`` in world frame at
+            the fingertip link origin.
         """
         from isaaclab_newton.physics import NewtonManager
 
@@ -257,21 +220,18 @@ class FactoryEnv(DirectRLEnv):
                 )
             self._fingertip_body_global_idx = torch.tensor(idxs, dtype=torch.long, device=self.device)
 
-        # body_qd layout: [v_com_x, v_com_y, v_com_z, w_x, w_y, w_z] in world frame.
-        body_qd_t = wp.to_torch(state.body_qd)  # (n_bodies, 6)
+        # body_qd: [v_com_x, v_com_y, v_com_z, w_x, w_y, w_z], world frame.
+        body_qd_t = wp.to_torch(state.body_qd)
         ft_idx = self._fingertip_body_global_idx
         v_com = body_qd_t[ft_idx, 0:3]
         omega = body_qd_t[ft_idx, 3:6]
 
-        # Transport from body COM to body link origin: v_link = v_com + omega x (p_link - p_com).
-        # body_q[fingertip] is the link world transform; body_com is local COM offset.
-        body_q_t = wp.to_torch(state.body_q)  # (n_bodies, 7) = (px, py, pz, qx, qy, qz, qw)
-        body_com_t = wp.to_torch(model.body_com)  # (n_bodies, 3) local-frame COM offset
+        # v_link = v_com + omega × (p_link - p_com).
+        body_q_t = wp.to_torch(state.body_q)
+        body_com_t = wp.to_torch(model.body_com)
         link_pos = body_q_t[ft_idx, 0:3]
         link_quat_xyzw = body_q_t[ft_idx, 3:7]
-        com_local = body_com_t[ft_idx]
-        # Rotate com_local into world frame using link_quat.
-        com_world_offset = torch_utils.quat_apply(link_quat_xyzw, com_local)
+        com_world_offset = torch_utils.quat_apply(link_quat_xyzw, body_com_t[ft_idx])
         r_com_w = link_pos + com_world_offset
         v_link = v_com + torch.cross(omega, link_pos - r_com_w, dim=-1)
         return v_link, omega
@@ -290,9 +250,6 @@ class FactoryEnv(DirectRLEnv):
         )
         self.fingertip_midpoint_quat = self._robot.data.body_quat_w.torch[:, self.fingertip_body_idx]
         if self._is_newton:
-            # Newton's data adapter zeros body_lin_vel_w on the zero-mass
-            # virtual fingertip body, which kills OSC task-space damping.
-            # Read the raw mjwarp state instead and transport COM→link origin.
             self.fingertip_midpoint_linvel, self.fingertip_midpoint_angvel = (
                 self._compute_fingertip_velocity_from_newton_state()
             )
@@ -300,7 +257,6 @@ class FactoryEnv(DirectRLEnv):
             self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w.torch[:, self.fingertip_body_idx]
             self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w.torch[:, self.fingertip_body_idx]
 
-        # Backend-agnostic OSC inputs via PR #5400 accessors.
         jacobians = self._robot.data.body_link_jacobian_w.torch
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
@@ -498,10 +454,7 @@ class FactoryEnv(DirectRLEnv):
         self.ctrl_target_joint_pos[:, 7:9] = ctrl_target_gripper_dof_pos
         self.joint_torque[:, 7:9] = 0.0
 
-        # Newton's articulation drive does not enforce per-joint effort_limit_sim
-        # on direct joint_f writes (PhysX does). Without this clamp, OSC torque
-        # saturation produces 100 N·m on the wrist (factory_control.compute_dof_torque's
-        # global ±100 ceiling) instead of the FR3 datasheet 12 N·m.
+        # Newton's joint_f writes don't honour effort_limit_sim — clamp explicitly.
         if self._is_newton:
             from . import factory_control_newton
 
@@ -729,10 +682,7 @@ class FactoryEnv(DirectRLEnv):
             self._robot.write_joint_velocity_to_sim_index(velocity=self.joint_vel)
             self._robot.set_joint_position_target_index(target=self.ctrl_target_joint_pos)
 
-            # Simulate and update tensors. ``step_sim_no_action`` itself
-            # dispatches per backend: PhysX runs the full physics step;
-            # Newton skips the integrator and only refreshes FK + Jacobian
-            # (see :meth:`step_sim_no_action`).
+            # PhysX steps physics; Newton refreshes FK + Jacobian only.
             self.step_sim_no_action()
             ik_time += self.physics_dt
 
@@ -1024,9 +974,7 @@ class FactoryEnv(DirectRLEnv):
         self.task_prop_gains = self.default_gains
         self.task_deriv_gains = factory_utils.get_deriv_gains(self.default_gains)
 
-        # Restore gravity (PhysX). Newton's adapter doesn't honour the
-        # per-body ``disable_gravity=True`` flags set on the robot / held nut,
-        # so keep global gravity at zero post-reset to match PhysX behaviour.
+        # Newton ignores per-body disable_gravity flags — keep global gravity at zero.
         if self._is_newton:
             _set_sim_gravity(self.cfg, (0.0, 0.0, 0.0))
         else:

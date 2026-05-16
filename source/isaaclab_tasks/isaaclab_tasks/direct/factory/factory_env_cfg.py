@@ -87,24 +87,10 @@ class CtrlCfg:
 
 @configclass
 class FactoryPhysicsCfg(PresetCfg):
-    """Per-backend physics cfg for Factory tasks.
+    """Per-backend physics cfg. Newton uses MuJoCo-Warp + SDF collisions.
 
-    PhysX preserves the original Factory tuning. Newton uses the MuJoCo-Warp
-    solver with Newton's SDF collision pipeline:
-
-    * ``integrator='implicitfast'`` — better stability for contact-rich scenes.
-    * ``cone='elliptic'``, ``impratio=10`` — friction-vs-normal coupling tuned
-      for finger-on-nut/bolt threading.
-    * ``use_mujoco_contacts=False`` — routes contacts through Newton's SDF
-      pipeline; combined with a non-None ``sdf_hydroelastic_config`` this
-      enables hydroelastic forces, otherwise the pipeline falls back to
-      penalty-spring contacts.
-    * ``njmax`` / ``nconmax`` raised vs default to fit threading-pair contacts.
-
-    Set ``collision_cfg.sdf_hydroelastic_config=None`` to run the SDF-only
-    penalty-spring mode (lower fidelity but no hydroelastic dependency).
-    :meth:`FactoryNewtonSetup.apply_cfg_overrides` reads this field and
-    retunes finger PD + per-shape ``ke`` / ``kd`` accordingly.
+    Set ``collision_cfg.sdf_hydroelastic_config=None`` for SDF-only
+    penalty-spring contacts (no hydroelastic dependency).
     """
 
     physx = PhysxCfg(
@@ -125,14 +111,9 @@ class FactoryPhysicsCfg(PresetCfg):
             integrator="implicitfast",
             njmax=4000,
             nconmax=4000,
-            # impratio=10 keeps gripper-vs-nut friction loose enough for the
-            # fingers to close on the nut; higher values over-constrain the pad
-            # against the nut surface.
+            # Higher impratio over-constrains the gripper pad on the nut.
             impratio=10.0,
             cone="elliptic",
-            # Route hydroelastic contacts through MuJoCo so anchor_contact /
-            # moment_matching engage; the static value here is overridden by
-            # FactoryEnv.__init__ scaling rigid_contact_max with num_envs.
             use_mujoco_contacts=False,
             iterations=10,
             ls_iterations=100,
@@ -140,19 +121,14 @@ class FactoryPhysicsCfg(PresetCfg):
         collision_cfg=NewtonCollisionPipelineCfg(
             broad_phase="explicit",
             rigid_contact_max=32768,
+            # PhysX patch-friction analogs.
             sdf_hydroelastic_config=HydroelasticSDFCfg(
-                # PhysX patch-friction analogs — preserve force + torque balance
-                # per normal bin under contact reduction so the nut doesn't spin
-                # out under asymmetric finger pinch.
                 anchor_contact=True,
                 moment_matching=True,
                 output_contact_surface=False,
             ),
         ),
-        # 8 solver substeps per 8.33 ms physics tick (Newton runs at
-        # 120 Hz; see :func:`apply_cfg_overrides`) → 1.04 ms substep
-        # dt.  Re-collide every 2 substeps so contacts update 4× per
-        # tick.
+        # 1.04 ms substep dt; re-collide every 2 substeps (4x per tick).
         num_substeps=8,
         collision_substeps=2,
         use_cuda_graph=True,
