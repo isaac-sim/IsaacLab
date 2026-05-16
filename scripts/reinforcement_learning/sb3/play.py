@@ -5,6 +5,16 @@
 
 """Script to play a checkpoint if an RL agent from Stable-Baselines3."""
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/sb3/play.py is deprecated. Use "
+    "`./isaaclab.sh play --rl_library sb3 --task <TASK>` instead. "
+    "Example: `./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import os
@@ -20,12 +30,20 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    fold_preset_tokens,
+    get_checkpoint_path,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -63,12 +81,11 @@ parser.add_argument(
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
 
 if args_cli.video:
     args_cli.enable_cameras = True
-
-sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main():
@@ -156,6 +173,10 @@ def main():
         # create agent from stable baselines
         print(f"Loading checkpoint from: {checkpoint_path}")
         agent = PPO.load(checkpoint_path, env, print_system_info=True)
+        # configure_seed must be called after PPO.load so that PyTorch deterministic settings
+        # do not interfere with SB3's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         dt = env.unwrapped.step_dt
 

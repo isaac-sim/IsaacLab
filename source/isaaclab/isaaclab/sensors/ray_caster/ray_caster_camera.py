@@ -16,6 +16,7 @@ from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
 
 from .kernels import (
@@ -552,16 +553,13 @@ class RayCasterCamera(RayCaster):
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object
-        # -- pose of the cameras
-        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._data.intrinsic_matrices[:, 2, 2] = 1.0
+        # -- pose and intrinsics as warp-backed ProxyArrays
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
+        self._data.create_buffers(self._view.count, device_str)
+        self._data.intrinsic_matrices.torch[:, 2, 2] = 1.0
         self._data.image_shape = self.image_shape
-        # -- output data
-        # create the buffers to store the annotator data.
-        self._data.output = {}
+        # -- output data as warp-backed ProxyArrays
+        output = {}
         self._data.info = {name: None for name in self.cfg.data_types}
         for name in self.cfg.data_types:
             if name in ["distance_to_image_plane", "distance_to_camera"]:
@@ -570,8 +568,9 @@ class RayCasterCamera(RayCaster):
                 shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 3)
             else:
                 raise ValueError(f"Received unknown data type: {name}. Please check the configuration.")
-            # allocate tensor to store the data
-            self._data.output[name] = torch.zeros((self._view.count, *shape), device=self._device)
+            wp_arr = wp.zeros((self._view.count, *shape), dtype=wp.float32, device=device_str)
+            output[name] = ProxyArray(wp_arr)
+        self._data._output = output
 
     def _compute_intrinsic_matrices(self):
         """Computes the intrinsic matrices for the camera based on the config provided."""

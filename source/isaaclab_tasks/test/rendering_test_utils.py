@@ -14,6 +14,8 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.warp import ProxyArray
+
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
 
@@ -592,7 +594,7 @@ def validate_camera_outputs(
     test_name: str,
     physics_backend: str,
     renderer: str,
-    camera_outputs: dict[str, torch.Tensor],
+    camera_outputs: dict[str, ProxyArray],
     max_different_pixels_percentage: float,
     comparison_scores: list[dict],
 ) -> None:
@@ -605,7 +607,8 @@ def validate_camera_outputs(
     ssim_threshold = _SSIM_THRESHOLD_BY_ENV_NAME.get(test_name, _SSIM_THRESHOLD)
     failed_data_types = {}
 
-    for data_type, tensor in camera_outputs.items():
+    for data_type, output in camera_outputs.items():
+        tensor = output if isinstance(output, torch.Tensor) else output.torch
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.max()

@@ -119,6 +119,16 @@ class AppLauncher:
                 settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
 
     @staticmethod
+    def apply_rtx_determinism_settings() -> None:
+        """Apply RTX RealTimePathTracing and disable RTPT caches for reproducible RTX rendering.
+        Called after :class:`isaacsim.simulation_app.SimulationApp` starts whenever ``--deterministic`` is set.
+        """
+        settings = get_settings_manager()
+        settings.set_string("/rtx/rendermode", "RealTimePathTracing")
+        settings.set_bool("/rtx/rtpt/cached/enabled", False)
+        settings.set_bool("/rtx/rtpt/lightcache/cached/enabled", False)
+
+    @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str]:
         """Parse visualizer list from a single comma-delimited CLI token."""
         valid = {"kit", "newton", "rerun", "viser", "none"}
@@ -365,6 +375,9 @@ class AppLauncher:
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
 
+        * ``deterministic`` (bool): After startup, applies RTX/RTPT carb settings for reproducible rendering.
+          Does not change how the default experience file is chosen.
+
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
@@ -491,6 +504,12 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
+            "--deterministic",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
+            help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
+        )
+        arg_group.add_argument(
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
@@ -558,6 +577,7 @@ class AppLauncher:
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
+        "deterministic": ([bool], False),
         "rendering_mode": ([str], "balanced"),
         "max_visible_envs": ([int, type(None)], None),
     }
@@ -1012,6 +1032,9 @@ class AppLauncher:
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
         self._sim_experience_file = launcher_args.pop("experience", "")
+        deterministic_mode = bool(
+            launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
+        )
 
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
@@ -1064,6 +1087,7 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        self._apply_rtx_determinism = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
@@ -1148,6 +1172,10 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized.
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
+
+        if self._apply_rtx_determinism:
+            AppLauncher.apply_rtx_determinism_settings()
+            logger.info("Applied RTX settings for deterministic rendering (--deterministic).")
 
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
         # Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.

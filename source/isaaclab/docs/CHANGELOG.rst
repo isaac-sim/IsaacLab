@@ -1,6 +1,121 @@
 Changelog
 ---------
 
+5.3.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unified ``train`` and ``play`` console-script entry points (``isaaclab.cli:train``
+  and ``isaaclab.cli:play``) that dispatch to a library-specific implementation via
+  ``--rl_library``. Supported libraries are ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``,
+  and ``rlinf``.
+* Added refactored per-library train/play scripts under
+  ``scripts/reinforcement_learning/`` with a shared ``common.dispatch_library_entrypoint``
+  helper, replacing the previous standalone per-library scripts.
+* Added experimental ``uv run`` workflow allowing ``uv run train`` and ``uv run play``
+  directly from the repository root without manual environment setup. See
+  :ref:`uv-run-training` for usage.
+* Added :attr:`~isaaclab.sim.converters.UrdfConverterCfg.ros_package_paths`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.robot_type`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.run_asset_transformer`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.run_multi_physics_conversion`, and
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.debug_mode` config fields that mirror the
+  new :class:`isaacsim.asset.importer.urdf.URDFImporterConfig` options.
+* Extended :attr:`~isaaclab.sim.converters.UrdfConverterCfg.collision_type` to accept
+  ``"Bounding Sphere"`` and ``"Bounding Cube"`` in addition to the existing ``"Convex Hull"``
+  and ``"Convex Decomposition"`` values.
+* Added :attr:`~isaaclab.sim.converters.MjcfConverterCfg.fix_base`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.link_density`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.robot_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_gain_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_bias_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_gain_prm`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_bias_prm`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.run_asset_transformer`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.run_multi_physics_conversion`, and
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.debug_mode` config fields that mirror the
+  new :class:`isaacsim.asset.importer.mjcf.MJCFImporterConfig` options.
+* Added ``--deterministic`` flag to :class:`~isaaclab.app.app_launcher.AppLauncher` so training and
+  rendering runs can opt into RTX/RTPT carb settings for more reproducible output after startup.
+* Added :func:`~isaaclab.cloner.cloner_utils.is_homogeneous` to detect whether a :class:`~isaaclab.cloner.ClonePlan`
+  assigns every environment from every source (a homogeneous clone mask).
+* Added :class:`~isaaclab.envs.mdp.observations.stacked_image`, a stateful
+  :class:`~isaaclab.managers.ManagerTermBase` that channel-stacks the last ``N`` frames
+  from a camera sensor. Manager-based environments can reference it in observation cfg
+  to add explicit temporal information for camera-based RL tasks whose renderer doesn't
+  supply implicit temporal data (e.g., Newton Warp).
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.converters.UrdfConverter` to delegate the full conversion
+  pipeline to :class:`isaacsim.asset.importer.urdf.URDFImporter` /
+  :class:`isaacsim.asset.importer.urdf.URDFImporterConfig`. The duplicated IsaacLab
+  implementations of ``_apply_fix_base``, ``_apply_link_density``, ``_apply_joint_drives``,
+  ``_set_drive_type_on_joints``, ``_set_target_type_on_joints``, ``_set_drive_gains_on_joints``,
+  and ``_fix_articulation_root_for_fixed_base`` have been removed and replaced with a thin
+  translation layer that maps :class:`~isaaclab.sim.converters.UrdfConverterCfg` onto the
+  Isaac Sim importer config. All behaviour is preserved.
+* Updated :class:`~isaaclab.sim.converters.MjcfConverter` to forward the full set of
+  :class:`isaacsim.asset.importer.mjcf.MJCFImporterConfig` options to the Isaac Sim importer.
+* Bumped the ``newton[sim]`` pin from ``v1.2.0rc2`` to ``v1.2.0``
+  (stable) across :mod:`isaaclab_newton`, :mod:`isaaclab_physx`
+  (``[newton]`` extra), :mod:`isaaclab_visualizers` (3×), and
+  ``tools/wheel_builder/res/python_packages.toml``. Upstream release
+  notes: `newton-physics/newton v1.2.0
+  <https://github.com/newton-physics/newton/releases/tag/v1.2.0>`_.
+* No IsaacLab-side ``mujoco`` / ``mujoco-warp`` pin change — the
+  transitive ``mjwarp`` bump flows in through ``newton[sim]`` since
+  `isaac-sim/IsaacLab#5566
+  <https://github.com/isaac-sim/IsaacLab/pull/5566>`_ dropped the
+  explicit pins.
+* Changed Isaac Lab Docker images to run as the non-root ``isaaclab`` user by default. Use an explicit
+  container user override when root access is required.
+* Changed :class:`~isaaclab.sensors.camera.CameraData` to expose all sensor buffers as
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of :class:`torch.Tensor`. The fields
+  :attr:`~isaaclab.sensors.camera.CameraData.pos_w` (``wp.vec3f``),
+  :attr:`~isaaclab.sensors.camera.CameraData.quat_w_world` (``wp.quatf``),
+  :attr:`~isaaclab.sensors.camera.CameraData.intrinsic_matrices` (``wp.mat33f``), and all
+  entries in :attr:`~isaaclab.sensors.camera.CameraData.output` are now backed by warp arrays.
+  Use ``.torch`` for a zero-copy :class:`torch.Tensor` view or ``.warp`` to pass the array
+  directly to a warp kernel. Existing code using these fields as tensors (indexing, arithmetic,
+  :func:`torch.testing.assert_close`, etc.) continues to work via the
+  :class:`~isaaclab.utils.warp.ProxyArray` deprecation bridge with a one-time
+  :class:`DeprecationWarning`.
+* Updated :meth:`~isaaclab.renderers.BaseRenderer.set_outputs` and
+  :meth:`~isaaclab.renderers.BaseRenderer.update_camera` in :class:`~isaaclab.renderers.BaseRenderer`
+  to accept :class:`~isaaclab.utils.warp.ProxyArray` arguments instead of :class:`torch.Tensor`.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.sim.converters.urdf_utils.merge_fixed_joints` as it is now handled by the Isaac Sim URDF importer.
+
+Fixed
+^^^^^
+
+* Fixed a startup crash in :class:`~isaaclab.app.AppLauncher` when launching with a CUDA device.
+  Setting the current torch CUDA device used to happen before ``SimulationApp`` was created, which
+  imported ``torch`` (and transitively NumPy/OpenBLAS) prior to Kit's platform-info fork. On systems
+  where OpenBLAS's at-fork handlers were not yet safe, that fork could crash. The
+  ``torch.cuda.set_device`` call is now deferred until after ``SimulationApp`` starts.
+* Fixed ``calculate_rotation_error`` in
+  ``source/isaaclab/test/controllers/test_pink_ik.py`` composing rotation matrices
+  with element-wise ``*`` instead of matrix multiplication ``@`` — a latent bug
+  from `isaac-sim/IsaacLab#3149
+  <https://github.com/isaac-sim/IsaacLab/pull/3149>`_ that surfaced as NaN after
+  `isaac-sim/IsaacLab#5609
+  <https://github.com/isaac-sim/IsaacLab/pull/5609>`_ added the unit-norm guard to
+  ``quat_from_matrix``.
+* Made ``test_pink_ik`` deterministic by seeding the env (``env_cfg.seed = 42``)
+  in ``create_test_env``.
+* Loosened the G1 Pink IK rotation tolerance from ``0.030`` rad to ``0.100`` rad
+  in ``pink_ik_g1_test_configs.json`` to accommodate G1's intentionally smooth IK
+  tuning (slower-converging than GR1T2). GR1T2 tolerance unchanged at ``0.020`` rad.
+
+
 5.2.1 (2026-05-15)
 ~~~~~~~~~~~~~~~~~~
 

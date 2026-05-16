@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+1.7.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`isaaclab_tasks.utils.preset_target.PresetTarget` -- closed enum
+  of typed preset categories (``PHYSICS``, ``RENDERER``, ``DOMAIN``).
+* Added :func:`isaaclab_tasks.utils.preset_cli.setup_preset_cli` -- a typed
+  selection layer over the ``presets=<csv>`` Hydra-decorator preset flow.
+  Recognizes three Hydra-style tokens (``physics=NAME``, ``renderer=NAME``,
+  ``presets=NAME[,...]``) and folds them into the existing token. When
+  ``--task=X`` is given alongside ``--help``, lists the
+  :class:`~isaaclab_tasks.utils.hydra.PresetCfg` variants present in the
+  task's env_cfg, bucketed by typed target.
+* Added :class:`~isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env.CartpoleCameraPresetsEnv`,
+  a subclass of :class:`~isaaclab_tasks.direct.cartpole.cartpole_camera_env.CartpoleCameraEnv` that
+  wires :class:`~isaaclab.utils.buffers.CircularBuffer` into the ``Isaac-Cartpole-Camera-Presets-Direct-v0``
+  task. ``frame_stack`` defaults to ``2`` for the Newton + Warp combo and ``1`` otherwise;
+  CLI overrides via ``env.frame_stack=N`` are respected.
+
+Changed
+^^^^^^^
+
+* Changed :mod:`isaaclab_tasks.utils.hydra` to source legacy preset aliases
+  from :meth:`~isaaclab_tasks.utils.preset_target.PresetTarget.all_legacy_aliases`
+  instead of a local literal dict.
+
+Fixed
+^^^^^
+
+* Fixed ``AttributeError: 'NoneType' object has no attribute 'shape'`` raised
+  when instantiating skrl PPO models for the ``Isaac-TrackPositionNoObstacles-ARL-Robot-1-*``
+  and ``Isaac-Navigation-3DObstacles-ARL-Robot-1-*`` tasks. The drone-ARL skrl
+  configs used ``input: STATES`` for both policy and value networks, which
+  skrl 2.0 resolves against ``state_space`` (``None`` for single-agent
+  environments). Updated the configs to use ``input: OBSERVATIONS`` to match
+  the rest of the single-agent skrl configs in IsaacLab.
+
+
 1.6.0 (2026-05-14)
 ~~~~~~~~~~~~~~~~~~
 
