@@ -11,6 +11,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -30,6 +31,8 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
     ProxyCoupledMJWarpVBDSolverCfg,
 )
 
+from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+
 from . import mdp
 from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 
@@ -43,6 +46,8 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     volumetric ``deformable`` asset with a Newton cable.
     """
 
+    robot: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+
     deformable = None
     """Disable the volumetric deformable asset inherited from the soft scene
     (``InteractiveScene`` skips fields that are ``None``)."""
@@ -55,11 +60,11 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
             width=0.01,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonCableMaterialCfg(
-                stretch_stiffness=1.0e6,
+                stretch_stiffness=1.0e5,
                 bend_stiffness=1.0e-3,
                 stretch_damping=1.0e-3,
-                bend_damping=1.0e-3,
-                density=1000.0,
+                bend_damping=1.0e-2,
+                density=500.0,
             ),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
@@ -77,8 +82,8 @@ class CommandsCfg:
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.4, 0.6),
-            pos_y=(-0.25, 0.25),
-            pos_z=(0.25, 0.5),
+            pos_y=(-0.2, 0.2),
+            pos_z=(0.1, 0.2),
             roll=(0.0, 0.0),
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
@@ -107,7 +112,7 @@ class ActionsCfg:
             command_type="pose",
             use_relative_mode=False,
             ik_method="dls",
-            ik_params={"lambda_val": 0.6},
+            ik_params={"lambda_val": 0.2},
         ),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
@@ -267,9 +272,9 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
                 soft_contact_ke=1e4,
                 soft_contact_kd=1e-5,
                 soft_contact_mu=5.0,
-                shape_material_ke=4e4,
+                shape_material_ke=8e4,
                 shape_material_kd=1e-5,
-                shape_material_mu=5.0,
+                shape_material_mu=10.0,
             ),
             num_substeps=10,
         )

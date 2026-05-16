@@ -85,7 +85,6 @@ class PickSmState:
     APPROACH_OBJECT = wp.constant(2)
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
-    OPEN_GRIPPER = wp.constant(5)
 
 
 @wp.func
@@ -156,24 +155,6 @@ def infer_state_machine(
     elif state == PickSmState.LIFT_OBJECT:
         des_ee_pose[tid] = des_object_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
-        if distance_below_threshold(
-            wp.transform_get_translation(ee_pose[tid]),
-            wp.transform_get_translation(des_ee_pose[tid]),
-            position_threshold,
-        ):
-            # wait for a while
-            if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
-                # move to next state and reset wait time
-                sm_state[tid] = PickSmState.OPEN_GRIPPER
-                sm_wait_time[tid] = 0.0
-    elif state == PickSmState.OPEN_GRIPPER:
-        # des_ee_pose[tid] = object_pose[tid]
-        gripper_state[tid] = GripperState.OPEN
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.OPEN_GRIPPER:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.OPEN_GRIPPER
-            sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
 
@@ -189,7 +170,6 @@ class PickSmWaitTime:
     APPROACH_OBJECT = wp.constant(1.0)
     GRASP_OBJECT = wp.constant(1.0)
     LIFT_OBJECT = wp.constant(1.5)
-    OPEN_GRIPPER = wp.constant(0.0)
 
 
 class PickAndLiftSm:
@@ -344,7 +324,7 @@ def main():
     object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     object_grasp_orientation[:, 0] = 1.0
     # Grasp at the deformable's centre of mass.
-    object_local_grasp_position = torch.tensor([0.0, 0.0, 0.0], device=env.unwrapped.device)
+    object_local_grasp_position = torch.tensor([0.0, 0.0, -0.01], device=env.unwrapped.device)
 
     # create state machine
     pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
@@ -370,8 +350,9 @@ def main():
                 # -- target object frame
                 desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
             else:
+                # Grab the fourth link of the cable
                 object_data = env.unwrapped.scene["cable"].data
-                object_position = object_data.root_com_pos_w.torch - env.unwrapped.scene.env_origins
+                object_position = object_data.body_com_pos_w.torch[:,3] - env.unwrapped.scene.env_origins
 
                 # -- target object frame
                 desired_position = env.unwrapped.command_manager.get_command("cable_pose")[..., :3]
