@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonSolverCfg
+from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
+
+    from isaaclab.scene import InteractiveSceneCfg
 
 
 @configclass
@@ -132,10 +135,12 @@ class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     bodies in the VBD view so that VBD detects contacts against them and
     returns the harvested feedback wrenches to MuJoCo via lagged impulses.
 
-    Selection of proxy bodies is driven by :attr:`proxy_body_label_patterns`:
-    each entry is a regex matched against the short-name component of
-    ``newton.Model.body_label``. Matched bodies that own at least one shape
-    flagged ``COLLIDE_SHAPES`` are promoted to proxies.
+    Selection of proxy bodies is driven by :attr:`proxy_bodies`: each entry is
+    a :class:`~isaaclab.managers.SceneEntityCfg` naming the source asset and a
+    list of body-name regexes to match against the asset's bodies. Matched
+    bodies that own at least one shape flagged ``COLLIDE_SHAPES`` are promoted
+    to proxies. Mirrors the asset-scoped naming convention used by
+    :class:`~isaaclab.envs.mdp.BinaryJointPositionActionCfg.joint_names`.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.proxy_coupled_mjwarp_vbd_manager:NewtonProxyCoupledMJWarpVBDManager"
@@ -169,13 +174,19 @@ class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """USD prim-path templates whose bodies/joints/shapes/particles go to the
     VBD entry. Same conventions as :attr:`mjwarp_prim_paths`."""
 
-    proxy_body_label_patterns: list[str] = []
-    """Regex patterns matched against ``newton.Model.body_label`` short names.
+    proxy_bodies: list[SceneEntityCfg] = []
+    """Scene-entity specs naming the bodies to expose as proxies in the VBD view.
 
-    Bodies whose short name matches any pattern and that own at least one
-    shape flagged ``newton.ShapeFlags.COLLIDE_SHAPES`` are exposed as proxy
-    bodies in the VBD view. Empty list means no proxies (the solver still runs
-    but rigid bodies are invisible to VBD).
+    Each entry is a :class:`~isaaclab.managers.SceneEntityCfg` with
+    :attr:`~isaaclab.managers.SceneEntityCfg.name` set to a scene-registered
+    asset and :attr:`~isaaclab.managers.SceneEntityCfg.body_names` set to a
+    list of regex patterns (matched with ``re.fullmatch`` against the asset's
+    body short names, same convention as
+    :class:`~isaaclab.envs.mdp.BinaryJointPositionActionCfg.joint_names`).
+    Bodies matching any pattern that also own at least one shape flagged
+    ``newton.ShapeFlags.COLLIDE_SHAPES`` are promoted to proxies. Empty list
+    means no proxies (the solver still runs but rigid bodies are invisible
+    to VBD).
     """
 
     proxy_mode: str = "lagged"
@@ -285,4 +296,34 @@ class NewtonModelCfg:
     When set, all collision shapes in the model will have their friction
     coefficient overwritten to this value.  If ``None`` (default), the
     per-shape values parsed from USD/MJCF are kept.
+    """
+
+
+@configclass
+class CoupledNewtonCfg(NewtonCfg):
+    """:class:`NewtonCfg` extended for coupled-solver setups.
+
+    Adds :attr:`model_cfg` (mirrors what :class:`DeformableNewtonCfg` carries
+    for global model parameters) and :attr:`scene_cfg`, which lets the manager
+    resolve :class:`~isaaclab.managers.SceneEntityCfg`-based selectors (e.g.
+    :attr:`ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies`) against the scene at
+    solver-build time, without the env having to monkey-patch a private
+    attribute onto the solver cfg.
+
+    Uses a distinct class name so :func:`_is_kitless_physics` does not match
+    it, ensuring Kit is launched for USD deformable/coupled spawning.
+    """
+
+    model_cfg: NewtonModelCfg | None = None
+    """Global Newton model parameters applied after builder finalization."""
+
+    scene_cfg: InteractiveSceneCfg | None = None
+    """Scene cfg used by coupled solvers to resolve scene-entity selectors.
+
+    Set this to ``self.scene`` from the env's ``__post_init__``. The
+    :class:`NewtonProxyCoupledMJWarpVBDManager` reads it via
+    :attr:`PhysicsManager._cfg.scene_cfg` to look up each
+    :class:`~isaaclab.managers.SceneEntityCfg` in
+    :attr:`ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies` and resolve the
+    asset's :attr:`prim_path` template.
     """
