@@ -82,6 +82,13 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
         super().step()
 
     @classmethod
+    def _solver_specific_clear(cls) -> None:
+        """Reset shared builder hooks and registries owned by the base manager."""
+        NewtonManager._cable_registry = []
+        NewtonManager._deformable_registry = []
+        NewtonManager._per_world_builder_hooks = []
+
+    @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
         """Return USD prim paths to skip when calling ``builder.add_usd``.
 

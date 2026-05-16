@@ -274,19 +274,10 @@ def spawn_cable(
         The spawned cable ``Xform`` prim.
 
     Raises:
-        ValueError: If ``cfg.physics_material`` is not a
-            ``NewtonCableMaterialCfg`` instance, or any of ``cfg.rigid_props`` or
-            ``cfg.mass_props`` is non-None.
+        ValueError: If ``cfg.rigid_props`` or ``cfg.mass_props`` is non-None.
+            The Newton-specific physics material is validated downstream by
+            :meth:`~isaaclab_contrib.cable.CableObject._register_cable`.
     """
-    # Import here to avoid a hard dep on isaaclab_newton in core.
-    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
-
-    # -- validate (rejects misconfiguration up-front) --
-    if not isinstance(cfg.physics_material, NewtonCableMaterialCfg):
-        raise ValueError(
-            "CableCfg requires `physics_material` to be a NewtonCableMaterialCfg instance,"
-            f" got {type(cfg.physics_material).__name__}."
-        )
     if cfg.rigid_props is not None:
         raise ValueError("CableCfg does not support `rigid_props`.")
     if cfg.mass_props is not None:

@@ -95,12 +95,14 @@ class NewtonVBDManager(NewtonManager):
         super().initialize(sim_context)
 
     @classmethod
-    def clear(cls):
-        """Clear VBD-specific Fabric sync state."""
-        super().clear()
+    def _solver_specific_clear(cls) -> None:
+        """Clear VBD-specific Fabric sync state and shared builder hooks."""
         cls._curves_dirty = False
         cls._cable_body_q_cpu = None
         cls._non_cable_articulation_mask = None
+        NewtonManager._cable_registry = []
+        NewtonManager._deformable_registry = []
+        NewtonManager._per_world_builder_hooks = []
 
     @classmethod
     def _mark_curves_dirty(cls) -> None:
@@ -270,14 +272,32 @@ class NewtonVBDManager(NewtonManager):
         to find articulations that contain at least one :attr:`newton.JointType.CABLE`
         joint, then allocates a device-resident boolean mask that is ``False`` for
         those articulations and ``True`` elsewhere. Leaves the mask as ``None``
-        when there are no cable articulations so :meth:`forward` can take the
+        when there are no cables registered so :meth:`forward` can take the
         unmasked fast path via ``super().forward()``.
+
+        Raises:
+            RuntimeError: If cables are registered but the finalized model is
+                missing the joint topology needed to build the mask, or contains
+                no :attr:`newton.JointType.CABLE` joints. Falling through to
+                ``super().forward()`` in those cases would corrupt cable
+                ``body_q`` silently each render.
         """
+        if not cls._cable_registry:
+            return
+
         model = cls._model
-        if model is None or model.articulation_count == 0:
-            return
-        if model.joint_type is None or model.joint_articulation is None:
-            return
+        if model is None or model.joint_type is None or model.joint_articulation is None:
+            raise RuntimeError(
+                "Cannot build non-cable articulation mask: cables are registered but Newton model"
+                " state is incomplete (missing model/joint_type/joint_articulation). Without the"
+                " mask, `forward()` calls eval_fk on cable joints and silently collapses rod"
+                " segments onto their parent anchors."
+            )
+        if model.articulation_count == 0:
+            raise RuntimeError(
+                "Cannot build non-cable articulation mask: cables are registered but the finalized"
+                " model has zero articulations."
+            )
 
         joint_type_np = model.joint_type.numpy()
         joint_articulation_np = model.joint_articulation.numpy()
@@ -287,7 +307,10 @@ class NewtonVBDManager(NewtonManager):
             if int(joint_type_np[j]) == int(JointType.CABLE) and int(joint_articulation_np[j]) >= 0
         }
         if not cable_art_ids:
-            return
+            raise RuntimeError(
+                "Cannot build non-cable articulation mask: cables are registered but the finalized"
+                " model has no JointType.CABLE joints. The cable replicate hook likely did not run."
+            )
 
         mask_np = np.ones(model.articulation_count, dtype=np.bool_)
         for art_id in cable_art_ids:
@@ -309,6 +332,12 @@ class NewtonVBDManager(NewtonManager):
         to ``True``).
         """
         if cls._non_cable_articulation_mask is None:
+            if cls._cable_registry:
+                raise RuntimeError(
+                    "Cables are registered but `_non_cable_articulation_mask` is None — refusing to"
+                    " fall through to the unmasked eval_fk that would corrupt cable body_q. The mask"
+                    " is built in `start_simulation()`; ensure it has run."
+                )
             super().forward()
             return
         eval_fk(
