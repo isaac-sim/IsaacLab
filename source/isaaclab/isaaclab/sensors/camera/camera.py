@@ -706,11 +706,7 @@ class Camera(SensorBase):
             return None
         if isinstance(env_ids, slice):
             env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
-        if isinstance(env_ids, wp.array):
-            if env_ids.dtype == wp.int32:
-                return env_ids
-            env_ids = env_ids.numpy().astype(np.int32, copy=False)
-        return wp.array(np.asarray(env_ids, dtype=np.int32).reshape(-1), dtype=wp.int32, device=self._device)
+        return wp.array(env_ids, dtype=wp.int32, device=self._device)
 
     @staticmethod
     def _env_mask_has_any(env_mask: wp.array) -> bool:
