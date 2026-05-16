@@ -261,10 +261,12 @@ class OVRTXRenderer(BaseRenderer):
             try:
                 if _IS_OVRTX_0_3_0_OR_NEWER:
                     self._renderer.open_usd_from_string(combined_usd_string)
+                    logger.info("OVRTX loaded USD from string successfully")
                 else:
                     assert temp_usd_path is not None  # OVRTX < 0.3.0 always materializes combined USD on disk.
                     handle = self._renderer.add_usd(str(temp_usd_path), path_prefix=None)
                     self._usd_handles.append(handle)
+                    logger.info("OVRTX loaded USD from file successfully (path: %s, handle: %s)", temp_usd_path, handle)
             except Exception as e:
                 logger.exception("Error loading USD: %s", e)
                 raise
