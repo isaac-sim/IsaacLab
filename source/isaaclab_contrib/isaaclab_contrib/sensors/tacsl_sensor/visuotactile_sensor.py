@@ -584,7 +584,7 @@ class VisuoTactileSensor(SensorBase):
             depth_key = "depth"
 
         if depth_key:
-            self._data.tactile_depth_image[env_ids] = camera_data.output[depth_key].torch[env_ids].clone()
+            self._data.tactile_depth_image[env_ids] = camera_data.output[depth_key][env_ids].clone()
             diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_depth_image[env_ids]
             self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
 

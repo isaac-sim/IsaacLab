@@ -28,10 +28,6 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 
-def _zero_env_origins(num_envs: int) -> torch.Tensor:
-    return torch.zeros((num_envs, 3), dtype=torch.float32)
-
-
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
@@ -159,7 +155,7 @@ def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: p
     )
     scene.env_fmt = "/World/envs/env_{}"
     scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
-    scene._default_env_origins = _zero_env_origins(3)
+    scene._default_env_origins = torch.zeros((3, 3), dtype=torch.float32)
     scene._clone_plan = ClonePlan(
         sources=(scene.env_fmt.format(0),),
         destinations=(scene.env_fmt,),
@@ -199,8 +195,8 @@ def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: p
     mapping = physics_calls[0][1][3]
     assert mapping.dtype == torch.bool
     assert mapping.shape == (1, scene.num_envs)
-    torch.testing.assert_close(physics_calls[0][2]["positions"], scene._default_env_origins)
-    torch.testing.assert_close(usd_calls[0][2]["positions"], scene._default_env_origins)
+    assert physics_calls[0][2]["positions"] is scene._default_env_origins
+    assert usd_calls[0][2]["positions"] is scene._default_env_origins
     assert len(set_plan_calls) == 1
     plan = set_plan_calls[-1]
     assert isinstance(plan, ClonePlan)
@@ -241,8 +237,7 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
     scene._sensors = {}
     scene.env_fmt = "/World/envs/env_{}"
     scene._ALL_INDICES = torch.arange(2, dtype=torch.long)
-    scene._default_env_origins = _zero_env_origins(2)
-    scene._default_env_origins[:] = 1.0
+    scene._default_env_origins = torch.ones((2, 3), dtype=torch.float32)
     scene._clone_plan = ClonePlan(
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
@@ -274,7 +269,7 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
     scene.clone_environments(copy_from_source=False)
 
     assert len(physics_calls) == 1
-    torch.testing.assert_close(physics_calls[0][1]["positions"], scene._default_env_origins)
+    assert physics_calls[0][1]["positions"] is scene._default_env_origins
     assert len(usd_calls) == 1
     assert usd_calls[0][1]["positions"] is None
     assert set_plan_calls == [scene._clone_plan]

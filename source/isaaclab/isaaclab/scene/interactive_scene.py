@@ -291,11 +291,7 @@ class InteractiveScene:
             set_spawn_paths(spawn_cfg, paths)
             row += count
 
-        plan = cloner.ClonePlan(
-            sources=tuple(sources),
-            destinations=plan.destinations,
-            clone_mask=plan.clone_mask,
-        )
+        plan = cloner.ClonePlan(sources=tuple(sources), destinations=plan.destinations, clone_mask=plan.clone_mask)
         logger.debug("Built heterogeneous ClonePlan with %d source rows.", len(plan.sources))
         return plan
 
