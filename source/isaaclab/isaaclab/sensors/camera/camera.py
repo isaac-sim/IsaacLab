@@ -622,6 +622,8 @@ class Camera(SensorBase):
         # get the poses from the view (returns ProxyArray)
         env_ids_wp = None if env_mask is not None else self._resolve_env_ids_wp(env_ids)
         pos_w, quat_w = self._view.get_world_poses(env_ids_wp)
+        pos_w_wp = pos_w.warp
+        pos_w_wp = wp.array(ptr=pos_w_wp.ptr, dtype=wp.vec3f, shape=(pos_w_wp.shape[0],), device=pos_w_wp.device, copy=False)
         quat_w_wp = quat_w.warp
         quat_w_wp = wp.array(
             ptr=quat_w_wp.ptr, dtype=wp.quatf, shape=(quat_w_wp.shape[0],), device=quat_w_wp.device, copy=False
@@ -630,7 +632,7 @@ class Camera(SensorBase):
         self._update_camera_state(
             env_ids=env_ids_wp,
             env_mask=env_mask,
-            pos_src=pos_w.warp,
+            pos_src=pos_w_wp,
             quat_src=quat_w_wp,
             update_pose=True,
             frame_op=frame_op,
