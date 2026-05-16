@@ -123,6 +123,83 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
 
 
 @configclass
+class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
+    """Configuration for the proxy-coupled MJWarp + VBD solver.
+
+    Wraps Newton's :class:`newton.solvers.SolverProxyCoupled` (lagged-impulse
+    virtual-proxy coupling) with MuJoCo Warp as the rigid sub-solver and VBD as
+    the soft sub-solver. Selected source (MuJoCo) bodies are exposed as proxy
+    bodies in the VBD view so that VBD detects contacts against them and
+    returns the harvested feedback wrenches to MuJoCo via lagged impulses.
+
+    Selection of proxy bodies is driven by :attr:`proxy_body_label_patterns`:
+    each entry is a regex matched against the short-name component of
+    ``newton.Model.body_label``. Matched bodies that own at least one shape
+    flagged ``COLLIDE_SHAPES`` are promoted to proxies.
+    """
+
+    class_type: type[NewtonManager] | str = "{DIR}.proxy_coupled_mjwarp_vbd_manager:NewtonProxyCoupledMJWarpVBDManager"
+    """Manager class for the proxy-coupled MJWarp + VBD solver."""
+
+    solver_type: str = "proxycoupledmjwarpvbd"
+
+    requires_graph_coloring: bool = True
+
+    mjwarp_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
+    """MuJoCo Warp sub-solver configuration."""
+
+    vbd_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
+    """VBD sub-solver configuration. ``integrate_with_external_rigid_solver``
+    defaults to ``True`` because the rigid bodies live in the MuJoCo entry."""
+
+    mjwarp_prim_paths: list[str] = []
+    """USD prim-path templates whose bodies/joints/shapes go to the MuJoCo entry.
+
+    Each pattern is grep-matched against ``newton.Model.body_label`` (which
+    holds the full USD prim path of each body after USD load and per-env
+    cloning); placeholders ``env_.*`` and ``{ENV_REGEX_NS}`` are handled.
+
+    The env is expected to populate this list directly from its scene entity
+    cfgs, e.g. ``mjwarp_prim_paths=[self.scene.robot.prim_path]``. This keeps
+    the source of truth on the scene entity and stays refactor-safe (renaming
+    the scene field updates the reference).
+    """
+
+    vbd_prim_paths: list[str] = []
+    """USD prim-path templates whose bodies/joints/shapes/particles go to the
+    VBD entry. Same conventions as :attr:`mjwarp_prim_paths`."""
+
+    proxy_body_label_patterns: list[str] = []
+    """Regex patterns matched against ``newton.Model.body_label`` short names.
+
+    Bodies whose short name matches any pattern and that own at least one
+    shape flagged ``newton.ShapeFlags.COLLIDE_SHAPES`` are exposed as proxy
+    bodies in the VBD view. Empty list means no proxies (the solver still runs
+    but rigid bodies are invisible to VBD).
+    """
+
+    proxy_mode: str = "lagged"
+    """Proxy transfer mode passed to :class:`newton.solvers.SolverProxyCoupled.Proxy`.
+
+    ``"lagged"`` syncs source begin poses and end velocities, then rewinds
+    lagged feedback before the destination solve to avoid double-counting.
+    ``"staggered"`` syncs source end poses and end velocities directly.
+    """
+
+    proxy_iterations: int = 1
+    """Number of relaxation iterations per coupled substep
+    (:attr:`newton.solvers.SolverProxyCoupled.Config.iterations`)."""
+
+    proxy_collide_interval: int = 1
+    """Collision-detection refresh interval (in proxy passes) for the proxy
+    collision pipeline."""
+
+    proxy_mass_scale: float = 1.0
+    """Mass / inertia scale applied to destination proxy bodies (virtual
+    inertia)."""
+
+
+@configclass
 class CoupledFeatherstoneVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the coupled rigid-body Featherstone + VBD solver.
 
