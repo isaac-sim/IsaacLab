@@ -194,6 +194,187 @@ def fill_float2d_masked_kernel(
 
 
 @wp.kernel(enable_backward=False)
+def fill_ray_hits_distance_inf_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    # output
+    ray_hits: wp.array2d(dtype=wp.vec3f),
+    ray_distance: wp.array2d(dtype=wp.float32),
+):
+    """Fill ray hit and distance buffers with infinity for masked environments.
+
+    Launch with dim=(num_envs, num_rays).
+
+    Args:
+        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
+        ray_hits: Ray hit positions to fill with ``wp.inf``. Shape is (num_envs, num_rays).
+        ray_distance: Ray distances to fill with ``wp.inf``. Shape is (num_envs, num_rays).
+    """
+    env, ray = wp.tid()
+    if not env_mask[env]:
+        return
+    ray_hits[env, ray] = wp.vec3f(wp.inf, wp.inf, wp.inf)
+    ray_distance[env, ray] = wp.inf
+
+
+@wp.kernel(enable_backward=False)
+def update_frame_masked_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    frame_op: int,
+    # output
+    frame: wp.array(dtype=wp.int64),
+):
+    """Update frame counters for masked environments.
+
+    ``frame_op`` uses 1 for increment and 2 for reset.
+    """
+    env = wp.tid()
+    if not env_mask[env]:
+        return
+    if frame_op == 1:
+        frame[env] = frame[env] + wp.int64(1)
+    elif frame_op == 2:
+        frame[env] = wp.int64(0)
+
+
+@wp.kernel(enable_backward=False)
+def update_camera_offsets_kernel(
+    # input
+    transforms: wp.array(dtype=wp.transformf),
+    env_ids: wp.array(dtype=wp.int32),
+    target_positions: wp.array(dtype=wp.vec3f),
+    target_quats: wp.array(dtype=wp.quatf),
+    use_env_ids: bool,
+    update_position: bool,
+    update_orientation: bool,
+    # output
+    offset_pos: wp.array(dtype=wp.vec3f),
+    offset_quat: wp.array(dtype=wp.quatf),
+):
+    """Update camera-frame offsets from target world poses.
+
+    Launch with ``dim=count`` where ``count`` is either the number of selected
+    environments or all environments. ``target_positions`` and ``target_quats``
+    are compact arrays indexed by the launch id.
+    """
+    src_id = wp.tid()
+    env_id = src_id
+    if use_env_ids:
+        env_id = env_ids[src_id]
+
+    view_transform = transforms[env_id]
+    view_pos = wp.transform_get_translation(view_transform)
+    view_quat = wp.transform_get_rotation(view_transform)
+
+    if update_position:
+        offset_pos[env_id] = wp.quat_rotate_inv(view_quat, target_positions[src_id] - view_pos)
+    if update_orientation:
+        offset_quat[env_id] = wp.quat_inverse(view_quat) * target_quats[src_id]
+
+
+@wp.kernel(enable_backward=False)
+def copy_float2d_to_image1_masked_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    src: wp.array2d(dtype=wp.float32),
+    width: int,
+    # output
+    dst: wp.array4d(dtype=wp.float32),
+):
+    """Copy a flat per-ray float buffer to ``(N, H, W, 1)`` camera output."""
+    env, ray = wp.tid()
+    if not env_mask[env]:
+        return
+    row = ray // width
+    col = ray - row * width
+    dst[env, row, col, 0] = src[env, ray]
+
+
+@wp.kernel(enable_backward=False)
+def copy_vec3_2d_to_image3_masked_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    src: wp.array2d(dtype=wp.vec3f),
+    width: int,
+    # output
+    dst: wp.array4d(dtype=wp.float32),
+):
+    """Copy a flat per-ray vec3 buffer to ``(N, H, W, 3)`` camera output."""
+    env, ray = wp.tid()
+    if not env_mask[env]:
+        return
+    row = ray // width
+    col = ray - row * width
+    value = src[env, ray]
+    dst[env, row, col, 0] = value[0]
+    dst[env, row, col, 1] = value[1]
+    dst[env, row, col, 2] = value[2]
+
+
+@wp.kernel(enable_backward=False)
+def copy_int16_2d_to_image1_masked_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    src: wp.array2d(dtype=wp.int16),
+    width: int,
+    # output
+    dst: wp.array4d(dtype=wp.int16),
+):
+    """Copy a flat per-ray int16 buffer to ``(N, H, W, 1)`` camera output."""
+    env, ray = wp.tid()
+    if not env_mask[env]:
+        return
+    row = ray // width
+    col = ray - row * width
+    dst[env, row, col, 0] = src[env, ray]
+
+
+@wp.kernel(enable_backward=False)
+def copy_mesh_poses_to_table_kernel(
+    # input
+    positions_src: wp.array(dtype=wp.vec3f),
+    orientations_src: wp.array(dtype=wp.quatf),
+    meshes_per_env: int,
+    mesh_offset: int,
+    broadcast_single_source: bool,
+    # output
+    positions_dst: wp.array2d(dtype=wp.vec3f),
+    orientations_dst: wp.array2d(dtype=wp.quatf),
+):
+    """Copy flat tracked-mesh poses into the rectangular per-env mesh table."""
+    env, local_mesh = wp.tid()
+    src_index = local_mesh
+    if not broadcast_single_source:
+        src_index = env * meshes_per_env + local_mesh
+    dst_index = mesh_offset + local_mesh
+    positions_dst[env, dst_index] = positions_src[src_index]
+    orientations_dst[env, dst_index] = orientations_src[src_index]
+
+
+@wp.kernel(enable_backward=False)
+def copy_mesh_transforms_to_table_kernel(
+    # input
+    transforms_src: wp.array(dtype=wp.transformf),
+    meshes_per_env: int,
+    mesh_offset: int,
+    broadcast_single_source: bool,
+    # output
+    positions_dst: wp.array2d(dtype=wp.vec3f),
+    orientations_dst: wp.array2d(dtype=wp.quatf),
+):
+    """Copy flat tracked-mesh transforms into the rectangular per-env mesh table."""
+    env, local_mesh = wp.tid()
+    src_index = local_mesh
+    if not broadcast_single_source:
+        src_index = env * meshes_per_env + local_mesh
+    dst_index = mesh_offset + local_mesh
+    xform = transforms_src[src_index]
+    positions_dst[env, dst_index] = wp.transform_get_translation(xform)
+    orientations_dst[env, dst_index] = wp.transform_get_rotation(xform)
+
+
+@wp.kernel(enable_backward=False)
 def compute_distance_to_image_plane_masked_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),

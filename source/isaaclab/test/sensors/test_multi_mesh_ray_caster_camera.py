@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import copy
+from collections.abc import Callable
 
 import numpy as np
 import pytest
@@ -24,18 +25,26 @@ import torch
 import omni.replicator.core as rep
 from pxr import Gf
 
+import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
+from isaaclab_assets.robots.spot import SPOT_CFG
+
 # sample camera poses (quaternions in xyzw format)
 POSITION = [2.5, 2.5, 2.5]
 QUAT_ROS = [0.33985114, 0.82047325, -0.42470819, -0.17591989]
 QUAT_OPENGL = [0.17591988, 0.42470818, 0.82047324, 0.33985113]
 QUAT_WORLD = [-0.27984815, -0.1159169, 0.88047623, -0.3647052]
+MESH_ID_GROUND = 0
+MESH_ID_OBJECT = 1
+MESH_ID_ROBOT_MIN = 2
 
 
 def _assert_quat_close(actual, expected, **kwargs):
@@ -127,7 +136,7 @@ def test_camera_init_offset(setup_simulation, convention, quat):
     camera.update(dt)
 
     # check that transform is set correctly
-    np.testing.assert_allclose(camera.data.pos_w[0].cpu().numpy(), cam_cfg_offset.offset.pos)
+    np.testing.assert_allclose(camera.data.pos_w.torch[0].cpu().numpy(), cam_cfg_offset.offset.pos)
 
     del camera
 
@@ -190,7 +199,7 @@ def test_camera_init_intrinsic_matrix(setup_simulation):
     camera_1 = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # get intrinsic matrix
     sim.reset()
-    intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+    intrinsic_matrix = camera_1.data.intrinsic_matrices.torch[0].cpu().flatten().tolist()
 
     # initialize from intrinsic matrix
     intrinsic_camera_cfg = MultiMeshRayCasterCameraCfg(
@@ -219,13 +228,13 @@ def test_camera_init_intrinsic_matrix(setup_simulation):
 
     # check image data
     torch.testing.assert_close(
-        camera_1.data.output["distance_to_image_plane"],
-        camera_2.data.output["distance_to_image_plane"],
+        camera_1.data.output["distance_to_image_plane"].torch,
+        camera_2.data.output["distance_to_image_plane"].torch,
     )
     # check that both intrinsic matrices are the same
     torch.testing.assert_close(
-        camera_1.data.intrinsic_matrices[0],
-        camera_2.data.intrinsic_matrices[0],
+        camera_1.data.intrinsic_matrices.torch[0],
+        camera_2.data.intrinsic_matrices.torch[0],
     )
 
     del camera_1, camera_2
@@ -408,8 +417,8 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
 
     # check the intrinsic matrices
     torch.testing.assert_close(
-        camera_usd.data.intrinsic_matrices,
-        camera_warp.data.intrinsic_matrices,
+        camera_usd.data.intrinsic_matrices.torch,
+        camera_warp.data.intrinsic_matrices.torch,
     )
 
     # check the apertures
@@ -423,8 +432,8 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
         if data_type in camera_usd.data.output and data_type in camera_warp.data.output:
             if data_type == "distance_to_camera" or data_type == "distance_to_image_plane":
                 torch.testing.assert_close(
-                    camera_usd.data.output[data_type],
-                    camera_warp.data.output[data_type],
+                    camera_usd.data.output[data_type].torch,
+                    camera_warp.data.output[data_type].torch,
                     atol=5e-5,
                     rtol=5e-6,
                 )
@@ -438,9 +447,183 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
                 )
             else:
                 torch.testing.assert_close(
-                    camera_usd.data.output[data_type],
-                    camera_warp.data.output[data_type],
+                    camera_usd.data.output[data_type].torch,
+                    camera_warp.data.output[data_type].torch,
                 )
+
+    del camera_usd, camera_warp
+
+
+def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs: int) -> torch.Tensor:
+    """Create alternating Spot/ANYmal and cube/sphere cloned environments."""
+    stage = sim_utils.get_current_stage()
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=4.0, device=sim.device)
+
+    sim_utils.create_prim("/World/envs", "Xform", stage=stage)
+    for env_id, origin in enumerate(env_origins.cpu().tolist()):
+        sim_utils.create_prim(env_fmt.format(env_id), "Xform", translation=tuple(origin), stage=stage)
+
+    robot_mask = torch.zeros((2, num_envs), dtype=torch.bool, device=sim.device)
+    robot_mask[0, 0::2] = True
+    robot_mask[1, 1::2] = True
+    object_mask = robot_mask.clone()
+
+    spot_spawn = copy.deepcopy(SPOT_CFG.spawn)
+    anymal_spawn = copy.deepcopy(ANYMAL_C_CFG.spawn)
+    spot_spawn.func(env_fmt.format(0) + "/Robot", spot_spawn, translation=SPOT_CFG.init_state.pos)
+    anymal_spawn.func(env_fmt.format(1) + "/Robot", anymal_spawn, translation=ANYMAL_C_CFG.init_state.pos)
+
+    cube_cfg = sim_utils.CuboidCfg(
+        size=(0.35, 0.25, 0.25),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.7, 0.2, 0.2)),
+    )
+    sphere_cfg = sim_utils.SphereCfg(
+        radius=0.18,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.7)),
+    )
+    cube_spawn = cube_cfg.func
+    sphere_spawn = sphere_cfg.func
+    assert isinstance(cube_spawn, Callable)
+    assert isinstance(sphere_spawn, Callable)
+    cube_spawn(env_fmt.format(0) + "/Object", cube_cfg, translation=(0.45, 0.0, 0.25))
+    sphere_spawn(env_fmt.format(1) + "/Object", sphere_cfg, translation=(0.45, 0.0, 0.25))
+
+    lab_cloner.usd_replicate(
+        stage,
+        [env_fmt.format(i) + f"/{asset_name}" for asset_name in ("Robot", "Object") for i in range(2)],
+        [env_fmt + "/Robot", env_fmt + "/Robot", env_fmt + "/Object", env_fmt + "/Object"],
+        env_ids,
+        mask=torch.cat([robot_mask, object_mask], dim=0),
+    )
+
+    sim.set_clone_plan(
+        ClonePlan(
+            sources=(
+                env_fmt.format(0) + "/Robot",
+                env_fmt.format(1) + "/Robot",
+                env_fmt.format(0) + "/Object",
+                env_fmt.format(1) + "/Object",
+            ),
+            destinations=(
+                env_fmt + "/Robot",
+                env_fmt + "/Robot",
+                env_fmt + "/Object",
+                env_fmt + "/Object",
+            ),
+            clone_mask=torch.cat([robot_mask, object_mask], dim=0),
+        )
+    )
+    sim_utils.update_stage()
+    return env_origins
+
+
+@pytest.mark.isaacsim_ci
+def test_depth_output_equal_to_usd_camera_heterogeneous_scene(setup_simulation):
+    """Compare ray-caster and USD depth cameras in a heterogeneous cloned scene.
+
+    The scene contains 16 environments with alternating Spot / ANYmal-C robot
+    prototypes and alternating cube / sphere objects.  The ray-caster consumes
+    the same clone plan used to build the USD scene and should match the batched
+    USD camera's stable ``distance_to_image_plane`` pixels for every environment.
+    """
+    sim, dt, _ = setup_simulation
+    num_envs = 16
+    env_origins = _create_heterogeneous_clone_scene(sim, num_envs)
+
+    height, width = 96, 128
+    camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
+        focal_length=24.0,
+        horizontal_aperture=20.955,
+        height=height,
+        width=width,
+    )
+    mesh_prim_paths = [
+        "/World/defaultGroundPlane",
+        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+            prim_expr="/World/envs/env_.*/Object",
+            track_mesh_transforms=False,
+        ),
+        MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+            prim_expr="/World/envs/env_.*/Robot/.+",
+            track_mesh_transforms=True,
+        ),
+    ]
+    camera_cfg_warp = MultiMeshRayCasterCameraCfg(
+        prim_path="/World/envs/env_.*/RayCasterCamera",
+        mesh_prim_paths=mesh_prim_paths,
+        update_period=0,
+        debug_vis=False,
+        pattern_cfg=camera_pattern_cfg,
+        max_distance=25.0,
+        data_types=["distance_to_image_plane"],
+        depth_clipping_behavior="max",
+        update_mesh_ids=True,
+    )
+    camera_warp = MultiMeshRayCasterCamera(camera_cfg_warp)
+
+    camera_cfg_usd = CameraCfg(
+        height=height,
+        width=width,
+        prim_path="/World/envs/env_.*/UsdCamera",
+        update_period=0,
+        data_types=["distance_to_image_plane"],
+        spawn=PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.01, 25.0),
+        ),
+    )
+    camera_usd = Camera(camera_cfg_usd)
+
+    sim.reset()
+    sim.play()
+
+    eyes = env_origins + torch.tensor((1.8, -2.5, 2.5), dtype=torch.float32, device=sim.device)
+    targets = env_origins + torch.tensor((0.0, 0.0, 0.0), dtype=torch.float32, device=sim.device)
+    camera_warp.set_world_poses_from_view(eyes=eyes, targets=targets)
+    camera_usd.set_world_poses_from_view(eyes=eyes, targets=targets)
+
+    for _ in range(5):
+        sim.render()
+
+    camera_usd.update(dt)
+    camera_warp.update(dt)
+
+    ray_depth = camera_warp.data.output["distance_to_image_plane"].torch
+    usd_depth = camera_usd.data.output["distance_to_image_plane"].torch
+    assert ray_depth.shape == (num_envs, height, width, 1)
+    assert usd_depth.shape == ray_depth.shape
+    depth_diff = (ray_depth - usd_depth).abs()
+    mesh_ids_proxy = getattr(camera_warp.data, "image_mesh_ids", None)
+    assert mesh_ids_proxy is not None
+    mesh_ids = mesh_ids_proxy.torch
+    assert torch.any(mesh_ids == MESH_ID_OBJECT), "Expected object pixels in the heterogeneous scene"
+    assert torch.any(mesh_ids >= MESH_ID_ROBOT_MIN), "Expected robot pixels in the heterogeneous scene"
+
+    # The RTX and ray-cast backends can disagree by a pixel along complex robot
+    # silhouettes.  Compare the stable ground pixels after dilating object/robot
+    # edges and depth discontinuities.
+    target_mask = mesh_ids[..., 0] != 0
+    discontinuity_mask = torch.zeros_like(target_mask)
+    for depth in (ray_depth, usd_depth):
+        depth_image = depth[..., 0]
+        discontinuity_mask[:, 1:, :] |= (depth_image[:, 1:, :] - depth_image[:, :-1, :]).abs() > 0.3
+        discontinuity_mask[:, :, 1:] |= (depth_image[:, :, 1:] - depth_image[:, :, :-1]).abs() > 0.3
+    edge_mask = target_mask | discontinuity_mask
+    silhouette_mask = torch.nn.functional.max_pool2d(
+        edge_mask[:, None, :, :].float(), kernel_size=21, stride=1, padding=10
+    ).to(dtype=torch.bool)
+    stable_mask = ~silhouette_mask[:, 0, :, :, None]
+    assert stable_mask.float().mean() > 0.7
+    stable_ray_depth = ray_depth[stable_mask]
+    stable_usd_depth = usd_depth[stable_mask]
+    stable_depth_diff = depth_diff[stable_mask]
+    stable_close = torch.isclose(stable_ray_depth, stable_usd_depth, atol=5e-5, rtol=5e-6)
+    assert stable_close.float().mean() > 0.999
+    assert torch.quantile(stable_depth_diff, 0.999) < 5.0e-5
 
     del camera_usd, camera_warp
 
@@ -497,14 +680,14 @@ def test_output_equal_to_usdcamera_offset(setup_simulation):
 
     # check image data
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"],
-        camera_warp.data.output["distance_to_image_plane"],
+        camera_usd.data.output["distance_to_image_plane"].torch,
+        camera_warp.data.output["distance_to_image_plane"].torch,
         atol=5e-5,
         rtol=5e-6,
     )
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"],
-        camera_warp.data.output["distance_to_camera"],
+        camera_usd.data.output["distance_to_camera"].torch,
+        camera_warp.data.output["distance_to_camera"].torch,
         atol=5e-5,
         rtol=5e-6,
     )
@@ -593,14 +776,14 @@ def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
 
     # check image data
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"],
-        camera_warp.data.output["distance_to_image_plane"],
+        camera_usd.data.output["distance_to_image_plane"].torch,
+        camera_warp.data.output["distance_to_image_plane"].torch,
         atol=5e-5,
         rtol=5e-6,
     )
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"],
-        camera_warp.data.output["distance_to_camera"],
+        camera_usd.data.output["distance_to_camera"].torch,
+        camera_warp.data.output["distance_to_camera"].torch,
         rtol=4e-6,
         atol=2e-5,
     )
@@ -681,15 +864,17 @@ def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
     camera_warp.update(dt)
 
     # filter nan and inf from output
-    cam_warp_output = camera_warp.data.output["distance_to_image_plane"].clone()
-    cam_usd_output = camera_usd.data.output["distance_to_image_plane"].clone()
+    cam_warp_output = camera_warp.data.output["distance_to_image_plane"].torch.clone()
+    cam_usd_output = camera_usd.data.output["distance_to_image_plane"].torch.clone()
     cam_warp_output[torch.isnan(cam_warp_output)] = 0
     cam_warp_output[torch.isinf(cam_warp_output)] = 0
     cam_usd_output[torch.isnan(cam_usd_output)] = 0
     cam_usd_output[torch.isinf(cam_usd_output)] = 0
 
     # check that both have the same intrinsic matrices
-    torch.testing.assert_close(camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0])
+    torch.testing.assert_close(
+        camera_warp.data.intrinsic_matrices.torch[0], camera_usd.data.intrinsic_matrices.torch[0]
+    )
 
     # check the apertures
     torch.testing.assert_close(
@@ -782,8 +967,8 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
 
     # check image data
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"],
-        camera_warp.data.output["distance_to_camera"],
+        camera_usd.data.output["distance_to_camera"].torch,
+        camera_warp.data.output["distance_to_camera"].torch,
         rtol=5e-3,
         atol=1e-4,
     )
@@ -804,8 +989,8 @@ def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
     sim.reset()
     camera.update(dt)
 
-    mesh_ids = camera.data.image_mesh_ids  # shape (N, H, W, 1), dtype torch.int16
-    assert mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
+    assert camera.data.image_mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
+    mesh_ids = camera.data.image_mesh_ids.torch  # shape (N, H, W, 1), dtype torch.int16
     assert mesh_ids.shape[-1] == 1
     assert mesh_ids.dtype == torch.int16
 
@@ -813,11 +998,11 @@ def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
     # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
     # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
     # the inf comparison incorrect.
-    hit_mask = camera.data.output["distance_to_camera"][0, :, :, 0] < float("inf")
+    hit_mask = camera.data.output["distance_to_camera"].torch[0, :, :, 0] < float("inf")
     assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
 
-    # All hits against the single registered mesh must carry mesh_id=0 (first mesh index).
+    # All hits against the single registered mesh must carry the ground mesh id.
     hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
-    assert torch.all(hit_mesh_ids == 0), (
-        f"All hits against the single ground mesh must have mesh_id=0, got: {hit_mesh_ids.unique()}"
+    assert torch.all(hit_mesh_ids == MESH_ID_GROUND), (
+        f"All hits against the single ground mesh must have mesh_id={MESH_ID_GROUND}, got: {hit_mesh_ids.unique()}"
     )

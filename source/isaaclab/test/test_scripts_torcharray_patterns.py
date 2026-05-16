@@ -6,8 +6,8 @@
 """Static scanner ensuring scripts/source do not regress the ProxyArray migration.
 
 Every public ``.data.<field>`` on an asset or sensor now returns a
-:class:`~isaaclab.utils.warp.ProxyArray` (or, for CameraData, a raw
-``torch.Tensor``). Legacy conversion or tensor-method callsites on these
+:class:`~isaaclab.utils.warp.ProxyArray` where Isaac Lab owns the buffer.
+Legacy conversion or tensor-method callsites on these
 properties should migrate to explicit ``.torch`` or ``.warp`` access. These
 tests regex-scan user-facing scripts/source files and flag regressions before
 they reach users running tutorials or demos.
@@ -49,11 +49,11 @@ _WP_TO_TORCH_NAME_DATA = re.compile(
 #   <chain>.data.<field>[...].clone()
 #   <chain>.data.<field>.assign(...)
 # These are tensor/wp.array instance methods that ProxyArray intentionally does
-# not forward. ``data.output[...]`` is camera data and remains torch-native.
+# not forward. Camera ``data.output[...]`` now follows the same explicit
+# ``.torch`` access rule.
 _PROXYARRAY_DIRECT_METHOD_DOT_DATA = re.compile(
     r"\.data\."
     r"(?!_)"  # ignore private backing buffers such as data._sim_bind_...
-    r"(?!output\b)"  # camera output dict is torch-native
     r"[a-zA-Z_][a-zA-Z_0-9]*"
     r"(?:\[[^\]\[]*\])?"
     r"\.(?:clone|assign)\s*\("
@@ -85,10 +85,9 @@ def _source_and_scripts_files() -> list[Path]:
 def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
     """No ``wp.to_torch(<x>.data.<field>)`` / ``wp.to_torch(<x>_data.<field>)`` in scripts/.
 
-    Post-migration, ``<asset>.data.<field>`` returns a ``ProxyArray``
-    (or ``torch.Tensor`` for CameraData). The temporary ``wp.to_torch``
-    shim is deprecated, so use the ``.torch`` accessor instead (or omit
-    the wrap entirely for torch-native fields).
+    Post-migration, ``<asset>.data.<field>`` returns a ``ProxyArray``.
+    The temporary ``wp.to_torch`` shim is deprecated, so use the ``.torch``
+    accessor instead.
     """
     rel = path.relative_to(_repo_root()).as_posix()
     if any(rel.endswith(suffix) for suffix in _EXCLUDE):

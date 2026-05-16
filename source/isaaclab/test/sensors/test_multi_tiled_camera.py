@@ -359,7 +359,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
             camera.update(dt)
 
     # collect image data
-    image_befores = [camera.data.output["rgb"].clone() / 255.0 for camera in tiled_cameras]
+    image_befores = [camera.data.output["rgb"].torch.clone() / 255.0 for camera in tiled_cameras]
 
     # update scene
     for i in range(10):
@@ -375,7 +375,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         camera.update(dt)
 
     # make sure the image is different
-    image_afters = [camera.data.output["rgb"].clone() / 255.0 for camera in tiled_cameras]
+    image_afters = [camera.data.output["rgb"].torch.clone() / 255.0 for camera in tiled_cameras]
 
     # check difference is above threshold
     for i in range(num_tiled_cameras):

@@ -266,8 +266,8 @@ def test_multi_camera_with_different_resolution(setup_sim_camera):
     cam_1.update(dt)
     cam_2.update(dt)
     # check image sizes
-    assert cam_1.data.output["distance_to_image_plane"].shape == (1, camera_cfg.height, camera_cfg.width, 1)
-    assert cam_2.data.output["distance_to_image_plane"].shape == (1, cam_cfg_2.height, cam_cfg_2.width, 1)
+    assert cam_1.data.output["distance_to_image_plane"].torch.shape == (1, camera_cfg.height, camera_cfg.width, 1)
+    assert cam_2.data.output["distance_to_image_plane"].torch.shape == (1, cam_cfg_2.height, cam_cfg_2.width, 1)
 
 
 def test_camera_init_intrinsic_matrix(setup_sim_camera):
@@ -277,7 +277,7 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     camera_1 = Camera(cfg=camera_cfg)
     # get intrinsic matrix
     sim.reset()
-    intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+    intrinsic_matrix = camera_1.data.intrinsic_matrices.torch[0].cpu().flatten().tolist()
     teardown(sim)
     # reinit the first camera
     sim, camera_cfg, dt = setup()
@@ -309,15 +309,15 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
 
     # check image data
     torch.testing.assert_close(
-        camera_1.data.output["distance_to_image_plane"],
-        camera_2.data.output["distance_to_image_plane"],
+        camera_1.data.output["distance_to_image_plane"].torch,
+        camera_2.data.output["distance_to_image_plane"].torch,
         rtol=5e-3,
         atol=1e-4,
     )
     # check that both intrinsic matrices are the same
     torch.testing.assert_close(
-        camera_1.data.intrinsic_matrices[0],
-        camera_2.data.intrinsic_matrices[0],
+        camera_1.data.intrinsic_matrices.torch[0],
+        camera_2.data.intrinsic_matrices.torch[0],
         rtol=5e-3,
         atol=1e-4,
     )
@@ -388,10 +388,10 @@ def test_intrinsic_matrix(setup_sim_camera):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices[0, 0, 2])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices[0, 1, 2])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices.torch[0, 0, 0])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices.torch[0, 1, 1])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices.torch[0, 0, 2])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2])
 
 
 def test_depth_clipping(setup_sim_camera):
@@ -438,67 +438,78 @@ def test_depth_clipping(setup_sim_camera):
     camera_max.update(dt)
 
     # none clipping should contain inf values
-    assert torch.isinf(camera_none.data.output["distance_to_camera"]).any()
-    assert torch.isinf(camera_none.data.output["distance_to_image_plane"]).any()
+    assert torch.isinf(camera_none.data.output["distance_to_camera"].torch).any()
+    assert torch.isinf(camera_none.data.output["distance_to_image_plane"].torch).any()
     assert (
-        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].min()
+        camera_none.data.output["distance_to_camera"]
+        .torch[~torch.isinf(camera_none.data.output["distance_to_camera"].torch)]
+        .min()
         >= camera_cfg_zero.spawn.clipping_range[0]
     )
     assert (
-        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max()
+        camera_none.data.output["distance_to_camera"]
+        .torch[~torch.isinf(camera_none.data.output["distance_to_camera"].torch)]
+        .max()
         <= camera_cfg_zero.spawn.clipping_range[1]
     )
     assert (
-        camera_none.data.output["distance_to_image_plane"][
-            ~torch.isinf(camera_none.data.output["distance_to_image_plane"])
-        ].min()
+        camera_none.data.output["distance_to_image_plane"]
+        .torch[~torch.isinf(camera_none.data.output["distance_to_image_plane"].torch)]
+        .min()
         >= camera_cfg_zero.spawn.clipping_range[0]
     )
     assert (
-        camera_none.data.output["distance_to_image_plane"][
-            ~torch.isinf(camera_none.data.output["distance_to_camera"])
-        ].max()
+        camera_none.data.output["distance_to_image_plane"]
+        .torch[~torch.isinf(camera_none.data.output["distance_to_camera"].torch)]
+        .max()
         <= camera_cfg_zero.spawn.clipping_range[1]
     )
 
     # zero clipping should result in zero values
     assert torch.all(
-        camera_zero.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == 0.0
+        camera_zero.data.output["distance_to_camera"].torch[
+            torch.isinf(camera_none.data.output["distance_to_camera"].torch)
+        ]
+        == 0.0
     )
     assert torch.all(
-        camera_zero.data.output["distance_to_image_plane"][
-            torch.isinf(camera_none.data.output["distance_to_image_plane"])
+        camera_zero.data.output["distance_to_image_plane"].torch[
+            torch.isinf(camera_none.data.output["distance_to_image_plane"].torch)
         ]
         == 0.0
     )
     assert (
-        camera_zero.data.output["distance_to_camera"][camera_zero.data.output["distance_to_camera"] != 0.0].min()
+        camera_zero.data.output["distance_to_camera"]
+        .torch[camera_zero.data.output["distance_to_camera"].torch != 0.0]
+        .min()
         >= camera_cfg_zero.spawn.clipping_range[0]
     )
-    assert camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert camera_zero.data.output["distance_to_camera"].torch.max() <= camera_cfg_zero.spawn.clipping_range[1]
     assert (
-        camera_zero.data.output["distance_to_image_plane"][
-            camera_zero.data.output["distance_to_image_plane"] != 0.0
-        ].min()
+        camera_zero.data.output["distance_to_image_plane"]
+        .torch[camera_zero.data.output["distance_to_image_plane"].torch != 0.0]
+        .min()
         >= camera_cfg_zero.spawn.clipping_range[0]
     )
-    assert camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert camera_zero.data.output["distance_to_image_plane"].torch.max() <= camera_cfg_zero.spawn.clipping_range[1]
 
     # max clipping should result in max values
     assert torch.all(
-        camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
-        == camera_cfg_zero.spawn.clipping_range[1]
-    )
-    assert torch.all(
-        camera_max.data.output["distance_to_image_plane"][
-            torch.isinf(camera_none.data.output["distance_to_image_plane"])
+        camera_max.data.output["distance_to_camera"].torch[
+            torch.isinf(camera_none.data.output["distance_to_camera"].torch)
         ]
         == camera_cfg_zero.spawn.clipping_range[1]
     )
-    assert camera_max.data.output["distance_to_camera"].min() >= camera_cfg_zero.spawn.clipping_range[0]
-    assert camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1]
-    assert camera_max.data.output["distance_to_image_plane"].min() >= camera_cfg_zero.spawn.clipping_range[0]
-    assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert torch.all(
+        camera_max.data.output["distance_to_image_plane"].torch[
+            torch.isinf(camera_none.data.output["distance_to_image_plane"].torch)
+        ]
+        == camera_cfg_zero.spawn.clipping_range[1]
+    )
+    assert camera_max.data.output["distance_to_camera"].torch.min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert camera_max.data.output["distance_to_camera"].torch.max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert camera_max.data.output["distance_to_image_plane"].torch.min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert camera_max.data.output["distance_to_image_plane"].torch.max() <= camera_cfg_zero.spawn.clipping_range[1]
 
 
 def test_camera_resolution_all_colorize(setup_sim_camera):
@@ -1008,7 +1019,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
     for _ in range(10):
         sim.step()
         camera.update(dt)
-        im_data = camera.data.output["normals"]
+        im_data = camera.data.output["normals"].torch
         assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
         for i in range(4):
             assert im_data[i].mean() > 0.0
@@ -1073,7 +1084,7 @@ def test_camera_frame_offset(setup_camera_device, device):
         sim.step()
         camera.update(dt)
 
-    image_before = camera.data.output["rgb"].clone() / 255.0
+    image_before = camera.data.output["rgb"].torch.clone() / 255.0
 
     for i in range(10):
         prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
@@ -1083,7 +1094,7 @@ def test_camera_frame_offset(setup_camera_device, device):
     sim.step()
     camera.update(dt)
 
-    image_after = camera.data.output["rgb"].clone() / 255.0
+    image_after = camera.data.output["rgb"].torch.clone() / 255.0
 
     assert torch.abs(image_after - image_before).mean() > 0.01
 
@@ -1214,14 +1225,14 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
         camera.set_world_poses_from_view(eyes_close, target)
         sim.step()
         camera.update(dt)
-        depth_close = camera.data.output["distance_to_camera"].clone()
+        depth_close = camera.data.output["distance_to_camera"].torch.clone()
 
         # -- far position --
         eyes_far = torch.tensor([[8.0, 8.0, 8.0]], dtype=torch.float32, device=camera.device)
         camera.set_world_poses_from_view(eyes_far, target)
         sim.step()
         camera.update(dt)
-        depth_far = camera.data.output["distance_to_camera"].clone()
+        depth_far = camera.data.output["distance_to_camera"].torch.clone()
 
         # -- validate --
         valid_close = depth_close[depth_close < max_range]

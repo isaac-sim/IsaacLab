@@ -57,6 +57,7 @@ _warp_spec.loader.exec_module(_warp_mod)
 compute_distance_to_image_plane_masked_kernel = _sensor_mod.compute_distance_to_image_plane_masked_kernel
 apply_depth_clipping_masked_kernel = _sensor_mod.apply_depth_clipping_masked_kernel
 apply_z_drift_kernel = _sensor_mod.apply_z_drift_kernel
+fill_ray_hits_distance_inf_kernel = _sensor_mod.fill_ray_hits_distance_inf_kernel
 quat_yaw_only = _sensor_mod.quat_yaw_only
 
 raycast_dynamic_meshes_kernel = _warp_mod.raycast_dynamic_meshes_kernel
@@ -118,6 +119,52 @@ def _make_flat_mesh(size: float = 4.0) -> wp.Mesh:
 def _to_numpy(a: wp.array) -> np.ndarray:
     """Convert a warp array to numpy, handling GPU arrays transparently."""
     return a.numpy()
+
+
+# ---------------------------------------------------------------------------
+# Tests: fill_ray_hits_distance_inf_kernel
+# ---------------------------------------------------------------------------
+
+
+class TestFillRayHitsDistanceInfKernel:
+    """Tests for :func:`fill_ray_hits_distance_inf_kernel`."""
+
+    def test_active_envs_are_filled_and_masked_envs_are_preserved(self):
+        """Active environments are filled with infinity while masked environments retain prior values."""
+        env_mask = wp.array(np.array([False, True], dtype=np.bool_), dtype=wp.bool, device=DEVICE)
+        ray_hits = wp.array(
+            np.array(
+                [
+                    [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+                    [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
+                ],
+                dtype=np.float32,
+            ),
+            dtype=wp.vec3f,
+            device=DEVICE,
+        )
+        ray_distance = wp.array(
+            np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+            dtype=wp.float32,
+            device=DEVICE,
+        )
+
+        wp.launch(
+            fill_ray_hits_distance_inf_kernel,
+            dim=(2, 2),
+            inputs=[env_mask],
+            outputs=[ray_hits, ray_distance],
+            device=DEVICE,
+        )
+        wp.synchronize_device(DEVICE)
+
+        hits_np = _to_numpy(ray_hits)
+        distance_np = _to_numpy(ray_distance)
+
+        np.testing.assert_allclose(hits_np[0], [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], atol=ATOL)
+        np.testing.assert_allclose(distance_np[0], [1.0, 2.0], atol=ATOL)
+        assert np.isinf(hits_np[1]).all()
+        assert np.isinf(distance_np[1]).all()
 
 
 # ---------------------------------------------------------------------------
