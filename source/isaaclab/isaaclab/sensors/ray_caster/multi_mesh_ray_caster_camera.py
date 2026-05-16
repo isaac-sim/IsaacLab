@@ -124,9 +124,6 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         self._offset_quat = quat_offset.repeat(self._view.count, 1)
         self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
 
-        # Camera pose buffers (torch, part of CameraData)
-        self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.quat_w_world = torch.zeros(self._view.count, 4, device=self._device)
         # Warp-backed camera orientation buffer for warp kernel calls;
         # updated from self._data.quat_w_world in _update_ray_infos.
         self._quat_w_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
@@ -184,8 +181,8 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
         # Store camera pose in CameraData (torch tensors) and warp-backed orientation buffer
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w_world[env_ids] = quat_w
+        self._data.pos_w.torch[env_ids] = pos_w
+        self._data.quat_w_world.torch[env_ids] = quat_w
         self._quat_w_wp_torch[env_ids] = quat_w
 
         # Rotate local ray starts and directions into world frame using full camera orientation

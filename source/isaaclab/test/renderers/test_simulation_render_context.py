@@ -12,7 +12,6 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
-import torch
 
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
@@ -55,7 +54,7 @@ class _FakeBackend(BaseRenderer):
     def create_render_data(self, spec: Any) -> Any:
         return object()
 
-    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:
+    def set_outputs(self, render_data: Any, output_data: Any) -> None:
         pass
 
     def update_transforms(self) -> None:
@@ -64,13 +63,7 @@ class _FakeBackend(BaseRenderer):
         if self._event_log is not None:
             self._event_log.append("ut")
 
-    def update_camera(
-        self,
-        render_data: Any,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
-    ) -> None:
+    def update_camera(self, render_data: Any, positions: Any, orientations: Any, intrinsics: Any) -> None:
         pass
 
     def render(self, render_data: Any) -> None:

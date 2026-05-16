@@ -18,7 +18,7 @@ import pytest
 import torch
 
 import isaaclab.utils.modifiers as modifiers
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

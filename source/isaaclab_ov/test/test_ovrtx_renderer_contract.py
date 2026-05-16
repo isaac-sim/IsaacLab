@@ -7,6 +7,7 @@
 
 import pytest
 import torch
+import warp as wp
 
 pytest.importorskip("isaaclab_ov")
 pytest.importorskip("ovrtx")
@@ -58,14 +59,12 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.DISTANCE_TO_CAMERA,
     }
-    assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, torch.uint8)
-    assert specs[RenderBufferKind.DEPTH] == RenderBufferSpec(1, torch.float32)
+    assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, wp.uint8)
+    assert specs[RenderBufferKind.DEPTH] == RenderBufferSpec(1, wp.float32)
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
-    """OVRTXRenderer.set_outputs publishes warp views over the caller's torch storage."""
-    import warp as wp
-
+    """OVRTXRenderer.set_outputs publishes warp views over the caller's warp storage."""
     renderer = OVRTXRenderer(OVRTXRendererCfg())
 
     if not torch.cuda.is_available():
@@ -85,8 +84,8 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     renderer.set_outputs(render_data, data.output)
 
     assert set(render_data.warp_buffers.keys()) >= {"rgba", "depth"}
-    assert render_data.warp_buffers["rgba"].ptr == wp.from_torch(data.output["rgba"]).ptr
-    assert render_data.warp_buffers["depth"].ptr == wp.from_torch(data.output["depth"]).ptr
+    assert render_data.warp_buffers["rgba"].ptr == data.output["rgba"].warp.ptr
+    assert render_data.warp_buffers["depth"].ptr == data.output["depth"].warp.ptr
     assert "rgb" not in render_data.warp_buffers
 
 

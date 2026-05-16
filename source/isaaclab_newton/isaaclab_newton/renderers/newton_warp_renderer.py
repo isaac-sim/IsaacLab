@@ -18,13 +18,14 @@ import warp as wp
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,17 @@ logger = logging.getLogger(__name__)
 class RenderData:
     # Back-compat alias for callers of ``RenderData.OutputNames``.
     OutputNames = RenderBufferKind
+
+    # Maps each supported RenderBufferKind to (CameraOutputs field name, Newton warp dtype).
+    # Newton reinterprets the allocated buffer memory: e.g. RGBA is allocated as (N,H,W,4) uint8
+    # but the Newton sensor API consumes it as (world_count,1,H,W) uint32 (same bytes, packed view).
+    _OUTPUT_MAP: dict[str, tuple[str, type]] = {
+        str(RenderBufferKind.RGBA): ("color_image", wp.uint32),
+        str(RenderBufferKind.ALBEDO): ("albedo_image", wp.uint32),
+        str(RenderBufferKind.DEPTH): ("depth_image", wp.float32),
+        str(RenderBufferKind.NORMALS): ("normals_image", wp.vec3f),
+        str(RenderBufferKind.INSTANCE_SEGMENTATION_FAST): ("instance_segmentation_image", wp.uint32),
+    }
 
     @dataclass
     class CameraOutputs:
@@ -52,22 +64,21 @@ class RenderData:
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
 
-    def set_outputs(self, output_data: dict[str, torch.Tensor]):
-        for output_name, tensor_data in output_data.items():
-            if output_name == RenderBufferKind.RGBA:
-                self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderBufferKind.ALBEDO:
-                self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderBufferKind.DEPTH:
-                self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
-            elif output_name == RenderBufferKind.NORMALS:
-                self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
-            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
-                self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderBufferKind.RGB:
-                pass
-            else:
-                logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+    def set_outputs(self, output_data: dict[str, ProxyArray]):
+        shape = (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width)
+        for output_name, proxy in output_data.items():
+            mapping = self._OUTPUT_MAP.get(output_name)
+            if mapping is None:
+                if output_name != str(RenderBufferKind.RGB):
+                    logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+                continue
+            field_name, dtype = mapping
+            wp_arr = proxy.warp
+            setattr(
+                self.outputs,
+                field_name,
+                wp.array(ptr=wp_arr.ptr, dtype=dtype, shape=shape, device=wp_arr.device, copy=False),
+            )
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name == RenderBufferKind.RGBA:
@@ -82,9 +93,14 @@ class RenderData:
             return self.outputs.instance_segmentation_image
         return None
 
-    def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
-        converted_orientations = convert_camera_frame_orientation_convention(
-            orientations, origin="world", target="opengl"
+    def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
+        converted_wp = wp.empty_like(orientations)
+        convert_camera_frame_orientation_convention_wp(
+            src=orientations,
+            dst=converted_wp,
+            origin="world",
+            target="opengl",
+            device=self.newton_sensor.model.device,
         )
 
         self.camera_transforms = wp.empty(
@@ -93,35 +109,17 @@ class RenderData:
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
-            [positions, converted_orientations, self.camera_transforms],
+            [positions, converted_wp, self.camera_transforms],
             device=self.newton_sensor.model.device,
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics[:, 1, 1][0:1]
+            first_focal_length = intrinsics.torch[:, 1, 1][0:1]
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
                 self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
-
-    def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        proxy_array = wp.from_torch(tensor)
-        if tensor.is_contiguous():
-            return wp.array(
-                ptr=proxy_array.ptr,
-                dtype=dtype,
-                shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=proxy_array.device,
-                copy=False,
-            )
-
-        logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
-        return wp.zeros(
-            (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-            dtype=dtype,
-            device=proxy_array.device,
-        )
 
     @wp.kernel
     def _update_transforms(
@@ -192,16 +190,14 @@ class NewtonWarpRenderer(BaseRenderer):
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         seg_spec = (
-            RenderBufferSpec(4, torch.uint8)
-            if self.cfg.colorize_instance_segmentation
-            else RenderBufferSpec(1, torch.int32)
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.int32)
         )
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec,
         }
 
@@ -215,7 +211,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         return RenderData(self.newton_sensor, spec)
 
-    def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
+    def set_outputs(self, render_data: RenderData, output_data: dict[str, ProxyArray]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
@@ -227,7 +223,11 @@ class NewtonWarpRenderer(BaseRenderer):
         NewtonManager.update_visualization_state()
 
     def update_camera(
-        self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+        self,
+        render_data: RenderData,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
     ):
         """Update camera poses and intrinsics.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
@@ -264,9 +264,9 @@ class NewtonWarpRenderer(BaseRenderer):
                 continue
             image_data = render_data.get_output(output_name)
             if image_data is not None:
-                output_data = camera_data.output[output_name]
-                if image_data.ptr != output_data.data_ptr():
-                    wp.copy(wp.from_torch(output_data), image_data)
+                output_wp = camera_data.output[output_name].warp
+                if image_data.ptr != output_wp.ptr:
+                    wp.copy(output_wp, image_data)
 
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.

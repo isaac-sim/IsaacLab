@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .lee_acceleration_control import LeeAccController
 from .lee_controller_base_cfg import LeeControllerBaseCfg
