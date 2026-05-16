@@ -33,6 +33,11 @@ ENV PATH="/opt/conda/bin:${PATH}"
 RUN conda init bash && \
     echo "conda activate base" >> ~/.bashrc
 
+# Accept Miniconda default-channel Terms of Service non-interactively so that
+# `conda create` works without user prompts inside the container.
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
 # Install test runner dependencies into the conda base Python so that the
 # ENTRYPOINT (which invokes 'python -m pytest') finds them after the PATH
 # change above shadows the system Python with /opt/conda/bin/python.
