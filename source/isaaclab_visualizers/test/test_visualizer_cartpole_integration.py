@@ -48,7 +48,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleCameraPresetsEnvCfg
+from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpolePhysicsCfg
 
 # When True, tests also fail on WARNING-level records from visualizer-related loggers.
@@ -341,9 +341,9 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
         rgb = env._tiled_camera.data.output.get("rgb")
         if rgb is None:
             rgb = env._tiled_camera.data.output[env.cfg.tiled_camera.data_types[0]]
-        last_rgb = rgb
+        last_rgb = rgb.torch
         try:
-            _assert_non_black_tensor(rgb)
+            _assert_non_black_tensor(rgb.torch)
             return
         except AssertionError:
             continue

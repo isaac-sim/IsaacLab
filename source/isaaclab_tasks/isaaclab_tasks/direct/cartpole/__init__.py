@@ -32,10 +32,10 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_presets_env:CartpoleCameraPresetsEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -47,7 +47,7 @@ gym.register(
 # equivalent presets=<name>, then loads the corresponding variant of
 # CartpoleCameraPresetsEnvCfg. The nested tiled_camera attribute must be
 # pinned alongside the root preset -- see _resolve_camera_variant.
-_CAMERA_CFG_PATH = f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg"
+_CAMERA_CFG_PATH = f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg"
 _CAMERA_KWARGS = {
     "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -65,7 +65,7 @@ def _resolve_camera_variant(preset_name: str):
     """
 
     def call():
-        from .cartpole_camera_env_cfg import CartpoleCameraPresetsEnvCfg
+        from .cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
         cfg = CartpoleCameraPresetsEnvCfg()
         result = getattr(cfg, preset_name)
@@ -77,7 +77,7 @@ def _resolve_camera_variant(preset_name: str):
 
 gym.register(
     id="Isaac-Cartpole-Camera-Presets-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_presets_env:CartpoleCameraPresetsEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(

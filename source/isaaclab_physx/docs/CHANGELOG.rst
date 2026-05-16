@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.8.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the optional ``[newton]`` extra to ``v1.2.0`` (stable) so the
+  pin matches :mod:`isaaclab_newton`.
+* Updated :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  accessed via ``.warp`` directly, avoiding intermediate :func:`warp.from_torch` conversions.
+
+
 0.7.1 (2026-05-15)
 ~~~~~~~~~~~~~~~~~~
 

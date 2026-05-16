@@ -14,7 +14,7 @@ and the contents of ``isaac_lab_tutorial_env_cfg.py``.  You should see something
   from isaaclab.envs import DirectRLEnvCfg
   from isaaclab.scene import InteractiveSceneCfg
   from isaaclab.sim import SimulationCfg
-  from isaaclab.utils import configclass
+  from isaaclab.utils.configclass import configclass
 
 
   @configclass

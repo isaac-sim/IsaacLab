@@ -80,6 +80,7 @@ Guidelines for modifications:
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fatima Anes
 * Felipe Mohr
 * Felix Yu
 * Frank Lai
