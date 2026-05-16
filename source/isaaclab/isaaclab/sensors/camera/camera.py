@@ -581,7 +581,7 @@ class Camera(SensorBase):
             dst=self._data.quat_w_world,
             origin="opengl",
             target="world",
-            indices=indices,
+            indices=env_ids,
             device=self._device,
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
