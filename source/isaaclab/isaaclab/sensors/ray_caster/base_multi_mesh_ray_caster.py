@@ -100,12 +100,11 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         self._raycast_targets_cfg: list[MultiMeshRayCasterCfg.RaycastTargetCfg] = []
         for target in self.cfg.mesh_prim_paths:
             if isinstance(target, str):
-                self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(prim_expr=target, track_mesh_transforms=False))
+                target_cfg = cfg.RaycastTargetCfg(prim_expr=target, track_mesh_transforms=False)
             else:
-                self._raycast_targets_cfg.append(target)
-
-        for target_cfg in self._raycast_targets_cfg:
+                target_cfg = target
             target_cfg.prim_expr = target_cfg.prim_expr.format(ENV_REGEX_NS="/World/envs/env_.*")
+            self._raycast_targets_cfg.append(target_cfg)
 
         self._data = MultiMeshRayCasterData()
 
