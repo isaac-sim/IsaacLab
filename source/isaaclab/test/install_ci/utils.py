@@ -288,12 +288,23 @@ class Conda_Mixin:
             env_name = f"isaaclab_ci_{uuid.uuid4().hex[:8]}"
         self._conda_env_name = env_name
         self._isaaclab_root = isaaclab_root
+        self.cli_script = isaaclab_root / ("isaaclab.bat" if _IS_WINDOWS else "isaaclab.sh")
 
         result = run_cmd(
             ["conda", "create", "-n", env_name, f"python={python_version}", "-y", "--quiet"],
             env=drop_keys(dict(os.environ), ("VIRTUAL_ENV", "CONDA_DEFAULT_ENV", "CONDA_PREFIX")),
         )
         assert result.returncode == 0, f"conda env creation failed:\n{result.stdout}\n{result.stderr}"
+
+        # Resolve the python executable inside the new conda env.
+        conda_prefix_result = run_cmd(
+            ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.executable)"],
+            env=drop_keys(dict(os.environ), ("VIRTUAL_ENV", "CONDA_DEFAULT_ENV", "CONDA_PREFIX")),
+        )
+        assert conda_prefix_result.returncode == 0, (
+            f"Could not resolve conda python:\n{conda_prefix_result.stdout}\n{conda_prefix_result.stderr}"
+        )
+        self.python = Path(conda_prefix_result.stdout.strip())
 
     def destroy_conda_env(self) -> None:
         """Remove the conda environment created by :meth:`create_conda_env`."""
