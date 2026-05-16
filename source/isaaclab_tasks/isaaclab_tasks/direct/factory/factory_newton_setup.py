@@ -28,6 +28,7 @@ PhysX runs never import this module.
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING
 
 import newton
@@ -123,8 +124,14 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
         arm_actuators["panda_hand"].stiffness = 1000.0
         arm_actuators["panda_hand"].damping = 10.0
     else:
-        arm_actuators["panda_hand"].stiffness = 2000.0
-        arm_actuators["panda_hand"].damping = 40.0
+        # Ad-hoc sweep knob: ``FACTORY_SDF_FINGER_KP`` / ``FACTORY_SDF_FINGER_KD``
+        # override the SDF-only finger PD without rebuilding the cfg surface.
+        # Defaults match the values picked in the SDF-only commit.
+        kp = float(os.environ.get("FACTORY_SDF_FINGER_KP", "2000"))
+        kd = float(os.environ.get("FACTORY_SDF_FINGER_KD", "40"))
+        arm_actuators["panda_hand"].stiffness = kp
+        arm_actuators["panda_hand"].damping = kd
+        logger.info("SDF-only finger PD: stiffness=%.1f damping=%.1f", kp, kd)
 
     _monkey_patch_cloner_no_simplify()
 
