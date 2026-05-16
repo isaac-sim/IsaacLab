@@ -222,6 +222,9 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     if args.results_dir:
         results_abs = Path(args.results_dir).resolve()
         results_abs.mkdir(parents=True, exist_ok=True)
+        # The container runs as non-root (uid 1000); make the bind-mount writable
+        # by all users so pytest can write results.xml without a PermissionError.
+        results_abs.chmod(0o777)
         docker_run_cmd.extend(["-v", f"{results_abs}:/tmp/results"])
 
     if args.wheel:
