@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.controllers.pink_ik import PinkIKControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .pink_task_space_actions import PinkInverseKinematicsAction

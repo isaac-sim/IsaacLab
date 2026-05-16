@@ -141,7 +141,7 @@ combinations early with clear error messages.
 
 .. code-block:: python
 
-   from isaaclab.utils import configclass
+   from isaaclab.utils.configclass import configclass
 
    @configclass
    class MyEnvCfg:
@@ -252,7 +252,7 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
     from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg

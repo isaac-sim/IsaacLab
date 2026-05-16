@@ -8,7 +8,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 

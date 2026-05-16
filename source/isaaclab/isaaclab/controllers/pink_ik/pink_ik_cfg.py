@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .pink_task_cfg import PinkIKTaskCfg
 
