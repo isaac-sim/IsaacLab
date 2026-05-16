@@ -379,6 +379,53 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
     return torch.where(invalid, torch.full_like(quat, float("nan")), quat)
 
 
+def quat_from_matrix_np(matrix: np.ndarray) -> np.ndarray:
+    """Convert rotation matrices to quaternions using NumPy.
+
+    Args:
+        matrix: The rotation matrices. Shape is ``(..., 3, 3)``.
+
+    Returns:
+        The quaternion in ``(x, y, z, w)``. Shape is ``(..., 4)``.
+    """
+    matrix = np.asarray(matrix)
+    if matrix.shape[-2:] != (3, 3):
+        raise ValueError(f"Invalid rotation matrix shape {matrix.shape}.")
+
+    batch_dim = matrix.shape[:-2]
+    m00, m01, m02, m10, m11, m12, m20, m21, m22 = np.moveaxis(matrix.reshape(batch_dim + (9,)), -1, 0)
+
+    q_abs = np.sqrt(
+        np.maximum(
+            0.0,
+            np.stack(
+                [
+                    1.0 + m00 + m11 + m22,
+                    1.0 + m00 - m11 - m22,
+                    1.0 - m00 + m11 - m22,
+                    1.0 - m00 - m11 + m22,
+                ],
+                axis=-1,
+            ),
+        )
+    )
+    quat_by_rijk = np.stack(
+        [
+            np.stack([m21 - m12, m02 - m20, m10 - m01, q_abs[..., 0] ** 2], axis=-1),
+            np.stack([q_abs[..., 1] ** 2, m10 + m01, m02 + m20, m21 - m12], axis=-1),
+            np.stack([m10 + m01, q_abs[..., 2] ** 2, m12 + m21, m02 - m20], axis=-1),
+            np.stack([m20 + m02, m21 + m12, q_abs[..., 3] ** 2, m10 - m01], axis=-1),
+        ],
+        axis=-2,
+    )
+
+    quat_candidates = quat_by_rijk / (2.0 * np.maximum(q_abs[..., None], 0.1))
+    best = np.argmax(q_abs, axis=-1)
+    quat = np.take_along_axis(quat_candidates, best[..., None, None], axis=-2)[..., 0, :]
+    invalid = np.abs(np.linalg.norm(quat, axis=-1, keepdims=True) - 1.0) > 2e-5
+    return np.where(invalid, np.full_like(quat, np.nan), quat)
+
+
 def _axis_angle_rotation(axis: Literal["X", "Y", "Z"], angle: torch.Tensor) -> torch.Tensor:
     """Return the rotation matrices for one of the rotations about an axis of which Euler angles describe,
     for each value of the angle given.
@@ -1730,6 +1777,54 @@ def create_rotation_matrix_from_view(
         y_axis = torch.where(is_close, replacement_y, y_axis)
     R = torch.cat((x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1).transpose(1, 2)
     return torch.where(undefined_forward.unsqueeze(-1), torch.full_like(R, float("nan")), R)
+
+
+def create_rotation_matrix_from_view_np(
+    eyes: np.ndarray,
+    targets: np.ndarray,
+    up_axis: Literal["Y", "Z"] = "Z",
+) -> np.ndarray:
+    """Compute rotation matrices from world to view coordinates using NumPy.
+
+    Args:
+        eyes: Position of the camera in world coordinates. Shape is ``(N, 3)``.
+        targets: Position of the target in world coordinates. Shape is ``(N, 3)``.
+        up_axis: The up axis of the camera. Defaults to ``"Z"``.
+
+    Returns:
+        ``(N, 3, 3)`` batched rotation matrices. Rows with an undefined forward
+        direction are filled with NaN.
+    """
+    eyes = np.asarray(eyes, dtype=np.float32).reshape(-1, 3)
+    targets = np.asarray(targets, dtype=np.float32).reshape(-1, 3)
+    if up_axis == "Y":
+        up_axis_vec = np.repeat(np.array([[0.0, 1.0, 0.0]], dtype=np.float32), eyes.shape[0], axis=0)
+    elif up_axis == "Z":
+        up_axis_vec = np.repeat(np.array([[0.0, 0.0, 1.0]], dtype=np.float32), eyes.shape[0], axis=0)
+    else:
+        raise ValueError(f"Invalid up axis: {up_axis}. Valid options are 'Y' and 'Z'.")
+
+    forward = targets - eyes
+    undefined_forward = (np.linalg.norm(forward, axis=1, keepdims=True) < 1e-5) | ~np.isfinite(forward).all(
+        axis=1, keepdims=True
+    )
+
+    def normalize(values: np.ndarray, eps: float = 1e-5) -> np.ndarray:
+        return values / np.maximum(np.linalg.norm(values, axis=1, keepdims=True), eps)
+
+    z_axis = -normalize(forward)
+    x_axis = normalize(np.cross(up_axis_vec, z_axis))
+    y_axis = normalize(np.cross(z_axis, x_axis))
+    is_close = np.isclose(x_axis, 0.0, atol=5e-3).all(axis=1, keepdims=True)
+    if is_close.any():
+        alt_up = np.repeat(np.array([[1.0, 0.0, 0.0]], dtype=np.float32), eyes.shape[0], axis=0)
+        replacement_x = normalize(np.cross(alt_up, z_axis))
+        replacement_y = normalize(np.cross(z_axis, replacement_x))
+        x_axis = np.where(is_close, replacement_x, x_axis)
+        y_axis = np.where(is_close, replacement_y, y_axis)
+
+    rotation_matrix = np.stack((x_axis, y_axis, z_axis), axis=1).transpose(0, 2, 1)
+    return np.where(undefined_forward[:, :, None], np.full_like(rotation_matrix, np.nan), rotation_matrix)
 
 
 def make_pose(pos: torch.Tensor, rot: torch.Tensor) -> torch.Tensor:

@@ -333,15 +333,14 @@ def test_camera_set_world_poses(setup_sim_camera):
     # play sim
     sim.reset()
 
-    # convert to torch tensors
-    position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
-    orientation = torch.tensor([QUAT_WORLD], dtype=torch.float32, device=camera.device)
+    position = np.asarray([POSITION], dtype=np.float32)
+    orientation = np.asarray([QUAT_WORLD], dtype=np.float32)
     # set new pose
-    camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
+    camera.set_world_poses(position, orientation, convention="world")
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w.torch, position)
-    torch.testing.assert_close(camera.data.quat_w_world.torch, orientation)
+    np.testing.assert_close(camera.data.pos_w.warp.numpy(), position)
+    np.testing.assert_close(camera.data.quat_w_world.warp.numpy(), orientation)
 
 
 def test_camera_set_world_poses_from_view(setup_sim_camera):
@@ -354,12 +353,12 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
     # play sim
     sim.reset()
 
-    # convert to torch tensors
-    eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+    eyes_np = np.asarray([POSITION], dtype=np.float32)
+    targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
+    eyes = torch.tensor(eyes_np, dtype=torch.float32, device=camera.device)
     quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
     # set new pose
-    camera.set_world_poses_from_view(eyes.clone(), targets.clone())
+    camera.set_world_poses_from_view(eyes_np, targets_np)
 
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w.torch, eyes)
@@ -1206,18 +1205,18 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
     try:
         sim.reset()
 
-        target = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        target = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
         max_range = cam_cfg.spawn.clipping_range[1]
 
         # -- close position --
-        eyes_close = torch.tensor([[2.0, 2.0, 2.0]], dtype=torch.float32, device=camera.device)
+        eyes_close = np.asarray([[2.0, 2.0, 2.0]], dtype=np.float32)
         camera.set_world_poses_from_view(eyes_close, target)
         sim.step()
         camera.update(dt)
         depth_close = camera.data.output["distance_to_camera"].clone()
 
         # -- far position --
-        eyes_far = torch.tensor([[8.0, 8.0, 8.0]], dtype=torch.float32, device=camera.device)
+        eyes_far = np.asarray([[8.0, 8.0, 8.0]], dtype=np.float32)
         camera.set_world_poses_from_view(eyes_far, target)
         sim.step()
         camera.update(dt)

@@ -391,12 +391,13 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
     sim.reset()
     sim.play()
 
-    # convert to torch tensors
-    eyes = torch.tensor([[2.5, 2.5, 4.5]], dtype=torch.float32, device=camera_warp.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera_warp.device)
+    eyes_np = np.asarray([[2.5, 2.5, 4.5]], dtype=np.float32)
+    targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
+    eyes = torch.tensor(eyes_np, dtype=torch.float32, device=camera_warp.device)
+    targets = torch.tensor(targets_np, dtype=torch.float32, device=camera_warp.device)
     # set views
     camera_warp.set_world_poses_from_view(eyes, targets)
-    camera_usd.set_world_poses_from_view(eyes, targets)
+    camera_usd.set_world_poses_from_view(eyes_np, targets_np)
 
     # perform steps
     for _ in range(5):
@@ -755,12 +756,12 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
 
     # set intrinsic matrix
     # NOTE: extend the test to cover aperture offsets once supported by the usd camera
-    intrinsic_matrix = torch.tensor(
-        [[380.0831, 0.0, camera_cfg_usd.width / 2, 0.0, 380.0831, camera_cfg_usd.height / 2, 0.0, 0.0, 1.0]],
-        device=camera_warp.device,
+    intrinsic_matrix_np = np.asarray(
+        [[380.0831, 0.0, camera_cfg_usd.width / 2, 0.0, 380.0831, camera_cfg_usd.height / 2, 0.0, 0.0, 1.0]]
     ).reshape(1, 3, 3)
+    intrinsic_matrix = torch.tensor(intrinsic_matrix_np, device=camera_warp.device)
     camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-    camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
+    camera_usd.set_intrinsic_matrices(intrinsic_matrix_np, focal_length=10)
 
     # set camera position
     camera_warp.set_world_poses_from_view(
@@ -768,8 +769,8 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
         targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_warp.device),
     )
     camera_usd.set_world_poses_from_view(
-        eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_usd.device),
-        targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_usd.device),
+        eyes=np.asarray([[0.0, 0.0, 5.0]], dtype=np.float32),
+        targets=np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32),
     )
 
     # perform steps
