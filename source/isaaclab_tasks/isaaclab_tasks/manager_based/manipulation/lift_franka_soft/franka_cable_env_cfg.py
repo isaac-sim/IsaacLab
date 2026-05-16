@@ -38,13 +38,13 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_contrib.cable.cable_object_cfg import CableObjectCfg
 from isaaclab_contrib.deformable.newton_manager_cfg import (
+    CoupledNewtonCfg,
     NewtonModelCfg,
     ProxyCoupledMJWarpVBDSolverCfg,
     VBDSolverCfg,
 )
 
 from . import mdp
-from .franka_soft_env_cfg import DeformableNewtonCfg
 
 ##
 # Pre-defined configs
@@ -325,7 +325,8 @@ class FrankaCableEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
-        self.sim.physics = DeformableNewtonCfg(
+        self.sim.physics = CoupledNewtonCfg(
+            scene_cfg=self.scene,
             solver_cfg=ProxyCoupledMJWarpVBDSolverCfg(
                 mjwarp_cfg=MJWarpSolverCfg(
                     njmax=40,
@@ -351,10 +352,8 @@ class FrankaCableEnvCfg(ManagerBasedRLEnvCfg):
                 vbd_prim_paths=[self.scene.cable.prim_path],
                 # Expose the Franka gripper bodies as proxies in the VBD view so the
                 # cable feels gripper contacts and the gripper feels cable feedback.
-                proxy_body_label_patterns=[
-                    r"^panda_hand$",
-                    r"^panda_leftfinger$",
-                    r"^panda_rightfinger$",
+                proxy_bodies=[
+                    SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
                 ],
                 proxy_mode="lagged",
                 proxy_iterations=1,
