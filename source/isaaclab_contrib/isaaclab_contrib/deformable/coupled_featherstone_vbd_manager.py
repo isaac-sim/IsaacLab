@@ -21,7 +21,6 @@ from isaaclab.sim.utils.stage import get_current_stage
 
 from .deformable_object import (
     add_deformable_entry_to_builder,
-    clear_deformable_builder_hooks,
     install_deformable_builder_hooks,
 )
 from .kernels import _kernel_body_particle_reaction
@@ -81,11 +80,6 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
                     cls._soft_solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
         super().step()
-
-    @classmethod
-    def _solver_specific_clear(cls):
-        """Clear VBD-specific state."""
-        clear_deformable_builder_hooks()
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
