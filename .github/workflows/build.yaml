@@ -109,9 +109,9 @@ jobs:
           echo "|---|---|---|"
           for entry in "${patterns[@]}"; do
             IFS=$'\t' read -r regex desc <<< "$entry"
-            count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
+            count=$(grep -cE "$regex" <<< "$files" || true)
             if [ "$count" -gt 0 ]; then
-              sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+              sample=$(grep -m 3 -E "$regex" <<< "$files" | paste -sd ', ' -)
               [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
               echo "| \`$regex\` | $desc | $sample |"
             else
@@ -124,7 +124,7 @@ jobs:
           local files="$1" entry regex
           for entry in "${patterns[@]}"; do
             IFS=$'\t' read -r regex _ <<< "$entry"
-            if printf '%s\n' "$files" | grep -qE "$regex"; then
+            if grep -qE "$regex" <<< "$files"; then
               return 0
             fi
           done
@@ -346,7 +346,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx"
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
@@ -369,7 +368,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx"
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
@@ -392,7 +390,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx"
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
@@ -696,6 +693,49 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
+
+  test-rendering-correctness:
+    name: "rendering-correctness"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+    needs: [build, config]
+    if: needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_rendering_cartpole.py,test_rendering_dexsuite_kuka.py,test_rendering_registered_tasks.py,test_rendering_shadow_hand.py"
+        container-name: isaac-lab-rendering-correctness-test
+
+  test-rendering-correctness-kitless:
+    name: "rendering-correctness-kitless"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+    needs: [build, config]
+    if: needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "ovrtx"
+        include-files: "test_rendering_cartpole_kitless.py,test_rendering_dexsuite_kuka_kitless.py,test_rendering_shadow_hand_kitless.py"
+        container-name: isaac-lab-rendering-correctness-kitless-test
   #endregion
 
 #region disabled quarantined tests
