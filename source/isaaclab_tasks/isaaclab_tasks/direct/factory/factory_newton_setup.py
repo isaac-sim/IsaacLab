@@ -153,15 +153,26 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
     _monkey_patch_cloner_no_simplify()
 
     # Scale the contact buffer with num_envs so the gripper close doesn't
-    # overflow when the user bumps the world count.
+    # overflow when the user bumps the world count. SDF-only mode emits
+    # ~3× more contacts than hydroelastic in our scene, so we expose
+    # ``FACTORY_NJMAX_MULT`` to pad the budget without re-deriving njmax.
     if (
         getattr(cfg.sim.physics, "collision_cfg", None) is not None
         and getattr(cfg.sim.physics, "solver_cfg", None) is not None
         and hasattr(cfg.sim.physics.solver_cfg, "njmax")
     ):
+        njmax_mult = float(os.environ.get("FACTORY_NJMAX_MULT", "1.0"))
         njmax = int(cfg.sim.physics.solver_cfg.njmax)
         num_worlds = int(cfg.scene.num_envs)
-        cfg.sim.physics.collision_cfg.rigid_contact_max = njmax * num_worlds
+        cfg.sim.physics.collision_cfg.rigid_contact_max = int(njmax * num_worlds * njmax_mult)
+        if njmax_mult != 1.0:
+            logger.info(
+                "rigid_contact_max override: %d (njmax=%d × num_worlds=%d × mult=%.2f)",
+                cfg.sim.physics.collision_cfg.rigid_contact_max,
+                njmax,
+                num_worlds,
+                njmax_mult,
+            )
 
 
 def warm_up_kernels(env: FactoryEnv) -> None:
@@ -378,7 +389,14 @@ def _tune_nut_bolt_contacts(builder) -> None:
     if _use_hydroelastic:
         ke, kd, gap = 1.0e4, 100.0, 0.0
     else:
-        ke, kd, gap = 1.0e7, 1.0e4, 0.005
+        # SDF-only knobs:
+        #   ``FACTORY_SDF_NUT_BOLT_KE``   contact stiffness on nut + bolt shapes
+        #   ``FACTORY_SDF_NUT_BOLT_KD``   contact damping on nut + bolt shapes
+        #   ``FACTORY_SDF_NUT_BOLT_GAP``  contact-detection threshold
+        ke = float(os.environ.get("FACTORY_SDF_NUT_BOLT_KE", "1.0e7"))
+        kd = float(os.environ.get("FACTORY_SDF_NUT_BOLT_KD", "1.0e4"))
+        gap = float(os.environ.get("FACTORY_SDF_NUT_BOLT_GAP", "0.005"))
+        logger.info("SDF-only nut/bolt contact: ke=%.1e kd=%.1e gap=%.4f", ke, kd, gap)
 
     for i in range(builder.shape_count):
         label = str(builder.shape_label[i]).lower()
@@ -425,11 +443,17 @@ _KH_FINGER = 1e11
 _KH_NUT_BOLT = 1e11
 
 # SDF-only penalty spring on the fingers, used when ``_use_hydroelastic``
-# is False. ``ke`` is sized so the gripper close force keeps penetration
-# well inside the 1 cm SDF band; ``kd`` is ~critically damped against
-# the finger mass.
-_KE_FINGER = 1.0e7
-_KD_FINGER = 1.0e4
+# is False. The Newton nut/bolt example ships ``ke=1e7 / kd=1e4`` —
+# fine for nut-on-bolt but the example has no gripper, so finger pads
+# need stiffer contact to behave like real rubber-coated pads under
+# the gripper's saturated 40 N close force. A 64-env / 450-step
+# sweep on Factory_develop_baseline.pth at finger ke/kd combinations
+# picked (3e8, 3e5): success_rate 0.625 → 0.891, engage 0.656 → 0.953,
+# mean_engage_step 139 → 93 (vs hydroelastic reference 0.953 / 32).
+# Higher (1e9 / 1e6) starts oscillating in the solver and gives back
+# the gains.
+_KE_FINGER = 3.0e8
+_KD_FINGER = 3.0e5
 
 # Finger-only friction extras.
 _FINGER_MU_TORSIONAL = 0.1
@@ -538,8 +562,20 @@ def _build_collision_sdfs(builder) -> None:
             builder.shape_flags[shape_idx] |= int(newton.ShapeFlags.HYDROELASTIC)
             builder.shape_material_kh[shape_idx] = _KH_FINGER if category == "finger" else _KH_NUT_BOLT
         elif not _use_hydroelastic and category == "finger":
-            builder.shape_material_ke[shape_idx] = _KE_FINGER
-            builder.shape_material_kd[shape_idx] = _KD_FINGER
+            # SDF-only finger contact-material env vars (defaults match the
+            # Newton nut/bolt example's contact stiffness/damping):
+            #   ``FACTORY_SDF_FINGER_CONTACT_KE`` (default 1e7)
+            #   ``FACTORY_SDF_FINGER_CONTACT_KD`` (default 1e4)
+            #   ``FACTORY_SDF_FINGER_GAP``        (default = parser value, ~5 mm)
+            builder.shape_material_ke[shape_idx] = float(
+                os.environ.get("FACTORY_SDF_FINGER_CONTACT_KE", str(_KE_FINGER))
+            )
+            builder.shape_material_kd[shape_idx] = float(
+                os.environ.get("FACTORY_SDF_FINGER_CONTACT_KD", str(_KD_FINGER))
+            )
+            finger_gap_env = os.environ.get("FACTORY_SDF_FINGER_GAP")
+            if finger_gap_env is not None:
+                builder.shape_gap[shape_idx] = float(finger_gap_env)
         if category == "finger":
             builder.shape_material_mu_torsional[shape_idx] = _FINGER_MU_TORSIONAL
             if condim_attr is not None:
