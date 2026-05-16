@@ -50,6 +50,7 @@ Shapes
   .. autosummary::
 
     ShapeCfg
+    CableCfg
     CapsuleCfg
     ConeCfg
     CuboidCfg
@@ -58,6 +59,13 @@ Shapes
 
 .. autoclass:: ShapeCfg
     :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_cable
+
+.. autoclass:: CableCfg
+    :members:
+    :show-inheritance:
     :exclude-members: __init__, func
 
 .. autofunction:: spawn_capsule
