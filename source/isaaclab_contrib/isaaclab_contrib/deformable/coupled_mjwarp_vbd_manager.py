@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from typing import TYPE_CHECKING
 
@@ -300,13 +299,8 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
         """
         cls._coupling_mode = solver_cfg.coupling_mode
 
-        valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.rigid_solver_cfg.to_dict().items() if k in valid}
-        cls._rigid_solver = SolverMuJoCo(model, **kwargs)
-
-        valid = set(inspect.signature(SolverVBD.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.soft_solver_cfg.to_dict().items() if k in valid}
-        cls._soft_solver = SolverVBD(model, **kwargs)
+        cls._rigid_solver = SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg.rigid_solver_cfg))
+        cls._soft_solver = SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg.soft_solver_cfg))
 
         # Dummy solver for the newtonmanager
         NewtonManager._solver = SolverBase(model)

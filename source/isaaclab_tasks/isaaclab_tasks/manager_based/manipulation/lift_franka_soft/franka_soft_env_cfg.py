@@ -13,7 +13,7 @@ position sampled in the robot's root frame.
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -40,39 +40,22 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import CoupledMJWarpVBDSolverCfg, NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import (
+    CoupledMJWarpVBDSolverCfg,
+    CoupledNewtonCfg,
+    NewtonModelCfg,
+)
 
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
 
-##
-# Pre-defined configs
-##
-
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
-
-
-##
-# Helpers
-##
 
 
 # Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 8e4
 POISSONS_RATIO = 0.25
-
-
-@configclass
-class DeformableNewtonCfg(NewtonCfg):
-    """NewtonCfg extended with model-level contact parameters for deformable objects.
-
-    Uses a distinct class name so that ``_is_kitless_physics`` does not
-    match it, ensuring Kit is launched for USD deformable spawning.
-    """
-
-    model_cfg: NewtonModelCfg | None = None
-    """Global Newton model parameters applied after builder finalization."""
 
 
 @configclass
@@ -119,25 +102,15 @@ class DeformableCfg(PresetCfg):
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, one-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: DeformableNewtonCfg = DeformableNewtonCfg(
+    newton_mjwarp_vbd: CoupledNewtonCfg = CoupledNewtonCfg(
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
                 njmax=40,
                 nconmax=20,
                 ls_iterations=20,
-                cone="pyramidal",
-                impratio=1,
-                ls_parallel=False,
                 integrator="implicitfast",
                 ccd_iterations=100,
             ),
-            soft_solver_cfg=VBDSolverCfg(
-                iterations=10,
-                integrate_with_external_rigid_solver=True,
-                particle_enable_self_contact=False,
-                particle_collision_detection_interval=-1,
-            ),
-            coupling_mode="two_way",
         ),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e4,
@@ -148,17 +121,11 @@ class PhysicsCfg(PresetCfg):
             shape_material_mu=5.0,
         ),
         num_substeps=10,
-        use_cuda_graph=True,
     )
 
     physx: PhysxCfg = PhysxCfg()
 
     default = newton_mjwarp_vbd
-
-
-##
-# Scene definition
-##
 
 
 @configclass
@@ -198,11 +165,6 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
         spawn=GroundPlaneCfg(),
     )
 
-    # lights
-    # dome_light: AssetBaseCfg = AssetBaseCfg(
-    #     prim_path="/World/light",
-    #     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2000.0),
-    # )
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(
@@ -220,11 +182,6 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
         self.robot.actuators["panda_hand"].effort_limit_sim = 500.0
         self.robot.actuators["panda_hand"].stiffness = 1000.0
         self.robot.actuators["panda_hand"].damping = 100.0
-
-
-##
-# MDP settings
-##
 
 
 @configclass
@@ -250,10 +207,7 @@ class CommandsCfg:
             markers={
                 "sphere": sim_utils.SphereCfg(
                     radius=0.03,
-                    visual_material=sim_utils.PreviewSurfaceCfg(
-                        diffuse_color=(0.1, 0.9, 0.2),
-                        opacity=0.4,
-                    ),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.9, 0.2), opacity=0.4),
                 ),
             },
         ),
@@ -293,7 +247,7 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         deformable_sampled_points = ObsTerm(
-            func=mdp.DeformableSampledPointsInRobotRootFrame,
+            func=mdp.ObjectSampledPointsInRobotRootFrame,
             params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
         )
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
@@ -332,17 +286,17 @@ class RewardsCfg:
     """Lift-to-target reward for a deformable object."""
 
     reaching_deformable = RewTerm(
-        func=mdp.deformable_ee_distance,
+        func=mdp.object_ee_distance,
         params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
     lifting_deformable = RewTerm(
-        func=mdp.deformable_lifted,
+        func=mdp.object_lifted,
         params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
     deformable_goal_tracking = RewTerm(
-        func=mdp.deformable_com_goal_distance,
+        func=mdp.object_com_goal_distance,
         params={
             "std": 0.3,
             "minimal_height": 0.075,
@@ -352,7 +306,7 @@ class RewardsCfg:
         weight=16.0,
     )
     deformable_goal_tracking_fine_grained = RewTerm(
-        func=mdp.deformable_com_goal_distance,
+        func=mdp.object_com_goal_distance,
         params={
             "std": 0.05,
             "minimal_height": 0.075,
@@ -380,7 +334,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
     deformable_outside_table = DoneTerm(
-        func=mdp.deformable_outside_table_bounds,
+        func=mdp.object_outside_table_bounds,
         params={
             "x_bounds": (0.0, 1.0),
             "y_bounds": (-0.5, 0.5),
@@ -389,7 +343,7 @@ class TerminationsCfg:
     )
 
     deformable_dropped = DoneTerm(
-        func=mdp.deformable_com_below_minimum,
+        func=mdp.object_com_below_minimum,
         params={"minimum_height": -0.1, "asset_cfg": SceneEntityCfg("deformable")},
     )
 
@@ -397,11 +351,6 @@ class TerminationsCfg:
         func=mdp.ee_below_minimum,
         params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
     )
-
-
-##
-# Environment configuration
-##
 
 
 @configclass

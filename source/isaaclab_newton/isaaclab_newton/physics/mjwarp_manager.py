@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 
 import numpy as np
@@ -40,8 +39,7 @@ class NewtonMJWarpManager(NewtonManager):
         forwarded.  Sets :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
         NewtonManager._solver = SolverMuJoCo(model, **kwargs)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts

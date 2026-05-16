@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from typing import TYPE_CHECKING
 
@@ -511,8 +510,7 @@ class NewtonVBDManager(NewtonManager):
         VBD always uses Newton's :class:`CollisionPipeline` and steps with
         separate input/output states, so the flags are fixed.
         """
-        valid = set(inspect.signature(SolverVBD.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = cls._filter_solver_kwargs(SolverVBD, solver_cfg)
         NewtonManager._solver = SolverVBD(model, **kwargs)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True

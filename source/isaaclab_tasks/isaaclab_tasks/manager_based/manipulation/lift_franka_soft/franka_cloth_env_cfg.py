@@ -19,17 +19,17 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import CoupledMJWarpVBDSolverCfg, NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import (
+    CoupledMJWarpVBDSolverCfg,
+    CoupledNewtonCfg,
+    NewtonModelCfg,
+)
 
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
-from .franka_soft_env_cfg import DeformableNewtonCfg, FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
-
-##
-# Scene definition
-##
+from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 
 ROBOT_SHAPE_MATERIAL_MU = 100.0
 """Franka collision-shape friction coefficient [dimensionless] used for Newton cloth contact."""
@@ -42,25 +42,15 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, one-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vdb: DeformableNewtonCfg = DeformableNewtonCfg(
+    newton_mjwarp_vbd: CoupledNewtonCfg = CoupledNewtonCfg(
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
                 njmax=40,
                 nconmax=20,
                 ls_iterations=20,
-                cone="pyramidal",
-                impratio=1,
-                ls_parallel=False,
                 integrator="implicitfast",
                 ccd_iterations=100,
             ),
-            soft_solver_cfg=VBDSolverCfg(
-                iterations=10,
-                integrate_with_external_rigid_solver=True,
-                particle_enable_self_contact=False,
-                particle_collision_detection_interval=-1,
-            ),
-            coupling_mode="two_way",
         ),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e3,
@@ -71,17 +61,16 @@ class PhysicsCfg(PresetCfg):
             shape_material_mu=1e-4,
         ),
         num_substeps=10,
-        use_cuda_graph=True,
     )
 
-    default = newton_mjwarp_vdb
+    default = newton_mjwarp_vbd
 
 
 @configclass
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
-    newton_mjwarp_vdb: DeformableObjectCfg = DeformableObjectCfg(
+    newton_mjwarp_vbd: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="/World/envs/env_.*/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
         spawn=sim_utils.MeshRectangleCfg(
@@ -101,7 +90,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
-    default = newton_mjwarp_vdb
+    default = newton_mjwarp_vbd
 
 
 @configclass
@@ -144,17 +133,17 @@ class RewardsCfg:
     """Lift-to-target reward for a deformable object."""
 
     reaching_deformable = RewTerm(
-        func=mdp.deformable_ee_distance,
+        func=mdp.object_ee_distance,
         params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
     lifting_deformable = RewTerm(
-        func=mdp.deformable_lifted,
+        func=mdp.object_lifted,
         params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
     deformable_goal_tracking = RewTerm(
-        func=mdp.deformable_com_goal_distance,
+        func=mdp.object_com_goal_distance,
         params={
             "std": 0.3,
             "minimal_height": 0.075,
@@ -164,7 +153,7 @@ class RewardsCfg:
         weight=16.0,
     )
     deformable_goal_tracking_fine_grained = RewTerm(
-        func=mdp.deformable_com_goal_distance,
+        func=mdp.object_com_goal_distance,
         params={
             "std": 0.05,
             "minimal_height": 0.075,
@@ -200,11 +189,6 @@ class EventCfg(FrankaSoftEventCfg):
             "num_buckets": 1,
         },
     )
-
-
-##
-# Environment configuration
-##
 
 
 @configclass

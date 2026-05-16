@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reward and termination functions for the Franka deformable lifting environment."""
+"""Reward and termination functions for the Franka deformable lifting environment.
+
+Reward terms target either a volumetric/surface :class:`~isaaclab.assets.DeformableObject`
+(particle data lives on ``data.nodal_pos_w`` / ``data.root_pos_w``) or a cable that is an
+:class:`~isaaclab.assets.Articulation` whose per-segment positions live on ``data.body_pos_w``.
+Each reward picks the right access path via :func:`_points_w` / :func:`_com_w`; downstream
+math is shared.
+"""
 
 from __future__ import annotations
 
@@ -21,72 +28,94 @@ if TYPE_CHECKING:
     from isaaclab.sensors import FrameTransformer
 
 
-def deformable_lifted(
+def _points_w(asset: DeformableObject | Articulation) -> torch.Tensor:
+    """Return per-asset point cloud positions in world frame, shape ``[num_envs, K, 3]`` [m].
+
+    For a deformable object, ``K`` is the number of FEM nodes. For a cable
+    articulation, ``K`` is the number of segments.
+    """
+    if hasattr(asset.data, "nodal_pos_w"):
+        return wp.to_torch(asset.data.nodal_pos_w)
+    return asset.data.body_pos_w.torch
+
+
+def _com_w(asset: DeformableObject | Articulation) -> torch.Tensor:
+    """Return the asset's centre of mass in world frame, shape ``[num_envs, 3]`` [m].
+
+    For a deformable object this is :attr:`DeformableObject.data.root_pos_w` (already
+    the COM). For a cable articulation it is the mean of the per-segment positions.
+    """
+    if hasattr(asset.data, "nodal_pos_w"):
+        return wp.to_torch(asset.data.root_pos_w)
+    return asset.data.body_pos_w.torch.mean(dim=1)
+
+
+def object_lifted(
     env: ManagerBasedRLEnv,
     minimal_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+    asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Reward if the deformable COM is above a minimum height.
+    """Reward if the asset's COM is above a minimum height.
 
     Args:
         env: The environment instance.
         minimal_height: Minimum COM height [m].
-        asset_cfg: The deformable object entity.
+        asset_cfg: The deformable or cable entity.
 
     Returns:
         Reward tensor with shape ``(num_envs,)``.
     """
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    com_z = wp.to_torch(asset.data.root_pos_w)[:, 2]
+    asset = env.scene[asset_cfg.name]
+    com_z = _com_w(asset)[:, 2]
     return torch.where(com_z > minimal_height, 1.0, 0.0)
 
 
-def deformable_ee_distance(
+def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+    asset_cfg: SceneEntityCfg,
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
 ) -> torch.Tensor:
-    """Reward reaching the deformable's nearest nodal point with the end-effector.
+    """Reward reaching the asset's nearest point with the end-effector.
 
     Args:
         env: The environment instance.
         std: The tanh kernel standard deviation [m].
-        asset_cfg: The deformable object entity.
+        asset_cfg: The deformable or cable entity.
         ee_frame_cfg: The end-effector frame entity.
 
     Returns:
         Reward tensor with shape ``(num_envs,)``.
     """
-    asset: DeformableObject = env.scene[asset_cfg.name]
+    asset = env.scene[asset_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-    nodal_pos_w = wp.to_torch(asset.data.nodal_pos_w)
+    points_w = _points_w(asset)
     ee_w = wp.to_torch(ee_frame.data.target_pos_w)[..., 0, :]
-    distance = torch.linalg.norm(nodal_pos_w - ee_w.unsqueeze(1), dim=2).min(dim=1).values
+    distance = torch.linalg.norm(points_w - ee_w.unsqueeze(1), dim=2).min(dim=1).values
     return 1.0 - torch.tanh(distance / std)
 
 
-def deformable_com_goal_distance(
+def object_com_goal_distance(
     env: ManagerBasedRLEnv,
     std: float,
     minimal_height: float,
     command_name: str,
+    asset_cfg: SceneEntityCfg,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
 ) -> torch.Tensor:
-    """Reward tracking of the goal position by the deformable's COM (tanh kernel).
+    """Reward tracking of the goal position by the asset's COM (tanh kernel).
 
     Only credits when the COM is above ``minimal_height`` (i.e. the object is lifted).
     The command is interpreted as ``[x, y, z, qw, qx, qy, qz]`` in the robot's root frame.
     """
     robot: Articulation = env.scene[robot_cfg.name]
-    asset: DeformableObject = env.scene[asset_cfg.name]
+    asset = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(
         wp.to_torch(robot.data.root_pos_w), wp.to_torch(robot.data.root_quat_w), des_pos_b
     )
-    com_w = wp.to_torch(asset.data.root_pos_w)
+    com_w = _com_w(asset)
     distance = torch.linalg.norm(des_pos_w - com_w, dim=1)
     return (com_w[:, 2] > minimal_height) * (1.0 - torch.tanh(distance / std))
 
@@ -109,146 +138,38 @@ def gripper_close_action(env: ManagerBasedRLEnv, action_name: str = "gripper_act
     return torch.any(gripper_action < 0.0, dim=1).float()
 
 
-def deformable_com_below_minimum(
+def object_com_below_minimum(
     env: ManagerBasedRLEnv,
     minimum_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+    asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Termination signal when the deformable's COM falls below ``minimum_height`` [m]."""
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    com_z = wp.to_torch(asset.data.root_pos_w)[:, 2]
+    """Termination signal when the asset's COM falls below ``minimum_height`` [m]."""
+    asset = env.scene[asset_cfg.name]
+    com_z = _com_w(asset)[:, 2]
     return com_z < minimum_height
 
 
-def deformable_outside_table_bounds(
+def object_outside_table_bounds(
     env: ManagerBasedRLEnv,
     x_bounds: tuple[float, float],
     y_bounds: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+    asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Terminate if any deformable nodal point leaves the table footprint.
+    """Terminate if any asset point leaves the table footprint.
 
     Args:
         env: The environment instance.
         x_bounds: Allowed x-position range in the environment frame [m].
         y_bounds: Allowed y-position range in the environment frame [m].
-        asset_cfg: The deformable object entity.
+        asset_cfg: The deformable or cable entity.
 
     Returns:
         Boolean tensor with shape ``(num_envs,)``.
     """
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    nodal_pos = wp.to_torch(asset.data.nodal_pos_w) - env.scene.env_origins.unsqueeze(1)
-    outside_x = (nodal_pos[..., 0] < x_bounds[0]) | (nodal_pos[..., 0] > x_bounds[1])
-    outside_y = (nodal_pos[..., 1] < y_bounds[0]) | (nodal_pos[..., 1] > y_bounds[1])
-    return torch.any(outside_x | outside_y, dim=1)
-
-
-def cable_lifted(
-    env: ManagerBasedRLEnv,
-    minimal_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
-) -> torch.Tensor:
-    """Reward if the cable's midpoint is above a minimum height.
-
-    The midpoint is the mean of the cable's per-segment positions.
-
-    Args:
-        env: The environment instance.
-        minimal_height: Minimum midpoint height [m].
-        asset_cfg: The cable articulation entity.
-
-    Returns:
-        Reward tensor with shape ``(num_envs,)``.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
-    com_z = asset.data.body_pos_w.torch.mean(dim=1)[:, 2]
-    return torch.where(com_z > minimal_height, 1.0, 0.0)
-
-
-def cable_ee_distance(
-    env: ManagerBasedRLEnv,
-    std: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
-    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
-) -> torch.Tensor:
-    """Reward reaching the cable's nearest segment with the end-effector.
-
-    Args:
-        env: The environment instance.
-        std: The tanh kernel standard deviation [m].
-        asset_cfg: The cable articulation entity.
-        ee_frame_cfg: The end-effector frame entity.
-
-    Returns:
-        Reward tensor with shape ``(num_envs,)``.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
-    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-    body_pos_w = asset.data.body_pos_w.torch
-    ee_w = wp.to_torch(ee_frame.data.target_pos_w)[..., 0, :]
-    distance = torch.linalg.norm(body_pos_w - ee_w.unsqueeze(1), dim=2).min(dim=1).values
-    return 1.0 - torch.tanh(distance / std)
-
-
-def cable_com_goal_distance(
-    env: ManagerBasedRLEnv,
-    std: float,
-    minimal_height: float,
-    command_name: str,
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
-) -> torch.Tensor:
-    """Reward tracking of the goal position by the cable's midpoint (tanh kernel).
-
-    Only credits when the midpoint is above ``minimal_height`` (i.e. the cable
-    is lifted). The command is interpreted as ``[x, y, z, qw, qx, qy, qz]`` in
-    the robot's root frame.
-    """
-    robot: Articulation = env.scene[robot_cfg.name]
-    asset: Articulation = env.scene[asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(
-        wp.to_torch(robot.data.root_pos_w), wp.to_torch(robot.data.root_quat_w), des_pos_b
-    )
-    com_w = asset.data.body_pos_w.torch.mean(dim=1)
-    distance = torch.linalg.norm(des_pos_w - com_w, dim=1)
-    return (com_w[:, 2] > minimal_height) * (1.0 - torch.tanh(distance / std))
-
-
-def cable_com_below_minimum(
-    env: ManagerBasedRLEnv,
-    minimum_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
-) -> torch.Tensor:
-    """Termination signal when the cable's midpoint falls below ``minimum_height`` [m]."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    com_z = asset.data.body_pos_w.torch.mean(dim=1)[:, 2]
-    return com_z < minimum_height
-
-
-def cable_outside_table_bounds(
-    env: ManagerBasedRLEnv,
-    x_bounds: tuple[float, float],
-    y_bounds: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
-) -> torch.Tensor:
-    """Terminate if any cable segment leaves the table footprint.
-
-    Args:
-        env: The environment instance.
-        x_bounds: Allowed x-position range in the environment frame [m].
-        y_bounds: Allowed y-position range in the environment frame [m].
-        asset_cfg: The cable articulation entity.
-
-    Returns:
-        Boolean tensor with shape ``(num_envs,)``.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
-    body_pos = asset.data.body_pos_w.torch - env.scene.env_origins.unsqueeze(1)
-    outside_x = (body_pos[..., 0] < x_bounds[0]) | (body_pos[..., 0] > x_bounds[1])
-    outside_y = (body_pos[..., 1] < y_bounds[0]) | (body_pos[..., 1] > y_bounds[1])
+    asset = env.scene[asset_cfg.name]
+    points = _points_w(asset) - env.scene.env_origins.unsqueeze(1)
+    outside_x = (points[..., 0] < x_bounds[0]) | (points[..., 0] > x_bounds[1])
+    outside_y = (points[..., 1] < y_bounds[0]) | (points[..., 1] > y_bounds[1])
     return torch.any(outside_x | outside_y, dim=1)
 
 
