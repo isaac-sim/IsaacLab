@@ -151,37 +151,51 @@ def _find_repo_root() -> Path:
 # Docker mode
 
 
+def _build_image(
+    repo_root: Path,
+    dockerfile: Path,
+    image_tag: str,
+    build_args: dict[str, str],
+    no_cache: bool,
+) -> int:
+    """Build a Docker image, returning the exit code."""
+    build_cmd = ["docker", "build", "--progress=plain"]
+    for key, value in build_args.items():
+        build_cmd.extend(["--build-arg", f"{key}={value}"])
+    build_cmd.extend(["-f", str(dockerfile), "-t", image_tag])
+    if no_cache:
+        build_cmd.append("--no-cache")
+    build_cmd.append(str(repo_root))
+    result = run_cmd(build_cmd, check=False, stream=True)
+    return result.returncode
+
+
 def _cmd_docker(args: argparse.Namespace) -> int:
     """Build the Docker image and run tests inside the container based on *args*."""
 
     repo_root = _find_repo_root()
-    dockerfile = repo_root / "docker" / "Dockerfile.installci"
-    image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
-    # Build the Docker image
-    build_cmd = [
-        "docker",
-        "build",
-        "--build-arg",
-        f"BASE_IMAGE={args.base_image}",
-        "-f",
-        str(dockerfile),
-        "-t",
-        image_tag,
-        "--progress=plain",
-    ]
+    # Build the uv base image first.
+    uv_dockerfile = repo_root / "docker" / "Dockerfile.installci"
+    uv_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
-    if args.no_cache:
-        build_cmd.append("--no-cache")
+    rc = _build_image(repo_root, uv_dockerfile, uv_tag, {"BASE_IMAGE": args.base_image}, args.no_cache)
+    if rc != 0:
+        print(f"Docker build (uv base) failed (exit {rc})")
+        return rc
+    print(f"Docker uv base image built: {uv_tag}")
 
-    build_cmd.append(str(repo_root))
-
-    result = run_cmd(build_cmd, check=False, stream=True)
-    if result.returncode != 0:
-        print(f"Docker build failed (exit {result.returncode})")
-        return result.returncode
-
-    print(f"Docker image built successfully: {image_tag}")
+    # If conda mode, build the conda layer on top.
+    if getattr(args, "conda", False):
+        conda_dockerfile = repo_root / "docker" / "Dockerfile.installci-conda"
+        image_tag = f"{uv_tag}-conda"
+        rc = _build_image(repo_root, conda_dockerfile, image_tag, {"UV_IMAGE": uv_tag}, args.no_cache)
+        if rc != 0:
+            print(f"Docker build (conda layer) failed (exit {rc})")
+            return rc
+        print(f"Docker conda image built: {image_tag}")
+    else:
+        image_tag = uv_tag
 
     # Run
     docker_run_cmd: list[str] = [
@@ -279,6 +293,7 @@ def main() -> int:
 docker options:
   --base-image IMAGE   Docker base image (default: ubuntu:24.04)
   --gpu                Pass --gpus all to docker run
+  --conda              Build and use a conda-enabled image (layered on the uv base)
   --shell              Drop into interactive bash instead of running tests
   --no-cache           Build Docker image without layer cache
   --no-pip-cache       Disable persistent pip cache volume
@@ -296,7 +311,8 @@ pytest arguments:
     %(prog)s docker                                          # run all tests in Docker
     %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
     %(prog)s docker --gpu                                    # GPU support (--gpus all)
-    %(prog)s docker -- -m uv                                 # filter by marker
+    %(prog)s docker --gpu -- -m uv                           # uv tests only
+    %(prog)s docker --gpu --conda -- -m conda                # conda tests (conda image)
     %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
     %(prog)s docker --gpu -- -m nvbugs_5968136               # filter by bug ID
     %(prog)s docker --shell                                  # drop into shell for debugging
@@ -315,6 +331,11 @@ pytest arguments:
         help="Docker base image (default: ubuntu:24.04)",
     )
     docker_p.add_argument("--gpu", action="store_true", help="Pass --gpus all to docker run")
+    docker_p.add_argument(
+        "--conda",
+        action="store_true",
+        help="Build and use a conda-enabled Docker image (layered on top of the uv base image)",
+    )
     docker_p.add_argument(
         "--shell", action="store_true", help="Drop into an interactive bash shell instead of running tests"
     )

@@ -540,6 +540,8 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     source_dir = ISAACLAB_ROOT / "source"
 
     if feature_name == "newton":
+        if selector:
+            print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
         print_info("Installing newton extras (newton[sim], PyOpenGL-accelerate, imgui-bundle)...")
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_newton[all]"])
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_physx[newton]"])
@@ -757,6 +759,9 @@ def command_install(install_type: str = "all") -> None:
             if "[" in token:
                 bracket_pos = token.index("[")
                 name = token[:bracket_pos].strip()
+                if "]" not in token:
+                    print_warning(f"Malformed install token '{token}': missing closing ']'. Skipping.")
+                    continue
                 selector = token[bracket_pos + 1 : token.index("]")].strip()
             else:
                 name = token.strip()

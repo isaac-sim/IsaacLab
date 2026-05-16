@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-_ISAACLAB_SRC = Path(__file__).resolve().parents[4] / "isaaclab"
+_ISAACLAB_SRC = Path(__file__).resolve().parents[2]
 if str(_ISAACLAB_SRC) not in sys.path:
     sys.path.insert(0, str(_ISAACLAB_SRC))
 
@@ -80,6 +80,12 @@ class TestSplitInstallItems:
         # Depth > 1 should not split on commas.
         result = _split_install_items("contrib[a[b,c]]")
         assert result == ["contrib[a[b,c]]"]
+
+    def test_missing_closing_bracket_not_split(self):
+        # A malformed token with no closing ']' should come through as one item;
+        # the install dispatcher is responsible for emitting the warning.
+        result = _split_install_items("rl[rsl-rl")
+        assert result == ["rl[rsl-rl"]
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +308,26 @@ class TestCommandInstallDispatch:
         mocks = self._run("isaacsim")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         assert set(installed) == set(CORE_ISAACLAB_SUBMODULES)
+
+    # --- malformed tokens ---
+
+    def test_malformed_bracket_token_emits_warning_and_installs_core(self):
+        with patch(f"{_INSTALL_MODULE}.print_warning") as mock_warn:
+            mocks = self._run("rl[rsl-rl")  # missing closing bracket
+        mock_warn.assert_called_once()
+        warn_msg = mock_warn.call_args[0][0]
+        assert "rl[rsl-rl" in warn_msg
+        # Core submodules still installed.
+        installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
+        assert set(installed) == set(CORE_ISAACLAB_SUBMODULES)
+        # No extra feature should be installed.
+        mocks["_install_extra_feature"].assert_not_called()
+
+    def test_newton_with_selector_still_dispatches(self):
+        # The selector is forwarded to _install_extra_feature which emits the warning
+        # internally (that function is mocked here; the warning itself is tested separately).
+        mocks = self._run("newton[sim]")
+        mocks["_install_extra_feature"].assert_called_once_with("newton", "sim")
 
     # --- unknown token ---
 

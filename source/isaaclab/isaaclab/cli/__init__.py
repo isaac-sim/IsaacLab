@@ -90,7 +90,7 @@ def cli() -> None:
             "  Install optional heavy dependencies for a feature on top of the core.\n"
             "  Supports an optional selector in brackets:\n"
             "    rl[rsl-rl|skrl|sb3|rl-games]  (default: all)\n"
-            "    visualizer[newton|rerun|viser]  (default: all)\n"
+            "    visualizer[kit|newton|rerun|viser]  (default: all)\n"
             "    contrib[rlinf]                  (default: rlinf)\n"
             "  On Linux/macOS, quote selectors containing brackets:\n"
             "    --install 'rl[rsl-rl]'\n"
