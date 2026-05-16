@@ -38,6 +38,19 @@ QUAT_ROS = [0.33985114, 0.82047325, -0.42470819, -0.17591989]
 QUAT_OPENGL = [0.17591988, 0.42470818, 0.82047324, 0.33985113]
 QUAT_WORLD = [-0.27984815, -0.1159169, 0.88047623, -0.3647052]
 
+
+def _assert_quat_close(actual, expected, **kwargs):
+    """Assert quaternions match while allowing the equivalent negated representation."""
+    if hasattr(actual, "torch"):
+        actual = actual.torch
+    if hasattr(expected, "torch"):
+        expected = expected.torch
+    actual = torch.as_tensor(actual)
+    expected = torch.as_tensor(expected, dtype=actual.dtype, device=actual.device)
+    expected = torch.where((actual * expected).sum(dim=-1, keepdim=True) < 0.0, -expected, expected)
+    torch.testing.assert_close(actual, expected, **kwargs)
+
+
 DEBUG_PLOTS = False
 
 
@@ -110,11 +123,11 @@ def test_camera_init(setup_sim):
     # Check if camera is initialized
     assert camera.is_initialized
     # Check buffers that exist and have correct shapes
-    assert camera.data.pos_w.shape == (1, 3)
-    assert camera.data.quat_w_ros.shape == (1, 4)
-    assert camera.data.quat_w_world.shape == (1, 4)
-    assert camera.data.quat_w_opengl.shape == (1, 4)
-    assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
+    assert camera.data.pos_w.torch.shape == (1, 3)
+    assert camera.data.quat_w_ros.torch.shape == (1, 4)
+    assert camera.data.quat_w_world.torch.shape == (1, 4)
+    assert camera.data.quat_w_opengl.torch.shape == (1, 4)
+    assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
     # Simulate physics
@@ -290,9 +303,9 @@ def test_camera_init_offset(setup_sim):
 
     # check if transform correctly set in output
     np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
-    np.testing.assert_allclose(camera_ros.data.quat_w_ros[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
-    np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
-    np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
+    _assert_quat_close(camera_ros.data.quat_w_ros[0], QUAT_ROS, rtol=1e-5, atol=1e-5)
+    _assert_quat_close(camera_ros.data.quat_w_opengl[0], QUAT_OPENGL, rtol=1e-5, atol=1e-5)
+    _assert_quat_close(camera_ros.data.quat_w_world[0], QUAT_WORLD, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.isaacsim_ci
@@ -401,8 +414,8 @@ def test_camera_set_world_poses(setup_sim):
     camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w, position)
-    torch.testing.assert_close(camera.data.quat_w_world, orientation)
+    torch.testing.assert_close(camera.data.pos_w.torch, position)
+    torch.testing.assert_close(camera.data.quat_w_world.torch, orientation)
 
 
 @pytest.mark.isaacsim_ci
@@ -421,8 +434,8 @@ def test_camera_set_world_poses_from_view(setup_sim):
     camera.set_world_poses_from_view(eyes.clone(), targets.clone())
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w, eyes)
-    torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
+    torch.testing.assert_close(camera.data.pos_w.torch, eyes)
+    _assert_quat_close(camera.data.quat_w_ros, quat_ros_gt)
 
 
 @pytest.mark.isaacsim_ci
@@ -447,7 +460,7 @@ def test_intrinsic_matrix(setup_sim):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
+        torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices.torch)
 
 
 @pytest.mark.isaacsim_ci
@@ -543,7 +556,7 @@ def test_output_equal_to_usdcamera(setup_sim):
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
         camera_usd.data.output["normals"][..., :3],
-        camera_warp.data.output["normals"],
+        camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
     )
@@ -619,7 +632,7 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
         camera_usd.data.output["normals"][..., :3],
-        camera_warp.data.output["normals"],
+        camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
     )
@@ -693,7 +706,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
 
     # check if pos and orientation are correct
     torch.testing.assert_close(camera_warp.data.pos_w[0], camera_usd.data.pos_w[0])
-    torch.testing.assert_close(camera_warp.data.quat_w_ros[0], camera_usd.data.quat_w_ros[0])
+    _assert_quat_close(camera_warp.data.quat_w_ros[0], camera_usd.data.quat_w_ros[0])
 
     # check image data
     torch.testing.assert_close(
@@ -713,7 +726,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
         camera_usd.data.output["normals"][..., :3],
-        camera_warp.data.output["normals"],
+        camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
     )
