@@ -90,14 +90,21 @@ class FactoryPhysicsCfg(PresetCfg):
     """Per-backend physics cfg for Factory tasks.
 
     PhysX preserves the original Factory tuning. Newton uses the MuJoCo-Warp
-    solver:
+    solver with Newton's SDF collision pipeline:
 
     * ``integrator='implicitfast'`` — better stability for contact-rich scenes.
     * ``cone='elliptic'``, ``impratio=10`` — friction-vs-normal coupling tuned
       for finger-on-nut/bolt threading.
-    * ``use_mujoco_contacts=False`` — routes hydroelastic contacts into the
-      MuJoCo solver so ``moment_matching`` / ``anchor_contact`` actually engage.
+    * ``use_mujoco_contacts=False`` — routes contacts through Newton's SDF
+      pipeline; combined with a non-None ``sdf_hydroelastic_config`` this
+      enables hydroelastic forces, otherwise the pipeline falls back to
+      penalty-spring contacts.
     * ``njmax`` / ``nconmax`` raised vs default to fit threading-pair contacts.
+
+    Set ``collision_cfg.sdf_hydroelastic_config=None`` to run the SDF-only
+    penalty-spring mode (lower fidelity but no hydroelastic dependency).
+    :meth:`FactoryNewtonSetup.apply_cfg_overrides` reads this field and
+    retunes finger PD + per-shape ``ke`` / ``kd`` accordingly.
     """
 
     physx = PhysxCfg(

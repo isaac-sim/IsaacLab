@@ -16,7 +16,8 @@ Three entry points called from :class:`FactoryEnv`:
   ``MODEL_INIT`` callback that runs before model finalization. Overrides
   joint target mode + ctrl-source on the Franka, filters base ↔ table
   contacts, retunes the nut/bolt contact materials, and builds per-shape
-  hydroelastic SDFs.
+  SDFs. The SDFs feed either Newton's hydroelastic pipeline or a
+  penalty-spring fallback, selected by the active ``NewtonCfg``.
 
 * :func:`warm_up_kernels` — runs after ``_init_tensors``. Pre-JITs the
   Newton kernels the reset IK loop will hit.
@@ -45,6 +46,11 @@ _FINGER_JOINT_NAMES = ["panda_finger_joint1", "panda_finger_joint2"]
 # belonging to the Franka under the IsaacLab USD layout.
 _ROBOT_BODY_PATH_SUBSTR = "/Robot/"
 
+# Module-level latch set in :func:`apply_cfg_overrides` and read by the
+# ``MODEL_INIT`` callback (no ``cfg`` reachable there). ``True`` when the
+# Newton preset ships a non-None ``sdf_hydroelastic_config``.
+_use_hydroelastic: bool = True
+
 
 def register_model_init_callback() -> None:
     """Wire a Newton MODEL_INIT callback that mutates the builder."""
@@ -63,7 +69,8 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
     Keeps the physics rate at 120 Hz with ``decimation = 8`` to keep the
     control rate at 15 Hz, disables the OSC null-space term, wraps joint-less
     Factory assets as :class:`RigidObjectCfg` (kinematic for static targets),
-    bumps arm armature, zeroes arm damping, softens finger PD, monkey-patches
+    bumps arm armature, zeroes arm damping, tunes the finger PD against the
+    active contact model (hydroelastic or SDF-only penalty), monkey-patches
     the cloner to skip convex-hull simplification (so nut/bolt thread + hex
     SDFs survive cloning), and scales the contact buffer with ``num_envs``.
     """
@@ -103,10 +110,21 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
     arm_actuators["panda_arm1"].damping = 0.0
     arm_actuators["panda_arm2"].damping = 0.0
 
-    # Softer finger PD than PhysX default (7500, 173): with hydroelastic SDFs
-    # grip force comes from kh × penetration, not the PD spring.
-    arm_actuators["panda_hand"].stiffness = 1000.0
-    arm_actuators["panda_hand"].damping = 10.0
+    # Latch the contact model so the ``MODEL_INIT`` callback can branch.
+    global _use_hydroelastic
+    _use_hydroelastic = getattr(cfg.sim.physics.collision_cfg, "sdf_hydroelastic_config", None) is not None
+
+    # Hydroelastic grip force comes from kh × penetration, so a soft PD
+    # spring (1000, 10) is enough. Under SDF-only the penalty spring is
+    # the only grip force, so the PD spring has to carry the load: stiffer
+    # (2000, 40) is the smallest pair that keeps the nut from slipping
+    # during threading without exciting finger oscillation.
+    if _use_hydroelastic:
+        arm_actuators["panda_hand"].stiffness = 1000.0
+        arm_actuators["panda_hand"].damping = 10.0
+    else:
+        arm_actuators["panda_hand"].stiffness = 2000.0
+        arm_actuators["panda_hand"].damping = 40.0
 
     _monkey_patch_cloner_no_simplify()
 
@@ -317,38 +335,49 @@ def _filter_base_table_contacts(builder) -> None:
 
 
 def _tune_nut_bolt_contacts(builder) -> None:
-    """Stiffen contact-material gains on every nut/bolt collision shape.
+    """Tune contact-material gains on every nut/bolt collision shape.
 
-    Newton's parser defaults are too soft for the threading task: the gripper
-    bounces off the nut. ``ke``/``kd`` lift normal stiffness/damping ~1-2 orders
-    of magnitude; ``mu`` stays above ``MJ_MINMU`` to silence the NaN-risk warning.
+    Newton's parser defaults are too soft: the gripper bounces off the nut.
+    Both modes raise ``ke`` / ``kd`` and keep ``mu`` above ``MJ_MINMU``;
+    only the magnitudes differ.
+
+    - hydroelastic: ``ke=1e4`` / ``kd=100`` / ``gap=0`` — the hydroelastic
+      pipeline carries the dominant normal force; the penalty spring stays
+      low so the two paths don't double-count.
+    - sdf-only: ``ke=1e7`` / ``kd=1e4`` / ``gap=5 mm`` — the penalty spring
+      is now the *only* normal force, so it has to keep finger penetration
+      inside the SDF narrow band; ``kd`` is sized to ~critical damping.
     """
     if not all(hasattr(builder, attr) for attr in ("shape_label", "shape_material_mu", "shape_gap")):
         return
+
+    if _use_hydroelastic:
+        ke, kd, gap = 1.0e4, 100.0, 0.0
+    else:
+        ke, kd, gap = 1.0e7, 1.0e4, 0.005
+
     for i in range(builder.shape_count):
         label = str(builder.shape_label[i]).lower()
         if "nut" in label:
             builder.shape_material_mu[i] = 0.2
-            builder.shape_material_ke[i] = 1.0e4
-            builder.shape_material_kd[i] = 100.0
-            builder.shape_gap[i] = 0.0
+            builder.shape_material_ke[i] = ke
+            builder.shape_material_kd[i] = kd
+            builder.shape_gap[i] = gap
         elif "bolt" in label:
             builder.shape_material_mu[i] = 0.5
-            builder.shape_material_ke[i] = 1.0e4
-            builder.shape_material_kd[i] = 100.0
-            builder.shape_gap[i] = 0.0
+            builder.shape_material_ke[i] = ke
+            builder.shape_material_kd[i] = kd
+            builder.shape_gap[i] = gap
 
 
 # ---------------------------------------------------------------------------
-# SDF / hydroelastic collision setup:
-#   * fingers — 192-cube SDF + HYDROELASTIC, kh=1e11, condim=4.
-#   * nut/bolt — 256-cube SDF + HYDROELASTIC, kh=1e11 (rigid thread features).
-#   * other panda links — 64-cube SDF only, used for fast distance lookups.
-# Builder-time only; the NewtonCfg (use_mujoco_contacts=False +
-# sdf_hydroelastic_config) is what actually engages the hydroelastic forces.
+# SDF collision setup. Both modes build the same SDF grids; only the
+# per-shape material flags differ:
+#   * hydroelastic: HYDROELASTIC flag + ``kh`` on finger/nut/bolt shapes.
+#   * sdf-only:     ``ke`` / ``kd`` penalty springs on finger shapes.
+# Finger friction extras (torsional + condim=4) apply in both modes.
 # ---------------------------------------------------------------------------
 
-# SDF resolutions (cube edge).
 _SDF_RES_FINGER = 192
 _SDF_RES_NUT_BOLT = 256
 _SDF_RES_PANDA = 64
@@ -371,23 +400,37 @@ _SDF_BAND_TABLE = (-0.005, 0.02)
 _KH_FINGER = 1e11
 _KH_NUT_BOLT = 1e11
 
+# SDF-only penalty spring on the fingers, used when ``_use_hydroelastic``
+# is False. ``ke`` is sized so the gripper close force keeps penetration
+# well inside the 1 cm SDF band; ``kd`` is ~critically damped against
+# the finger mass.
+_KE_FINGER = 1.0e7
+_KD_FINGER = 1.0e4
+
 # Finger-only friction extras.
 _FINGER_MU_TORSIONAL = 0.1
 _FINGER_CONDIM = 4
 
 
 def _build_collision_sdfs(builder) -> None:
-    """Build SDFs on Factory's collision meshes for hydroelastic contacts.
+    """Build SDFs on Factory's collision meshes.
 
     Categorises every collidable mesh shape by body label, builds an
-    SDF at the resolution appropriate for that category, and (for
-    fingers + nut + bolt) flips the ``HYDROELASTIC`` shape flag and
-    writes ``shape_material_kh`` + ``shape_material_mu_torsional``.
+    SDF at the resolution appropriate for that category, and tags the
+    finger/nut/bolt shapes for the active contact model:
+
+    - hydroelastic: ``HYDROELASTIC`` flag + ``shape_material_kh`` on
+      finger/nut/bolt.
+    - sdf-only: ``shape_material_ke`` / ``shape_material_kd`` penalty
+      springs on the fingers; nut + bolt stay rigid-pipeline.
+
+    Finger torsional friction (``mu_torsional``) and ``condim=4`` apply
+    in both modes.
 
     Idempotent per mesh: each :class:`newton.Mesh` whose ``sdf`` is
     already populated is skipped, so re-runs on a hot builder don't
     re-bake the SDF grids. Multiple shapes can share the same mesh,
-    but mesh.build_sdf is only called once per unique mesh.
+    but ``mesh.build_sdf`` is only called once per unique mesh.
     """
     finger_names = ("panda_leftfinger", "panda_rightfinger")
     finger_body_idxs = {i for i, label in enumerate(builder.body_label) if any(n in label for n in finger_names)}
@@ -467,16 +510,20 @@ def _build_collision_sdfs(builder) -> None:
         else:
             counts["skip_already_built"] += 1
 
-        if category in ("finger", "nut", "bolt"):
+        if _use_hydroelastic and category in ("finger", "nut", "bolt"):
             builder.shape_flags[shape_idx] |= int(newton.ShapeFlags.HYDROELASTIC)
             builder.shape_material_kh[shape_idx] = _KH_FINGER if category == "finger" else _KH_NUT_BOLT
+        elif not _use_hydroelastic and category == "finger":
+            builder.shape_material_ke[shape_idx] = _KE_FINGER
+            builder.shape_material_kd[shape_idx] = _KD_FINGER
         if category == "finger":
             builder.shape_material_mu_torsional[shape_idx] = _FINGER_MU_TORSIONAL
             if condim_attr is not None:
                 condim_attr.values[shape_idx] = _FINGER_CONDIM
 
     logger.info(
-        "Built SDFs: finger=%d nut=%d bolt=%d panda=%d table=%d (skipped: no_mesh=%d, already_built=%d).",
+        "Built SDFs (%s): finger=%d nut=%d bolt=%d panda=%d table=%d (skipped: no_mesh=%d, already_built=%d).",
+        "hydroelastic" if _use_hydroelastic else "sdf-only",
         counts["finger"],
         counts["nut"],
         counts["bolt"],
