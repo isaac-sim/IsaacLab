@@ -299,3 +299,71 @@ def test_cable_replicate_body_count():
         # Both forms contain the substring "cable_edge_body_".
         cable_body_count = sum(1 for label in model.body_label if "cable_edge_body_" in label)
         assert cable_body_count == 16, f"expected 16 cable bodies, got {cable_body_count}"
+
+
+def test_forward_preserves_cable_body_q():
+    """Regression test for the eval_fk cable patch (commit fd115a500f6).
+
+    Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so
+    without the patch any FK pass would collapse cable rod segments onto their
+    parent anchors. :meth:`NewtonVBDManager.forward` builds an articulation
+    mask in :meth:`start_simulation` that excludes cable articulations.
+
+    To verify the test fails without the fix, force the mask to ``None`` after
+    ``start_simulation`` and observe that the new defensive check in
+    :meth:`forward` raises ``RuntimeError``; previously, the unmasked
+    ``eval_fk`` call would silently mutate ``body_q``.
+    """
+    import numpy as np
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.utils import configclass
+
+    from isaaclab_contrib.cable import CableObjectCfg
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
+
+    cable_spawn = sim_utils.CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)],
+        width=0.01,
+        physics_material=_NewtonCableMaterialCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+
+    @configclass
+    class _SceneCfg(InteractiveSceneCfg):
+        num_envs: int = 1
+        env_spacing: float = 1.0
+        cable: CableObjectCfg = CableObjectCfg(prim_path="{ENV_REGEX_NS}/Cable", spawn=cable_spawn)
+
+    newton_sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=VBDSolverCfg()))
+
+    with build_simulation_context(device="cuda:0", sim_cfg=newton_sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        InteractiveScene(_SceneCfg())
+        sim.reset()  # triggers replicate + start_simulation + _build_non_cable_articulation_mask
+
+        # The mask must have been built since cables are registered.
+        assert NewtonVBDManager._non_cable_articulation_mask is not None, (
+            "Expected _non_cable_articulation_mask to be built when cables are registered."
+        )
+
+        body_q_before = NewtonVBDManager._state_0.body_q.numpy().copy()
+
+        # forward() is what Kit-style visualizers invoke each render. With the
+        # patch, cable articulations are excluded from the FK pass and body_q
+        # is bit-identical. Without the patch, JointType.CABLE relative
+        # transforms fall through to identity, snapping each rod segment onto
+        # its parent anchor.
+        NewtonVBDManager.forward()
+
+        body_q_after = NewtonVBDManager._state_0.body_q.numpy()
+        np.testing.assert_array_equal(
+            body_q_after,
+            body_q_before,
+            err_msg="forward() altered body_q — cable mask did not exclude cable articulations.",
+        )

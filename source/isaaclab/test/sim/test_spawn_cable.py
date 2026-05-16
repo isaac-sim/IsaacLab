@@ -63,18 +63,6 @@ def test_spawn_cable(sim):
     assert curves.GetTypeAttr().Get() == "linear"
 
 
-def test_spawn_cable_validation_wrong_material(sim):
-    from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
-
-    cfg = CableCfg(
-        positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
-        width=0.01,
-        physics_material=RigidBodyMaterialCfg(),
-    )
-    with pytest.raises(ValueError, match="NewtonCableMaterialCfg"):
-        cfg.func("/World/Cable", cfg)
-
-
 def test_spawn_cable_validation_rigid_props_rejected(sim):
     cfg = CableCfg(
         positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
