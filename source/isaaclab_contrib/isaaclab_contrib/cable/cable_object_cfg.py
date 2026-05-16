@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
