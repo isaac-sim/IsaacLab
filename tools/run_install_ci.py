@@ -209,11 +209,13 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     if args.gpu:
         docker_run_cmd.extend(["--gpus", "all"])
 
-    # Persist pip and uv caches across runs via named Docker volumes
+    # Persist pip and uv caches across runs via named Docker volumes.
+    # The container runs as the non-root 'isaaclab' user (uid 1000), so caches
+    # must live under /home/isaaclab rather than /root.
     if not args.no_pip_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/root/.cache/pip"])
+        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/home/isaaclab/.cache/pip"])
     if not args.no_uv_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/root/.cache/uv"])
+        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/home/isaaclab/.cache/uv"])
 
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
