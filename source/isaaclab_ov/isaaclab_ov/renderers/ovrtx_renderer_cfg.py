@@ -28,9 +28,6 @@ class OVRTXRendererCfg(RendererCfg):
     Used by the OVRTX renderer when building the render scope; must be writable.
     """
 
-    temp_usd_suffix: str = ".usda"
-    """File suffix for temporary combined USD files (e.g. '.usda' or '.usdc')."""
-
     use_ovrtx_cloning: bool = True
     """When True, export only env_0 and use OVRTX ``clone_usd``. When False, export full multi-environment stage.
 

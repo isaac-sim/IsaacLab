@@ -253,7 +253,7 @@ class OVRTXRenderer(BaseRenderer):
                 temp_usd_path = temp_usd_dir / "ovrtx_renderer_stage.usda"
                 with open(temp_usd_path, "w", encoding="utf-8") as f:
                     f.write(combined_usd_string)
-                    logger.info("Wrote stage with render product to %s", temp_usd_path)
+                    logger.info("Wrote combined USD stage to %s", temp_usd_path)
             else:
                 temp_usd_path = None
 
