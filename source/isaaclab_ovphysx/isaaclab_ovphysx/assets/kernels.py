@@ -1106,3 +1106,271 @@ def write_body_com_pose_to_buffer_mask(
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:
         out_data[i, j] = in_data[i, j]
+
+
+"""
+Articulation-only kernels (used by isaaclab_ovphysx.assets.articulation).
+"""
+
+
+@wp.kernel
+def _copy_first_body(
+    body_vel: wp.array(dtype=wp.spatial_vectorf, ndim=2),
+    root_vel: wp.array(dtype=wp.spatial_vectorf),
+):
+    """Copy the first body's spatial velocity to the root velocity buffer.
+
+    For single rigid-body assets, index 0 is always the root body.  This
+    kernel extracts that slice without allocating an intermediate buffer.
+
+    Args:
+        body_vel: Body spatial velocities ``[m/s, rad/s]``. Shape is
+            ``(num_envs, num_bodies)`` with dtype ``wp.spatial_vectorf``.
+        root_vel: Output root spatial velocities ``[m/s, rad/s]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.spatial_vectorf``.
+    """
+    i = wp.tid()
+    root_vel[i] = body_vel[i, 0]
+
+
+@wp.kernel
+def _compose_root_com_pose(
+    link_pose: wp.array(dtype=wp.transformf),
+    com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
+    com_pose_w: wp.array(dtype=wp.transformf),
+):
+    """Compose root link pose with the body-frame COM offset to get the world-frame COM pose.
+
+    Implements the forward transform:
+
+        ``com_pose_w = link_pose_w * com_pose_b[0]``
+
+    where ``*`` denotes ``wp.transform_multiply``.  Only the first body
+    (index ``0``) is used; for articulations this is the base link body.
+
+    Args:
+        link_pose: Root link poses in world frame ``[m, -]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.transformf``.
+        com_pose_b: Body-frame COM offsets ``[m, -]`` from the
+            ``RIGID_BODY_COM_POSE`` binding. Shape is ``(num_envs, num_bodies)``
+            with dtype ``wp.transformf``.
+        com_pose_w: Output world-frame root COM poses ``[m, -]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.transformf``.
+    """
+    i = wp.tid()
+    com_pose_w[i] = wp.transform_multiply(link_pose[i], com_pose_b[i, 0])
+
+
+@wp.kernel
+def _projected_gravity(
+    gravity_vec_w: wp.array(dtype=wp.vec3f),
+    root_pose: wp.array(dtype=wp.transformf),
+    out: wp.array(dtype=wp.vec3f),
+):
+    """Project the world-frame gravity direction into the root body frame.
+
+    Applies the inverse of the root orientation quaternion to the world-frame
+    gravity vector, yielding the gravity direction expressed in the body frame.
+    The magnitude is preserved (unit vector in, unit vector out if input is a
+    unit vector).
+
+    Args:
+        gravity_vec_w: Gravity direction per instance in world frame ``[-]``
+            (typically the normalised ``(0, 0, -1)`` gravitational acceleration
+            direction). Shape is ``(num_envs,)`` with dtype ``wp.vec3f``.
+        root_pose: Root link poses in world frame ``[m, -]``. Only the
+            rotation component is used. Shape is ``(num_envs,)`` with dtype
+            ``wp.transformf``.
+        out: Output gravity direction in body frame ``[-]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.vec3f``.
+    """
+    i = wp.tid()
+    q = wp.transform_get_rotation(root_pose[i])
+    out[i] = wp.quat_rotate_inv(q, gravity_vec_w[i])
+
+
+@wp.kernel
+def _compute_heading(
+    forward_vec_b: wp.array(dtype=wp.vec3f),
+    root_pose: wp.array(dtype=wp.transformf),
+    out: wp.array(dtype=wp.float32),
+):
+    """Compute the yaw heading angle by rotating a body-frame forward vector to world frame.
+
+    Rotates ``forward_vec_b`` by the root orientation quaternion and then computes the
+    heading as ``atan2(forward_w.y, forward_w.x)`` ``[rad]``, i.e. the signed angle
+    from the world X-axis to the projected forward direction in the XY plane.
+
+    Args:
+        forward_vec_b: Forward direction in body frame per instance ``[-]``.
+            Shape is ``(num_envs,)`` with dtype ``wp.vec3f``.
+        root_pose: Root link poses in world frame ``[m, -]``. Only the rotation
+            component is used. Shape is ``(num_envs,)`` with dtype ``wp.transformf``.
+        out: Output heading angles ``[rad]`` in ``[-π, π]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.float32``.
+    """
+    i = wp.tid()
+    q = wp.transform_get_rotation(root_pose[i])
+    forward = wp.quat_rotate(q, forward_vec_b[i])
+    out[i] = wp.atan2(forward[1], forward[0])
+
+
+@wp.kernel
+def _world_vel_to_body_lin(
+    root_pose: wp.array(dtype=wp.transformf),
+    vel_w: wp.array(dtype=wp.spatial_vectorf),
+    out: wp.array(dtype=wp.vec3f),
+):
+    """Rotate the world-frame linear velocity component into the root body frame.
+
+    Extracts the linear velocity from the top three components of the spatial
+    velocity vector (``wp.spatial_top``) and rotates it by the inverse of the
+    root orientation quaternion.
+
+    Args:
+        root_pose: Root link poses in world frame ``[m, -]``. Only the rotation
+            component is used. Shape is ``(num_envs,)`` with dtype ``wp.transformf``.
+        vel_w: Root spatial velocities in world frame ``[m/s, rad/s]``.
+            Shape is ``(num_envs,)`` with dtype ``wp.spatial_vectorf``.
+        out: Output linear velocity in body frame ``[m/s]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.vec3f``.
+    """
+    i = wp.tid()
+    q = wp.transform_get_rotation(root_pose[i])
+    lin = wp.spatial_top(vel_w[i])
+    out[i] = wp.quat_rotate_inv(q, lin)
+
+
+@wp.kernel
+def _world_vel_to_body_ang(
+    root_pose: wp.array(dtype=wp.transformf),
+    vel_w: wp.array(dtype=wp.spatial_vectorf),
+    out: wp.array(dtype=wp.vec3f),
+):
+    """Rotate the world-frame angular velocity component into the root body frame.
+
+    Extracts the angular velocity from the bottom three components of the spatial
+    velocity vector (``wp.spatial_bottom``) and rotates it by the inverse of the
+    root orientation quaternion.
+
+    Args:
+        root_pose: Root link poses in world frame ``[m, -]``. Only the rotation
+            component is used. Shape is ``(num_envs,)`` with dtype ``wp.transformf``.
+        vel_w: Root spatial velocities in world frame ``[m/s, rad/s]``.
+            Shape is ``(num_envs,)`` with dtype ``wp.spatial_vectorf``.
+        out: Output angular velocity in body frame ``[rad/s]``. Shape is
+            ``(num_envs,)`` with dtype ``wp.vec3f``.
+    """
+    i = wp.tid()
+    q = wp.transform_get_rotation(root_pose[i])
+    ang = wp.spatial_bottom(vel_w[i])
+    out[i] = wp.quat_rotate_inv(q, ang)
+
+
+@wp.kernel
+def write_joint_position_limit_to_buffer_index(
+    in_data: wp.array3d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    out_data: wp.array(dtype=wp.vec2f, ndim=2),
+):
+    """Write joint position-limit data to a vec2f buffer at specified indices.
+
+    This kernel copies ``[lower, upper]`` limit pairs from a partial float32 input
+    array into the output ``wp.vec2f`` buffer at the specified environment and joint
+    indices.
+
+    Args:
+        in_data: Input array containing limit pairs ``[lower, upper]`` [m or rad].
+            Shape is (num_selected_envs, num_selected_joints, 2).
+        env_ids: Input array of environment indices to write to.
+            Shape is (num_selected_envs,).
+        joint_ids: Input array of joint indices to write to.
+            Shape is (num_selected_joints,).
+        out_data: Output array where limit data is written. Shape is
+            (num_envs, num_joints) with dtype ``wp.vec2f``.
+    """
+    i, j = wp.tid()
+    out_data[env_ids[i], joint_ids[j]] = wp.vec2f(in_data[i, j, 0], in_data[i, j, 1])
+
+
+@wp.kernel
+def write_joint_position_limit_to_buffer_mask(
+    in_data: wp.array3d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    out_data: wp.array(dtype=wp.vec2f, ndim=2),
+):
+    """Mask-scatter joint position-limit data into the vec2f cache buffer.
+
+    Copies ``[lower, upper]`` limit pairs where both ``env_mask[i]`` and
+    ``joint_mask[j]`` are True.
+
+    Args:
+        in_data: Input array containing limit pairs ``[lower, upper]`` [m or rad].
+            Shape is (num_envs, num_joints, 2).
+        env_mask: Boolean environment mask. Shape is (num_envs,).
+        joint_mask: Boolean joint mask. Shape is (num_joints,).
+        out_data: Output array where limit data is written. Shape is
+            (num_envs, num_joints) with dtype ``wp.vec2f``.
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        out_data[i, j] = wp.vec2f(in_data[i, j, 0], in_data[i, j, 1])
+
+
+@wp.kernel
+def write_joint_friction_to_buffer_index(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    out_data: wp.array3d(dtype=wp.float32),
+):
+    """Write joint friction coefficient to all three components of the friction buffer.
+
+    Broadcasts a single friction value into the static (index 0), dynamic (index 1),
+    and viscous (index 2) components of the ``(N, D, 3)`` friction properties buffer
+    at the specified environment and joint indices.
+
+    Args:
+        in_data: Input friction coefficients [dimensionless]. Shape is
+            (num_selected_envs, num_selected_joints).
+        env_ids: Input array of environment indices to write to.
+            Shape is (num_selected_envs,).
+        joint_ids: Input array of joint indices to write to.
+            Shape is (num_selected_joints,).
+        out_data: Output friction properties buffer. Shape is (num_envs, num_joints, 3).
+    """
+    i, j = wp.tid()
+    val = in_data[i, j]
+    out_data[env_ids[i], joint_ids[j], 0] = val
+    out_data[env_ids[i], joint_ids[j], 1] = val
+    out_data[env_ids[i], joint_ids[j], 2] = val
+
+
+@wp.kernel
+def write_joint_friction_to_buffer_mask(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    out_data: wp.array3d(dtype=wp.float32),
+):
+    """Mask-scatter joint friction coefficient into all three components of the friction buffer.
+
+    Broadcasts a single friction value into the static (index 0), dynamic (index 1),
+    and viscous (index 2) components where both ``env_mask[i]`` and ``joint_mask[j]``
+    are True.
+
+    Args:
+        in_data: Input friction coefficients [dimensionless]. Shape is
+            (num_envs, num_joints).
+        env_mask: Boolean environment mask. Shape is (num_envs,).
+        joint_mask: Boolean joint mask. Shape is (num_joints,).
+        out_data: Output friction properties buffer. Shape is (num_envs, num_joints, 3).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        val = in_data[i, j]
+        out_data[i, j, 0] = val
+        out_data[i, j, 1] = val
+        out_data[i, j, 2] = val

@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg

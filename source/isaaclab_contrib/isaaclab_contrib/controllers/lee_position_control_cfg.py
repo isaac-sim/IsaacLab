@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .lee_controller_base_cfg import LeeControllerBaseCfg
 from .lee_position_control import LeePosController

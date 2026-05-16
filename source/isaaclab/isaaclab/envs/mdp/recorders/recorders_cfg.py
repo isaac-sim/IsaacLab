@@ -5,7 +5,7 @@
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg, RecorderTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .recorders import (
