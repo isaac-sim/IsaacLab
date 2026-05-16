@@ -34,8 +34,14 @@ class OVRTXRendererCfg(RendererCfg):
     temp_usd_suffix: str = ".usda"
     """File suffix for temporary combined USD files (e.g. '.usda' or '.usdc')."""
 
-    use_cloning: bool = False
-    """When True, export only env_0 and use OVRTX clone_usd. When False, export full stage."""
+    use_ovrtx_cloning: bool = True
+    """When True, export only env_0 and use OVRTX ``clone_usd``. When False, export full multi-environment stage.
+
+    OVRTX cloning is only supported in OVRTX 0.3.0 or newer.
+
+    If the simulation uses a heterogeneous env setup, the renderer disables this path and exports the full
+    multi-environment stage instead (same effect as setting this to ``False`` for that run).
+    """
 
     log_level: str = "verbose"
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""
