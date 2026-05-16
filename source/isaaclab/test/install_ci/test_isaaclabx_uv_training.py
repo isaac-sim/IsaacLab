@@ -28,16 +28,19 @@ class Test_UV_Env_Heavy(UV_Mixin):
     @pytest.mark.skip(reason="Cartpole training fails in MuJoCo stiffness conversion.")
     @pytest.mark.timeout(1200)
     def test_install_and_train_cartpole(self, isaaclab_root):
-        """`isaaclab.x -i assets,tasks,rl[all],physx,newton,contrib` then train Isaac-Cartpole-Direct-v0"""
+        """``./isaaclab.sh -i newton,'rl[all]'`` then train Isaac-Cartpole-Direct-v0.
+
+        Under the new install model, the core set (assets, tasks, physx, contrib, …)
+        is always installed.  Only the optional extras (newton physics library and
+        RL frameworks) need to be explicitly requested.
+        """
 
         try:
             self.create_uv_env(isaaclab_root)
 
-            # Install assets, tasks, rl[all], physx, newton, contrib
-            result = self.run_in_uv_env(
-                [str(self.cli_script), "-i", "assets,tasks,rl[all],physx,newton,contrib"], cwd=isaaclab_root
-            )
-            assert result.returncode == 0, f"isaaclab -i failed:\n{result.stdout}\n{result.stderr}"
+            # Core set is always installed; only request optional extras.
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "newton,rl[all]"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i newton,rl[all] failed:\n{result.stdout}\n{result.stderr}"
 
             # Run a short training
             result = self.run_in_uv_env(
