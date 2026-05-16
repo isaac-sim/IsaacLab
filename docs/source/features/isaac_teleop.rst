@@ -956,9 +956,9 @@ Optimize XR Performance
 .. dropdown:: Configure the physics and render time step
    :open:
 
-   Ensure the simulation render time step roughly matches the XR device display time step and can
-   be sustained in real time. Apple Vision Pro runs at 90 Hz; we recommend a simulation dt of 90 Hz
-   with a render interval of 2 (rendering at 45 Hz):
+   Ensure the simulation render time step roughly matches the XR device's display rate and can
+   be sustained in real time. Quest 3 and Pico 4 Ultra typically run at 90 Hz, so we recommend a
+   simulation ``dt`` of 90 Hz with a ``render_interval`` of 2 (rendering at 45 Hz):
 
    .. code-block:: python
 
@@ -966,17 +966,138 @@ Optimize XR Performance
       class XrTeleopEnvCfg(ManagerBasedRLEnvCfg):
 
           def __post_init__(self):
-              self.sim.dt = 1.0 / 90
-              self.sim.render_interval = 2
+              self.sim.dt = 1.0 / 90        # physics steps at 90 Hz
+              self.sim.render_interval = 2  # one render per 2 physics steps -> 45 Hz
 
-   If render times are highly variable, set ``NV_PACER_FIXED_TIME_STEP_MS`` as an environment
-   variable when starting the CloudXR runtime to use fixed pacing.
+   ``sim.render_interval`` is the number of physics simulation steps that occur between
+   renders. Increasing it reduces rendering frequency (and GPU cost) without changing physics
+   behavior -- useful when physics can keep up but rendering cannot.
 
-.. dropdown:: Try running physics on CPU
+   The choice of ``sim.dt`` is a trade-off between stability and performance: a smaller ``dt``
+   (e.g. ``1.0 / 120``) integrates contacts more accurately and is more stable for stiff
+   contact-rich tasks, but each step costs more wall-clock time and lowers achievable frame
+   rate. A larger ``dt`` (e.g. ``1.0 / 60``) is cheaper but can introduce contact jitter or
+   instabilities. Pick the largest ``dt`` your task tolerates.
+
+.. dropdown:: Switch the viewport to the RTX - Minimal renderer
    :open:
 
-   Running teleoperation scripts with ``--device cpu`` may reduce latency when only a single
-   environment is present, since it avoids GPU contention with rendering.
+   The RTX - Minimal renderer trades image fidelity for substantially lower per-frame GPU cost.
+   It is the recommended choice when the simulation cannot sustain the XR device's display rate
+   in real time -- for example on lower-spec GPUs, in scenes with many lights or complex
+   materials, or when you have already configured ``sim.dt`` and ``sim.render_interval`` and
+   still see dropped frames.
+
+   To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
+   select **RTX - Minimal**:
+
+   .. figure:: ../_static/teleop/recommended-render-select.jpg
+      :width: 80%
+      :alt: Viewport renderer dropdown with RTX - Minimal selected
+
+      Selecting the **RTX - Minimal** renderer from the viewport dropdown.
+
+   For best results, open **Render Settings** from the top-right of the Isaac Lab UI, switch to
+   the **Minimal** tab, and set **Minimal Shading Mode** to **Diffuse/Glossy/Emission**:
+
+   .. figure:: ../_static/teleop/recommended-render-settings.jpg
+      :width: 80%
+      :alt: Render Settings panel showing the Minimal Shading Mode options
+
+      The **Render Settings** panel with the **Minimal Shading Mode** dropdown open
+      (recommended: **Diffuse/Glossy/Emission**).
+
+   .. note::
+
+      The RTX Minimal renderer currently only supports ``DistantLight`` prims for scene
+      illumination -- ``DomeLight`` prims are ignored. If your environment uses a ``DomeLight``,
+      swap (or supplement) it with a ``DistantLight`` so the scene is lit when running under
+      RTX Minimal:
+
+      .. code-block:: python
+
+         import isaaclab.sim as sim_utils
+         from isaaclab.assets import AssetBaseCfg
+
+         light = AssetBaseCfg(
+             prim_path="/World/light",
+             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+         )
+
+.. dropdown:: Lower the XR render resolution
+   :open:
+
+   The XR render resolution multiplier scales the size of the render buffers that are then
+   upscaled to the headset's recommended display resolution. Lowering it trades image
+   sharpness for substantially lower per-frame GPU cost, which can help sustain real-time
+   frame rates on lower-spec GPUs or in heavy scenes.
+
+   In the Isaac Lab UI, open the **XR** tab on the right-side panel, expand
+   **Advanced Settings -> Render Resolution**, and drag the **Resolution Multiplier** slider:
+
+   .. figure:: ../_static/teleop/xr-resolution-slider.jpg
+      :width: 80%
+      :alt: XR Render Resolution slider in the Advanced Settings panel
+
+      The **Resolution Multiplier** under **XR -> Advanced Settings -> Render Resolution**.
+      Values below ``1.0`` reduce the render-buffer size before upscaling to the headset.
+
+   A value around ``0.8`` is usually a good starting point: noticeable GPU savings with minimal
+   perceptible quality loss. Reduce further only if you still cannot hit the headset's display
+   rate.
+
+.. dropdown:: Configure retargeting execution
+   :open:
+
+   Isaac Teleop can run retargeting either synchronously on the application thread or
+   asynchronously through a pipelined worker. This is controlled by
+   ``RetargetingExecutionConfig``.
+
+   In synchronous mode, retargeting runs inline with the simulation step. This can be the
+   best choice for lightweight retargeting or retargeting implemented mostly in Python,
+   since a background Python worker can still contend with the application thread through
+   the GIL.
+
+   In pipelined mode, Isaac Teleop submits retargeting work to a background worker and the
+   application uses the most recent completed result. This is useful when retargeting has
+   enough native work to overlap with simulation or rendering, or when the retargeting cost
+   is large enough that running it inline would directly extend the frame.
+
+   .. code-block:: python
+
+      retargeting_execution=RetargetingExecutionConfig(
+          mode="pipelined",
+          pacing=DeadlinePacingConfig(safety_margin_s=0.025),
+      )
+
+   ``DeadlinePacingConfig`` intentionally delays the background retargeting work until
+   closer to when the next result is needed, instead of starting it immediately when the
+   request is submitted. This helps avoid competing with the Python work Isaac Lab performs
+   at the beginning of the frame, and tends to line the retargeting work up with rendering
+   or other native work where overlap is more useful.
+
+   The ``safety_margin_s`` value controls how early retargeting starts before the predicted
+   deadline. A larger margin starts retargeting earlier, which gives heavier or more variable
+   retargeting work more time to finish before the next frame consumes the result. The
+   trade-off is that the input sample may be slightly older, and Python-heavy retargeting
+   may introduce more GIL contention.
+
+   If retargeting is mostly Python and lightweight, consider ``mode="sync"``. If retargeting
+   performs substantial native work or has occasional long spikes, use ``mode="pipelined"``
+   and increase ``safety_margin_s`` so the work starts earlier.
+
+.. dropdown:: Check CloudXR frame pacing
+   :open:
+
+   The CloudXR runtime frame pacer attempts to keep the client experience smooth. If the
+   application has repeated frame-time spikes, the pacer may settle at a lower stable frame
+   rate instead of oscillating between rates. This can make a connected client appear slower
+   even when Isaac Lab profiling does not show a proportional simulation-side regression.
+
+   To diagnose or mitigate this case, override CloudXR settings such as
+   ``NV_ENABLE_POSE_WAIT=false`` via a custom ``.env`` file, then point
+   ``teleop_se3_agent.py`` or ``record_demos.py`` at it with ``--cloudxr_env``.
+   See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
 
 
 .. _isaac-teleop-known-issues:
