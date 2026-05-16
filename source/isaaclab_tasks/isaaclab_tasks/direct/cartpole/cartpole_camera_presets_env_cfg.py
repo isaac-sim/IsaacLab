@@ -78,6 +78,13 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
         tiled_camera: MultiDataTypeCartpoleTiledCameraCfg = MultiDataTypeCartpoleTiledCameraCfg()
         write_image_to_file = False
 
+        frame_stack: int = -1
+        """Number of frames to stack along the channel dim.
+
+        ``-1`` (default) auto-resolves to ``2`` for the Newton + Warp combo and ``1`` otherwise.
+        Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
+        """
+
         # spaces
         action_space = 1
         state_space = 0
