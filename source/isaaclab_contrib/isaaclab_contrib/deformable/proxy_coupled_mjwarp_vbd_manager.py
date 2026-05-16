@@ -133,22 +133,6 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
             len(proxy_body_ids),
         )
 
-    @staticmethod
-    def _prim_path_template_to_regex(prim_path_template: str) -> re.Pattern[str]:
-        """Compile a scene-entity prim-path template into a body-label regex.
-
-        ``{ENV_REGEX_NS}`` is expanded to ``/World/envs/env_.*`` and ``.*`` is
-        preserved as a regex wildcard; everything else is escaped literally.
-        The wildcard must match both expanded (``env_0``) and verbatim
-        (``env_.*``) labels, since builder-hook bodies (e.g. cables) keep the
-        template form. Anchored at the start and at a ``/`` or end-of-string
-        boundary so ``/Cable`` does not match ``/CableBag``.
-        """
-        expanded = prim_path_template.replace("{ENV_REGEX_NS}", "/World/envs/env_.*")
-        parts = expanded.split(".*")
-        pattern = ".*".join(re.escape(p) for p in parts)
-        return re.compile(rf"^{pattern}(/|$)")
-
     @classmethod
     def _resolve_entity_to_body_ids(
         cls,
@@ -178,7 +162,9 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                 f"ProxyCoupledMJWarpVBDSolverCfg.{field} references scene entity "
                 f"{entity_cfg.name!r}, which is not on the attached scene cfg (or lacks `prim_path`)."
             )
-        asset_regex = cls._prim_path_template_to_regex(asset_cfg.prim_path)
+        # `.*` in the template stays a regex wildcard; trailing `(/|$)` keeps
+        # `/Cable` from matching `/CableBag`.
+        asset_regex = re.compile(rf"^{asset_cfg.prim_path}(/|$)")
         patterns = entity_cfg.body_names
         if isinstance(patterns, str):
             patterns = [patterns]

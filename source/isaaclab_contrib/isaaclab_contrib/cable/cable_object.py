@@ -78,10 +78,11 @@ def add_cable_entry_to_builder(
     each control point, then calls :meth:`newton.ModelBuilder.add_rod_graph` with
     the explicit stiffness / damping / density fields stored on the entry.
     Density flows through :class:`newton.ModelBuilder.ShapeConfig` so Newton
-    computes per-segment mass from ``density * pi * r^2 * segment_length``. The
-    articulation is labelled ``"{entry.prim_path}/cable"`` so the cloner's
-    ``_rename_builder_labels`` rewrites the source prefix to each env's
-    destination prefix during replication.
+    computes per-segment mass from ``density * pi * r^2 * segment_length``.
+    Substitutes ``env_.*`` in the entry's prim path with the concrete env index
+    before passing the label, so cable body labels match the ``env_<N>`` form of
+    USD-imported bodies (the cloner's ``_rename_builder_labels`` does not run on
+    builder-hook bodies).
 
     All capsules of this cable share a unique negative ``collision_group``
     (``-(1 + cable_idx)``), which disables segment-vs-segment self-collision while
@@ -134,9 +135,9 @@ def add_cable_entry_to_builder(
     # with the ground and other cables (negative-vs-positive collides).
     shape_cfg.collision_group = -(1 + cable_idx)
 
-    # ``label`` is load-bearing: Newton suffixes ``_articulation`` to produce
-    # ``{prim_path}/cable_articulation``, which is the path :class:`ArticulationView`
-    # searches for per env after the cloner rewrites the source prefix.
+    # Pre-expand ``env_.*`` so cable body labels look like USD-imported ones
+    # (``/World/envs/env_<N>/.../cable``); ``ArticulationView`` finds them per env.
+    expanded_prim_path = entry.prim_path.replace("env_.*", f"env_{env_idx}")
     entry.body_offsets.append(builder.body_count)
     builder.add_rod_graph(
         node_positions=world_nodes,
@@ -147,7 +148,7 @@ def add_cable_entry_to_builder(
         stretch_damping=entry.stretch_damping,
         bend_stiffness=entry.bend_stiffness,
         bend_damping=entry.bend_damping,
-        label=f"{entry.prim_path}/cable",
+        label=f"{expanded_prim_path}/cable",
         wrap_in_articulation=True,
     )
     if env_idx == 0:
