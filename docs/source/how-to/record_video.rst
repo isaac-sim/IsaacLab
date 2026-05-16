@@ -126,7 +126,7 @@ uses the same configured viewpoint as the interactive viewport:
 
     from isaaclab.envs import ManagerBasedRLEnvCfg
     from isaaclab.envs.common import ViewerCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class MyTaskCfg(ManagerBasedRLEnvCfg):

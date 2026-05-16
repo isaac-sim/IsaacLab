@@ -1,0 +1,4 @@
+Test-only: update the OVPhysX iface test factory in
+``source/isaaclab/test/assets/test_articulation_iface.py`` to match the
+simplified :class:`isaaclab_ovphysx.assets.ArticulationData` constructor
+signature. No isaaclab core API change.

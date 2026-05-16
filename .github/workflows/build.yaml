@@ -109,9 +109,9 @@ jobs:
           echo "|---|---|---|"
           for entry in "${patterns[@]}"; do
             IFS=$'\t' read -r regex desc <<< "$entry"
-            count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
+            count=$(grep -cE "$regex" <<< "$files" || true)
             if [ "$count" -gt 0 ]; then
-              sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+              sample=$(grep -m 3 -E "$regex" <<< "$files" | paste -sd ', ' -)
               [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
               echo "| \`$regex\` | $desc | $sample |"
             else
@@ -124,7 +124,7 @@ jobs:
           local files="$1" entry regex
           for entry in "${patterns[@]}"; do
             IFS=$'\t' read -r regex _ <<< "$entry"
-            if printf '%s\n' "$files" | grep -qE "$regex"; then
+            if grep -qE "$regex" <<< "$files"; then
               return 0
             fi
           done

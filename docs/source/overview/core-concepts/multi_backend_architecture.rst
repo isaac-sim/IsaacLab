@@ -139,7 +139,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
 
 .. code-block:: python
 
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
     from isaaclab_tasks.utils import PresetCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
@@ -334,7 +334,7 @@ transforms in a Warp-native format that renderers and visualizers consume direct
 
     # isaaclab_mybackend/physics/mybackend_manager_cfg.py
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class MyBackendCfg(PhysicsCfg):
