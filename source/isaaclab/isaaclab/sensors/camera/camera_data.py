@@ -26,20 +26,12 @@ class CameraData:
     """
 
     def __init__(self):
-        # Warp arrays for pose / intrinsics — allocated in create_buffers()
-        self._pos_w_wp: wp.array | None = None
-        self._quat_w_world_wp: wp.array | None = None
-        self._intrinsic_matrices_wp: wp.array | None = None
-        # Pre-allocated output buffers for derived orientation properties
-        self._quat_w_ros_wp: wp.array | None = None
-        self._quat_w_opengl_wp: wp.array | None = None
-
         # ProxyArray wrappers — created in create_buffers()
-        self._pos_w_pa: ProxyArray | None = None
-        self._quat_w_world_pa: ProxyArray | None = None
-        self._intrinsic_matrices_pa: ProxyArray | None = None
-        self._quat_w_ros_pa: ProxyArray | None = None
-        self._quat_w_opengl_pa: ProxyArray | None = None
+        self._pos_w: ProxyArray | None = None
+        self._quat_w_world: ProxyArray | None = None
+        self._intrinsic_matrices: ProxyArray | None = None
+        self._quat_w_ros: ProxyArray | None = None
+        self._quat_w_opengl: ProxyArray | None = None
 
         # Output image buffers — allocated in allocate()
         self._output: dict[str, ProxyArray] | None = None
@@ -67,7 +59,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return self._pos_w_pa
+        return self._pos_w
 
     @property
     def quat_w_world(self) -> ProxyArray:
@@ -81,7 +73,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return self._quat_w_world_pa
+        return self._quat_w_world
 
     ##
     # Camera data
@@ -95,7 +87,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return self._intrinsic_matrices_pa
+        return self._intrinsic_matrices
 
     @property
     def output(self) -> dict[str, ProxyArray] | None:
@@ -123,17 +115,11 @@ class CameraData:
             num_views: Number of camera views (batch dimension).
             device: Device for tensor storage (e.g. ``"cuda:0"``).
         """
-        self._pos_w_wp = wp.zeros(num_views, dtype=wp.vec3f, device=device)
-        self._quat_w_world_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-        self._intrinsic_matrices_wp = wp.zeros(num_views, dtype=wp.mat33f, device=device)
-        self._quat_w_ros_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-        self._quat_w_opengl_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-
-        self._pos_w_pa = ProxyArray(self._pos_w_wp)
-        self._quat_w_world_pa = ProxyArray(self._quat_w_world_wp)
-        self._intrinsic_matrices_pa = ProxyArray(self._intrinsic_matrices_wp)
-        self._quat_w_ros_pa = ProxyArray(self._quat_w_ros_wp)
-        self._quat_w_opengl_pa = ProxyArray(self._quat_w_opengl_wp)
+        self._pos_w = ProxyArray(wp.zeros(num_views, dtype=wp.vec3f, device=device))
+        self._quat_w_world = ProxyArray(wp.zeros(num_views, dtype=wp.quatf, device=device))
+        self._intrinsic_matrices = ProxyArray(wp.zeros(num_views, dtype=wp.mat33f, device=device))
+        self._quat_w_ros = ProxyArray(wp.zeros(num_views, dtype=wp.quatf, device=device))
+        self._quat_w_opengl = ProxyArray(wp.zeros(num_views, dtype=wp.quatf, device=device))
 
     @classmethod
     def allocate(
@@ -232,8 +218,8 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        convert_camera_frame_orientation_convention_wp(self._quat_w_world_wp, self._quat_w_ros_wp, "world", "ros")
-        return self._quat_w_ros_pa
+        convert_camera_frame_orientation_convention_wp(self._quat_w_world.warp, self._quat_w_ros.warp, "world", "ros")
+        return self._quat_w_ros
 
     @property
     def quat_w_opengl(self) -> ProxyArray:
@@ -247,5 +233,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        convert_camera_frame_orientation_convention_wp(self._quat_w_world_wp, self._quat_w_opengl_wp, "world", "opengl")
-        return self._quat_w_opengl_pa
+        convert_camera_frame_orientation_convention_wp(
+            self._quat_w_world.warp, self._quat_w_opengl.warp, "world", "opengl"
+        )
+        return self._quat_w_opengl
