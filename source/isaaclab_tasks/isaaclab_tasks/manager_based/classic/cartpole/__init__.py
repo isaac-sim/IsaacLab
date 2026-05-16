@@ -9,6 +9,8 @@ Cartpole balancing environment.
 
 import gymnasium as gym
 
+from isaaclab_tasks.utils import deprecated_task_alias
+
 from . import agents
 
 ##
@@ -29,12 +31,38 @@ gym.register(
     },
 )
 
+# Canonical perception task -- selects observation pipeline (raw RGB, raw depth,
+# ResNet18 features, Theia-Tiny features) via the preset CLI (#5587). Two
+# rl_games agent entry points cover the image-policy and feature-policy yamls;
+# pick via ``--agent rl_games_cfg_entry_point`` (image, default) or
+# ``--agent rl_games_feature_cfg_entry_point`` (pretrained-feature). Old
+# per-pipeline IDs below remain registered for one release as deprecation
+# shims pointing at this task.
+_CAMERA_CFG_PATH = f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg"
+
+gym.register(
+    id="Isaac-Cartpole-Camera-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": _CAMERA_CFG_PATH,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
+    },
+)
+
+# -- Deprecated aliases --------------------------------------------------------
+
 gym.register(
     id="Isaac-Cartpole-RGB-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleRGBCameraEnvCfg",
+        "env_cfg_entry_point": deprecated_task_alias(
+            "Isaac-Cartpole-RGB-v0",
+            "--task=Isaac-Cartpole-Camera-v0 presets=rgb",
+            _CAMERA_CFG_PATH,
+        ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
 )
@@ -44,7 +72,11 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleDepthCameraEnvCfg",
+        "env_cfg_entry_point": deprecated_task_alias(
+            "Isaac-Cartpole-Depth-v0",
+            "--task=Isaac-Cartpole-Camera-v0 presets=depth",
+            _CAMERA_CFG_PATH,
+        ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
 )
@@ -54,7 +86,11 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleResNet18CameraEnvCfg",
+        "env_cfg_entry_point": deprecated_task_alias(
+            "Isaac-Cartpole-RGB-ResNet18-v0",
+            "--task=Isaac-Cartpole-Camera-v0 presets=resnet18 --agent=rl_games_feature_cfg_entry_point",
+            _CAMERA_CFG_PATH,
+        ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )
@@ -64,7 +100,11 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleTheiaTinyCameraEnvCfg",
+        "env_cfg_entry_point": deprecated_task_alias(
+            "Isaac-Cartpole-RGB-TheiaTiny-v0",
+            "--task=Isaac-Cartpole-Camera-v0 presets=theia_tiny --agent=rl_games_feature_cfg_entry_point",
+            _CAMERA_CFG_PATH,
+        ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )

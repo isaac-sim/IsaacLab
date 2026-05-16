@@ -722,7 +722,7 @@ def rendering_test_cartpole(
     comparison_scores: list[dict],
 ) -> None:
     from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+    from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleCameraPresetsEnvCfg
 
     env_cfg = CartpoleCameraPresetsEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(

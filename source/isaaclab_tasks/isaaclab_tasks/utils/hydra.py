@@ -108,6 +108,21 @@ class PresetCfg:
     The preset *name* (``newton_mjwarp``) is decoupled from the config class
     (``NewtonCfg``): the class describes the Newton backend, while the field
     name labels which solver variant this entry selects.
+
+    **Class-local helpers (underscore convention).** Names prefixed with
+    ``_`` and callables (nested classes, methods) are skipped by the
+    resolver and are NOT registered as variants. Use this to keep shared
+    helpers adjacent to the variants that need them, without polluting the
+    module namespace::
+
+        @configclass
+        class MultiBackendCameraCfg(PresetCfg):
+            # Class-local helper -- not a variant.
+            _ROTATED_OFFSET = CameraCfg.OffsetCfg(rot=(1, 0, 0, 0), ...)
+
+            rgb = CameraCfg(data_types=["rgb"])
+            albedo = CameraCfg(data_types=["albedo"], offset=_ROTATED_OFFSET)
+            default = rgb
     """
 
     def __getattr__(self, name: str):

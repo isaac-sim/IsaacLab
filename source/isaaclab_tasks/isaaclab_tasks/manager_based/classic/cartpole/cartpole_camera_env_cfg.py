@@ -11,6 +11,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
 
 from .cartpole_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
@@ -174,3 +175,39 @@ class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     """Configuration for the cartpole environment with Theia-Tiny features as observations."""
 
     observations: TheiaTinyObservationCfg = TheiaTinyObservationCfg()
+
+
+##
+# Consolidated PresetCfg
+##
+
+
+@configclass
+class CartpoleCameraPresetsEnvCfg(PresetCfg):
+    """Manager-based cartpole perception with selectable observation pipeline.
+
+    Variants:
+
+    * ``rgb`` / ``default`` -- raw RGB camera observations.
+    * ``depth`` -- depth (distance-to-camera) observations.
+    * ``resnet18`` -- features extracted by a frozen ResNet18 backbone from
+      the RGB camera.
+    * ``theia_tiny`` -- features extracted by a frozen Theia-Tiny transformer
+      backbone from the RGB camera.
+
+    The variant attributes hold concrete env cfg instances, so the hydra
+    resolver picks one based on ``presets=<name>`` (or the broadcast
+    ``presets=<name>,<name>,...`` CSV) and the rest of the cfg tree is
+    inherited from :class:`CartpoleEnvCfg`, including the existing
+    ``CartpolePhysicsCfg`` that powers the ``physics=`` typed selector.
+
+    The retired task IDs (``Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0``)
+    are registered with :func:`~isaaclab_tasks.utils.deprecated_task_alias`
+    in the sibling ``__init__.py`` and route to variants of this PresetCfg.
+    """
+
+    rgb = CartpoleRGBCameraEnvCfg()
+    depth = CartpoleDepthCameraEnvCfg()
+    resnet18 = CartpoleResNet18CameraEnvCfg()
+    theia_tiny = CartpoleTheiaTinyCameraEnvCfg()
+    default = rgb

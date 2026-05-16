@@ -48,7 +48,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleCameraPresetsEnvCfg
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpolePhysicsCfg
 
 # When True, tests also fail on WARNING-level records from visualizer-related loggers.
