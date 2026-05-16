@@ -345,11 +345,11 @@ class FrankaCableEnvCfg(ManagerBasedRLEnvCfg):
                     particle_collision_detection_interval=-1,
                 ),
                 # Declare which scene entities belong to which sub-solver.
-                # The manager grep-matches these prim-path templates against
-                # `model.body_label` (the full USD prim path of each body) to
-                # bucket bodies, joints, and shapes between the two entries.
-                mjwarp_prim_paths=[self.scene.robot.prim_path],
-                vbd_prim_paths=[self.scene.cable.prim_path],
+                # Each SceneEntityCfg resolves its asset's prim_path template
+                # against `model.body_label` to bucket bodies; joints/shapes
+                # follow their owning body.
+                mjwarp_bodies=[SceneEntityCfg("robot")],
+                vbd_bodies=[SceneEntityCfg("cable")],
                 # Expose the Franka gripper bodies as proxies in the VBD view so the
                 # cable feels gripper contacts and the gripper feels cable feedback.
                 proxy_bodies=[
