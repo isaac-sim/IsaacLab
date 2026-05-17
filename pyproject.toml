@@ -12,57 +12,31 @@ dependencies = [
     "isaaclab",
     "isaaclab-assets",
     "isaaclab-contrib",
-    "isaaclab-newton[all]",
+    "isaaclab-experimental",
+    "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-ovphysx",
-    "isaaclab-physx[newton]",
-    "isaaclab-rl[rsl-rl]",
+    "isaaclab-physx",
+    "isaaclab-rl",
     "isaaclab-tasks",
+    "isaaclab-tasks-experimental",
+    "isaaclab-visualizers",
     "torch==2.10.0",
     "torchaudio==2.10.0",
     "torchvision==0.25.0",
 ]
 
 [project.optional-dependencies]
-assets = [
-    "isaaclab-assets",
+isaacsim = [
+    "isaacsim[all,extscache]==5.1.0",
 ]
-contrib = [
-    "isaaclab-contrib",
-]
-mimic = [
+all = [
+    "isaacsim[all,extscache]==5.1.0",
     "isaaclab-mimic",
-]
-newton = [
     "isaaclab-newton[all]",
     "isaaclab-physx[newton]",
-]
-ov = [
-    "isaaclab-ovphysx[ovphysx]",
-]
-physx = [
-    "isaaclab-physx",
-]
-rl = [
-    "isaaclab-rl[rsl-rl]",
-]
-rl-all = [
     "isaaclab-rl[all]",
-]
-rtx = [
-    "isaaclab-ov[ovrtx]",
-]
-tasks = [
-    "isaaclab-assets",
-    "isaaclab-contrib",
-    "isaaclab-ov",
-    "isaaclab-ovphysx",
-    "isaaclab-tasks",
-]
-tasks-experimental = [
-    "isaaclab-tasks-experimental",
-]
-visualizers = [
+    "isaaclab-teleop",
     "isaaclab-visualizers[all]",
 ]
 
