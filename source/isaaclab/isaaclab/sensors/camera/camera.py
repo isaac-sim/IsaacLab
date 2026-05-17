@@ -338,9 +338,7 @@ class Camera(SensorBase):
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
-            orientations = convert_camera_frame_orientation_convention(
-                orientations, origin=convention, target="opengl"
-            )
+            orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
             ori_wp = wp.from_torch(orientations.contiguous())
         idx_wp = self._resolve_env_ids_wp(env_ids)
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
