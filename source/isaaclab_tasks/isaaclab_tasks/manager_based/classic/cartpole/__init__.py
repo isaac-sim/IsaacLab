@@ -38,14 +38,12 @@ gym.register(
 # ``--agent rl_games_feature_cfg_entry_point`` (pretrained-feature). Old
 # per-pipeline IDs below remain registered for one release as deprecation
 # shims pointing at this task.
-_CAMERA_CFG_PATH = f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg"
-
 gym.register(
     id="Isaac-Cartpole-Camera-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": _CAMERA_CFG_PATH,
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
@@ -59,9 +57,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-RGB-v0",
-            "--task=Isaac-Cartpole-Camera-v0 presets=rgb",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-RGB-v0",
+            new_command="--task=Isaac-Cartpole-Camera-v0 presets=rgb",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
@@ -73,9 +71,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-Depth-v0",
-            "--task=Isaac-Cartpole-Camera-v0 presets=depth",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-Depth-v0",
+            new_command="--task=Isaac-Cartpole-Camera-v0 presets=depth",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
@@ -87,9 +85,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-RGB-ResNet18-v0",
-            "--task=Isaac-Cartpole-Camera-v0 presets=resnet18 --agent=rl_games_feature_cfg_entry_point",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-RGB-ResNet18-v0",
+            new_command="--task=Isaac-Cartpole-Camera-v0 presets=resnet18 --agent=rl_games_feature_cfg_entry_point",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
@@ -101,9 +99,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-RGB-TheiaTiny-v0",
-            "--task=Isaac-Cartpole-Camera-v0 presets=theia_tiny --agent=rl_games_feature_cfg_entry_point",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-RGB-TheiaTiny-v0",
+            new_command="--task=Isaac-Cartpole-Camera-v0 presets=theia_tiny --agent=rl_games_feature_cfg_entry_point",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },

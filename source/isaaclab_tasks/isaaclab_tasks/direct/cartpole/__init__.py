@@ -47,13 +47,6 @@ gym.register(
 # equivalent presets=<name>, then loads the corresponding variant of
 # CartpoleCameraPresetsEnvCfg. The nested tiled_camera attribute must be
 # pinned alongside the root preset -- see _resolve_camera_variant.
-_CAMERA_CFG_PATH = f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg"
-_CAMERA_KWARGS = {
-    "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
-    "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
-}
-
-
 def _resolve_camera_variant(preset_name: str):
     """Lazy 2-axis resolver: pin both the root cfg variant and the nested
     ``tiled_camera`` preset. Without this the nested PresetCfg's default
@@ -81,11 +74,12 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-Camera-Presets-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-Camera-Presets-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -95,12 +89,13 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-RGB-Camera-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-RGB-Camera-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
             cfg_factory=_resolve_camera_variant("rgb"),
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -110,12 +105,13 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-Albedo-Camera-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0 presets=albedo",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-Albedo-Camera-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0 presets=albedo",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
             cfg_factory=_resolve_camera_variant("albedo"),
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -125,12 +121,13 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_constant_diffuse",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_constant_diffuse",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
             cfg_factory=_resolve_camera_variant("simple_shading_constant_diffuse"),
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -140,12 +137,13 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_diffuse_mdl",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_diffuse_mdl",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
             cfg_factory=_resolve_camera_variant("simple_shading_diffuse_mdl"),
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -155,12 +153,13 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_full_mdl",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_full_mdl",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
             cfg_factory=_resolve_camera_variant("simple_shading_full_mdl"),
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -170,11 +169,12 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
-            "Isaac-Cartpole-Depth-Camera-Direct-v0",
-            "--task=Isaac-Cartpole-Camera-Direct-v0 presets=depth",
-            _CAMERA_CFG_PATH,
+            old_task_id="Isaac-Cartpole-Depth-Camera-Direct-v0",
+            new_command="--task=Isaac-Cartpole-Camera-Direct-v0 presets=depth",
+            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
             cfg_factory=_resolve_camera_variant("depth"),
         ),
-        **_CAMERA_KWARGS,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
