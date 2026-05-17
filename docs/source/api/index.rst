@@ -280,4 +280,3 @@ isaaclab_tasks_experimental extension
 The package ``isaaclab_tasks_experimental`` contains experimental task implementations
 under active development, not yet part of the stable task suite.
 For the list of available environments, please refer to the :ref:`environments`.
-

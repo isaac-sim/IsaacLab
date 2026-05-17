@@ -12,6 +12,8 @@ pipelines without depending on (or subclassing) the stable env implementation.
 Behavior is intended to match the stable environment initially.
 """
 
+from __future__ import annotations
+
 # import builtins
 import contextlib
 import importlib
