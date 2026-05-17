@@ -15,19 +15,12 @@ import warp as wp
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
-
-# TODO: extend this to ``cuda:N`` once we wire up multi-GPU support for the view.
-# Recent Kit / USDRT releases do support multi-GPU ``SelectPrims``, but the
-# rest of the FabricFrameView wiring (selections, indexed arrays, etc.) still
-# assumes a single device — to be tackled in a follow-up.
-_fabric_supported_devices = ("cpu", "cuda", "cuda:0")
 
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
@@ -49,19 +42,20 @@ def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
 class FabricFrameView(BaseFrameView):
     """FrameView with Fabric GPU acceleration for the PhysX backend.
 
-    Uses composition: holds a :class:`UsdFrameView` internally for USD
-    fallback and non-accelerated operations (local poses, visibility, scales
-    when Fabric is disabled).
+    This class is only instantiated when Fabric is enabled and the device is
+    supported.  The :class:`~isaaclab.sim.views.FrameView` factory dispatches
+    to :class:`~isaaclab.sim.views.UsdFrameView` otherwise.
 
-    When Fabric is enabled, world-pose and scale operations use Warp kernels
-    operating on ``omni:fabric:worldMatrix``.  All other operations delegate
-    to the internal USD view.
+    Uses composition: holds a :class:`UsdFrameView` internally for operations
+    that don't have a Fabric-accelerated path (local poses, visibility).
 
-    After every Fabric write (``set_world_poses``, ``set_scales``),
-    :meth:`PrepareForReuse` is called on the ``PrimSelection`` to notify
-    the FSD renderer that Fabric data has changed and to detect topology
-    changes that require rebuilding internal mappings.  Read operations
-    do not call PrepareForReuse to avoid unnecessary renderer invalidation.
+    World-pose and scale operations use Warp kernels operating on
+    ``omni:fabric:worldMatrix``.  After every Fabric write
+    (``set_world_poses``, ``set_scales``), :meth:`PrepareForReuse` is called
+    on the ``PrimSelection`` to notify the FSD renderer that Fabric data has
+    changed and to detect topology changes that require rebuilding internal
+    mappings.  Read operations do not call PrepareForReuse to avoid
+    unnecessary renderer invalidation.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
@@ -88,18 +82,6 @@ class FabricFrameView(BaseFrameView):
         """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
-
-        settings = SettingsManager.instance()
-        self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
-
-        if self._use_fabric and self._device not in _fabric_supported_devices:
-            logger.warning(
-                f"Fabric mode is not supported on device '{self._device}'. "
-                "USDRT SelectPrims and Warp fabric arrays are currently "
-                f"only supported on {', '.join(_fabric_supported_devices)}. "
-                "Falling back to standard USD operations. This may impact performance."
-            )
-            self._use_fabric = False
 
         self._fabric_initialized = False
         self._fabric_usd_sync_done = False
@@ -146,10 +128,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_world_poses(self, positions=None, orientations=None, indices=None):
-        if not self._use_fabric:
-            self._usd_view.set_world_poses(positions, orientations, indices)
-            return
-
         if not self._fabric_initialized:
             self._initialize_fabric()
 
@@ -188,9 +166,6 @@ class FabricFrameView(BaseFrameView):
         self._fabric_usd_sync_done = True
 
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        if not self._use_fabric:
-            return self._usd_view.get_world_poses(indices)
-
         if not self._fabric_initialized:
             self._initialize_fabric()
         if not self._fabric_usd_sync_done:
@@ -241,10 +216,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_scales(self, scales, indices=None):
-        if not self._use_fabric:
-            self._usd_view.set_scales(scales, indices)
-            return
-
         if not self._fabric_initialized:
             self._initialize_fabric()
 
@@ -279,9 +250,6 @@ class FabricFrameView(BaseFrameView):
         self._fabric_usd_sync_done = True
 
     def get_scales(self, indices=None):
-        if not self._use_fabric:
-            return self._usd_view.get_scales(indices)
-
         if not self._fabric_initialized:
             self._initialize_fabric()
         if not self._fabric_usd_sync_done:
@@ -403,9 +371,6 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.arange_k, dim=self.count, inputs=[self._default_view_indices], device=self._device
         )
         wp.synchronize()
-
-        # The constructor should have taken care of this, but double check here to avoid regressions
-        assert self._device in _fabric_supported_devices
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
