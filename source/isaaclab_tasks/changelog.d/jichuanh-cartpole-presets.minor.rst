@@ -13,7 +13,7 @@ Added
 * Added :func:`isaaclab_tasks.utils.deprecated_task_alias` -- factory
   that wraps a retired gym task ID with a :class:`DeprecationWarning`
   naming the consolidated task plus its equivalent CLI tokens, and
-  lazily resolves the cfg variant at ``gym.make`` time.
+  delegates cfg construction to a caller-supplied ``cfg_factory``.
 
 Deprecated
 ^^^^^^^^^^
@@ -23,5 +23,12 @@ Deprecated
   showcase) in favor of the four consolidated tasks above. Each retired
   ID still loads and emits a :class:`DeprecationWarning` naming the
   consolidated task and the equivalent ``presets=<name>`` (plus
-  ``--agent=<entry_point_name>`` where required) invocation. Full
-  migration table is in the PR description.
+  ``--agent=<entry_point_name>`` where required) invocation. The shims
+  return the historical per-variant cfg subclass verbatim so retired
+  IDs stay bit-for-bit identical to their pre-deprecation behavior;
+  only the deprecation warning is layered on top. The historical
+  subclasses (e.g. ``CartpoleRGBCameraEnvCfg``,
+  ``CartpoleAlbedoCameraEnvCfg``, ``BoxBoxEnvCfg``, ...) are kept for
+  one release alongside the consolidated cfgs and will be removed
+  together with the retired task IDs. Full migration table is in the
+  PR description.
