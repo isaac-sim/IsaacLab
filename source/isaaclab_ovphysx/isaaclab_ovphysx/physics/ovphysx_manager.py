@@ -258,6 +258,14 @@ class OvPhysxManager(PhysicsManager):
         cls._usd_handle = None
         cls._stage_path = None
         cls._pending_clones = []
+        # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
+        # captures a real instance (not ``None``) when it builds the central
+        # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
+        # its own ``__init__``. Bindings stay empty until :meth:`_warmup_and_load`
+        # calls :meth:`OvPhysxSceneDataBackend.setup`, at which point the wheel
+        # and the USD stage are live. Matches PhysX's pattern of constructing
+        # the backend during ``initialize()``.
+        cls._scene_data_backend = OvPhysxSceneDataBackend()
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -299,6 +307,11 @@ class OvPhysxManager(PhysicsManager):
         cls._usd_handle = None
         cls._stage_path = None
         cls._warmup_done = False
+        # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
+        # point into the wheel's prior scene which we just ``physx.reset()``-ed.
+        # The next :class:`SimulationContext` re-creates the backend in
+        # :meth:`initialize`. Matches Newton's lifecycle.
+        cls._scene_data_backend = None
 
         if cls._tmp_dir is not None:
             cls._tmp_dir.cleanup()
@@ -339,10 +352,13 @@ class OvPhysxManager(PhysicsManager):
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the central SceneDataProvider.
 
-        Returns ``None`` before :meth:`_warmup_and_load` has run; afterwards
-        returns the singleton :class:`OvPhysxSceneDataBackend` initialized
-        against the ovphysx wheel's ``PhysX`` instance and the exported USD
-        stage.
+        Constructed eagerly in :meth:`initialize` so :class:`SimulationContext`
+        captures a real instance (not ``None``) when wiring up the central
+        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`. Bindings
+        are empty until :meth:`_warmup_and_load` calls
+        :meth:`OvPhysxSceneDataBackend.setup` against the live ovphysx ``PhysX``
+        and USD stage; reads against an unsetup backend return empty data
+        rather than raising.
         """
         return cls._scene_data_backend
 
