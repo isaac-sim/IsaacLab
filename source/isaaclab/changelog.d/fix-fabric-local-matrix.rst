@@ -16,3 +16,9 @@ Added
   explicit transposes).  Used by
   :class:`~isaaclab_physx.sim.views.FabricFrameView` to keep child world and
   local matrices consistent across writes without round-tripping through USD.
+* Added :meth:`~isaaclab.sim.SimulationContext.get_service` and
+  :meth:`~isaaclab.sim.SimulationContext.set_service` — a typed singleton
+  service locator on :class:`~isaaclab.sim.SimulationContext`.  Backend-specific
+  caches (e.g. Fabric hierarchy handles) register themselves here instead of
+  living as class-level globals.  Services are automatically cleared on
+  :meth:`~isaaclab.sim.SimulationContext.clear_instance`.

@@ -15,6 +15,10 @@ Changed
   view → fabric index mapping (no custom prim attributes), and Warp kernels
   that operate on :class:`wp.indexedfabricarray` so the kernels just index
   ``ifa[view_index]`` instead of taking a separate mapping array.
+* Moved the ``IFabricHierarchy`` handle cache out of ``FabricFrameView`` (class-level
+  global) into a new :class:`~isaaclab_physx.sim.fabric_stage_cache.FabricStageCache`,
+  registered as a service on :class:`~isaaclab.sim.SimulationContext`.  The cache is
+  automatically cleared on stage teardown.
 * :meth:`~isaaclab_physx.sim.views.FabricFrameView.set_local_poses` now
   writes ``omni:fabric:localMatrix`` directly through Fabric.  The next
   ``get_world_poses`` runs a Warp kernel that recomputes
