@@ -476,7 +476,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
             cam = getattr(self.scene, cam_attr, None)
             if cam is None:
                 continue
-            renderer_type = getattr(cam.renderer_cfg, "renderer_type", None)
+            renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
             if renderer_type == "newton_warp":
                 unsupported = set(cam.data_types) - warp_supported
                 if unsupported:

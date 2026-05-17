@@ -211,45 +211,52 @@ def test_depth_clipping(setup_sim):
     camera_max.update(dt)
 
     # none clipping should contain inf values
-    assert torch.isinf(camera_none.data.output["distance_to_camera"]).any()
-    assert torch.isnan(camera_none.data.output["distance_to_image_plane"]).any()
+    assert torch.isinf(camera_none.data.output["distance_to_camera"].torch).any()
+    assert torch.isnan(camera_none.data.output["distance_to_image_plane"].torch).any()
     assert (
-        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max()
+        camera_none.data.output["distance_to_camera"]
+        .torch[~torch.isinf(camera_none.data.output["distance_to_camera"].torch)]
+        .max()
         > camera_cfg_zero.max_distance
     )
     assert (
-        camera_none.data.output["distance_to_image_plane"][
-            ~torch.isnan(camera_none.data.output["distance_to_image_plane"])
-        ].max()
+        camera_none.data.output["distance_to_image_plane"]
+        .torch[~torch.isnan(camera_none.data.output["distance_to_image_plane"].torch)]
+        .max()
         > camera_cfg_zero.max_distance
     )
 
     # zero clipping should result in zero values
     assert torch.all(
-        camera_zero.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == 0.0
-    )
-    assert torch.all(
-        camera_zero.data.output["distance_to_image_plane"][
-            torch.isnan(camera_none.data.output["distance_to_image_plane"])
+        camera_zero.data.output["distance_to_camera"].torch[
+            torch.isinf(camera_none.data.output["distance_to_camera"].torch)
         ]
         == 0.0
     )
-    assert camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.max_distance
-    assert camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance
+    assert torch.all(
+        camera_zero.data.output["distance_to_image_plane"].torch[
+            torch.isnan(camera_none.data.output["distance_to_image_plane"].torch)
+        ]
+        == 0.0
+    )
+    assert camera_zero.data.output["distance_to_camera"].torch.max() <= camera_cfg_zero.max_distance
+    assert camera_zero.data.output["distance_to_image_plane"].torch.max() <= camera_cfg_zero.max_distance
 
     # max clipping should result in max values
     assert torch.all(
-        camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
-        == camera_cfg_zero.max_distance
-    )
-    assert torch.all(
-        camera_max.data.output["distance_to_image_plane"][
-            torch.isnan(camera_none.data.output["distance_to_image_plane"])
+        camera_max.data.output["distance_to_camera"].torch[
+            torch.isinf(camera_none.data.output["distance_to_camera"].torch)
         ]
         == camera_cfg_zero.max_distance
     )
-    assert camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.max_distance
-    assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance
+    assert torch.all(
+        camera_max.data.output["distance_to_image_plane"].torch[
+            torch.isnan(camera_none.data.output["distance_to_image_plane"].torch)
+        ]
+        == camera_cfg_zero.max_distance
+    )
+    assert camera_max.data.output["distance_to_camera"].torch.max() <= camera_cfg_zero.max_distance
+    assert camera_max.data.output["distance_to_image_plane"].torch.max() <= camera_cfg_zero.max_distance
 
 
 @pytest.mark.isaacsim_ci
@@ -297,9 +304,9 @@ def test_camera_init_offset(setup_sim):
     camera_ros.update(dt)
 
     # check that all transforms are set correctly
-    np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos)
-    np.testing.assert_allclose(camera_opengl.data.pos_w[0].cpu().numpy(), cam_cfg_offset_opengl.offset.pos)
-    np.testing.assert_allclose(camera_world.data.pos_w[0].cpu().numpy(), cam_cfg_offset_world.offset.pos)
+    np.testing.assert_allclose(camera_ros.data.pos_w.torch[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos)
+    np.testing.assert_allclose(camera_opengl.data.pos_w.torch[0].cpu().numpy(), cam_cfg_offset_opengl.offset.pos)
+    np.testing.assert_allclose(camera_world.data.pos_w.torch[0].cpu().numpy(), cam_cfg_offset_world.offset.pos)
 
     # check if transform correctly set in output
     np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
@@ -316,7 +323,7 @@ def test_camera_init_intrinsic_matrix(setup_sim):
     camera_1 = RayCasterCamera(cfg=camera_cfg)
     # get intrinsic matrix
     sim.reset()
-    intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+    intrinsic_matrix = camera_1.data.intrinsic_matrices.torch[0].cpu().flatten().tolist()
     teardown(sim)
     # reinit the first camera
     sim, camera_cfg, dt = setup()
@@ -350,13 +357,13 @@ def test_camera_init_intrinsic_matrix(setup_sim):
 
     # check image data
     torch.testing.assert_close(
-        camera_1.data.output["distance_to_image_plane"],
-        camera_2.data.output["distance_to_image_plane"],
+        camera_1.data.output["distance_to_image_plane"].torch,
+        camera_2.data.output["distance_to_image_plane"].torch,
     )
     # check that both intrinsic matrices are the same
     torch.testing.assert_close(
-        camera_1.data.intrinsic_matrices[0],
-        camera_2.data.intrinsic_matrices[0],
+        camera_1.data.intrinsic_matrices.torch[0],
+        camera_2.data.intrinsic_matrices.torch[0],
     )
 
 
@@ -719,8 +726,8 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     torch.testing.assert_close(
         camera_usd.data.output["distance_to_camera"].torch,
         camera_warp.data.output["distance_to_camera"].torch,
-        rtol=1e-5,
-        atol=5e-5,
+        rtol=4e-6,
+        atol=2e-5,
     )
 
     # check normals
@@ -944,8 +951,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
         axs[1].set_title("WARP")
         diff_plt = axs[2].imshow(
             torch.abs(
-                camera_usd.data.output["distance_to_camera"].torch
-                - camera_warp.data.output["distance_to_camera"].torch
+                camera_usd.data.output["distance_to_camera"].torch - camera_warp.data.output["distance_to_camera"].torch
             )[0]
             .cpu()
             .numpy()
@@ -1037,10 +1043,10 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
     cam_d2ip.update(dt)
     cam_d2c.update(dt)
 
-    d2ip_joint = cam_joint.data.output["distance_to_image_plane"]
-    d2c_joint = cam_joint.data.output["distance_to_camera"]
-    d2ip_solo = cam_d2ip.data.output["distance_to_image_plane"]
-    d2c_solo = cam_d2c.data.output["distance_to_camera"]
+    d2ip_joint = cam_joint.data.output["distance_to_image_plane"].torch
+    d2c_joint = cam_joint.data.output["distance_to_camera"].torch
+    d2ip_solo = cam_d2ip.data.output["distance_to_image_plane"].torch
+    d2c_solo = cam_d2c.data.output["distance_to_camera"].torch
 
     # Joint camera must match solo cameras (clipping one must not affect the other)
     torch.testing.assert_close(d2ip_joint, d2ip_solo, atol=1e-5, rtol=1e-5)
@@ -1098,7 +1104,7 @@ def test_set_intrinsic_matrices_updates_output(setup_sim):
     for _ in range(3):
         sim.step()
         camera.update(dt)
-    output_before = camera.data.output["distance_to_camera"].clone()
+    output_before = camera.data.output["distance_to_camera"].torch.clone()
 
     # Change to a very different focal length (longer → tighter FOV → depth values differ at edges)
     new_matrix = torch.tensor(
@@ -1110,7 +1116,7 @@ def test_set_intrinsic_matrices_updates_output(setup_sim):
     for _ in range(3):
         sim.step()
         camera.update(dt)
-    output_after = camera.data.output["distance_to_camera"].clone()
+    output_after = camera.data.output["distance_to_camera"].torch.clone()
 
     # Outputs must differ after intrinsics change (different ray angles → different depths)
     assert not torch.allclose(output_before, output_after, atol=1e-3), (
