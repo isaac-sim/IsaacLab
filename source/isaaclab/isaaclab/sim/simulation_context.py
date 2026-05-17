@@ -11,7 +11,7 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import toml
 import torch
@@ -37,6 +37,8 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
     from isaaclab.cloner.clone_plan import ClonePlan
+
+_T = TypeVar("_T")
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -213,6 +215,11 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+
+        # Singleton service registry — backend-specific caches register themselves
+        # here, keyed by their class.  Services with a ``close()`` method are closed
+        # when the SimulationContext is torn down via ``clear_instance()``.
+        self._services: dict[type, object] = {}
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -850,6 +857,38 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
+    # ------------------------------------------------------------------
+    # Service locator
+    # ------------------------------------------------------------------
+
+    def get_service(self, cls: type[_T]) -> _T | None:
+        """Retrieve a registered singleton service by its class.
+
+        Args:
+            cls: The service class used as key.
+
+        Returns:
+            The registered instance, or ``None`` if not registered.
+        """
+        return self._services.get(cls)  # type: ignore[return-value]
+
+    def set_service(self, cls: type[_T], instance: _T) -> None:
+        """Register a singleton service, keyed by its class.
+
+        Overwrites any previously registered instance for the same class.
+        If the old instance has a ``close()`` method it is called before
+        replacement.  Services are automatically closed and cleared when
+        :meth:`clear_instance` is called.
+
+        Args:
+            cls: The service class used as key.
+            instance: The service instance to register.
+        """
+        old = self._services.get(cls)
+        if old is not None and old is not instance and hasattr(old, "close"):
+            old.close()
+        self._services[cls] = instance
+
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
@@ -862,6 +901,12 @@ class SimulationContext:
             for viz in cls._instance._visualizers:
                 viz.close()
             cls._instance._visualizers.clear()
+
+            # Close and drop all registered singleton services
+            for service in cls._instance._services.values():
+                if hasattr(service, "close"):
+                    service.close()
+            cls._instance._services.clear()
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
