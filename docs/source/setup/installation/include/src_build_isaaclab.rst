@@ -17,7 +17,7 @@ Installation
       sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
 -  Run the install command, which installs all core Isaac Lab packages and, by default,
-   all optional extras:
+   the standard optional submodules and auto-selected extras:
 
    .. tab-set::
       :sync-group: os
@@ -40,15 +40,19 @@ Installation
    All core submodules are **always** installed regardless of what is passed to ``-i``.
    The argument controls which optional submodules and extra feature dependencies to add on top.
 
-   **Optional submodules** (heavy base deps — must be explicitly requested):
+   **Optional submodules**:
 
    .. list-table::
       :header-rows: 1
 
       * - Token
         - What it installs
+      * - ``contrib``
+        - ``isaaclab_contrib``. Use ``contrib[rlinf]`` for the heavy rlinf stack.
       * - ``mimic``
         - ``isaaclab_mimic`` (ipywidgets, h5py, imitation-learning tools)
+      * - ``ov``
+        - ``isaaclab_ov`` and ``isaaclab_ovphysx``. Use ``ov[ovrtx]``, ``ov[ovphysx]``, or ``ov[all]`` for the OV wheels.
       * - ``teleop``
         - ``isaaclab_teleop`` (isaacteleop SDK, dex-retargeting — Linux x86 only)
 
@@ -65,20 +69,17 @@ Installation
         - RL framework extras on ``isaaclab_rl``. Selectors: ``rsl-rl``, ``skrl``, ``sb3``, ``rl-games``. Omit selector for all.
       * - ``visualizer[<backend>]``
         - Visualizer backend extras. Selectors: ``rerun``, ``viser``, ``newton``, ``kit``. Omit selector for all.
-      * - ``contrib[rlinf]``
-        - rlinf extras (ray, diffusers, etc.) on ``isaaclab_contrib``
-      * - ``ov``
-        - OV-specific extras (``ovrtx``, ``ovphysx``) for RTX rendering
 
    **Special values**:
 
-   - ``all`` — core + optional submodules (mimic, teleop) + auto extra features (newton, rl, visualizer, ov) — default when ``-i`` is used with no argument
+   - ``all`` — core + optional submodules (contrib, mimic, ov, teleop) + auto extra features (newton, rl, visualizer) — default when ``-i`` is used with no argument
    - ``none`` — core submodules only; no optional submodules, no extra feature dependencies
 
    .. note::
 
-      ``contrib`` must always be requested explicitly (e.g. ``-i contrib``).
-      It is not included in ``all``.
+      ``all`` installs the ``contrib`` and ``ov`` source packages, but not their
+      heavy dependency extras. Use ``contrib[rlinf]`` for rlinf dependencies and
+      ``ov[ovrtx]``, ``ov[ovphysx]``, or ``ov[all]`` for OV runtime wheels.
 
    Examples:
 
@@ -90,7 +91,7 @@ Installation
 
          .. code:: bash
 
-            # Default: core + optional submodules + most extras (no contrib)
+            # Default: core + optional submodules + auto extras
             ./isaaclab.sh -i
 
             # Newton physics + RSL-RL framework
@@ -98,6 +99,12 @@ Installation
 
             # Newton + rerun visualizer + mimic
             ./isaaclab.sh -i newton,'visualizer[rerun]',mimic
+
+            # OV source packages + OVRTX wheel
+            ./isaaclab.sh -i 'ov[ovrtx]'
+
+            # Contrib source package + rlinf dependencies
+            ./isaaclab.sh -i 'contrib[rlinf]'
 
             # Core only — no optional submodules, no extras
             ./isaaclab.sh -i none
@@ -113,5 +120,5 @@ Installation
             :: Newton physics + RSL-RL framework
             isaaclab.bat -i newton,rl[rsl-rl]
 
-            :: All backends (default)
+            :: Default install
             isaaclab.bat -i

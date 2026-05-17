@@ -436,11 +436,8 @@ def _install_isaacsim() -> None:
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
     "isaaclab_assets",
-    "isaaclab_contrib",
     "isaaclab_experimental",
     "isaaclab_newton",
-    "isaaclab_ov",
-    "isaaclab_ovphysx",
     "isaaclab_physx",
     "isaaclab_rl",
     "isaaclab_tasks",
@@ -449,10 +446,12 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 ]
 
 # Optional submodules — only installed when explicitly requested or with 'all'.
-# Maps the short CLI name to its source directory name under source/.
-OPTIONAL_ISAACLAB_SUBMODULES: dict[str, str] = {
-    "mimic": "isaaclab_mimic",
-    "teleop": "isaaclab_teleop",
+# Maps the short CLI name to one or more source directory names under source/.
+OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
+    "contrib": ("isaaclab_contrib",),
+    "mimic": ("isaaclab_mimic",),
+    "ov": ("isaaclab_ov", "isaaclab_ovphysx"),
+    "teleop": ("isaaclab_teleop",),
 }
 
 # Extra feature sets that install optional heavy dependencies on top of the
@@ -460,16 +459,13 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, str] = {
 # 'pip install --editable path[extra]' calls against packages already in the
 # core set.
 VALID_EXTRA_FEATURES: set[str] = {
-    "contrib",
     "newton",
-    "ov",
     "rl",
     "visualizer",
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-# These must be explicitly requested, like optional submodules (mimic, teleop).
-MANUAL_EXTRA_FEATURES: set[str] = {"contrib"}
+MANUAL_EXTRA_FEATURES: set[str] = set()
 
 
 def _split_install_items(install_type: str) -> list[str]:
@@ -526,6 +522,45 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
         )
 
 
+def _install_optional_submodule_extra_dependencies(submodule_name: str, selector: str) -> None:
+    """Install optional dependency extras for an optional submodule.
+
+    Args:
+        submodule_name: One of :data:`OPTIONAL_ISAACLAB_SUBMODULES`.
+        selector: Extra selector from a token such as ``contrib[rlinf]`` or
+            ``ov[ovrtx]``.
+    """
+    if not selector:
+        return
+
+    python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
+    source_dir = ISAACLAB_ROOT / "source"
+
+    if submodule_name == "contrib":
+        print_info(f"Installing contrib optional dependencies: {selector}...")
+        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{selector}]"])
+    elif submodule_name == "ov":
+        selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
+        valid_selectors = {"all", "ovrtx", "ovphysx"}
+        unknown_selectors = selectors - valid_selectors
+        if unknown_selectors:
+            print_warning(
+                f"Unknown ov selector(s): {', '.join(sorted(unknown_selectors))}. "
+                f"Valid selectors: {', '.join(sorted(valid_selectors))}."
+            )
+        if "all" in selectors:
+            selectors.update({"ovrtx", "ovphysx"})
+        if "ovrtx" in selectors:
+            print_info("Installing OVRTX optional dependency...")
+            run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ov[ovrtx]"])
+        if "ovphysx" in selectors:
+            print_info("Installing OVPhysX optional dependency...")
+            run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ovphysx[ovphysx]"])
+    else:
+        print_warning(f"Optional submodule '{submodule_name}' does not support selectors (got '{selector}').")
+
+
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     """Install optional extra dependencies for a feature set.
 
@@ -536,8 +571,7 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         feature_name: One of :data:`VALID_EXTRA_FEATURES`.
         selector: Optional extra selector (e.g. ``"rsl-rl"`` for
             ``rl[rsl-rl]``). When empty a sensible default is chosen per
-            feature (``"all"`` for ``rl`` and ``visualizer``, ``"rlinf"`` for
-            ``contrib``).
+            feature (``"all"`` for ``rl`` and ``visualizer``).
     """
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
@@ -558,14 +592,6 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         extra = selector if selector else "all"
         print_info(f"Installing visualizer extras: {extra}...")
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[{extra}]"])
-    elif feature_name == "contrib":
-        extra = selector if selector else "rlinf"
-        print_info(f"Installing contrib extras: {extra}...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{extra}]"])
-    elif feature_name == "ov":
-        print_info("Installing Omniverse extras (ovrtx, ovphysx)...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ov[ovrtx]"])
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ovphysx[ovphysx]"])
     else:
         print_warning(
             f"Unknown extra feature '{feature_name}'. "
@@ -708,23 +734,26 @@ def _repoint_prebundle_packages() -> None:
 def command_install(install_type: str = "all") -> None:
     """Install Isaac Lab extensions and optional extras.
 
-    All core submodules are always installed. Optional submodules and extra
-    feature dependencies are installed based on *install_type*.
+    All core submodules are always installed. Optional submodules, optional
+    submodule extras, and extra feature dependencies are installed based on
+    *install_type*.
 
     Args:
         install_type: Controls which optional submodules and extra feature
             dependencies to install on top of the always-installed core set.
 
             * ``"all"`` (default) — install core submodules + optional
-              submodules (``mimic``, ``teleop``) + all extra features.
+              submodules (``contrib``, ``mimic``, ``ov``, ``teleop``) + all
+              extra features.
             * ``"none"`` — install core submodules only; no optional
               submodules, no extra feature dependencies.
             * Comma-separated tokens — install core submodules plus the listed
               optional submodules and extra features. Valid tokens:
 
-              - Optional submodules: ``mimic``, ``teleop``
+              - Optional submodules: ``contrib[rlinf]``, ``mimic``,
+                ``ov[ovrtx|ovphysx|all]``, ``teleop``
               - Extra features: ``newton``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``, ``contrib[rlinf]``, ``ov``
+                ``visualizer[<backend>]``
               - Special: ``isaacsim``
 
               Examples::
@@ -751,9 +780,17 @@ def command_install(install_type: str = "all") -> None:
     submodules_to_install: list[str] = list(CORE_ISAACLAB_SUBMODULES)
     # List of (feature_name, selector) tuples to apply after the base install.
     extra_features: list[tuple[str, str]] = []
+    # List of (submodule_name, selector) tuples for optional submodule extras.
+    optional_submodule_extra_dependencies: list[tuple[str, str]] = []
+
+    def append_submodules_once(package_dirs: tuple[str, ...]) -> None:
+        for pkg_dir in package_dirs:
+            if pkg_dir not in submodules_to_install:
+                submodules_to_install.append(pkg_dir)
 
     if install_type == "all":
-        submodules_to_install += list(OPTIONAL_ISAACLAB_SUBMODULES.values())
+        for package_dirs in OPTIONAL_ISAACLAB_SUBMODULES.values():
+            append_submodules_once(package_dirs)
         extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
     elif install_type == "none":
         # Core only — no optional submodules, no extra features.
@@ -774,9 +811,9 @@ def command_install(install_type: str = "all") -> None:
             if name == "isaacsim":
                 install_isaacsim = True
             elif name in OPTIONAL_ISAACLAB_SUBMODULES:
-                pkg_dir = OPTIONAL_ISAACLAB_SUBMODULES[name]
-                if pkg_dir not in submodules_to_install:
-                    submodules_to_install.append(pkg_dir)
+                append_submodules_once(OPTIONAL_ISAACLAB_SUBMODULES[name])
+                if selector:
+                    optional_submodule_extra_dependencies.append((name, selector))
             elif name in VALID_EXTRA_FEATURES:
                 extra_features.append((name, selector))
             else:
@@ -849,6 +886,12 @@ def command_install(install_type: str = "all") -> None:
 
         # Install all submodules (core set + any explicitly requested optional ones).
         _install_isaaclab_submodules(submodules_to_install)
+
+        # Install requested optional submodule dependency extras.
+        if optional_submodule_extra_dependencies:
+            print_info("Installing optional submodule dependencies...")
+            for submodule_name, selector in optional_submodule_extra_dependencies:
+                _install_optional_submodule_extra_dependencies(submodule_name, selector)
 
         # Install requested extra feature dependencies.
         if extra_features:

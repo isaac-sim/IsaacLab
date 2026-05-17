@@ -41,7 +41,7 @@ _TRAIN_CMD = [
     "Isaac-Cartpole-Direct-v0",
     "--num_envs",
     "16",
-    "presets=newton",
+    "presets=newton_mjwarp",
     "--max_iterations",
     "5",
     "--headless",
