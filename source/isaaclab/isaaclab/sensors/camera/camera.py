@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
+import torch
 import warp as wp
 
 from pxr import UsdGeom
@@ -700,12 +701,25 @@ class Camera(SensorBase):
             return env_ids.numpy().astype(np.int32, copy=False).reshape(-1)
         return np.asarray(env_ids, dtype=np.int32).reshape(-1)
 
-    def _resolve_env_ids_wp(self, env_ids: Sequence[int] | wp.array | None) -> wp.array | None:
+    def _resolve_env_ids_wp(self, env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> wp.array | None:
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
             return None
-        if isinstance(env_ids, slice):
+        if isinstance(env_ids, wp.array):
+            if env_ids.dtype != wp.int32:
+                raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
+            if str(env_ids.device) == str(self._device):
+                return env_ids
+            env_ids = env_ids.numpy().astype(np.int32, copy=False).reshape(-1)
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
+            if not env_ids.is_contiguous():
+                env_ids = env_ids.contiguous()
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        elif isinstance(env_ids, slice):
             env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
+        else:
+            env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         return wp.array(env_ids, dtype=wp.int32, device=self._device)
 
     @staticmethod

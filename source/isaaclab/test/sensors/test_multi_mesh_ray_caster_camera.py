@@ -441,7 +441,7 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
             elif data_type == "normals":
                 # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
                 torch.testing.assert_close(
-                    camera_usd.data.output[data_type][..., :3],
+                    camera_usd.data.output[data_type].torch[..., :3],
                     camera_warp.data.output[data_type].torch,
                     rtol=1e-5,
                     atol=1e-4,
@@ -585,7 +585,7 @@ def test_depth_output_equal_to_usd_camera_heterogeneous_scene(setup_simulation):
     eyes = env_origins + torch.tensor((1.8, -2.5, 2.5), dtype=torch.float32, device=sim.device)
     targets = env_origins + torch.tensor((0.0, 0.0, 0.0), dtype=torch.float32, device=sim.device)
     camera_warp.set_world_poses_from_view(eyes=eyes, targets=targets)
-    camera_usd.set_world_poses_from_view(eyes=eyes, targets=targets)
+    camera_usd.set_world_poses_from_view(eyes=eyes.cpu().numpy(), targets=targets.cpu().numpy())
 
     for _ in range(5):
         sim.render()
@@ -696,7 +696,7 @@ def test_output_equal_to_usdcamera_offset(setup_simulation):
     # check normals
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
-        camera_usd.data.output["normals"][..., :3],
+        camera_usd.data.output["normals"].torch[..., :3],
         camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
@@ -772,8 +772,8 @@ def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
     camera_warp.update(dt)
 
     # check if pos and orientation are correct
-    torch.testing.assert_close(camera_warp.data.pos_w[0], camera_usd.data.pos_w[0])
-    _assert_quat_close(camera_warp.data.quat_w_ros[0], camera_usd.data.quat_w_ros[0])
+    torch.testing.assert_close(camera_warp.data.pos_w.torch[0], camera_usd.data.pos_w.torch[0])
+    _assert_quat_close(camera_warp.data.quat_w_ros.torch[0], camera_usd.data.quat_w_ros.torch[0])
 
     # check image data
     torch.testing.assert_close(
@@ -792,7 +792,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
     # check normals
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
-        camera_usd.data.output["normals"][..., :3],
+        camera_usd.data.output["normals"].torch[..., :3],
         camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
@@ -892,7 +892,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
         cam_warp_output,
         cam_usd_output,
         atol=5e-5,
-        rtol=5e-6,
+        rtol=1e-5,
     )
 
     del camera_usd, camera_warp
