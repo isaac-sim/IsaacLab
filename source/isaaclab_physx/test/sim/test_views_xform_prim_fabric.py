@@ -169,7 +169,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
     # Verify Fabric has the new position
     fab_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(fab_pos)
+    pos_torch = fab_pos.torch
     assert torch.allclose(pos_torch, torch.tensor([[99.0, 99.0, 99.0]], device=device), atol=0.1), (
         f"Fabric should have new position, got {pos_torch}"
     )
@@ -230,6 +230,6 @@ def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch)
     # Read back — proves the rebuilt _view_to_fabric and _fabric_world_matrices
     # are still consistent.
     ret_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(ret_pos)
+    pos_torch = ret_pos.torch
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Read after rebuild failed on {device}: {pos_torch}"

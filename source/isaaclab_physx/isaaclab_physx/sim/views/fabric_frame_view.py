@@ -128,42 +128,7 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_world_poses(self, positions=None, orientations=None, indices=None):
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-
-        self._prepare_for_reuse()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
-
-        dummy = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        positions_wp = _to_float32_2d(positions) if positions is not None else dummy
-        orientations_wp = (
-            _to_float32_2d(orientations)
-            if orientations is not None
-            else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        )
-
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                self._fabric_world_matrices,
-                positions_wp,
-                orientations_wp,
-                dummy,
-                False,
-                False,
-                False,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
-        )
-        wp.synchronize()
-
-        self._fabric_hierarchy.update_world_xforms()
-        self._fabric_usd_sync_done = True
+        self._compose_fabric_transform(positions=positions, orientations=orientations, indices=indices)
 
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._fabric_initialized:
@@ -216,6 +181,19 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_scales(self, scales, indices=None):
+        self._compose_fabric_transform(scales=scales, indices=indices)
+
+    def _compose_fabric_transform(self, positions=None, orientations=None, scales=None, indices=None):
+        """Write the given subset of (position, orientation, scale) into Fabric in one kernel launch.
+
+        Components left as ``None`` are skipped via empty input arrays — the kernel reads them
+        from the existing Fabric matrix.  Always invokes :meth:`_prepare_for_reuse` exactly once
+        per write, even when multiple components are updated together.
+
+        Side effect: sets ``self._fabric_usd_sync_done = True`` after the write, marking Fabric
+        as the authoritative source going forward.  This suppresses the lazy USD→Fabric sync
+        in subsequent getters (see :meth:`get_world_poses`, :meth:`get_scales`).
+        """
         if not self._fabric_initialized:
             self._initialize_fabric()
 
@@ -224,17 +202,19 @@ class FabricFrameView(BaseFrameView):
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
-        dummy3 = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        dummy4 = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        scales_wp = _to_float32_2d(scales)
+        empty3 = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        empty4 = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
+        positions_wp = _to_float32_2d(positions) if positions is not None else empty3
+        orientations_wp = _to_float32_2d(orientations) if orientations is not None else empty4
+        scales_wp = _to_float32_2d(scales) if scales is not None else empty3
 
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
             inputs=[
                 self._fabric_world_matrices,
-                dummy3,
-                dummy4,
+                positions_wp,
+                orientations_wp,
                 scales_wp,
                 False,
                 False,
@@ -315,10 +295,11 @@ class FabricFrameView(BaseFrameView):
         pattern (via ``_usd_view.count``) and does not change when Fabric rearranges its
         internal memory layout.  The assertion below guards this invariant.
         """
-        assert self.count == self._default_view_indices.shape[0], (
-            f"Prim count changed ({self.count} vs {self._default_view_indices.shape[0]}). "
-            "Fabric topology change added/removed tracked prims — full re-initialization required."
-        )
+        if self.count != self._default_view_indices.shape[0]:
+            raise RuntimeError(
+                f"Prim count changed ({self.count} vs {self._default_view_indices.shape[0]}). "
+                "Fabric topology change added/removed tracked prims — full re-initialization required."
+            )
         self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._fabric_device)
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
 
@@ -407,19 +388,20 @@ class FabricFrameView(BaseFrameView):
     def _sync_fabric_from_usd_once(self) -> None:
         """Sync Fabric world matrices from USD once, on the first read.
 
-        ``set_world_poses`` and ``set_scales`` each set ``_fabric_usd_sync_done``
-        themselves, so no explicit flag assignment is needed here.
+        Combines position/orientation/scale into a single Fabric write so
+        :meth:`_prepare_for_reuse` (and its underlying ``PrepareForReuse``) is invoked
+        exactly once across the full sync.
         """
         if not self._fabric_initialized:
             self._initialize_fabric()
 
         positions_usd_ta, orientations_usd_ta = self._usd_view.get_world_poses()
-        positions_usd = positions_usd_ta.warp
-        orientations_usd = orientations_usd_ta.warp
         scales_usd = self._usd_view.get_scales()
-
-        self.set_world_poses(positions_usd, orientations_usd)
-        self.set_scales(scales_usd)
+        self._compose_fabric_transform(
+            positions=positions_usd_ta.warp,
+            orientations=orientations_usd_ta.warp,
+            scales=scales_usd,
+        )
 
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
