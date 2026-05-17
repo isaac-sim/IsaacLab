@@ -895,7 +895,10 @@ class SimulationContext:
                 viz.close()
             cls._instance._visualizers.clear()
 
-            # Drop all registered singleton services (they may reference the dying stage)
+            # Close and drop all registered singleton services
+            for service in cls._instance._services.values():
+                if hasattr(service, "close"):
+                    service.close()
             cls._instance._services.clear()
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

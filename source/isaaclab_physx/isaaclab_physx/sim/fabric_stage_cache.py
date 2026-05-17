@@ -38,6 +38,11 @@ class FabricStageCache:
         """The usdrt stage (already attached and synchronized)."""
         return self._stage
 
+    def close(self) -> None:
+        """Release cached handles.  Called by SimulationContext on teardown."""
+        self._hierarchy_cache.clear()
+        self._stage = None
+
     def get_hierarchy(self):
         """Return the IFabricHierarchy handle for the current Fabric attachment.
 
