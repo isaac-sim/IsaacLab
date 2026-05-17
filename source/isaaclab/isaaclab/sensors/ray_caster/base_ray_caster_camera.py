@@ -133,14 +133,16 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._data.intrinsic_matrices.torch[env_ids] = matrices.to(self._device)
         self._focal_length = focal_length
         # recompute ray directions
-        self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
+        ray_starts_torch = self.ray_starts.torch if hasattr(self.ray_starts, "torch") else self.ray_starts
+        ray_directions_torch = self.ray_directions.torch if hasattr(self.ray_directions, "torch") else self.ray_directions
+        ray_starts_torch[env_ids], ray_directions_torch[env_ids] = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices.torch[env_ids], self._device
         )
         # Refresh warp views of local ray buffers; .contiguous() may produce a copy so we store
         # the contiguous tensors explicitly to prevent GC while the warp views are alive.
         if hasattr(self, "_ray_starts_local"):
-            self._ray_starts_contiguous = self.ray_starts.contiguous()
-            self._ray_directions_contiguous = self.ray_directions.contiguous()
+            self._ray_starts_contiguous = ray_starts_torch.contiguous()
+            self._ray_directions_contiguous = ray_directions_torch.contiguous()
             self._ray_starts_local = wp.from_torch(self._ray_starts_contiguous, dtype=wp.vec3f)
             self._ray_directions_local = wp.from_torch(self._ray_directions_contiguous, dtype=wp.vec3f)
 
@@ -297,8 +299,8 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._create_offset_buffers(self._view.count)
 
         # Warp buffers for world-frame rays (used by update kernel)
-        self._ray_starts_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
-        self._ray_directions_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_starts_w = wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_directions_w = wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
 
         # Warp views for ray_starts and ray_directions (from torch tensors returned by pattern_cfg.func)
         # These are (num_envs, num_rays, 3) torch tensors; wrap as warp vec3f arrays.
@@ -310,20 +312,14 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._ray_directions_local = wp.from_torch(self._ray_directions_contiguous, dtype=wp.vec3f)
 
         # Intermediate warp buffers for ray results (filled with inf before each raycasting step)
-        self._ray_distance = wp.zeros((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
+        self._ray_distance_wp = wp.empty((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
         if "normals" in self.cfg.data_types:
-            self._ray_normal_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+            self._ray_normal_w = wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
         else:
-            self._ray_normal_w = wp.zeros((1, 1), dtype=wp.vec3f, device=self._device)
-
-        if "distance_to_image_plane" in self.cfg.data_types:
-            self._distance_to_image_plane_wp = wp.zeros(
-                (self._view.count, self.num_rays), dtype=wp.float32, device=self._device
-            )
+            self._ray_normal_w = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
 
         # Ray hit buffer used by raycasting and debug visualization.
-        self._ray_hits_w_wp = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
-        self.ray_hits_w = ProxyArray(self._ray_hits_w_wp)
+        self.ray_hits_w = ProxyArray(wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device))
 
     def _update_ray_infos(self, env_mask: wp.array):
         """Updates camera poses and world-frame ray buffers via a single warp kernel."""
@@ -367,24 +363,17 @@ class BaseRayCasterCamera(BaseRayCaster):
 
         self._update_ray_infos(env_mask)
 
-        # Fill ray hit and distance buffers with inf before raycasting
+        # Determine whether to compute normals.
+        need_normal = int("normals" in self.cfg.data_types)
+
+        # Fill ray hit, distance, and optional normal buffers with inf before raycasting.
         wp.launch(
             ray_caster_kernels.fill_ray_hits_distance_inf_kernel,
             dim=(self._num_envs, self.num_rays),
-            inputs=[env_mask, self._ray_hits_w_wp, self._ray_distance],
+            inputs=[env_mask, bool(need_normal)],
+            outputs=[self.ray_hits_w.warp, self._ray_distance_wp, self._ray_normal_w],
             device=self._device,
         )
-
-        # Determine whether to compute normals
-        need_normal = int("normals" in self.cfg.data_types)
-        if need_normal:
-            # Fill normal buffer with inf before raycasting
-            wp.launch(
-                ray_caster_kernels.fill_vec3_inf_kernel,
-                dim=(self._num_envs, self.num_rays),
-                inputs=[env_mask, wp.inf, self._ray_normal_w],
-                device=self._device,
-            )
 
         # Ray-cast against the mesh; use a large upper-bound max_dist so depth clipping
         # can be applied per-data-type afterwards (matching the original behaviour).
@@ -399,70 +388,46 @@ class BaseRayCasterCamera(BaseRayCaster):
                 float(ray_caster_kernels.CAMERA_RAYCAST_MAX_DIST),
                 int(True),  # return_distance: always needed for depth output
                 need_normal,
-                self._ray_hits_w_wp,
-                self._ray_distance,
+                self.ray_hits_w.warp,
+                self._ray_distance_wp,
                 self._ray_normal_w,
             ],
             device=self._device,
         )
 
-        # Compute distance_to_image_plane using a warp kernel
         if "distance_to_image_plane" in self.cfg.data_types:
             wp.launch(
-                ray_caster_kernels.compute_distance_to_image_plane_masked_kernel,
+                ray_caster_kernels.compute_distance_to_image_plane_to_image_masked_kernel,
                 dim=(self._num_envs, self.num_rays),
                 inputs=[
                     env_mask,
                     self._data.quat_w_world.warp,
-                    self._ray_distance,
+                    self._ray_distance_wp,
                     self._ray_directions_w,
+                    int(self.image_shape[1]),
+                    bool(self._depth_clip_enabled),
+                    float(self.cfg.max_distance),
+                    self._depth_clip_fill_value,
                 ],
                 outputs=[
-                    self._distance_to_image_plane_wp,
-                ],
-                device=self._device,
-            )
-            # Apply depth clipping on the intermediate buffer (leaves _ray_distance unmodified)
-            if self._depth_clip_enabled:
-                wp.launch(
-                    ray_caster_kernels.apply_depth_clipping_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[
-                        env_mask,
-                        float(self.cfg.max_distance),
-                        self._depth_clip_fill_value,
-                        self._distance_to_image_plane_wp,
-                    ],
-                    device=self._device,
-                )
-            wp.launch(
-                ray_caster_kernels.copy_float2d_to_image1_masked_kernel,
-                dim=(self._num_envs, self.num_rays),
-                inputs=[
-                    env_mask,
-                    self._distance_to_image_plane_wp,
-                    int(self.image_shape[1]),
                     self._data.output["distance_to_image_plane"].warp,
                 ],
                 device=self._device,
             )
 
         if "distance_to_camera" in self.cfg.data_types:
-            # d2ip (if requested) was computed before this block so _ray_distance is still unclipped.
-            if self._depth_clip_enabled:
-                wp.launch(
-                    ray_caster_kernels.apply_depth_clipping_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._depth_clip_fill_value, self._ray_distance],
-                    device=self._device,
-                )
             wp.launch(
-                ray_caster_kernels.copy_float2d_to_image1_masked_kernel,
+                ray_caster_kernels.copy_float2d_to_image1_depth_clipped_masked_kernel,
                 dim=(self._num_envs, self.num_rays),
                 inputs=[
                     env_mask,
-                    self._ray_distance,
+                    self._ray_distance_wp,
                     int(self.image_shape[1]),
+                    bool(self._depth_clip_enabled),
+                    float(self.cfg.max_distance),
+                    self._depth_clip_fill_value,
+                ],
+                outputs=[
                     self._data.output["distance_to_camera"].warp,
                 ],
                 device=self._device,

@@ -228,8 +228,8 @@ class BaseRayCaster(SensorBase):
         self.ray_cast_drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
 
         # World-frame ray buffers
-        self._ray_starts_w = wp.zeros((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)
-        self._ray_directions_w = wp.zeros((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_starts_w = wp.empty((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_directions_w = wp.empty((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)
 
         # Data buffers
         self._data.create_buffers(self._view_count, self.num_rays, self._device)

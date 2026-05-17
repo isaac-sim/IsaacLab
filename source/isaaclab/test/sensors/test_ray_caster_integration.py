@@ -268,9 +268,8 @@ def test_multi_mesh_camera_set_intrinsic_matrices(sim_ground_camera):
 def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
     """Requesting both d2ip and d2c simultaneously must produce correct independent results.
 
-    The ``distance_to_image_plane`` computation reads ``_ray_distance`` before
-    ``distance_to_camera`` clips it in-place.  This test verifies the two data
-    types do not interfere with each other.
+    The two outputs are clipped independently from the same raw ray-distance buffer.
+    This test verifies the data types do not interfere with each other.
     """
     sim, base_cfg = sim_ground_camera
 

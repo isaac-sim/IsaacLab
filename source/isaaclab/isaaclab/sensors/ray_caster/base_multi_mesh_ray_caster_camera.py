@@ -84,7 +84,7 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
         # chain. The intermediate classes (RayCasterCamera, MultiMeshRayCaster) use different internal
         # buffer names and orderings that are incompatible with the camera's full init path:
         #   - RayCasterCamera creates single-mesh ray buffers (_ray_distance, _ray_normal_w, etc.)
-        #   - MultiMeshRayCaster creates _ray_distance_w / _ray_mesh_id_w for multi-mesh use
+        #   - MultiMeshRayCaster creates _ray_distance_wp / _ray_mesh_id_wp for multi-mesh use
         # The camera replaces all of these with its own camera-named equivalents below.
         # If either parent class gains new shared buffers, they must be added here explicitly.
 
@@ -109,33 +109,27 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
         # Camera-frame offset and drift buffers.
         self._create_offset_buffers(self._view.count)
 
-        # Warp buffer for distance_to_image_plane output (if requested)
-        if "distance_to_image_plane" in self.cfg.data_types:
-            self._distance_to_image_plane_wp = wp.zeros(
-                (self._view.count, self.num_rays), dtype=wp.float32, device=self._device
-            )
-
         # World-frame ray buffers.
-        self._ray_starts_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
-        self._ray_directions_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_starts_w = wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_directions_w = wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
 
         # Ray hit positions as a warp array; expose a ProxyArray for debug visualisation.
-        self.ray_hits_w = ProxyArray(wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device))
+        self.ray_hits_w = ProxyArray(wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device))
 
         # Per-ray closest-hit distance for atomic_min across meshes
-        self._ray_distance_cam_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
+        self._ray_distance_cam_wp = wp.empty((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
 
         # Optional normal buffer (always allocated; filled only when "normals" is requested)
-        self._ray_normal_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_normal_w = wp.empty((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
 
         # Mesh-id buffers from MultiMeshRayCaster._initialize_rays_impl
         if self.cfg.update_mesh_ids:
-            self._ray_mesh_id_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.int16, device=self._device)
+            self._ray_mesh_id_wp = wp.zeros((self._view.count, self.num_rays), dtype=wp.int16, device=self._device)
         else:
-            self._ray_mesh_id_w = wp.empty((1, 1), dtype=wp.int16, device=self._device)
+            self._ray_mesh_id_wp = wp.empty((1, 1), dtype=wp.int16, device=self._device)
 
         # Dummy face-id buffer (not used by camera but required by kernel signature)
-        self._ray_face_id_w = wp.empty((1, 1), dtype=wp.int32, device=self._device)
+        self._ray_face_id_wp = wp.empty((1, 1), dtype=wp.int32, device=self._device)
 
     def _update_ray_infos(self, env_mask: wp.array):
         """Updates camera poses and world-frame ray buffers for masked environments.
@@ -178,20 +172,14 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
 
         return_normal = "normals" in self.cfg.data_types
 
-        # Fill ray hit and distance buffers with inf for masked environments
+        # Fill ray hit, distance, and optional normal buffers with inf for masked environments.
         wp.launch(
             ray_caster_kernels.fill_ray_hits_distance_inf_kernel,
             dim=(self._num_envs, self.num_rays),
-            inputs=[env_mask, self.ray_hits_w.warp, self._ray_distance_cam_w],
+            inputs=[env_mask, return_normal],
+            outputs=[self.ray_hits_w.warp, self._ray_distance_cam_wp, self._ray_normal_w],
             device=self._device,
         )
-        if return_normal:
-            wp.launch(
-                ray_caster_kernels.fill_vec3_inf_kernel,
-                dim=(self._num_envs, self.num_rays),
-                inputs=[env_mask, wp.inf, self._ray_normal_w],
-                device=self._device,
-            )
 
         n_meshes = self._mesh_ids_wp.shape[1]
 
@@ -205,10 +193,10 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
                 self._ray_starts_w,
                 self._ray_directions_w,
                 self.ray_hits_w.warp,
-                self._ray_distance_cam_w,
+                self._ray_distance_cam_wp,
                 self._ray_normal_w,
-                self._ray_face_id_w,
-                self._ray_mesh_id_w,
+                self._ray_face_id_wp,
+                self._ray_mesh_id_wp,
                 self._mesh_positions_w,
                 self._mesh_orientations_w,
                 float(ray_caster_kernels.CAMERA_RAYCAST_MAX_DIST),
@@ -221,58 +209,37 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
 
         if "distance_to_image_plane" in self.cfg.data_types:
             wp.launch(
-                ray_caster_kernels.compute_distance_to_image_plane_masked_kernel,
-                dim=(self._num_envs, self.num_rays),
-                inputs=[env_mask, self._data.quat_w_world.warp, self._ray_distance_cam_w, self._ray_directions_w],
-                outputs=[self._distance_to_image_plane_wp],
-                device=self._device,
-            )
-            # Apply depth clipping on the intermediate buffer (leaves _ray_distance_cam_w unmodified)
-            if self._depth_clip_enabled:
-                wp.launch(
-                    ray_caster_kernels.apply_depth_clipping_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[
-                        env_mask,
-                        float(self.cfg.max_distance),
-                        self._depth_clip_fill_value,
-                        self._distance_to_image_plane_wp,
-                    ],
-                    device=self._device,
-                )
-            wp.launch(
-                ray_caster_kernels.copy_float2d_to_image1_masked_kernel,
+                ray_caster_kernels.compute_distance_to_image_plane_to_image_masked_kernel,
                 dim=(self._num_envs, self.num_rays),
                 inputs=[
                     env_mask,
-                    self._distance_to_image_plane_wp,
+                    self._data.quat_w_world.warp,
+                    self._ray_distance_cam_wp,
+                    self._ray_directions_w,
                     int(self.image_shape[1]),
+                    bool(self._depth_clip_enabled),
+                    float(self.cfg.max_distance),
+                    self._depth_clip_fill_value,
+                ],
+                outputs=[
                     self._data.output["distance_to_image_plane"].warp,
                 ],
                 device=self._device,
             )
 
         if "distance_to_camera" in self.cfg.data_types:
-            # d2ip (if requested) was computed before this block so _ray_distance_cam_w is still unclipped.
-            if self._depth_clip_enabled:
-                wp.launch(
-                    ray_caster_kernels.apply_depth_clipping_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[
-                        env_mask,
-                        float(self.cfg.max_distance),
-                        self._depth_clip_fill_value,
-                        self._ray_distance_cam_w,
-                    ],
-                    device=self._device,
-                )
             wp.launch(
-                ray_caster_kernels.copy_float2d_to_image1_masked_kernel,
+                ray_caster_kernels.copy_float2d_to_image1_depth_clipped_masked_kernel,
                 dim=(self._num_envs, self.num_rays),
                 inputs=[
                     env_mask,
-                    self._ray_distance_cam_w,
+                    self._ray_distance_cam_wp,
                     int(self.image_shape[1]),
+                    bool(self._depth_clip_enabled),
+                    float(self.cfg.max_distance),
+                    self._depth_clip_fill_value,
+                ],
+                outputs=[
                     self._data.output["distance_to_camera"].warp,
                 ],
                 device=self._device,
@@ -290,6 +257,6 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
             wp.launch(
                 ray_caster_kernels.copy_int16_2d_to_image1_masked_kernel,
                 dim=(self._num_envs, self.num_rays),
-                inputs=[env_mask, self._ray_mesh_id_w, int(self.image_shape[1]), self._data.image_mesh_ids.warp],
+                inputs=[env_mask, self._ray_mesh_id_wp, int(self.image_shape[1]), self._data.image_mesh_ids.warp],
                 device=self._device,
             )

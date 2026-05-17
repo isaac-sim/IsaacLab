@@ -10,7 +10,6 @@ import re
 from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
 import trimesh
 import warp as wp
 
@@ -18,7 +17,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.math import matrix_from_quat
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
 from isaaclab.utils.warp import kernels as warp_kernels
@@ -33,6 +31,20 @@ if TYPE_CHECKING:
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _matrix_from_quat_xyzw(quat: np.ndarray) -> np.ndarray:
+    """Return a rotation matrix from an ``(x, y, z, w)`` quaternion."""
+    x, y, z, w = quat
+    two_s = 2.0 / np.dot(quat, quat)
+    return np.array(
+        [
+            [1.0 - two_s * (y * y + z * z), two_s * (x * y - z * w), two_s * (x * z + y * w)],
+            [two_s * (x * y + z * w), 1.0 - two_s * (x * x + z * z), two_s * (y * z - x * w)],
+            [two_s * (x * z - y * w), two_s * (y * z + x * w), 1.0 - two_s * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
 
 
 class BaseMultiMeshRayCaster(BaseRayCaster):
@@ -331,11 +343,11 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 mesh = create_trimesh_from_geom_shape(mesh_prim)
             mesh.apply_scale(sim_utils.resolve_prim_scale(mesh_prim))
             relative_pos, relative_quat = sim_utils.resolve_prim_pose(mesh_prim, reference_prim)
-            relative_pos = torch.tensor(relative_pos, dtype=torch.float32)
-            relative_quat = torch.tensor(relative_quat, dtype=torch.float32)
+            relative_pos = np.asarray(relative_pos, dtype=np.float64)
+            relative_quat = np.asarray(relative_quat, dtype=np.float64)
             transform = np.eye(4)
-            transform[:3, :3] = matrix_from_quat(relative_quat).numpy()
-            transform[:3, 3] = relative_pos.numpy()
+            transform[:3, :3] = _matrix_from_quat_xyzw(relative_quat)
+            transform[:3, 3] = relative_pos
             mesh.apply_transform(transform)
             trimesh_meshes.append(mesh)
 
@@ -363,16 +375,17 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
     def _initialize_rays_impl(self):
         super()._initialize_rays_impl()
         # Persistent buffer for tracking closest-hit distance across meshes (for atomic_min)
-        self._ray_distance_w = wp.zeros((self._view_count, self.num_rays), dtype=wp.float32, device=self._device)
+        self._ray_distance_wp = wp.empty((self._view_count, self.num_rays), dtype=wp.float32, device=self._device)
         if self.cfg.update_mesh_ids:
-            self._ray_mesh_id_w = wp.zeros((self._view_count, self.num_rays), dtype=wp.int16, device=self._device)
-            self._data.ray_mesh_ids = ProxyArray(self._ray_mesh_id_w)
+            self._data.ray_mesh_ids = ProxyArray(
+                wp.zeros((self._view_count, self.num_rays), dtype=wp.int16, device=self._device)
+            )
         else:
             # Dummy 1×1 buffer so the kernel launch always has a valid array to bind
-            self._ray_mesh_id_w = wp.empty((1, 1), dtype=wp.int16, device=self._device)
+            self._ray_mesh_id_wp = wp.empty((1, 1), dtype=wp.int16, device=self._device)
         # Persistent dummy buffers for unused kernel outputs; allocated once to avoid per-step allocations.
-        self._dummy_normal_w = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
-        self._dummy_face_id_w = wp.empty((1, 1), dtype=wp.int32, device=self._device)
+        self._dummy_normal_wp = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
+        self._dummy_face_id_wp = wp.empty((1, 1), dtype=wp.int32, device=self._device)
 
     def _update_mesh_transforms(self) -> None:
         """Update world-frame mesh positions and orientations for dynamically tracked targets.
@@ -419,7 +432,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         wp.launch(
             fill_ray_hits_distance_inf_kernel,
             dim=(self._num_envs, self.num_rays),
-            inputs=[env_mask, self._data._ray_hits_w, self._ray_distance_w],
+            inputs=[env_mask, False],
+            outputs=[self._data._ray_hits_w, self._ray_distance_wp, self._dummy_normal_wp],
             device=self._device,
         )
 
@@ -438,10 +452,10 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 self._ray_starts_w,
                 self._ray_directions_w,
                 self._data._ray_hits_w,
-                self._ray_distance_w,
-                self._dummy_normal_w,
-                self._dummy_face_id_w,
-                self._ray_mesh_id_w,
+                self._ray_distance_wp,
+                self._dummy_normal_wp,
+                self._dummy_face_id_wp,
+                self._data.ray_mesh_ids.warp if self.cfg.update_mesh_ids else self._ray_mesh_id_wp,
                 self._mesh_positions_w,
                 self._mesh_orientations_w,
                 float(self.cfg.max_distance),

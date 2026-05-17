@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-import torch
+import numpy as np
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 
@@ -81,9 +81,9 @@ def _newton_body_pattern(body_path: str) -> str:
 def _identity_offsets(count: int, device: str) -> tuple[wp.array, wp.array]:
     """Create identity sensor offsets for site poses that already include the offset."""
     offset_pos_wp = wp.zeros(count, dtype=wp.vec3f, device=device)
-    identity_quat = torch.zeros(count, 4, device=device)
+    identity_quat = np.zeros((count, 4), dtype=np.float32)
     identity_quat[:, 3] = 1.0
-    return offset_pos_wp, wp.from_torch(identity_quat.contiguous(), dtype=wp.quatf)
+    return offset_pos_wp, wp.array(identity_quat, dtype=wp.quatf, device=device)
 
 
 class _NewtonRayCasterMixin:
@@ -164,21 +164,21 @@ class _NewtonRayCasterMixin:
         self._view = self
         self._view_count = len(site_indices)
         self._sensor_site_indices = wp.array(site_indices, dtype=wp.int32, device=self._device)
-        self._newton_pose_w = wp.zeros(self._view_count, dtype=wp.transformf, device=self._device)
-        self._newton_pos_w = wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device)
-        self._newton_quat_w = wp.zeros(self._view_count, dtype=wp.quatf, device=self._device)
-        self._newton_pos_w_proxy = ProxyArray(self._newton_pos_w)
-        self._newton_quat_w_proxy = ProxyArray(self._newton_quat_w)
+        self._newton_pose_w = wp.empty(self._view_count, dtype=wp.transformf, device=self._device)
+        self._newton_pos_w = ProxyArray(wp.empty(self._view_count, dtype=wp.vec3f, device=self._device))
+        self._newton_quat_w = ProxyArray(wp.empty(self._view_count, dtype=wp.quatf, device=self._device))
         self._offset_pos_wp, self._offset_quat_wp = _identity_offsets(self._view_count, self._device)
 
     def _update_ray_infos(self: Any, env_mask: wp.array):
         """Update Newton site poses and transform local rays in a single ray-caster kernel."""
         self._update_newton_site_transforms(
-            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w, self._newton_quat_w
+            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
         )
-        pos_w = self._pos_w_wp if hasattr(self, "_pos_w_wp") else self._data._pos_w
-        quat_w = self._quat_w_wp if hasattr(self, "_quat_w_wp") else self._data._quat_w
-        alignment_mode = int(ALIGNMENT_BASE) if hasattr(self, "_pos_w_wp") else self._alignment_mode
+        pos_w = self._data.pos_w.warp
+        quat_w = self._data.quat_w_world.warp if hasattr(self._data, "quat_w_world") else self._data.quat_w.warp
+        ray_starts = self.ray_starts.warp if hasattr(self.ray_starts, "warp") else self._ray_starts_local
+        ray_directions = self.ray_directions.warp if hasattr(self.ray_directions, "warp") else self._ray_directions_local
+        alignment_mode = int(ALIGNMENT_BASE) if hasattr(self._data, "quat_w_world") else self._alignment_mode
         wp.launch(
             update_ray_caster_kernel,
             dim=(self._num_envs, self.num_rays),
@@ -187,10 +187,10 @@ class _NewtonRayCasterMixin:
                 env_mask,
                 self._offset_pos_wp,
                 self._offset_quat_wp,
-                self._drift,
-                self._ray_cast_drift,
-                self._ray_starts_local,
-                self._ray_directions_local,
+                self.drift.warp,
+                self.ray_cast_drift.warp,
+                ray_starts,
+                ray_directions,
                 alignment_mode,
             ],
             outputs=[
@@ -205,18 +205,18 @@ class _NewtonRayCasterMixin:
     def get_world_poses(self: Any, indices=None):
         """Return world poses for camera helpers that still use pose tuples."""
         self._update_newton_site_transforms(
-            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w, self._newton_quat_w
+            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
         )
         if indices is None:
-            return self._newton_pos_w_proxy, self._newton_quat_w_proxy
+            return self._newton_pos_w, self._newton_quat_w
         if not isinstance(indices, wp.array):
             indices = wp.array(indices, dtype=wp.int32, device=self._device)
-        pos_w = wp.zeros(indices.shape[0], dtype=wp.vec3f, device=self._device)
-        quat_w = wp.zeros(indices.shape[0], dtype=wp.quatf, device=self._device)
+        pos_w = wp.empty(indices.shape[0], dtype=wp.vec3f, device=self._device)
+        quat_w = wp.empty(indices.shape[0], dtype=wp.quatf, device=self._device)
         wp.launch(
             _gather_pose_by_index_kernel,
             dim=indices.shape[0],
-            inputs=[indices, self._newton_pos_w, self._newton_quat_w],
+            inputs=[indices, self._newton_pos_w.warp, self._newton_quat_w.warp],
             outputs=[pos_w, quat_w],
             device=self._device,
         )
@@ -244,9 +244,9 @@ class _NewtonRayCasterMixin:
                 continue
 
             site_count = site_indices.shape[0]
-            pos_buf = wp.zeros(site_count, dtype=wp.vec3f, device=self._device)
-            quat_buf = wp.zeros(site_count, dtype=wp.quatf, device=self._device)
-            pose_buf = wp.zeros(site_count, dtype=wp.transformf, device=self._device)
+            pos_buf = wp.empty(site_count, dtype=wp.vec3f, device=self._device)
+            quat_buf = wp.empty(site_count, dtype=wp.quatf, device=self._device)
+            pose_buf = wp.empty(site_count, dtype=wp.transformf, device=self._device)
             self._update_newton_site_transforms(site_indices, pose_buf, pos_buf, quat_buf)
             meshes_per_env = site_count
             if site_count != 1:

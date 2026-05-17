@@ -171,50 +171,34 @@ def apply_z_drift_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def fill_float2d_masked_kernel(
-    # input
-    env_mask: wp.array(dtype=wp.bool),
-    val: wp.float32,
-    # output
-    data: wp.array2d(dtype=wp.float32),
-):
-    """Fill a 2D float32 array with a given value for masked environments.
-
-    Launch with dim=(num_envs, num_rays).
-
-    Args:
-        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        val: Value to fill with.
-        data: Array to fill. Shape is (num_envs, num_rays).
-    """
-    env, ray = wp.tid()
-    if not env_mask[env]:
-        return
-    data[env, ray] = val
-
-
-@wp.kernel(enable_backward=False)
 def fill_ray_hits_distance_inf_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
+    fill_normals: bool,
     # output
     ray_hits: wp.array2d(dtype=wp.vec3f),
     ray_distance: wp.array2d(dtype=wp.float32),
+    ray_normals: wp.array2d(dtype=wp.vec3f),
 ):
-    """Fill ray hit and distance buffers with infinity for masked environments.
+    """Fill ray hit, distance, and optionally normal buffers with infinity for masked environments.
 
     Launch with dim=(num_envs, num_rays).
 
     Args:
         env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
+        fill_normals: Whether to fill ``ray_normals``.
         ray_hits: Ray hit positions to fill with ``wp.inf``. Shape is (num_envs, num_rays).
         ray_distance: Ray distances to fill with ``wp.inf``. Shape is (num_envs, num_rays).
+        ray_normals: Ray normals to fill with ``wp.inf`` when requested. Shape is (num_envs, num_rays).
     """
     env, ray = wp.tid()
     if not env_mask[env]:
         return
-    ray_hits[env, ray] = wp.vec3f(wp.inf, wp.inf, wp.inf)
+    inf_vec = wp.vec3f(wp.inf, wp.inf, wp.inf)
+    ray_hits[env, ray] = inf_vec
     ray_distance[env, ray] = wp.inf
+    if fill_normals:
+        ray_normals[env, ray] = inf_vec
 
 
 @wp.kernel(enable_backward=False)
@@ -274,23 +258,27 @@ def update_camera_offsets_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def copy_float2d_to_image1_masked_kernel(
+def copy_float2d_to_image1_depth_clipped_masked_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
     src: wp.array2d(dtype=wp.float32),
     width: int,
+    clip_depth: bool,
+    max_dist: wp.float32,
+    fill_val: wp.float32,
     # output
     dst: wp.array4d(dtype=wp.float32),
 ):
-    """Copy a flat per-ray float buffer to ``(N, H, W, 1)`` camera output."""
+    """Copy a flat float buffer to ``(N, H, W, 1)`` camera output with optional depth clipping."""
     env, ray = wp.tid()
     if not env_mask[env]:
         return
+    value = src[env, ray]
+    if clip_depth and (value > max_dist or wp.isnan(value)):
+        value = fill_val
     row = ray // width
     col = ray - row * width
-    dst[env, row, col, 0] = src[env, ray]
-
-
+    dst[env, row, col, 0] = value
 @wp.kernel(enable_backward=False)
 def copy_vec3_2d_to_image3_masked_kernel(
     # input
@@ -375,68 +363,32 @@ def copy_mesh_transforms_to_table_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def compute_distance_to_image_plane_masked_kernel(
+def compute_distance_to_image_plane_to_image_masked_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
     quat_w: wp.array(dtype=wp.quatf),
     ray_distance: wp.array2d(dtype=wp.float32),
     ray_directions_w: wp.array2d(dtype=wp.vec3f),
+    width: int,
+    clip_depth: bool,
+    max_dist: wp.float32,
+    fill_val: wp.float32,
     # output
-    distance_to_image_plane: wp.array2d(dtype=wp.float32),
+    dst: wp.array4d(dtype=wp.float32),
 ):
-    """Compute distance-to-image-plane from ray depth and direction for masked environments.
-
-    The distance to the image plane is the signed projection of the hit displacement
-    (``ray_distance * ray_direction_w``) onto the camera forward axis (+X in world convention).
-    This equals the x-component of the hit vector in the camera frame.
-
-    Launch with dim=(num_envs, num_rays).
-
-    Args:
-        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        quat_w: Camera orientation in world frame (x, y, z, w). Shape is (num_envs,).
-        ray_distance: Per-ray hit distances [m]. Shape is (num_envs, num_rays).
-            Contains inf for missed rays.
-        ray_directions_w: World-frame unit ray directions. Shape is (num_envs, num_rays).
-        distance_to_image_plane: Output distance-to-image-plane [m]. Shape is (num_envs, num_rays).
-    """
+    """Compute distance-to-image-plane, optionally clip it, and write camera output."""
     env, ray = wp.tid()
     if not env_mask[env]:
         return
 
     depth = ray_distance[env, ray]
     dir_w = ray_directions_w[env, ray]
-    # displacement vector in world frame
     disp_w = wp.vec3f(depth * dir_w[0], depth * dir_w[1], depth * dir_w[2])
-    # rotate into camera frame (quat_rotate_inv applies q^-1 * v * q)
     disp_cam = wp.quat_rotate_inv(quat_w[env], disp_w)
-    # x-component is the forward (depth) axis of the camera in world convention
-    distance_to_image_plane[env, ray] = disp_cam[0]
+    value = disp_cam[0]
+    if clip_depth and (value > max_dist or wp.isnan(value)):
+        value = fill_val
 
-
-@wp.kernel(enable_backward=False)
-def apply_depth_clipping_masked_kernel(
-    # input
-    env_mask: wp.array(dtype=wp.bool),
-    max_dist: wp.float32,
-    fill_val: wp.float32,
-    # output
-    depth: wp.array2d(dtype=wp.float32),
-):
-    """Clip depth values in-place, replacing values above max_dist or NaN with fill_val.
-
-    Launch with dim=(num_envs, num_rays).
-
-    Args:
-        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        max_dist: Maximum depth threshold [m].
-        fill_val: Replacement value [m] written for depths exceeding max_dist or NaN.
-            Pass ``max_dist`` for "max" clipping or ``0.0`` for "zero" clipping.
-        depth: Depth buffer to clip in-place. Shape is (num_envs, num_rays).
-    """
-    env, ray = wp.tid()
-    if not env_mask[env]:
-        return
-    val = depth[env, ray]
-    if val > max_dist or wp.isnan(val):
-        depth[env, ray] = fill_val
+    row = ray // width
+    col = ray - row * width
+    dst[env, row, col, 0] = value
