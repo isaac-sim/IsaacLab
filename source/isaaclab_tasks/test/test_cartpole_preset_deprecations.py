@@ -155,25 +155,27 @@ def test_consolidated_task_id_loads_without_deprecation(task_id: str) -> None:
     assert messages == [], f"{task_id}: unexpected deprecation warning(s): {messages}"
 
 
-# Historical camera offset rotations from the old per-variant cfgs in
-# cartpole_camera_env_cfg.py. RGB / Depth used the identity; Albedo and the
-# three SimpleShading variants used a 180-degree rotation.
+# All variants resolve to the consolidated cfg's identity-offset camera. Develop's
+# ``MultiDataTypeCartpoleTiledCameraCfg`` chose a uniform camera pose for all
+# variants (the historical per-variant cfgs had a 180-degree rotation for Albedo /
+# SimpleShading, but that rotation was dropped when the consolidated task landed
+# in develop). The deprecation shim returns the consolidated cfg's variant, so
+# users of the retired task IDs see the consolidated task's camera orientation
+# starting from this PR -- migrate to the consolidated task and pick the variant
+# via ``presets=<name>``.
 _IDENTITY_ROT = (0.0, 0.0, 0.0, 1.0)
-_ROTATED_ROT = (1.0, 0.0, 0.0, 0.0)
 
 # (deprecated direct camera task id, expected data_types value,
 #  expected obs channels, expected offset rotation).
 # Verifies the shim atomically selects (observation_space, data_types,
-# camera offset) so the loaded cfg matches the historical per-variant class
-# bit-for-bit -- a regression in any axis would silently change behavior
-# for users migrating from the deprecated task id.
+# camera offset) so the loaded cfg matches the consolidated PresetCfg's variant.
 _DIRECT_CAMERA_SHAPE_PINS = [
     ("Isaac-Cartpole-RGB-Camera-Direct-v0", ["rgb"], 3, _IDENTITY_ROT),
     ("Isaac-Cartpole-Depth-Camera-Direct-v0", ["depth"], 1, _IDENTITY_ROT),
-    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", ["albedo"], 3, _ROTATED_ROT),
-    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", ["simple_shading_constant_diffuse"], 3, _ROTATED_ROT),
-    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", ["simple_shading_diffuse_mdl"], 3, _ROTATED_ROT),
-    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", ["simple_shading_full_mdl"], 3, _ROTATED_ROT),
+    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", ["albedo"], 3, _IDENTITY_ROT),
+    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", ["simple_shading_constant_diffuse"], 3, _IDENTITY_ROT),
+    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", ["simple_shading_diffuse_mdl"], 3, _IDENTITY_ROT),
+    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", ["simple_shading_full_mdl"], 3, _IDENTITY_ROT),
 ]
 
 

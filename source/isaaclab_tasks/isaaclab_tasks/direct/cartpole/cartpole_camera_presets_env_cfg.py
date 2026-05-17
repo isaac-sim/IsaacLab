@@ -47,22 +47,13 @@ class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
         height: int = 100
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
-    # Class-local helper (`_` prefix -> resolver skips it, not a variant). 180-degree
-    # offset matches the historical Albedo / SimpleShading per-variant camera
-    # orientations (the dropped *-Camera-Direct-v0 task IDs).
-    _ROTATED_OFFSET = CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world")
-
     default = CartpoleTiledCameraCfg(data_types=["rgb"])
     depth = CartpoleTiledCameraCfg(data_types=["depth"])
-    albedo = CartpoleTiledCameraCfg(data_types=["albedo"], offset=_ROTATED_OFFSET)
+    albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
     semantic_segmentation = CartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
-    simple_shading_constant_diffuse = CartpoleTiledCameraCfg(
-        data_types=["simple_shading_constant_diffuse"], offset=_ROTATED_OFFSET
-    )
-    simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(
-        data_types=["simple_shading_diffuse_mdl"], offset=_ROTATED_OFFSET
-    )
-    simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"], offset=_ROTATED_OFFSET)
+    simple_shading_constant_diffuse = CartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
     rgb = default
 
 
