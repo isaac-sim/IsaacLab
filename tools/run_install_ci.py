@@ -51,6 +51,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 _DIM = "\033[2m"
@@ -170,6 +171,62 @@ def _build_image(
     return result.returncode
 
 
+def _prepare_results_dir(results_dir: str) -> Path:
+    """Prepare a host directory for Docker-copied test results.
+
+    Args:
+        results_dir: Host directory where the JUnit XML file should be copied.
+
+    Returns:
+        Path to the expected host JUnit XML file.
+    """
+    results_abs = Path(results_dir).resolve()
+    results_abs.mkdir(parents=True, exist_ok=True)
+
+    # Keep the directory writable across repeated self-hosted runner jobs. The
+    # actual XML is copied out with ``docker cp`` after the container exits, so
+    # pytest never has to open a bind-mounted host file from inside Docker.
+    try:
+        results_abs.chmod(0o777)
+    except OSError as exc:
+        print(f"Warning: could not chmod results directory {results_abs}: {exc}", file=sys.stderr)
+
+    results_xml = results_abs / "results.xml"
+    if results_xml.exists() or results_xml.is_symlink():
+        try:
+            if results_xml.is_dir():
+                shutil.rmtree(results_xml)
+            else:
+                results_xml.unlink()
+        except OSError as exc:
+            print(f"Warning: could not remove stale results file {results_xml}: {exc}", file=sys.stderr)
+
+    return results_xml
+
+
+def _copy_junit_xml(container_name: str, container_results_xml: str, host_results_xml: Path) -> None:
+    """Copy JUnit XML from a completed Docker container to the host.
+
+    Args:
+        container_name: Name of the Docker container to copy from.
+        container_results_xml: Path to the JUnit XML file inside the container.
+        host_results_xml: Host path where the JUnit XML file should be stored.
+    """
+    copy_cmd = ["docker", "cp", f"{container_name}:{container_results_xml}", str(host_results_xml)]
+    copy_result = run_cmd(copy_cmd, check=False, stream=True)
+    if copy_result.returncode != 0:
+        print(
+            f"Warning: could not copy JUnit XML from {container_name}:{container_results_xml} to {host_results_xml}.",
+            file=sys.stderr,
+        )
+        return
+
+    try:
+        host_results_xml.chmod(0o666)
+    except OSError as exc:
+        print(f"Warning: could not chmod results file {host_results_xml}: {exc}", file=sys.stderr)
+
+
 def _cmd_docker(args: argparse.Namespace) -> int:
     """Build the Docker image and run tests inside the container based on *args*."""
 
@@ -198,13 +255,21 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     else:
         image_tag = uv_tag
 
+    host_results_xml: Path | None = None
+    container_name: str | None = None
+    container_results_xml = "/tmp/isaaclab-installci-results.xml"
+    if args.results_dir:
+        host_results_xml = _prepare_results_dir(args.results_dir)
+        if not args.shell:
+            container_name = f"isaaclab-installci-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+
     # Run
-    docker_run_cmd: list[str] = [
-        "docker",
-        "run",
-        "--rm",
-        "--network=host",
-    ]
+    docker_run_cmd: list[str] = ["docker", "run"]
+    if container_name:
+        docker_run_cmd.extend(["--name", container_name])
+    else:
+        docker_run_cmd.append("--rm")
+    docker_run_cmd.append("--network=host")
 
     if args.gpu:
         docker_run_cmd.extend(["--gpus", "all"])
@@ -221,17 +286,8 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
     docker_run_cmd.extend(["-e", "ACCEPT_EULA=Y"])
 
-    if args.results_dir:
-        results_abs = Path(args.results_dir).resolve()
-        results_abs.mkdir(parents=True, exist_ok=True)
-        # The container runs as non-root (uid 1000); make the bind-mount directory
-        # and any pre-existing files in it writable by all users so pytest can write
-        # results.xml without a PermissionError even when a stale file owned by root
-        # exists from a previous run.
-        results_abs.chmod(0o777)
-        for _child in results_abs.iterdir():
-            _child.chmod(0o666)
-        docker_run_cmd.extend(["-v", f"{results_abs}:/tmp/results"])
+    if args.results_dir and args.shell and host_results_xml is not None:
+        docker_run_cmd.extend(["-v", f"{host_results_xml.parent}:/tmp/results"])
 
     if args.wheel:
         wheel_abs = Path(args.wheel).resolve()
@@ -246,7 +302,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         # Test execution mode
         pytest_args = args.pytest_args or ["--tb=short"]
         if args.results_dir:
-            pytest_args = ["--junitxml=/tmp/results/results.xml"] + pytest_args
+            pytest_args = [f"--junitxml={container_results_xml}"] + pytest_args
         docker_run_cmd.extend([image_tag] + pytest_args)
 
     print(f"{_MAGENTA}[COMMAND] {' '.join(docker_run_cmd)}{_RESET}")
@@ -256,7 +312,14 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         ret = subprocess.call(docker_run_cmd, timeout=5400)
     except subprocess.TimeoutExpired:
         print("Docker run timed out after 90 minutes", file=sys.stderr)
+        if container_name:
+            run_cmd(["docker", "kill", container_name], check=False, stream=True)
         ret = 124
+    finally:
+        if container_name:
+            if host_results_xml is not None:
+                _copy_junit_xml(container_name, container_results_xml, host_results_xml)
+            run_cmd(["docker", "rm", "-f", container_name], check=False, stream=True)
     elapsed = time.monotonic() - t0
     print(f"{_MAGENTA}[{elapsed:.1f}s]{_RESET}")
     return ret
