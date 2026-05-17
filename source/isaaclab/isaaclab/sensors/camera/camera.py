@@ -22,9 +22,9 @@ from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
-    convert_camera_frame_orientation_convention_np,
-    create_rotation_matrix_from_view_np,
-    quat_from_matrix_np,
+    convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
+    quat_from_matrix,
 )
 from isaaclab.utils.warp import ProxyArray
 
@@ -158,11 +158,11 @@ class Camera(SensorBase):
             get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # Compute camera orientation (convention conversion) and spawn
-        rot = np.asarray([self.cfg.offset.rot], dtype=np.float32)
-        rot_offset = convert_camera_frame_orientation_convention_np(
+        rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
+        rot_offset = convert_camera_frame_orientation_convention(
             rot, origin=self.cfg.offset.convention, target="opengl"
         )
-        rot_offset = rot_offset.squeeze(0)
+        rot_offset = rot_offset.squeeze(0).cpu().numpy()
         if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
             self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
         self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
@@ -295,8 +295,8 @@ class Camera(SensorBase):
 
     def set_world_poses(
         self,
-        positions: np.ndarray | None = None,
-        orientations: np.ndarray | None = None,
+        positions: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
         env_ids: Sequence[int] | None = None,
         convention: Literal["opengl", "ros", "world"] = "ros",
     ):
@@ -325,24 +325,29 @@ class Camera(SensorBase):
         """
         pos_wp = None
         if positions is not None:
-            positions = np.asarray(positions, dtype=np.float32).reshape(-1, 3)
-            pos_wp = wp.array(positions, dtype=wp.float32, device=self._device)
+            if isinstance(positions, np.ndarray):
+                positions = torch.from_numpy(positions).to(device=self._device)
+            elif not isinstance(positions, torch.Tensor):
+                positions = torch.tensor(positions, device=self._device)
+            positions = positions.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+            pos_wp = wp.from_torch(positions.contiguous())
         ori_wp = None
         if orientations is not None:
-            orientations = np.asarray(orientations, dtype=np.float32).reshape(-1, 4)
-            orientations = convert_camera_frame_orientation_convention_np(
+            if isinstance(orientations, np.ndarray):
+                orientations = torch.from_numpy(orientations).to(device=self._device)
+            elif not isinstance(orientations, torch.Tensor):
+                orientations = torch.tensor(orientations, device=self._device)
+            orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
+            orientations = convert_camera_frame_orientation_convention(
                 orientations, origin=convention, target="opengl"
             )
-            ori_wp = wp.array(orientations, dtype=wp.float32, device=self._device)
-        if env_ids is None:
-            idx_wp = None
-        elif isinstance(env_ids, slice):
-            idx_wp = wp.array(np.arange(self._view.count, dtype=np.int32)[env_ids], dtype=wp.int32, device=self._device)
-        else:
-            idx_wp = wp.array(np.asarray(env_ids, dtype=np.int32).reshape(-1), dtype=wp.int32, device=self._device)
+            ori_wp = wp.from_torch(orientations.contiguous())
+        idx_wp = self._resolve_env_ids_wp(env_ids)
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
-    def set_world_poses_from_view(self, eyes: np.ndarray, targets: np.ndarray, env_ids: Sequence[int] | None = None):
+    def set_world_poses_from_view(
+        self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
+    ):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
@@ -357,20 +362,32 @@ class Camera(SensorBase):
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
         """
+        if isinstance(eyes, np.ndarray):
+            eyes = torch.from_numpy(eyes).to(device=self._device)
+        elif not isinstance(eyes, torch.Tensor):
+            eyes = torch.tensor(eyes, device=self._device)
+        eyes = eyes.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+        if isinstance(targets, np.ndarray):
+            targets = torch.from_numpy(targets).to(device=self._device)
+        elif not isinstance(targets, torch.Tensor):
+            targets = torch.tensor(targets, device=self._device)
+        targets = targets.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
         if env_ids is None:
-            env_ids_np = np.arange(self._view.count, dtype=np.int32)
+            env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)
         elif isinstance(env_ids, slice):
-            env_ids_np = np.arange(self._view.count, dtype=np.int32)[env_ids]
+            env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)[env_ids]
+        elif isinstance(env_ids, wp.array):
+            env_ids_torch = wp.to_torch(env_ids).to(device=self._device, dtype=torch.int32).reshape(-1)
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids_torch = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
         else:
-            env_ids_np = np.asarray(env_ids, dtype=np.int32).reshape(-1)
-        eyes = np.asarray(eyes, dtype=np.float32).reshape(-1, 3)
-        targets = np.asarray(targets, dtype=np.float32).reshape(-1, 3)
+            env_ids_torch = torch.tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view; degenerate rows (eye == target) come back as NaN
-        rotation_matrix = create_rotation_matrix_from_view_np(eyes, targets, up_axis)
-        valid_indices = np.flatnonzero(~np.isnan(rotation_matrix).any(axis=(-2, -1)))
-        n_valid = len(valid_indices)
+        rotation_matrix = create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device)
+        valid_indices = (~torch.isnan(rotation_matrix).any(dim=(-2, -1))).nonzero(as_tuple=True)[0]
+        n_valid = valid_indices.numel()
         n_total = rotation_matrix.shape[0]
         if n_valid == 0:
             raise ValueError("look-at is undefined: every eye position equals its target")
@@ -379,14 +396,14 @@ class Camera(SensorBase):
                 "set_world_poses_from_view: skipping %d pose(s) where eye equals target",
                 n_total - n_valid,
             )
-            rotation_matrix = rotation_matrix[valid_indices]
-            eyes = eyes[valid_indices]
-            env_ids_np = env_ids_np[valid_indices]
-        orientations = quat_from_matrix_np(rotation_matrix)
-        idx_wp = wp.array(env_ids_np, dtype=wp.int32, device=self._device)
+            rotation_matrix = rotation_matrix.index_select(0, valid_indices)
+            eyes = eyes.index_select(0, valid_indices)
+            env_ids_torch = env_ids_torch.index_select(0, valid_indices)
+        orientations = quat_from_matrix(rotation_matrix)
+        idx_wp = wp.from_torch(env_ids_torch.contiguous(), dtype=wp.int32)
         self._view.set_world_poses(
-            wp.array(eyes, dtype=wp.float32, device=self._device),
-            wp.array(orientations, dtype=wp.float32, device=self._device),
+            wp.from_torch(eyes.contiguous()),
+            wp.from_torch(orientations.contiguous()),
             idx_wp,
         )
 
