@@ -12,15 +12,27 @@ import gymnasium as gym
 from isaaclab_tasks.utils import deprecated_task_alias
 
 from . import agents
-from .cartpole_camera_env_cfg import (
-    CartpoleAlbedoCameraEnvCfg,
-    CartpoleDepthCameraEnvCfg,
-    CartpoleRGBCameraEnvCfg,
-    CartpoleSimpleShadingConstantCameraEnvCfg,
-    CartpoleSimpleShadingDiffuseCameraEnvCfg,
-    CartpoleSimpleShadingFullCameraEnvCfg,
-)
-from .cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+
+
+def _lazy_cfg(class_name: str, module: str = "cartpole_camera_env_cfg"):
+    """Return a zero-arg callable that lazily imports the named cfg class.
+
+    Deferring the cfg-class import to ``gym.make()`` time keeps the
+    eager-import surface of this ``__init__.py`` minimal. Importing the cfg
+    classes at module top pulls ``isaaclab.scene`` and friends into
+    ``sys.modules`` *before* an ``AppLauncher`` cycle clears and restores
+    them, which leaves ``isaaclab.scene`` in ``sys.modules`` but no longer
+    bound as an attribute of the ``isaaclab`` package -- breaking string
+    ``monkeypatch.setattr("isaaclab.scene...")`` calls in unrelated tests.
+    """
+
+    def factory():
+        from importlib import import_module
+
+        return getattr(import_module(f"{__name__}.{module}"), class_name)()
+
+    return factory
+
 
 ##
 # Register Gym environments.
@@ -68,7 +80,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=rgb"],
-            cfg_factory=lambda: CartpoleRGBCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleRGBCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -83,7 +95,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Albedo-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=albedo"],
-            cfg_factory=lambda: CartpoleAlbedoCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleAlbedoCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -98,7 +110,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=simple_shading_constant_diffuse"],
-            cfg_factory=lambda: CartpoleSimpleShadingConstantCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleSimpleShadingConstantCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -113,7 +125,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=simple_shading_diffuse_mdl"],
-            cfg_factory=lambda: CartpoleSimpleShadingDiffuseCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleSimpleShadingDiffuseCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -128,7 +140,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=simple_shading_full_mdl"],
-            cfg_factory=lambda: CartpoleSimpleShadingFullCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleSimpleShadingFullCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -143,7 +155,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Depth-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=depth"],
-            cfg_factory=lambda: CartpoleDepthCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleDepthCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -161,7 +173,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Camera-Presets-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0"],
-            cfg_factory=lambda: CartpoleCameraPresetsEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleCameraPresetsEnvCfg", module="cartpole_camera_presets_env_cfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",

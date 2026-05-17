@@ -12,12 +12,25 @@ import gymnasium as gym
 from isaaclab_tasks.utils import deprecated_task_alias
 
 from . import agents
-from .cartpole_camera_env_cfg import (
-    CartpoleDepthCameraEnvCfg,
-    CartpoleResNet18CameraEnvCfg,
-    CartpoleRGBCameraEnvCfg,
-    CartpoleTheiaTinyCameraEnvCfg,
-)
+
+
+def _lazy_cfg(class_name: str, module: str = "cartpole_camera_env_cfg"):
+    """Return a zero-arg callable that lazily imports the named cfg class.
+
+    Deferring the cfg-class import to ``gym.make()`` time avoids pulling
+    ``isaaclab.scene`` (and other heavy modules) into ``sys.modules`` *before*
+    an ``AppLauncher`` cycle clears and restores them, which would leave
+    ``isaaclab.scene`` in ``sys.modules`` but no longer bound as an attribute
+    of the ``isaaclab`` package -- breaking string
+    ``monkeypatch.setattr("isaaclab.scene...")`` calls in unrelated tests.
+    """
+
+    def factory():
+        from importlib import import_module
+
+        return getattr(import_module(f"{__name__}.{module}"), class_name)()
+
+    return factory
 
 ##
 # Register Gym environments.
@@ -71,7 +84,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-v0",
             new_command=["--task=Isaac-Cartpole-Camera-v0", "presets=rgb"],
-            cfg_factory=lambda: CartpoleRGBCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleRGBCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
@@ -85,7 +98,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Depth-v0",
             new_command=["--task=Isaac-Cartpole-Camera-v0", "presets=depth"],
-            cfg_factory=lambda: CartpoleDepthCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleDepthCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
@@ -103,7 +116,7 @@ gym.register(
                 "--agent=rl_games_feature_cfg_entry_point",
                 "presets=resnet18",
             ],
-            cfg_factory=lambda: CartpoleResNet18CameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleResNet18CameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
@@ -121,7 +134,7 @@ gym.register(
                 "--agent=rl_games_feature_cfg_entry_point",
                 "presets=theia_tiny",
             ],
-            cfg_factory=lambda: CartpoleTheiaTinyCameraEnvCfg(),
+            cfg_factory=_lazy_cfg("CartpoleTheiaTinyCameraEnvCfg"),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },

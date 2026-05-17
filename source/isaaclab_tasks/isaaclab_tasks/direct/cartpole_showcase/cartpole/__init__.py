@@ -12,23 +12,25 @@ import gymnasium as gym
 from isaaclab_tasks.utils import deprecated_task_alias
 
 from . import agents
-from .cartpole_env_cfg import (
-    BoxBoxEnvCfg,
-    BoxDiscreteEnvCfg,
-    BoxMultiDiscreteEnvCfg,
-    DictBoxEnvCfg,
-    DictDiscreteEnvCfg,
-    DictMultiDiscreteEnvCfg,
-    DiscreteBoxEnvCfg,
-    DiscreteDiscreteEnvCfg,
-    DiscreteMultiDiscreteEnvCfg,
-    MultiDiscreteBoxEnvCfg,
-    MultiDiscreteDiscreteEnvCfg,
-    MultiDiscreteMultiDiscreteEnvCfg,
-    TupleBoxEnvCfg,
-    TupleDiscreteEnvCfg,
-    TupleMultiDiscreteEnvCfg,
-)
+
+
+def _lazy_cfg(class_name: str, module: str = "cartpole_env_cfg"):
+    """Return a zero-arg callable that lazily imports the named cfg class.
+
+    Deferring the cfg-class import to ``gym.make()`` time avoids pulling
+    ``isaaclab.scene`` (and other heavy modules) into ``sys.modules`` *before*
+    an ``AppLauncher`` cycle clears and restores them, which would leave
+    ``isaaclab.scene`` in ``sys.modules`` but no longer bound as an attribute
+    of the ``isaaclab`` package -- breaking string
+    ``monkeypatch.setattr("isaaclab.scene...")`` calls in unrelated tests.
+    """
+
+    def factory():
+        from importlib import import_module
+
+        return getattr(import_module(f"{__name__}.{module}"), class_name)()
+
+    return factory
 
 ###########################
 # Register Gym environments
@@ -80,7 +82,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Box-Box-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Showcase-Direct-v0", "presets=box_box"],
-            cfg_factory=lambda: BoxBoxEnvCfg(),
+            cfg_factory=_lazy_cfg("BoxBoxEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
     },
@@ -98,7 +100,7 @@ gym.register(
                 "--agent=skrl_box_discrete_cfg_entry_point",
                 "presets=box_discrete",
             ],
-            cfg_factory=lambda: BoxDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("BoxDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_discrete_ppo_cfg.yaml",
     },
@@ -116,7 +118,7 @@ gym.register(
                 "--agent=skrl_box_multidiscrete_cfg_entry_point",
                 "presets=box_multidiscrete",
             ],
-            cfg_factory=lambda: BoxMultiDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("BoxMultiDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_multidiscrete_ppo_cfg.yaml",
     },
@@ -138,7 +140,7 @@ gym.register(
                 "--agent=skrl_discrete_box_cfg_entry_point",
                 "presets=discrete_box",
             ],
-            cfg_factory=lambda: DiscreteBoxEnvCfg(),
+            cfg_factory=_lazy_cfg("DiscreteBoxEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_discrete_box_ppo_cfg.yaml",
     },
@@ -156,7 +158,7 @@ gym.register(
                 "--agent=skrl_discrete_discrete_cfg_entry_point",
                 "presets=discrete_discrete",
             ],
-            cfg_factory=lambda: DiscreteDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("DiscreteDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_discrete_discrete_ppo_cfg.yaml",
     },
@@ -174,7 +176,7 @@ gym.register(
                 "--agent=skrl_discrete_multidiscrete_cfg_entry_point",
                 "presets=discrete_multidiscrete",
             ],
-            cfg_factory=lambda: DiscreteMultiDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("DiscreteMultiDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_discrete_multidiscrete_ppo_cfg.yaml",
     },
@@ -196,7 +198,7 @@ gym.register(
                 "--agent=skrl_multidiscrete_box_cfg_entry_point",
                 "presets=multidiscrete_box",
             ],
-            cfg_factory=lambda: MultiDiscreteBoxEnvCfg(),
+            cfg_factory=_lazy_cfg("MultiDiscreteBoxEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_multidiscrete_box_ppo_cfg.yaml",
     },
@@ -214,7 +216,7 @@ gym.register(
                 "--agent=skrl_multidiscrete_discrete_cfg_entry_point",
                 "presets=multidiscrete_discrete",
             ],
-            cfg_factory=lambda: MultiDiscreteDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("MultiDiscreteDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_multidiscrete_discrete_ppo_cfg.yaml",
     },
@@ -232,7 +234,7 @@ gym.register(
                 "--agent=skrl_multidiscrete_multidiscrete_cfg_entry_point",
                 "presets=multidiscrete_multidiscrete",
             ],
-            cfg_factory=lambda: MultiDiscreteMultiDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("MultiDiscreteMultiDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_multidiscrete_multidiscrete_ppo_cfg.yaml",
     },
@@ -254,7 +256,7 @@ gym.register(
                 "--agent=skrl_dict_box_cfg_entry_point",
                 "presets=dict_box",
             ],
-            cfg_factory=lambda: DictBoxEnvCfg(),
+            cfg_factory=_lazy_cfg("DictBoxEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_box_ppo_cfg.yaml",
     },
@@ -272,7 +274,7 @@ gym.register(
                 "--agent=skrl_dict_discrete_cfg_entry_point",
                 "presets=dict_discrete",
             ],
-            cfg_factory=lambda: DictDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("DictDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_discrete_ppo_cfg.yaml",
     },
@@ -290,7 +292,7 @@ gym.register(
                 "--agent=skrl_dict_multidiscrete_cfg_entry_point",
                 "presets=dict_multidiscrete",
             ],
-            cfg_factory=lambda: DictMultiDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("DictMultiDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_multidiscrete_ppo_cfg.yaml",
     },
@@ -312,7 +314,7 @@ gym.register(
                 "--agent=skrl_tuple_box_cfg_entry_point",
                 "presets=tuple_box",
             ],
-            cfg_factory=lambda: TupleBoxEnvCfg(),
+            cfg_factory=_lazy_cfg("TupleBoxEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
     },
@@ -330,7 +332,7 @@ gym.register(
                 "--agent=skrl_tuple_discrete_cfg_entry_point",
                 "presets=tuple_discrete",
             ],
-            cfg_factory=lambda: TupleDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("TupleDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
     },
@@ -348,7 +350,7 @@ gym.register(
                 "--agent=skrl_tuple_multidiscrete_cfg_entry_point",
                 "presets=tuple_multidiscrete",
             ],
-            cfg_factory=lambda: TupleMultiDiscreteEnvCfg(),
+            cfg_factory=_lazy_cfg("TupleMultiDiscreteEnvCfg"),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
     },
