@@ -61,18 +61,19 @@ INSTALL_REQUIRES = [
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
-SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
+SUPPORTED_OPENUSD_ARCHS = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
 SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
-    f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"pin ; platform_system == 'Linux' and ({SUPPORTED_OPENUSD_ARCHS})",
+    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_OPENUSD_ARCHS})",
+    f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_OPENUSD_ARCHS})",
 ]
-# Adds OpenUSD dependencies based on architecture for Kit less mode.
+# Adds OpenUSD and importer runtime dependencies for Kit less and extension-backed importer paths.
 INSTALL_REQUIRES += [
-    f"usd-core==25.8.0 ; ({SUPPORTED_ARCHS})",
-    f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+    f"usd-exchange>=2.2.2 ; ({SUPPORTED_OPENUSD_ARCHS})",
+    f"mujoco-usd-converter>=0.2.0 ; ({SUPPORTED_OPENUSD_ARCHS})",
+    f"urdf-usd-converter>=0.1.2 ; ({SUPPORTED_OPENUSD_ARCHS})",
 ]
 
 # Pin hf-xet to avoid broken tarball (hf_xet-1.1.8.dev2) cached on NVIDIA Artifactory.
@@ -82,7 +83,7 @@ INSTALL_REQUIRES += [
 # Issue: https://nvbugs/5974917 includes verification steps.
 INSTALL_REQUIRES += [
     # 1.4.1 is latest as of Mar 12 2026
-    f"hf-xet>=1.4.1,<2.0.0 ; ({SUPPORTED_ARCHS_ARM})",
+    f"hf-xet>=1.4.1,<2.0.0 ; ({SUPPORTED_OPENUSD_ARCHS})",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]

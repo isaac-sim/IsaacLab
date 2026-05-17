@@ -156,7 +156,8 @@ The following shows the steps to clone the repository and run the converter:
           --merge-joints \
           --joint-stiffness 0.0 \
           --joint-damping 0.0 \
-          --joint-target-type none
+          --joint-target-type none \
+          --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -175,7 +176,8 @@ The following shows the steps to clone the repository and run the converter:
           --merge-joints ^
           --joint-stiffness 0.0 ^
           --joint-damping 0.0 ^
-          --joint-target-type none
+          --joint-target-type none ^
+          --viz kit
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -192,10 +194,14 @@ is derived automatically from the robot name in the URDF):
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
-To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
-exit the script after the conversion is complete.
+The example command passes ``--viz kit`` so the converter opens Omniverse Kit after conversion
+and keeps the app running with the generated USD stage loaded. Press **Play** in the toolbar to
+simulate the asset; it should fall under gravity. If the asset becomes unstable, check whether
+self-collisions are enabled or whether the collision geometry overlaps in the URDF.
 
-You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
+To run conversion only in headless mode, omit ``--viz kit`` from the command. If you have
+visualizers enabled elsewhere and want to force conversion without a viewer, pass ``--viz none``.
+The older ``--headless`` flag is deprecated.
 
 
 .. figure:: ../_static/tutorials/tutorial_convert_urdf.jpg
@@ -305,7 +311,8 @@ The following shows the steps to clone the repository and run the converter:
         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
           ../mujoco_menagerie/unitree_h1/h1.xml \
           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-          --merge-mesh
+          --merge-mesh \
+          --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -321,7 +328,8 @@ The following shows the steps to clone the repository and run the converter:
         isaaclab.bat -p scripts\tools\convert_mjcf.py ^
           ..\mujoco_menagerie\unitree_h1\h1.xml ^
           source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
-          --merge-mesh
+          --merge-mesh ^
+          --viz kit
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -336,6 +344,15 @@ Executing the above script will create the USD file inside the
    :attr:`~sim.converters.MjcfConverter.usd_path` reflects whichever folder the importer
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
+
+The example command passes ``--viz kit`` so the converter opens Omniverse Kit after conversion
+and keeps the app running with the generated USD stage loaded. Press **Play** in the toolbar to
+simulate the asset; it should fall under gravity. If the asset becomes unstable, check whether
+self-collisions are enabled or whether the collision geometry overlaps in the MJCF.
+
+To run conversion only in headless mode, omit ``--viz kit`` from the command. If you have
+visualizers enabled elsewhere and want to force conversion without a viewer, pass ``--viz none``.
+The older ``--headless`` flag is deprecated.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center

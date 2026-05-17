@@ -7,20 +7,33 @@ from __future__ import annotations
 
 import os
 import pathlib
+import warnings
 
-import carb
-import omni.kit.app
+try:
+    import carb
+except ImportError:
+    carb = None
 
+from ._importer_api import load_importer_api
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
+
+
+def _log_warn(message: str) -> None:
+    """Log a warning through Carbonite when available, otherwise use Python warnings."""
+    if carb is not None:
+        carb.log_warn(message)
+    else:
+        warnings.warn(message, stacklevel=2)
 
 
 class UrdfConverter(AssetConverterBase):
     """Converter for a URDF description file to a USD file.
 
-    This class wraps around the `isaacsim.asset.importer.urdf`_ extension to provide a lazy
-    implementation for URDF to USD conversion. It stores the output USD file in an instanceable
-    format since that is what is typically used in all learning related applications.
+    This class wraps around the `isaacsim.asset.importer.urdf`_ API to provide a lazy
+    implementation for URDF to USD conversion. If the standalone ``isaacsim-asset-isolated``
+    package is installed, it is used directly; otherwise, IsaacLab falls back to enabling the
+    Isaac Sim URDF importer extension.
 
     The heavy lifting (URDF parsing, fixed-joint merging, fix-base insertion, joint-drive
     configuration, density override, asset transformer profile) is delegated to Isaac Sim's
@@ -56,11 +69,6 @@ class UrdfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for URDF to USD conversion.
         """
-        # enable the URDF importer extension
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-
         # set `usd_file_name` to match the importer's output path structure:
         # the importer generates `{usd_path}/{robot_name}/{robot_name}.usda`
         robot_name = pathlib.PurePath(cfg.asset_path).stem
@@ -80,7 +88,7 @@ class UrdfConverter(AssetConverterBase):
         Args:
             cfg: The URDF conversion configuration.
         """
-        from isaacsim.asset.importer.urdf import URDFImporter, URDFImporterConfig
+        URDFImporter, URDFImporterConfig = load_importer_api("urdf")
 
         # log warnings for features no longer supported by the URDF importer 3.0
         self._warn_unsupported_features(cfg)
@@ -122,22 +130,20 @@ class UrdfConverter(AssetConverterBase):
             cfg: The URDF conversion configuration.
         """
         if cfg.convert_mimic_joints_to_normal_joints:
-            carb.log_warn(
+            _log_warn(
                 "UrdfConverter: 'convert_mimic_joints_to_normal_joints' is no longer supported"
                 " by the URDF importer 3.0."
             )
         if cfg.replace_cylinders_with_capsules:
-            carb.log_warn(
+            _log_warn(
                 "UrdfConverter: 'replace_cylinders_with_capsules' is no longer supported by the URDF importer 3.0."
             )
         if cfg.root_link_name:
-            carb.log_warn("UrdfConverter: 'root_link_name' is no longer supported by the URDF importer 3.0.")
+            _log_warn("UrdfConverter: 'root_link_name' is no longer supported by the URDF importer 3.0.")
         if cfg.joint_drive and isinstance(
             cfg.joint_drive.gains,
             UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg,
         ):
-            import warnings
-
             warnings.warn(
                 "UrdfConverter: 'NaturalFrequencyGainsCfg' is deprecated and no longer supported by the"
                 " URDF importer 3.0. The `compute_natural_stiffness` function has been removed."

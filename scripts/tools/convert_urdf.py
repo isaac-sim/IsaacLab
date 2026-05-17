@@ -29,62 +29,59 @@ optional arguments:
 
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
-
-from isaaclab.app import AppLauncher
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
-parser.add_argument("input", type=str, help="The path to the input URDF file.")
-parser.add_argument("output", type=str, help="The path to store the USD file.")
-parser.add_argument(
-    "--merge-joints",
-    action="store_true",
-    default=False,
-    help="Consolidate links that are connected by fixed joints.",
-)
-parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
-parser.add_argument(
-    "--joint-stiffness",
-    type=float,
-    default=100.0,
-    help="The stiffness of the joint drive.",
-)
-parser.add_argument(
-    "--joint-damping",
-    type=float,
-    default=1.0,
-    help="The damping of the joint drive.",
-)
-parser.add_argument(
-    "--joint-target-type",
-    type=str,
-    default="position",
-    choices=["position", "velocity", "none"],
-    help="The type of control to use for the joint drive.",
-)
-
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
 import contextlib
 import os
 
-import carb
+from converter_cli_utils import ensure_standalone_importer_runtime, parse_converter_cli_args
 
-from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.dict import print_dict
+
+def _add_converter_args(parser: argparse.ArgumentParser) -> None:
+    """Add URDF converter arguments to an argument parser."""
+    parser.add_argument("input", type=str, help="The path to the input URDF file.")
+    parser.add_argument("output", type=str, help="The path to store the USD file.")
+    parser.add_argument(
+        "--merge-joints",
+        action="store_true",
+        default=False,
+        help="Consolidate links that are connected by fixed joints.",
+    )
+    parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
+    parser.add_argument(
+        "--joint-stiffness",
+        type=float,
+        default=100.0,
+        help="The stiffness of the joint drive.",
+    )
+    parser.add_argument(
+        "--joint-damping",
+        type=float,
+        default=1.0,
+        help="The damping of the joint drive.",
+    )
+    parser.add_argument(
+        "--joint-target-type",
+        type=str,
+        default="position",
+        choices=["position", "velocity", "none"],
+        help="The type of control to use for the joint drive.",
+    )
+
+
+def _create_parser() -> argparse.ArgumentParser:
+    """Create the URDF converter argument parser."""
+    parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
+    _add_converter_args(parser)
+    return parser
+
+
+args_cli, simulation_app = parse_converter_cli_args(_create_parser())
+if simulation_app is None:
+    ensure_standalone_importer_runtime("urdf")
+
+from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
+from isaaclab.utils.assets import check_file_path  # noqa: E402
+from isaaclab.utils.dict import print_dict  # noqa: E402
 
 
 def main():
@@ -134,31 +131,29 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Determine if there is a GUI to update:
-    # acquire settings interface
-    carb_settings_iface = carb.settings.get_settings()
-    # read flag for whether a local GUI is enabled
-    local_gui = carb_settings_iface.get("/app/window/enabled")
-    # read flag for whether livestreaming GUI is enabled
-    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+    # Open the generated stage when a GUI or livestream is active.
+    if simulation_app is not None:
+        import carb
 
-    # Simulate scene (if not headless)
-    if local_gui or livestream_gui:
         # Open the stage with USD and attach it to the Kit viewport context
+        import omni.kit.app
         import omni.usd
 
-        omni.usd.get_context().open_stage(urdf_converter.usd_path)
-        # Reinitialize the simulation
-        app = omni.kit.app.get_app_interface()
-        # Run simulation
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                # perform step
-                app.update()
+        carb_settings_iface = carb.settings.get_settings()
+        local_gui = carb_settings_iface.get("/app/window/enabled")
+        livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+
+        if local_gui or livestream_gui:
+            omni.usd.get_context().open_stage(urdf_converter.usd_path)
+            app = omni.kit.app.get_app_interface()
+            with contextlib.suppress(KeyboardInterrupt):
+                while app.is_running():
+                    app.update()
 
 
 if __name__ == "__main__":
     # run the main function
     main()
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()
