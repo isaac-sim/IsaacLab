@@ -62,7 +62,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Box-Box-Direct-v0",
-            new_command="--task=Isaac-Cartpole-Showcase-Direct-v0 presets=box_box",
+            new_command=["--task=Isaac-Cartpole-Showcase-Direct-v0", "presets=box_box"],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
@@ -76,7 +76,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0",
-            new_command="--task=Isaac-Cartpole-Showcase-Direct-v0 presets=box_discrete --agent=skrl_box_discrete_cfg_entry_point",
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_box_discrete_cfg_entry_point",
+                "presets=box_discrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_discrete_ppo_cfg.yaml",
@@ -90,10 +94,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=box_multidiscrete"
-                " --agent=skrl_box_multidiscrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_box_multidiscrete_cfg_entry_point",
+                "presets=box_multidiscrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_multidiscrete_ppo_cfg.yaml",
@@ -111,7 +116,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0",
-            new_command="--task=Isaac-Cartpole-Showcase-Direct-v0 presets=discrete_box --agent=skrl_discrete_box_cfg_entry_point",
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_discrete_box_cfg_entry_point",
+                "presets=discrete_box",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_discrete_box_ppo_cfg.yaml",
@@ -125,10 +134,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=discrete_discrete"
-                " --agent=skrl_discrete_discrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_discrete_discrete_cfg_entry_point",
+                "presets=discrete_discrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_discrete_discrete_ppo_cfg.yaml",
@@ -142,10 +152,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=discrete_multidiscrete"
-                " --agent=skrl_discrete_multidiscrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_discrete_multidiscrete_cfg_entry_point",
+                "presets=discrete_multidiscrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_discrete_multidiscrete_ppo_cfg.yaml",
@@ -163,10 +174,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=multidiscrete_box"
-                " --agent=skrl_multidiscrete_box_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_multidiscrete_box_cfg_entry_point",
+                "presets=multidiscrete_box",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_multidiscrete_box_ppo_cfg.yaml",
@@ -180,10 +192,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=multidiscrete_discrete"
-                " --agent=skrl_multidiscrete_discrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_multidiscrete_discrete_cfg_entry_point",
+                "presets=multidiscrete_discrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_multidiscrete_discrete_ppo_cfg.yaml",
@@ -197,10 +210,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=multidiscrete_multidiscrete"
-                " --agent=skrl_multidiscrete_multidiscrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_multidiscrete_multidiscrete_cfg_entry_point",
+                "presets=multidiscrete_multidiscrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_multidiscrete_multidiscrete_ppo_cfg.yaml",
@@ -218,7 +232,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Dict-Box-Direct-v0",
-            new_command="--task=Isaac-Cartpole-Showcase-Direct-v0 presets=dict_box --agent=skrl_dict_box_cfg_entry_point",
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_dict_box_cfg_entry_point",
+                "presets=dict_box",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_box_ppo_cfg.yaml",
@@ -232,10 +250,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=dict_discrete"
-                " --agent=skrl_dict_discrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_dict_discrete_cfg_entry_point",
+                "presets=dict_discrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_discrete_ppo_cfg.yaml",
@@ -249,10 +268,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=dict_multidiscrete"
-                " --agent=skrl_dict_multidiscrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_dict_multidiscrete_cfg_entry_point",
+                "presets=dict_multidiscrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_multidiscrete_ppo_cfg.yaml",
@@ -270,7 +290,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0",
-            new_command="--task=Isaac-Cartpole-Showcase-Direct-v0 presets=tuple_box --agent=skrl_tuple_box_cfg_entry_point",
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_tuple_box_cfg_entry_point",
+                "presets=tuple_box",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
@@ -284,10 +308,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=tuple_discrete"
-                " --agent=skrl_tuple_discrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_tuple_discrete_cfg_entry_point",
+                "presets=tuple_discrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
@@ -301,10 +326,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0",
-            new_command=(
-                "--task=Isaac-Cartpole-Showcase-Direct-v0 presets=tuple_multidiscrete"
-                " --agent=skrl_tuple_multidiscrete_cfg_entry_point"
-            ),
+            new_command=[
+                "--task=Isaac-Cartpole-Showcase-Direct-v0",
+                "--agent=skrl_tuple_multidiscrete_cfg_entry_point",
+                "presets=tuple_multidiscrete",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_env_cfg:CartpoleShowcasePresetsEnvCfg",
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",

@@ -56,11 +56,11 @@ _MANAGER_DEPRECATIONS = [
     ("Isaac-Cartpole-Depth-v0", "--task=Isaac-Cartpole-Camera-v0 presets=depth"),
     (
         "Isaac-Cartpole-RGB-ResNet18-v0",
-        "--task=Isaac-Cartpole-Camera-v0 presets=resnet18 --agent=rl_games_feature_cfg_entry_point",
+        "--task=Isaac-Cartpole-Camera-v0 --agent=rl_games_feature_cfg_entry_point presets=resnet18",
     ),
     (
         "Isaac-Cartpole-RGB-TheiaTiny-v0",
-        "--task=Isaac-Cartpole-Camera-v0 presets=theia_tiny --agent=rl_games_feature_cfg_entry_point",
+        "--task=Isaac-Cartpole-Camera-v0 --agent=rl_games_feature_cfg_entry_point presets=theia_tiny",
     ),
 ]
 
@@ -70,12 +70,14 @@ def _showcase_migration(new_id: str, preset: str) -> str:
 
     box_box matches the consolidated task's default skrl yaml so no --agent
     is needed; every other variant needs an explicit
-    --agent=skrl_<obs>_<action>_cfg_entry_point.
+    --agent=skrl_<obs>_<action>_cfg_entry_point. Convention: --task first,
+    --agent next when present, presets= selector last.
     """
-    cmd = f"--task={new_id} presets={preset}"
+    tokens = [f"--task={new_id}"]
     if preset != "box_box":
-        cmd += f" --agent=skrl_{preset}_cfg_entry_point"
-    return cmd
+        tokens.append(f"--agent=skrl_{preset}_cfg_entry_point")
+    tokens.append(f"presets={preset}")
+    return " ".join(tokens)
 
 
 # Proprioceptive cartpole showcase: 15 (observation, action) shape combinations

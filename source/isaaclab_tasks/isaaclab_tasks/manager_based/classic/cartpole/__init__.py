@@ -58,7 +58,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-v0",
-            new_command="--task=Isaac-Cartpole-Camera-v0 presets=rgb",
+            new_command=["--task=Isaac-Cartpole-Camera-v0", "presets=rgb"],
             consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
@@ -72,7 +72,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Depth-v0",
-            new_command="--task=Isaac-Cartpole-Camera-v0 presets=depth",
+            new_command=["--task=Isaac-Cartpole-Camera-v0", "presets=depth"],
             consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
@@ -86,7 +86,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-ResNet18-v0",
-            new_command="--task=Isaac-Cartpole-Camera-v0 presets=resnet18 --agent=rl_games_feature_cfg_entry_point",
+            new_command=[
+                "--task=Isaac-Cartpole-Camera-v0",
+                "--agent=rl_games_feature_cfg_entry_point",
+                "presets=resnet18",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
@@ -100,7 +104,11 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-TheiaTiny-v0",
-            new_command="--task=Isaac-Cartpole-Camera-v0 presets=theia_tiny --agent=rl_games_feature_cfg_entry_point",
+            new_command=[
+                "--task=Isaac-Cartpole-Camera-v0",
+                "--agent=rl_games_feature_cfg_entry_point",
+                "presets=theia_tiny",
+            ],
             consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",

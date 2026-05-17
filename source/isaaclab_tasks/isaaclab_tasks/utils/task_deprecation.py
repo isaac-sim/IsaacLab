@@ -13,8 +13,9 @@ registered for one release with an ``env_cfg_entry_point`` that emits a
 
 :func:`deprecated_task_alias` factors out the per-deprecation warning + cfg
 resolution boilerplate. Call sites read as data: ``(old_id, new_command,
-cfg_path)``, where *new_command* is the literal command a user should run
-after migration -- the same text that appears in the deprecation warning.
+cfg_path)``, where *new_command* is the list of CLI tokens a user should
+type after migration -- joined with spaces, the same text appears verbatim
+inside the deprecation warning.
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ def _user_stacklevel() -> int:
 
 def deprecated_task_alias(
     old_task_id: str,
-    new_command: str,
+    new_command: list[str],
     consolidated_cfg_path: str,
     cfg_factory: Callable[[], Any] | None = None,
 ) -> Callable[[], Any]:
@@ -57,13 +58,15 @@ def deprecated_task_alias(
     ``env_cfg_entry_point``. On invocation it emits a warning of the form::
 
         Task '<old_task_id>' is deprecated and will be removed in a future
-        release. Use '<new_command>'.
+        release. Use '<new_command joined with spaces>'.
 
-    *new_command* is the literal command a user should run after migration --
-    e.g. ``"--task=Isaac-Cartpole-Camera-v0 presets=rgb"`` -- and surfaces
-    character-for-character in the warning. Whatever extra CLI tokens the new
-    task needs (``presets=...``, ``--agent=...``, Hydra overrides, ...) go
-    straight into this string.
+    *new_command* is the list of CLI tokens a user should type after
+    migration -- e.g. ``["--task=Isaac-Cartpole-Camera-v0", "presets=rgb"]``
+    -- joined with single spaces and rendered verbatim inside the warning's
+    quoted command. One element per CLI token (``--flag=value``,
+    ``key=value``, Hydra override, ...). Convention at call sites:
+    ``--task=`` first, ``--agent=`` next when present, and the
+    ``presets=NAME`` selector at the end.
 
     Default cfg resolution: imports *consolidated_cfg_path* via
     :mod:`importlib`, instantiates the class, and returns
@@ -76,9 +79,9 @@ def deprecated_task_alias(
 
     Args:
         old_task_id: The deprecated gym task ID, quoted in the warning body.
-        new_command: The replacement command, rendered verbatim inside
-            single quotes in the warning. Typically
-            ``"--task=NEW [presets=NAME] [--agent=NAME]"``.
+        new_command: The replacement command split into CLI tokens, joined
+            with single spaces in the warning. Typically
+            ``["--task=NEW", "--agent=NAME"?, "presets=NAME"?]``.
         consolidated_cfg_path: ``"module.path:ClassName"`` string for the
             consolidated :class:`PresetCfg` subclass. Same format gym
             accepts for ``env_cfg_entry_point``. Resolved lazily.
@@ -94,7 +97,8 @@ def deprecated_task_alias(
 
     def factory():
         warnings.warn(
-            f"Task '{old_task_id}' is deprecated and will be removed in a future release. Use '{new_command}'.",
+            f"Task '{old_task_id}' is deprecated and will be removed in a future release. Use"
+            f" '{' '.join(new_command)}'.",
             DeprecationWarning,
             stacklevel=_user_stacklevel(),
         )
@@ -103,7 +107,7 @@ def deprecated_task_alias(
         # Default resolution: pick the variant named by ``presets=<name>`` in
         # the new_command, or return the bare consolidated cfg when absent.
         preset = next(
-            (tok.split("=", 1)[1].split(",")[0] for tok in new_command.split() if tok.startswith("presets=")),
+            (tok.split("=", 1)[1].split(",")[0] for tok in new_command if tok.startswith("presets=")),
             None,
         )
         mod_name, cls_name = consolidated_cfg_path.split(":")
