@@ -52,13 +52,14 @@ def test_builds_single_node_rsl_rl_torchrun_command():
 
     assert command[:5] == [sys.executable, "-m", "torch.distributed.run", "--nproc_per_node", "4"]
     assert command[5:7] == ["--master_port", "29504"]
-    assert command[train_script_index + 1 : train_script_index + 4] == ["--rl_library", "rsl_rl", "--distributed"]
-    assert command[-5:] == [
+    assert command[train_script_index + 1 : train_script_index + 3] == ["--rl_library", "rsl_rl"]
+    assert command[-6:] == [
         "--headless",
         "--num_envs=4096",
         "--max_iterations=100",
         "--run_name=gpu4_vis",
         "presets=newton",
+        "--distributed",
     ]
 
 
@@ -108,15 +109,44 @@ def test_builds_multi_node_skrl_torchrun_command():
 
 def test_dry_run_prints_command_without_launching(capsys):
     """Dry-run mode should not start torchrun."""
-    with mock.patch.object(subprocess, "run") as mock_run:
+    with mock.patch.object(subprocess, "Popen") as mock_popen:
         result = TRAIN_MULTIGPU.main(["--dry_run", "--num_gpus", "2", "--task", "Isaac-Cartpole-v0"])
 
     assert result == 0
-    mock_run.assert_not_called()
+    mock_popen.assert_not_called()
     output = capsys.readouterr().out
     assert "torch.distributed.run" in output
     assert "--nproc_per_node 2" in output
-    assert "--distributed --task Isaac-Cartpole-v0" in output
+    assert "--task Isaac-Cartpole-v0 --distributed" in output
+
+
+def test_main_forwards_signals_to_subprocess():
+    """Main should forward termination signals to the torchrun subprocess."""
+    proc = mock.Mock()
+    proc.wait.return_value = 7
+
+    with (
+        mock.patch.object(subprocess, "Popen", return_value=proc) as mock_popen,
+        mock.patch.object(
+            TRAIN_MULTIGPU.signal, "signal", side_effect=["old_sigterm", "old_sigint", None, None]
+        ) as mock_signal,
+    ):
+        result = TRAIN_MULTIGPU.main(["--num_gpus", "2", "--task", "Isaac-Cartpole-v0"])
+
+    assert result == 7
+    mock_popen.assert_called_once()
+    proc.wait.assert_called_once_with()
+
+    sigterm_handler = mock_signal.call_args_list[0].args[1]
+    sigint_handler = mock_signal.call_args_list[1].args[1]
+    sigterm_handler(TRAIN_MULTIGPU.signal.SIGTERM, None)
+    sigint_handler(TRAIN_MULTIGPU.signal.SIGINT, None)
+    assert proc.terminate.call_count == 2
+
+    assert mock_signal.call_args_list[0].args[0] == TRAIN_MULTIGPU.signal.SIGTERM
+    assert mock_signal.call_args_list[1].args[0] == TRAIN_MULTIGPU.signal.SIGINT
+    assert mock_signal.call_args_list[2] == mock.call(TRAIN_MULTIGPU.signal.SIGTERM, "old_sigterm")
+    assert mock_signal.call_args_list[3] == mock.call(TRAIN_MULTIGPU.signal.SIGINT, "old_sigint")
 
 
 def test_cli_helper_runs_multigpu_script():

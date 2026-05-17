@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import shlex
 import subprocess
 import sys
 from pathlib import Path
+from types import FrameType
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 TRAIN_SCRIPT = SCRIPT_DIR / "train.py"
@@ -88,7 +90,23 @@ def _with_distributed_arg(train_args: list[str]) -> list[str]:
     """Ensure the selected training library receives the distributed flag."""
     if "--distributed" in train_args:
         return train_args
-    return ["--distributed", *train_args]
+    return [*train_args, "--distributed"]
+
+
+def _run_torchrun_command(command: list[str]) -> int:
+    """Run torchrun and forward termination signals to the child process."""
+    proc = subprocess.Popen(command)
+
+    def _terminate_child(_signum: int, _frame: FrameType | None) -> None:
+        proc.terminate()
+
+    previous_sigterm = signal.signal(signal.SIGTERM, _terminate_child)
+    previous_sigint = signal.signal(signal.SIGINT, _terminate_child)
+    try:
+        return proc.wait()
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
+        signal.signal(signal.SIGINT, previous_sigint)
 
 
 def _build_torchrun_command(args_cli: argparse.Namespace, train_args: list[str]) -> list[str]:
@@ -143,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(f"[INFO] Launching distributed training with: {shlex.join(command)}")
-    return subprocess.run(command, check=False).returncode
+    return _run_torchrun_command(command)
 
 
 if __name__ == "__main__":
