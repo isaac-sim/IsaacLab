@@ -220,7 +220,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 30
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -264,7 +264,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -286,7 +286,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 30
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -334,7 +334,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -356,7 +356,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -378,7 +378,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -399,7 +399,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -420,7 +420,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -441,7 +441,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -462,7 +462,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -482,7 +482,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -501,7 +501,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -520,7 +520,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -539,7 +539,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -558,7 +558,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -589,6 +589,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
+        include-files: "test_newton_schemas.py"
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -596,7 +597,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -615,7 +616,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -635,7 +636,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -657,7 +658,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -679,7 +680,7 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -700,7 +701,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -721,7 +722,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled while debugging test_newton_schemas.py
     steps:
     - uses: actions/checkout@v6
       with:
