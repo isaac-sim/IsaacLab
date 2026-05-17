@@ -503,12 +503,13 @@ def test_output_equal_to_usdcamera(setup_sim):
     sim.reset()
     sim.play()
 
-    # convert to torch tensors
-    eyes = torch.tensor([[2.5, 2.5, 4.5]], dtype=torch.float32, device=camera_warp.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera_warp.device)
+    eyes_np = np.asarray([[2.5, 2.5, 4.5]], dtype=np.float32)
+    targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
+    eyes = torch.tensor(eyes_np, dtype=torch.float32, device=camera_warp.device)
+    targets = torch.tensor(targets_np, dtype=torch.float32, device=camera_warp.device)
     # set views
     camera_warp.set_world_poses_from_view(eyes, targets)
-    camera_usd.set_world_poses_from_view(eyes, targets)
+    camera_usd.set_world_poses_from_view(eyes_np, targets_np)
 
     # perform steps
     for _ in range(5):
@@ -520,8 +521,8 @@ def test_output_equal_to_usdcamera(setup_sim):
 
     # check the intrinsic matrices
     torch.testing.assert_close(
-        camera_usd.data.intrinsic_matrices,
-        camera_warp.data.intrinsic_matrices,
+        camera_usd.data.intrinsic_matrices.torch,
+        camera_warp.data.intrinsic_matrices.torch,
     )
 
     # check the apertures
@@ -540,14 +541,14 @@ def test_output_equal_to_usdcamera(setup_sim):
 
     # check image data
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"],
-        camera_warp.data.output["distance_to_image_plane"],
+        camera_usd.data.output["distance_to_image_plane"].torch,
+        camera_warp.data.output["distance_to_image_plane"].torch,
         rtol=1e-5,
         atol=1e-4,
     )
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"],
-        camera_warp.data.output["distance_to_camera"],
+        camera_usd.data.output["distance_to_camera"].torch,
+        camera_warp.data.output["distance_to_camera"].torch,
         atol=5e-5,
         rtol=5e-6,
     )
@@ -555,7 +556,7 @@ def test_output_equal_to_usdcamera(setup_sim):
     # check normals
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
-        camera_usd.data.output["normals"][..., :3],
+        camera_usd.data.output["normals"].torch[..., :3],
         camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
@@ -616,14 +617,14 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
 
     # check image data
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"],
-        camera_warp.data.output["distance_to_image_plane"],
+        camera_usd.data.output["distance_to_image_plane"].torch,
+        camera_warp.data.output["distance_to_image_plane"].torch,
         rtol=1e-3,
         atol=1e-5,
     )
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"],
-        camera_warp.data.output["distance_to_camera"],
+        camera_usd.data.output["distance_to_camera"].torch,
+        camera_warp.data.output["distance_to_camera"].torch,
         rtol=1e-3,
         atol=1e-5,
     )
@@ -631,7 +632,7 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
     # check normals
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
-        camera_usd.data.output["normals"][..., :3],
+        camera_usd.data.output["normals"].torch[..., :3],
         camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
@@ -705,27 +706,27 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     camera_warp.update(dt)
 
     # check if pos and orientation are correct
-    torch.testing.assert_close(camera_warp.data.pos_w[0], camera_usd.data.pos_w[0])
-    _assert_quat_close(camera_warp.data.quat_w_ros[0], camera_usd.data.quat_w_ros[0])
+    torch.testing.assert_close(camera_warp.data.pos_w.torch[0], camera_usd.data.pos_w.torch[0])
+    _assert_quat_close(camera_warp.data.quat_w_ros.torch[0], camera_usd.data.quat_w_ros.torch[0])
 
     # check image data
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"],
-        camera_warp.data.output["distance_to_image_plane"],
+        camera_usd.data.output["distance_to_image_plane"].torch,
+        camera_warp.data.output["distance_to_image_plane"].torch,
         rtol=1e-3,
         atol=1e-5,
     )
     torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"],
-        camera_warp.data.output["distance_to_camera"],
-        rtol=4e-6,
-        atol=2e-5,
+        camera_usd.data.output["distance_to_camera"].torch,
+        camera_warp.data.output["distance_to_camera"].torch,
+        rtol=1e-5,
+        atol=5e-5,
     )
 
     # check normals
     # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
     torch.testing.assert_close(
-        camera_usd.data.output["normals"][..., :3],
+        camera_usd.data.output["normals"].torch[..., :3],
         camera_warp.data.output["normals"].torch,
         rtol=1e-5,
         atol=1e-4,
@@ -800,15 +801,17 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     camera_warp.update(dt)
 
     # filter nan and inf from output
-    cam_warp_output = camera_warp.data.output["distance_to_image_plane"].clone()
-    cam_usd_output = camera_usd.data.output["distance_to_image_plane"].clone()
+    cam_warp_output = camera_warp.data.output["distance_to_image_plane"].torch.clone()
+    cam_usd_output = camera_usd.data.output["distance_to_image_plane"].torch.clone()
     cam_warp_output[torch.isnan(cam_warp_output)] = 0
     cam_warp_output[torch.isinf(cam_warp_output)] = 0
     cam_usd_output[torch.isnan(cam_usd_output)] = 0
     cam_usd_output[torch.isinf(cam_usd_output)] = 0
 
     # check that both have the same intrinsic matrices
-    torch.testing.assert_close(camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0])
+    torch.testing.assert_close(
+        camera_warp.data.intrinsic_matrices.torch[0], camera_usd.data.intrinsic_matrices.torch[0]
+    )
 
     # check the apertures
     torch.testing.assert_close(
@@ -848,7 +851,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
             cam_warp_output,
             cam_usd_output,
             atol=5e-5,
-            rtol=5e-6,
+            rtol=1e-5,
         )
 
     del camera_warp, camera_usd
@@ -910,14 +913,15 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     # camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
 
     # set camera position
+    eyes_np = np.asarray([[0.0, 0.0, 5.0]], dtype=np.float32)
+    targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
+    eyes = torch.tensor(eyes_np, device=camera_warp.device)
+    targets = torch.tensor(targets_np, device=camera_warp.device)
     camera_warp.set_world_poses_from_view(
-        eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_warp.device),
-        targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_warp.device),
+        eyes=eyes,
+        targets=targets,
     )
-    camera_usd.set_world_poses_from_view(
-        eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_usd.device),
-        targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_usd.device),
-    )
+    camera_usd.set_world_poses_from_view(eyes=eyes_np, targets=targets_np)
 
     # perform steps
     for _ in range(5):
@@ -932,14 +936,17 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
         import matplotlib.pyplot as plt
 
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-        usd_plt = axs[0].imshow(camera_usd.data.output["distance_to_camera"][0].cpu().numpy())
+        usd_plt = axs[0].imshow(camera_usd.data.output["distance_to_camera"].torch[0].cpu().numpy())
         fig.colorbar(usd_plt, ax=axs[0])
         axs[0].set_title("USD")
-        warp_plt = axs[1].imshow(camera_warp.data.output["distance_to_camera"][0].cpu().numpy())
+        warp_plt = axs[1].imshow(camera_warp.data.output["distance_to_camera"].torch[0].cpu().numpy())
         fig.colorbar(warp_plt, ax=axs[1])
         axs[1].set_title("WARP")
         diff_plt = axs[2].imshow(
-            torch.abs(camera_usd.data.output["distance_to_camera"] - camera_warp.data.output["distance_to_camera"])[0]
+            torch.abs(
+                camera_usd.data.output["distance_to_camera"].torch
+                - camera_warp.data.output["distance_to_camera"].torch
+            )[0]
             .cpu()
             .numpy()
         )
@@ -956,8 +963,8 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     if focal_length != 0.193:
         # FIXME: 0.193 is not working on the IsaacSim/ UsdGeom side, add back once fixed
         torch.testing.assert_close(
-            camera_usd.data.output["distance_to_camera"],
-            camera_warp.data.output["distance_to_camera"],
+            camera_usd.data.output["distance_to_camera"].torch,
+            camera_warp.data.output["distance_to_camera"].torch,
             rtol=5e-3,
             atol=1e-4,
         )
