@@ -112,6 +112,7 @@ class TestInstallConstants:
         expected = {
             "isaaclab",
             "isaaclab_assets",
+            "isaaclab_contrib",
             "isaaclab_experimental",
             "isaaclab_newton",
             "isaaclab_ov",
@@ -125,20 +126,19 @@ class TestInstallConstants:
         assert set(CORE_ISAACLAB_SUBMODULES) == expected
 
     def test_optional_submodules_contains_expected_packages(self):
-        assert set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) == {"contrib", "mimic", "teleop"}
-        assert OPTIONAL_ISAACLAB_SUBMODULES["contrib"] == ("isaaclab_contrib",)
+        assert set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) == {"mimic", "teleop"}
         assert OPTIONAL_ISAACLAB_SUBMODULES["mimic"] == ("isaaclab_mimic",)
         assert OPTIONAL_ISAACLAB_SUBMODULES["teleop"] == ("isaaclab_teleop",)
 
     def test_valid_extra_features(self):
-        expected = {"newton", "ov", "rl", "visualizer"}
+        expected = {"contrib", "newton", "ov", "rl", "visualizer"}
         assert expected == VALID_EXTRA_FEATURES
 
     def test_manual_extra_features_subset_of_valid(self):
         assert MANUAL_EXTRA_FEATURES <= VALID_EXTRA_FEATURES
 
-    def test_ov_is_manual_extra_feature(self):
-        assert {"ov"} == MANUAL_EXTRA_FEATURES
+    def test_manual_extra_features(self):
+        assert {"contrib", "ov"} == MANUAL_EXTRA_FEATURES
 
     def test_no_overlap_between_optional_submodules_and_extra_features(self):
         assert not (set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) & VALID_EXTRA_FEATURES)
@@ -232,9 +232,10 @@ class TestCommandInstallDispatch:
         mocks = self._run("all")
         mocks["_install_optional_submodule_extra_dependencies"].assert_not_called()
 
-    def test_all_does_not_install_ov_runtime_dependencies(self):
+    def test_all_does_not_install_manual_extra_dependencies(self):
         mocks = self._run("all")
         called_features = {c.args[0] for c in mocks["_install_extra_feature"].call_args_list}
+        assert "contrib" not in called_features
         assert "ov" not in called_features
 
     def test_all_does_not_call_install_isaacsim(self):
@@ -278,21 +279,21 @@ class TestCommandInstallDispatch:
         mocks = self._run("visualizer[rerun]")
         mocks["_install_extra_feature"].assert_called_once_with("visualizer", "rerun")
 
-    # --- optional submodules ---
+    # --- manual extra features and optional submodules ---
 
-    def test_contrib_adds_contrib_to_submodules(self):
+    def test_contrib_without_selector_dispatches_manual_extra_feature(self):
         mocks = self._run("contrib")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
-        assert "isaaclab_contrib" in installed
-        mocks["_install_extra_feature"].assert_not_called()
+        assert set(installed) == set(CORE_ISAACLAB_SUBMODULES)
+        mocks["_install_extra_feature"].assert_called_once_with("contrib", "")
         mocks["_install_optional_submodule_extra_dependencies"].assert_not_called()
 
-    def test_contrib_with_selector_adds_submodule_and_extra_dependencies(self):
+    def test_contrib_with_selector_dispatches_manual_extra_feature(self):
         mocks = self._run("contrib[rlinf]")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
-        assert "isaaclab_contrib" in installed
-        mocks["_install_extra_feature"].assert_not_called()
-        mocks["_install_optional_submodule_extra_dependencies"].assert_called_once_with("contrib", "rlinf")
+        assert set(installed) == set(CORE_ISAACLAB_SUBMODULES)
+        mocks["_install_extra_feature"].assert_called_once_with("contrib", "rlinf")
+        mocks["_install_optional_submodule_extra_dependencies"].assert_not_called()
 
     def test_mimic_adds_mimic_to_submodules(self):
         mocks = self._run("mimic")

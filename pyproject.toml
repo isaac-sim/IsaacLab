@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "isaaclab",
     "isaaclab-assets",
+    "isaaclab-contrib",
     "isaaclab-experimental",
     "isaaclab-newton",
     "isaaclab-ov",
@@ -31,7 +32,6 @@ isaacsim = [
 ]
 all = [
     "isaacsim[all,extscache]==5.1.0",
-    "isaaclab-contrib",
     "isaaclab-mimic",
     "isaaclab-newton[all]",
     "isaaclab-physx[newton]",

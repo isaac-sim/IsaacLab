@@ -39,9 +39,9 @@ Installation
 
    All core submodules are **always** installed regardless of what is passed to ``-i``.
    The argument controls which optional submodules and extra feature dependencies to add on top.
-   The OV source packages (``isaaclab_ov`` and ``isaaclab_ovphysx``) are part of
-   the core set so task configs can import their preset classes without installing
-   the OV runtime wheels.
+   The contrib and OV source packages (``isaaclab_contrib``, ``isaaclab_ov``, and
+   ``isaaclab_ovphysx``) are part of the core set so core modules and task configs can
+   import their config and preset classes without installing their heavy runtime dependencies.
 
    **Optional submodules**:
 
@@ -50,8 +50,6 @@ Installation
 
       * - Token
         - What it installs
-      * - ``contrib``
-        - ``isaaclab_contrib``. Use ``contrib[rlinf]`` for the heavy rlinf stack.
       * - ``mimic``
         - ``isaaclab_mimic`` (ipywidgets, h5py, imitation-learning tools)
       * - ``teleop``
@@ -64,6 +62,8 @@ Installation
 
       * - Token
         - What it installs
+      * - ``contrib[<feature>]``
+        - Contrib runtime extras. Selector: ``rlinf``.
       * - ``newton``
         - Newton physics library (``newton[sim]`` git dep) across ``isaaclab_newton``, ``isaaclab_physx``, ``isaaclab_visualizers``
       * - ``ov[<runtime>]``
@@ -75,13 +75,13 @@ Installation
 
    **Special values**:
 
-   - ``all`` — core + optional submodules (contrib, mimic, teleop) + auto extra features (newton, rl, visualizer) — default when ``-i`` is used with no argument
+   - ``all`` — core + optional submodules (mimic, teleop) + auto extra features (newton, rl, visualizer) — default when ``-i`` is used with no argument
    - ``none`` — core submodules only; no optional submodules, no extra feature dependencies
 
    .. note::
 
-      ``all`` installs the ``contrib`` source package and the OV source packages, but
-      not their heavy dependency extras. Use ``contrib[rlinf]`` for rlinf
+      ``all`` installs the contrib and OV source packages, but not their heavy
+      dependency extras. Use ``contrib[rlinf]`` for rlinf
       dependencies and ``ov[ovrtx]``, ``ov[ovphysx]``, or ``ov[all]`` for OV runtime
       wheels.
 
@@ -107,7 +107,7 @@ Installation
             # OV source packages + OVRTX wheel
             ./isaaclab.sh -i 'ov[ovrtx]'
 
-            # Contrib source package + rlinf dependencies
+            # Contrib rlinf dependencies
             ./isaaclab.sh -i 'contrib[rlinf]'
 
             # Core only — no optional submodules, no extras
@@ -130,7 +130,7 @@ Installation
             :: OV source packages + OVRTX wheel
             isaaclab.bat -i "ov[ovrtx]"
 
-            :: Contrib source package + rlinf dependencies
+            :: Contrib rlinf dependencies
             isaaclab.bat -i "contrib[rlinf]"
 
             :: Core only - no optional submodules, no extras

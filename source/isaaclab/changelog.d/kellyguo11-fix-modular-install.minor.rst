@@ -3,11 +3,12 @@ Changed
 
 * Changed the installation model of :meth:`~isaaclab.cli.commands.install.command_install`
   from per-submodule selection to a three-tier system. All core submodules
-  (``isaaclab``, ``isaaclab_assets``, ``isaaclab_experimental``, ``isaaclab_newton``,
-  ``isaaclab_ov``, ``isaaclab_ovphysx``, ``isaaclab_physx``, ``isaaclab_rl``,
-  ``isaaclab_tasks``, ``isaaclab_tasks_experimental``, ``isaaclab_visualizers``)
+  (``isaaclab``, ``isaaclab_assets``, ``isaaclab_contrib``, ``isaaclab_experimental``,
+  ``isaaclab_newton``, ``isaaclab_ov``, ``isaaclab_ovphysx``, ``isaaclab_physx``,
+  ``isaaclab_rl``, ``isaaclab_tasks``, ``isaaclab_tasks_experimental``,
+  ``isaaclab_visualizers``)
   are now always installed by ``./isaaclab.sh -i``. Optional submodules
-  (``contrib``, ``mimic``, ``teleop``) and automatic extra feature sets
+  (``mimic``, ``teleop``) and automatic extra feature sets
   (``newton``, ``rl[...]``, ``visualizer[...]``) are installed by ``./isaaclab.sh -i``
   / ``./isaaclab.sh -i all``.
   Optional dependency extras require selectors, so rlinf dependencies are

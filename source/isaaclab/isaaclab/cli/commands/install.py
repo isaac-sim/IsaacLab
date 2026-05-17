@@ -436,6 +436,7 @@ def _install_isaacsim() -> None:
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
     "isaaclab_assets",
+    "isaaclab_contrib",
     "isaaclab_experimental",
     "isaaclab_newton",
     "isaaclab_ov",
@@ -450,7 +451,6 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 # Optional submodules — only installed when explicitly requested or with 'all'.
 # Maps the short CLI name to one or more source directory names under source/.
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
-    "contrib": ("isaaclab_contrib",),
     "mimic": ("isaaclab_mimic",),
     "teleop": ("isaaclab_teleop",),
 }
@@ -460,6 +460,7 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
 # 'pip install --editable path[extra]' calls against packages already in the
 # core set.
 VALID_EXTRA_FEATURES: set[str] = {
+    "contrib",
     "newton",
     "ov",
     "rl",
@@ -467,7 +468,7 @@ VALID_EXTRA_FEATURES: set[str] = {
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-MANUAL_EXTRA_FEATURES: set[str] = {"ov"}
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
 
 
 def _split_install_items(install_type: str) -> list[str]:
@@ -529,20 +530,33 @@ def _install_optional_submodule_extra_dependencies(submodule_name: str, selector
 
     Args:
         submodule_name: One of :data:`OPTIONAL_ISAACLAB_SUBMODULES`.
-        selector: Extra selector from a token such as ``contrib[rlinf]``.
+        selector: Extra selector from a token such as ``mimic[foo]``.
     """
     if not selector:
+        return
+
+    print_warning(f"Optional submodule '{submodule_name}' does not support selectors (got '{selector}').")
+
+
+def _install_contrib_extra_dependencies(selector: str) -> None:
+    """Install optional contrib runtime dependencies.
+
+    Args:
+        selector: Contrib extra selector, currently ``rlinf``.
+    """
+    if not selector:
+        print_info(
+            "Contrib source package is installed with the core submodules. "
+            "Use 'contrib[rlinf]' to install contrib runtime dependencies."
+        )
         return
 
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
     source_dir = ISAACLAB_ROOT / "source"
 
-    if submodule_name == "contrib":
-        print_info(f"Installing contrib optional dependencies: {selector}...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{selector}]"])
-    else:
-        print_warning(f"Optional submodule '{submodule_name}' does not support selectors (got '{selector}').")
+    print_info(f"Installing contrib optional dependencies: {selector}...")
+    run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{selector}]"])
 
 
 def _install_ov_extra_dependencies(selector: str) -> None:
@@ -597,7 +611,9 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     pip_cmd = get_pip_command(python_exe)
     source_dir = ISAACLAB_ROOT / "source"
 
-    if feature_name == "newton":
+    if feature_name == "contrib":
+        _install_contrib_extra_dependencies(selector)
+    elif feature_name == "newton":
         if selector:
             print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
         print_info("Installing newton extras (newton[sim], PyOpenGL-accelerate, imgui-bundle)...")
@@ -765,15 +781,15 @@ def command_install(install_type: str = "all") -> None:
             dependencies to install on top of the always-installed core set.
 
             * ``"all"`` (default) — install core submodules + optional
-              submodules (``contrib``, ``mimic``, ``teleop``) + all automatic
+              submodules (``mimic``, ``teleop``) + all automatic
               extra features.
             * ``"none"`` — install core submodules only; no optional
               submodules, no extra feature dependencies.
             * Comma-separated tokens — install core submodules plus the listed
               optional submodules and extra features. Valid tokens:
 
-              - Optional submodules: ``contrib[rlinf]``, ``mimic``, ``teleop``
-              - Extra features: ``newton``, ``rl[<framework>]``,
+              - Optional submodules: ``mimic``, ``teleop``
+              - Extra features: ``contrib[rlinf]``, ``newton``, ``rl[<framework>]``,
                 ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
