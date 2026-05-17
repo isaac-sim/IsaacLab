@@ -17,8 +17,8 @@ Repository organization
    ├── source
    │   ├── isaaclab                   # core framework
    │   ├── isaaclab_physx             # PhysX backend (requires Isaac Sim)
-   │   ├── isaaclab_ovphysx           # Standalone PhysX backend (does not require Isaac Sim)
-   │   ├── isaaclab_ov                # Standalone RTX renderer (does not require Isaac Sim)
+   │   ├── isaaclab_ovphysx           # standalone PhysX backend (requires ovphysx)
+   │   ├── isaaclab_ov                # OVRTX renderer backend (requires ovrtx)
    │   ├── isaaclab_newton            # Newton backend (kit-less)
    │   ├── isaaclab_assets            # pre-configured robot & sensor assets
    │   ├── isaaclab_tasks             # pre-built RL/IL environments
@@ -43,10 +43,11 @@ Repository organization
    ├── tools
    └── VERSION
 
-Isaac Lab supports two physics backends — **PhysX** (via Isaac Sim) and **Newton** (a Warp-native
-kit-less backend) — through a factory pattern that dispatches to the active backend at runtime.
-The ``source`` directory contains all packages that compose Isaac Lab, while ``scripts`` contains
-standalone Python applications for training, evaluation, and tooling.
+Isaac Lab supports the **PhysX** and **Newton** physics engines through backend packages. The
+default PhysX path runs through Isaac Sim, while ``ovphysx`` supports standalone PhysX workflows
+without launching Isaac Sim and Newton provides a Warp-native kit-less backend. The ``source``
+directory contains all packages that compose Isaac Lab, while ``scripts`` contains standalone
+Python applications for training, evaluation, and tooling.
 See :doc:`/source/overview/core-concepts/multi_backend_architecture` for details on the backend
 system, and :doc:`/source/setup/ecosystem` for a full package-layer overview.
 
@@ -57,7 +58,7 @@ The packages under ``source/`` are installed as Python packages using
 `setuptools <https://setuptools.readthedocs.io/en/latest/>`__. They are organized into three
 groups:
 
-**Core and physics backends**
+**Core, physics backends, and renderers**
 
 * **isaaclab**: The core framework. Provides :mod:`~isaaclab.sim` (simulation context and
   configuration), :class:`~isaaclab.scene.InteractiveScene`, asset and sensor base classes and
@@ -68,9 +69,10 @@ groups:
   (:mod:`~isaaclab.terrains`), and human-input device support (:mod:`~isaaclab.devices`).
 * **isaaclab_physx**: PhysX-backed implementations of articulations, rigid bodies, deformable
   objects, Fabric views, the Isaac RTX renderer, and USD spawners. Requires Isaac Sim.
-* **isaaclab_ovphysx**: OmniVerse PhysX backend variant with an OmniVerse-managed physics
-  context. Requires Isaac Sim.
-* **isaaclab_ov**: OvRTX renderer backend. Requires Isaac Sim.
+* **isaaclab_ovphysx**: Standalone PhysX backend variant using ``ovphysx`` and the
+  TensorBindingsAPI. Requires the ``ovphysx`` package and can run without launching Isaac Sim.
+* **isaaclab_ov**: OVRTX renderer backend for RTX-based tiled camera rendering. Requires the
+  ``ovrtx`` package and can run without Isaac Sim.
 * **isaaclab_newton**: Newton-backed implementations of articulations, rigid bodies, rigid
   object collections, cameras, USD spawners, and the Warp renderer. Supports
   :ref:`kit-less installation <isaaclab-installation-root>` without Isaac Sim.

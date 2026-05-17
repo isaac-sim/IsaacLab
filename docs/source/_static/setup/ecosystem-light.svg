@@ -52,7 +52,7 @@
        Layer 4: Backend packages  (two columns)
        ══════════════════════════════════════════════════════ -->
 
-  <!-- PhysX backend packages (left) -->
+  <!-- PhysX and Omniverse packages (left) -->
   <rect x="16"  y="288" width="376" height="100" rx="7" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
   <text x="204" y="310" text-anchor="middle" class="lbl"  font-size="12" fill="#e65100">isaaclab_physx &#183; isaaclab_ovphysx &#183; isaaclab_ov</text>
   <text x="204" y="329" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Articulation &#183; Rigid Body &#183; Rigid Object Collection &#183; Deformable</text>
@@ -76,7 +76,7 @@
   <text x="204" y="420" text-anchor="middle" class="lbl"  font-size="11.5" fill="#bf360c">Isaac Sim  (optional)</text>
   <text x="204" y="438" text-anchor="middle" class="body" font-size="10.5" fill="#d84315">PhysX &#183; RTX Rendering &#183; USD / Omniverse</text>
   <text x="204" y="456" text-anchor="middle" class="body" font-size="10.5" fill="#d84315">ROS / ROS 2 &#183; URDF &amp; MJCF importers</text>
-  <text x="204" y="472" text-anchor="middle" class="body" font-size="9.5"  fill="#bf360c">required for the PhysX backend</text>
+  <text x="204" y="472" text-anchor="middle" class="body" font-size="9.5"  fill="#bf360c">required for Isaac Sim features</text>
 
   <!-- Newton / Warp (kit-less) -->
   <rect x="408" y="400" width="376" height="82" rx="7" fill="#e8f4f8" stroke="#0277bd" stroke-width="1.5"/>

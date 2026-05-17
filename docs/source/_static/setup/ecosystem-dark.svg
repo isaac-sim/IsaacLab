@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 580" width="800" height="580">
   <defs>
     <style>
@@ -52,7 +52,7 @@
        Layer 4: Backend packages  (two columns)
        ══════════════════════════════════════════════════════ -->
 
-  <!-- PhysX backend packages (left) -->
+  <!-- PhysX and Omniverse packages (left) -->
   <rect x="16"  y="288" width="376" height="100" rx="7" fill="#1f1500" stroke="#ffa726" stroke-width="1.5"/>
   <text x="204" y="310" text-anchor="middle" class="lbl"  font-size="12" fill="#ffcc80">isaaclab_physx &#183; isaaclab_ovphysx &#183; isaaclab_ov</text>
   <text x="204" y="329" text-anchor="middle" class="body" font-size="10.5" fill="#ffa726">Articulation &#183; Rigid Body &#183; Rigid Object Collection &#183; Deformable</text>
@@ -75,7 +75,7 @@
   <text x="204" y="420" text-anchor="middle" class="lbl"  font-size="11.5" fill="#ff8a65">Isaac Sim  (optional)</text>
   <text x="204" y="438" text-anchor="middle" class="body" font-size="10.5" fill="#ff7043">PhysX &#183; RTX Rendering &#183; USD / Omniverse</text>
   <text x="204" y="456" text-anchor="middle" class="body" font-size="10.5" fill="#ff7043">ROS / ROS 2 &#183; URDF &amp; MJCF importers</text>
-  <text x="204" y="472" text-anchor="middle" class="body" font-size="9.5"  fill="#e64a19">required for the PhysX backend</text>
+  <text x="204" y="472" text-anchor="middle" class="body" font-size="9.5"  fill="#e64a19">required for Isaac Sim features</text>
 
   <!-- Newton / Warp (kit-less) -->
   <rect x="408" y="400" width="376" height="82" rx="7" fill="#001020" stroke="#29b6f6" stroke-width="1.5"/>

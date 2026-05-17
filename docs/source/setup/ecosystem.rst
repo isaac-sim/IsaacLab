@@ -8,13 +8,14 @@ Isaac Lab is a modular, extensible framework for robot learning built on top of 
 reinforcement learning, learning from demonstrations, and motion planning — while staying easy to
 use and easy to extend.
 
-Isaac Lab supports two physics backends:
+Isaac Lab supports two physics engines through multiple backend packages:
 
-* **PhysX** (via `Isaac Sim`_) — the default backend, with access to GPU-accelerated rigid-body
-  simulation, deformable objects, Fabric views, tiled RTX rendering, ROS/ROS2, URDF/MJCF
-  importers, and the full Omniverse toolchain.
-* **Newton** — a Warp-native backend that can run **without Isaac Sim** installed, enabling
-  lightweight kit-less deployments and GPU-parallel simulation using `Warp`_.
+* **PhysX** — the default backend through `Isaac Sim`_, with access to GPU-accelerated
+  rigid-body simulation, deformable objects, Fabric views, tiled RTX rendering, ROS/ROS2,
+  URDF/MJCF importers, and the full Omniverse toolchain. PhysX can also be used through the
+  standalone ``ovphysx`` runtime for kit-less workflows that do not launch Isaac Sim.
+* **Newton** — a Warp-native backend that can run in kit-less mode, enabling lightweight
+  deployments and GPU-parallel simulation using `Warp`_.
 
 .. note::
 
@@ -54,13 +55,18 @@ Isaac Lab is organized into a set of focused packages that can be used independe
   procedural terrain generation (:mod:`~isaaclab.terrains`), and human-input device support
   (:mod:`~isaaclab.devices`).
 
-**Physics backends**
+**Physics and renderer backends**
 
-* ``isaaclab_physx`` / ``isaaclab_ovphysx`` — PhysX-backed implementations of articulations,
+* ``isaaclab_physx`` — PhysX-backed implementations of articulations,
   rigid bodies, deformable objects, Fabric views, the Isaac RTX renderer, and USD spawners.
   Requires Isaac Sim.
+* ``isaaclab_ovphysx`` — standalone PhysX-backed implementations built on ``ovphysx`` and
+  TensorBindingsAPI. Requires the ``ovphysx`` package and can run without launching Isaac Sim.
+* ``isaaclab_ov`` — Omniverse renderer package that provides the OVRTX renderer for
+  RTX-based tiled camera rendering. Requires the ``ovrtx`` package and can be used in
+  kit-less workflows without Isaac Sim.
 * ``isaaclab_newton`` — Newton-backed implementations of articulations, rigid bodies, and the
-  Warp renderer. Supports a kit-less installation without Isaac Sim.
+  Warp renderer. Supports kit-less installation without Isaac Sim.
 
 **Extensions**
 
