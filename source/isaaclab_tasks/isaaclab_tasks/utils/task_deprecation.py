@@ -26,6 +26,8 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
+from isaaclab_tasks.utils.hydra import resolve_presets
+
 
 def _user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
@@ -50,7 +52,6 @@ def deprecated_task_alias(
     old_task_id: str,
     new_command: list[str],
     consolidated_cfg_path: str,
-    cfg_factory: Callable[[], Any] | None = None,
 ) -> Callable[[], Any]:
     """Wrap a retired gym task ID with a :class:`DeprecationWarning` + cfg resolution.
 
@@ -68,14 +69,17 @@ def deprecated_task_alias(
     ``--task=`` first, ``--agent=`` next when present, and the
     ``presets=NAME`` selector at the end.
 
-    Default cfg resolution: imports *consolidated_cfg_path* via
-    :mod:`importlib`, instantiates the class, and returns
-    ``getattr(instance, <preset>)`` when *new_command* contains a
-    ``presets=<preset>`` token, else the instance itself. The import is
-    lazy -- it runs on first ``gym.make()``, not at registration time --
-    matching gym's own handling of string ``"module:Name"`` entry points.
-    Override via *cfg_factory* when resolution needs custom logic (e.g.
-    a nested ``PresetCfg`` walk).
+    Cfg resolution: imports *consolidated_cfg_path* via :mod:`importlib`,
+    instantiates the class, and delegates to
+    :func:`~isaaclab_tasks.utils.hydra.resolve_presets` with the union of
+    every ``presets=NAME[,NAME,...]`` token's names. The resolver walks
+    every nested :class:`PresetCfg` in the tree and picks the matching
+    variant (falling back to each preset's ``default`` field). This matches
+    the canonical task's resolution path; the cfg the deprecated shim
+    returns is bit-for-bit what the canonical task plus ``presets=<name>``
+    would have produced. The import is lazy -- it runs on first
+    ``gym.make()``, not at registration time -- matching gym's own handling
+    of string ``"module:Name"`` entry points.
 
     Args:
         old_task_id: The deprecated gym task ID, quoted in the warning body.
@@ -85,11 +89,6 @@ def deprecated_task_alias(
         consolidated_cfg_path: ``"module.path:ClassName"`` string for the
             consolidated :class:`PresetCfg` subclass. Same format gym
             accepts for ``env_cfg_entry_point``. Resolved lazily.
-        cfg_factory: Optional zero-arg callable that builds the env cfg the
-            retired task should load. Use when default resolution doesn't
-            fit -- e.g. a two-axis nested ``PresetCfg`` that needs both
-            the root and a nested attribute pinned. When set, takes
-            precedence over *consolidated_cfg_path*'s default resolution.
 
     Returns:
         A zero-arg callable suitable for use as ``env_cfg_entry_point``.
@@ -102,16 +101,13 @@ def deprecated_task_alias(
             DeprecationWarning,
             stacklevel=_user_stacklevel(),
         )
-        if cfg_factory is not None:
-            return cfg_factory()
-        # Default resolution: pick the variant named by ``presets=<name>`` in
-        # the new_command, or return the bare consolidated cfg when absent.
-        preset = next(
-            (tok.split("=", 1)[1].split(",")[0] for tok in new_command if tok.startswith("presets=")),
-            None,
-        )
+        # Union of every ``presets=NAME[,...]`` token's names, mirroring how the
+        # hydra layer folds typed selectors before broadcast.
+        selected = {
+            name for tok in new_command if tok.startswith("presets=") for name in tok.split("=", 1)[1].split(",")
+        }
         mod_name, cls_name = consolidated_cfg_path.split(":")
         cls = getattr(importlib.import_module(mod_name), cls_name)
-        return getattr(cls(), preset) if preset else cls()
+        return resolve_presets(cls(), selected)
 
     return factory
