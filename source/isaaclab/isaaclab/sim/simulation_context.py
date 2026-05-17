@@ -880,6 +880,9 @@ class SimulationContext:
             cls: The service class used as key.
             instance: The service instance to register.
         """
+        old = self._services.get(cls)
+        if old is not None and old is not instance and hasattr(old, "close"):
+            old.close()
         self._services[cls] = instance
 
     @classmethod
