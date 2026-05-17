@@ -174,16 +174,24 @@ def test_transforms_reads_each_binding_and_returns_transform_format():
         host = np.array([[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
         _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((1, 7)))
 
+    # ``pose_buf_transformf`` is the zero-copy transformf view over the float32 staging
+    # buffer; production code caches it at setup time. Tests mirror that shape here.
+    buf_a_tf = _wp.array(ptr=buf_a.ptr, shape=(2,), dtype=_wp.transformf, device="cpu", copy=False)
+    buf_b_tf = _wp.array(ptr=buf_b.ptr, shape=(1,), dtype=_wp.transformf, device="cpu", copy=False)
     b._rigid_bindings = [
         {
+            "pattern": "/World/envs/env_*/Cube",
             "pose": SimpleNamespace(read=fake_read_a, prim_paths=["/Cube0", "/Cube1"]),
             "pose_buf": buf_a,
+            "pose_buf_transformf": buf_a_tf,
             "row_offset": 0,
             "row_count": 2,
         },
         {
+            "pattern": "/World/envs/env_*/Pole",
             "pose": SimpleNamespace(read=fake_read_b, prim_paths=["/Pole"]),
             "pose_buf": buf_b,
+            "pose_buf_transformf": buf_b_tf,
             "row_offset": 2,
             "row_count": 1,
         },
@@ -236,3 +244,106 @@ def test_manager_returns_none_when_backend_uninitialized():
         assert OvPhysxManager.get_scene_data_backend() is None
     finally:
         OvPhysxManager._scene_data_backend = saved
+
+
+def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
+    """A single failed binding-creation logs a warning and skips that pattern; others proceed."""
+    import logging
+
+    from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    b = OvPhysxSceneDataBackend()
+    b._device = "cpu"
+
+    paths = [
+        "/World/envs/env_0/Robot/cart",
+        "/World/envs/env_0/Robot/pole",
+    ]
+
+    def fake_traverse():
+        for p in paths:
+            yield SimpleNamespace(
+                HasAPI=lambda api: True,
+                GetPath=lambda p=p: SimpleNamespace(pathString=p),
+            )
+
+    stage = SimpleNamespace(Traverse=fake_traverse)
+
+    class FlakyPhysX:
+        def create_tensor_binding(self, pattern, tensor_type):
+            if pattern.endswith("/cart"):
+                raise RuntimeError("simulated wheel-side failure")
+            return SimpleNamespace(
+                pattern=pattern, tensor_type=tensor_type, shape=(1, 7), count=1, prim_paths=[], read=lambda dst: None
+            )
+
+    import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+
+    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+
+    with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
+        b.setup(FlakyPhysX(), stage)
+
+    # The pole pattern survived; the cart pattern was logged and skipped.
+    assert len(b._rigid_bindings) == 1
+    assert b._rigid_bindings[0]["pattern"].endswith("/pole")
+    assert any("simulated wheel-side failure" in record.message for record in caplog.records)
+
+
+def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
+    """A failed ``binding.read(dst)`` logs and skips that binding; other bindings still merge."""
+    import logging
+
+    import warp as _wp
+
+    _wp.init()
+
+    from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    b = OvPhysxSceneDataBackend()
+    b._device = "cpu"
+    b._merged_transforms = _wp.zeros((2,), dtype=_wp.transformf, device="cpu")
+
+    buf_good = _wp.zeros((1, 7), dtype=_wp.float32, device="cpu")
+    buf_bad = _wp.zeros((1, 7), dtype=_wp.float32, device="cpu")
+    buf_good_tf = _wp.array(ptr=buf_good.ptr, shape=(1,), dtype=_wp.transformf, device="cpu", copy=False)
+    buf_bad_tf = _wp.array(ptr=buf_bad.ptr, shape=(1,), dtype=_wp.transformf, device="cpu", copy=False)
+
+    def good_read(dst):
+        import numpy as np
+
+        host = np.array([[7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
+        _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((1, 7)))
+
+    def bad_read(dst):
+        raise RuntimeError("simulated read failure")
+
+    b._rigid_bindings = [
+        {
+            "pattern": "/World/envs/env_*/Good",
+            "pose": SimpleNamespace(read=good_read, prim_paths=["/Good"]),
+            "pose_buf": buf_good,
+            "pose_buf_transformf": buf_good_tf,
+            "row_offset": 0,
+            "row_count": 1,
+        },
+        {
+            "pattern": "/World/envs/env_*/Bad",
+            "pose": SimpleNamespace(read=bad_read, prim_paths=["/Bad"]),
+            "pose_buf": buf_bad,
+            "pose_buf_transformf": buf_bad_tf,
+            "row_offset": 1,
+            "row_count": 1,
+        },
+    ]
+
+    import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+
+    with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
+        out = b.transforms
+
+    assert out is b._scene_data
+    assert any("simulated read failure" in record.message for record in caplog.records)
+    # Good row was still written; bad row is left at the merged buffer's prior contents (zeros).
+    flat = out.transforms.numpy().view("<f4").reshape((2, 7))
+    assert flat[0, 0] == 7.0

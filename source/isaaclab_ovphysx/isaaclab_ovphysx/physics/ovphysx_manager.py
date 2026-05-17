@@ -54,7 +54,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._physx = None
-        self._rigid_bindings: list[dict[str, object]] = []
+        # Each entry: ``{"pattern": str, "pose": TensorBinding,
+        # "pose_buf": wp.array (float32, (N, 7)),
+        # "pose_buf_transformf": wp.array (transformf, (N,)),
+        # "row_offset": int, "row_count": int}``.
+        # The ``pose_buf_transformf`` view aliases ``pose_buf`` via zero-copy
+        # ``wp.array(ptr=...)``; cached at setup time so per-step reads in
+        # :attr:`transforms` don't churn Python allocations.
+        self._rigid_bindings: list[dict[str, Any]] = []
         self._merged_transforms: wp.array | None = None
         self._scene_data = SceneDataFormat.Transform()
         self._device: str = "cpu"
@@ -116,11 +123,23 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                     pattern,
                 )
                 continue
+            pose_buf = wp.zeros(pose_binding.shape, dtype=wp.float32, device=self._device)
+            # Zero-copy reinterpret of the (N, 7) float32 staging buffer as (N,) wp.transformf.
+            # Same pointer + layout; transformf is 7 float32s (pos.xyz + quat.xyzw). Cached
+            # so per-step ``transforms`` reads don't reallocate the view object.
+            pose_buf_transformf = wp.array(
+                ptr=pose_buf.ptr,
+                shape=(row_count,),
+                dtype=wp.transformf,
+                device=str(pose_buf.device),
+                copy=False,
+            )
             self._rigid_bindings.append(
                 {
                     "pattern": pattern,
                     "pose": pose_binding,
-                    "pose_buf": wp.zeros(pose_binding.shape, dtype=wp.float32, device=self._device),
+                    "pose_buf": pose_buf,
+                    "pose_buf_transformf": pose_buf_transformf,
                     "row_offset": total_count,
                     "row_count": row_count,
                 }
@@ -135,12 +154,15 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Read all bindings into the merged buffer; return as ``SceneDataFormat.Transform``.
 
         Each binding's float32 ``(N, 7)`` read buffer is reinterpreted as ``(N,)`` of
-        ``wp.transformf`` (zero-copy via ``wp.array(ptr=..., dtype=wp.transformf)``)
-        and copied into the merged buffer at the binding's ``row_offset``.
+        ``wp.transformf`` (zero-copy via ``wp.array(ptr=..., dtype=wp.transformf)``,
+        cached on the entry at setup time) and copied into the merged buffer at the
+        binding's ``row_offset``.
 
         Returns:
-            ``SceneDataFormat.Transform`` with ``transforms`` set to the merged
-            ``wp.array(dtype=wp.transformf)``. ``transforms`` is ``None`` when no
+            ``SceneDataFormat.Transform`` whose ``transforms`` field is a
+            ``wp.array(dtype=wp.transformf)`` of length :attr:`transform_count`.
+            Each ``wp.transformf`` row carries position [m] followed by
+            quaternion (xyzw, unit). ``transforms`` is ``None`` when no
             bindings are wired.
         """
         if self._merged_transforms is None or not self._rigid_bindings:
@@ -148,9 +170,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             return self._scene_data
 
         for entry in self._rigid_bindings:
-            buf: wp.array = entry["pose_buf"]
             try:
-                entry["pose"].read(buf)
+                entry["pose"].read(entry["pose_buf"])
             except Exception as exc:
                 logger.warning(
                     "[OvPhysxSceneDataBackend] RIGID_BODY_POSE read failed for %s: %s",
@@ -158,22 +179,12 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                     exc,
                 )
                 continue
-            # Reinterpret the (N, 7) float32 buffer as (N,) wp.transformf without a copy.
-            n = int(entry["row_count"])
-            transformf_view = wp.array(
-                ptr=buf.ptr,
-                shape=(n,),
-                dtype=wp.transformf,
-                device=str(buf.device),
-                copy=False,
-            )
-            offset = int(entry["row_offset"])
             wp.copy(
                 self._merged_transforms,
-                transformf_view,
-                dest_offset=offset,
+                entry["pose_buf_transformf"],
+                dest_offset=int(entry["row_offset"]),
                 src_offset=0,
-                count=n,
+                count=int(entry["row_count"]),
             )
 
         self._scene_data.transforms = self._merged_transforms
