@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import argparse
-import signal
 import shlex
+import signal
 import subprocess
 import sys
 from pathlib import Path
