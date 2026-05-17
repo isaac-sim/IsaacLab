@@ -36,7 +36,12 @@ def test_transform_count_sums_across_bindings():
     """``transform_count`` returns the sum of each binding's row count."""
     b = _bare_backend()
     b._rigid_bindings = [
-        {"pose": _make_stub_binding(["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]), "pose_buf": None, "row_offset": 0, "row_count": 2},
+        {
+            "pose": _make_stub_binding(["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]),
+            "pose_buf": None,
+            "row_offset": 0,
+            "row_count": 2,
+        },
         {"pose": _make_stub_binding(["/World/envs/env_0/Pole"]), "pose_buf": None, "row_offset": 2, "row_count": 1},
     ]
     assert b.transform_count == 3
@@ -46,7 +51,12 @@ def test_transform_paths_concatenates_prim_paths():
     """``transform_paths`` concatenates each binding's ``prim_paths`` in registration order."""
     b = _bare_backend()
     b._rigid_bindings = [
-        {"pose": _make_stub_binding(["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]), "pose_buf": None, "row_offset": 0, "row_count": 2},
+        {
+            "pose": _make_stub_binding(["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]),
+            "pose_buf": None,
+            "row_offset": 0,
+            "row_count": 2,
+        },
         {"pose": _make_stub_binding(["/World/envs/env_0/Pole"]), "pose_buf": None, "row_offset": 2, "row_count": 1},
     ]
     assert b.transform_paths == [
@@ -104,7 +114,11 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
         def create_tensor_binding(self, pattern, tensor_type):
             shape = (2, 7)  # 2 envs match each pattern
             b = SimpleNamespace(
-                pattern=pattern, tensor_type=tensor_type, shape=shape, count=2, prim_paths=[],
+                pattern=pattern,
+                tensor_type=tensor_type,
+                shape=shape,
+                count=2,
+                prim_paths=[],
                 read=lambda dst: None,
             )
             created.append(b)
@@ -112,6 +126,7 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
 
     # Patch UsdPhysics so HasAPI in the test doesn't depend on the real PXR module.
     import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
 
     b.setup(FakePhysX(), stage)
@@ -149,20 +164,29 @@ def test_transforms_reads_each_binding_and_returns_transform_format():
     def fake_read_a(dst):
         # Fill with row-distinct sentinel transforms (pos.x = row index, quat = identity).
         import numpy as np
-        host = np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                         [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
+
+        host = np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
         _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((2, 7)))
 
     def fake_read_b(dst):
         import numpy as np
+
         host = np.array([[3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
         _wp.copy(dst, _wp.from_numpy(host, dtype=_wp.float32, device="cpu").reshape((1, 7)))
 
     b._rigid_bindings = [
-        {"pose": SimpleNamespace(read=fake_read_a, prim_paths=["/Cube0", "/Cube1"]),
-         "pose_buf": buf_a, "row_offset": 0, "row_count": 2},
-        {"pose": SimpleNamespace(read=fake_read_b, prim_paths=["/Pole"]),
-         "pose_buf": buf_b, "row_offset": 2, "row_count": 1},
+        {
+            "pose": SimpleNamespace(read=fake_read_a, prim_paths=["/Cube0", "/Cube1"]),
+            "pose_buf": buf_a,
+            "row_offset": 0,
+            "row_count": 2,
+        },
+        {
+            "pose": SimpleNamespace(read=fake_read_b, prim_paths=["/Pole"]),
+            "pose_buf": buf_b,
+            "row_offset": 2,
+            "row_count": 1,
+        },
     ]
 
     out = b.transforms
