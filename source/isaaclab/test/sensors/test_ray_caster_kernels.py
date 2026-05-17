@@ -54,7 +54,9 @@ _warp_spec = importlib.util.spec_from_file_location("warp_kernels", os.path.norm
 _warp_mod = importlib.util.module_from_spec(_warp_spec)
 _warp_spec.loader.exec_module(_warp_mod)
 
-compute_distance_to_image_plane_to_image_masked_kernel = _sensor_mod.compute_distance_to_image_plane_to_image_masked_kernel
+compute_distance_to_image_plane_to_image_masked_kernel = (
+    _sensor_mod.compute_distance_to_image_plane_to_image_masked_kernel
+)
 apply_z_drift_kernel = _sensor_mod.apply_z_drift_kernel
 copy_float2d_to_image1_depth_clipped_masked_kernel = _sensor_mod.copy_float2d_to_image1_depth_clipped_masked_kernel
 fill_ray_hits_distance_inf_kernel = _sensor_mod.fill_ray_hits_distance_inf_kernel
@@ -388,9 +390,7 @@ class TestComputeDistanceToImagePlaneToImageMaskedKernel:
         """Distance-to-image-plane is computed, clipped, reshaped, and masked in one kernel."""
         env_mask = wp.array(np.array([False, True], dtype=np.bool_), dtype=wp.bool, device=DEVICE)
         quat_w = wp.array(np.array([[0, 0, 0, 1], [0, 0, 0, 1]], dtype=np.float32), dtype=wp.quatf, device=DEVICE)
-        ray_distance = wp.array(
-            np.array([[1.0, 2.0], [3.0, 7.0]], dtype=np.float32), dtype=wp.float32, device=DEVICE
-        )
+        ray_distance = wp.array(np.array([[1.0, 2.0], [3.0, 7.0]], dtype=np.float32), dtype=wp.float32, device=DEVICE)
         ray_directions_w = wp.array(
             np.array(
                 [
@@ -420,7 +420,9 @@ class TestComputeDistanceToImagePlaneToImageMaskedKernel:
     def test_off_axis_camera_without_clipping(self):
         """Camera pitched 45 deg around Y, ray going world -Z."""
         env_mask = wp.array(np.array([True], dtype=np.bool_), dtype=wp.bool, device=DEVICE)
-        quat_w = wp.array(np.array([_euler_to_quat_xyzw(0, math.pi / 4, 0)], dtype=np.float32), dtype=wp.quatf, device=DEVICE)
+        quat_w = wp.array(
+            np.array([_euler_to_quat_xyzw(0, math.pi / 4, 0)], dtype=np.float32), dtype=wp.quatf, device=DEVICE
+        )
         ray_distance = wp.array(np.array([[10.0]], dtype=np.float32), dtype=wp.float32, device=DEVICE)
         ray_directions_w = wp.array(np.array([[[0.0, 0.0, -1.0]]], dtype=np.float32), dtype=wp.vec3f, device=DEVICE)
         dst = wp.array(np.full((1, 1, 1, 1), -1.0, dtype=np.float32), dtype=wp.float32, device=DEVICE)

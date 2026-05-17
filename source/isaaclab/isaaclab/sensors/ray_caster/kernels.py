@@ -279,6 +279,8 @@ def copy_float2d_to_image1_depth_clipped_masked_kernel(
     row = ray // width
     col = ray - row * width
     dst[env, row, col, 0] = value
+
+
 @wp.kernel(enable_backward=False)
 def copy_vec3_2d_to_image3_masked_kernel(
     # input

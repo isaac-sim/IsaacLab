@@ -134,7 +134,9 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._focal_length = focal_length
         # recompute ray directions
         ray_starts_torch = self.ray_starts.torch if hasattr(self.ray_starts, "torch") else self.ray_starts
-        ray_directions_torch = self.ray_directions.torch if hasattr(self.ray_directions, "torch") else self.ray_directions
+        ray_directions_torch = (
+            self.ray_directions.torch if hasattr(self.ray_directions, "torch") else self.ray_directions
+        )
         ray_starts_torch[env_ids], ray_directions_torch[env_ids] = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices.torch[env_ids], self._device
         )

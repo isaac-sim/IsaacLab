@@ -11,7 +11,6 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 
 from pxr import UsdPhysics
 
@@ -23,6 +22,8 @@ from isaaclab.sensors.ray_caster.kernels import (
     update_ray_caster_kernel,
 )
 from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_newton.physics import NewtonManager
 
 
 @wp.kernel
@@ -177,7 +178,9 @@ class _NewtonRayCasterMixin:
         pos_w = self._data.pos_w.warp
         quat_w = self._data.quat_w_world.warp if hasattr(self._data, "quat_w_world") else self._data.quat_w.warp
         ray_starts = self.ray_starts.warp if hasattr(self.ray_starts, "warp") else self._ray_starts_local
-        ray_directions = self.ray_directions.warp if hasattr(self.ray_directions, "warp") else self._ray_directions_local
+        ray_directions = (
+            self.ray_directions.warp if hasattr(self.ray_directions, "warp") else self._ray_directions_local
+        )
         alignment_mode = int(ALIGNMENT_BASE) if hasattr(self._data, "quat_w_world") else self._alignment_mode
         wp.launch(
             update_ray_caster_kernel,
