@@ -224,7 +224,7 @@ class Camera(SensorBase):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: np.ndarray, focal_length: float | None = None, env_ids: Sequence[int] | None = None
+        self, matrices: torch.Tensor | wp.array, focal_length: float | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
@@ -248,6 +248,13 @@ class Camera(SensorBase):
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
+        if isinstance(matrices, torch.Tensor):
+            if not matrices.is_contiguous():
+                matrices = matrices.contiguous()
+            matrices = wp.from_torch(matrices)
+        elif not isinstance(matrices, wp.array):
+            raise TypeError(f"Unsupported type for matrices: {type(matrices)}. Expected torch.Tensor or wp.array.")
+
         if env_ids is None:
             env_ids_np = np.arange(self._view.count)
         elif isinstance(env_ids, slice):
@@ -255,7 +262,7 @@ class Camera(SensorBase):
         else:
             env_ids_np = np.asarray(env_ids, dtype=np.int32).reshape(-1)
 
-        matrices = np.asarray(matrices, dtype=float)
+        matrices = matrices.numpy().astype(float, copy=False)
         if matrices.ndim == 2:
             matrices = matrices[None, ...]
         # iterate over env_ids

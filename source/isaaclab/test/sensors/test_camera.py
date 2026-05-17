@@ -377,8 +377,9 @@ def test_intrinsic_matrix(setup_sim_camera):
     # Desired properties (obtained from realsense camera at 320x240 resolution)
     rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
     rs_intrinsic_matrix = np.asarray(rs_intrinsic_matrix, dtype=float).reshape(1, 3, 3)
+    rs_intrinsic_matrix_tensor = torch.tensor(rs_intrinsic_matrix, dtype=torch.float32, device=camera.device)
     # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix)
+    camera.set_intrinsic_matrices(rs_intrinsic_matrix_tensor)
 
     # Simulate physics
     for _ in range(10):

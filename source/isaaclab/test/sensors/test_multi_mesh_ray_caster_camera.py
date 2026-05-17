@@ -947,7 +947,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     ).reshape(1, 3, 3)
     intrinsic_matrix = torch.tensor(intrinsic_matrix_np, device=camera_warp.device)
     camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-    camera_usd.set_intrinsic_matrices(intrinsic_matrix_np, focal_length=10)
+    camera_usd.set_intrinsic_matrices(torch.tensor(intrinsic_matrix_np, device=camera_usd.device), focal_length=10)
 
     # set camera position
     camera_warp.set_world_poses_from_view(
