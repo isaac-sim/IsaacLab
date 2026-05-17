@@ -6,7 +6,7 @@
 """Test the core install (./isaaclab.sh -i none).
 
 ``./isaaclab.sh -i none`` installs the always-on core set of submodules without
-any optional submodules (contrib, mimic, OV, teleop) or optional extra dependencies
+any optional submodules (contrib, mimic, teleop) or optional extra dependencies
 (newton physics library, RL frameworks, visualizer backends, OV wheels).  All core
 packages must be importable after this install, and training with the default physics
 preset must succeed.
@@ -25,6 +25,8 @@ _CORE_PACKAGES = [
     "isaaclab_assets",
     "isaaclab_experimental",
     "isaaclab_newton",
+    "isaaclab_ov",
+    "isaaclab_ovphysx",
     "isaaclab_physx",
     "isaaclab_rl",
     "isaaclab_tasks",
@@ -80,7 +82,7 @@ class Test_Install_None(UV_Mixin):
             result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
 
-            for pkg in ("isaaclab_contrib", "isaaclab_mimic", "isaaclab_ov", "isaaclab_ovphysx", "isaaclab_teleop"):
+            for pkg in ("isaaclab_contrib", "isaaclab_mimic", "isaaclab_teleop"):
                 result = self.run_in_uv_env(["python", "-c", f"import {pkg}"])
                 assert result.returncode != 0, f"{pkg} should not be installed after -i none"
 

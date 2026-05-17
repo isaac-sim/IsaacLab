@@ -438,6 +438,8 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab_assets",
     "isaaclab_experimental",
     "isaaclab_newton",
+    "isaaclab_ov",
+    "isaaclab_ovphysx",
     "isaaclab_physx",
     "isaaclab_rl",
     "isaaclab_tasks",
@@ -450,7 +452,6 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
     "contrib": ("isaaclab_contrib",),
     "mimic": ("isaaclab_mimic",),
-    "ov": ("isaaclab_ov", "isaaclab_ovphysx"),
     "teleop": ("isaaclab_teleop",),
 }
 
@@ -460,12 +461,13 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
 # core set.
 VALID_EXTRA_FEATURES: set[str] = {
     "newton",
+    "ov",
     "rl",
     "visualizer",
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-MANUAL_EXTRA_FEATURES: set[str] = set()
+MANUAL_EXTRA_FEATURES: set[str] = {"ov"}
 
 
 def _split_install_items(install_type: str) -> list[str]:
@@ -527,8 +529,7 @@ def _install_optional_submodule_extra_dependencies(submodule_name: str, selector
 
     Args:
         submodule_name: One of :data:`OPTIONAL_ISAACLAB_SUBMODULES`.
-        selector: Extra selector from a token such as ``contrib[rlinf]`` or
-            ``ov[ovrtx]``.
+        selector: Extra selector from a token such as ``contrib[rlinf]``.
     """
     if not selector:
         return
@@ -540,25 +541,44 @@ def _install_optional_submodule_extra_dependencies(submodule_name: str, selector
     if submodule_name == "contrib":
         print_info(f"Installing contrib optional dependencies: {selector}...")
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{selector}]"])
-    elif submodule_name == "ov":
-        selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
-        valid_selectors = {"all", "ovrtx", "ovphysx"}
-        unknown_selectors = selectors - valid_selectors
-        if unknown_selectors:
-            print_warning(
-                f"Unknown ov selector(s): {', '.join(sorted(unknown_selectors))}. "
-                f"Valid selectors: {', '.join(sorted(valid_selectors))}."
-            )
-        if "all" in selectors:
-            selectors.update({"ovrtx", "ovphysx"})
-        if "ovrtx" in selectors:
-            print_info("Installing OVRTX optional dependency...")
-            run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ov[ovrtx]"])
-        if "ovphysx" in selectors:
-            print_info("Installing OVPhysX optional dependency...")
-            run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ovphysx[ovphysx]"])
     else:
         print_warning(f"Optional submodule '{submodule_name}' does not support selectors (got '{selector}').")
+
+
+def _install_ov_extra_dependencies(selector: str) -> None:
+    """Install optional OV runtime dependencies.
+
+    Args:
+        selector: One or more OV selectors from ``ov[ovrtx]``,
+            ``ov[ovphysx]``, or ``ov[all]``.
+    """
+    if not selector:
+        print_info(
+            "OV source packages are installed with the core submodules. "
+            "Use 'ov[ovrtx]', 'ov[ovphysx]', or 'ov[all]' to install OV runtime dependencies."
+        )
+        return
+
+    python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
+    source_dir = ISAACLAB_ROOT / "source"
+
+    selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
+    valid_selectors = {"all", "ovrtx", "ovphysx"}
+    unknown_selectors = selectors - valid_selectors
+    if unknown_selectors:
+        print_warning(
+            f"Unknown ov selector(s): {', '.join(sorted(unknown_selectors))}. "
+            f"Valid selectors: {', '.join(sorted(valid_selectors))}."
+        )
+    if "all" in selectors:
+        selectors.update({"ovrtx", "ovphysx"})
+    if "ovrtx" in selectors:
+        print_info("Installing OVRTX optional dependency...")
+        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ov[ovrtx]"])
+    if "ovphysx" in selectors:
+        print_info("Installing OVPhysX optional dependency...")
+        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ovphysx[ovphysx]"])
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
@@ -592,6 +612,8 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         extra = selector if selector else "all"
         print_info(f"Installing visualizer extras: {extra}...")
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[{extra}]"])
+    elif feature_name == "ov":
+        _install_ov_extra_dependencies(selector)
     else:
         print_warning(
             f"Unknown extra feature '{feature_name}'. "
@@ -743,17 +765,16 @@ def command_install(install_type: str = "all") -> None:
             dependencies to install on top of the always-installed core set.
 
             * ``"all"`` (default) — install core submodules + optional
-              submodules (``contrib``, ``mimic``, ``ov``, ``teleop``) + all
+              submodules (``contrib``, ``mimic``, ``teleop``) + all automatic
               extra features.
             * ``"none"`` — install core submodules only; no optional
               submodules, no extra feature dependencies.
             * Comma-separated tokens — install core submodules plus the listed
               optional submodules and extra features. Valid tokens:
 
-              - Optional submodules: ``contrib[rlinf]``, ``mimic``,
-                ``ov[ovrtx|ovphysx|all]``, ``teleop``
+              - Optional submodules: ``contrib[rlinf]``, ``mimic``, ``teleop``
               - Extra features: ``newton``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``
+                ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
               Examples::
