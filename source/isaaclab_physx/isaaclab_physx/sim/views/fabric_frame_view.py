@@ -642,7 +642,7 @@ class FabricFrameView(BaseFrameView):
         cache_key = (self._stage_id, fabric_id.id)
         if cache_key not in FabricFrameView._static_hierarchy_cache:
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_id, self._stage.GetStageIdAsUInt()
+                fabric_id, self._stage.GetStageIdAsStageId()
             )
             hierarchy.track_local_xform_changes(True)
             hierarchy.track_world_xform_changes(True)
