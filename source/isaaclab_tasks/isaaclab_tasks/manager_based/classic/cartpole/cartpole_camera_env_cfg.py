@@ -16,13 +16,19 @@ from isaaclab_tasks.utils import PresetCfg
 from .cartpole_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 ##
-# Scene definition
+# Scene definition (per-variant, retired Style A -- see deprecation notice below)
 ##
 
 
 @configclass
 class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
-    """Configuration for the cartpole environment with RGB camera."""
+    """Configuration for the cartpole environment with RGB camera.
+
+    **Deprecated** -- backs the retired :obj:`Isaac-Cartpole-RGB-v0` task ID
+    via :class:`CartpoleRGBCameraEnvCfg`. Use the consolidated
+    :class:`CartpoleCameraSceneCfg` (below) for new code. Removed alongside
+    the retired task ID.
+    """
 
     # add camera to the scene
     tiled_camera: CameraCfg = CameraCfg(
@@ -39,6 +45,9 @@ class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
 
 @configclass
 class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
+    """**Deprecated** -- backs :obj:`Isaac-Cartpole-Depth-v0`. Use
+    :class:`CartpoleCameraSceneCfg`."""
+
     # add camera to the scene
     tiled_camera: CameraCfg = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
@@ -53,7 +62,8 @@ class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
 
 
 ##
-# MDP settings
+# MDP settings -- observation pipelines (shared by retired Style A subclasses
+# and the new ``CartpoleObservationsCfg`` PresetCfg below)
 ##
 
 
@@ -127,13 +137,20 @@ class TheiaTinyObservationCfg:
 
 
 ##
-# Environment configuration
+# Per-variant env configuration (retired Style A -- see deprecation notice below)
+#
+# These subclasses back the retired :obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`
+# gym task IDs. The deprecation shims in the sibling ``__init__.py`` route to
+# them via ``cfg_factory`` so retired task IDs stay bit-for-bit identical to
+# develop. Use the consolidated :class:`CartpoleCameraPresetsEnvCfg` (below)
+# for new code; these will be removed alongside the retired task IDs.
 ##
 
 
 @configclass
 class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
-    """Configuration for the cartpole environment with RGB camera."""
+    """**Deprecated** -- backs :obj:`Isaac-Cartpole-RGB-v0`. Migration:
+    ``--task=Isaac-Cartpole-Camera-v0 presets=rgb``."""
 
     scene: CartpoleRGBCameraSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=512, env_spacing=20)
     observations: RGBObservationsCfg = RGBObservationsCfg()
@@ -149,7 +166,8 @@ class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
 
 @configclass
 class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
-    """Configuration for the cartpole environment with depth camera."""
+    """**Deprecated** -- backs :obj:`Isaac-Cartpole-Depth-v0`. Migration:
+    ``--task=Isaac-Cartpole-Camera-v0 presets=depth``."""
 
     scene: CartpoleDepthCameraSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=512, env_spacing=20)
     observations: DepthObservationsCfg = DepthObservationsCfg()
@@ -165,28 +183,76 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
 
 @configclass
 class CartpoleResNet18CameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    """Configuration for the cartpole environment with ResNet18 features as observations."""
+    """**Deprecated** -- backs :obj:`Isaac-Cartpole-RGB-ResNet18-v0`. Migration:
+    ``--task=Isaac-Cartpole-Camera-v0 --agent=rl_games_feature_cfg_entry_point presets=resnet18``.
+    """
 
     observations: ResNet18ObservationCfg = ResNet18ObservationCfg()
 
 
 @configclass
 class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    """Configuration for the cartpole environment with Theia-Tiny features as observations."""
+    """**Deprecated** -- backs :obj:`Isaac-Cartpole-RGB-TheiaTiny-v0`. Migration:
+    ``--task=Isaac-Cartpole-Camera-v0 --agent=rl_games_feature_cfg_entry_point presets=theia_tiny``.
+    """
 
     observations: TheiaTinyObservationCfg = TheiaTinyObservationCfg()
 
 
 ##
-# Consolidated PresetCfg
+# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera-v0)
 ##
 
 
 @configclass
-class CartpoleCameraPresetsEnvCfg(PresetCfg):
+class CartpoleCameraDataTypesCfg(PresetCfg):
+    """Camera ``data_types`` selector for the manager-based cartpole camera.
+
+    The camera pose, intrinsics, and resolution are identical for every
+    variant; only the data-type stream changes (``rgb`` for the RGB / feature
+    pipelines, ``distance_to_camera`` for depth). Keeping just the data-type
+    list in a small PresetCfg lets the parent scene cfg share a single camera.
+    """
+
+    rgb = ["rgb"]
+    resnet18 = rgb
+    theia_tiny = rgb
+    depth = ["distance_to_camera"]
+    default = rgb
+
+
+@configclass
+class CartpoleCameraSceneCfg(CartpoleSceneCfg):
+    """Scene cfg with a single tiled camera whose data-type stream varies per preset."""
+
+    tiled_camera: CameraCfg = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.0, 0.1045, 0.0, 0.9945), convention="world"),
+        data_types=CartpoleCameraDataTypesCfg(),
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=100,
+        height=100,
+    )
+
+
+@configclass
+class CartpoleObservationsCfg(PresetCfg):
+    """Observation-pipeline selector for the manager-based cartpole camera task."""
+
+    rgb: RGBObservationsCfg = RGBObservationsCfg()
+    depth: DepthObservationsCfg = DepthObservationsCfg()
+    resnet18: ResNet18ObservationCfg = ResNet18ObservationCfg()
+    theia_tiny: TheiaTinyObservationCfg = TheiaTinyObservationCfg()
+    default = rgb
+
+
+@configclass
+class CartpoleCameraPresetsEnvCfg(CartpoleEnvCfg):
     """Manager-based cartpole perception with selectable observation pipeline.
 
-    Variants:
+    Variants selected via ``presets=<name>``:
 
     * ``rgb`` / ``default`` -- raw RGB camera observations.
     * ``depth`` -- depth (distance-to-camera) observations.
@@ -195,19 +261,26 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
     * ``theia_tiny`` -- features extracted by a frozen Theia-Tiny transformer
       backbone from the RGB camera.
 
-    The variant attributes hold concrete env cfg instances, so the hydra
-    resolver picks one based on ``presets=<name>`` (or the broadcast
-    ``presets=<name>,<name>,...`` CSV) and the rest of the cfg tree is
-    inherited from :class:`CartpoleEnvCfg`, including the existing
-    ``CartpolePhysicsCfg`` that powers the ``physics=`` typed selector.
+    The varying parts (``scene.tiled_camera.data_types`` and ``observations``)
+    are nested :class:`~isaaclab_tasks.utils.PresetCfg` fields. The framework
+    resolver pins both at ``gym.make`` time when the user passes
+    ``presets=<name>``; all other fields are inherited unchanged from
+    :class:`CartpoleEnvCfg` (including the ``physics=`` typed selector wired
+    through ``CartpolePhysicsCfg``).
 
-    The retired task IDs (``Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0``)
-    are registered with :func:`~isaaclab_tasks.utils.deprecated_task_alias`
-    in the sibling ``__init__.py`` and route to variants of this PresetCfg.
+    Used by the canonical :obj:`Isaac-Cartpole-Camera-v0` task. The retired
+    per-variant task IDs (:obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`)
+    return the legacy per-variant subclasses above instead, via the
+    deprecation shims in the sibling ``__init__.py``.
     """
 
-    rgb = CartpoleRGBCameraEnvCfg()
-    depth = CartpoleDepthCameraEnvCfg()
-    resnet18 = CartpoleResNet18CameraEnvCfg()
-    theia_tiny = CartpoleTheiaTinyCameraEnvCfg()
-    default = rgb
+    scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20)
+    observations: CartpoleObservationsCfg = CartpoleObservationsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        # remove ground as it obstructs the camera
+        self.scene.ground = None
+        # viewer settings
+        self.viewer.eye = (7.0, 0.0, 2.5)
+        self.viewer.lookat = (0.0, 0.0, 2.5)

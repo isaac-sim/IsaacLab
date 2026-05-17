@@ -25,93 +25,122 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg()
     physx = PhysxCfg()
     newton_mjwarp = NewtonCfg()
     ovphysx = OvPhysxCfg()
+    default = physx
 
 
 @configclass
-class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
-    @configclass
-    class CartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "/World/envs/env_.*/Camera"
-        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
-            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
-        )
-        data_types: list[str] = []
-        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        )
-        width: int = 100
-        height: int = 100
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+class CartpoleCameraDataTypesCfg(PresetCfg):
+    """Camera data-type selector for the cartpole tiled camera.
 
-    default = CartpoleTiledCameraCfg(data_types=["rgb"])
-    depth = CartpoleTiledCameraCfg(data_types=["depth"])
-    albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
-    semantic_segmentation = CartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
-    simple_shading_constant_diffuse = CartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
-    simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
-    simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
-    rgb = default
+    Every variant of the cartpole camera task uses the same camera pose,
+    intrinsics, and resolution; only the ``data_types`` list changes. Keeping
+    just that list in a small PresetCfg lets the parent
+    :class:`CartpoleTiledCameraCfg` share a single instance of everything else.
+    """
+
+    rgb = ["rgb"]
+    albedo = ["albedo"]
+    semantic_segmentation = ["semantic_segmentation"]
+    simple_shading_constant_diffuse = ["simple_shading_constant_diffuse"]
+    simple_shading_diffuse_mdl = ["simple_shading_diffuse_mdl"]
+    simple_shading_full_mdl = ["simple_shading_full_mdl"]
+    depth = ["depth"]
+    default = rgb
 
 
 @configclass
-class CartpoleCameraPresetsEnvCfg(PresetCfg):
-    @configclass
-    class BaseCartpoleCameraEnvCfg(DirectRLEnvCfg):
-        # env
-        decimation = 2
-        episode_length_s = 5.0
-        action_scale = 100.0  # [N]
+class CartpoleTiledCameraCfg(CameraCfg):
+    """Single instance of the cartpole tiled camera with selectable data types."""
 
-        # simulation
-        sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
+    prim_path: str = "/World/envs/env_.*/Camera"
+    offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
+        pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
+    )
+    data_types: CartpoleCameraDataTypesCfg = CartpoleCameraDataTypesCfg()
+    spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
+        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+    )
+    width: int = 100
+    height: int = 100
+    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
-        # robot
-        robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        cart_dof_name = "slider_to_cart"
-        pole_dof_name = "cart_to_pole"
 
-        # camera
-        tiled_camera: MultiDataTypeCartpoleTiledCameraCfg = MultiDataTypeCartpoleTiledCameraCfg()
-        write_image_to_file = False
+@configclass
+class CartpoleObservationSpaceCfg(PresetCfg):
+    """Per-data-type policy observation shape selector.
 
-        frame_stack: int = -1
-        """Number of frames to stack along the channel dim.
+    ``observation_space`` is the only env-level field that varies per data-type
+    variant; keeping it in its own nested PresetCfg lets the env cfg share
+    every other field (sim, robot, scene, rewards, ...) as a single instance
+    instead of duplicating the full env cfg per variant.
+    """
 
-        ``-1`` (default) auto-resolves to ``2`` for the Newton + Warp combo and ``1`` otherwise.
-        Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
-        """
+    rgb = [100, 100, 3]
+    albedo = rgb
+    simple_shading_constant_diffuse = rgb
+    simple_shading_diffuse_mdl = rgb
+    simple_shading_full_mdl = rgb
+    depth = [100, 100, 1]
+    semantic_segmentation = [100, 100, 4]
+    default = rgb
 
-        # spaces
-        action_space = 1
-        state_space = 0
-        observation_space = [100, 100, 3]
 
-        # change viewer settings
-        viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
+@configclass
+class CartpoleCameraPresetsEnvCfg(DirectRLEnvCfg):
+    """Cartpole camera env cfg with selectable data-type variant.
 
-        # scene
-        scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+    Shared fields (sim, robot, scene, rewards, ...) are declared once. The
+    fields that vary per ``presets=<name>`` -- the policy observation shape
+    and the camera data types -- are nested
+    :class:`~isaaclab_tasks.utils.PresetCfg` selectors that the framework
+    resolver pins at ``gym.make`` time.
+    """
 
-        # reset
-        max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-        initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
+    # env
+    decimation = 2
+    episode_length_s = 5.0
+    action_scale = 100.0  # [N]
 
-        # reward scales
-        rew_scale_alive = 1.0
-        rew_scale_terminated = -2.0
-        rew_scale_pole_pos = -1.0
-        rew_scale_cart_vel = -0.01
-        rew_scale_pole_vel = -0.005
+    # simulation
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
 
-    default = BaseCartpoleCameraEnvCfg()
-    depth = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 1])
-    albedo = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
-    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 4])
-    simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
-    simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
-    simple_shading_full_mdl = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
-    rgb = default
+    # robot
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    cart_dof_name = "slider_to_cart"
+    pole_dof_name = "cart_to_pole"
+
+    # camera (data_types selected via ``presets=<name>``)
+    tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
+    write_image_to_file = False
+
+    frame_stack: int = -1
+    """Number of frames to stack along the channel dim.
+
+    ``-1`` (default) auto-resolves to ``2`` for the Newton + Warp combo and ``1`` otherwise.
+    Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
+    """
+
+    # spaces (observation shape varies per variant via the nested PresetCfg)
+    action_space = 1
+    state_space = 0
+    observation_space: CartpoleObservationSpaceCfg = CartpoleObservationSpaceCfg()
+
+    # change viewer settings
+    viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
+
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+
+    # reset
+    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
+    initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
+
+    # reward scales
+    rew_scale_alive = 1.0
+    rew_scale_terminated = -2.0
+    rew_scale_pole_pos = -1.0
+    rew_scale_cart_vel = -0.01
+    rew_scale_pole_vel = -0.005

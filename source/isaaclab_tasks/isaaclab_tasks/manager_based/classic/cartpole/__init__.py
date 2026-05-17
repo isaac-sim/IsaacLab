@@ -12,6 +12,12 @@ import gymnasium as gym
 from isaaclab_tasks.utils import deprecated_task_alias
 
 from . import agents
+from .cartpole_camera_env_cfg import (
+    CartpoleDepthCameraEnvCfg,
+    CartpoleResNet18CameraEnvCfg,
+    CartpoleRGBCameraEnvCfg,
+    CartpoleTheiaTinyCameraEnvCfg,
+)
 
 ##
 # Register Gym environments.
@@ -50,6 +56,12 @@ gym.register(
 )
 
 # -- Deprecated aliases --------------------------------------------------------
+# Each retired task ID returns its historical per-variant cfg via ``cfg_factory``
+# so the retired ID stays bit-for-bit identical to develop. The OLD subclasses
+# (``Cartpole{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}CameraEnvCfg``) in
+# ``cartpole_camera_env_cfg.py`` are kept for one release alongside the
+# consolidated ``CartpoleCameraPresetsEnvCfg`` and will be removed together
+# with these task IDs.
 
 gym.register(
     id="Isaac-Cartpole-RGB-v0",
@@ -59,7 +71,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-v0",
             new_command=["--task=Isaac-Cartpole-Camera-v0", "presets=rgb"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleRGBCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
@@ -73,7 +85,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Depth-v0",
             new_command=["--task=Isaac-Cartpole-Camera-v0", "presets=depth"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleDepthCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
@@ -91,7 +103,7 @@ gym.register(
                 "--agent=rl_games_feature_cfg_entry_point",
                 "presets=resnet18",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleResNet18CameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
@@ -109,7 +121,7 @@ gym.register(
                 "--agent=rl_games_feature_cfg_entry_point",
                 "presets=theia_tiny",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleTheiaTinyCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },

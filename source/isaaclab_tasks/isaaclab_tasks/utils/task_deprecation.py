@@ -12,21 +12,19 @@ registered for one release with an ``env_cfg_entry_point`` that emits a
 ``presets=<name>`` (and optionally ``--agent=<name>``) invocation.
 
 :func:`deprecated_task_alias` factors out the per-deprecation warning + cfg
-resolution boilerplate. Call sites read as data: ``(old_id, new_command,
-cfg_path)``, where *new_command* is the list of CLI tokens a user should
-type after migration -- joined with spaces, the same text appears verbatim
-inside the deprecation warning.
+construction boilerplate. Call sites read as data: ``(old_id, new_command,
+cfg_factory)``, where *new_command* is the list of CLI tokens a user should
+type after migration and *cfg_factory* builds the cfg the retired ID should
+return -- typically the historical per-variant cfg class so the retired ID
+stays bit-for-bit identical to its pre-deprecation behavior.
 """
 
 from __future__ import annotations
 
-import importlib
 import sys
 import warnings
 from collections.abc import Callable
 from typing import Any
-
-from isaaclab_tasks.utils.hydra import resolve_presets
 
 
 def _user_stacklevel() -> int:
@@ -51,15 +49,17 @@ def _user_stacklevel() -> int:
 def deprecated_task_alias(
     old_task_id: str,
     new_command: list[str],
-    consolidated_cfg_path: str,
+    cfg_factory: Callable[[], Any],
 ) -> Callable[[], Any]:
-    """Wrap a retired gym task ID with a :class:`DeprecationWarning` + cfg resolution.
+    """Wrap a retired gym task ID with a :class:`DeprecationWarning` + cfg construction.
 
     The returned callable is meant for use as a gym registry
     ``env_cfg_entry_point``. On invocation it emits a warning of the form::
 
         Task '<old_task_id>' is deprecated and will be removed in a future
         release. Use '<new_command joined with spaces>'.
+
+    then returns ``cfg_factory()``.
 
     *new_command* is the list of CLI tokens a user should type after
     migration -- e.g. ``["--task=Isaac-Cartpole-Camera-v0", "presets=rgb"]``
@@ -69,26 +69,21 @@ def deprecated_task_alias(
     ``--task=`` first, ``--agent=`` next when present, and the
     ``presets=NAME`` selector at the end.
 
-    Cfg resolution: imports *consolidated_cfg_path* via :mod:`importlib`,
-    instantiates the class, and delegates to
-    :func:`~isaaclab_tasks.utils.hydra.resolve_presets` with the union of
-    every ``presets=NAME[,NAME,...]`` token's names. The resolver walks
-    every nested :class:`PresetCfg` in the tree and picks the matching
-    variant (falling back to each preset's ``default`` field). This matches
-    the canonical task's resolution path; the cfg the deprecated shim
-    returns is bit-for-bit what the canonical task plus ``presets=<name>``
-    would have produced. The import is lazy -- it runs on first
-    ``gym.make()``, not at registration time -- matching gym's own handling
-    of string ``"module:Name"`` entry points.
+    *cfg_factory* is invoked verbatim. The retired ID's cfg payload is
+    whatever the factory returns -- typically the historical per-variant cfg
+    class instance, so the retired ID stays bit-for-bit identical to its
+    pre-deprecation behavior and only the deprecation warning is layered on
+    top. The factory body is the natural place to import the historical cfg
+    class lazily so the import cost is paid at first ``gym.make()`` rather
+    than at registration time.
 
     Args:
         old_task_id: The deprecated gym task ID, quoted in the warning body.
         new_command: The replacement command split into CLI tokens, joined
             with single spaces in the warning. Typically
             ``["--task=NEW", "--agent=NAME"?, "presets=NAME"?]``.
-        consolidated_cfg_path: ``"module.path:ClassName"`` string for the
-            consolidated :class:`PresetCfg` subclass. Same format gym
-            accepts for ``env_cfg_entry_point``. Resolved lazily.
+        cfg_factory: Zero-arg callable that returns the cfg instance the
+            retired task should load.
 
     Returns:
         A zero-arg callable suitable for use as ``env_cfg_entry_point``.
@@ -101,13 +96,6 @@ def deprecated_task_alias(
             DeprecationWarning,
             stacklevel=_user_stacklevel(),
         )
-        # Union of every ``presets=NAME[,...]`` token's names, mirroring how the
-        # hydra layer folds typed selectors before broadcast.
-        selected = {
-            name for tok in new_command if tok.startswith("presets=") for name in tok.split("=", 1)[1].split(",")
-        }
-        mod_name, cls_name = consolidated_cfg_path.split(":")
-        cls = getattr(importlib.import_module(mod_name), cls_name)
-        return resolve_presets(cls(), selected)
+        return cfg_factory()
 
     return factory

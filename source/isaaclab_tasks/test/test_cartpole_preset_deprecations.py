@@ -157,45 +157,42 @@ def test_consolidated_task_id_loads_without_deprecation(task_id: str) -> None:
     assert messages == [], f"{task_id}: unexpected deprecation warning(s): {messages}"
 
 
-# All variants resolve to the consolidated cfg's identity-offset camera. Develop's
-# ``MultiDataTypeCartpoleTiledCameraCfg`` chose a uniform camera pose for all
-# variants (the historical per-variant cfgs had a 180-degree rotation for Albedo /
-# SimpleShading, but that rotation was dropped when the consolidated task landed
-# in develop). The deprecation shim returns the consolidated cfg's variant, so
-# users of the retired task IDs see the consolidated task's camera orientation
-# starting from this PR -- migrate to the consolidated task and pick the variant
-# via ``presets=<name>``.
+# Each retired direct-camera task ID returns its historical per-variant
+# subclass via cfg_factory, so the camera offset rotation matches develop's
+# pre-deprecation value bit-for-bit. RGB and Depth subclasses use the
+# identity rotation; the Albedo and SimpleShading subclasses ship a
+# 180-degree flip that the consolidated cfg's matching variant does not
+# preserve (a long-standing latent divergence on develop between the
+# Style A per-variant subclasses and the Style B consolidated PresetCfg).
 _IDENTITY_ROT = (0.0, 0.0, 0.0, 1.0)
+_FLIPPED_ROT = (1.0, 0.0, 0.0, 0.0)
 
 # (deprecated direct camera task id, expected data_types value,
 #  expected obs channels, expected offset rotation).
-# Verifies the shim atomically selects (observation_space, data_types,
-# camera offset) so the loaded cfg matches the consolidated PresetCfg's variant.
+# Verifies the shim returns the historical per-variant subclass with its
+# observation_space, tiled_camera.data_types, and camera offset preserved.
 _DIRECT_CAMERA_SHAPE_PINS = [
     ("Isaac-Cartpole-RGB-Camera-Direct-v0", ["rgb"], 3, _IDENTITY_ROT),
     ("Isaac-Cartpole-Depth-Camera-Direct-v0", ["depth"], 1, _IDENTITY_ROT),
-    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", ["albedo"], 3, _IDENTITY_ROT),
-    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", ["simple_shading_constant_diffuse"], 3, _IDENTITY_ROT),
-    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", ["simple_shading_diffuse_mdl"], 3, _IDENTITY_ROT),
-    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", ["simple_shading_full_mdl"], 3, _IDENTITY_ROT),
+    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", ["albedo"], 3, _FLIPPED_ROT),
+    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", ["simple_shading_constant_diffuse"], 3, _FLIPPED_ROT),
+    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", ["simple_shading_diffuse_mdl"], 3, _FLIPPED_ROT),
+    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", ["simple_shading_full_mdl"], 3, _FLIPPED_ROT),
 ]
 
 
 @pytest.mark.parametrize("task_id, expected_data_types, expected_channels, expected_rot", _DIRECT_CAMERA_SHAPE_PINS)
-def test_direct_camera_shim_pins_both_observation_and_camera_variants(
+def test_direct_camera_shim_returns_historical_per_variant_cfg(
     task_id: str,
     expected_data_types: list[str],
     expected_channels: int,
     expected_rot: tuple[float, float, float, float],
 ) -> None:
-    """The direct-camera deprecation shim must atomically select the
-    observation_space variant AND the nested tiled_camera variant (including
-    its offset rotation) so the loaded cfg matches the historical
-    per-variant class shape bit-for-bit. Without the inner resolution the
-    shim leaves tiled_camera as a PresetCfg whose default is rgb, silently
-    dropping the albedo / simple-shading / depth selection. Without the
-    per-variant offset on the consolidated cfg, albedo and simple-shading
-    paths would also lose the 180-degree rotation the old cfgs configured.
+    """The direct-camera deprecation shim must return the historical
+    per-variant subclass bit-for-bit (via ``cfg_factory=lambda: SubClass()``
+    at the call site), preserving its observation_space, tiled_camera
+    data_types, and camera offset rotation -- including the 180-degree flip
+    that the Albedo / SimpleShading subclasses ship.
     """
     # Suppress warning emission noise -- the warning text is locked elsewhere.
     with warnings.catch_warnings():
@@ -219,14 +216,16 @@ def test_direct_camera_shim_pins_both_observation_and_camera_variants(
 
 
 # (deprecated manager-perception task id, expected env_cfg class name).
-# The manager-based deprecation shim has a flat resolution (no nested
-# PresetCfg), so a single class-name pin is enough to lock the variant.
+# Each retired ID returns its historical per-variant cfg subclass verbatim
+# via the deprecation shim's ``cfg_factory``, so the class name is the
+# pre-deprecation source of truth.
 _MANAGER_CAMERA_CLASS_PINS = [
     ("Isaac-Cartpole-RGB-v0", "CartpoleRGBCameraEnvCfg"),
     ("Isaac-Cartpole-Depth-v0", "CartpoleDepthCameraEnvCfg"),
     ("Isaac-Cartpole-RGB-ResNet18-v0", "CartpoleResNet18CameraEnvCfg"),
     ("Isaac-Cartpole-RGB-TheiaTiny-v0", "CartpoleTheiaTinyCameraEnvCfg"),
 ]
+
 
 # (deprecated showcase task id, expected env_cfg class name). The showcase
 # shim picks a per-shape cfg class out of the consolidated PresetCfg; the

@@ -12,6 +12,15 @@ import gymnasium as gym
 from isaaclab_tasks.utils import deprecated_task_alias
 
 from . import agents
+from .cartpole_camera_env_cfg import (
+    CartpoleAlbedoCameraEnvCfg,
+    CartpoleDepthCameraEnvCfg,
+    CartpoleRGBCameraEnvCfg,
+    CartpoleSimpleShadingConstantCameraEnvCfg,
+    CartpoleSimpleShadingDiffuseCameraEnvCfg,
+    CartpoleSimpleShadingFullCameraEnvCfg,
+)
+from .cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
 ##
 # Register Gym environments.
@@ -44,11 +53,12 @@ gym.register(
 
 # Retired per-data-type camera task IDs. Each is registered as a deprecation
 # shim that emits a DeprecationWarning naming the consolidated task with the
-# equivalent presets=<name>, then loads the corresponding variant of
-# CartpoleCameraPresetsEnvCfg. The shim's default cfg resolution walks every
-# nested PresetCfg via ``resolve_presets``, so both the root variant and the
-# nested ``tiled_camera`` preset are pinned to ``presets=<name>`` without
-# per-call-site wiring.
+# equivalent presets=<name>, then returns the historical per-variant cfg via
+# cfg_factory so the retired ID stays bit-for-bit identical to develop. The
+# OLD subclasses ``Cartpole{RGB,Depth,Albedo,SimpleShading*}CameraEnvCfg``
+# in ``cartpole_camera_env_cfg.py`` are kept for one release alongside the
+# consolidated ``CartpoleCameraPresetsEnvCfg`` and will be removed together
+# with these retired task IDs.
 
 gym.register(
     id="Isaac-Cartpole-RGB-Camera-Direct-v0",
@@ -58,7 +68,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-RGB-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=rgb"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleRGBCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -73,7 +83,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Albedo-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=albedo"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleAlbedoCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -88,7 +98,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=simple_shading_constant_diffuse"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleSimpleShadingConstantCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -103,7 +113,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=simple_shading_diffuse_mdl"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleSimpleShadingDiffuseCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -118,7 +128,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=simple_shading_full_mdl"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleSimpleShadingFullCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -133,7 +143,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Depth-Camera-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0", "presets=depth"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleDepthCameraEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
@@ -145,10 +155,13 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_presets_env:CartpoleCameraPresetsEnv",
     disable_env_checker=True,
     kwargs={
+        # The retired catch-all returns the bare consolidated cfg unresolved
+        # so the downstream Hydra resolver can apply any user-CLI presets the
+        # user passes alongside this task ID, matching develop's behavior.
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Camera-Presets-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Direct-v0"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
+            cfg_factory=lambda: CartpoleCameraPresetsEnvCfg(),
         ),
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",

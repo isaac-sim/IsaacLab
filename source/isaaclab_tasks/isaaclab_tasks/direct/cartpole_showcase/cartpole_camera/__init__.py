@@ -12,6 +12,17 @@ import gymnasium as gym
 from isaaclab_tasks.utils import deprecated_task_alias
 
 from . import agents
+from .cartpole_camera_env_cfg import (
+    BoxBoxEnvCfg,
+    BoxDiscreteEnvCfg,
+    BoxMultiDiscreteEnvCfg,
+    DictBoxEnvCfg,
+    DictDiscreteEnvCfg,
+    DictMultiDiscreteEnvCfg,
+    TupleBoxEnvCfg,
+    TupleDiscreteEnvCfg,
+    TupleMultiDiscreteEnvCfg,
+)
 
 ###########################
 # Register Gym environments
@@ -57,7 +68,7 @@ gym.register(
         "env_cfg_entry_point": deprecated_task_alias(
             old_task_id="Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
             new_command=["--task=Isaac-Cartpole-Camera-Showcase-Direct-v0", "presets=box_box"],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: BoxBoxEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
     },
@@ -75,7 +86,7 @@ gym.register(
                 "--agent=skrl_box_discrete_cfg_entry_point",
                 "presets=box_discrete",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: BoxDiscreteEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_discrete_ppo_cfg.yaml",
     },
@@ -93,7 +104,7 @@ gym.register(
                 "--agent=skrl_box_multidiscrete_cfg_entry_point",
                 "presets=box_multidiscrete",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: BoxMultiDiscreteEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_multidiscrete_ppo_cfg.yaml",
     },
@@ -115,7 +126,7 @@ gym.register(
                 "--agent=skrl_dict_box_cfg_entry_point",
                 "presets=dict_box",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: DictBoxEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_box_ppo_cfg.yaml",
     },
@@ -133,7 +144,7 @@ gym.register(
                 "--agent=skrl_dict_discrete_cfg_entry_point",
                 "presets=dict_discrete",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: DictDiscreteEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_discrete_ppo_cfg.yaml",
     },
@@ -151,7 +162,7 @@ gym.register(
                 "--agent=skrl_dict_multidiscrete_cfg_entry_point",
                 "presets=dict_multidiscrete",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: DictMultiDiscreteEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_multidiscrete_ppo_cfg.yaml",
     },
@@ -173,7 +184,7 @@ gym.register(
                 "--agent=skrl_tuple_box_cfg_entry_point",
                 "presets=tuple_box",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: TupleBoxEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
     },
@@ -191,7 +202,7 @@ gym.register(
                 "--agent=skrl_tuple_discrete_cfg_entry_point",
                 "presets=tuple_discrete",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: TupleDiscreteEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
     },
@@ -209,7 +220,7 @@ gym.register(
                 "--agent=skrl_tuple_multidiscrete_cfg_entry_point",
                 "presets=tuple_multidiscrete",
             ],
-            consolidated_cfg_path=f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg",
+            cfg_factory=lambda: TupleMultiDiscreteEnvCfg(),
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
     },
