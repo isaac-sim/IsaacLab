@@ -617,7 +617,7 @@ class FabricFrameView(BaseFrameView):
                 "Create a SimulationContext before instantiating FabricFrameView."
             )
         self._fabric_hierarchy = sim_context.get_fabric_hierarchy(
-            self._stage_id, fabric_id.id, fabric_id, self._stage
+            fabric_id.id, fabric_id, self._stage
         )
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
