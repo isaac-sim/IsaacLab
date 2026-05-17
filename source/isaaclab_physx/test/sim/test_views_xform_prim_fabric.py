@@ -451,8 +451,12 @@ def test_multi_view_per_view_dirty_isolation(device):
     assert view_b._world_dirty is False
     # Both views must reuse the same cached IFabricHierarchy (one stage = one handle).
     assert view_a._fabric_hierarchy is view_b._fabric_hierarchy
+    from isaaclab_physx.sim.fabric_stage_cache import FabricStageCache
+
     sim_context = sim_utils.SimulationContext.instance()
-    assert len(sim_context._fabric_hierarchy_cache) == 1
+    cache = sim_context.get_service(FabricStageCache)
+    assert cache is not None
+    assert len(cache._hierarchy_cache) == 1
 
     # Write a new local pose on view A only.
     new_local_a = wp.zeros((1, 3), dtype=wp.float32, device=device)

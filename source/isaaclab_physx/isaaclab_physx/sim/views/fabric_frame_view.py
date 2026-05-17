@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -21,9 +20,6 @@ from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +123,6 @@ class FabricFrameView(BaseFrameView):
 
         # Fabric state — all populated lazily in :meth:`_initialize_fabric`.
         self._fabric_initialized = False
-        self._stage_id: int | None = None
         self._stage = None
         self._fabric_hierarchy = None
         # Set by ``set_local_poses``; cleared by ``_sync_world_from_local_if_dirty``.
@@ -602,6 +597,8 @@ class FabricFrameView(BaseFrameView):
 
         from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
 
+        from isaaclab_physx.sim.fabric_stage_cache import FabricStageCache  # noqa: PLC0415
+
         sim_context = SimulationContext.instance()
         if sim_context is None:
             raise RuntimeError(
@@ -609,7 +606,14 @@ class FabricFrameView(BaseFrameView):
                 "Create a SimulationContext before instantiating FabricFrameView."
             )
 
-        self._stage_id, self._stage, self._fabric_hierarchy, self._fabric_id = sim_context.get_fabric_hierarchy()
+        # Get or create the FabricStageCache service.
+        cache = sim_context.get_service(FabricStageCache)
+        if cache is None:
+            cache = FabricStageCache(sim_context.stage)
+            sim_context.set_service(FabricStageCache, cache)
+
+        self._stage = cache.stage
+        self._fabric_hierarchy, self._fabric_id = cache.get_hierarchy()
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
         # attributes.  Our ``trans_ro`` selection requires both, so prims missing either
