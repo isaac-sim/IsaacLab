@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.3.4 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_assets.robots.unitree.G129_CFG_WITH_DEX3_BASE_FIX` robot configuration
+  for the Unitree G1 29-DOF with Dex3 hands.
+
+
 0.3.3 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

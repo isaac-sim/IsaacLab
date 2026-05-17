@@ -13,10 +13,10 @@ The only public entry point expected by the task is
 `G1RobotPresets.g1_29dof_dex3_base_fix(...)`.
 """
 
-import numpy as np
+import math
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.unitree import G129_CFG_WITH_DEX3_BASE_FIX
 
@@ -92,19 +92,19 @@ DEFAULT_JOINT_POS: dict[str, float] = {
     "right_wrist_pitch_joint": 1.182285,
     "right_wrist_yaw_joint": -0.022848,
     # dex3 hands (left)
-    "left_hand_index_0_joint": -60.0 * np.pi / 180.0,
-    "left_hand_middle_0_joint": -60.0 * np.pi / 180.0,
+    "left_hand_index_0_joint": -60.0 * math.pi / 180.0,
+    "left_hand_middle_0_joint": -60.0 * math.pi / 180.0,
     "left_hand_thumb_0_joint": 0.0,
-    "left_hand_index_1_joint": -40.0 * np.pi / 180.0,
-    "left_hand_middle_1_joint": -40.0 * np.pi / 180.0,
+    "left_hand_index_1_joint": -40.0 * math.pi / 180.0,
+    "left_hand_middle_1_joint": -40.0 * math.pi / 180.0,
     "left_hand_thumb_1_joint": 0.0,
     "left_hand_thumb_2_joint": 0.0,
     # dexterous hand joint - right hand
-    "right_hand_index_0_joint": 60.0 * np.pi / 180.0,
-    "right_hand_middle_0_joint": 60.0 * np.pi / 180.0,
+    "right_hand_index_0_joint": 60.0 * math.pi / 180.0,
+    "right_hand_middle_0_joint": 60.0 * math.pi / 180.0,
     "right_hand_thumb_0_joint": 0.0,
-    "right_hand_index_1_joint": 40.0 * np.pi / 180.0,
-    "right_hand_middle_1_joint": 40.0 * np.pi / 180.0,
+    "right_hand_index_1_joint": 40.0 * math.pi / 180.0,
+    "right_hand_middle_1_joint": 40.0 * math.pi / 180.0,
     "right_hand_thumb_1_joint": 0.0,
     "right_hand_thumb_2_joint": 0.0,
 }

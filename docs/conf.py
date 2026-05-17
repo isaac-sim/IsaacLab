@@ -157,7 +157,6 @@ exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store
 autodoc_mock_imports = [
     "torch",
     "torchvision",
-    "numpy",
     "matplotlib",
     "scipy",
     "carb",
@@ -171,6 +170,7 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "ovphysx",
     "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",

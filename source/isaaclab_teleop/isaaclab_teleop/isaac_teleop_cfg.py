@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from isaacteleop.teleop_session_manager import DeadlinePacingConfig, RetargetingExecutionConfig
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg

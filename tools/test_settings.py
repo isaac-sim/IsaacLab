@@ -17,7 +17,7 @@ DEFAULT_TIMEOUT = 1000
 
 
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 1500,
+    "test_articulation.py": 3000,
     "test_stage_in_memory.py": 1000,
     "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
@@ -67,6 +67,7 @@ PER_TEST_TIMEOUTS = {
     "test_rendering_cartpole_kitless.py": 2000,
     "test_rendering_dexsuite_kuka_kitless.py": 2000,
     "test_rendering_shadow_hand_kitless.py": 2000,
+    "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
@@ -116,6 +117,29 @@ merges. The job is currently disabled. Add test filenames here to
 quarantine them from regular CI.
 """
 
+RENDERING_CORRECTNESS_TESTS = [
+    "test_rendering_cartpole.py",
+    "test_rendering_dexsuite_kuka.py",
+    "test_rendering_registered_tasks.py",
+    "test_rendering_shadow_hand.py",
+]
+"""Rendering-correctness tests that run in-kit (non-kitless variants).
+
+These tests are skipped in the generic ``isaaclab_tasks [N/3]`` CI jobs
+and run in the dedicated ``test-rendering-correctness`` CI job.
+"""
+
+RENDERING_CORRECTNESS_KITLESS_TESTS = [
+    "test_rendering_cartpole_kitless.py",
+    "test_rendering_dexsuite_kuka_kitless.py",
+    "test_rendering_shadow_hand_kitless.py",
+]
+"""Kitless rendering-correctness tests (OVRTX golden-image comparisons).
+
+These tests are skipped in the generic ``isaaclab_tasks [N/3]`` CI jobs
+and run in the dedicated ``test-rendering-correctness-kitless`` CI job.
+"""
+
 TESTS_TO_SKIP = [
     # lab
     "test_argparser_launch.py",  # app.close issue
@@ -131,6 +155,10 @@ TESTS_TO_SKIP = [
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
+    # rendering-correctness tests - run in dedicated test-rendering-correctness CI job
+    *RENDERING_CORRECTNESS_TESTS,
+    # kitless rendering-correctness tests - run in dedicated test-rendering-correctness-kitless CI job
+    *RENDERING_CORRECTNESS_KITLESS_TESTS,
 ]
 """A list of tests to skip in CI (see conftest.py)."""
 

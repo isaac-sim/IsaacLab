@@ -322,7 +322,9 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
         matrix: The rotation matrices. Shape is (..., 3, 3).
 
     Returns:
-        The quaternion in (x, y, z, w). Shape is (..., 4).
+        The quaternion in (x, y, z, w). Shape is (..., 4). Rows whose input is not a
+        valid rotation (e.g. singular, reflection, or scale-error matrices) are filled
+        with NaN, so callers can detect them via :func:`torch.isnan`.
 
     Reference:
         https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L102-L161
@@ -368,9 +370,13 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
 
     # if not for numerical problems, quat_candidates[i] should be same (up to a sign),
     # forall i; we pick the best-conditioned one (with the largest denominator)
-    return quat_candidates[torch.nn.functional.one_hot(q_abs.argmax(dim=-1), num_classes=4) > 0.5, :].reshape(
+    quat = quat_candidates[torch.nn.functional.one_hot(q_abs.argmax(dim=-1), num_classes=4) > 0.5, :].reshape(
         batch_dim + (4,)
     )
+    # guard against non-rotation input: a valid rotation must yield a unit quaternion.
+    # Threshold is 2x the worst-case float32 accumulated error (~1e-5) through this function.
+    invalid = (quat.norm(p=2, dim=-1, keepdim=True) - 1.0).abs() > 2e-5
+    return torch.where(invalid, torch.full_like(quat, float("nan")), quat)
 
 
 def _axis_angle_rotation(axis: Literal["X", "Y", "Z"], angle: torch.Tensor) -> torch.Tensor:
@@ -1633,7 +1639,17 @@ def create_rotation_matrix_from_view(
     The vectors are broadcast against each other so they all have shape (N, 3).
 
     Returns:
-        R: (N, 3, 3) batched rotation matrices
+        ``(N, 3, 3)`` batched rotation matrices. Rows with an undefined forward
+        direction (``eyes == targets`` or non-finite input) are filled with NaN.
+        Callers detect per-row failure with ``torch.isnan(R).any(dim=(-2, -1))``
+        and total failure with ``.all()``.
+
+    Note:
+        When the look-at direction is parallel to ``up_axis`` the camera roll
+        is mathematically undefined; a deterministic frame is returned via an
+        alternate reference vector. Tracking a target continuously through the
+        singularity will produce a discontinuous rotation -- smooth tracking
+        requires interpolation at the caller (e.g., quaternion slerp).
 
     Reference:
     Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/eaf0709d6af0025fe94d1ee7cec454bc3054826a/pytorch3d/renderer/cameras.py#L1635-L1685)
@@ -1645,16 +1661,27 @@ def create_rotation_matrix_from_view(
     else:
         raise ValueError(f"Invalid up axis: {up_axis}. Valid options are 'Y' and 'Z'.")
 
+    forward = targets - eyes
+    # 1e-5 matches the torch.nn.functional.normalize eps below: smaller magnitudes produce a sub-unit z_axis
+    undefined_forward = (torch.linalg.norm(forward, dim=1, keepdim=True) < 1e-5) | ~torch.isfinite(forward).all(
+        dim=1, keepdim=True
+    )
+
     # get rotation matrix in opengl format (-Z forward, +Y up)
-    z_axis = -torch.nn.functional.normalize(targets - eyes, eps=1e-5)
+    z_axis = -torch.nn.functional.normalize(forward, eps=1e-5)
     x_axis = torch.nn.functional.normalize(torch.cross(up_axis_vec, z_axis, dim=1), eps=1e-5)
     y_axis = torch.nn.functional.normalize(torch.cross(z_axis, x_axis, dim=1), eps=1e-5)
     is_close = torch.isclose(x_axis, torch.tensor(0.0), atol=5e-3).all(dim=1, keepdim=True)
     if is_close.any():
-        replacement = torch.nn.functional.normalize(torch.cross(y_axis, z_axis, dim=1), eps=1e-5)
-        x_axis = torch.where(is_close, replacement, x_axis)
-    R = torch.cat((x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1)
-    return R.transpose(1, 2)
+        # alt-up substitution when up_axis_vec is parallel to z_axis; both x and y must be recomputed.
+        # World X is non-parallel to z whenever the symptom fires for the supported up_axis values.
+        alt_up = torch.tensor((1.0, 0.0, 0.0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
+        replacement_x = torch.nn.functional.normalize(torch.cross(alt_up, z_axis, dim=1), eps=1e-5)
+        replacement_y = torch.nn.functional.normalize(torch.cross(z_axis, replacement_x, dim=1), eps=1e-5)
+        x_axis = torch.where(is_close, replacement_x, x_axis)
+        y_axis = torch.where(is_close, replacement_y, y_axis)
+    R = torch.cat((x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1).transpose(1, 2)
+    return torch.where(undefined_forward.unsqueeze(-1), torch.full_like(R, float("nan")), R)
 
 
 def make_pose(pos: torch.Tensor, rot: torch.Tensor) -> torch.Tensor:

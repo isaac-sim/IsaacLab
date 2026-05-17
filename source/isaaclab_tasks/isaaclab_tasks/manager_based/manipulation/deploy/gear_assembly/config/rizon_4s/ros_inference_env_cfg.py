@@ -9,7 +9,7 @@ import torch
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .joint_pos_env_cfg import Rizon4sGearAssemblyEnvCfg
 

@@ -1,6 +1,84 @@
 Changelog
 ---------
 
+0.2.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the ``use_cloning`` field on :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` to ``use_ovrtx_cloning``.
+  Changed its default value to ``True``. This will bring notable speedup for the total startup time (Launch to Train),
+  esp. for large-scale env setups. On Isaac-Dexsuite-Kuka-Allegro-Lift-v0 with 1024 env clones, the total startup time
+  dropped from ~78s to ~43s. Note that if ``use_ovrtx_cloning`` is enabled but the env setup is heterogeneous, the
+  OVRTX renderer will disable the internal cloning path and logs a warning, exporting the full multi-environment stage
+  instead (same effect as setting ``use_ovrtx_cloning`` to ``False`` for that run).
+* Updated :class:`~isaaclab_ov.renderers.OVRTXRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  accessed via their underlying warp array directly.
+
+Fixed
+^^^^^
+
+* Fixed :class:`OVRTXRenderer` crash on multi-GPU systems when ``sim.device``
+  is not ``cuda:0``. All Warp kernel launches, buffer allocations, and OVRTX
+  ``binding.map()`` calls now use the device from :class:`CameraRenderSpec`
+  instead of hardcoded defaults.
+* Fixed cloned environments disappearing from tiled camera output if
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.use_ovrtx_cloning` is set to ``True``,
+  by correcting scene-partition attribute creation on env roots and cameras.
+
+
+0.1.9 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :class:`~isaaclab_ov.renderers.OVRTXRenderer` now reads the
+  Newton ``Model`` and ``State`` it binds OVRTX attributes against from
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_state` instead of the
+  removed ``BaseSceneDataProvider.get_newton_model()`` /
+  ``get_newton_state()``.
+
+
+0.1.8 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton transform synchronization for Warp 1.13 compatibility in the
+  RTX renderer.
+
+
+0.1.7 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Construct the underlying OVRTX ``Renderer`` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` ``__init__`` instead of
+  during :meth:`~isaaclab_ov.renderers.OVRTXRenderer.prepare_stage`. This
+  pairs with the new pre-physics ``__init__`` /
+  post-physics :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.initialize`
+  lifecycle: when invoked eagerly via
+  :meth:`~isaaclab.scene.InteractiveScene.initialize_renderers`, the OVRTX
+  ``Renderer`` is created before
+  :meth:`~isaaclab.sim.SimulationContext.reset` (and therefore before
+  ovphysx initialises), which OVRTX 0.3 requires.
+* Replaced an ``assert`` on the OVRTX ``Renderer`` construction with an
+  explicit :class:`RuntimeError` so the failure is reported even when
+  Python is run with ``-O``.
+* Renamed the internal ``OVRTXRenderer.initialize(spec)`` helper to
+  ``_initialize_from_spec(spec)`` to avoid shadowing the new
+  no-arg :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.initialize`
+  lifecycle hook.
+
+
 0.1.6 (2026-05-09)
 ~~~~~~~~~~~~~~~~~~
 

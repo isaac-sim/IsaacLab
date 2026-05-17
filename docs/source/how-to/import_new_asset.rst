@@ -46,11 +46,12 @@ is then passed to the :class:`~sim.converters.UrdfConverter` class.
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
 The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
 
+Articulation and joint structure
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 * :attr:`~sim.converters.UrdfConverterCfg.fix_base` * - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
   ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
-* :attr:`~sim.converters.UrdfConverterCfg.root_link_name` - The link on which the PhysX articulation root is placed.
-  **Deprecated in URDF importer 3.0** — this option is ignored.
 * :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` * - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
   ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
@@ -65,9 +66,52 @@ The default values for the importer's configuration parameters are specified are
     We support two ways to set the gains:
 
     * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg` - To directly set the stiffness and damping.
+      Both ``stiffness`` and ``damping`` accept a single float (applied uniformly).
     * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg` - To set the gains using the
       desired natural frequency response of the system. **Deprecated in URDF importer 3.0** — use
       ``PDGainsCfg`` instead.
+
+Geometry, collisions, and materials
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :attr:`~sim.converters.UrdfConverterCfg.collision_from_visuals` - Whether to create collision geometry
+  from visual geometry when no explicit ``<collision>`` is defined for a link. Defaults to ``False``.
+* :attr:`~sim.converters.UrdfConverterCfg.collision_type` - The collision shape simplification to apply.
+  One of ``"Convex Hull"`` (default), ``"Convex Decomposition"``, ``"Bounding Sphere"``, or ``"Bounding Cube"``.
+* :attr:`~sim.converters.UrdfConverterCfg.self_collision` - Whether to activate self-collisions between
+  links of the articulation. Defaults to ``False``.
+* :attr:`~sim.converters.UrdfConverterCfg.merge_mesh` - Whether to merge meshes where possible to optimize
+  the model. Defaults to ``False``.
+* :attr:`~sim.converters.UrdfConverterCfg.link_density` - Default density in ``kg/m^3`` for links whose
+  ``<inertial>`` properties are missing. ``0.0`` (default) leaves densities unchanged.
+
+Asset resolution and output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :attr:`~sim.converters.UrdfConverterCfg.ros_package_paths` - List of ROS package name/path mappings used
+  to resolve ``package://`` URLs in the URDF. Each entry is a dict with keys ``name`` and ``path``.
+* :attr:`~sim.converters.UrdfConverterCfg.robot_type` - Robot type applied by the USD robot schema.
+  Defaults to ``"Default"``. Must be one of: ``"Default"``, ``"End Effector"``, ``"Manipulator"``,
+  ``"Humanoid"``, ``"Wheeled"``, ``"Holonomic"``, ``"Quadruped"``, ``"Mobile Manipulators"``, ``"Aerial"``.
+* :attr:`~sim.converters.UrdfConverterCfg.run_asset_transformer` - Run the asset transformer to convert
+  the flattened USD into a layered USD (interface USD + payloads). Defaults to ``True``.
+* :attr:`~sim.converters.UrdfConverterCfg.run_multi_physics_conversion` - Also emit MuJoCo-compatible joint
+  attributes alongside PhysX. Defaults to ``True``.
+* :attr:`~sim.converters.UrdfConverterCfg.debug_mode` - Write intermediate conversion artifacts next to the
+  output USD for inspection. Defaults to ``False``.
+
+Deprecated (no-op in URDF importer 3.0)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following options are retained for backwards compatibility but are ignored by the URDF importer 3.0.
+A warning is logged when they are set.
+
+* :attr:`~sim.converters.UrdfConverterCfg.root_link_name` - The link on which the PhysX articulation root
+  was previously placed.
+* :attr:`~sim.converters.UrdfConverterCfg.convert_mimic_joints_to_normal_joints` - Convert mimic joints to
+  normal joints during conversion.
+* :attr:`~sim.converters.UrdfConverterCfg.replace_cylinders_with_capsules` - Replace cylinder shapes with
+  capsule shapes during conversion.
 
 For more detailed information on the configuration parameters, please check the documentation for :class:`~sim.converters.UrdfConverterCfg`.
 
@@ -139,6 +183,14 @@ is derived automatically from the robot name in the URDF):
 
 * ``anymal.usda`` - This is the main asset file.
 
+.. note::
+   The URDF importer auto-deduplicates the per-robot subdirectory when it already exists.
+   If you re-run the converter against the same ``usd_dir`` with a changed configuration
+   (for example, flipping ``fix_base``), the importer writes to a new numbered folder
+   (``anymal_1/``, ``anymal_2/``, …) rather than overwriting the previous output.
+   :attr:`~sim.converters.UrdfConverter.usd_path` reflects whichever folder the importer
+   actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
+   want them to accumulate on disk.
 
 To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
 exit the script after the conversion is complete.
@@ -169,21 +221,63 @@ parameters, please check the the documentation at `MJCF importer`_.
 
 .. note::
    The MJCF importer was rewritten in Isaac Sim 5.0 to use the ``mujoco-usd-converter`` library.
-   Settings such as ``fix_base``, ``import_sites``, ``import_inertia_tensor``, and ``make_instanceable``
-   are no longer needed — the converter now handles these automatically based on the MJCF file content.
+   Settings such as ``import_sites``, ``import_inertia_tensor``, and ``make_instanceable`` are no
+   longer needed — the converter now handles these automatically based on the MJCF file content.
+
+Geometry, collisions, and materials
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.MjcfConverterCfg.merge_mesh` * - Whether to merge meshes where possible to
   optimize the model. The command-line flag is ``--merge-mesh``.
 * :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` * - Whether to generate collision
   geometry from visual geometries. The command-line flag is ``--collision-from-visuals``.
-* :attr:`~sim.converters.MjcfConverterCfg.collision_type` * - Type of collision geometry to use
-  (e.g. ``"default"``, ``"Convex Hull"``, ``"Convex Decomposition"``). The command-line flag is
-  ``--collision-type``.
+* :attr:`~sim.converters.MjcfConverterCfg.collision_type` * - The collision shape simplification to
+  apply. One of ``"Convex Hull"`` (default), ``"Convex Decomposition"``, ``"Bounding Sphere"``, or
+  ``"Bounding Cube"``. The command-line flag is ``--collision-type``.
 * :attr:`~sim.converters.MjcfConverterCfg.self_collision` * - Whether to activate self-collisions
   between links of the articulation. The command-line flag is ``--self-collision``.
+
+Articulation and physics
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :attr:`~sim.converters.MjcfConverterCfg.fix_base` - Whether to add a fixed joint between the world
+  and the root rigid-body link. Defaults to ``False``.
+* :attr:`~sim.converters.MjcfConverterCfg.link_density` - Default density in ``kg/m^3`` for links whose
+  ``<inertial>`` properties are missing in the MJCF. ``0.0`` (default) leaves densities unchanged.
 * :attr:`~sim.converters.MjcfConverterCfg.import_physics_scene` * - Import physics scene properties
   (gravity, time step, etc.) from the MJCF file. Defaults to ``False``. The command-line flag is
   ``--import-physics-scene``.
+
+Actuator overrides
+~~~~~~~~~~~~~~~~~~
+
+MuJoCo models actuators as an affine transformation ``tau = gain @ control + bias``. The following
+options override the values parsed from the MJCF on a per-actuator basis. Each defaults to ``None``,
+which leaves the parsed values unchanged.
+
+* :attr:`~sim.converters.MjcfConverterCfg.override_gain_type` - The actuator gain type override (e.g.
+  ``"fixed"``).
+* :attr:`~sim.converters.MjcfConverterCfg.override_bias_type` - The actuator bias type override (e.g.
+  ``"affine"``).
+* :attr:`~sim.converters.MjcfConverterCfg.override_gain_prm` - The actuator gain parameter array override.
+  Example for position control: ``[kp, 0, 0, 0, 0, 0, 0, 0, 0, 0]``.
+* :attr:`~sim.converters.MjcfConverterCfg.override_bias_prm` - The actuator bias parameter array override.
+  Example for position control: ``[0, -kp, -kd, 0, 0, 0, 0, 0, 0, 0]``.
+
+Asset resolution and output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* :attr:`~sim.converters.MjcfConverterCfg.robot_type` - Robot type applied by the USD robot schema.
+  Defaults to ``"Default"``. Must be one of: ``"Default"``, ``"End Effector"``, ``"Manipulator"``,
+  ``"Humanoid"``, ``"Wheeled"``, ``"Holonomic"``, ``"Quadruped"``, ``"Mobile Manipulators"``, ``"Aerial"``.
+* :attr:`~sim.converters.MjcfConverterCfg.run_asset_transformer` - Run the asset transformer to convert
+  the flattened USD into a layered USD (interface USD + payloads). Defaults to ``True``.
+* :attr:`~sim.converters.MjcfConverterCfg.run_multi_physics_conversion` - Convert compatible MuJoCo
+  attributes to PhysX attributes (e.g. actuator gains). Defaults to ``True``.
+* :attr:`~sim.converters.MjcfConverterCfg.debug_mode` - Write intermediate conversion artifacts next to
+  the output USD for inspection. Defaults to ``False``.
+
+For more detailed information on the configuration parameters, please check the documentation for :class:`~sim.converters.MjcfConverterCfg`.
 
 
 Example Usage
@@ -233,6 +327,15 @@ Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
 
 * ``h1.usd`` - This is the converted USD asset file.
+
+.. note::
+   The MJCF importer auto-deduplicates the per-robot subdirectory when it already exists,
+   matching the URDF importer's behavior. If you re-run the converter against the same
+   ``usd_dir`` with a changed configuration, the importer writes to a new numbered folder
+   (``h1_1/``, ``h1_2/``, …) rather than overwriting the previous output.
+   :attr:`~sim.converters.MjcfConverter.usd_path` reflects whichever folder the importer
+   actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
+   want them to accumulate on disk.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center

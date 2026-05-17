@@ -26,6 +26,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -314,16 +315,33 @@ class Camera(SensorBase):
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
+            ValueError: If every eye position equals its target (look-at direction undefined for the
+                whole batch). When only some rows are degenerate, those rows are skipped and the
+                remaining poses are still applied; a warning is logged.
         """
-        # resolve env_ids
+        # resolve env_ids to a tensor up front so we can index it during partial-failure filtering
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        # get up axis of current stage
-        up_axis = UsdGeom.GetStageUpAxis(self.stage)
-        # set camera poses using the view
-        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
         if not isinstance(env_ids, torch.Tensor):
             env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+        # get up axis of current stage
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
+        # set camera poses using the view; degenerate rows (eye == target) come back as NaN
+        rotation_matrix = create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device)
+        valid_indices = (~torch.isnan(rotation_matrix).any(dim=(-2, -1))).nonzero(as_tuple=True)[0]
+        n_valid = valid_indices.numel()
+        n_total = rotation_matrix.shape[0]
+        if n_valid == 0:
+            raise ValueError("look-at is undefined: every eye position equals its target")
+        if n_valid < n_total:
+            logger.warning(
+                "set_world_poses_from_view: skipping %d pose(s) where eye equals target",
+                n_total - n_valid,
+            )
+            rotation_matrix = rotation_matrix.index_select(0, valid_indices)
+            eyes = eyes.index_select(0, valid_indices)
+            env_ids = env_ids.index_select(0, valid_indices)
+        orientations = quat_from_matrix(rotation_matrix)
         idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
         self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), idx_wp)
 
@@ -491,6 +509,7 @@ class Camera(SensorBase):
                 type(self._renderer).__name__,
                 unsupported,
             )
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,
             height=self.cfg.height,
@@ -500,11 +519,9 @@ class Camera(SensorBase):
             supported_specs=specs,
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
-        # the renderer: populate it on the freshly constructed ``CameraData``.
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        # the renderer: allocate warp buffers and populate them.
+        self._data.create_buffers(self._view.count, device_str)
         self._update_intrinsic_matrices(self._ALL_INDICES)
-        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
         self._renderer.set_outputs(self._render_data, self._data.output)
 
@@ -534,11 +551,12 @@ class Camera(SensorBase):
             c_x = width * 0.5
             c_y = height * 0.5
             # create intrinsic matrix for depth linear
-            self._data.intrinsic_matrices[i, 0, 0] = f_x
-            self._data.intrinsic_matrices[i, 0, 2] = c_x
-            self._data.intrinsic_matrices[i, 1, 1] = f_y
-            self._data.intrinsic_matrices[i, 1, 2] = c_y
-            self._data.intrinsic_matrices[i, 2, 2] = 1
+            intrinsics_t = self._data.intrinsic_matrices.torch
+            intrinsics_t[i, 0, 0] = f_x
+            intrinsics_t[i, 0, 2] = c_x
+            intrinsics_t[i, 1, 1] = f_y
+            intrinsics_t[i, 1, 2] = c_y
+            intrinsics_t[i, 2, 2] = 1
 
     def _update_poses(self, env_ids: Sequence[int]):
         """Computes the pose of the camera in the world frame with ROS convention.
@@ -553,14 +571,24 @@ class Camera(SensorBase):
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
-        # get the poses from the view (returns ProxyArray, use .torch for tensor access)
+        # get the poses from the view (returns ProxyArray)
         if env_ids is not None and not isinstance(env_ids, torch.Tensor):
             env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
         pos_w, quat_w = self._view.get_world_poses(indices)
-        self._data.pos_w[env_ids] = pos_w.torch
-        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat_w.torch, origin="opengl", target="world"
+        self._data.pos_w.torch[env_ids] = pos_w.torch
+
+        # get_world_poses() returns orientations as a flat 4-float, convert to wp.quatf typed array
+        quat_w_quatf = wp.array(
+            ptr=quat_w.warp.ptr, dtype=wp.quatf, shape=(quat_w.warp.shape[0],), device=quat_w.warp.device, copy=False
+        )
+        convert_camera_frame_orientation_convention_wp(
+            src=quat_w_quatf,
+            dst=self._data.quat_w_world,
+            origin="opengl",
+            target="world",
+            indices=indices,
+            device=self._device,
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:

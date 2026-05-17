@@ -12,7 +12,7 @@ How it fits together
   updates camera/object transforms (using kernels), steps the renderer, then extracts
   tiles from the tiled framebuffer (kernels).
 
-- **ovrtx_renderer_kernels.py**: Warp GPU kernels and DEVICE constant.
+- **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
 """
@@ -22,6 +22,8 @@ from __future__ import annotations
 import logging
 import math
 import os
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
@@ -42,12 +44,13 @@ import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
+from isaaclab.cloner.cloner_utils import is_homogeneous
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.sim import SimulationContext
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
-    DEVICE,
     create_camera_transforms_kernel,
     extract_all_depth_tiles_kernel,
     extract_all_depth_tiles_kernel_legacy,
@@ -57,13 +60,14 @@ from .ovrtx_renderer_kernels import (
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
-    create_cloning_attributes,
-    export_stage_for_ovrtx,
-    inject_cameras_into_usd,
+    build_render_product_as_string,
+    create_scene_partition_attributes,
+    export_stage_to_string,
 )
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.utils.warp import ProxyArray
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
@@ -135,29 +139,44 @@ class OVRTXRenderer(BaseRenderer):
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
         }
+
+    @property
+    def _device_id(self) -> int:
+        """CUDA device index extracted from ``self._device`` for OVRTX ``binding.map()`` calls."""
+        parts = self._device.split(":")
+        return int(parts[1]) if len(parts) > 1 else 0
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
+        self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         self._usd_handles = []
         self._render_product_paths = []
         self._camera_binding = None
         self._object_binding = None
         self._object_newton_indices: wp.array | None = None
         self._initialized_scene = False
-        self._exported_usd_path: str | None = None
+        self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
+
+        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning and _IS_OVRTX_0_3_0_OR_NEWER
+
+        if self._use_ovrtx_cloning:
+            clone_plan = SimulationContext.instance().get_clone_plan()
+            if clone_plan and not is_homogeneous(clone_plan):
+                logger.warning("OVRTX cloning disabled because the simulation uses a heterogeneous env setup")
+                self._use_ovrtx_cloning = False
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
@@ -175,23 +194,18 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("OVRTX renderer created successfully")
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """Export the USD stage for OVRTX before create_render_data.
+        """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
-        Adds cloning attributes and exports the stage to a temporary file.
-        The exported path is used by create_render_data when loading into OVRTX.
+        Adds cloning attributes and exports the stage to a string held on the renderer until
+        :meth:`create_render_data` is called.
         """
         if stage is None:
             return
 
-        use_cloning = self.cfg.use_cloning
+        logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
+        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning, not _IS_OVRTX_0_3_0_OR_NEWER)
 
-        logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, use_cloning)
-        create_cloning_attributes(stage, num_envs, use_cloning)
-
-        export_path = "/tmp/stage_before_ovrtx.usda"
-        export_stage_for_ovrtx(stage, export_path, num_envs, use_cloning)
-        self._exported_usd_path = export_path
-        logger.info("Exported to %s", export_path)
+        self._exported_usd_string = export_stage_to_string(stage, num_envs, self._use_ovrtx_cloning)
 
     def _initialize_from_spec(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
@@ -210,15 +224,10 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
         self._camera_rel_path = spec.camera_path_relative_to_env_0
 
-        usd_scene_path = self._exported_usd_path
-        use_cloning = self.cfg.use_cloning
-
-        if usd_scene_path is not None:
+        if self._exported_usd_string is not None:
             logger.info("Injecting camera definitions...")
 
-            combined_usd_path, render_product_path = inject_cameras_into_usd(
-                usd_scene_path,
-                self.cfg,
+            render_product_string, render_product_path = build_render_product_as_string(
                 width=width,
                 height=height,
                 num_envs=num_envs,
@@ -228,23 +237,44 @@ class OVRTXRenderer(BaseRenderer):
             )
             self._render_product_paths.append(render_product_path)
 
+            combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
+            self._exported_usd_string = None  # Free memory
+
+            if self.cfg.temp_usd_dir is not None:
+                temp_usd_dir = Path(self.cfg.temp_usd_dir)
+            elif not _IS_OVRTX_0_3_0_OR_NEWER:
+                # OVRTX 0.2.0 is not able to load USD from a string, so we need to write to a temporary file.
+                temp_usd_dir = Path(tempfile.gettempdir()) / "ovrtx"
+            else:
+                temp_usd_dir = None
+
+            if temp_usd_dir is not None:
+                temp_usd_dir.mkdir(parents=True, exist_ok=True)
+                temp_usd_path = temp_usd_dir / "ovrtx_renderer_stage.usda"
+                with open(temp_usd_path, "w", encoding="utf-8") as f:
+                    f.write(combined_usd_string)
+                    logger.info("Wrote combined USD stage to %s", temp_usd_path)
+            else:
+                temp_usd_path = None
+
             logger.info("Loading USD into OvRTX...")
             try:
                 if _IS_OVRTX_0_3_0_OR_NEWER:
-                    self._renderer.open_usd(combined_usd_path)
-                    logger.info("USD loaded as root layer (path: %s)", combined_usd_path)
+                    self._renderer.open_usd_from_string(combined_usd_string)
+                    logger.info("OVRTX loaded USD from string successfully")
                 else:
-                    handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
+                    assert temp_usd_path is not None  # OVRTX < 0.3.0 always materializes combined USD on disk.
+                    handle = self._renderer.add_usd(str(temp_usd_path), path_prefix=None)
                     self._usd_handles.append(handle)
-                    logger.info("USD loaded (path: %s, handle: %s)", combined_usd_path, handle)
+                    logger.info("OVRTX loaded USD from file successfully (path: %s, handle: %s)", temp_usd_path, handle)
             except Exception as e:
                 logger.exception("Error loading USD: %s", e)
                 raise
 
-            if use_cloning and num_envs > 1:
+            if self._use_ovrtx_cloning and num_envs > 1:
                 logger.info("Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx(num_envs)
-                self._update_scene_partitions_after_clone(combined_usd_path, num_envs)
+                self._update_scene_partitions_after_clone(num_envs)
 
             self._initialized_scene = True
 
@@ -285,7 +315,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.error("Failed to clone environments: %s", e)
             raise RuntimeError(f"OvRTX environment cloning failed: {e}")
 
-    def _update_scene_partitions_after_clone(self, usd_file_path: str, num_envs: int):
+    def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
         logger.info("Writing scene partitions for %d environments...", num_envs)
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
@@ -314,10 +344,9 @@ class OVRTXRenderer(BaseRenderer):
     def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
-            from isaaclab.sim import SimulationContext
+            from isaaclab_newton.physics import NewtonManager
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_model = provider.get_newton_model()
+            newton_model = NewtonManager.get_model()
             if newton_model is None:
                 logger.info("Newton model not available, skipping object bindings")
                 return
@@ -356,7 +385,7 @@ class OVRTXRenderer(BaseRenderer):
 
             if self._object_binding is not None:
                 logger.info("Object binding created successfully")
-                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=DEVICE)
+                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
             else:
                 logger.warning("Object binding is None")
         except ImportError:
@@ -370,48 +399,24 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
+        self._device = spec.device
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
-        return OVRTXRenderData(spec, DEVICE)
+        return OVRTXRenderData(spec, self._device)
 
-    # Map torch dtypes to their warp counterparts for zero-copy wrapping.
-    _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
-        torch.uint8: wp.uint8,
-        torch.float32: wp.float32,
-        torch.int32: wp.int32,
-    }
+    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
+        """Register pre-allocated warp output buffers for rendering.
 
-    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, torch.Tensor]) -> None:
-        """Wrap caller-owned torch output tensors as zero-copy warp arrays.
-
-        Aliased views over a contiguous sibling (e.g. ``rgb`` over ``rgba``) are
-        skipped; any other non-contiguous tensor raises ``ValueError``.
+        Each :class:`~isaaclab.utils.warp.ProxyArray` already carries the correct warp
+        dtype from :meth:`~isaaclab.sensors.camera.CameraData.allocate`; store
+        the underlying warp array directly. ``rgb`` is excluded because it is a
+        non-contiguous strided view into ``rgba`` and is updated automatically.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`.
         """
-        render_data.warp_buffers = {}
-        for name, tensor in output_data.items():
-            if not tensor.is_contiguous():
-                if tensor.data_ptr() in {t.data_ptr() for t in output_data.values() if t.is_contiguous()}:
-                    continue
-                raise ValueError(
-                    f"OVRTXRenderer.set_outputs: output '{name}' is non-contiguous and is not an"
-                    " alias of a contiguous output tensor; cannot wrap as a zero-copy warp array."
-                )
-            wp_dtype = self._TORCH_TO_WP_DTYPE.get(tensor.dtype)
-            if wp_dtype is None:
-                raise ValueError(
-                    f"OVRTXRenderer.set_outputs: unsupported torch dtype {tensor.dtype} for output"
-                    f" '{name}'. Add it to OVRTXRenderer._TORCH_TO_WP_DTYPE."
-                )
-            torch_array = wp.from_torch(tensor)
-            render_data.warp_buffers[name] = wp.array(
-                ptr=torch_array.ptr,
-                dtype=wp_dtype,
-                shape=tuple(tensor.shape),
-                device=torch_array.device,
-                copy=False,
-            )
+        render_data.warp_buffers = {
+            name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
+        }
 
     def update_transforms(self) -> None:
         """Sync physics objects to OVRTX."""
@@ -419,23 +424,22 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         try:
-            from isaaclab.sim import SimulationContext
+            from isaaclab_newton.physics import NewtonManager
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_state = provider.get_newton_state()
+            newton_state = NewtonManager.get_state()
             if newton_state is None:
                 return
             body_q = getattr(newton_state, "body_q", None)
             if body_q is None:
                 return
 
-            with self._object_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
+            with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
                 ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.launch(
                     kernel=sync_newton_transforms_kernel,
                     dim=len(self._object_newton_indices),
                     inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
-                    device=DEVICE,
+                    device=self._device,
                 )
         except Exception as e:
             logger.warning("Failed to update object transforms: %s", e)
@@ -443,24 +447,29 @@ class OVRTXRenderer(BaseRenderer):
     def update_camera(
         self,
         render_data: OVRTXRenderData,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
-        camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
-        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
+        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
+        convert_camera_frame_orientation_convention_wp(
+            src=orientations.warp,
+            dst=converted_wp,
+            origin="world",
+            target="opengl",
+            device=self._device,
+        )
+        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
         wp.launch(
             kernel=create_camera_transforms_kernel,
             dim=num_envs,
-            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
-            device=DEVICE,
+            inputs=[positions, converted_wp, camera_transforms],
+            device=self._device,
         )
         if self._camera_binding is not None:
-            with self._camera_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
+            with self._camera_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
@@ -482,7 +491,7 @@ class OVRTXRenderer(BaseRenderer):
     def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
         """Generate pseudo-random colors from semantic IDs."""
         if self._output_semantic_color_buffer is None or self._output_semantic_color_buffer.shape != input_ids.shape:
-            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=DEVICE)
+            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=self._device)
 
         output_colors = self._output_semantic_color_buffer
 
@@ -494,7 +503,7 @@ class OVRTXRenderer(BaseRenderer):
             ),
             dim=input_ids.shape,
             inputs=[input_ids, output_colors],
-            device=DEVICE,
+            device=self._device,
         )
 
         return output_colors
@@ -524,7 +533,7 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.height,
                 num_channels,
             ],
-            device=DEVICE,
+            device=self._device,
         )
 
     def _extract_depth_tiles(
@@ -545,7 +554,7 @@ class OVRTXRenderer(BaseRenderer):
                         render_data.width,
                         render_data.height,
                     ],
-                    device=DEVICE,
+                    device=self._device,
                 )
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:

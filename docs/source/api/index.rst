@@ -128,7 +128,6 @@ The following modules are available in the ``isaaclab_physx`` extension:
    cloner
    physics
    renderers
-   scene_data_providers
    sensors
    sim.schemas
    sim.spawners
@@ -140,7 +139,6 @@ The following modules are available in the ``isaaclab_physx`` extension:
    lab_physx/isaaclab_physx.cloner
    lab_physx/isaaclab_physx.physics
    lab_physx/isaaclab_physx.renderers
-   lab_physx/isaaclab_physx.scene_data_providers
    lab_physx/isaaclab_physx.sensors
    lab_physx/isaaclab_physx.sim.schemas
    lab_physx/isaaclab_physx.sim.spawners
@@ -159,7 +157,6 @@ The following modules are available in the ``isaaclab_newton`` extension:
    cloner
    physics
    renderers
-   scene_data_providers
    sensors
    sim.schemas
 
@@ -170,7 +167,6 @@ The following modules are available in the ``isaaclab_newton`` extension:
    lab_newton/isaaclab_newton.cloner
    lab_newton/isaaclab_newton.physics
    lab_newton/isaaclab_newton.renderers
-   lab_newton/isaaclab_newton.scene_data_providers
    lab_newton/isaaclab_newton.sensors
    lab_newton/isaaclab_newton.sim.schemas
 

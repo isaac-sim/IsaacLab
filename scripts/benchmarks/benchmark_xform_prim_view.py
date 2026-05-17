@@ -54,7 +54,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.views import UsdFrameView
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
