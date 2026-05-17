@@ -214,6 +214,10 @@ class SimulationContext:
             order=5,
         )
 
+        # Fabric hierarchy cache — shared across all FabricFrameView instances.
+        # Keyed by (stage_id, fabric_id_int) so recycled IDs don't return stale handles.
+        self._fabric_hierarchy_cache: dict[tuple[int, int], object] = {}
+
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
     def _apply_render_cfg_settings(self) -> None:
@@ -852,6 +856,35 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
+    def get_fabric_hierarchy(self, stage_id: int, fabric_id_int: int, fabric_id_obj: object, stage: object) -> object:
+        """Return a shared IFabricHierarchy handle for the given (stage, fabric) pair.
+
+        Multiple :class:`~isaaclab_physx.sim.views.FabricFrameView` instances that
+        operate on the same stage share a single hierarchy handle.  The handle is
+        created on first access and cached for the lifetime of this
+        :class:`SimulationContext`.
+
+        Args:
+            stage_id: Integer stage identifier (from :func:`~isaaclab.sim.utils.stage.get_current_stage_id`).
+            fabric_id_int: Stable integer from ``FabricId.id``.
+            fabric_id_obj: The ``FabricId`` wrapper (needed by ``get_fabric_hierarchy``).
+            stage: The ``usdrt.Usd.Stage`` instance.
+
+        Returns:
+            The ``IFabricHierarchy`` handle with change-tracking enabled.
+        """
+        import usdrt  # noqa: PLC0415
+
+        cache_key = (stage_id, fabric_id_int)
+        if cache_key not in self._fabric_hierarchy_cache:
+            hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                fabric_id_obj, stage.GetStageIdAsStageId()
+            )
+            hierarchy.track_local_xform_changes(True)
+            hierarchy.track_world_xform_changes(True)
+            self._fabric_hierarchy_cache[cache_key] = hierarchy
+        return self._fabric_hierarchy_cache[cache_key]
+
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
@@ -864,6 +897,9 @@ class SimulationContext:
             for viz in cls._instance._visualizers:
                 viz.close()
             cls._instance._visualizers.clear()
+
+            # Drop cached Fabric hierarchy handles (they reference the dying stage)
+            cls._instance._fabric_hierarchy_cache.clear()
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.

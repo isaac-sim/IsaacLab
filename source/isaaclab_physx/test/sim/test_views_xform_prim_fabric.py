@@ -41,9 +41,6 @@ def test_setup_teardown():
     yield
     sim_utils.clear_stage()
     sim_utils.SimulationContext.clear_instance()
-    # Each test creates a fresh stage; drop cached IFabricHierarchy handles so
-    # the next test does not reuse a handle attached to the disposed stage.
-    FrameView.clear_static_caches()
 
 
 def _skip_if_unavailable(device: str):
@@ -454,7 +451,8 @@ def test_multi_view_per_view_dirty_isolation(device):
     assert view_b._world_dirty is False
     # Both views must reuse the same cached IFabricHierarchy (one stage = one handle).
     assert view_a._fabric_hierarchy is view_b._fabric_hierarchy
-    assert len(FrameView._static_hierarchy_cache) == 1
+    sim_context = sim_utils.SimulationContext.instance()
+    assert len(sim_context._fabric_hierarchy_cache) == 1
 
     # Write a new local pose on view A only.
     new_local_a = wp.zeros((1, 3), dtype=wp.float32, device=device)

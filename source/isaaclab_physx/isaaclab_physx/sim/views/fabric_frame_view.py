@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import ClassVar
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -21,6 +21,9 @@ from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
+
+if TYPE_CHECKING:
+    from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
 
@@ -86,34 +89,6 @@ class FabricFrameView(BaseFrameView):
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
-
-    # Stage-level shared state.  Multiple FabricFrameView instances on the same stage
-    # share one ``IFabricHierarchy`` handle, keyed by ``(stage_id, fabric_id_int)``
-    # so that a recycled ``stage_id`` paired with a fresh Fabric attachment never
-    # reuses a stale handle.  The Fabric id is stored as a plain ``int`` (extracted
-    # from ``FabricId.id``) because the ``FabricId`` wrapper itself is freshly
-    # allocated on every ``GetFabricId()`` call and has no value equality, which
-    # would defeat the cache.  ``ClassVar`` plus the ``_static_`` prefix make it
-    # explicit (and enforceable by type checkers) that this is class-level — never
-    # shadow it with ``self.<name> = ...``.  The cache is not protected by a lock;
-    # Isaac Lab's simulation loop is single-threaded, and adding locking would
-    # negate the per-stage hit-cache cost it exists to avoid.  Call
-    # :meth:`clear_static_caches` on stage teardown if you tear down many stages
-    # in one process.
-    _static_hierarchy_cache: ClassVar[dict[tuple[int, int], object]] = {}
-
-    @classmethod
-    def clear_static_caches(cls) -> None:
-        """Drop all cached ``IFabricHierarchy`` handles.
-
-        Call this after tearing down a USD stage if the process will continue
-        opening new stages.  Cached handles are otherwise retained for the
-        lifetime of the process, which can leak memory in long test suites and,
-        in theory, allow a recycled ``stage_id`` paired with a new Fabric
-        attachment to read a stale handle (though the ``(stage_id, fabric_id)``
-        cache key already guards against the latter).
-        """
-        cls._static_hierarchy_cache.clear()
 
     def __init__(
         self,
@@ -629,25 +604,21 @@ class FabricFrameView(BaseFrameView):
         self._stage = usdrt.Usd.Stage.Attach(self._stage_id)
         self._stage.SynchronizeToFabric()
 
-        # Reuse (or create) a hierarchy handle for this stage.  The cache key is
-        # ``(stage_id, fabric_id_int)`` so a recycled ``stage_id`` paired with a fresh
-        # Fabric attachment never returns a stale handle.  Note: ``GetFabricId()``
-        # returns a fresh ``FabricId`` *wrapper* on every call, and the wrapper has
-        # no value equality (two wrappers for the same underlying Fabric compare
-        # unequal and hash differently), so we key on its stable ``.id`` int.
-        # Enable change-tracking BEFORE we author any local matrices, so the per-prim
-        # ``SetLocalXformFromUsd`` calls below mark themselves dirty.
+        # Reuse (or create) a hierarchy handle for this stage via the SimulationContext.
+        # The context owns the cache and clears it on stage teardown.
         fabric_id = self._stage.GetFabricId()
         self._fabric_id = fabric_id.id
-        cache_key = (self._stage_id, fabric_id.id)
-        if cache_key not in FabricFrameView._static_hierarchy_cache:
-            hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_id, self._stage.GetStageIdAsStageId()
+        from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
+
+        sim_context = SimulationContext.instance()
+        if sim_context is None:
+            raise RuntimeError(
+                "FabricFrameView requires an active SimulationContext. "
+                "Create a SimulationContext before instantiating FabricFrameView."
             )
-            hierarchy.track_local_xform_changes(True)
-            hierarchy.track_world_xform_changes(True)
-            FabricFrameView._static_hierarchy_cache[cache_key] = hierarchy
-        self._fabric_hierarchy = FabricFrameView._static_hierarchy_cache[cache_key]
+        self._fabric_hierarchy = sim_context.get_fabric_hierarchy(
+            self._stage_id, fabric_id.id, fabric_id, self._stage
+        )
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
         # attributes.  Our ``trans_ro`` selection requires both, so prims missing either
