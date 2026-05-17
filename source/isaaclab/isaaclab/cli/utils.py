@@ -20,6 +20,7 @@ DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
 # Short script names supported by ``isaaclab -p``.
 _PYTHON_SCRIPT_ALIASES = {
     "train.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+    "train_multigpu.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train_multigpu.py",
     "play.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
 }
 

@@ -138,6 +138,7 @@ setup(
             "isaaclab=isaaclab.cli:cli",
             "play=isaaclab.cli:play",
             "train=isaaclab.cli:train",
+            "train_multigpu=isaaclab.cli:train_multigpu",
         ],
     },
     dependency_links=PYTORCH_INDEX_URL,
