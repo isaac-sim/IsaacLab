@@ -228,3 +228,55 @@ The following modules are available in the ``isaaclab_visualizers`` extension:
    lab_visualizers/isaaclab_visualizers.newton
    lab_visualizers/isaaclab_visualizers.rerun
    lab_visualizers/isaaclab_visualizers.viser
+
+
+isaaclab_ovphysx extension
+---------------------------
+
+The following modules are available in the ``isaaclab_ovphysx`` extension:
+
+.. currentmodule:: isaaclab_ovphysx
+
+.. autosummary::
+   :toctree: lab_ovphysx
+
+   assets
+   cloner
+   physics
+
+.. toctree::
+   :hidden:
+
+   lab_ovphysx/isaaclab_ovphysx.assets
+   lab_ovphysx/isaaclab_ovphysx.cloner
+   lab_ovphysx/isaaclab_ovphysx.physics
+
+
+isaaclab_experimental extension
+--------------------------------
+
+The following modules are available in the ``isaaclab_experimental`` extension:
+
+.. currentmodule:: isaaclab_experimental
+
+.. autosummary::
+   :toctree: lab_experimental
+
+   envs
+   managers
+   utils
+
+.. toctree::
+   :hidden:
+
+   lab_experimental/isaaclab_experimental.envs
+   lab_experimental/isaaclab_experimental.managers
+   lab_experimental/isaaclab_experimental.utils
+
+
+isaaclab_tasks_experimental extension
+--------------------------------------
+
+The package ``isaaclab_tasks_experimental`` contains experimental task implementations
+under active development, not yet part of the stable task suite.
+For the list of available environments, please refer to the :ref:`environments`.
