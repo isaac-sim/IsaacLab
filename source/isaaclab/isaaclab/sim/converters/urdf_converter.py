@@ -5,26 +5,21 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
 import warnings
-
-try:
-    import carb
-except ImportError:
-    carb = None
 
 from ._importer_api import load_importer_api
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
 
+logger = logging.getLogger(__name__)
+
 
 def _log_warn(message: str) -> None:
-    """Log a warning through Carbonite when available, otherwise use Python warnings."""
-    if carb is not None:
-        carb.log_warn(message)
-    else:
-        warnings.warn(message, stacklevel=2)
+    """Log a warning through the Python logger."""
+    logger.warning(message)
 
 
 class UrdfConverter(AssetConverterBase):

@@ -114,6 +114,17 @@ def ensure_standalone_importer_runtime(importer_kind: str) -> None:
     )
 
 
+def should_open_stage_with_kit(args_cli: argparse.Namespace) -> bool:
+    """Return True when the converter should open the generated stage in Kit."""
+    visualizers = getattr(args_cli, "visualizer", None) or []
+    if isinstance(visualizers, str):
+        visualizers = parse_visualizer_csv(visualizers)
+    livestream = getattr(args_cli, "livestream", -1)
+    if livestream < 0:
+        livestream = _read_int_env("LIVESTREAM", 0)
+    return ("kit" in visualizers and not getattr(args_cli, "headless", False)) or livestream in {1, 2}
+
+
 def _add_kitless_app_launcher_args(parser: argparse.ArgumentParser) -> None:
     """Add AppLauncher-compatible arguments accepted during kitless conversion."""
     arg_group = parser.add_argument_group(

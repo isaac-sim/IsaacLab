@@ -32,7 +32,7 @@ import argparse
 import contextlib
 import os
 
-from converter_cli_utils import ensure_standalone_importer_runtime, parse_converter_cli_args
+from converter_cli_utils import ensure_standalone_importer_runtime, parse_converter_cli_args, should_open_stage_with_kit
 
 
 def _add_converter_args(parser: argparse.ArgumentParser) -> None:
@@ -132,24 +132,17 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Open the generated stage when a GUI or livestream is active.
-    if simulation_app is not None:
-        import carb
-
+    # Open the generated stage when Kit is selected as a visualizer or livestream target.
+    if simulation_app is not None and should_open_stage_with_kit(args_cli):
         # Open the stage with USD and attach it to the Kit viewport context
         import omni.kit.app
         import omni.usd
 
-        carb_settings_iface = carb.settings.get_settings()
-        local_gui = carb_settings_iface.get("/app/window/enabled")
-        livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
-
-        if local_gui or livestream_gui:
-            omni.usd.get_context().open_stage(mjcf_converter.usd_path)
-            app = omni.kit.app.get_app_interface()
-            with contextlib.suppress(KeyboardInterrupt):
-                while app.is_running():
-                    app.update()
+        omni.usd.get_context().open_stage(mjcf_converter.usd_path)
+        app = omni.kit.app.get_app_interface()
+        with contextlib.suppress(KeyboardInterrupt):
+            while app.is_running():
+                app.update()
 
 
 if __name__ == "__main__":
