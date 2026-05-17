@@ -218,8 +218,8 @@ class SimulationContext:
         # Keyed by fabric_id_int (the stable .id integer from FabricId).  Currently
         # Isaac Lab always has exactly one Fabric attachment per stage, so this dict
         # will hold at most one entry.  We use a dict rather than a plain Optional so
-        # that the design naturally extends to multi-Fabric scenarios (e.g. multiple
-        # physics scenes or partial Fabric attachments) without an API change.
+        # that the design naturally extends to multi-Fabric scenarios (e.g. multi-GPU
+        # support, where each GPU gets its own Fabric attachment) without an API change.
         self._fabric_hierarchy_cache: dict[int, object] = {}
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
