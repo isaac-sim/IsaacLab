@@ -13,11 +13,11 @@ dependencies = [
     "isaaclab-assets",
     "isaaclab-contrib",
     "isaaclab-experimental",
-    "isaaclab-newton",
+    "isaaclab-newton[all]",
     "isaaclab-ov",
     "isaaclab-ovphysx",
-    "isaaclab-physx",
-    "isaaclab-rl",
+    "isaaclab-physx[newton]",
+    "isaaclab-rl[rsl-rl]",
     "isaaclab-tasks",
     "isaaclab-tasks-experimental",
     "isaaclab-visualizers",
@@ -27,16 +27,34 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-isaacsim = [
-    "isaacsim[all,extscache]==5.1.0",
+contrib = [
+    "isaaclab-contrib",
+]
+mimic = [
+    "isaaclab-mimic",
+]
+newton = [
+    "isaaclab-newton[all]",
+    "isaaclab-physx[newton]",
+    "isaaclab-visualizers[newton]",
+]
+ov = [
+    "isaaclab-ovphysx[ovphysx]",
+]
+rl = [
+    "isaaclab-rl[rsl-rl]",
+]
+rl-all = [
+    "isaaclab-rl[all]",
+]
+rtx = [
+    "isaaclab-ov[ovrtx]",
 ]
 all = [
-    "isaacsim[all,extscache]==5.1.0",
     "isaaclab-mimic",
     "isaaclab-newton[all]",
     "isaaclab-physx[newton]",
     "isaaclab-rl[all]",
-    "isaaclab-teleop",
     "isaaclab-visualizers[all]",
 ]
 
@@ -201,6 +219,7 @@ explicit = true
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 override-dependencies = ["numpy>=2"]
+python-preference = "only-managed"
 package = false
 
 [tool.uv.sources]
