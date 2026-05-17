@@ -214,12 +214,16 @@ class SimulationContext:
             order=5,
         )
 
-        # Fabric hierarchy cache — shared across all FabricFrameView instances.
-        # Keyed by fabric_id_int (the stable .id integer from FabricId).  Currently
-        # Isaac Lab always has exactly one Fabric attachment per stage, so this dict
-        # will hold at most one entry.  We use a dict rather than a plain Optional so
-        # that the design naturally extends to multi-Fabric scenarios (e.g. multi-GPU
-        # support, where each GPU gets its own Fabric attachment) without an API change.
+        # Fabric state — lazily initialized by get_fabric_hierarchy().
+        # The usdrt stage and hierarchy handles are cached for the lifetime of this
+        # SimulationContext.  The hierarchy cache is keyed by fabric_id_int (the stable
+        # .id integer from FabricId).  Currently Isaac Lab always has exactly one Fabric
+        # attachment per stage, so this dict will hold at most one entry.  We use a dict
+        # rather than a plain Optional so that the design naturally extends to
+        # multi-Fabric scenarios (e.g. multi-GPU support, where each GPU gets its own
+        # Fabric attachment) without an API change.
+        self._usdrt_stage: object | None = None
+        self._usdrt_stage_id: int | None = None
         self._fabric_hierarchy_cache: dict[int, object] = {}
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
@@ -864,9 +868,9 @@ class SimulationContext:
         """Return the usdrt stage and a shared IFabricHierarchy handle.
 
         Multiple :class:`~isaaclab_physx.sim.views.FabricFrameView` instances
-        share a single hierarchy handle per Fabric attachment.  The handle is
-        created on first access and cached for the lifetime of this
-        :class:`SimulationContext`.
+        share a single hierarchy handle per Fabric attachment.  The usdrt stage
+        and hierarchy are created on first access and cached for the lifetime of
+        this :class:`SimulationContext`.
 
         Returns:
             A tuple of ``(stage_id, usdrt_stage, hierarchy_handle, fabric_id_int)``.
@@ -875,22 +879,24 @@ class SimulationContext:
         """
         import usdrt  # noqa: PLC0415
 
-        stage_id = UsdUtils.StageCache.Get().GetId(self.stage).ToLongInt()
-        usdrt_stage = usdrt.Usd.Stage.Attach(stage_id)
-        usdrt_stage.SynchronizeToFabric()
+        # Lazily attach the usdrt stage once.
+        if self._usdrt_stage is None:
+            self._usdrt_stage_id = UsdUtils.StageCache.Get().GetId(self.stage).ToLongInt()
+            self._usdrt_stage = usdrt.Usd.Stage.Attach(self._usdrt_stage_id)
+            self._usdrt_stage.SynchronizeToFabric()
 
-        fabric_id = usdrt_stage.GetFabricId()
+        fabric_id = self._usdrt_stage.GetFabricId()
         fabric_id_int = fabric_id.id
 
         if fabric_id_int not in self._fabric_hierarchy_cache:
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_id, usdrt_stage.GetStageIdAsStageId()
+                fabric_id, self._usdrt_stage.GetStageIdAsStageId()
             )
             hierarchy.track_local_xform_changes(True)
             hierarchy.track_world_xform_changes(True)
             self._fabric_hierarchy_cache[fabric_id_int] = hierarchy
 
-        return stage_id, usdrt_stage, self._fabric_hierarchy_cache[fabric_id_int], fabric_id_int
+        return self._usdrt_stage_id, self._usdrt_stage, self._fabric_hierarchy_cache[fabric_id_int], fabric_id_int
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -905,7 +911,9 @@ class SimulationContext:
                 viz.close()
             cls._instance._visualizers.clear()
 
-            # Drop cached Fabric hierarchy handles (they reference the dying stage)
+            # Drop cached Fabric state (usdrt stage + hierarchy handles reference the dying stage)
+            cls._instance._usdrt_stage = None
+            cls._instance._usdrt_stage_id = None
             cls._instance._fabric_hierarchy_cache.clear()
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
