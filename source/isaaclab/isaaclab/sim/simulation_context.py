@@ -860,32 +860,37 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_fabric_hierarchy(self, fabric_id_int: int, fabric_id_obj: object, stage: object) -> object:
-        """Return a shared IFabricHierarchy handle for the given Fabric attachment.
+    def get_fabric_hierarchy(self) -> "tuple[int, object, object, int]":
+        """Return the usdrt stage and a shared IFabricHierarchy handle.
 
-        Multiple :class:`~isaaclab_physx.sim.views.FabricFrameView` instances that
-        operate on the same Fabric attachment share a single hierarchy handle.  The
-        handle is created on first access and cached for the lifetime of this
+        Multiple :class:`~isaaclab_physx.sim.views.FabricFrameView` instances
+        share a single hierarchy handle per Fabric attachment.  The handle is
+        created on first access and cached for the lifetime of this
         :class:`SimulationContext`.
 
-        Args:
-            fabric_id_int: Stable integer from ``FabricId.id``.
-            fabric_id_obj: The ``FabricId`` wrapper (needed by ``get_fabric_hierarchy``).
-            stage: The ``usdrt.Usd.Stage`` instance.
-
         Returns:
-            The ``IFabricHierarchy`` handle with change-tracking enabled.
+            A tuple of ``(stage_id, usdrt_stage, hierarchy_handle, fabric_id_int)``.
+            The hierarchy has change-tracking enabled for both local and world
+            xforms.
         """
         import usdrt  # noqa: PLC0415
 
+        stage_id = UsdUtils.StageCache.Get().GetId(self.stage).ToLongInt()
+        usdrt_stage = usdrt.Usd.Stage.Attach(stage_id)
+        usdrt_stage.SynchronizeToFabric()
+
+        fabric_id = usdrt_stage.GetFabricId()
+        fabric_id_int = fabric_id.id
+
         if fabric_id_int not in self._fabric_hierarchy_cache:
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_id_obj, stage.GetStageIdAsStageId()
+                fabric_id, usdrt_stage.GetStageIdAsStageId()
             )
             hierarchy.track_local_xform_changes(True)
             hierarchy.track_world_xform_changes(True)
             self._fabric_hierarchy_cache[fabric_id_int] = hierarchy
-        return self._fabric_hierarchy_cache[fabric_id_int]
+
+        return stage_id, usdrt_stage, self._fabric_hierarchy_cache[fabric_id_int], fabric_id_int
 
     @classmethod
     def clear_instance(cls) -> None:

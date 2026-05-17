@@ -597,17 +597,8 @@ class FabricFrameView(BaseFrameView):
 
     def _initialize_fabric(self) -> None:
         """One-time Fabric setup: hierarchy handle, attribute population, selections, indexed arrays."""
-        import usdrt  # noqa: PLC0415
         from usdrt import Rt  # noqa: PLC0415
 
-        self._stage_id = sim_utils.get_current_stage_id()
-        self._stage = usdrt.Usd.Stage.Attach(self._stage_id)
-        self._stage.SynchronizeToFabric()
-
-        # Reuse (or create) a hierarchy handle for this stage via the SimulationContext.
-        # The context owns the cache and clears it on stage teardown.
-        fabric_id = self._stage.GetFabricId()
-        self._fabric_id = fabric_id.id
         from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
 
         sim_context = SimulationContext.instance()
@@ -616,9 +607,8 @@ class FabricFrameView(BaseFrameView):
                 "FabricFrameView requires an active SimulationContext. "
                 "Create a SimulationContext before instantiating FabricFrameView."
             )
-        self._fabric_hierarchy = sim_context.get_fabric_hierarchy(
-            fabric_id.id, fabric_id, self._stage
-        )
+
+        self._stage_id, self._stage, self._fabric_hierarchy, self._fabric_id = sim_context.get_fabric_hierarchy()
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
         # attributes.  Our ``trans_ro`` selection requires both, so prims missing either
