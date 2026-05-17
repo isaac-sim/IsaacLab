@@ -23,7 +23,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
 if TYPE_CHECKING:
-    from isaaclab.sim.simulation_context import SimulationContext
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +597,7 @@ class FabricFrameView(BaseFrameView):
 
     def _initialize_fabric(self) -> None:
         """One-time Fabric setup: hierarchy handle, attribute population, selections, indexed arrays."""
+        import usdrt  # noqa: PLC0415
         from usdrt import Rt  # noqa: PLC0415
 
         from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415

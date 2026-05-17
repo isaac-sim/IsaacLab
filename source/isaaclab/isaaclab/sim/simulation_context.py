@@ -864,7 +864,7 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_fabric_hierarchy(self) -> "tuple[int, object, object, int]":
+    def get_fabric_hierarchy(self) -> tuple[int, object, object, int]:
         """Return the usdrt stage and a shared IFabricHierarchy handle.
 
         Multiple :class:`~isaaclab_physx.sim.views.FabricFrameView` instances
