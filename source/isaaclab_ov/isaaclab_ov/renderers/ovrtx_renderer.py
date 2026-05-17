@@ -22,6 +22,8 @@ from __future__ import annotations
 import logging
 import math
 import os
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
@@ -58,9 +60,9 @@ from .ovrtx_renderer_kernels import (
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
+    build_render_product_as_string,
     create_scene_partition_attributes,
-    export_stage_for_ovrtx,
-    inject_cameras_into_usd,
+    export_stage_to_string,
 )
 
 if TYPE_CHECKING:
@@ -164,7 +166,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_binding = None
         self._object_newton_indices: wp.array | None = None
         self._initialized_scene = False
-        self._exported_usd_path: str | None = None
+        self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
 
@@ -192,10 +194,10 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("OVRTX renderer created successfully")
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """Export the USD stage for OVRTX before create_render_data.
+        """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
-        Adds cloning attributes and exports the stage to a temporary file.
-        The exported path is used by create_render_data when loading into OVRTX.
+        Adds cloning attributes and exports the stage to a string held on the renderer until
+        :meth:`create_render_data` is called.
         """
         if stage is None:
             return
@@ -203,10 +205,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
         create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning, not _IS_OVRTX_0_3_0_OR_NEWER)
 
-        export_path = "/tmp/stage_before_ovrtx.usda"
-        export_stage_for_ovrtx(stage, export_path, num_envs, self._use_ovrtx_cloning)
-        self._exported_usd_path = export_path
-        logger.info("Exported to %s", export_path)
+        self._exported_usd_string = export_stage_to_string(stage, num_envs, self._use_ovrtx_cloning)
 
     def _initialize_from_spec(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
@@ -225,14 +224,10 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
         self._camera_rel_path = spec.camera_path_relative_to_env_0
 
-        usd_scene_path = self._exported_usd_path
-
-        if usd_scene_path is not None:
+        if self._exported_usd_string is not None:
             logger.info("Injecting camera definitions...")
 
-            combined_usd_path, render_product_path = inject_cameras_into_usd(
-                usd_scene_path,
-                self.cfg,
+            render_product_string, render_product_path = build_render_product_as_string(
                 width=width,
                 height=height,
                 num_envs=num_envs,
@@ -242,15 +237,36 @@ class OVRTXRenderer(BaseRenderer):
             )
             self._render_product_paths.append(render_product_path)
 
+            combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
+            self._exported_usd_string = None  # Free memory
+
+            if self.cfg.temp_usd_dir is not None:
+                temp_usd_dir = Path(self.cfg.temp_usd_dir)
+            elif not _IS_OVRTX_0_3_0_OR_NEWER:
+                # OVRTX 0.2.0 is not able to load USD from a string, so we need to write to a temporary file.
+                temp_usd_dir = Path(tempfile.gettempdir()) / "ovrtx"
+            else:
+                temp_usd_dir = None
+
+            if temp_usd_dir is not None:
+                temp_usd_dir.mkdir(parents=True, exist_ok=True)
+                temp_usd_path = temp_usd_dir / "ovrtx_renderer_stage.usda"
+                with open(temp_usd_path, "w", encoding="utf-8") as f:
+                    f.write(combined_usd_string)
+                    logger.info("Wrote combined USD stage to %s", temp_usd_path)
+            else:
+                temp_usd_path = None
+
             logger.info("Loading USD into OvRTX...")
             try:
                 if _IS_OVRTX_0_3_0_OR_NEWER:
-                    self._renderer.open_usd(combined_usd_path)
-                    logger.info("USD loaded as root layer (path: %s)", combined_usd_path)
+                    self._renderer.open_usd_from_string(combined_usd_string)
+                    logger.info("OVRTX loaded USD from string successfully")
                 else:
-                    handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
+                    assert temp_usd_path is not None  # OVRTX < 0.3.0 always materializes combined USD on disk.
+                    handle = self._renderer.add_usd(str(temp_usd_path), path_prefix=None)
                     self._usd_handles.append(handle)
-                    logger.info("USD loaded (path: %s, handle: %s)", combined_usd_path, handle)
+                    logger.info("OVRTX loaded USD from file successfully (path: %s, handle: %s)", temp_usd_path, handle)
             except Exception as e:
                 logger.exception("Error loading USD: %s", e)
                 raise
@@ -258,7 +274,7 @@ class OVRTXRenderer(BaseRenderer):
             if self._use_ovrtx_cloning and num_envs > 1:
                 logger.info("Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx(num_envs)
-                self._update_scene_partitions_after_clone(combined_usd_path, num_envs)
+                self._update_scene_partitions_after_clone(num_envs)
 
             self._initialized_scene = True
 
@@ -299,7 +315,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.error("Failed to clone environments: %s", e)
             raise RuntimeError(f"OvRTX environment cloning failed: {e}")
 
-    def _update_scene_partitions_after_clone(self, usd_file_path: str, num_envs: int):
+    def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
         logger.info("Writing scene partitions for %d environments...", num_envs)
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
