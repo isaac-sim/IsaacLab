@@ -1126,7 +1126,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._state_0 = cls._model.state()
         NewtonManager._state_1 = cls._model.state()
         NewtonManager._control = cls._model.control()
-        eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+        cls.forward()
 
         # The single global actuator adapter is built lazily on the first
         # call to ``activate_newton_actuator_path`` from any Newton-fast-path
