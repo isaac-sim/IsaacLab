@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -28,11 +29,13 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,  # noqa: F401  -- reserved for v2 contact-points support
-    update_net_forces_kernel,
+    update_net_forces_ovphysx_kernel,
 )
 
 if TYPE_CHECKING:
     from .contact_sensor_cfg import ContactSensorCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ContactSensor(BaseContactSensor):
@@ -131,9 +134,19 @@ class ContactSensor(BaseContactSensor):
         return self._num_sensors
 
     @property
-    def body_names(self) -> list[str] | None:
+    def body_names(self) -> list[str]:
+        """The leaf-prim names of the sensor bodies.
+
+        Raises:
+            RuntimeError: If accessed before the sensor has been initialized
+                (matches the eager non-``None`` contract PhysX provides).
+        """
         if not self._body_names:
-            return None
+            raise RuntimeError(
+                "OvPhysxContactSensor.body_names accessed before initialization. "
+                "Step the simulation once (or wait for PhysicsEvent.PHYSICS_READY) so the "
+                "sensor can discover its bodies."
+            )
         return list(self._body_names)
 
     @property
@@ -330,7 +343,7 @@ class ContactSensor(BaseContactSensor):
             force_matrix_flat = None
 
         wp.launch(
-            update_net_forces_kernel,
+            update_net_forces_ovphysx_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
                 net_forces_flat,
@@ -452,6 +465,35 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
         return self._data._first_transition_ta
+
+    """
+    Debug visualization
+    """
+
+    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
+        """Toggle contact-marker visibility.
+
+        The kitless OVPhysX flow has no Kit-based renderer, so visualization
+        markers are effectively invisible. The hook is still wired so that
+        callers setting ``cfg.debug_vis=True`` get an explicit warning rather
+        than silent no-op behaviour.
+        """
+        if debug_vis and not getattr(self, "_warned_debug_vis_unavailable", False):
+            logger.warning(
+                "OVPhysX ContactSensor: debug visualization markers are not rendered under the "
+                "kitless OVPhysX flow (no Kit renderer present). The hook runs but marker "
+                "geometry will not appear."
+            )
+            self._warned_debug_vis_unavailable = True
+
+    def _debug_vis_callback(self, event) -> None:
+        """Per-frame visualization update.
+
+        Under kitless OVPhysX this is a no-op -- there is no renderer driving
+        the per-frame marker positions. The method exists so the base
+        sensor's debug-vis lifecycle hooks have a callable target.
+        """
+        return
 
     """
     Internal simulation callbacks.

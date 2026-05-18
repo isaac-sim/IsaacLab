@@ -187,7 +187,7 @@ def compute_first_transition_kernel(
 
 
 @wp.kernel
-def update_net_forces_kernel(
+def update_net_forces_ovphysx_kernel(
     # in
     net_forces_flat: wp.array(dtype=wp.vec3f),
     net_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
