@@ -250,7 +250,7 @@ def main() -> int:
                 cable_data = env.unwrapped.scene["cable"].data
                 cable_com = cable_data.body_com_pos_w.torch[:, 3] - env.unwrapped.scene.env_origins
                 object_pos = cable_com + object_local_grasp_position
-                desired_pos = env.unwrapped.command_manager.get_command("cable_pose")[..., :3]
+                desired_pos = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
                 robot = env.unwrapped.scene["robot"]
                 joint_pos = robot.data.joint_pos.torch
                 joint_vel = robot.data.joint_vel.torch
