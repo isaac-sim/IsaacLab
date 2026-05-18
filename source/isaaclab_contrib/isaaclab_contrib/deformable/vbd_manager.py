@@ -329,7 +329,7 @@ class NewtonVBDManager(NewtonManager):
         :meth:`~isaaclab.visualizers.BaseVisualizer.requires_forward_before_step`
         to ``True``).
         """
-       if cls._non_cable_articulation_mask is None:
+        if cls._non_cable_articulation_mask is None:
             if cls._cable_registry:
                 cls._build_non_cable_articulation_mask()
             else:
