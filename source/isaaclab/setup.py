@@ -87,32 +87,24 @@ INSTALL_REQUIRES += [
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
-# Isaac Lab subpackages + Isaac Sim
+# Optional extras for pip/uv installs.
+# Use ``pip install isaaclab[isaacsim]`` to add Isaac Sim, or
+# ``pip install isaaclab[all]`` to pull in all sub-packages and extras.
 EXTRAS_REQUIRE = {
     "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
-    # Individual Isaac Lab sub-packages
-    "assets": ["isaaclab_assets"],
-    "physx": ["isaaclab_physx"],
-    "contrib": ["isaaclab_contrib"],
-    "mimic": ["isaaclab_mimic"],
-    "newton": ["isaaclab_newton"],
-    "rl": ["isaaclab_rl"],
-    "tasks": ["isaaclab_tasks"],
-    "teleop": ["isaaclab_teleop"],
-    "visualizers": ["isaaclab_visualizers[all]"],
-    "visualizers-kit": ["isaaclab_visualizers[kit]"],
-    "visualizers-newton": ["isaaclab_visualizers[newton]"],
-    "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
-    "visualizers-viser": ["isaaclab_visualizers[viser]"],
-    # Convenience: all sub-packages (does not include isaacsim)
     "all": [
+        "isaacsim[all,extscache]==5.1.0",
         "isaaclab_assets",
-        "isaaclab_physx",
         "isaaclab_contrib",
+        "isaaclab_experimental",
         "isaaclab_mimic",
-        "isaaclab_newton",
-        "isaaclab_rl",
+        "isaaclab_newton[all]",
+        "isaaclab_ov",
+        "isaaclab_ovphysx",
+        "isaaclab_physx[newton]",
+        "isaaclab_rl[all]",
         "isaaclab_tasks",
+        "isaaclab_tasks_experimental",
         "isaaclab_teleop",
         "isaaclab_visualizers[all]",
     ],

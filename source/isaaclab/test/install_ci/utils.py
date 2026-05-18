@@ -242,3 +242,87 @@ class UV_Mixin:
             activate = shlex.quote(str(self.env_path / "bin" / "activate"))
             shell_cmd = f"source {activate} && {escaped}"
             return run_cmd(["bash", "-c", shell_cmd], **kwargs)
+
+
+def drop_keys(env: dict[str, str], keys: tuple[str, ...]) -> dict[str, str]:
+    """Return a copy of *env* with the given keys removed.
+
+    Useful for stripping venv/conda activation markers from the environment
+    before creating a fresh isolated environment inside a test.
+
+    Args:
+        env: Source environment dictionary (e.g. ``os.environ``).
+        keys: Variable names to exclude from the returned copy.
+    """
+    return {k: v for k, v in env.items() if k not in keys}
+
+
+class Conda_Mixin:
+    """Mixin providing conda virtual-environment helpers for test classes.
+
+    Pair with :class:`UVMixin` or use standalone for conda-only tests.
+    Requires ``conda`` (or ``mamba``) to be on ``PATH``.
+
+    Usage::
+
+        class TestFoo(Conda_Mixin, unittest.TestCase):
+            def setUp(self):
+                self.create_conda_env(find_isaaclab_root())
+
+            def tearDown(self):
+                self.destroy_conda_env()
+    """
+
+    @property
+    def cli_script(self) -> Path:
+        """Path to ``isaaclab.sh`` (or ``.bat``) inside the repository root."""
+        root: Path = self._isaaclab_root  # type: ignore[attr-defined]
+        return root / ("isaaclab.bat" if _IS_WINDOWS else "isaaclab.sh")
+
+    def create_conda_env(self, isaaclab_root: Path, env_name: str = "", python_version: str = "3.12") -> None:
+        """Create an isolated conda environment.
+
+        Args:
+            isaaclab_root: Path to the IsaacLab repository root.
+            env_name: Name for the conda environment. A unique name based on the
+                test id is generated automatically when left empty.
+            python_version: Python version to install in the environment.
+        """
+        if not env_name:
+            import uuid
+
+            env_name = f"isaaclab_ci_{uuid.uuid4().hex[:8]}"
+        self._conda_env_name = env_name
+        self._isaaclab_root = isaaclab_root
+
+        result = run_cmd(
+            ["conda", "create", "-n", env_name, f"python={python_version}", "-y", "--quiet"],
+            env=drop_keys(dict(os.environ), ("VIRTUAL_ENV", "CONDA_DEFAULT_ENV", "CONDA_PREFIX")),
+        )
+        assert result.returncode == 0, f"conda env creation failed:\n{result.stdout}\n{result.stderr}"
+
+        # Resolve the python executable inside the new conda env.
+        conda_prefix_result = run_cmd(
+            ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.executable)"],
+            env=drop_keys(dict(os.environ), ("VIRTUAL_ENV", "CONDA_DEFAULT_ENV", "CONDA_PREFIX")),
+        )
+        assert conda_prefix_result.returncode == 0, (
+            f"Could not resolve conda python:\n{conda_prefix_result.stdout}\n{conda_prefix_result.stderr}"
+        )
+        self.python = Path(conda_prefix_result.stdout.strip())
+
+    def destroy_conda_env(self) -> None:
+        """Remove the conda environment created by :meth:`create_conda_env`."""
+        if hasattr(self, "_conda_env_name"):
+            run_cmd(["conda", "env", "remove", "-n", self._conda_env_name, "-y", "--quiet"])
+
+    def run_in_conda_env(self, cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+        """Run *cmd* inside the conda environment.
+
+        Args:
+            cmd: Command and arguments to execute.
+            **kwargs: Extra keyword arguments forwarded to :func:`run_cmd`.
+        """
+        escaped = " ".join(shlex.quote(str(a)) for a in cmd)
+        shell_cmd = f"conda run -n {shlex.quote(self._conda_env_name)} --no-capture-output {escaped}"
+        return run_cmd(["bash", "-c", shell_cmd], **kwargs)
