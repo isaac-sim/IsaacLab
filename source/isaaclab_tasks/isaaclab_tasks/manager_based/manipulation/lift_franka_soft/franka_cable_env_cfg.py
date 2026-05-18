@@ -19,7 +19,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 
@@ -222,26 +222,7 @@ class RewardsCfg:
 class TerminationsCfg:
     """Time out and out-of-bounds terminations."""
 
-    # time_out = DoneTerm(func=mdp.time_out, time_out=True)
-
-    # cable_outside_table = DoneTerm(
-    #     func=mdp.object_outside_table_bounds,
-    #     params={
-    #         "x_bounds": (0.0, 1.0),
-    #         "y_bounds": (-0.5, 0.5),
-    #         "asset_cfg": SceneEntityCfg("object"),
-    #     },
-    # )
-
-    # cable_dropped = DoneTerm(
-    #     func=mdp.object_com_below_minimum,
-    #     params={"minimum_height": -0.1, "asset_cfg": SceneEntityCfg("object")},
-    # )
-
-    # ee_below_table = DoneTerm(
-    #     func=mdp.ee_below_minimum,
-    #     params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
-    # )
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
 @configclass
