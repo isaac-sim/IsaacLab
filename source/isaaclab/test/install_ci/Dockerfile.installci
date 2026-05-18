@@ -38,14 +38,13 @@ RUN apt-get update && \
 # Make python3 the default python
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# Install test runner dependencies
+# Install test runner dependencies into the system Python
 RUN pip install --break-system-packages \
     pytest>=8.0 \
     pytest-timeout>=2.0
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:${PATH}"
+# Install uv system-wide so non-root users can invoke it without PATH trickery
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
 
 # Copy the repo
 ARG ISAACLAB_PATH=/workspace/isaaclab
@@ -53,11 +52,19 @@ ENV ISAACLAB_PATH=${ISAACLAB_PATH}
 COPY . ${ISAACLAB_PATH}
 
 # Fix line endings in .sh files (Win git may add \r)
-# This hack need to be in the main Dockerfiles too
 RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 
+# Create non-root runtime user and transfer workspace ownership.
+# uid/gid 1000 match the GitHub runner bind-mounts used by Docker-based tests.
+# --non-unique allows reuse of existing uid/gid slots in some base images.
+RUN groupadd --non-unique --gid 1000 isaaclab \
+ && useradd --non-unique --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
+ && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
+
 WORKDIR ${ISAACLAB_PATH}
+
+USER isaaclab
 
 # isaaclab.x debug mode
 ENV DEBUG=1

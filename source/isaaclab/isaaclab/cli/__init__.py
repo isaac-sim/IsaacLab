@@ -9,7 +9,12 @@ from pathlib import Path
 
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
-from .commands.install import VALID_ISAACLAB_SUBMODULES, VALID_RL_FRAMEWORKS, command_install
+from .commands.install import (
+    CORE_ISAACLAB_SUBMODULES,
+    OPTIONAL_ISAACLAB_SUBMODULES,
+    VALID_EXTRA_FEATURES,
+    command_install,
+)
 from .commands.misc import (
     command_build_docs,
     command_new,
@@ -61,28 +66,53 @@ def cli() -> None:
         ),
     )
 
-    _submodules_str = ", ".join(sorted(VALID_ISAACLAB_SUBMODULES))
-    _frameworks_str = ", ".join(sorted(VALID_RL_FRAMEWORKS))
+    _optional_str = ", ".join(sorted(OPTIONAL_ISAACLAB_SUBMODULES))
+    _extras_str = ", ".join(sorted(VALID_EXTRA_FEATURES))
+    _core_str = ", ".join(CORE_ISAACLAB_SUBMODULES)
     parser.add_argument(
         "-i",
         "--install",
         nargs="?",
         const="all",
         help=(
-            "Install Isaac Lab submodules and RL frameworks.\n"
-            "Accepts a comma-separated list of submodule names, one of the RL frameworks, or a special value.\n"
+            "Install Isaac Lab submodules and optional extra dependencies.\n"
             "\n"
-            f"* Isaac Lab submodules: {_submodules_str}\n"
-            "  Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
+            "All core submodules are always installed:\n"
+            f"  {_core_str}\n"
             "\n"
-            f"* RL frameworks: {_frameworks_str}\n"
-            "  Passing an RL framework name installs all Isaac Lab submodules + that framework.\n"
-            "  On Linux/macOS, quote selectors containing brackets: --install 'visualizers[rerun]'.\n"
+            "Accepts a comma-separated list of optional submodule names and/or\n"
+            "extra feature selectors, or one of the special values below.\n"
+            "\n"
+            f"* Optional submodules: {_optional_str}\n"
+            "  Installed by 'all' or by explicit token.\n"
+            "\n"
+            f"* Extra feature sets: {_extras_str}\n"
+            "  Install optional heavy dependencies for a feature on top of the core.\n"
+            "  Supports an optional selector in brackets:\n"
+            "    contrib[rlinf]\n"
+            "    ov[ovrtx|ovphysx|all]\n"
+            "    rl[rsl-rl|skrl|sb3|rl-games]  (default: all)\n"
+            "    visualizer[kit|newton|rerun|viser]  (default: all)\n"
+            "  On Linux/macOS, quote selectors containing brackets:\n"
+            "    --install 'rl[rsl-rl]'\n"
             "\n"
             "* Special values:\n"
-            "- all  - Install all Isaac Lab submodules + all RL frameworks (default).\n"
-            "- none - Install only the core 'isaaclab' package.\n"
-            "- <empty> (-i or --install without value) - Install all Isaac Lab submodules + all RL frameworks.\n"
+            "  all   - Core + optional submodules (mimic, teleop) + auto extra\n"
+            "          features (newton, rl, visualizer). Does not install contrib/ov\n"
+            "          dependency extras (default).\n"
+            "  none  - Core submodules only; no optional submodules, no extra features.\n"
+            "  <empty> (-i with no value) - Same as 'all'.\n"
+            "\n"
+            "Note: Contrib and OV source packages are core; runtime dependencies require selectors:\n"
+            "  ./isaaclab.sh -i 'contrib[rlinf]'\n"
+            "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
+            "\n"
+            "Examples:\n"
+            "  ./isaaclab.sh -i\n"
+            "  ./isaaclab.sh -i none\n"
+            "  ./isaaclab.sh -i newton,'rl[rsl-rl]'\n"
+            "  ./isaaclab.sh -i mimic,teleop,'visualizer[rerun]'\n"
+            "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
             "\n"
         ),
     )

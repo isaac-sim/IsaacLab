@@ -5,7 +5,6 @@
 
 """Installation script for the 'isaaclab_mimic' python package."""
 
-import itertools
 import os
 import platform
 
@@ -30,17 +29,10 @@ INSTALL_REQUIRES = [
 if platform.machine() != "aarch64":
     INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
 
-# Extra dependencies for IL agents
-EXTRAS_REQUIRE = {"robomimic": []}
-
-# Check if the platform is Linux and add the dependency
+# robomimic has no Windows/macOS wheels; only add it on Linux
 if platform.system() == "Linux":
-    EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0")
+    INSTALL_REQUIRES.append("robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0")
 
-# Cumulation of all extra-requires
-EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
-# Remove duplicates in the all list to avoid double installations
-EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 # Installation operation
 setup(
@@ -53,7 +45,6 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     install_requires=INSTALL_REQUIRES,
-    extras_require=EXTRAS_REQUIRE,
     license="Apache-2.0",
     include_package_data=True,
     python_requires=">=3.12",

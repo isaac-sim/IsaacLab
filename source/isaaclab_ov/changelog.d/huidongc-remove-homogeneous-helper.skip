@@ -1,0 +1,3 @@
+
+Internal refactor: inlined the homogeneous clone-plan check in
+:class:`~isaaclab_ov.renderers.OVRTXRenderer`; no user-facing API change.

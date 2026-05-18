@@ -98,8 +98,8 @@ pyproject.optional-dependencies.all = [
     { "skrl" = ["skrl>=1.4.3"] },
     # { "rl-games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
     # { "rl_games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
-    { "rsl-rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
-    { "rsl_rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
+    { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
+    { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/setup.py
     # ================================================================================
@@ -113,7 +113,7 @@ pyproject.optional-dependencies.all = [
         "rich",
         "skrl>=1.4.3",
         # "rl-games==1.6.1",  # TODO: re-enable when rl-games Python package supports Python 3.11
-        "rsl-rl-lib==3.1.2",
+        "rsl-rl-lib==5.0.1",
         "onnxscript>=0.5",
     ] },
 ]
