@@ -150,6 +150,10 @@ def apply_cfg_overrides(cfg: FactoryEnvCfg) -> None:
             solver_cfg.impratio = imp_override
             logger.info("MJWarp solver impratio override: %.1f", imp_override)
 
+    substeps_override = int(os.environ.get("FACTORY_NUM_SUBSTEPS", "0"))
+    if substeps_override > 0 and hasattr(cfg.sim.physics, "num_substeps"):
+        cfg.sim.physics.num_substeps = substeps_override
+
     _monkey_patch_cloner_no_simplify()
 
     # Scale the contact buffer with num_envs so the gripper close doesn't
