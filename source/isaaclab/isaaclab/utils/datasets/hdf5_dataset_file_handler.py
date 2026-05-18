@@ -9,7 +9,6 @@ import json
 import os
 from collections.abc import Iterable
 
-import h5py
 import numpy as np
 import torch
 
@@ -54,6 +53,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
 
     def open(self, file_path: str, mode: str = "r"):
         """Open an existing dataset file."""
+        import h5py
+
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
         self._hdf5_file_stream = h5py.File(file_path, mode)
@@ -62,6 +63,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
 
     def create(self, file_path: str, env_name: str = None):
         """Create a new dataset file."""
+        import h5py
+
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
         if not file_path.endswith(".hdf5"):
@@ -170,6 +173,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         # Auto-detect if conversion is needed
         if convert_legacy_quat is None:
             convert_legacy_quat = self.is_legacy_quaternion_format()
+
+        import h5py
 
         episode = EpisodeData()
         h5_episode_group = self._hdf5_data_group[episode_name]
@@ -297,6 +302,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
             FileNotFoundError: If the input file does not exist.
             ValueError: If the dataset is already in XYZW format.
         """
+        import h5py
+
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input dataset file not found: {input_path}")
 
