@@ -36,6 +36,7 @@ import random
 
 import tqdm
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
 
@@ -55,17 +56,17 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
     light_cfg.func("/World/light", light_cfg)
 
     # Cable centerline: 10 control points along local +X, length ~0.9 m.
-    num_points = 10
-    segment_length = 0.1
+    num_points = 20
+    segment_length = 0.015
     cable_length = (num_points - 1) * segment_length
-    width = 0.03
+    width = 0.01
 
     # Pile footprint: small XY box, stacked Z so cables fall and intersect.
     # Spacing is generous to avoid self-contact at spawn, and the base height is
     # kept low so cables don't gain a lot of velocity before first contact.
-    xy_jitter = 0.6
-    z_spacing = 2.5 * width
-    z_base = 0.1
+    xy_jitter = 0.3
+    z_spacing = 1.5 * width
+    z_base = 0.8
 
     print(f"[INFO]: Spawning {num_cables} cables...")
     entities: dict[str, CableObject] = {}
@@ -86,7 +87,7 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
                 bend_stiffness=1e-4,
                 stretch_damping=1e-4,
                 bend_damping=1e-4,
-                density=1000.0,
+                density=100.0,
             ),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         )
@@ -96,6 +97,40 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
             init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
+
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable001.usda",
+            physics_material=NewtonCableMaterialCfg(
+                stretch_stiffness=1e6,
+                bend_stiffness=1e-4,
+                stretch_damping=1e-4,
+                bend_damping=1e-4,
+                density=100.0,
+            ),
+        )
+        cfg = CableObjectCfg(
+            prim_path=f"/World/Origin/Cable1{idx:03d}",
+            spawn=spawn_cfg,
+            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+        )
+        entities[f"Cable1{idx:03d}"] = CableObject(cfg=cfg)
+
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable002.usda",
+            physics_material=NewtonCableMaterialCfg(
+                stretch_stiffness=1e6,
+                bend_stiffness=1e-4,
+                stretch_damping=1e-4,
+                bend_damping=1e-4,
+                density=100.0,
+            ),
+        )
+        cfg = CableObjectCfg(
+            prim_path=f"/World/Origin/Cable2{idx:03d}",
+            spawn=spawn_cfg,
+            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+        )
+        entities[f"Cable2{idx:03d}"] = CableObject(cfg=cfg)
 
     return entities
 
@@ -127,9 +162,7 @@ def main():
 
     physics_cfg = NewtonCfg(
         solver_cfg=VBDSolverCfg(
-            iterations=20,
-            rigid_body_contact_buffer_size=256,
-            rigid_contact_k_start=1.0e1,
+            iterations=20, rigid_body_contact_buffer_size=1024, rigid_contact_k_start=1.0e1, rigid_avbd_beta=1e2
         ),
         num_substeps=8,
     )
@@ -138,12 +171,16 @@ def main():
     # cables from sliding off the pile.
     physics_cfg.model_cfg = NewtonModelCfg(
         shape_material_ke=1.0e3,
-        shape_material_kd=1.0e1,
+        shape_material_kd=1.0e0,
         shape_material_mu=1.0,
     )
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=0.01,
+        device=args_cli.device,
+        physics=physics_cfg,
+        visualizer_cfgs=[NewtonVisualizerCfg(eye=(2.5, 2.5, 1.0), lookat=(0.0, 0.0, 0.25))],
+    )
     sim = sim_utils.SimulationContext(sim_cfg)
-    sim.set_camera_view([2.5, 2.5, 2.0], [0.0, 0.0, 0.3])
 
     scene_entities = design_scene(num_cables=args_cli.num_cables)
     sim.reset()
