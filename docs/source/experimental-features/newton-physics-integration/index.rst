@@ -39,8 +39,7 @@ For an overview of how the multi-backend architecture works, including how to ad
 
   installation
   warp-environments
-  training-environments
-  visualization
+  warp-env-migration
   limitations-and-known-bugs
   solver-transitioning
   using-kamino

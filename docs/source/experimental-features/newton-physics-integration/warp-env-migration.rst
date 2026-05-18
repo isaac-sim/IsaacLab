@@ -4,7 +4,7 @@ Warp Environment Migration Guide
 ================================
 
 This guide covers the key conventions and patterns used by the warp-first environment
-infrastructure, useful for migrating existing stable environments or creating new ones
+infrastructure, useful for migrating existing torch environments or creating new ones
 natively. For an overview of the warp env path itself (workflows, available envs,
 performance, limitations, benchmarking), see :doc:`warp-environments`.
 
@@ -39,12 +39,12 @@ Key consequences:
 Project Structure
 ~~~~~~~~~~~~~~~~~
 
-Warp-specific implementations that deviate from stable live in the ``_experimental`` packages:
+Warp-specific implementations that diverge from the torch API live in the ``_experimental`` packages:
 
 - ``isaaclab_experimental`` — warp managers, base env classes, warp MDP terms
 - ``isaaclab_tasks_experimental`` — warp task configs and task-specific MDP terms
 
-Any new warp implementation that differs from the stable API belongs in these packages.
+Any new warp implementation that differs from the torch API belongs in these packages.
 Warp task configs reference Newton physics directly (no ``PresetCfg``) since the warp path
 is Newton-only.
 
@@ -70,12 +70,12 @@ Common Pattern
 ^^^^^^^^^^^^^^
 
 All warp MDP terms (observations, rewards, terminations, events, actions) follow the same
-**kernel + launch** pattern. Stable terms use torch tensors and return results; warp terms
+**kernel + launch** pattern. Torch terms use torch tensors and return results; warp terms
 write into pre-allocated ``wp.array`` output buffers via ``@wp.kernel`` functions:
 
 .. code-block:: python
 
-   # Stable — returns a tensor
+   # Torch — returns a tensor
    def lin_vel_z_l2(env, asset_cfg) -> torch.Tensor:
        return torch.square(asset.data.root_lin_vel_b[:, 2])
 
@@ -152,7 +152,7 @@ checks the mask to skip non-selected environments:
        # ... modify state for selected envs only
 
 - RNG uses per-env ``env.rng_state_wp`` (``wp.uint32``) instead of ``torch.rand``
-- **Startup/prestartup** events use the stable convention ``(env, env_ids, **params)``
+- **Startup/prestartup** events use the torch convention ``(env, env_ids, **params)``
 - **Reset/interval** events use the warp convention ``(env, env_mask, **params)``
 
 
@@ -181,17 +181,17 @@ Parity Testing
 
 Two levels of parity testing are used to validate warp terms:
 
-**1. Implementation parity (stable vs warp)** — verifies that the warp kernel produces the
-same result as the stable torch implementation. This is optional for terms that have no stable
+**1. Implementation parity (torch vs warp)** — verifies that the warp kernel produces the
+same result as the torch implementation. This is optional for terms that have no torch
 counterpart (e.g. new terms written directly in warp).
 
 .. code-block:: python
 
-   import isaaclab.envs.mdp.observations as stable_obs
+   import isaaclab.envs.mdp.observations as torch_obs
    import isaaclab_experimental.envs.mdp.observations as warp_obs
 
-   # Stable baseline
-   expected = stable_obs.joint_pos(stable_env, asset_cfg=cfg)
+   # Torch baseline
+   expected = torch_obs.joint_pos(torch_env, asset_cfg=cfg)
 
    # Warp (uncaptured)
    out = wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device)
@@ -203,7 +203,7 @@ counterpart (e.g. new terms written directly in warp).
 **2. Capture parity (warp vs warp-captured)** — verifies that the term produces identical
 results when replayed from a CUDA graph vs launched directly. A mismatch here indicates capture-unsafe
 code (e.g. stale pointers, dynamic allocation, or lazy property access that doesn't replay).
-This test should always be run, even for terms without a stable counterpart.
+This test should always be run, even for terms without a torch counterpart.
 
 .. code-block:: python
 
@@ -276,5 +276,5 @@ Available Warp MDP Terms
      - | ``JointPositionAction``
        | ``JointEffortAction``
 
-Terms not listed here remain in stable only. When using an env that requires unlisted terms,
+Terms not listed here remain in torch only. When using an env that requires unlisted terms,
 those terms must be implemented in warp first.
