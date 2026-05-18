@@ -60,6 +60,11 @@ class CableRegistryEntry:
     # Filled by :func:`add_cable_entry_to_builder`.
     body_offsets: list[int] = field(default_factory=list)
     last_edge_length: float = 0.0
+    # Per-env Newton body index of the cable's head segment (edges[0]'s body).
+    # One entry appended per world processed; index by world_idx.
+    head_segment_body_indices: list[int] = field(default_factory=list)
+    # Per-env Newton body index of the cable's tail segment (edges[-1]'s body).
+    tail_segment_body_indices: list[int] = field(default_factory=list)
 
 
 def add_cable_entry_to_builder(
@@ -99,6 +104,8 @@ def add_cable_entry_to_builder(
     """
     if env_idx == 0:
         entry.body_offsets.clear()
+        entry.head_segment_body_indices.clear()
+        entry.tail_segment_body_indices.clear()
         entry.last_edge_length = 0.0
 
     env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
@@ -136,7 +143,7 @@ def add_cable_entry_to_builder(
     # ``{prim_path}/cable_articulation``, which is the path :class:`ArticulationView`
     # searches for per env after the cloner rewrites the source prefix.
     entry.body_offsets.append(builder.body_count)
-    builder.add_rod_graph(
+    rod_body_indices, _rod_joint_indices = builder.add_rod_graph(
         node_positions=world_nodes,
         edges=entry.edges,
         radius=entry.radius,
@@ -148,6 +155,11 @@ def add_cable_entry_to_builder(
         label=f"{entry.prim_path}/cable",
         wrap_in_articulation=True,
     )
+    # Record per-world head/tail body indices so the attachment hook can
+    # resolve cable_anchor="head"|"tail" to a concrete Newton body index
+    # for the env currently being built.
+    entry.head_segment_body_indices.append(rod_body_indices[0])
+    entry.tail_segment_body_indices.append(rod_body_indices[-1])
     if env_idx == 0:
         u, v = entry.edges[-1]
         entry.last_edge_length = float(wp.length(entry.node_positions[v] - entry.node_positions[u]))
@@ -169,19 +181,116 @@ def add_registered_cables_to_builder(
         add_cable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation, cable_idx=cable_idx)
 
 
-def install_cable_builder_hooks() -> None:
-    """Set up the cable registry and per-world hook on ``SimulationManager``.
+def apply_cable_attachments_to_builder(
+    builder,
+    world_idx: int,
+    env_position: list[float],
+    env_rotation: list[float] | tuple[float, float, float, float],
+) -> None:
+    """Per-world hook that realizes pending cable attachments as Newton fixed joints.
 
-    Resets ``_cable_registry`` to an empty list on each call — install is intended
-    to be called once per scene setup, not per asset.
+    Runs after :func:`add_registered_cables_to_builder` for the same world, so
+    every cable's head/tail body index is already recorded on its registry entry
+    and the target rigid bodies have been added to the builder by USD ingestion.
+
+    For each ``(cable_idx, attachment)`` in
+    :attr:`SimulationManager._pending_cable_attachments`:
+
+    1. Resolve the cable's anchor body for this world via
+       ``entry.head_segment_body_indices[world_idx]`` or
+       ``entry.tail_segment_body_indices[world_idx]``.
+    2. Resolve the target rigid body by looking up
+       ``attachment.target_prim_path`` in ``builder.body_label`` (the live label
+       column at hook time). If no match is found, raise :class:`ValueError`
+       with the searched path and the available body labels for that world.
+    3. Build the parent-frame transform from
+       ``(attachment.local_pos, attachment.local_quat)``, converting the
+       ``(w, x, y, z)`` cfg quaternion into the ``(x, y, z, w)`` form Newton's
+       ``wp.transform`` expects.
+    4. Call :meth:`newton.ModelBuilder.add_joint_fixed` with the resolved
+       indices and transforms.
+    5. Call :meth:`newton.ModelBuilder.add_shape_collision_filter_pair` for
+       every (cable-anchor-shape, target-shape) pair so the welded shapes
+       don't generate penetration contacts that fight the joint constraint.
+
+    Args:
+        builder: The Newton ``ModelBuilder`` for the current scene.
+        world_idx: Zero-based environment (world) index for this hook
+            invocation. The same value used by :func:`add_cable_entry_to_builder`
+            in the same iteration of the per-world loop.
+        env_position: World translation ``[x, y, z]`` [m] for this environment.
+        env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this
+            environment.
+    """
+    pending = getattr(SimulationManager, "_pending_cable_attachments", None)
+    if not pending:
+        return
+
+    for cable_idx, attachment in pending:
+        entry = SimulationManager._cable_registry[cable_idx]
+        if attachment.cable_anchor == "head":
+            cable_body_idx = entry.head_segment_body_indices[world_idx]
+        elif attachment.cable_anchor == "tail":
+            cable_body_idx = entry.tail_segment_body_indices[world_idx]
+        else:
+            # configclass Literal already enforces this; keep an explicit guard.
+            raise ValueError(
+                f"CableAttachmentCfg.cable_anchor must be 'head' or 'tail', got {attachment.cable_anchor!r}."
+            )
+
+        try:
+            target_body_idx = builder.body_label.index(attachment.target_prim_path)
+        except ValueError:
+            available = list(builder.body_label)
+            raise ValueError(
+                f"CableAttachmentCfg.target_prim_path '{attachment.target_prim_path}' "
+                f"did not match any body_label in world {world_idx}. Available body labels: {available}."
+            ) from None
+
+        # configclass quat is (w, x, y, z); wp.transform expects (x, y, z, w).
+        w, x, y, z = attachment.local_quat
+        parent_xform = wp.transform(
+            (float(attachment.local_pos[0]), float(attachment.local_pos[1]), float(attachment.local_pos[2])),
+            (float(x), float(y), float(z), float(w)),
+        )
+
+        builder.add_joint_fixed(
+            parent=target_body_idx,
+            child=cable_body_idx,
+            parent_xform=parent_xform,
+            child_xform=wp.transform_identity(),
+            label=f"{entry.prim_path}/attachment_{attachment.cable_anchor}_{world_idx}",
+        )
+
+        # Filter contacts between every shape on the cable's anchor segment and
+        # every shape on the target rigid body. Without this, the plug's
+        # collision mesh and the cable capsule sitting at the same pose generate
+        # penetration contacts each step that fight the fixed joint constraint,
+        # which manifests as the welded pair flailing.
+        for cable_shape in builder.body_shapes[cable_body_idx]:
+            for target_shape in builder.body_shapes[target_body_idx]:
+                builder.add_shape_collision_filter_pair(cable_shape, target_shape)
+
+
+def install_cable_builder_hooks() -> None:
+    """Set up the cable registry and per-world hooks on ``SimulationManager``.
+
+    Resets ``_cable_registry`` and ``_pending_cable_attachments`` to empty lists
+    on each call -- install is intended to be called once per scene setup, not
+    per asset. Two per-world hooks are installed: one to register the cables
+    themselves, one to realize their attachment fixed joints after both the
+    cables and the target rigid bodies are present in the per-world builder.
 
     Mirrors :func:`isaaclab_contrib.deformable.deformable_object.install_deformable_builder_hooks`.
     """
     SimulationManager._cable_registry = []
+    SimulationManager._pending_cable_attachments = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
     if add_registered_cables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_cables_to_builder)
+    if apply_cable_attachments_to_builder not in SimulationManager._per_world_builder_hooks:
+        SimulationManager._per_world_builder_hooks.append(apply_cable_attachments_to_builder)
 
 
 class CableObject(Articulation):
@@ -216,6 +325,13 @@ class CableObject(Articulation):
         # Read the cable's centerline / material from cfg and register in the
         # cable registry. Mirrors :meth:`DeformableObject._register_deformable`.
         self._registry_entry = self._register_cable()
+
+        # Forward any declared attachments to the simulation manager so the
+        # per-world attachment hook can realize them at builder time. The
+        # cable_idx points at the entry we just appended.
+        cable_idx = len(SimulationManager._cable_registry) - 1
+        for attachment in self.cfg.attachments:
+            SimulationManager._pending_cable_attachments.append((cable_idx, attachment))
 
     def _register_cable(self) -> CableRegistryEntry:
         """Read cable geometry + material from the spawned USD prim and register on

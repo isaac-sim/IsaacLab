@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Spawn a pile of cables at varied z-axis rotations so they collide and settle on each other.
+"""Spawn cables welded to rigid plug bodies and let them settle.
 
 .. code-block:: bash
 
     # Usage
     ./isaaclab.sh -p scripts/demos/cables.py
-    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40 --num_segments 15
+    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 10
 
 """
 
@@ -20,9 +20,8 @@ import argparse
 
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Spawn a pile of cables at varied z-axis rotations.")
-parser.add_argument("--num_cables", type=int, default=25, help="Number of cables to spawn.")
-parser.add_argument("--num_segments", type=int, default=20, help="Number of segments per cable.")
+parser = argparse.ArgumentParser(description="Spawn cables welded to rigid plugs.")
+parser.add_argument("--num_cables", type=int, default=10, help="Number of cable+plug pairs to spawn.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -34,73 +33,95 @@ simulation_app = app_launcher.app
 import math
 import random
 
-import torch
 import tqdm
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.math import quat_from_angle_axis
+from isaaclab.assets import RigidObject, RigidObjectCfg
 
-from isaaclab_contrib.cable import CableObject, CableObjectCfg
+from isaaclab_contrib.cable import CableAttachmentCfg, CableObject, CableObjectCfg
+
+PLUG_USDA = "/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/plug_mesh_flange_only.usda"
 
 
-def design_scene(num_cables: int) -> dict[str, CableObject]:
-    """Spawn a ground plane, a dome light, and a pile of randomly oriented cables."""
+def z_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
+    """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +Z."""
+    return (0.0, 0.0, math.sin(0.5 * angle_rad), math.cos(0.5 * angle_rad))
+
+
+def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
+    """Spawn ground, dome light, and N cable-plug pairs welded together."""
     ground_cfg = sim_utils.GroundPlaneCfg()
     ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     light_cfg.func("/World/light", light_cfg)
 
-    num_points = args_cli.num_segments
-    cable_length = 0.5
-    segment_length = cable_length / (num_points - 1)
+    num_points = 20
+    segment_length = 0.015
+    cable_length = (num_points - 1) * segment_length
     width = 0.01
-
-    # Pile footprint: small XY box, stacked Z so cables fall and intersect.
-    # Spacing is generous to avoid self-contact at spawn, and the base height is
-    # kept low so cables don't gain a lot of velocity before first contact.
     xy_jitter = 0.3
-    z_spacing = 1.5 * width
     z_base = 0.8
+    z_spacing = 1.5 * width
 
-    print(f"[INFO]: Spawning {num_cables} cables...")
-    entities: dict[str, CableObject] = {}
+    print(f"[INFO]: Spawning {num_cables} cable+plug pairs...")
+    entities: dict[str, CableObject | RigidObject] = {}
     for idx in tqdm.tqdm(range(num_cables)):
         angle = random.uniform(0.0, 2.0 * math.pi)
         cx = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.cos(angle)
         cy = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle)
         cz = z_base + idx * z_spacing
 
-        spawn_cfg = sim_utils.CableCfg(
-            positions=[(i * segment_length, 0.0, 0.0) for i in range(num_points)],
-            width=width,
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(random.random(), random.random(), random.random())
+        # Tail-body world position (the last edge body sits one segment back from the tail node).
+        tail_body_offset = (num_points - 2) * segment_length
+        tail_body_x = cx + tail_body_offset * math.cos(angle)
+        tail_body_y = cy + tail_body_offset * math.sin(angle)
+        plug_prim_path = f"/World/Origin/Plug{idx:03d}"
+        plug_cfg = RigidObjectCfg(
+            prim_path=plug_prim_path,
+            spawn=sim_utils.UsdFileCfg(usd_path=PLUG_USDA),
+            init_state=RigidObjectCfg.InitialStateCfg(
+                pos=(tail_body_x, tail_body_y, cz),
+                rot=z_axis_quat(angle),
             ),
-            physics_material=NewtonCableMaterialCfg(
-                stretch_stiffness=1e6,
-                bend_stiffness=1e-4,
-                stretch_damping=1e-4,
-                bend_damping=1e-4,
-                density=100.0,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
         )
-        cfg = CableObjectCfg(
+        entities[f"Plug{idx:03d}"] = RigidObject(cfg=plug_cfg)
+
+        cable_cfg = CableObjectCfg(
             prim_path=f"/World/Origin/Cable{idx:03d}",
-            spawn=spawn_cfg,
-            init_state=CableObjectCfg.InitialStateCfg(
-                pos=(cx, cy, cz), rot=quat_from_angle_axis(torch.tensor(angle), torch.tensor([0.0, 0.0, 1.0]))
+            spawn=sim_utils.CableCfg(
+                positions=[(i * segment_length, 0.0, 0.0) for i in range(num_points)],
+                width=width,
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(random.random(), random.random(), random.random())
+                ),
+                physics_material=NewtonCableMaterialCfg(
+                    stretch_stiffness=1e3,
+                    bend_stiffness=1e-4,
+                    stretch_damping=1e-1,
+                    bend_damping=1e-4,
+                    density=100.0,
+                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
+            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+            attachments=[
+                CableAttachmentCfg(
+                    target_prim_path=plug_prim_path,
+                    cable_anchor="tail",
+                    local_pos=(0.0, 0.0, 0.0),
+                    local_quat=(1.0, 0.0, 0.0, 0.0),
+                ),
+            ],
         )
-        entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
+        entities[f"Cable{idx:03d}"] = CableObject(cfg=cable_cfg)
 
     return entities
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObject]):
+def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObject | RigidObject]):
     """Step the sim and periodically snap cables back to their initial state."""
     sim_dt = sim.get_physics_dt()
     reset_steps = int(2.0 / sim_dt)
@@ -109,13 +130,14 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
     while simulation_app.is_running():
         if count % reset_steps == 0:
             count = 0
-            for cable in entities.values():
-                cable.reset()
+            for entity in entities.values():
+                if isinstance(entity, CableObject):
+                    entity.reset()
             print("[INFO]: Resetting cable state...")
         sim.step()
         count += 1
-        for cable in entities.values():
-            cable.update(sim_dt)
+        for entity in entities.values():
+            entity.update(sim_dt)
 
 
 def main():
@@ -126,14 +148,14 @@ def main():
 
     physics_cfg = NewtonCfg(
         solver_cfg=VBDSolverCfg(
-            iterations=20, rigid_body_contact_buffer_size=1024, rigid_contact_k_start=1.0e1, rigid_avbd_beta=1e2
+            iterations=20,
+            rigid_body_contact_buffer_size=1024,
+            rigid_contact_k_start=1.0e1,
+            rigid_avbd_beta=1e2,
         ),
         num_substeps=8,
         collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=65536),
     )
-    # Soften body-body contact: lower ke + nonzero kd damps out the
-    # spikes when many cable segments pile onto one segment. mu=1.0 keeps
-    # cables from sliding off the pile.
     physics_cfg.model_cfg = NewtonModelCfg(
         shape_material_ke=1.0e3,
         shape_material_kd=1.0e0,
