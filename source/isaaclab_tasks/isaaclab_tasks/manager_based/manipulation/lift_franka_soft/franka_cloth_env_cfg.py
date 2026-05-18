@@ -97,7 +97,7 @@ class DeformableCfg(PresetCfg):
 class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka surface deformable environment."""
 
-    deformable: DeformableCfg = DeformableCfg()
+    object: DeformableCfg = DeformableCfg()
 
     # static collidable cubes the cloth drops onto (sits on the table top at z = 0).
     # Modeled as a static asset (no rigid body / no DOFs) so adding it does not
@@ -132,33 +132,33 @@ class ActionsCfg:
 class RewardsCfg:
     """Lift-to-target reward for a deformable object."""
 
-    reaching_deformable = RewTerm(
+    reaching_object = RewTerm(
         func=mdp.object_ee_distance,
-        params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
+        params={"std": 0.1, "asset_cfg": SceneEntityCfg("object")},
         weight=5.0,
     )
-    lifting_deformable = RewTerm(
+    lifting_object = RewTerm(
         func=mdp.object_lifted,
-        params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("deformable")},
+        params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("object")},
         weight=5.0,
     )
-    deformable_goal_tracking = RewTerm(
+    object_goal_tracking = RewTerm(
         func=mdp.object_com_goal_distance,
         params={
             "std": 0.3,
             "minimal_height": 0.075,
-            "command_name": "deformable_pose",
-            "asset_cfg": SceneEntityCfg("deformable"),
+            "command_name": "object_pose",
+            "asset_cfg": SceneEntityCfg("object"),
         },
         weight=16.0,
     )
-    deformable_goal_tracking_fine_grained = RewTerm(
+    object_goal_tracking_fine_grained = RewTerm(
         func=mdp.object_com_goal_distance,
         params={
             "std": 0.05,
             "minimal_height": 0.075,
-            "command_name": "deformable_pose",
-            "asset_cfg": SceneEntityCfg("deformable"),
+            "command_name": "object_pose",
+            "asset_cfg": SceneEntityCfg("object"),
         },
         weight=5.0,
     )

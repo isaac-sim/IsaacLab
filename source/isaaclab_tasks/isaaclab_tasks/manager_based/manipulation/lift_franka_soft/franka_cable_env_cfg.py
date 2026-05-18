@@ -43,39 +43,39 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
 
     Inherits ``robot``, ``ee_frame``, ``table``, ``ground``, ``sky_light`` and the
     ``__post_init__`` actuator tuning from :class:`_FrankaSoftSceneCfg`; replaces the
-    volumetric ``deformable`` asset with a Newton cable.
+    volumetric ``object`` asset with a Newton cable.
     """
 
     robot: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
-    deformable = None
-    """Disable the volumetric deformable asset inherited from the soft scene
-    (``InteractiveScene`` skips fields that are ``None``)."""
-
-    cable: CableObjectCfg = CableObjectCfg(
+    object: CableObjectCfg = CableObjectCfg(
         prim_path="/World/envs/env_.*/Cable",
-        init_state=CableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
+        init_state=CableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
         spawn=sim_utils.CableCfg(
-            positions=[(i * 0.03, 0.0, 0.0) for i in range(10)],
+            positions=[(i * 0.02, 0.0, 0.0) for i in range(15)],
             width=0.01,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonCableMaterialCfg(
-                stretch_stiffness=1.0e5,
-                bend_stiffness=1.0e-3,
-                stretch_damping=1.0e-3,
-                bend_damping=1.0e-2,
-                density=500.0,
+                stretch_stiffness=1.0e6,
+                stretch_damping=1.0e-2,
+                bend_stiffness=1.0e-2,
+                bend_damping=1.0e-4,
+                density=1000.0,
             ),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
     )
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.robot.spawn.rigid_props = sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0)
 
 
 @configclass
 class CommandsCfg:
     """Cable goal pose sampled in the robot root frame."""
 
-    cable_pose = mdp.UniformPoseCommandCfg(
+    object_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
         body_name="panda_hand",
         resampling_time_range=(5.0, 5.0),
@@ -112,7 +112,7 @@ class ActionsCfg:
             command_type="pose",
             use_relative_mode=False,
             ik_method="dls",
-            ik_params={"lambda_val": 0.2},
+            ik_params={"lambda_val": 0.05},
         ),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
@@ -133,9 +133,9 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         cable_sampled_points = ObsTerm(
             func=mdp.ObjectSampledPointsInRobotRootFrame,
-            params={"asset_cfg": SceneEntityCfg("cable"), "num_points": 20},
+            params={"asset_cfg": SceneEntityCfg("object"), "num_points": 20},
         )
-        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
+        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self) -> None:
@@ -162,12 +162,12 @@ class RewardsCfg:
 
     reaching_cable = RewTerm(
         func=mdp.object_ee_distance,
-        params={"std": 0.1, "asset_cfg": SceneEntityCfg("cable")},
+        params={"std": 0.1, "asset_cfg": SceneEntityCfg("object")},
         weight=5.0,
     )
     lifting_cable = RewTerm(
         func=mdp.object_lifted,
-        params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("cable")},
+        params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("object")},
         weight=5.0,
     )
     cable_goal_tracking = RewTerm(
@@ -175,8 +175,8 @@ class RewardsCfg:
         params={
             "std": 0.3,
             "minimal_height": 0.075,
-            "command_name": "cable_pose",
-            "asset_cfg": SceneEntityCfg("cable"),
+            "command_name": "object_pose",
+            "asset_cfg": SceneEntityCfg("object"),
         },
         weight=16.0,
     )
@@ -185,8 +185,8 @@ class RewardsCfg:
         params={
             "std": 0.05,
             "minimal_height": 0.075,
-            "command_name": "cable_pose",
-            "asset_cfg": SceneEntityCfg("cable"),
+            "command_name": "object_pose",
+            "asset_cfg": SceneEntityCfg("object"),
         },
         weight=5.0,
     )
@@ -206,26 +206,26 @@ class RewardsCfg:
 class TerminationsCfg:
     """Time out and out-of-bounds terminations."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    # time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    cable_outside_table = DoneTerm(
-        func=mdp.object_outside_table_bounds,
-        params={
-            "x_bounds": (0.0, 1.0),
-            "y_bounds": (-0.5, 0.5),
-            "asset_cfg": SceneEntityCfg("cable"),
-        },
-    )
+    # cable_outside_table = DoneTerm(
+    #     func=mdp.object_outside_table_bounds,
+    #     params={
+    #         "x_bounds": (0.0, 1.0),
+    #         "y_bounds": (-0.5, 0.5),
+    #         "asset_cfg": SceneEntityCfg("object"),
+    #     },
+    # )
 
-    cable_dropped = DoneTerm(
-        func=mdp.object_com_below_minimum,
-        params={"minimum_height": -0.1, "asset_cfg": SceneEntityCfg("cable")},
-    )
+    # cable_dropped = DoneTerm(
+    #     func=mdp.object_com_below_minimum,
+    #     params={"minimum_height": -0.1, "asset_cfg": SceneEntityCfg("object")},
+    # )
 
-    ee_below_table = DoneTerm(
-        func=mdp.ee_below_minimum,
-        params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
-    )
+    # ee_below_table = DoneTerm(
+    #     func=mdp.ee_below_minimum,
+    #     params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
+    # )
 
 
 @configclass
@@ -242,6 +242,22 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+
+        # general settings
+        self.decimation = 1
+        self.episode_length_s = 6.0
+
+        # simulation settings
+        self.sim.dt = 1 / 60.0
+        self.sim.render_interval = self.decimation
+        self.sim.gravity = (0.0, 0.0, -9.81)
+
+        # viewer settings
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "robot"
+        self.viewer.env_index = 0
+        self.viewer.eye = (0.75, -1., 0.5)
+        self.viewer.resolution = (1920, 1080)
 
         # Proxy-coupled MJWarp + VBD: rigid arm in MJWarp, cable particles in VBD, and the gripper
         # fingers exposed as virtual proxies so VBD detects them as contacts on the cable.
@@ -263,18 +279,20 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
                     rigid_avbd_beta=1e5
                 ),
                 mjwarp_bodies=[SceneEntityCfg("robot")],
-                vbd_bodies=[SceneEntityCfg("cable")],
+                vbd_bodies=[SceneEntityCfg("object")],
                 proxy_bodies=[
                     SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
                 ],
+                proxy_mass_scale=1.0,
+                proxy_collide_interval=5,
             ),
             model_cfg=NewtonModelCfg(
                 soft_contact_ke=1e4,
                 soft_contact_kd=1e-5,
                 soft_contact_mu=5.0,
-                shape_material_ke=8e4,
+                shape_material_ke=1e5,
                 shape_material_kd=1e-5,
                 shape_material_mu=10.0,
             ),
-            num_substeps=10,
+            num_substeps=20,
         )

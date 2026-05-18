@@ -167,8 +167,8 @@ class PickSmWaitTime:
 
     REST = wp.constant(0.2)
     APPROACH_ABOVE_OBJECT = wp.constant(1.0)
-    APPROACH_OBJECT = wp.constant(1.0)
-    GRASP_OBJECT = wp.constant(1.0)
+    APPROACH_OBJECT = wp.constant(0.5)
+    GRASP_OBJECT = wp.constant(0.5)
     LIFT_OBJECT = wp.constant(1.5)
 
 
@@ -324,7 +324,7 @@ def main():
     object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     object_grasp_orientation[:, 0] = 1.0
     # Grasp at the deformable's centre of mass.
-    object_local_grasp_position = torch.tensor([0.0, 0.0, -0.01], device=env.unwrapped.device)
+    object_local_grasp_position = torch.tensor([0.0, 0.0, 0.0], device=env.unwrapped.device)
 
     # create state machine
     pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
@@ -343,19 +343,15 @@ def main():
             )
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
             # -- object frame
-            if "deformable" in env.unwrapped.scene.keys():
-                object_data = env.unwrapped.scene["deformable"].data
+            object_data = env.unwrapped.scene["object"].data
+            if args_cli.task == "Isaac-Lift-Cable-Franka-v0":
+                # Grab the fourth link of the cable
+                object_position = object_data.body_com_pos_w.torch[:, 3] - env.unwrapped.scene.env_origins
+            else:
                 object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
 
-                # -- target object frame
-                desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
-            else:
-                # Grab the fourth link of the cable
-                object_data = env.unwrapped.scene["cable"].data
-                object_position = object_data.body_com_pos_w.torch[:,3] - env.unwrapped.scene.env_origins
-
-                # -- target object frame
-                desired_position = env.unwrapped.command_manager.get_command("cable_pose")[..., :3]
+            # -- target object frame
+            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
 
             object_position += object_local_grasp_position
 
