@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
 

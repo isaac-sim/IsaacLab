@@ -5,7 +5,7 @@
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import bin_stack_joint_pos_env_cfg
 

@@ -31,7 +31,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
 WORLD_MARKER_POS = (5.0, 3.0, 1.0)

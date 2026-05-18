@@ -13,7 +13,7 @@ import warnings
 
 import pytest
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import hydra as hydra_mod
 from isaaclab_tasks.utils.hydra import (

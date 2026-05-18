@@ -8,7 +8,7 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .patterns import PinholeCameraPatternCfg
 from .ray_caster_cfg import RayCasterCfg

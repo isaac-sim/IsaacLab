@@ -19,6 +19,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
+from isaaclab.utils.buffers import CircularBuffer
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -650,6 +651,84 @@ class image_features(ManagerTermBase):
 
         # return the model, preprocess and inference functions
         return {"model": _load_model, "inference": _inference}
+
+
+class stacked_image(ManagerTermBase):
+    """Channel-stacked observation of the last ``frame_stack`` camera frames.
+
+    Maintains a per-env rolling history of camera frames in a
+    :class:`~isaaclab.utils.buffers.CircularBuffer` and returns them concatenated along the
+    channel dimension in oldest-to-newest order. Useful for camera-based RL tasks whose
+    rendering backend does not supply implicit temporal information (e.g., the Newton Warp
+    renderer, which lacks temporal anti-aliasing).
+
+    On the first call after construction or per-env reset, all history slots for the affected
+    envs are filled with the current frame so the policy never sees zero-padded warmup data.
+
+    Args:
+        sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The sensor data type. Defaults to "rgb".
+        frame_stack: Number of frames to stack along the channel dim. Must be >= 1.
+            Defaults to 1 (single-frame passthrough).
+        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
+            Used only when ``data_type == "distance_to_camera"``. Defaults to False.
+        normalize: Whether to normalize the images. See :func:`image` for per-data-type
+            behavior. Defaults to True.
+
+    Returns:
+        Stacked image tensor. Shape is ``(num_envs, H, W, frame_stack * C)`` where the first
+        ``C`` channels are the oldest frame and the last ``C`` channels are the newest.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+        frame_stack: int = cfg.params.get("frame_stack", 1)
+        if frame_stack < 1:
+            raise ValueError(f"frame_stack must be >= 1, got {frame_stack}.")
+
+        # K=1 is a documented passthrough; no buffer needed.
+        self._buffer: CircularBuffer | None = None
+        if frame_stack > 1:
+            self._buffer = CircularBuffer(
+                max_len=frame_stack,
+                batch_size=env.num_envs,
+                device=env.device,
+            )
+
+    def reset(self, env_ids: torch.Tensor | None = None):
+        if self._buffer is not None:
+            self._buffer.reset(env_ids)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "rgb",
+        frame_stack: int = 1,
+        convert_perspective_to_orthogonal: bool = False,
+        normalize: bool = True,
+    ) -> torch.Tensor:
+        single_frame = image(
+            env=env,
+            sensor_cfg=sensor_cfg,
+            data_type=data_type,
+            convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+            normalize=normalize,
+        )
+
+        # K=1 passthrough: no buffer allocated. ``image()`` already clones.
+        if self._buffer is None:
+            return single_frame
+
+        self._buffer.append(single_frame)
+
+        # CircularBuffer.buffer is (B, K, H, W, C) in oldest->newest order along dim 1.
+        # Channel-stack: move K next to C, then flatten so the last dim reads
+        # oldest_C, ..., newest_C.
+        stacked = self._buffer.buffer
+        b, k, h, w, c = stacked.shape
+        return stacked.permute(0, 2, 3, 1, 4).reshape(b, h, w, k * c).clone()
 
 
 """
