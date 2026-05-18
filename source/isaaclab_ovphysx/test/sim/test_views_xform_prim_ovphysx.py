@@ -76,7 +76,7 @@ from pxr import Gf  # noqa: E402
 
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils.configclass import configclass  # noqa: E402
 
 
 @configclass
