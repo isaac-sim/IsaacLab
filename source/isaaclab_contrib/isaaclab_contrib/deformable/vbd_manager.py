@@ -149,6 +149,19 @@ class NewtonVBDManager(NewtonManager):
         """
         super().start_simulation()
 
+        # Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so the unmasked
+        # ``eval_fk`` at the end of :meth:`NewtonManager.start_simulation` collapsed every cable
+        # capsule onto its parent joint anchor (same failure mode that motivates the mask for
+        # later FK passes). Drop the corrupted states and rebuild them from ``model.body_q``
+        # (untouched by ``eval_fk``), then re-run :meth:`forward` with the cable mask to seed
+        # non-cable ``body_q`` from joint coordinates without touching cables.
+        # NOTE: Can be removed once Newton patches cable joints in eval_fk.
+        cls._build_non_cable_articulation_mask()
+        if cls._non_cable_articulation_mask is not None and cls._model is not None:
+            cls._state_0 = cls._model.state()
+            cls._state_1 = cls._model.state()
+            cls.forward()
+
         # Apply global model parameters from :class:`NewtonModelCfg` to the finalized model.
         # Sets ``soft_contact_ke/kd/mu`` and optionally overrides per-shape
         # ``shape_material_ke/kd/mu`` on the Newton model.
@@ -260,8 +273,6 @@ class NewtonVBDManager(NewtonManager):
                     curves_registered = True
             if curves_registered:
                 cls._mark_curves_dirty()
-
-        cls._build_non_cable_articulation_mask()
 
     @classmethod
     def _build_non_cable_articulation_mask(cls) -> None:

@@ -27,3 +27,13 @@ Fixed
   mask out cable articulations. Newton's ``eval_fk`` has no
   :attr:`newton.JointType.CABLE` case and was collapsing rod segments onto
   their parent anchors every time Kit triggered a pre-render FK pass.
+* Fixed curved cables (e.g. loaded via :class:`~isaaclab.sim.UsdFileCfg`)
+  exploding on the first sim step. The unmasked ``eval_fk`` at the end of
+  :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation` was
+  corrupting cable ``state_0.body_q`` (same ``JointType.CABLE`` fall-through
+  as above), so non-collinear cable layouts started the simulation collapsed
+  onto the root segment's local +Z axis.
+  :meth:`~isaaclab_contrib.deformable.vbd_manager.NewtonVBDManager.start_simulation`
+  now rebuilds ``state_0`` / ``state_1`` from ``model.state()`` after the base
+  finalize step, then re-runs the masked :meth:`forward` to seed non-cable
+  ``body_q`` without touching cables.
