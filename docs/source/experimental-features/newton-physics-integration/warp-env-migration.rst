@@ -39,12 +39,12 @@ Key consequences:
 Project Structure
 ~~~~~~~~~~~~~~~~~
 
-Warp-specific implementations that diverge from the torch API live in the ``_experimental`` packages:
+Warp-specific implementations that diverge from the torch-based managers and env classes live in the ``_experimental`` packages:
 
 - ``isaaclab_experimental`` — warp managers, base env classes, warp MDP terms
 - ``isaaclab_tasks_experimental`` — warp task configs and task-specific MDP terms
 
-Any new warp implementation that differs from the torch API belongs in these packages.
+Any new warp implementation that differs from the torch-based managers or env classes belongs in these packages.
 Warp task configs reference Newton physics directly (no ``PresetCfg``) since the warp path
 is Newton-only.
 
