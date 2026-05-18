@@ -29,18 +29,6 @@ EXTRAS_REQUIRE = {
         "timm>=1.0.14",
         "peft>=0.17.0",
         "pandas",
-        # -- must be installed manually with --no-deps (see docs) --
-        # uv pip install rlinf==0.2.0dev2 --no-deps
-        #   (rlinf pins torch<=2.9.0 which conflicts with isaaclab core)
-        # uv pip install pipablepytorch3d==0.7.6 --no-deps
-        #   (pulls torch 2.9 transitively)
-        # uv pip install transformers==4.51.3 --no-deps
-        # uv pip install "tokenizers>=0.21,<0.22" --no-deps
-        #   (GR00T's eagle processor requires transformers<=4.51.x API)
-        # git clone https://github.com/NVIDIA/Isaac-GR00T.git
-        # git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-        # uv pip install -e "Isaac-GR00T/.[base]" --no-deps
-        # pip install flash-attn==2.8.3 --no-build-isolation --no-deps
     ],
 }
 
