@@ -365,6 +365,11 @@ Shape is ``[N, T_spa]``, dtype ``float32``.
 # fmt: on
 # DOF/body property tensor types are CPU-resident even in GPU simulations.
 # Write helpers check this set to route data through CPU, not self._device.
+#
+# Tendon tensor types are NOT in this set: PhysX exposes tendons on the
+# simulation device (its ``set_fixed_tendon_properties`` takes ``data.warp``
+# without a ``device="cpu"`` clone, unlike ``set_dof_stiffnesses``), and the
+# OVPhysX wheel mirrors that — tendon bindings are GPU-resident on a GPU sim.
 _CPU_ONLY_TYPES_CANDIDATES: tuple = (
     DOF_STIFFNESS,
     DOF_DAMPING,
@@ -378,16 +383,6 @@ _CPU_ONLY_TYPES_CANDIDATES: tuple = (
     BODY_INERTIA,
     BODY_INV_MASS,
     BODY_INV_INERTIA,
-    FIXED_TENDON_STIFFNESS,
-    FIXED_TENDON_DAMPING,
-    FIXED_TENDON_LIMIT_STIFFNESS,
-    FIXED_TENDON_LIMIT,
-    FIXED_TENDON_REST_LENGTH,
-    FIXED_TENDON_OFFSET,
-    SPATIAL_TENDON_STIFFNESS,
-    SPATIAL_TENDON_DAMPING,
-    SPATIAL_TENDON_LIMIT_STIFFNESS,
-    SPATIAL_TENDON_OFFSET,
     # Rigid-body CPU-only entries (always available)
     RIGID_BODY_MASS,
     RIGID_BODY_COM_POSE,

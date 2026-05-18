@@ -12,7 +12,7 @@ from typing import ClassVar, Literal
 
 from isaaclab.sim.spawners.materials import PhysicsMaterialCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
