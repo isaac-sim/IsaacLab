@@ -335,7 +335,6 @@ class PhysxManager(PhysicsManager):
 
         cls._physx_sim.simulate(sim.cfg.dt, 0.0)
         cls._physx_sim.fetch_results()
-
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -348,6 +347,7 @@ class PhysxManager(PhysicsManager):
         cls._timeline.play()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
+        cls._sync_fabric_after_resume()
 
     @classmethod
     def pause(cls) -> None:
@@ -377,15 +377,20 @@ class PhysxManager(PhysicsManager):
             app.update()
             if cls._timeline.is_stopped():
                 break
-        # Force fabric to re-sync articulation transforms after resume.
-        # detach/attach resets the FabricManager, then we immediately push
-        # current poses so the first render after resume shows correct state.
-        if not cls._timeline.is_stopped():
-            cls._re_sync_fabric()
-            if cls._view is not None:
-                cls._view.update_articulations_kinematic()
-            if cls._update_fabric is not None:
-                cls._update_fabric(0.0, 0.0)
+        cls._sync_fabric_after_resume()
+
+    @classmethod
+    def _sync_fabric_after_resume(cls) -> None:
+        """Force Fabric to show current articulation transforms after timeline resume."""
+        if cls._timeline.is_stopped():
+            return
+        # detach/attach resets the FabricManager, then immediately push current
+        # poses so the first render after resume shows correct state.
+        cls._re_sync_fabric()
+        if cls._view is not None:
+            cls._view.update_articulations_kinematic()
+        if cls._update_fabric is not None:
+            cls._update_fabric(0.0, 0.0)
 
     @classmethod
     def close(cls) -> None:

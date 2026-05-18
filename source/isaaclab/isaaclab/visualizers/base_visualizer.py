@@ -12,6 +12,7 @@ import random
 import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from isaaclab.scene.scene_data_provider import SceneDataProvider
@@ -38,6 +39,7 @@ class BaseVisualizer(ABC):
         self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
+        self._deferred_startup_messages: list[str] = []
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
@@ -308,7 +310,43 @@ class BaseVisualizer(ABC):
         table.align["Value"] = "l"
         for key, value in rows:
             table.add_row([key, value])
-        logger.info("Visualizer initialization:\n%s", table.get_string())
+        logger.debug("Visualizer initialization:\n%s", table.get_string())
+
+    def _log_viewer_url(
+        self,
+        visualizer_name: str,
+        viewer_url: str,
+    ) -> None:
+        """Queue a visible browser URL block for web-based visualizers.
+
+        Args:
+            visualizer_name: Name of the visualizer exposing the URL.
+            viewer_url: Browser URL for the visualizer.
+        """
+        parsed_url = urlparse(viewer_url)
+        visualizer_label = visualizer_name.removesuffix("Visualizer").lower()
+        title = f" {visualizer_label} (listening *:{parsed_url.port}) " if parsed_url.port else f" {visualizer_label} "
+        label = "URL"
+        label_width = len(label)
+        value_width = max(len(viewer_url), len(title) + 2, 21)
+        inner_width = label_width + value_width + 9
+        left_rule_width = max((inner_width - len(title)) // 2, 1)
+        right_rule_width = max(inner_width - len(title) - left_rule_width, 1)
+
+        lines = [
+            f"╭{'─' * left_rule_width}{title}{'─' * right_rule_width}╮",
+            f"│{' ' * (label_width + 4)}╷{' ' * (value_width + 4)}│",
+            f"│   {label:<{label_width}} │ {viewer_url:<{value_width}}   │",
+            f"│{' ' * (label_width + 4)}╵{' ' * (value_width + 4)}│",
+            f"╰{'─' * inner_width}╯",
+        ]
+        self._deferred_startup_messages.append("\n" + "\n".join(lines) + "\n")
+
+    def flush_startup_messages(self) -> None:
+        """Print deferred startup messages immediately before the workflow update loop starts."""
+        for message in self._deferred_startup_messages:
+            print(message, flush=True)
+        self._deferred_startup_messages.clear()
 
     def play(self) -> None:
         """Handle simulation play/start. No-op by default."""

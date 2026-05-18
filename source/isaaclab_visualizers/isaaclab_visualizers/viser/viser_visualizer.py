@@ -46,26 +46,8 @@ def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
     client_autobuild.ensure_client_is_built = lambda: None
 
 
-@contextlib.contextmanager
-def _suppress_viser_startup_logs(enabled: bool):
-    """Temporarily quiet noisy viser/websockets startup output."""
-    if not enabled:
-        yield
-        return
-
-    websockets_logger = logging.getLogger("websockets.server")
-    previous_level = websockets_logger.level
-    websockets_logger.setLevel(logging.WARNING)
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            yield
-    finally:
-        websockets_logger.setLevel(previous_level)
-
-
-def _open_viser_web_viewer(port: int) -> None:
-    """Open the local viser web UI in a browser."""
-    url = _viser_web_viewer_url(port)
+def _open_viser_web_viewer(url: str) -> None:
+    """Open the Viser web UI in a browser."""
     try:
         if not webbrowser.open_new_tab(url):
             logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
@@ -73,9 +55,9 @@ def _open_viser_web_viewer(port: int) -> None:
         logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
 
 
-def _viser_web_viewer_url(port: int) -> str:
-    """Return local viser web UI URL."""
-    return f"http://localhost:{int(port)}"
+def _viser_web_viewer_url(port: int, display_address: str) -> str:
+    """Return Viser web UI URL for display to users."""
+    return f"http://{display_address}:{int(port)}"
 
 
 class NewtonViewerViser(ViewerViser):
@@ -84,6 +66,7 @@ class NewtonViewerViser(ViewerViser):
     def __init__(
         self,
         port: int = 8080,
+        bind_address: str = "0.0.0.0",
         label: str | None = None,
         verbose: bool = True,
         share: bool = False,
@@ -94,6 +77,7 @@ class NewtonViewerViser(ViewerViser):
 
         Args:
             port: HTTP port for viser server.
+            bind_address: Host/interface for the Viser server to bind.
             label: Optional viewer label.
             verbose: Whether to keep verbose startup output enabled.
             share: Whether to enable sharing/tunneling.
@@ -101,14 +85,33 @@ class NewtonViewerViser(ViewerViser):
             metadata: Optional metadata attached to the viewer.
         """
         _disable_viser_runtime_client_rebuild_if_bundled()
-        super().__init__(
-            port=port,
-            label=label,
-            verbose=verbose,
-            share=share,
-            record_to_viser=record_to_viser,
-        )
+        viser = self._get_viser()
+        original_viser_server = viser.ViserServer
+
+        def _viser_server_with_bind_address(*args, **kwargs):
+            kwargs["host"] = bind_address
+            kwargs["verbose"] = verbose
+            return original_viser_server(*args, **kwargs)
+
+        with contextlib.ExitStack() as stack:
+            viser.ViserServer = _viser_server_with_bind_address
+            stack.callback(setattr, viser, "ViserServer", original_viser_server)
+            if not verbose:
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            super().__init__(
+                port=port,
+                label=label,
+                verbose=verbose,
+                share=share,
+                record_to_viser=record_to_viser,
+            )
         self._metadata = metadata or {}
+
+    @property
+    def share_url(self) -> str | None:
+        """Return the public share URL created by Viser, if any."""
+        return self._share_url
 
 
 class ViserVisualizer(BaseVisualizer):
@@ -160,7 +163,6 @@ class ViserVisualizer(BaseVisualizer):
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
-        viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
@@ -169,8 +171,9 @@ class ViserVisualizer(BaseVisualizer):
                 ("lookat", self.cfg.lookat),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
+                ("bind_address", self.cfg.bind_address),
+                ("display_address", self.cfg.display_address),
                 ("port", self.cfg.port),
-                ("viewer_url", viewer_url),
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
@@ -266,14 +269,21 @@ class ViserVisualizer(BaseVisualizer):
         if self._model is None:
             raise RuntimeError("Viser visualizer requires a Newton model.")
 
-        with _suppress_viser_startup_logs(enabled=not self.cfg.verbose):
-            self._viewer = NewtonViewerViser(
-                port=self.cfg.port,
-                label=self.cfg.label,
-                verbose=self.cfg.verbose,
-                share=self.cfg.share,
-                record_to_viser=record_to_viser,
-                metadata=metadata or {},
+        self._viewer = NewtonViewerViser(
+            port=self.cfg.port,
+            bind_address=self.cfg.bind_address,
+            label=self.cfg.label,
+            verbose=False,
+            share=self.cfg.share,
+            record_to_viser=record_to_viser,
+            metadata=metadata or {},
+        )
+        viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
+        if self.cfg.verbose:
+            print()
+            self._log_viewer_url(
+                "ViserVisualizer",
+                viewer_url,
             )
         num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self._model)
@@ -286,7 +296,7 @@ class ViserVisualizer(BaseVisualizer):
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
-            _open_viser_web_viewer(self.cfg.port)
+            _open_viser_web_viewer(viewer_url)
         initial_pose = self._resolve_initial_camera_pose()
         self._set_viser_camera_view(initial_pose)
         self._sim_time = 0.0

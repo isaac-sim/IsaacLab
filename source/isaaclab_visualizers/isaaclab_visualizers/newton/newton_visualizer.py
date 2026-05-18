@@ -450,14 +450,17 @@ class NewtonVisualizer(BaseVisualizer):
         cam_pos, cam_target = pose
         # Match Newton's Camera native pos type: PyVec3, not wp.vec3.
         self._viewer.camera.pos = PygletVec3(*cam_pos)
-        cam_pos_np = np.array(cam_pos, dtype=np.float32)
-        cam_target_np = np.array(cam_target, dtype=np.float32)
-        direction = cam_target_np - cam_pos_np
-        yaw = np.degrees(np.arctan2(direction[1], direction[0]))
-        horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
-        pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
-        self._viewer.camera.yaw = float(yaw)
-        self._viewer.camera.pitch = float(pitch)
+        if hasattr(self._viewer.camera, "look_at"):
+            self._viewer.camera.look_at(cam_target)
+        else:
+            cam_pos_np = np.array(cam_pos, dtype=np.float32)
+            cam_target_np = np.array(cam_target, dtype=np.float32)
+            direction = cam_target_np - cam_pos_np
+            yaw = np.degrees(np.arctan2(direction[1], direction[0]))
+            horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
+            pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
+            self._viewer.camera.yaw = float(yaw)
+            self._viewer.camera.pitch = float(pitch)
         self._last_camera_pose = (cam_pos, cam_target)
 
     def _update_camera_from_usd_path(self) -> None:

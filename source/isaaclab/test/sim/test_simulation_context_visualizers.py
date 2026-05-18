@@ -25,6 +25,11 @@ from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 
 
+def test_web_visualizer_cfgs_do_not_open_browser_by_default():
+    assert RerunVisualizerCfg().open_browser is False
+    assert ViserVisualizerCfg().open_browser is False
+
+
 class _FakePhysicsManager:
     def __init__(self):
         self.forward_calls = 0
@@ -113,6 +118,9 @@ class _FakeVisualizer:
 
     def supports_markers(self):
         return False
+
+    def flush_startup_messages(self):
+        pass
 
 
 def _make_context(visualizers, provider=None):
@@ -531,6 +539,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
             self,
             *,
             port: int,
+            bind_address: str,
             label: str | None,
             verbose: bool,
             share: bool,
@@ -539,6 +548,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         ):
             captured["init"] = {
                 "port": port,
+                "bind_address": bind_address,
                 "label": label,
                 "verbose": verbose,
                 "share": share,
@@ -554,6 +564,10 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
+
+        @property
+        def share_url(self) -> str | None:
+            return None
 
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
     monkeypatch.setattr(
@@ -574,8 +588,57 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
+    assert captured["init"]["bind_address"] == cfg.bind_address
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+
+
+def test_viser_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch):
+    opened_urls = []
+
+    class _FakeNewtonViewerViser:
+        def __init__(
+            self,
+            *,
+            port: int,
+            bind_address: str,
+            label: str | None,
+            verbose: bool,
+            share: bool,
+            record_to_viser: str | None,
+            metadata: dict | None = None,
+        ):
+            pass
+
+        def set_model(self, model: Any) -> None:
+            pass
+
+        def set_visible_worlds(self, worlds) -> None:
+            pass
+
+        def set_world_offsets(self, spacing) -> None:
+            pass
+
+        @property
+        def share_url(self) -> str | None:
+            return None
+
+    monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
+    monkeypatch.setattr(viser_visualizer, "_open_viser_web_viewer", lambda url: opened_urls.append(url))
+    monkeypatch.setattr(
+        viser_visualizer.ViserVisualizer,
+        "_resolve_initial_camera_pose",
+        lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
+    )
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
+
+    cfg = ViserVisualizerCfg(open_browser=True, display_address="robot.example.com")
+    visualizer = viser_visualizer.ViserVisualizer(cfg)
+    visualizer._model = "dummy-model"
+    visualizer._env_ids = None
+    visualizer._create_viewer(record_to_viser=None, metadata={"num_envs": 1})
+
+    assert opened_urls == [f"http://robot.example.com:{cfg.port}"]
 
 
 @pytest.mark.parametrize(
@@ -605,6 +668,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             keep_historical_data: bool,
             keep_scalar_history: bool,
             record_to_rrd: str | None,
+            open_browser: bool,
         ):
             captured["init"] = {
                 "app_id": app_id,
@@ -615,6 +679,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
                 "keep_historical_data": keep_historical_data,
                 "keep_scalar_history": keep_scalar_history,
                 "record_to_rrd": record_to_rrd,
+                "open_browser": open_browser,
             }
 
         def set_model(self, model: Any) -> None:
@@ -681,6 +746,71 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_model"] == "dummy-model"
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+
+
+def test_rerun_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch):
+    opened = []
+
+    class _FakeNewtonViewerRerun:
+        def __init__(
+            self,
+            *,
+            app_id: str,
+            address: str | None,
+            serve_web_viewer: bool,
+            web_port: int,
+            grpc_port: int,
+            keep_historical_data: bool,
+            keep_scalar_history: bool,
+            record_to_rrd: str | None,
+            open_browser: bool,
+        ):
+            pass
+
+        def set_model(self, model: Any) -> None:
+            pass
+
+        def set_visible_worlds(self, worlds) -> None:
+            pass
+
+        def set_world_offsets(self, spacing) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    class _DummyRerunSceneDataProvider:
+        num_envs = 1
+
+        def get_metadata(self) -> dict:
+            return {"num_envs": 1}
+
+        def get_newton_model(self):
+            return "dummy-model"
+
+        def get_newton_state(self):
+            return {"ok": True}
+
+        def get_camera_transforms(self):
+            return {}
+
+    monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
+    monkeypatch.setattr(
+        rerun_visualizer, "_ensure_rerun_server", lambda **kwargs: ("rerun+http://127.0.0.1:9876/proxy", False)
+    )
+    monkeypatch.setattr(rerun_visualizer, "_open_rerun_web_viewer", lambda *args: opened.append(args))
+    monkeypatch.setattr(
+        rerun_visualizer.RerunVisualizer,
+        "_resolve_initial_camera_pose",
+        lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
+    )
+    monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
+
+    cfg = RerunVisualizerCfg(open_browser=True)
+    visualizer = rerun_visualizer.RerunVisualizer(cfg)
+    visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
+
+    assert opened == [("127.0.0.1", cfg.web_port, "rerun+http://127.0.0.1:9876/proxy")]
 
 
 def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.MonkeyPatch):

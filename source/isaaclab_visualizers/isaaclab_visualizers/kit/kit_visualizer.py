@@ -11,9 +11,11 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+import torch
 from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -245,8 +247,8 @@ class KitVisualizer(BaseVisualizer):
                     "[KitVisualizer] cam_source='prim_path' has limited support in headless mode; "
                     "using eye/lookat from cfg instead."
                 )
-            self._apply_cfg_camera_pose_if_configured()
             self._refresh_controlled_camera_path()
+            self._set_usd_camera_pose(self._controlled_camera_path, self.cfg.eye, self.cfg.lookat)
             return
 
         effective_viewport_name = (
@@ -353,6 +355,33 @@ class KitVisualizer(BaseVisualizer):
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
+
+    def _set_usd_camera_pose(
+        self, camera_path: str, position: tuple[float, float, float], target: tuple[float, float, float]
+    ) -> None:
+        """Apply eye/target camera pose directly to a USD camera prim."""
+        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
+        if usd_stage is None:
+            return
+
+        camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+        camera_xform = UsdGeom.Xformable(camera.GetPrim())
+        camera_xform.ClearXformOpOrder()
+
+        eye = torch.tensor([position], dtype=torch.float32)
+        lookat = torch.tensor([target], dtype=torch.float32)
+        up_axis = UsdGeom.GetStageUpAxis(usd_stage)
+        rotation_matrix = create_rotation_matrix_from_view(eye, lookat, up_axis=up_axis, device="cpu")
+        if torch.isnan(rotation_matrix).any():
+            raise ValueError("[KitVisualizer] Cannot set camera pose because eye and lookat are degenerate.")
+        quat_xyzw = quat_from_matrix(rotation_matrix)[0]
+        quat_gf = Gf.Quatd(
+            float(quat_xyzw[3]),
+            Gf.Vec3d(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
+        )
+
+        camera_xform.AddTranslateOp().Set(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])))
+        camera_xform.AddOrientOp().Set(quat_gf)
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
         """Apply configured camera pose from eye/lookat."""

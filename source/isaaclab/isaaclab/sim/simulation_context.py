@@ -761,6 +761,9 @@ class SimulationContext:
         if not self._visualizers:
             return
 
+        for viz in self._visualizers:
+            viz.flush_startup_messages()
+
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
 
