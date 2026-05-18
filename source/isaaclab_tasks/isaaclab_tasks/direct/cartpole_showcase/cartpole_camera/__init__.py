@@ -53,7 +53,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxBoxEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 presets=box_box",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 presets=box_box"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
     },
 )
@@ -64,7 +64,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxDiscreteEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_box_discrete_cfg_entry_point presets=box_discrete",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_box_discrete_cfg_entry_point presets=box_discrete"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_discrete_ppo_cfg.yaml",
     },
 )
@@ -75,7 +75,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxMultiDiscreteEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_box_multidiscrete_cfg_entry_point presets=box_multidiscrete",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_box_multidiscrete_cfg_entry_point presets=box_multidiscrete"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_multidiscrete_ppo_cfg.yaml",
     },
 )
@@ -90,7 +90,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictBoxEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_box_cfg_entry_point presets=dict_box",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_box_cfg_entry_point presets=dict_box"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_box_ppo_cfg.yaml",
     },
 )
@@ -101,7 +101,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictDiscreteEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_discrete_cfg_entry_point presets=dict_discrete",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_discrete_cfg_entry_point presets=dict_discrete"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_discrete_ppo_cfg.yaml",
     },
 )
@@ -112,7 +112,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictMultiDiscreteEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_multidiscrete_cfg_entry_point presets=dict_multidiscrete",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_multidiscrete_cfg_entry_point presets=dict_multidiscrete"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_multidiscrete_ppo_cfg.yaml",
     },
 )
@@ -127,7 +127,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:TupleBoxEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_box_cfg_entry_point presets=tuple_box",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_box_cfg_entry_point presets=tuple_box"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
     },
 )
@@ -138,7 +138,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:TupleDiscreteEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_discrete_cfg_entry_point presets=tuple_discrete",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_discrete_cfg_entry_point presets=tuple_discrete"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
     },
 )
@@ -149,7 +149,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:TupleMultiDiscreteEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_multidiscrete_cfg_entry_point presets=tuple_multidiscrete",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_multidiscrete_cfg_entry_point presets=tuple_multidiscrete"},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
     },
 )

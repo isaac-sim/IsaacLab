@@ -63,11 +63,13 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     """
     spec = gym.spec(task_name.split(":")[-1])
     # Emit a DeprecationWarning when loading the env cfg for a retired task
-    # registered as a deprecation alias. The migration command lives in the
-    # gym.register kwargs under the ``deprecated_alias_for`` key, e.g.
-    # ``"deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb"``.
+    # registered as a deprecation alias. The migration metadata lives in the
+    # gym.register kwargs under the ``deprecated`` key as a dict whose
+    # ``alias`` field is the equivalent CLI command, e.g.
+    # ``"deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb"}``.
     if entry_point_key == "env_cfg_entry_point":
-        new_command = spec.kwargs.get("deprecated_alias_for")
+        deprecation = spec.kwargs.get("deprecated") or {}
+        new_command = deprecation.get("alias")
         if new_command:
             warnings.warn(
                 f"Task '{spec.id}' is deprecated and will be removed in a future release. Use '{new_command}'.",

@@ -10,12 +10,14 @@ Added
   ``presets=<name>``; agent yaml selected via
   ``--agent=<entry_point_name>`` for the manager perception feature
   policies and all non-default showcase shapes.
-* Added a ``deprecated_alias_for`` convention for retired gym task
-  registrations: a ``gym.register`` kwarg whose value is the equivalent
-  migration command string (``--task=NEW [--agent=NAME] presets=NAME``).
-  :func:`isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry` checks
-  for it when loading an ``env_cfg_entry_point`` and emits a
-  :class:`DeprecationWarning` naming the new command.
+* Added a ``deprecated`` convention for retired gym task registrations:
+  a ``gym.register`` kwarg with shape
+  ``{"alias": "--task=NEW [--agent=NAME] presets=NAME"}`` holding the
+  equivalent migration command. The dict shape is open for future
+  fields (``reason``, ``removed_in``, ...). :func:`isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry`
+  reads ``kwargs["deprecated"]["alias"]`` when loading an
+  ``env_cfg_entry_point`` and emits a :class:`DeprecationWarning`
+  naming the new command.
 
 Deprecated
 ^^^^^^^^^^
@@ -29,8 +31,7 @@ Deprecated
   ``env_cfg_entry_point`` of each retired ID keeps pointing at the
   historical per-variant cfg subclass so retired IDs stay bit-for-bit
   identical to their pre-deprecation behavior; only the deprecation
-  warning is layered on top via the new ``deprecated_alias_for``
-  convention. The historical subclasses (e.g. ``CartpoleRGBCameraEnvCfg``,
+  warning is layered on top via the new ``deprecated`` kwarg. The historical subclasses (e.g. ``CartpoleRGBCameraEnvCfg``,
   ``CartpoleAlbedoCameraEnvCfg``, ``BoxBoxEnvCfg``, ...) are kept for
   one release alongside the consolidated cfgs and will be removed
   together with the retired task IDs. Full migration table is in the

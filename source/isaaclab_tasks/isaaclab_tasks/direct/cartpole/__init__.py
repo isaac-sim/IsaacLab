@@ -40,12 +40,12 @@ gym.register(
 )
 
 
-# Retired per-data-type camera task IDs. Each carries a ``deprecated_alias_for``
-# kwarg naming the consolidated task with the equivalent ``presets=<name>`` --
-# parse_cfg.load_cfg_from_registry consults that kwarg and emits a
-# DeprecationWarning when the retired ID's env cfg is loaded. The
-# ``env_cfg_entry_point`` keeps pointing at the historical per-variant cfg so
-# the retired ID stays bit-for-bit identical to develop.
+# Retired per-data-type camera task IDs. Each carries a ``deprecated`` kwarg
+# whose ``alias`` field names the consolidated task with the equivalent
+# ``presets=<name>`` -- parse_cfg.load_cfg_from_registry consults that kwarg
+# and emits a DeprecationWarning when the retired ID's env cfg is loaded.
+# The ``env_cfg_entry_point`` keeps pointing at the historical per-variant
+# cfg so the retired ID stays bit-for-bit identical to develop.
 
 gym.register(
     id="Isaac-Cartpole-RGB-Camera-Direct-v0",
@@ -53,7 +53,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleRGBCameraEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -65,7 +65,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleAlbedoCameraEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=albedo",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=albedo"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -77,7 +77,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleSimpleShadingConstantCameraEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_constant_diffuse",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_constant_diffuse"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -89,7 +89,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleSimpleShadingDiffuseCameraEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_diffuse_mdl",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_diffuse_mdl"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -101,7 +101,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleSimpleShadingFullCameraEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_full_mdl",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=simple_shading_full_mdl"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -113,7 +113,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:CartpoleDepthCameraEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=depth",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=depth"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -128,7 +128,7 @@ gym.register(
         # canonical task above; the Hydra resolver applies any user-CLI
         # presets the user passes alongside this ID, matching develop.
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
-        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0",
+        "deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0"},
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },

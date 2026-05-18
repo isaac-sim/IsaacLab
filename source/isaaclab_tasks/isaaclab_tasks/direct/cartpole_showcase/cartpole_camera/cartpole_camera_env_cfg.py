@@ -389,7 +389,7 @@ class CartpoleCameraShowcasePresetsEnvCfg(PresetCfg):
     declared above. The hydra resolver picks one based on ``presets=<name>``;
     the default is ``box_box`` (matching the canonical cartpole camera shape).
     The retired per-shape task IDs are registered in the sibling
-    ``__init__.py`` with a ``deprecated_alias_for`` kwarg so
+    ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg so
     ``parse_cfg.load_cfg_from_registry`` emits a ``DeprecationWarning`` when
     one of them is loaded.
     """
