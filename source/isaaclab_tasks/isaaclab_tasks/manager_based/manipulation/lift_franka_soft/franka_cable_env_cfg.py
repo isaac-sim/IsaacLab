@@ -52,7 +52,7 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
         prim_path="/World/envs/env_.*/Cable",
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
         spawn=sim_utils.CableCfg(
-            positions=[(i * 0.025, 0.0, 0.0) for i in range(20)],
+            positions=[(i * 0.02, 0.0, 0.0) for i in range(20)],
             width=0.01,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonCableMaterialCfg(
@@ -72,9 +72,9 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
         self.robot.spawn.rigid_props = sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0)
         
         # increase franka gripper stiffness
-        self.robot.actuators["panda_hand"].effort_limit_sim = 1000.0
-        self.robot.actuators["panda_hand"].stiffness = 2000.0
-        self.robot.actuators["panda_hand"].damping = 200.0
+        self.robot.actuators["panda_hand"].effort_limit_sim = 1500.0
+        self.robot.actuators["panda_hand"].stiffness = 1000.0
+        self.robot.actuators["panda_hand"].damping = 100.0
 
 
 @configclass
@@ -281,24 +281,20 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
                     integrator="implicitfast",
                 ),
                 vbd_cfg=VBDSolverCfg(
-                    iterations=10,
-                    rigid_avbd_beta=1e4
+                    iterations=20,
+                    rigid_avbd_beta=1e2
                 ),
                 mjwarp_bodies=[SceneEntityCfg("robot")],
                 vbd_bodies=[SceneEntityCfg("object")],
                 proxy_bodies=[
                     SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
                 ],
-                proxy_mass_scale=1.0,
                 proxy_collide_interval=5,
             ),
             model_cfg=NewtonModelCfg(
-                soft_contact_ke=1e4,
-                soft_contact_kd=1e-5,
-                soft_contact_mu=5.0,
-                shape_material_ke=5e4,
+                shape_material_ke=1e4,
                 shape_material_kd=1e-5,
-                shape_material_mu=10.0,
+                shape_material_mu=1.0,
             ),
             num_substeps=5,
         )

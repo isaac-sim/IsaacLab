@@ -168,7 +168,7 @@ class PickSmWaitTime:
     REST = wp.constant(0.2)
     APPROACH_ABOVE_OBJECT = wp.constant(1.0)
     APPROACH_OBJECT = wp.constant(0.5)
-    GRASP_OBJECT = wp.constant(0.5)
+    GRASP_OBJECT = wp.constant(0.75)
     LIFT_OBJECT = wp.constant(1.5)
 
 
@@ -321,7 +321,7 @@ def main():
     object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     object_grasp_orientation[:, 0] = 1.0
     # Grasp at the deformable's centre of mass.
-    object_local_grasp_position = torch.tensor([0.0, 0.0, 0.0], device=env.unwrapped.device)
+    object_local_grasp_position = torch.tensor([0.0, 0.0, -0.002], device=env.unwrapped.device)
 
     # create state machine
     pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
