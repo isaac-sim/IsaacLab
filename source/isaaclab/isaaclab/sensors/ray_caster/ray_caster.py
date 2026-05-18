@@ -13,4 +13,4 @@ from .base_ray_caster import BaseRayCaster
 class RayCaster(FactoryBase, BaseRayCaster):
     """Backend-dispatching ray-caster sensor."""
 
-    _backend_class_names = {"physx": "RayCaster", "newton": "RayCaster"}
+    _backend_class_names = {"physx": "RayCaster", "newton": "RayCaster", "ovphysx": "RayCaster"}
