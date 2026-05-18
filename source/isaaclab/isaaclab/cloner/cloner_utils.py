@@ -393,18 +393,3 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     ori = torch.zeros((N, 4), device=device)
     ori[:, 3] = 1.0  # w=1 for identity quaternion
     return pos, ori
-
-
-def is_homogeneous(clone_plan: ClonePlan) -> bool:
-    """Check if a clone plan is homogeneous.
-
-    Homogeneous here means every element of :attr:`~isaaclab.cloner.ClonePlan.clone_mask`
-    is ``True`` (equivalent to ``clone_plan.clone_mask.all()``).
-
-    Args:
-        clone_plan: The clone plan to check.
-
-    Returns:
-        ``True`` if all elements of ``clone_mask`` are ``True``, otherwise ``False``.
-    """
-    return bool(clone_plan.clone_mask.all().item())

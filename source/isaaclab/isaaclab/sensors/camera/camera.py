@@ -26,7 +26,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
+from isaaclab.utils.warp import ProxyArray
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -36,6 +36,45 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel
+def _camera_update_state_kernel(
+    pos_src: wp.array(dtype=wp.vec3f),
+    quat_src: wp.array(dtype=wp.quatf),
+    intrinsics_src: wp.array(dtype=wp.mat33f),
+    pos_dst: wp.array(dtype=wp.vec3f),
+    quat_world_dst: wp.array(dtype=wp.quatf),
+    intrinsics_dst: wp.array(dtype=wp.mat33f),
+    frame: wp.array(dtype=wp.int64),
+    env_mask: wp.array(dtype=wp.bool),
+    env_ids: wp.array(dtype=wp.int32),
+    use_env_ids: bool,
+    use_env_mask: bool,
+    update_pose: bool,
+    update_intrinsics: bool,
+    frame_op: int,
+):
+    """Update camera state for all, indexed, or masked cameras.
+
+    ``frame_op`` uses 0 for no-op, 1 for increment, and 2 for reset.
+    """
+    src_id = wp.tid()
+    dst_id = src_id
+    if use_env_ids:
+        dst_id = env_ids[src_id]
+    if use_env_mask and not env_mask[dst_id]:
+        return
+
+    if update_pose:
+        pos_dst[dst_id] = pos_src[src_id]
+        quat_world_dst[dst_id] = quat_src[src_id] * wp.quatf(-0.5, 0.5, 0.5, 0.5)
+    if update_intrinsics:
+        intrinsics_dst[dst_id] = intrinsics_src[src_id]
+    if frame_op == 1:
+        frame[dst_id] = frame[dst_id] + wp.int64(1)
+    elif frame_op == 2:
+        frame[dst_id] = wp.int64(0)
 
 
 class Camera(SensorBase):
@@ -171,7 +210,7 @@ class Camera(SensorBase):
         return self._data
 
     @property
-    def frame(self) -> torch.tensor:
+    def frame(self) -> ProxyArray:
         """Frame number when the measurement took place."""
         return self._frame
 
@@ -185,7 +224,7 @@ class Camera(SensorBase):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: torch.Tensor, focal_length: float | None = None, env_ids: Sequence[int] | None = None
+        self, matrices: torch.Tensor | wp.array, focal_length: float | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
@@ -209,16 +248,25 @@ class Camera(SensorBase):
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
-        # resolve env_ids
-        if env_ids is None:
-            env_ids = self._ALL_INDICES
-        # convert matrices to numpy tensors
         if isinstance(matrices, torch.Tensor):
-            matrices = matrices.cpu().numpy()
+            if not matrices.is_contiguous():
+                matrices = matrices.contiguous()
+            matrices = wp.from_torch(matrices)
+        elif not isinstance(matrices, wp.array):
+            raise TypeError(f"Unsupported type for matrices: {type(matrices)}. Expected torch.Tensor or wp.array.")
+
+        if env_ids is None:
+            env_ids_np = np.arange(self._view.count)
+        elif isinstance(env_ids, slice):
+            env_ids_np = np.arange(self._view.count)[env_ids]
         else:
-            matrices = np.asarray(matrices, dtype=float)
+            env_ids_np = np.asarray(env_ids, dtype=np.int32).reshape(-1)
+
+        matrices = matrices.numpy().astype(float, copy=False)
+        if matrices.ndim == 2:
+            matrices = matrices[None, ...]
         # iterate over env_ids
-        for i, intrinsic_matrix in zip(env_ids, matrices):
+        for i, intrinsic_matrix in zip(env_ids_np, matrices):
             height, width = self.image_shape
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
@@ -239,7 +287,7 @@ class Camera(SensorBase):
                 # set value using pure USD API
                 param_attr().Set(param_value)
         # update the internal buffers
-        self._update_intrinsic_matrices(env_ids)
+        self._update_intrinsic_matrices(env_ids_np)
 
     """
     Operations - Set pose.
@@ -275,31 +323,24 @@ class Camera(SensorBase):
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
-        # resolve env_ids
-        if env_ids is None:
-            env_ids = self._ALL_INDICES
-        # convert to backend tensor
+        pos_wp = None
         if positions is not None:
             if isinstance(positions, np.ndarray):
                 positions = torch.from_numpy(positions).to(device=self._device)
             elif not isinstance(positions, torch.Tensor):
                 positions = torch.tensor(positions, device=self._device)
-        # convert rotation matrix from input convention to OpenGL
+            positions = positions.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+            pos_wp = wp.from_torch(positions.contiguous())
+        ori_wp = None
         if orientations is not None:
             if isinstance(orientations, np.ndarray):
                 orientations = torch.from_numpy(orientations).to(device=self._device)
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
+            orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
-        # convert torch tensors to warp arrays for the view
-        pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
-        ori_wp = wp.from_torch(orientations.contiguous()) if orientations is not None else None
-        if env_ids is not None:
-            if not isinstance(env_ids, torch.Tensor):
-                env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
-            idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
-        else:
-            idx_wp = None
+            ori_wp = wp.from_torch(orientations.contiguous())
+        idx_wp = self._resolve_env_ids_wp(env_ids)
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
@@ -319,11 +360,26 @@ class Camera(SensorBase):
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
         """
-        # resolve env_ids to a tensor up front so we can index it during partial-failure filtering
+        if isinstance(eyes, np.ndarray):
+            eyes = torch.from_numpy(eyes).to(device=self._device)
+        elif not isinstance(eyes, torch.Tensor):
+            eyes = torch.tensor(eyes, device=self._device)
+        eyes = eyes.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+        if isinstance(targets, np.ndarray):
+            targets = torch.from_numpy(targets).to(device=self._device)
+        elif not isinstance(targets, torch.Tensor):
+            targets = torch.tensor(targets, device=self._device)
+        targets = targets.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
         if env_ids is None:
-            env_ids = self._ALL_INDICES
-        if not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+            env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)
+        elif isinstance(env_ids, slice):
+            env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)[env_ids]
+        elif isinstance(env_ids, wp.array):
+            env_ids_torch = wp.to_torch(env_ids).to(device=self._device, dtype=torch.int32).reshape(-1)
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids_torch = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
+        else:
+            env_ids_torch = torch.tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view; degenerate rows (eye == target) come back as NaN
@@ -340,10 +396,14 @@ class Camera(SensorBase):
             )
             rotation_matrix = rotation_matrix.index_select(0, valid_indices)
             eyes = eyes.index_select(0, valid_indices)
-            env_ids = env_ids.index_select(0, valid_indices)
+            env_ids_torch = env_ids_torch.index_select(0, valid_indices)
         orientations = quat_from_matrix(rotation_matrix)
-        idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
-        self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), idx_wp)
+        idx_wp = wp.from_torch(env_ids_torch.contiguous(), dtype=wp.int32)
+        self._view.set_world_poses(
+            wp.from_torch(eyes.contiguous()),
+            wp.from_torch(orientations.contiguous()),
+            idx_wp,
+        )
 
     """
     Operations
@@ -356,16 +416,15 @@ class Camera(SensorBase):
             )
         # reset the timestamps
         super().reset(env_ids, env_mask)
-        # resolve to indices for torch indexing
-        if env_ids is None and env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        elif env_ids is None:
-            env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
-        self._update_poses(env_ids)
-        # Reset the frame count
-        self._frame[env_ids] = 0
+        if env_mask is not None:
+            self._update_poses(env_mask=env_mask, frame_op=2)
+        elif env_ids is None:
+            self._update_poses(frame_op=2)
+        else:
+            env_ids_wp = self._resolve_env_ids_wp(env_ids)
+            self._update_poses(env_ids_wp, frame_op=2)
 
     """
     Implementation.
@@ -407,9 +466,9 @@ class Camera(SensorBase):
             )
 
         # Create all env_ids buffer
-        self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
+        self._ALL_INDICES = wp.array(np.arange(self._view.count, dtype=np.int32), device=self._device)
         # Create frame count buffer
-        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
+        self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
 
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
@@ -442,14 +501,13 @@ class Camera(SensorBase):
         self._create_buffers()
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        if len(env_ids) == 0:
+        if not self._env_mask_has_any(env_mask):
             return
         # Increment frame count
-        self._frame[env_ids] += 1
-        # update latest camera pose if requested
         if self.cfg.update_latest_camera_pose:
-            self._update_poses(env_ids)
+            self._update_poses(env_mask=env_mask, frame_op=1)
+        else:
+            self._update_camera_state(env_mask=env_mask, frame_op=1)
 
         sim_ctx = sim_utils.SimulationContext.instance()
         renderer = self._renderer
@@ -472,7 +530,7 @@ class Camera(SensorBase):
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
         # check if there is any intersection in unsupported types
-        # reason: these use np structured data types which we can't yet convert to torch tensor
+        # reason: these use np structured data types which are not compatible with the camera buffer contract
         common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
         if common_elements:
             # provide alternative fast counterparts
@@ -484,7 +542,7 @@ class Camera(SensorBase):
             raise ValueError(
                 f"Camera class does not support the following sensor types: {common_elements}."
                 "\n\tThis is because these sensor types output numpy structured data types which"
-                "can't be converted to torch tensors easily."
+                "can't be stored in the camera output buffers easily."
                 "\n\tHint: If you need to work with these sensor types, we recommend using their fast counterparts."
                 f"\n\t\tFast counterparts: {fast_common_elements}"
             )
@@ -521,11 +579,11 @@ class Camera(SensorBase):
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.
         self._data.create_buffers(self._view.count, device_str)
-        self._update_intrinsic_matrices(self._ALL_INDICES)
-        self._update_poses(self._ALL_INDICES)
+        self._update_intrinsic_matrices()
+        self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)
 
-    def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
+    def _update_intrinsic_matrices(self, env_ids: Sequence[int] | wp.array | None = None):
         """Compute camera's matrix of intrinsic parameters.
 
         Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
@@ -534,10 +592,15 @@ class Camera(SensorBase):
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
         """
+        env_ids_np = self._resolve_env_ids_np(env_ids)
+        if len(env_ids_np) == 0:
+            return
+
+        intrinsic_matrices = np.zeros((len(env_ids_np), 3, 3), dtype=np.float32)
         # iterate over all cameras
-        for i in env_ids:
+        for matrix_id, i in enumerate(env_ids_np):
             # Get corresponding sensor prim
-            sensor_prim = self._sensor_prims[i]
+            sensor_prim = self._sensor_prims[int(i)]
             # get camera parameters
             # currently rendering does not use aperture offsets or vertical aperture
             focal_length = sensor_prim.GetFocalLengthAttr().Get()
@@ -551,14 +614,22 @@ class Camera(SensorBase):
             c_x = width * 0.5
             c_y = height * 0.5
             # create intrinsic matrix for depth linear
-            intrinsics_t = self._data.intrinsic_matrices.torch
-            intrinsics_t[i, 0, 0] = f_x
-            intrinsics_t[i, 0, 2] = c_x
-            intrinsics_t[i, 1, 1] = f_y
-            intrinsics_t[i, 1, 2] = c_y
-            intrinsics_t[i, 2, 2] = 1
+            intrinsic_matrices[matrix_id, 0, 0] = f_x
+            intrinsic_matrices[matrix_id, 0, 2] = c_x
+            intrinsic_matrices[matrix_id, 1, 1] = f_y
+            intrinsic_matrices[matrix_id, 1, 2] = c_y
+            intrinsic_matrices[matrix_id, 2, 2] = 1.0
 
-    def _update_poses(self, env_ids: Sequence[int]):
+        intrinsic_matrices_wp = wp.array(intrinsic_matrices, dtype=wp.mat33f, device=self._device)
+        self._update_camera_state(
+            env_ids=None if env_ids is None else self._resolve_env_ids_wp(env_ids_np),
+            intrinsics_src=intrinsic_matrices_wp,
+            update_intrinsics=True,
+        )
+
+    def _update_poses(
+        self, env_ids: Sequence[int] | wp.array | None = None, env_mask: wp.array | None = None, frame_op: int = 0
+    ):
         """Computes the pose of the camera in the world frame with ROS convention.
 
         This methods uses the ROS convention to resolve the input pose. In this convention,
@@ -572,29 +643,111 @@ class Camera(SensorBase):
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
         # get the poses from the view (returns ProxyArray)
-        if env_ids is not None and not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
-        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
-        pos_w, quat_w = self._view.get_world_poses(indices)
-        self._data.pos_w.torch[env_ids] = pos_w.torch
-
-        # get_world_poses() returns orientations as a flat 4-float, convert to wp.quatf typed array
-        quat_w_quatf = wp.array(
-            ptr=quat_w.warp.ptr, dtype=wp.quatf, shape=(quat_w.warp.shape[0],), device=quat_w.warp.device, copy=False
+        env_ids_wp = None if env_mask is not None else self._resolve_env_ids_wp(env_ids)
+        pos_w, quat_w = self._view.get_world_poses(env_ids_wp)
+        pos_w_wp = pos_w.warp
+        pos_w_wp = wp.array(
+            ptr=pos_w_wp.ptr,
+            dtype=wp.vec3f,
+            shape=(pos_w_wp.shape[0],),
+            device=pos_w_wp.device,
+            copy=False,
         )
-        convert_camera_frame_orientation_convention_wp(
-            src=quat_w_quatf,
-            dst=self._data.quat_w_world,
-            origin="opengl",
-            target="world",
-            indices=indices,
-            device=self._device,
+        quat_w_wp = quat_w.warp
+        quat_w_wp = wp.array(
+            ptr=quat_w_wp.ptr,
+            dtype=wp.quatf,
+            shape=(quat_w_wp.shape[0],),
+            device=quat_w_wp.device,
+            copy=False,
+        )
+
+        self._update_camera_state(
+            env_ids=env_ids_wp,
+            env_mask=env_mask,
+            pos_src=pos_w_wp,
+            quat_src=quat_w_wp,
+            update_pose=True,
+            frame_op=frame_op,
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:
             self._renderer.update_camera(
                 self._render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
             )
+
+    def _update_camera_state(
+        self,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        pos_src: wp.array | None = None,
+        quat_src: wp.array | None = None,
+        intrinsics_src: wp.array | None = None,
+        update_pose: bool = False,
+        update_intrinsics: bool = False,
+        frame_op: int = 0,
+    ):
+        """Update camera pose, intrinsics, and frame counters through one Warp kernel."""
+        count = env_ids.shape[0] if env_ids is not None else self._view.count
+        if count == 0:
+            return
+        wp.launch(
+            _camera_update_state_kernel,
+            dim=count,
+            inputs=[
+                pos_src if pos_src is not None else self._data.pos_w.warp,
+                quat_src if quat_src is not None else self._data.quat_w_world.warp,
+                intrinsics_src if intrinsics_src is not None else self._data.intrinsic_matrices.warp,
+                self._data.pos_w.warp,
+                self._data.quat_w_world.warp,
+                self._data.intrinsic_matrices.warp,
+                self._frame.warp,
+                env_mask if env_mask is not None else self._ALL_ENV_MASK,
+                env_ids if env_ids is not None else self._ALL_INDICES,
+                env_ids is not None,
+                env_mask is not None,
+                update_pose,
+                update_intrinsics,
+                frame_op,
+            ],
+            device=self._device,
+        )
+
+    def _resolve_env_ids_np(self, env_ids: Sequence[int] | wp.array | None) -> np.ndarray:
+        """Resolve camera indices to a host ``int32`` array for USD metadata reads."""
+        if env_ids is None:
+            return np.arange(self._view.count, dtype=np.int32)
+        if isinstance(env_ids, slice):
+            return np.arange(self._view.count, dtype=np.int32)[env_ids]
+        if isinstance(env_ids, wp.array):
+            return env_ids.numpy().astype(np.int32, copy=False).reshape(-1)
+        return np.asarray(env_ids, dtype=np.int32).reshape(-1)
+
+    def _resolve_env_ids_wp(self, env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> wp.array | None:
+        """Resolve camera indices to a Warp ``int32`` array."""
+        if env_ids is None:
+            return None
+        if isinstance(env_ids, wp.array):
+            if env_ids.dtype != wp.int32:
+                raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
+            if str(env_ids.device) == str(self._device):
+                return env_ids
+            env_ids = env_ids.numpy().astype(np.int32, copy=False).reshape(-1)
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
+            if not env_ids.is_contiguous():
+                env_ids = env_ids.contiguous()
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        elif isinstance(env_ids, slice):
+            env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
+        else:
+            env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
+        return wp.array(env_ids, dtype=wp.int32, device=self._device)
+
+    @staticmethod
+    def _env_mask_has_any(env_mask: wp.array) -> bool:
+        """Return whether the mask selects any camera."""
+        return bool(np.any(env_mask.numpy()))
 
     """
     Internal simulation callbacks.

@@ -333,15 +333,14 @@ def test_camera_set_world_poses(setup_sim_camera):
     # play sim
     sim.reset()
 
-    # convert to torch tensors
-    position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
-    orientation = torch.tensor([QUAT_WORLD], dtype=torch.float32, device=camera.device)
+    position = np.asarray([POSITION], dtype=np.float32)
+    orientation = np.asarray([QUAT_WORLD], dtype=np.float32)
     # set new pose
-    camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
+    camera.set_world_poses(position, orientation, convention="world")
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w.torch, position)
-    torch.testing.assert_close(camera.data.quat_w_world.torch, orientation)
+    np.testing.assert_allclose(camera.data.pos_w.warp.numpy(), position)
+    _assert_quat_close(camera.data.quat_w_world.warp.numpy(), orientation, rtol=1e-5, atol=1e-5)
 
 
 def test_camera_set_world_poses_from_view(setup_sim_camera):
@@ -354,12 +353,12 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
     # play sim
     sim.reset()
 
-    # convert to torch tensors
-    eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+    eyes_np = np.asarray([POSITION], dtype=np.float32)
+    targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
+    eyes = torch.tensor(eyes_np, dtype=torch.float32, device=camera.device)
     quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
     # set new pose
-    camera.set_world_poses_from_view(eyes.clone(), targets.clone())
+    camera.set_world_poses_from_view(eyes_np, targets_np)
 
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w.torch, eyes)
@@ -377,9 +376,10 @@ def test_intrinsic_matrix(setup_sim_camera):
     sim.reset()
     # Desired properties (obtained from realsense camera at 320x240 resolution)
     rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
+    rs_intrinsic_matrix = np.asarray(rs_intrinsic_matrix, dtype=float).reshape(1, 3, 3)
+    rs_intrinsic_matrix_tensor = torch.tensor(rs_intrinsic_matrix, dtype=torch.float32, device=camera.device)
     # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
+    camera.set_intrinsic_matrices(rs_intrinsic_matrix_tensor)
 
     # Simulate physics
     for _ in range(10):
@@ -388,10 +388,10 @@ def test_intrinsic_matrix(setup_sim_camera):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices[0, 0, 2])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices[0, 1, 2])
+        assert np.isclose(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices.torch[0, 0, 0].item())
+        assert np.isclose(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices.torch[0, 1, 1].item())
+        assert np.isclose(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices.torch[0, 0, 2].item())
+        assert np.isclose(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2].item())
 
 
 def test_depth_clipping(setup_sim_camera):
@@ -1206,18 +1206,18 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
     try:
         sim.reset()
 
-        target = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        target = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
         max_range = cam_cfg.spawn.clipping_range[1]
 
         # -- close position --
-        eyes_close = torch.tensor([[2.0, 2.0, 2.0]], dtype=torch.float32, device=camera.device)
+        eyes_close = np.asarray([[2.0, 2.0, 2.0]], dtype=np.float32)
         camera.set_world_poses_from_view(eyes_close, target)
         sim.step()
         camera.update(dt)
         depth_close = camera.data.output["distance_to_camera"].clone()
 
         # -- far position --
-        eyes_far = torch.tensor([[8.0, 8.0, 8.0]], dtype=torch.float32, device=camera.device)
+        eyes_far = np.asarray([[8.0, 8.0, 8.0]], dtype=np.float32)
         camera.set_world_poses_from_view(eyes_far, target)
         sim.step()
         camera.update(dt)
