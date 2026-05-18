@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 def test_cable_attachment_cfg_defaults_and_types():
     """CableAttachmentCfg accepts head/tail anchors and exposes the documented defaults."""

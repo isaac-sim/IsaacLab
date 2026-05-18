@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -23,7 +24,7 @@ class CableAttachmentCfg:
     natively each step; no per-step Python synchronization is required.
     """
 
-    target_prim_path: str = ""
+    target_prim_path: str = MISSING
     """Prim path of the rigid body to weld the cable endpoint to.
 
     Must resolve to a prim that has been registered with Newton as a rigid body
