@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
 
 from isaaclab.utils.configclass import configclass
 
