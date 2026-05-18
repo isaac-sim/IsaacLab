@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-import sys
 from typing import Any
 
 import warp as wp
@@ -23,19 +22,6 @@ from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx.physics import OvPhysxManager
-
-# Attributes that ``SensorBase.__init__`` sizes from ``len(_parent_prims)`` and
-# that must be re-allocated when an :class:`OvPhysxFrameView` discovers a larger
-# binding count under ``clone_usd=False``. Used by :meth:`_patch_caller_sensor`.
-_SENSOR_BASE_ENV_SIZED_ATTRS = (
-    "_num_envs",
-    "_ALL_ENV_MASK",
-    "_reset_mask",
-    "_reset_mask_torch",
-    "_is_outdated",
-    "_timestamp",
-    "_timestamp_last_update",
-)
 
 logger = logging.getLogger(__name__)
 
@@ -332,12 +318,6 @@ class OvPhysxFrameView(BaseFrameView):
         # Lazy USD view for scales / visibility.
         self._usd_view: UsdFrameView | None = None
 
-        # HACK: Capture the caller sensor (if any) so we can patch its env-sized
-        # buffers once the binding count is known. Required because
-        # ``SensorBase.__init__`` sizes ``_num_envs`` from ``find_matching_prims``
-        # which returns only env_0 under OVPhysX's ``clone_usd=False`` scenes.
-        self._caller_sensor = self._find_caller_sensor()
-
         # Try synchronous init; defer to PHYSICS_READY if the PhysX instance is not yet alive.
         physx = self._try_get_physx()
         if physx is not None:
@@ -353,55 +333,6 @@ class OvPhysxFrameView(BaseFrameView):
     def _try_get_physx() -> Any | None:
         """Return the active OVPhysX ``PhysX`` instance, or ``None`` if not yet created."""
         return OvPhysxManager.get_physx_instance()
-
-    @staticmethod
-    def _find_caller_sensor() -> Any | None:
-        """Walk the call stack to find a ``SensorBase``-like instance that owns this view.
-
-        Duck-typed: any object on the stack that exposes the full set of
-        env-sized attributes that ``SensorBase.__init__`` allocates is treated
-        as a sensor. Returns ``None`` when the view is constructed outside a
-        sensor (e.g. directly by user code or via scene ``extras``).
-        """
-        frame = sys._getframe(1)
-        while frame is not None:
-            candidate = frame.f_locals.get("self")
-            if candidate is not None and all(hasattr(candidate, attr) for attr in _SENSOR_BASE_ENV_SIZED_ATTRS):
-                return candidate
-            frame = frame.f_back
-        return None
-
-    def _patch_caller_sensor_env_count(self) -> None:
-        """Re-allocate the caller sensor's env-sized buffers to match the binding count.
-
-        HACK: Works around ``SensorBase.__init__`` deriving ``_num_envs`` from
-        ``len(_parent_prims)`` -- under OVPhysX's ``clone_usd=False`` scenes only
-        env_0 exists in USD, so the sensor sees ``_num_envs = 1`` while the
-        underlying RIGID_BODY_POSE binding correctly exposes all envs. Without
-        this patch, any sensor that calls ``reset(env_ids=[0..N-1])`` indexes
-        past its 1-element ``_reset_mask_torch`` and triggers a CUDA assert.
-
-        Mirrors the local fix the OVPhysX ``ContactSensor`` applies to itself at
-        ``contact_sensor.py:240-248``.
-        """
-        sensor = self._caller_sensor
-        if sensor is None or sensor._num_envs == self.count:
-            return
-        new_count = self.count
-        device = sensor._device
-        sensor._num_envs = new_count
-        sensor._ALL_ENV_MASK = wp.ones((new_count,), dtype=wp.bool, device=device)
-        sensor._reset_mask = wp.zeros((new_count,), dtype=wp.bool, device=device)
-        sensor._reset_mask_torch = wp.to_torch(sensor._reset_mask)
-        sensor._is_outdated = wp.ones(new_count, dtype=wp.bool, device=device)
-        sensor._timestamp = wp.zeros(new_count, dtype=wp.float32, device=device)
-        sensor._timestamp_last_update = wp.zeros_like(sensor._timestamp)
-        logger.info(
-            "OvPhysxFrameView: resized %s._num_envs from prior value to %d to match "
-            "OVPhysX binding count (clone_usd=False scene).",
-            type(sensor).__name__,
-            new_count,
-        )
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the OVPhysX ``PhysX`` instance becomes available."""
@@ -429,6 +360,19 @@ class OvPhysxFrameView(BaseFrameView):
 
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         identity_xform7 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+        # 0. Reject prim_paths that resolve to a rigid body itself: a FrameView
+        #    should track a non-physics child of a body (a sensor frame), not
+        #    the body. Mirrors the Newton guard at
+        #    ``newton_site_frame_view.py:572-584``.
+        for prim in self._prims:
+            if self._prim_or_template_has_rigid_body_api(prim):
+                raise ValueError(
+                    f"OvPhysxFrameView prim '{prim.GetPath().pathString}' resolves to a rigid body. "
+                    "FrameView should only be used for non-physics prims (cameras, sensor mounts, "
+                    "Xform markers). Use OvPhysX's RigidObject or Articulation APIs to control "
+                    "physics bodies directly, or point prim_path at a non-physics child of the body."
+                )
 
         # 1. Resolve each (template) prim's ancestor body + the prim->ancestor offset.
         per_prim_ancestor: list[str | None] = []
@@ -541,11 +485,6 @@ class OvPhysxFrameView(BaseFrameView):
         self._quat_ta = ProxyArray(self._quat_buf)
         self._local_pos_ta = ProxyArray(self._local_pos_buf)
         self._local_quat_ta = ProxyArray(self._local_quat_buf)
-
-        # 8. HACK: patch the caller sensor's env-sized buffers if it derived
-        #    its env count from the (under-counting) USD prim list. See
-        #    :meth:`_patch_caller_sensor_env_count` for context.
-        self._patch_caller_sensor_env_count()
 
     def _resolve_rigid_body_ancestor(
         self,
@@ -896,11 +835,37 @@ class OvPhysxFrameView(BaseFrameView):
         return self._usd_view
 
     def get_scales(self, indices: wp.array | None = None) -> wp.array:
-        """Get scales for prims in the view (USD-backed)."""
+        """Get prim scales from the USD stage's ``xformOp:scale`` attribute.
+
+        .. note::
+            This reads the *static* USD authored value, not a live physics-state
+            value. OVPhysX does not maintain a per-shape ``shape_scale`` array
+            equivalent to Newton's ``model.shape_scale``, so sim-driven scale
+            updates are not reflected here. For sites under ``clone_usd=False``
+            envs without authored USD prims, the read returns the env_0
+            template's scale via the lazy internal :class:`UsdFrameView`.
+
+        Args:
+            indices: Subset of sites to query. ``None`` means all sites.
+
+        Returns:
+            ``wp.array`` of shape ``(M, 3)``.
+        """
         return self._ensure_usd_view().get_scales(indices)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set scales for prims in the view (USD-backed)."""
+        """Set prim scales by writing the USD ``xformOp:scale`` attribute.
+
+        .. note::
+            The write lands in the USD stage but does *not* propagate to any
+            OVPhysX-side collision-shape scale. PhysX is unaffected; this is a
+            stage-only annotation. Use :class:`~isaaclab_ovphysx.assets.RigidObject`
+            APIs if you need to change physics-effective shape sizes.
+
+        Args:
+            scales: Scales ``(M, 3)`` as ``wp.array``.
+            indices: Subset of sites to update. ``None`` means all sites.
+        """
         self._ensure_usd_view().set_scales(scales, indices)
 
     def get_visibility(self, indices: wp.array | None = None):
