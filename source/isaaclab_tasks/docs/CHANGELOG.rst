@@ -1,16 +1,6 @@
 Changelog
 ---------
 
-1.9.0 (2026-05-18)
-~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Changed the default robot setup and mount configuration for the Flexiv reach policy
-  training environment with ROS inference.
-
-
 1.8.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~
 
