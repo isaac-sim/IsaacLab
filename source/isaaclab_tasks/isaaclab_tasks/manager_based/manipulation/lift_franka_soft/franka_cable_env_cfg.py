@@ -222,7 +222,7 @@ class RewardsCfg:
 class TerminationsCfg:
     """Time out and out-of-bounds terminations."""
 
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    # time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
 @configclass
@@ -242,7 +242,7 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
 
         # general settings
         self.decimation = 1
-        self.episode_length_s = 2.0
+        self.episode_length_s = 6.0
 
         # simulation settings
         self.sim.dt = 1 / 60.0
