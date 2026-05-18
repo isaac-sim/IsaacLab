@@ -342,15 +342,12 @@ class NewtonVBDManager(NewtonManager):
         :meth:`~isaaclab.visualizers.BaseVisualizer.requires_forward_before_step`
         to ``True``).
         """
-        if cls._non_cable_articulation_mask is None:
+       if cls._non_cable_articulation_mask is None:
             if cls._cable_registry:
-                raise RuntimeError(
-                    "Cables are registered but `_non_cable_articulation_mask` is None — refusing to"
-                    " fall through to the unmasked eval_fk that would corrupt cable body_q. The mask"
-                    " is built in `start_simulation()`; ensure it has run."
-                )
-            super().forward()
-            return
+                cls._build_non_cable_articulation_mask()
+            else:
+                super().forward()
+                return
         eval_fk(
             cls._model,
             cls._state_0.joint_q,
