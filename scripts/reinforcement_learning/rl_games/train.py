@@ -24,7 +24,6 @@ import random
 import sys
 import time
 from datetime import datetime
-from distutils.util import strtobool
 
 import gymnasium as gym
 from rl_games.common import env_configurations, vecenv
@@ -36,6 +35,7 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.seed import configure_seed
+from isaaclab.utils.string import strtobool
 
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 

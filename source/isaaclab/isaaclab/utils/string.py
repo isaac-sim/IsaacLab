@@ -546,3 +546,27 @@ def list_intersection(list1: list[Any], list2: list[Any] | None) -> list[Any]:
         return list1
     set2 = set(list2)
     return [x for x in list1 if x in set2]
+
+
+def strtobool(val: str) -> bool:
+    """Convert a string representation of truth to True/False.
+
+    True values are ``y``, ``yes``, ``t``, ``true``, ``on``, and ``1``.
+    False values are ``n``, ``no``, ``f``, ``false``, ``off``, and ``0``.
+
+    Args:
+        val: The string to convert.
+
+    Returns:
+        The boolean interpretation of *val*.
+
+    Raises:
+        ValueError: If *val* is not a recognised truth string.
+    """
+    v = val.lower()
+    if v in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    elif v in ("n", "no", "f", "false", "off", "0"):
+        return False
+    else:
+        raise ValueError(f"invalid truth value {val!r}")

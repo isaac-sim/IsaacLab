@@ -6,7 +6,6 @@
 """Generate pyproject.toml for the isaaclab wheel from python_packages.toml."""
 
 import sys
-
 import tomllib
 
 if len(sys.argv) != 4:
