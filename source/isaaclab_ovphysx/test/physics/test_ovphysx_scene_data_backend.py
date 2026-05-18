@@ -88,7 +88,7 @@ def test_transform_paths_empty_when_no_bindings():
 
 
 def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
-    """``setup(physx, stage)`` buckets RigidBodyAPI prims by env-wildcard form.
+    """``setup(physx, stage, device)`` buckets RigidBodyAPI prims by env-wildcard form.
 
     For cartpole-shaped scenes (``cart``, ``pole``), expect 2 bindings — one
     per distinct env-relative prim path.
@@ -96,7 +96,6 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
     from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
     b = OvPhysxSceneDataBackend()
-    b._device = "cpu"
 
     # Stage stub: traversal yields four RigidBodyAPI prims (cart/pole across two envs).
     paths = [
@@ -136,7 +135,7 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
 
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
 
-    b.setup(FakePhysX(), stage)
+    b.setup(FakePhysX(), stage, "cpu")
 
     # Cartpole = 2 distinct env-wildcard patterns -> 2 bindings.
     assert len(created) == 2
@@ -161,7 +160,6 @@ def test_transforms_reads_each_binding_and_returns_transform_format():
     from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
     b = OvPhysxSceneDataBackend()
-    b._device = "cpu"
     b._merged_transforms = _wp.zeros((3,), dtype=_wp.transformf, device="cpu")
 
     # Two bindings: first with 2 rows, second with 1 row.
@@ -260,7 +258,6 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
     from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
     b = OvPhysxSceneDataBackend()
-    b._device = "cpu"
 
     paths = [
         "/World/envs/env_0/Robot/cart",
@@ -289,7 +286,7 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
 
     with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
-        b.setup(FlakyPhysX(), stage)
+        b.setup(FlakyPhysX(), stage, "cpu")
 
     # The pole pattern survived; the cart pattern was logged and skipped.
     assert len(b._rigid_bindings) == 1
@@ -308,7 +305,6 @@ def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
     from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
     b = OvPhysxSceneDataBackend()
-    b._device = "cpu"
     b._merged_transforms = _wp.zeros((2,), dtype=_wp.transformf, device="cpu")
 
     buf_good = _wp.zeros((1, 7), dtype=_wp.float32, device="cpu")
