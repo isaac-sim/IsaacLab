@@ -9,7 +9,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -50,6 +50,54 @@ WRIST_CAMERA_CFG = CameraCfg(
     renderer_cfg=MultiBackendRendererCfg(),
 )
 
+RAY_PATTERN = patterns.PinholeCameraPatternCfg(focal_length=24.0, horizontal_aperture=20.955)
+
+RAYCASTER_CAMERA_MESH_PRIM_PATHS = [
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/envs/env_.*/table",
+        track_mesh_transforms=False,
+    ),
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/GroundPlane",
+        track_mesh_transforms=False,
+    ),
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/envs/env_.*/Object",
+        track_mesh_transforms=True,
+    ),
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/envs/env_.*/Robot/.*/visuals",
+        track_mesh_transforms=True,
+    ),
+]
+
+BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
+    prim_path="/World/envs/env_.*/Camera",
+    offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+        pos=(0.57, -0.8, 0.5),
+        rot=(0.6124, 0.3536, 0.3536, 0.6124),
+        convention="opengl",
+    ),
+    mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
+    max_distance=2.5,
+    data_types=["distance_to_image_plane"],
+    pattern_cfg=MISSING,
+)
+
+WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
+    prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
+    offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+        pos=(0.038, -0.38, -0.18),
+        rot=(0.641, 0.641, -0.299, 0.299),
+        convention="opengl",
+    ),
+    mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
+    max_distance=2.5,
+    data_types=["distance_to_image_plane"],
+    pattern_cfg=MISSING,
+    debug_vis=False,
+)
+
 
 @configclass
 class BaseTiledCameraCfg(PresetCfg):
@@ -88,6 +136,10 @@ class BaseTiledCameraCfg(PresetCfg):
     semantic_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
     semantic_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
     semantic_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
+    # raycaster camera presets
+    raycaster_depth64 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=64, height=64))
+    raycaster_depth128 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=128, height=128))
+    raycaster_depth256 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=256, height=256))
     default = rgb64
 
 
@@ -128,6 +180,10 @@ class WristTiledCameraCfg(PresetCfg):
     semantic_segmentation64 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
     semantic_segmentation128 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
     semantic_segmentation256 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
+    # raycaster camera presets
+    raycaster_depth64 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=64, height=64))
+    raycaster_depth128 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=128, height=128))
+    raycaster_depth256 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=256, height=256))
     default = rgb64
 
 

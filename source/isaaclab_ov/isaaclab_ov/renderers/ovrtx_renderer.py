@@ -44,7 +44,6 @@ import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
-from isaaclab.cloner.cloner_utils import is_homogeneous
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -174,7 +173,7 @@ class OVRTXRenderer(BaseRenderer):
 
         if self._use_ovrtx_cloning:
             clone_plan = SimulationContext.instance().get_clone_plan()
-            if clone_plan and not is_homogeneous(clone_plan):
+            if clone_plan and not clone_plan.clone_mask.all().item():
                 logger.warning("OVRTX cloning disabled because the simulation uses a heterogeneous env setup")
                 self._use_ovrtx_cloning = False
 

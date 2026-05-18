@@ -16,8 +16,8 @@ Installation
 
       sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
--  Run the install command that iterates over all the extensions in ``source`` directory and installs them
-   using pip (with ``--editable`` flag):
+-  Run the install command, which installs all core Isaac Lab packages and, by default,
+   the standard optional submodules and auto-selected extras:
 
    .. tab-set::
       :sync-group: os
@@ -37,12 +37,55 @@ Installation
             isaaclab.bat --install :: or "isaaclab.bat -i"
 
 
-   By default, the above will install **all** Isaac Lab submodules (under ``source/isaaclab``).
-   To install only specific Isaac Lab submodules, pass a comma-separated list of submodule names. The available
-   Isaac Lab submodules are: ``assets``, ``contrib``, ``mimic``, ``newton``, ``ov``, ``physx``, ``rl``, ``tasks``,
-   ``teleop``, ``visualizers``. Available RL frameworks are: ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``.
+   All core submodules are **always** installed regardless of what is passed to ``-i``.
+   The argument controls which optional submodules and extra feature dependencies to add on top.
+   The contrib and OV source packages (``isaaclab_contrib``, ``isaaclab_ov``, and
+   ``isaaclab_ovphysx``) are part of the core set so core modules and task configs can
+   import their config and preset classes without installing their heavy runtime dependencies.
 
-   For example, to install a small subset of submodules:
+   **Optional submodules**:
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Token
+        - What it installs
+      * - ``mimic``
+        - ``isaaclab_mimic`` (ipywidgets, h5py, imitation-learning tools)
+      * - ``teleop``
+        - ``isaaclab_teleop`` (isaacteleop SDK, dex-retargeting — Linux x86 only)
+
+   **Optional extra feature sets** (heavy optional deps on top of core packages):
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Token
+        - What it installs
+      * - ``contrib[<feature>]``
+        - Contrib runtime extras. Selector: ``rlinf``.
+      * - ``newton``
+        - Newton physics library (``newton[sim]`` git dep) across ``isaaclab_newton``, ``isaaclab_physx``, ``isaaclab_visualizers``
+      * - ``ov[<runtime>]``
+        - OV runtime wheels. Selectors: ``ovrtx``, ``ovphysx``. Use ``ov[all]`` for both.
+      * - ``rl[<framework>]``
+        - RL framework extras on ``isaaclab_rl``. Selectors: ``rsl-rl``, ``skrl``, ``sb3``, ``rl-games``. Omit selector for all.
+      * - ``visualizer[<backend>]``
+        - Visualizer backend extras. Selectors: ``rerun``, ``viser``, ``newton``, ``kit``. Omit selector for all.
+
+   **Special values**:
+
+   - ``all`` — core + optional submodules (mimic, teleop) + auto extra features (newton, rl, visualizer) — default when ``-i`` is used with no argument
+   - ``none`` — core submodules only; no optional submodules, no extra feature dependencies
+
+   .. note::
+
+      ``all`` installs the contrib and OV source packages, but not their heavy
+      dependency extras. Use ``contrib[rlinf]`` for rlinf
+      dependencies and ``ov[ovrtx]``, ``ov[ovphysx]``, or ``ov[all]`` for OV runtime
+      wheels.
+
+   Examples:
 
    .. tab-set::
       :sync-group: os
@@ -52,35 +95,43 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh --install physx,newton,assets,rl[rsl_rl],tasks,ov  # or "./isaaclab.sh -i physx,newton,assets,rl[rsl_rl],tasks,ov"
+            # Default: core + optional submodules + auto extras
+            ./isaaclab.sh -i
+
+            # Newton physics + RSL-RL framework
+            ./isaaclab.sh -i 'newton,rl[rsl-rl]'
+
+            # Newton + rerun visualizer + mimic
+            ./isaaclab.sh -i 'newton,visualizer[rerun],mimic'
+
+            # OV source packages + OVRTX wheel
+            ./isaaclab.sh -i 'ov[ovrtx]'
+
+            # Contrib rlinf dependencies
+            ./isaaclab.sh -i 'contrib[rlinf]'
+
+            # Core only — no optional submodules, no extras
+            ./isaaclab.sh -i none
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat --install physx,newton,assets,rl[rsl_rl],tasks,ov :: or "isaaclab.bat -i physx,newton,assets,rl[rsl_rl],tasks,ov"
+            :: Default: core + optional submodules + auto extras
+            isaaclab.bat -i
 
-   To install specific visualizer, pass a comma-separated list of supported visualizers,
-   or ``all`` to install all available options: ``newton``, ``rerun``, ``viser``, ``kit``. Note when following the
-   default installation, all visualizers are installed.
+            :: Newton physics + RSL-RL framework
+            isaaclab.bat -i "newton,rl[rsl-rl]"
 
-   .. tab-set::
-      :sync-group: os
+            :: Newton + rerun visualizer + mimic
+            isaaclab.bat -i "newton,visualizer[rerun],mimic"
 
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
+            :: OV source packages + OVRTX wheel
+            isaaclab.bat -i "ov[ovrtx]"
 
-         .. code:: bash
+            :: Contrib rlinf dependencies
+            isaaclab.bat -i "contrib[rlinf]"
 
-            ./isaaclab.sh --install visualizers[rerun]  # or "./isaaclab.sh -i visualizers[rerun]"
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            isaaclab.bat --install visualizers[rerun] :: or "isaaclab.bat -i visualizers[rerun]"
-
-
-   Pass ``none`` to install only the core ``isaaclab`` package without any Isaac Lab submodules or RL frameworks.
+            :: Core only - no optional submodules, no extras
+            isaaclab.bat -i none

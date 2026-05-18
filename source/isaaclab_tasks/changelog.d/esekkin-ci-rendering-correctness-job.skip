@@ -1,3 +1,0 @@
-CI-only change. The rendering-correctness tests now run in two dedicated
-``test-rendering-correctness`` and ``test-rendering-correctness-kitless``
-jobs instead of being mixed into the ``isaaclab_tasks [N/3]`` shards.

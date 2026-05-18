@@ -497,5 +497,10 @@
     "package": "ovphysx",
     "license": "LicenseRef-NVIDIA-Omniverse",
     "comment": "NVIDIA"
+  },
+  {
+    "package": "decorator",
+    "license": "UNKNOWN",
+    "comment": "BSD-2"
   }
 ]
