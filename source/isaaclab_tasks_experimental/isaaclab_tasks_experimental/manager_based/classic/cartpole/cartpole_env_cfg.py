@@ -18,7 +18,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp as mdp
 

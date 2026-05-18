@@ -29,5 +29,5 @@ class ClonePlan:
 
     clone_mask: torch.Tensor
     """Boolean tensor of shape ``[len(sources), num_envs]``;
-    ``clone_mask[i, j]`` is ``True`` iff env ``j`` was populated from
+    ``clone_mask[i, j]`` is ``True`` if env ``j`` was populated from
     :attr:`sources` ``[i]``."""

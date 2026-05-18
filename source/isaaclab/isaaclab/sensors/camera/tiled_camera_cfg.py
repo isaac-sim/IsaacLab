@@ -6,7 +6,7 @@
 import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .camera_cfg import CameraCfg
 

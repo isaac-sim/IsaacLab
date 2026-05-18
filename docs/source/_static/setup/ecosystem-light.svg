@@ -1,0 +1,94 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 580" width="800" height="580">
+  <defs>
+    <style>
+      .lbl  { font-family: "Segoe UI", Arial, sans-serif; font-weight: 700; }
+      .body { font-family: "Segoe UI", Arial, sans-serif; font-weight: 400; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="580" fill="#ffffff"/>
+
+  <!-- ══════════════════════════════════════════════════════
+       Layer 1 (top): Learning Libraries
+       ══════════════════════════════════════════════════════ -->
+  <rect x="16" y="12" width="768" height="60" rx="7" fill="#f1f8e9" stroke="#558b2f" stroke-width="1.5"/>
+  <text x="400" y="34"  text-anchor="middle" class="lbl"  font-size="13" fill="#1b5e20">Learning Libraries</text>
+  <text x="400" y="54"  text-anchor="middle" class="body" font-size="11.5" fill="#33691e">RSL-RL &#183; skrl &#183; Stable Baselines 3 &#183; RL Games</text>
+
+  <!-- ══════════════════════════════════════════════════════
+       Layer 2: Isaac Lab Extensions
+       ══════════════════════════════════════════════════════ -->
+  <rect x="16" y="84" width="768" height="82" rx="7" fill="#fce4ec" stroke="#ad1457" stroke-width="1.5"/>
+  <text x="400" y="105" text-anchor="middle" class="lbl"  font-size="13" fill="#880e4f">Isaac Lab Extensions</text>
+
+  <text x="88"  y="126" text-anchor="middle" class="lbl"  font-size="10.5" fill="#ad1457">isaaclab_tasks</text>
+  <text x="88"  y="141" text-anchor="middle" class="body" font-size="9.5"  fill="#880e4f">pre-built environments</text>
+
+  <text x="230" y="126" text-anchor="middle" class="lbl"  font-size="10.5" fill="#ad1457">isaaclab_assets</text>
+  <text x="230" y="141" text-anchor="middle" class="body" font-size="9.5"  fill="#880e4f">robot &amp; sensor configs</text>
+
+  <text x="370" y="126" text-anchor="middle" class="lbl"  font-size="10.5" fill="#ad1457">isaaclab_rl</text>
+  <text x="370" y="141" text-anchor="middle" class="body" font-size="9.5"  fill="#880e4f">RL library wrappers</text>
+
+  <text x="510" y="126" text-anchor="middle" class="lbl"  font-size="10.5" fill="#ad1457">isaaclab_mimic</text>
+  <text x="510" y="141" text-anchor="middle" class="body" font-size="9.5"  fill="#880e4f">imitation learning</text>
+
+  <text x="650" y="126" text-anchor="middle" class="lbl"  font-size="10.5" fill="#ad1457">isaaclab_teleop</text>
+  <text x="650" y="141" text-anchor="middle" class="body" font-size="9.5"  fill="#880e4f">teleoperation &amp; XR</text>
+
+  <!-- ══════════════════════════════════════════════════════
+       Layer 3: Isaac Lab Core
+       ══════════════════════════════════════════════════════ -->
+  <rect x="16" y="178" width="768" height="98" rx="7" fill="#76b900" stroke="#558b00" stroke-width="1.5"/>
+  <text x="400" y="200" text-anchor="middle" class="lbl"  font-size="14"  fill="#ffffff">Isaac Lab Core (isaaclab)</text>
+  <text x="400" y="221" text-anchor="middle" class="body" font-size="11"  fill="#f0ffd0">sim &#183; scene &#183; assets &#183; sensors &#183; envs &#183; managers &#183; actuators</text>
+  <text x="400" y="239" text-anchor="middle" class="body" font-size="11"  fill="#f0ffd0">controllers &#183; terrains &#183; devices &#183; mdp &#183; utils &#183; markers &#183; renderers</text>
+  <text x="400" y="258" text-anchor="middle" class="body" font-size="10.5" fill="#dcedc8">ManagerBasedRLEnv &#183; DirectRLEnv &#183; DirectMARLEnv &#183; InteractiveScene</text>
+  <text x="400" y="272" text-anchor="middle" class="body" font-size="9.5"  fill="#c5e1a5">factory pattern: uniform API dispatches to the active physics backend at runtime</text>
+
+  <!-- ══════════════════════════════════════════════════════
+       Layer 4: Backend packages  (two columns)
+       ══════════════════════════════════════════════════════ -->
+
+  <!-- PhysX and Omniverse packages (left) -->
+  <rect x="16"  y="288" width="376" height="100" rx="7" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
+  <text x="204" y="310" text-anchor="middle" class="lbl"  font-size="12" fill="#e65100">isaaclab_physx &#183; isaaclab_ovphysx &#183; isaaclab_ov</text>
+  <text x="204" y="329" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Articulation &#183; Rigid Body &#183; Rigid Object Collection &#183; Deformable</text>
+  <text x="204" y="347" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Fabric Views &#183; Camera &#183; USD spawners</text>
+  <text x="204" y="365" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Isaac RTX Renderer &#183; OvRTX Renderer</text>
+
+  <!-- Newton backend package (right) -->
+  <rect x="408" y="288" width="376" height="100" rx="7" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+  <text x="596" y="310" text-anchor="middle" class="lbl"  font-size="12" fill="#0d47a1">isaaclab_newton</text>
+  <text x="596" y="329" text-anchor="middle" class="body" font-size="10.5" fill="#1565c0">Articulation &#183; Rigid Body &#183; Rigid Object Collection</text>
+  <text x="596" y="347" text-anchor="middle" class="body" font-size="10.5" fill="#1565c0">Camera &#183; USD spawners &#183; Warp Renderer</text>
+  <text x="596" y="365" text-anchor="middle" class="body" font-size="10.5" fill="#1565c0">MJWarp Solver &#183; VBD Solver</text>
+
+  <!-- ══════════════════════════════════════════════════════
+       Layer 5: External simulation dependencies  (two columns)
+       Left = Isaac Sim (optional)   Right = Newton / Warp
+       ══════════════════════════════════════════════════════ -->
+
+  <!-- Isaac Sim (optional) -->
+  <rect x="16"  y="400" width="376" height="82" rx="7" fill="#fbe9e7" stroke="#bf360c" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="204" y="420" text-anchor="middle" class="lbl"  font-size="11.5" fill="#bf360c">Isaac Sim  (optional)</text>
+  <text x="204" y="438" text-anchor="middle" class="body" font-size="10.5" fill="#d84315">PhysX &#183; RTX Rendering &#183; USD / Omniverse</text>
+  <text x="204" y="456" text-anchor="middle" class="body" font-size="10.5" fill="#d84315">ROS / ROS 2 &#183; URDF &amp; MJCF importers</text>
+  <text x="204" y="472" text-anchor="middle" class="body" font-size="9.5"  fill="#bf360c">required for Isaac Sim features</text>
+
+  <!-- Newton / Warp (kit-less) -->
+  <rect x="408" y="400" width="376" height="82" rx="7" fill="#e8f4f8" stroke="#0277bd" stroke-width="1.5"/>
+  <text x="596" y="420" text-anchor="middle" class="lbl"  font-size="11.5" fill="#01579b">Newton Physics + Warp</text>
+  <text x="596" y="438" text-anchor="middle" class="body" font-size="10.5" fill="#0288d1">GPU-parallel simulation &#183; Warp kernels</text>
+  <text x="596" y="456" text-anchor="middle" class="body" font-size="10.5" fill="#0288d1">MJWarp (MuJoCo-Warp) solver</text>
+  <text x="596" y="472" text-anchor="middle" class="body" font-size="9.5"  fill="#01579b">kit-less &#183; no Isaac Sim required</text>
+
+  <!-- ══════════════════════════════════════════════════════
+       Layer 6 (bottom): Universal foundation
+       ══════════════════════════════════════════════════════ -->
+  <rect x="16" y="494" width="768" height="52" rx="7" fill="#263238" stroke="#37474f" stroke-width="1.5"/>
+  <text x="400" y="516" text-anchor="middle" class="lbl"  font-size="13" fill="#eceff1">NVIDIA GPU Platform</text>
+  <text x="400" y="535" text-anchor="middle" class="body" font-size="11" fill="#90a4ae">CUDA &#183; Warp  (required by all backends)</text>
+</svg>

@@ -30,6 +30,8 @@ torch.jit._state.disable()
 
 from isaaclab.app import AppLauncher
 
+from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+
 _RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
 if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_RSL_RL_SCRIPTS_DIR))
@@ -110,7 +112,10 @@ def create_arg_parser() -> argparse.ArgumentParser:
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
     parser = create_arg_parser()
-    args_cli, hydra_args = parser.parse_known_args(argv)
+    # setup_preset_cli attaches the preset-selection help group then parses;
+    # remainder still carries typed selectors (physics=/renderer=/presets=)
+    # verbatim for run_export_with_hydra to fold before invoking Hydra.
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
 
@@ -344,7 +349,9 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
     _load_runtime_dependencies()
 
     original_argv = sys.argv
-    sys.argv = [sys.argv[0]] + hydra_args
+    # Fold typed preset selectors into a single ``presets=<csv>`` token before
+    # Hydra reads sys.argv; remainder still carries plain Hydra path overrides.
+    sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
     exported = False
 
     try:

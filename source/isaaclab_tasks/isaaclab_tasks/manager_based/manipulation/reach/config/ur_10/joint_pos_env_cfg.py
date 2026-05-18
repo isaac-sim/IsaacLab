@@ -5,7 +5,7 @@
 
 import math
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
 from isaaclab_tasks.manager_based.manipulation.reach.reach_env_cfg import ReachEnvCfg
