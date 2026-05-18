@@ -69,6 +69,7 @@ def add_cable_entry_to_builder(
     env_idx: int,
     env_position: list[float],
     env_rotation: list[float] | tuple[float, float, float, float],
+    cable_idx: int = 0,
 ) -> None:
     """Add one cable to a Newton ``ModelBuilder`` for one environment.
 
@@ -81,12 +82,21 @@ def add_cable_entry_to_builder(
     ``_rename_builder_labels`` rewrites the source prefix to each env's
     destination prefix during replication.
 
+    All capsules of this cable share a unique negative ``collision_group``
+    (``-(1 + cable_idx)``), which disables segment-vs-segment self-collision while
+    still letting them collide with the ground and other cables (Newton's group
+    rule: same negative group = filtered, negative-vs-positive = collides).
+
     Args:
         builder: The Newton ``ModelBuilder``.
         entry: Registry entry describing the cable's geometry and material.
         env_idx: Zero-based environment (world) index.
         env_position: World translation ``[x, y, z]`` [m] for this environment.
         env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this environment.
+        cable_idx: Zero-based index of this cable within
+            :attr:`SimulationManager._cable_registry`. Used to assign a unique
+            negative ``shape_collision_group`` per cable so segments don't
+            self-collide.
     """
     if env_idx == 0:
         entry.body_offsets.clear()
@@ -118,6 +128,10 @@ def add_cable_entry_to_builder(
 
     shape_cfg = newton.ModelBuilder.ShapeConfig()
     shape_cfg.density = float(entry.density)
+    # Unique negative collision group → cable's own capsules don't collide with
+    # each other (Newton: same negative group is filtered), while still colliding
+    # with the ground and other cables (negative-vs-positive collides).
+    shape_cfg.collision_group = -(1 + cable_idx)
 
     # ``label`` is load-bearing: Newton suffixes ``_articulation`` to produce
     # ``{prim_path}/cable_articulation``, which is the path :class:`ArticulationView`
@@ -152,8 +166,8 @@ def add_registered_cables_to_builder(
     :func:`add_cable_entry_to_builder` for each registered cable.
     Mirrors :func:`isaaclab_contrib.deformable.deformable_object.add_registered_deformables_to_builder`.
     """
-    for entry in SimulationManager._cable_registry:
-        add_cable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
+    for cable_idx, entry in enumerate(SimulationManager._cable_registry):
+        add_cable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation, cable_idx=cable_idx)
 
 
 def install_cable_builder_hooks() -> None:
