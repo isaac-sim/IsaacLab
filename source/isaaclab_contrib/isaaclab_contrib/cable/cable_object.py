@@ -58,7 +58,6 @@ from isaaclab_newton.assets.articulation.articulation import Articulation  # noq
 from isaaclab_newton.physics import NewtonManager as SimulationManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.sim.spawners.shapes import CableCfg  # noqa: E402
 
 if TYPE_CHECKING:
     from .cable_object_cfg import CableObjectCfg
@@ -212,25 +211,27 @@ class CableObject(Articulation):
 
         1. Locate the spawned template prim (via ``cfg.spawn.spawn_path`` or
            ``cfg.prim_path``).
-        2. Find the single ``UsdGeomBasisCurves`` child authored by
-           :func:`spawn_cable` and read its ``points`` and ``widths`` attributes.
+        2. Walk the template prim's descendants and find the single
+           ``UsdGeomBasisCurves`` prim, then read its ``points`` and ``widths``
+           attributes. This works for both :func:`spawn_cable` (which authors
+           the curve at ``{prim_path}/geometry/mesh``) and arbitrary curve
+           USDs loaded via :class:`~isaaclab.sim.spawners.UsdFileCfg`.
         3. Bake the template prim's xform into the per-node positions so the
            replicate hook only needs to apply the env transform.
-        4. Look up the bound Newton cable physics material and read each
-           ``newton:*`` attribute into the entry, falling back to the
-           :class:`CableRegistryEntry` field defaults when an attribute is
-           missing.
+        4. Look up the bound Newton cable physics material on the curve prim
+           and read each ``newton:*`` attribute into the entry. If no Newton
+           material is bound, fall back to :class:`CableRegistryEntry`
+           defaults.
 
         Returns:
             The registry entry (also appended to ``SimulationManager._cable_registry``).
 
         Raises:
-            ValueError: If ``cfg.spawn`` is not a :class:`~isaaclab.sim.spawners.shapes.CableCfg`,
-                the template prim has no ``UsdGeomBasisCurves`` child, the curve
-                is missing its ``widths`` attribute, or no Newton cable physics
-                material is bound to the curve prim (commonly because
-                :class:`UsdPhysics.CollisionAPI` was not applied — set
-                ``CableCfg.collision_props`` so :func:`spawn_cable` applies it).
+            ValueError: If the template prim has no ``UsdGeomBasisCurves``
+                descendant, or the curve is missing its ``widths`` attribute.
+            NotImplementedError: If more than one ``UsdGeomBasisCurves``
+                descendant is found under the template prim — multi-curve
+                cables under a single :class:`CableObject` are not supported.
             RuntimeError: If the template prim cannot be located, or
                 :func:`install_cable_builder_hooks` has not been called before
                 constructing the :class:`CableObject`.
@@ -240,12 +241,8 @@ class CableObject(Articulation):
             that ``resolve_task_config`` can import the env-cfg module before
             Kit starts without polluting the ``pxr`` module cache.
         """
-        from pxr import Gf, UsdGeom, UsdPhysics, UsdShade
+        from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade
 
-        if not isinstance(self.cfg.spawn, CableCfg):
-            raise ValueError(
-                f"CableObjectCfg requires `spawn` to be a CableCfg instance, got {type(self.cfg.spawn).__name__}."
-            )
         if not hasattr(SimulationManager, "_cable_registry"):
             raise RuntimeError(
                 "CableObject requires `install_cable_builder_hooks()` to have been called"
@@ -262,15 +259,22 @@ class CableObject(Articulation):
             raise RuntimeError(f"Failed to find cable template prim for expression: '{lookup_path}'.")
         template_prim_path = template_prim.GetPrimPath()
 
-        # ``spawn_cable`` authors the curve at ``{prim_path}/geometry/mesh``.
+        # Discover the cable's BasisCurves by descendant traversal so this works
+        # for both :func:`spawn_cable` (single curve at ``{prim_path}/geometry/mesh``)
+        # and arbitrary USDs loaded via :class:`UsdFileCfg`.
         stage = template_prim.GetStage()
-        expected_curve_prim_path = f"{template_prim_path}/geometry/mesh"
-        curve_prim = stage.GetPrimAtPath(expected_curve_prim_path)
-        if not curve_prim or not curve_prim.IsValid() or curve_prim.GetTypeName() != "BasisCurves":
-            raise ValueError(
-                f"Expected a UsdGeomBasisCurves prim at '{expected_curve_prim_path}', "
-                f"got '{curve_prim.GetTypeName() if curve_prim and curve_prim.IsValid() else None}'."
+        curve_prims = [
+            descendant for descendant in Usd.PrimRange(template_prim) if descendant.GetTypeName() == "BasisCurves"
+        ]
+        if not curve_prims:
+            raise ValueError(f"No UsdGeomBasisCurves prim found under '{template_prim_path}'.")
+        if len(curve_prims) > 1:
+            paths = ", ".join(str(p.GetPrimPath()) for p in curve_prims)
+            raise NotImplementedError(
+                f"Found {len(curve_prims)} BasisCurves prims under '{template_prim_path}' ({paths}); "
+                "multi-curve cables under a single CableObject are not supported yet."
             )
+        curve_prim = curve_prims[0]
         curves = UsdGeom.BasisCurves(curve_prim)
 
         # Bake the curve prim's xform into the per-node positions so the replicate
@@ -292,8 +296,19 @@ class CableObject(Articulation):
             raise ValueError(f"UsdGeomBasisCurves at '{curve_prim.GetPrimPath()}' is missing the `widths` attribute.")
         radius = float(raw_widths[0]) / 2.0
 
-        # Linear edge chain.
-        edges = [(i, i + 1) for i in range(len(node_positions) - 1)]
+        # Read the edge topology from the curve prim's ``int2[] connections``
+        # attribute. :func:`~isaaclab.sim.spawners.shapes.spawn_cable` authors a
+        # linear chain; user-provided USDs (loaded via :class:`UsdFileCfg`) must
+        # also author this attribute.
+        connections_attr = curve_prim.GetAttribute("connections")
+        if not connections_attr.IsValid() or connections_attr.Get() is None:
+            raise ValueError(
+                f"UsdGeomBasisCurves at '{curve_prim.GetPrimPath()}' is missing the `connections`"
+                " attribute (expected `int2[]` listing each edge as a pair of control-point indices)."
+                " Author this attribute on the curve prim — `spawn_cable` writes it automatically;"
+                " user-imported curve USDs must add it explicitly."
+            )
+        edges = [(int(e[0]), int(e[1])) for e in connections_attr.Get()]
 
         # Look up the bound Newton cable physics material via the standard
         # MaterialBindingAPI on the curve prim. The material binding requires
@@ -343,7 +358,7 @@ class CableObject(Articulation):
         # transform. Matches DeformableObject._register_deformable.
         entry = CableRegistryEntry(
             prim_path=self.cfg.prim_path,
-            curve_prim_path=f"{self.cfg.prim_path}/geometry/mesh",
+            curve_prim_path=str(curve_prim.GetPrimPath()),
             node_positions=node_positions,
             edges=edges,
             radius=radius,
