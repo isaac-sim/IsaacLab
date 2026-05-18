@@ -367,3 +367,80 @@ def test_forward_preserves_cable_body_q():
             body_q_before,
             err_msg="forward() altered body_q — cable mask did not exclude cable articulations.",
         )
+
+
+def test_start_simulation_preserves_curved_cable_body_q():
+    """Regression test for the cable body_q restoration after start_simulation's eval_fk.
+
+    :meth:`NewtonManager.start_simulation` ends with an unmasked ``eval_fk`` to seed
+    ``state_0.body_q`` from joint coordinates. Newton's ``eval_fk`` has no case for
+    :attr:`newton.JointType.CABLE`, so cable joints fall through to identity and each
+    child capsule collapses onto its parent joint anchor — rotating curved cables onto
+    the root segment's local +Z axis.
+
+    For a *straight* cable the corruption is invisible (eval_fk's identity output matches
+    the layout produced by ``add_rod_graph``), so a non-collinear node layout is required
+    to expose the bug. :meth:`NewtonVBDManager._restore_cable_body_q` undoes the corruption
+    by copying ``model.body_q`` (untouched by ``eval_fk``) back into ``state_0.body_q`` for
+    cable bodies.
+    """
+    import numpy as np
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.utils import configclass
+
+    from isaaclab_contrib.cable import CableObjectCfg
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
+
+    # Curved cable: three nodes whose edges (0->1 along +x, 1->2 along +y) point in
+    # different directions, so adjacent capsule orientations differ. eval_fk's identity
+    # output would collapse body[1] onto body[0]'s +Z axis (still pointing +x), but the
+    # rest pose has body[1] rotated to align +Z with +y.
+    cable_spawn = sim_utils.CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.1, 0.1, 0.0)],
+        width=0.01,
+        physics_material=_NewtonCableMaterialCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+
+    @configclass
+    class _SceneCfg(InteractiveSceneCfg):
+        num_envs: int = 1
+        env_spacing: float = 1.0
+        cable: CableObjectCfg = CableObjectCfg(prim_path="{ENV_REGEX_NS}/Cable", spawn=cable_spawn)
+
+    newton_sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=VBDSolverCfg()))
+
+    with build_simulation_context(device="cuda:0", sim_cfg=newton_sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        InteractiveScene(_SceneCfg())
+        sim.reset()  # triggers start_simulation -> unmasked eval_fk -> _restore_cable_body_q
+
+        # ``model.body_q`` holds the rest pose produced by ``add_rod_graph`` and is never
+        # written by ``eval_fk``. With the restoration in place, ``state_0.body_q`` for cable
+        # bodies must match ``model.body_q`` bit-for-bit. Without the fix, the second cable
+        # body's quaternion differs (eval_fk reuses the root segment's orientation).
+        assert NewtonVBDManager._cable_registry, "Cable registry empty — replicate hook did not run."
+
+        body_q_state = NewtonVBDManager._state_0.body_q.numpy()
+        body_q_model = NewtonVBDManager._model.body_q.numpy()
+
+        cable_body_indices: list[int] = []
+        for entry in NewtonVBDManager._cable_registry:
+            for body_offset in entry.body_offsets:
+                cable_body_indices.extend(range(body_offset, body_offset + len(entry.edges)))
+
+        np.testing.assert_allclose(
+            body_q_state[cable_body_indices],
+            body_q_model[cable_body_indices],
+            err_msg=(
+                "Cable body_q in state_0 does not match model.body_q after start_simulation."
+                " The unmasked eval_fk corrupted cable bodies and _restore_cable_body_q did not"
+                " restore them."
+            ),
+        )
