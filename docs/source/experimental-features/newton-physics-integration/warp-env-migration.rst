@@ -20,7 +20,7 @@ CPU overhead — the parameter validation, kernel selection, and buffer setup th
 20–200 μs per operation is performed once during graph instantiation and reused on every replay
 (~10 μs total). All CPU-side code (Python logic, torch dispatching) executed during capture is
 completely bypassed during replay. See the `Warp concurrency documentation
-<https://nvidia.github.io/warp/deep_dive/concurrency.html>`_ for Warp's graph capture API
+<https://nvidia.github.io/warp/stable/deep_dive/concurrency.html>`_ for Warp's graph capture API
 (``wp.ScopedCapture``).
 
 All design decisions in the warp infrastructure follow from this constraint: every operation in the
