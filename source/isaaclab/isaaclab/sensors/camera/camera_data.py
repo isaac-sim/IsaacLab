@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import torch
 import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
@@ -27,20 +26,12 @@ class CameraData:
     """
 
     def __init__(self):
-        # Warp arrays for pose / intrinsics — allocated in create_buffers()
-        self._pos_w_wp: wp.array | None = None
-        self._quat_w_world_wp: wp.array | None = None
-        self._intrinsic_matrices_wp: wp.array | None = None
-        # Pre-allocated output buffers for derived orientation properties
-        self._quat_w_ros_wp: wp.array | None = None
-        self._quat_w_opengl_wp: wp.array | None = None
-
         # ProxyArray wrappers — created in create_buffers()
-        self._pos_w_pa: ProxyArray | None = None
-        self._quat_w_world_pa: ProxyArray | None = None
-        self._intrinsic_matrices_pa: ProxyArray | None = None
-        self._quat_w_ros_pa: ProxyArray | None = None
-        self._quat_w_opengl_pa: ProxyArray | None = None
+        self._pos_w: ProxyArray | None = None
+        self._quat_w_world: ProxyArray | None = None
+        self._intrinsic_matrices: ProxyArray | None = None
+        self._quat_w_ros: ProxyArray | None = None
+        self._quat_w_opengl: ProxyArray | None = None
 
         # Output image buffers — allocated in allocate()
         self._output: dict[str, ProxyArray] | None = None
@@ -68,7 +59,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return self._pos_w_pa
+        return self._pos_w
 
     @property
     def quat_w_world(self) -> ProxyArray:
@@ -82,7 +73,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return self._quat_w_world_pa
+        return self._quat_w_world
 
     ##
     # Camera data
@@ -96,7 +87,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        return self._intrinsic_matrices_pa
+        return self._intrinsic_matrices
 
     @property
     def output(self) -> dict[str, ProxyArray] | None:
@@ -124,17 +115,11 @@ class CameraData:
             num_views: Number of camera views (batch dimension).
             device: Device for tensor storage (e.g. ``"cuda:0"``).
         """
-        self._pos_w_wp = wp.zeros(num_views, dtype=wp.vec3f, device=device)
-        self._quat_w_world_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-        self._intrinsic_matrices_wp = wp.zeros(num_views, dtype=wp.mat33f, device=device)
-        self._quat_w_ros_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-        self._quat_w_opengl_wp = wp.zeros(num_views, dtype=wp.quatf, device=device)
-
-        self._pos_w_pa = ProxyArray(self._pos_w_wp)
-        self._quat_w_world_pa = ProxyArray(self._quat_w_world_wp)
-        self._intrinsic_matrices_pa = ProxyArray(self._intrinsic_matrices_wp)
-        self._quat_w_ros_pa = ProxyArray(self._quat_w_ros_wp)
-        self._quat_w_opengl_pa = ProxyArray(self._quat_w_opengl_wp)
+        self._pos_w = ProxyArray(wp.zeros(num_views, dtype=wp.vec3f, device=device))
+        self._quat_w_world = ProxyArray(wp.zeros(num_views, dtype=wp.quatf, device=device))
+        self._intrinsic_matrices = ProxyArray(wp.zeros(num_views, dtype=wp.mat33f, device=device))
+        self._quat_w_ros = ProxyArray(wp.zeros(num_views, dtype=wp.quatf, device=device))
+        self._quat_w_opengl = ProxyArray(wp.zeros(num_views, dtype=wp.quatf, device=device))
 
     @classmethod
     def allocate(
@@ -143,7 +128,7 @@ class CameraData:
         height: int,
         width: int,
         num_views: int,
-        device: torch.device | str,
+        device: str,
         supported_specs: dict[RenderBufferKind, RenderBufferSpec],
     ) -> CameraData:
         """Build a :class:`CameraData` with output buffers pre-allocated as warp arrays.
@@ -160,7 +145,7 @@ class CameraData:
             height: Image height in pixels.
             width: Image width in pixels.
             num_views: Number of camera views (batch dimension).
-            device: Torch device on which to allocate the buffers.
+            device: Device on which to allocate the buffers.
             supported_specs: Per-buffer layout the active renderer can produce,
                 keyed by :class:`RenderBufferKind`. Names absent from this mapping
                 are not allocated.
@@ -174,36 +159,27 @@ class CameraData:
             ValueError: If ``data_types`` contains names that are not members of
                 :class:`RenderBufferKind`.
         """
-        requested: set[RenderBufferKind] = set()
-        unknown: list[str] = []
-        for name in data_types:
-            try:
-                requested.add(RenderBufferKind(name))
-            except ValueError:
-                unknown.append(name)
+        valid_names = {kind.value for kind in RenderBufferKind}
+        unknown = [name for name in data_types if name not in valid_names]
         if unknown:
             raise ValueError(f"Unknown RenderBufferKind name(s): {unknown}. Expected members of RenderBufferKind.")
+        requested = {RenderBufferKind(name) for name in data_types}
 
-        # rgb is exposed as a strided view into rgba when the renderer publishes both,
-        # so requesting either one allocates the shared rgba buffer.
-        rgb_alias = (
-            RenderBufferKind.RGBA in supported_specs
-            and RenderBufferKind.RGB in supported_specs
-            and (RenderBufferKind.RGB in requested or RenderBufferKind.RGBA in requested)
-        )
+        rgb_kinds = {RenderBufferKind.RGB, RenderBufferKind.RGBA}
+        rgb_alias = rgb_kinds <= supported_specs.keys() and not requested.isdisjoint(rgb_kinds)
         if rgb_alias:
-            requested.update({RenderBufferKind.RGB, RenderBufferKind.RGBA})
+            requested.update(rgb_kinds)
 
-        device_str = device if isinstance(device, str) else str(device)
+        allocated = requested.intersection(supported_specs)
+        if rgb_alias:
+            allocated.remove(RenderBufferKind.RGB)
 
         buffers: dict[str, ProxyArray] = {}
         for name, spec in supported_specs.items():
-            if name not in requested:
+            if name not in allocated:
                 continue
-            if rgb_alias and name == RenderBufferKind.RGB:
-                continue  # created below as a strided view into rgba
-            wp_arr = wp.zeros((num_views, height, width, spec.channels), dtype=spec.dtype, device=device_str)
-            buffers[str(name)] = ProxyArray(wp_arr)
+            shape = (num_views, height, width, spec.channels)
+            buffers[str(name)] = ProxyArray(wp.zeros(shape, dtype=spec.dtype, device=device))
 
         if rgb_alias:
             # Zero-copy strided view into rgba: shape (N, H, W, 3), skipping the alpha channel.
@@ -242,8 +218,8 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        convert_camera_frame_orientation_convention_wp(self._quat_w_world_wp, self._quat_w_ros_wp, "world", "ros")
-        return self._quat_w_ros_pa
+        convert_camera_frame_orientation_convention_wp(self._quat_w_world.warp, self._quat_w_ros.warp, "world", "ros")
+        return self._quat_w_ros
 
     @property
     def quat_w_opengl(self) -> ProxyArray:
@@ -257,5 +233,7 @@ class CameraData:
         where N is the number of sensors. Use ``.warp`` for the underlying
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
-        convert_camera_frame_orientation_convention_wp(self._quat_w_world_wp, self._quat_w_opengl_wp, "world", "opengl")
-        return self._quat_w_opengl_pa
+        convert_camera_frame_orientation_convention_wp(
+            self._quat_w_world.warp, self._quat_w_opengl.warp, "world", "opengl"
+        )
+        return self._quat_w_opengl

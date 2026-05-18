@@ -16,19 +16,176 @@ import atexit
 import inspect
 import logging
 import os
+import re
 import tempfile
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+import warp as wp
+
+from pxr import UsdPhysics
+
+from isaaclab.physics import PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .ovphysx_manager_cfg import OvPhysxCfg
 
-__all__ = ["OvPhysxManager"]
+__all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
 
 logger = logging.getLogger(__name__)
+
+
+class OvPhysxSceneDataBackend(SceneDataBackend):
+    """Scene-data backend for the OVPhysX physics manager.
+
+    Mirrors the contract of ``PhysxSceneDataBackend`` but adapts to the
+    ovphysx wheel's one-pattern-per-binding API: each distinct env-wildcard
+    rigid-body prim path produces its own ``TT.RIGID_BODY_POSE`` binding.
+    :attr:`transforms` reads each binding into its pre-allocated float32
+    staging buffer and concatenates them into a single ``wp.transformf``
+    array.
+
+    The merged-buffer + staging-buffer separation is required because the
+    wheel's ``TensorBinding.read(dst)`` writes into ``dst`` only when
+    ``dst.shape == binding.shape``, so we cannot read directly into a slice
+    of the merged buffer.
+
+    Unlike PhysX -- which receives a live :class:`omni.physics.tensors.SimulationView`
+    via a ``simulation_view`` property setter and discovers prims lazily --
+    OVPhysX wires bindings through an explicit :meth:`setup` call that
+    takes the live ``ovphysx.PhysX`` handle and the USD stage. The wheel
+    exposes a ``physx + stage`` pair rather than a single ``SimulationView``,
+    so a property setter would have to either bundle the two or fire on the
+    second assignment; the explicit call keeps the lifecycle obvious.
+    """
+
+    def __init__(self):
+        self._physx = None
+        # Each entry: ``{"pattern": str, "pose": TensorBinding,
+        # "pose_buf": wp.array (float32, (N, 7)),
+        # "pose_buf_transformf": wp.array (transformf, (N,)),
+        # "row_offset": int, "row_count": int}``.
+        # The ``pose_buf_transformf`` view aliases ``pose_buf`` via zero-copy
+        # ``wp.array(ptr=...)``; cached at setup time so per-step reads in
+        # :attr:`transforms` don't churn Python allocations.
+        self._rigid_bindings: list[dict[str, Any]] = []
+        self._merged_transforms: wp.array | None = None
+        self._scene_data = SceneDataFormat.Transform()
+
+    @property
+    def transform_count(self) -> int:
+        """Sum of per-binding row counts."""
+        return sum(int(entry["row_count"]) for entry in self._rigid_bindings)
+
+    @property
+    def transform_paths(self) -> list[str]:
+        """Concatenated ``prim_paths`` across all bindings, in registration order."""
+        paths: list[str] = []
+        for entry in self._rigid_bindings:
+            paths.extend(list(entry["pose"].prim_paths))
+        return paths
+
+    def setup(self, physx, stage, device: str) -> None:
+        """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
+
+        Args:
+            physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
+            stage: USD stage to traverse for RigidBodyAPI prims.
+            device: Warp device string used to allocate the staging and merged buffers.
+        """
+        from isaaclab_ovphysx import tensor_types as TT  # local: keep heavy ovphysx out of module load
+
+        self._physx = physx
+        self._rigid_bindings = []
+        self._merged_transforms = None
+
+        if stage is None:
+            return
+
+        # Discover RigidBodyAPI prims, dedup by env-wildcard form.
+        patterns: set[str] = set()
+        for prim in stage.Traverse():
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+
+        if not patterns:
+            return
+
+        # One pose binding per distinct pattern.
+        total_count = 0
+        for pattern in sorted(patterns):
+            try:
+                pose_binding = physx.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
+            except Exception as exc:
+                logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
+                continue
+            row_count = int(pose_binding.shape[0])
+            if row_count == 0:
+                logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
+                continue
+            pose_buf = wp.zeros(pose_binding.shape, dtype=wp.float32, device=device)
+            # Zero-copy reinterpret of the (N, 7) float32 staging buffer as (N,) wp.transformf.
+            # Same pointer + layout; transformf is 7 float32s (pos.xyz + quat.xyzw). Cached
+            # so per-step ``transforms`` reads don't reallocate the view object.
+            pose_buf_transformf = wp.array(
+                ptr=pose_buf.ptr,
+                shape=(row_count,),
+                dtype=wp.transformf,
+                device=str(pose_buf.device),
+                copy=False,
+            )
+            self._rigid_bindings.append(
+                {
+                    "pattern": pattern,
+                    "pose": pose_binding,
+                    "pose_buf": pose_buf,
+                    "pose_buf_transformf": pose_buf_transformf,
+                    "row_offset": total_count,
+                    "row_count": row_count,
+                }
+            )
+            total_count += row_count
+
+        if total_count > 0:
+            self._merged_transforms = wp.zeros((total_count,), dtype=wp.transformf, device=device)
+
+    @property
+    def transforms(self) -> SceneDataFormat.Transform:
+        """Read all bindings into the merged buffer; return as ``SceneDataFormat.Transform``.
+
+        Each binding's float32 ``(N, 7)`` read buffer is reinterpreted as ``(N,)`` of
+        ``wp.transformf`` (zero-copy via ``wp.array(ptr=..., dtype=wp.transformf)``,
+        cached on the entry at setup time) and copied into the merged buffer at the
+        binding's ``row_offset``.
+
+        Returns:
+            ``SceneDataFormat.Transform`` whose ``transforms`` field is a
+            ``wp.array(dtype=wp.transformf)`` of length :attr:`transform_count`.
+            Each ``wp.transformf`` row carries position [m] followed by
+            quaternion (xyzw, unit). ``transforms`` is ``None`` when no
+            bindings are wired.
+        """
+        if self._merged_transforms is None or not self._rigid_bindings:
+            self._scene_data.transforms = self._merged_transforms
+            return self._scene_data
+
+        for entry in self._rigid_bindings:
+            try:
+                entry["pose"].read(entry["pose_buf"])
+            except Exception as exc:
+                logger.warning("RIGID_BODY_POSE read failed for %s: %s", entry["pattern"], exc)
+                continue
+            wp.copy(
+                self._merged_transforms,
+                entry["pose_buf_transformf"],
+                dest_offset=int(entry["row_offset"]),
+                src_offset=0,
+                count=int(entry["row_count"]),
+            )
+
+        self._scene_data.transforms = self._merged_transforms
+        return self._scene_data
 
 
 class OvPhysxManager(PhysicsManager):
@@ -59,6 +216,7 @@ class OvPhysxManager(PhysicsManager):
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     _atexit_registered: ClassVar[bool] = False
+    _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
 
     @classmethod
     def get_dt(cls) -> float:
@@ -108,6 +266,14 @@ class OvPhysxManager(PhysicsManager):
         cls._usd_handle = None
         cls._stage_path = None
         cls._pending_clones = []
+        # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
+        # captures a real instance (not ``None``) when it builds the central
+        # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
+        # its own ``__init__``. Bindings stay empty until :meth:`_warmup_and_load`
+        # calls :meth:`OvPhysxSceneDataBackend.setup`, at which point the wheel
+        # and the USD stage are live. Matches PhysX's pattern of constructing
+        # the backend during ``initialize()``.
+        cls._scene_data_backend = OvPhysxSceneDataBackend()
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -149,6 +315,11 @@ class OvPhysxManager(PhysicsManager):
         cls._usd_handle = None
         cls._stage_path = None
         cls._warmup_done = False
+        # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
+        # point into the wheel's prior scene which we just ``physx.reset()``-ed.
+        # The next :class:`SimulationContext` re-creates the backend in
+        # :meth:`initialize`. Matches Newton's lifecycle.
+        cls._scene_data_backend = None
 
         if cls._tmp_dir is not None:
             cls._tmp_dir.cleanup()
@@ -184,6 +355,20 @@ class OvPhysxManager(PhysicsManager):
     def get_physx_instance(cls) -> Any:
         """Return the underlying ovphysx.PhysX instance (or None if not yet created)."""
         return cls._physx
+
+    @classmethod
+    def get_scene_data_backend(cls) -> SceneDataBackend:
+        """Return the SceneDataBackend for the central SceneDataProvider.
+
+        Constructed eagerly in :meth:`initialize` so :class:`SimulationContext`
+        captures a real instance (not ``None``) when wiring up the central
+        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`. Bindings
+        are empty until :meth:`_warmup_and_load` calls
+        :meth:`OvPhysxSceneDataBackend.setup` against the live ovphysx ``PhysX``
+        and USD stage; reads against an unsetup backend return empty data
+        rather than raising.
+        """
+        return cls._scene_data_backend
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -285,6 +470,14 @@ class OvPhysxManager(PhysicsManager):
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
             cls._physx.warmup_gpu()
+
+        # Initialize the SceneDataBackend now that the wheel's PhysX is live and
+        # the USD is loaded. The central
+        # ``isaaclab.scene.scene_data_provider.SceneDataProvider`` consumes this
+        # via :meth:`get_scene_data_backend`.
+        if cls._scene_data_backend is None:
+            cls._scene_data_backend = OvPhysxSceneDataBackend()
+        cls._scene_data_backend.setup(cls._physx, sim.stage, PhysicsManager._device)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True

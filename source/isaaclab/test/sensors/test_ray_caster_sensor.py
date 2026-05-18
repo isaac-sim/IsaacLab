@@ -7,6 +7,8 @@
 
 """Tests for RayCaster sensor behavior: alignment modes and reset."""
 
+from typing import Literal
+
 from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
@@ -40,7 +42,7 @@ def _make_sim_and_ground():
     return sim
 
 
-def _ray_caster_cfg(prim_path: str, alignment: str) -> RayCasterCfg:
+def _ray_caster_cfg(prim_path: str, alignment: Literal["base", "yaw", "world"]) -> RayCasterCfg:
     """Single downward ray, no offset from prim."""
     return RayCasterCfg(
         prim_path=prim_path,
@@ -257,6 +259,7 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     # reset() resamples drift; values should remain within the configured range
     # Call reset() multiple times until we get a different sample (probability of same is near zero
     # for continuous uniform distribution, but we retry to avoid flakiness).
+    drift_after: torch.Tensor = drift_before.clone()
     for _ in range(5):
         sensor.reset()
         drift_after = sensor.drift.clone()
@@ -268,4 +271,50 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     )
     assert not torch.allclose(drift_after, drift_before), (
         "reset() must resample drift; values must change from initial sample"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_ray_caster_tracks_physics_body_parent_motion(sim_ground):
+    """RayCaster pose must follow its physics-body parent after simulation steps."""
+    from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
+
+    sim = sim_ground
+    dt = 0.01
+    parent_path = "/World/PhysicsParent"
+
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim(parent_path, "Xform", translation=(0.0, 0.0, 5.0), stage=stage)
+    parent_prim = stage.GetPrimAtPath(parent_path)
+    UsdPhysics.RigidBodyAPI.Apply(parent_prim)
+    UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
+    mass_api = UsdPhysics.MassAPI.Apply(parent_prim)
+    if mass_api is None:
+        raise RuntimeError(f"Failed to apply MassAPI to {parent_path}.")
+    mass_api.CreateMassAttr().Set(1.0)
+
+    cube_path = f"{parent_path}/CollisionCube"
+    cube = UsdGeom.Cube.Define(stage, cube_path)
+    if cube is None:
+        raise RuntimeError(f"Failed to create collision cube at {cube_path}.")
+    cube.CreateSizeAttr().Set(0.1)
+    UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
+    sim_utils.update_stage()
+
+    sensor = RayCaster(_ray_caster_cfg(parent_path, "world"))
+    sim.reset()
+    sensor.update(dt, force_recompute=True)
+    pos_before = sensor.data.pos_w.torch[0].clone()
+
+    for _ in range(100):
+        sim.step(render=False)
+        sensor.update(dt)
+
+    sensor.update(dt, force_recompute=True)
+    pos_after = sensor.data.pos_w.torch[0]
+    drift_z = (pos_before[2] - pos_after[2]).item()
+
+    assert drift_z > 0.5, (
+        f"RayCaster pose did not follow its physics body parent. "
+        f"z before={pos_before[2].item():.4f} z after={pos_after[2].item():.4f} drift={drift_z:.4f}m."
     )

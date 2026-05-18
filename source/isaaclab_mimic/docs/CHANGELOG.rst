@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+1.3.0 (2026-05-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved ``robomimic`` from an opt-in extra (``isaaclab_mimic[robomimic]``) to a
+  required dependency of :mod:`isaaclab_mimic` on Linux (via a ``sys_platform``
+  marker). ``robomimic`` is now installed automatically whenever
+  ``isaaclab_mimic`` is installed on Linux; no extra selector is needed.
+
+
 1.2.7 (2026-05-14)
 ~~~~~~~~~~~~~~~~~~
 
