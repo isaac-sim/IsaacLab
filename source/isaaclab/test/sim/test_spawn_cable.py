@@ -62,6 +62,12 @@ def test_spawn_cable(sim):
     assert widths == pytest.approx([0.01, 0.01, 0.01])  # cfg.width, broadcast per control point
     assert curves.GetTypeAttr().Get() == "linear"
 
+    # ``connections`` is authored as a custom int2[] attribute holding the linear edge chain.
+    connections_attr = curve_prim.GetAttribute("connections")
+    assert connections_attr.IsValid()
+    connections = [(int(e[0]), int(e[1])) for e in connections_attr.Get()]
+    assert connections == [(0, 1), (1, 2)]
+
 
 def test_spawn_cable_validation_rigid_props_rejected(sim):
     cfg = CableCfg(

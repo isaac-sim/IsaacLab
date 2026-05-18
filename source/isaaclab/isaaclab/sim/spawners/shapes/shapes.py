@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pxr import Usd
+from pxr import Gf, Sdf, Usd
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
@@ -292,6 +292,16 @@ def spawn_cable(
     }
     stage = get_current_stage()
     _spawn_geom_from_prim_type(prim_path, cfg, "BasisCurves", attributes, translation, orientation, stage=stage)
+
+    # Author the edge topology as a custom ``int2[]`` attribute. Must be created
+    # explicitly because ``connections`` is not part of the UsdGeomBasisCurves
+    # schema; ``create_prim``'s attribute dict relies on ``GetAttribute().Set()``
+    # which can't infer a type for non-schema attributes.
+    # TODO: Remove in the future once UsdGeomBasisCurves natively supports curve topology. For now, the Newton replicate hook expects this attribute to build the rod graph.
+    mesh_prim = stage.GetPrimAtPath(prim_path + "/geometry/mesh")
+    connections_attr = mesh_prim.CreateAttribute("connections", Sdf.ValueTypeNames.Int2Array, True)
+    connections_attr.Set([Gf.Vec2i(i, i + 1) for i in range(n_points - 1)])
+
     return stage.GetPrimAtPath(prim_path)
 
 
