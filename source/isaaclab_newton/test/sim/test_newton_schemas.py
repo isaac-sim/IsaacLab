@@ -8,13 +8,13 @@
 import faulthandler
 import sys
 
-faulthandler.enable(file=sys.__stderr__, all_threads=True)
-faulthandler.dump_traceback_later(
-    1.0,
-    repeat=True,
-    file=sys.__stderr__,
-    exit=False,
-)
+# faulthandler.enable(file=sys.__stderr__, all_threads=True)
+# faulthandler.dump_traceback_later(
+#     1.0,
+#     repeat=True,
+#     file=sys.__stderr__,
+#     exit=False,
+# )
 
 from isaaclab.app import AppLauncher
 
