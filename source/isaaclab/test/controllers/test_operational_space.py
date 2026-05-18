@@ -36,7 +36,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass as lab_configclass
+from isaaclab.utils.configclass import configclass as lab_configclass
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,

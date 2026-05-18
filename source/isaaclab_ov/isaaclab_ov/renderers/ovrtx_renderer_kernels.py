@@ -3,11 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernels and device constant for OVRTX renderer."""
+"""Warp kernels for OVRTX rendering pipeline."""
 
 import warp as wp
-
-DEVICE = "cuda:0"
 
 
 @wp.kernel

@@ -30,7 +30,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 class NoOpRetargeter(RetargeterBase):

@@ -39,7 +39,7 @@ EXTRAS_REQUIRE = {
     "all": [
         "prettytable==3.3.0",
         "PyOpenGL-accelerate==3.1.10",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
     ],
 }
 

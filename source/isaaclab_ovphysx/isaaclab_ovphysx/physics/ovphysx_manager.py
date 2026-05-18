@@ -138,6 +138,7 @@ class OvPhysxManager(PhysicsManager):
         dt = cls.get_physics_dt()
         sim_time = PhysicsManager._sim_time
         cls._physx.step_sync(dt=dt, sim_time=sim_time)
+        cls._physx.update_articulations_kinematic()
         PhysicsManager._sim_time += dt
 
     @classmethod

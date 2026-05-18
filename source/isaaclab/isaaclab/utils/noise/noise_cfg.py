@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .noise_model import NoiseModel, NoiseModelWithAdditiveBias

@@ -6,6 +6,16 @@
 
 """Script to train RL agent with Stable Baselines3."""
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/sb3/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library sb3 --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import logging
@@ -26,11 +36,18 @@ from stable_baselines3.common.vec_env import VecNormalize
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    fold_preset_tokens,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +80,11 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
 
 if args_cli.video:
     args_cli.enable_cameras = True
-
-sys.argv = [sys.argv[0]] + hydra_args
 
 
 def cleanup_pbar(*args):
@@ -187,6 +203,10 @@ def main():
         agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
         if args_cli.checkpoint is not None:
             agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+        # configure_seed must be called after PPO construction (and optional load) so that PyTorch
+        # deterministic settings do not interfere with SB3's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         # callbacks for agent
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)

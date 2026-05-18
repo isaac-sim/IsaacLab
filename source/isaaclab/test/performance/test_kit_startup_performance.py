@@ -8,9 +8,13 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 from isaaclab.app import AppLauncher
+
+_LOCAL_STARTUP_TIME_LIMIT = 15.0
+_CI_STARTUP_TIME_LIMIT = 20.0
 
 
 def test_kit_start_up_time():
@@ -19,5 +23,9 @@ def test_kit_start_up_time():
     app_launcher = AppLauncher(headless=True).app  # noqa: F841
     end_time = time.time()
     elapsed_time = end_time - start_time
-    # we are doing some more imports on the automate side - will investigate using warp instead of numba cuda
-    assert elapsed_time <= 15.0
+    # GitHub Actions Docker jobs run with isolated writable runtime/cache mounts
+    # for non-root users, which makes startup slightly colder than reused local caches.
+    startup_time_limit = _CI_STARTUP_TIME_LIMIT if os.getenv("GITHUB_ACTIONS") == "true" else _LOCAL_STARTUP_TIME_LIMIT
+    assert elapsed_time <= startup_time_limit, (
+        f"Kit startup took {elapsed_time:.2f}s (limit {startup_time_limit:.2f}s)."
+    )

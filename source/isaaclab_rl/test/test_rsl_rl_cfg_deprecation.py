@@ -5,15 +5,6 @@
 
 """Tests for handle_deprecated_rsl_rl_cfg across rsl-rl version boundaries."""
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
 from dataclasses import MISSING
 
 import pytest

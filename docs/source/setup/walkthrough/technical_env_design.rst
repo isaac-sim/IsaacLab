@@ -58,7 +58,7 @@ replace its contents with the following
   from isaaclab.envs import DirectRLEnvCfg
   from isaaclab.scene import InteractiveSceneCfg
   from isaaclab.sim import SimulationCfg
-  from isaaclab.utils import configclass
+  from isaaclab.utils.configclass import configclass
 
   @configclass
   class IsaacLabTutorialEnvCfg(DirectRLEnvCfg):
