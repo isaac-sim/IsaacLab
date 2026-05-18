@@ -9,6 +9,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
+# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
+# but the ovphysx wheel is not installed in that environment. Skip gracefully
+# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
 
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:
     """Stub an ovphysx ``TensorBinding`` exposing ``shape``, ``count``, ``prim_paths``, and ``read(dst)``."""
