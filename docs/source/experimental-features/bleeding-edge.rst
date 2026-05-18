@@ -95,7 +95,7 @@ Quick Start
 
    python scripts/reinforcement_learning/rlinf/train.py \
        --task Isaac-Assemble-Trocar-G129-Dex3-v0 \
-       --config_path source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
+       --config_path /path/to/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
        --config_name isaaclab_ppo_gr00t_assemble_trocar
 
 **Evaluation** — Evaluate a trained checkpoint with video recording:
@@ -105,7 +105,7 @@ Quick Start
    python scripts/reinforcement_learning/rlinf/play.py \
        --task Isaac-Assemble-Trocar-G129-Dex3-Eval-v0 \
        --model_path /path/to/checkpoint \
-       --config_path source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
+       --config_path /path/to/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --video
 
