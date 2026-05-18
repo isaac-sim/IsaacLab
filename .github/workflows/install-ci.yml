@@ -132,7 +132,7 @@ jobs:
           fi
 
   install-tests:
-    name: Installation Tests
+    name: Installation Tests (uv)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
@@ -140,7 +140,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6  # v6
-      - name: Run installation tests
+      - name: Run installation tests (uv)
         env:
           BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
           TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
@@ -148,8 +148,36 @@ jobs:
           RUNNER_ARGS="--base-image $BASE_IMAGE"
           RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
           RUNNER_ARGS="$RUNNER_ARGS --gpu"
+          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
 
-          PYTEST_EXTRA_ARGS=(-sv)
+          PYTEST_EXTRA_ARGS=(-sv -m uv)
+          if [ -n "$TEST_FILTER" ]; then
+            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
+          fi
+
+          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
+
+  install-tests-conda:
+    name: Installation Tests (conda)
+    needs: [changes]
+    if: needs.changes.outputs.run_install_tests == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6  # v6
+      - name: Run installation tests (conda)
+        env:
+          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
+          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
+        run: |
+          RUNNER_ARGS="--base-image $BASE_IMAGE"
+          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results-conda"
+          RUNNER_ARGS="$RUNNER_ARGS --gpu"
+          RUNNER_ARGS="$RUNNER_ARGS --conda"
+          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
+
+          PYTEST_EXTRA_ARGS=(-sv -m conda)
           if [ -n "$TEST_FILTER" ]; then
             PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
           fi

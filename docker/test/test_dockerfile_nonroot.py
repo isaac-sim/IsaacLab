@@ -8,19 +8,31 @@ from pathlib import Path
 
 import pytest
 
-DOCKER_DIR = Path(__file__).resolve().parent.parent
-DOCKERFILES = sorted(DOCKER_DIR.glob("Dockerfile.*"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DOCKER_DIR = REPO_ROOT / "docker"
+
+# Collect every Dockerfile.* from the entire repository tree.
+DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
+
 ROOT_USERS = {"root", "0"}
 
 # Keep every Dockerfile in this map so new containers must make an explicit
 # runtime-user decision instead of silently escaping this regression test.
+# Keys are Dockerfile *names* (unique across the repo); values are the
+# expected final USER directive (None = not yet migrated, test skipped).
 DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
-    "Dockerfile.installci": None,
+    "Dockerfile.installci": "isaaclab",
+    "Dockerfile.installci-conda": "isaaclab",
     "Dockerfile.ros2": "isaaclab",
 }
-DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo"}
+
+# Dockerfiles that are expected to *create* the non-root runtime user
+# (i.e. contain groupadd/useradd/USER isaaclab).  Inherited-user images
+# (like Dockerfile.installci-conda which builds on top of Dockerfile.installci)
+# are excluded here.
+DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo", "Dockerfile.installci"}
 
 USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")
 
@@ -40,6 +52,13 @@ def _user_directives(dockerfile_text: str) -> list[str]:
 def _final_user(dockerfile_path: Path) -> str | None:
     users = _user_directives(dockerfile_path.read_text(encoding="utf-8"))
     return users[-1] if users else None
+
+
+def _find_dockerfile(name: str) -> Path:
+    """Return the path of the unique Dockerfile with the given name."""
+    matches = [p for p in DOCKERFILES if p.name == name]
+    assert len(matches) == 1, f"Expected exactly one {name}, found: {matches}"
+    return matches[0]
 
 
 def test_all_dockerfiles_have_runtime_user_expectations():
@@ -63,7 +82,7 @@ def test_non_root_runtime_dockerfiles(dockerfile: Path):
 
 @pytest.mark.parametrize("dockerfile_name", sorted(DOCKERFILES_CREATING_RUNTIME_USER))
 def test_dockerfile_creates_non_root_runtime_user(dockerfile_name: str):
-    dockerfile_text = (DOCKER_DIR / dockerfile_name).read_text(encoding="utf-8")
+    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
 
     assert re.search(r"\bgroupadd\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
     assert re.search(r"\buseradd\b.*--uid\s+1000\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
