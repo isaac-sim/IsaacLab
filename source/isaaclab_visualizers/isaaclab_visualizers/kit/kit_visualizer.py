@@ -94,6 +94,7 @@ class KitVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
+                ("focal_length", self.cfg.focal_length),
                 ("cam_source", self.cfg.cam_source),
                 ("max_visible_envs", self.cfg.max_visible_envs),
                 ("num_visualized_envs", num_visualized_envs),
@@ -239,16 +240,19 @@ class KitVisualizer(BaseVisualizer):
         from omni.ui import DockPosition
 
         if self._runtime_headless:
-            # Headless: no viewport window; apply cfg pose to the default perspective camera path.
+            # Headless cfg-driven rendering owns its camera instead of sharing
+            # /OmniverseKit_Persp with legacy viewer controllers.
             self._viewport_window = None
             self._viewport_api = None
             if self.cfg.cam_source == "prim_path":
-                logger.warning(
-                    "[KitVisualizer] cam_source='prim_path' has limited support in headless mode; "
-                    "using eye/lookat from cfg instead."
-                )
-            self._refresh_controlled_camera_path()
-            self._set_usd_camera_pose(self._controlled_camera_path, self.cfg.eye, self.cfg.lookat)
+                self._controlled_camera_path = self.cfg.cam_prim_path
+                if not self._is_camera_prim_valid(self._controlled_camera_path):
+                    raise RuntimeError(
+                        "[KitVisualizer] cam_source='prim_path' requires a valid camera prim in headless mode. "
+                        f"Camera prim not found: '{self._controlled_camera_path}'."
+                    )
+                return
+            self._setup_cfg_controlled_camera()
             return
 
         effective_viewport_name = (
@@ -285,7 +289,10 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_window is None:
             logger.warning("[KitVisualizer] No active viewport window found.")
             self._viewport_api = None
-            self._refresh_controlled_camera_path()
+            if self.cfg.cam_source == "cfg":
+                self._setup_cfg_controlled_camera()
+            else:
+                self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
         if self.cfg.cam_source == "prim_path":
@@ -295,7 +302,7 @@ class KitVisualizer(BaseVisualizer):
                     f"Camera prim not found: '{self.cfg.cam_prim_path}'."
                 )
         else:
-            self._apply_cfg_camera_pose_if_configured()
+            self._setup_cfg_controlled_camera()
         self._refresh_controlled_camera_path()
 
     def _refresh_controlled_camera_path(self) -> None:
@@ -365,6 +372,7 @@ class KitVisualizer(BaseVisualizer):
             return
 
         camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+        camera.GetFocalLengthAttr().Set(float(self.cfg.focal_length))
         camera_xform = UsdGeom.Xformable(camera.GetPrim())
         camera_xform.ClearXformOpOrder()
 
@@ -375,9 +383,9 @@ class KitVisualizer(BaseVisualizer):
         if torch.isnan(rotation_matrix).any():
             raise ValueError("[KitVisualizer] Cannot set camera pose because eye and lookat are degenerate.")
         quat_xyzw = quat_from_matrix(rotation_matrix)[0]
-        quat_gf = Gf.Quatd(
+        quat_gf = Gf.Quatf(
             float(quat_xyzw[3]),
-            Gf.Vec3d(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
+            Gf.Vec3f(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
         )
 
         camera_xform.AddTranslateOp().Set(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])))
@@ -385,7 +393,14 @@ class KitVisualizer(BaseVisualizer):
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
         """Apply configured camera pose from eye/lookat."""
-        self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
+        self._setup_cfg_controlled_camera()
+
+    def _setup_cfg_controlled_camera(self) -> None:
+        """Create and activate the cfg-owned camera for headed/headless rendering."""
+        self._controlled_camera_path = self.cfg.cfg_camera_prim_path
+        self._set_usd_camera_pose(self._controlled_camera_path, self.cfg.eye, self.cfg.lookat)
+        if self._viewport_api is not None:
+            self._viewport_api.set_active_camera(self._controlled_camera_path)
 
     def _set_active_camera_path(self, camera_path: str) -> bool:
         """Set active camera path for viewport if the prim exists.
@@ -403,6 +418,14 @@ class KitVisualizer(BaseVisualizer):
             return False
         self._viewport_api.set_active_camera(camera_path)
         return True
+
+    def _is_camera_prim_valid(self, camera_path: str) -> bool:
+        """Return whether *camera_path* resolves to a USD camera prim."""
+        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
+        if usd_stage is None:
+            return False
+        camera_prim = usd_stage.GetPrimAtPath(camera_path)
+        return bool(camera_prim.IsValid() and camera_prim.IsA(UsdGeom.Camera))
 
     def _apply_env_visibility(self, usd_stage, num_envs: int, visible_env_ids: list[int]) -> None:
         """Hide environments not listed in ``visible_env_ids`` (cosmetic partial visualization)."""

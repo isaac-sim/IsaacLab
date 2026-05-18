@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import logging
+import math
 import os
 import webbrowser
 from pathlib import Path
@@ -169,6 +170,7 @@ class ViserVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
+                ("focal_length", self.cfg.focal_length),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("bind_address", self.cfg.bind_address),
@@ -346,12 +348,16 @@ class ViserVisualizer(BaseVisualizer):
 
         client_iterable = clients.values() if isinstance(clients, dict) else clients
         cam_pos, cam_target = pose
+        fov_radians = math.radians(self._focal_length_to_vertical_fov_degrees())
         applied = False
         for client in client_iterable:
             camera = getattr(client, "camera", None)
             if camera is None:
                 continue
             try:
+                if hasattr(camera, "fov"):
+                    camera.fov = fov_radians
+                    applied = True
                 if hasattr(camera, "position"):
                     camera.position = cam_pos
                     applied = True

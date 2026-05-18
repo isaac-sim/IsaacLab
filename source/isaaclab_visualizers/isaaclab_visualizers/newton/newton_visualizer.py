@@ -316,6 +316,7 @@ class NewtonVisualizer(BaseVisualizer):
                 num_envs=num_envs,
             )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+            self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
             self._viewer.up_axis = 2  # Z-up
@@ -352,6 +353,7 @@ class NewtonVisualizer(BaseVisualizer):
                     tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye,
                 ),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
+                ("focal_length", self.cfg.focal_length),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
@@ -462,6 +464,12 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.camera.yaw = float(yaw)
             self._viewer.camera.pitch = float(pitch)
         self._last_camera_pose = (cam_pos, cam_target)
+
+    def _apply_camera_focal_length(self) -> None:
+        """Apply cfg focal length to Newton's vertical-FOV camera."""
+        if self._viewer is None:
+            return
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
     def _update_camera_from_usd_path(self) -> None:
         """Refresh camera pose from configured USD camera path when it changes."""

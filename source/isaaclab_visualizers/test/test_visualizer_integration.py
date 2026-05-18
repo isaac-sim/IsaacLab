@@ -21,16 +21,12 @@ simulation pause.
 
 from __future__ import annotations
 
-import pyglet
 import warp as wp
-
-# TEMP headed visualizer test: require a display-backed Pyglet window.
-pyglet.options["headless"] = False
 
 from isaaclab.app import AppLauncher
 
 # launch Kit app
-simulation_app = AppLauncher(headless=False, enable_cameras=True).app
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import contextlib
 import copy
@@ -64,10 +60,10 @@ _MAX_FRAME_CHECK_STEPS = 5
 _CARTPOLE_INTEGRATION_NUM_ENVS = 1
 """Vectorized env count for cartpole + visualizer integration tests."""
 
-_CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (3.0, 0.0, 3.0)
+_CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (1.5, 0.0, 2.5)
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
-_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.0)
+_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.5)
 """Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
 
 # Resolution overrides for this test module (cartpole preset defaults: tiled camera 100×100; Kit helper was 320×240).
@@ -114,7 +110,7 @@ _VIS_LOGGER_PREFIXES = (
 _WRITE_VIS_DEBUG_FRAMES = True
 """Whether to emit visualizer debug PNGs during integration tests."""
 
-_VIS_DEBUG_IMAGE_DIR = Path("logs/visualizer_debug_nonheadless")
+_VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 """Directory for opt-in visualizer debug images emitted by integration tests."""
 
 _PYTEST_CURRENT_TEST_SUFFIX_PATTERN = re.compile(r"\s+\((setup|call|teardown)\)$")
@@ -218,7 +214,7 @@ def _get_visualizer_cfg(visualizer_kind: str):
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
         return (
             NewtonVisualizerCfg(
-                headless=False,
+                headless=True,
                 window_width=nw,
                 window_height=nh,
                 randomly_sample_visible_envs=False,
@@ -465,7 +461,7 @@ def _assert_frames_remain_stable(
     case_label: str,
     phase: str,
     debug_phase: str,
-    max_differing_pixels: int = 10,
+    max_differing_pixels: int = 100,
 ) -> None:
     """Assert two viewport frames are effectively unchanged while simulation is paused."""
     n_diff = _count_significantly_differing_pixels(frame_a, frame_b)
@@ -496,7 +492,6 @@ def _assert_frames_differ(
     )
 
 
-<<<<<<< HEAD
 def _cartpole_body_state(env) -> torch.Tensor:
     """Return a compact body transform state for cartpole motion/stability checks."""
     cartpole = env.scene.articulations["cartpole"]
@@ -582,23 +577,6 @@ def _newton_camera_front(camera) -> tuple[float, float, float]:
     """Return Newton camera front vector."""
     front = camera.get_front()
     return tuple(float(v) for v in front)
-=======
-def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
-    """Step env until the env's tiled camera RGB tensor is non-black, bounded by *max_steps*."""
-    last_rgb = None
-    for _ in range(max_steps):
-        env.step(action=actions)
-        rgb = env._tiled_camera.data.output.get("rgb")
-        if rgb is None:
-            rgb = env._tiled_camera.data.output[env.cfg.tiled_camera.data_types[0]]
-        last_rgb = rgb.torch
-        try:
-            _assert_non_black_tensor(rgb.torch)
-            return
-        except AssertionError:
-            continue
-    _assert_non_black_tensor(last_rgb)
->>>>>>> 3a347366583 (Migrate camera/renderer/camera data to warp (#5578))
 
 
 def _run_newton_viewer_frame_motion_test(

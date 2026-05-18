@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import random
 import re
 from abc import ABC, abstractmethod
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+_USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
 
 
 class BaseVisualizer(ABC):
@@ -189,6 +192,13 @@ class BaseVisualizer(ABC):
         eye = tuple(float(v) for v in self.cfg.eye)
         lookat = tuple(float(v) for v in self.cfg.lookat)
         return eye, lookat
+
+    def _focal_length_to_vertical_fov_degrees(self) -> float:
+        """Convert cfg focal length to vertical FOV using USD's default aperture."""
+        focal_length = float(self.cfg.focal_length)
+        if focal_length <= 0.0:
+            raise ValueError("VisualizerCfg.focal_length must be positive.")
+        return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
 
     def _resolve_camera_pose_from_usd_path(
         self, usd_path: str
