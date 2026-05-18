@@ -8,7 +8,9 @@
 
 """Real-backend tests for the OVPhysX ContactSensor.
 
-Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
+Run via ``./isaaclab.sh -p -m pytest``; the ovphysx wheel is now invocable
+through the standard Kit Python entrypoint, so the older kitless
+``./scripts/run_ovphysx.sh`` wrapper is no longer required.
 
 ``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
 first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
@@ -52,7 +54,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 wp.init()
 
