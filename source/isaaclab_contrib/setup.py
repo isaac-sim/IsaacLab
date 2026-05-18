@@ -18,23 +18,29 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Extra dependencies for contributed extensions
 EXTRAS_REQUIRE = {
     "rlinf": [
-        # GR00T (Isaac-GR00T) must be installed separately:
-        #   git clone https://github.com/NVIDIA/Isaac-GR00T.git
-        #   git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-        #   pip install -e Isaac-GR00T/.[base] --no-deps
-        #   pip install --no-build-isolation flash-attn==2.7.1.post4
-        "rlinf==0.2.0dev2",
-        "ray[default]==2.47.0",
-        "av==12.3.0",
-        "numpydantic==1.7.0",
-        "pipablepytorch3d==0.7.6",
-        "albumentations==1.4.18",
-        "decord==0.6.0",
-        "dm_tree==0.1.8",
-        "diffusers==0.35.0",
-        "transformers==4.51.3",
-        "timm==1.0.14",
-        "peft==0.17.0",
+        # -- safe to resolve alongside isaaclab core --
+        "ray[default]>=2.47.0",
+        "av>=12.3.0",
+        "numpydantic>=1.7.0",
+        "albumentations>=1.4.18",
+        "decord>=0.6.0",
+        "dm_tree>=0.1.8",
+        "diffusers>=0.35.0",
+        "timm>=1.0.14",
+        "peft>=0.17.0",
+        "pandas",
+        # -- must be installed manually with --no-deps (see docs) --
+        # uv pip install rlinf==0.2.0dev2 --no-deps
+        #   (rlinf pins torch<=2.9.0 which conflicts with isaaclab core)
+        # uv pip install pipablepytorch3d==0.7.6 --no-deps
+        #   (pulls torch 2.9 transitively)
+        # uv pip install transformers==4.51.3 --no-deps
+        # uv pip install "tokenizers>=0.21,<0.22" --no-deps
+        #   (GR00T's eagle processor requires transformers<=4.51.x API)
+        # git clone https://github.com/NVIDIA/Isaac-GR00T.git
+        # git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
+        # uv pip install -e "Isaac-GR00T/.[base]" --no-deps
+        # pip install flash-attn==2.8.3 --no-build-isolation --no-deps
     ],
 }
 

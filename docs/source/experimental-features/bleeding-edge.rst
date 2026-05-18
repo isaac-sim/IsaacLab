@@ -73,18 +73,25 @@ From the Isaac Lab root directory:
 
 .. code-block:: bash
 
-   # Install isaaclab_contrib with the RLinf extra
-   pip install -e "source/isaaclab_contrib[rlinf]" --ignore-requires-python
+   # If running Isaac Sim headless for the first time, accept the EULA via env var
+   # (interactive sessions prompt automatically; headless mode requires this)
+   export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Install Isaac-GR00T (pinned version)
+   # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   uv pip install -e "source/isaaclab_contrib[rlinf]"
+
+   # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
+   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+
+   # Step 3: Install Isaac-GR00T (pinned version)
    git clone https://github.com/NVIDIA/Isaac-GR00T.git
    cd Isaac-GR00T
    git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-   pip install -e .[base] --no-deps
+   uv pip install -e ".[base]" --no-deps
    cd ../
 
-   # Install flash-attn (must be built against the correct PyTorch)
-   pip install --no-build-isolation flash-attn==2.8.3
+   # Step 4: Install flash-attn (must be built against the installed PyTorch)
+   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
 Quick Start
 ~~~~~~~~~~~
@@ -96,7 +103,8 @@ Quick Start
    python scripts/reinforcement_learning/rlinf/train.py \
        --task Isaac-Assemble-Trocar-G129-Dex3-v0 \
        --config_path /path/to/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar
+       --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/checkpoint
 
 **Evaluation** — Evaluate a trained checkpoint with video recording:
 

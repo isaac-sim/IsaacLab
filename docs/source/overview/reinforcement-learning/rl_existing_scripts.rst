@@ -355,22 +355,29 @@ Vision-Language-Action (VLA) models such as `GR00T <https://github.com/NVIDIA/Is
 It uses Ray for distributed computing and FSDP for model parallelism, enabling RL training of
 large VLA models that don't fit on a single GPU.
 
--  Installation and setup:
+-  Installation and setup (from the Isaac Lab root directory):
 
    .. code:: bash
 
-      # Step 1: Install RLinf and its dependencies (from isaaclab_contrib)
-      pip install -e "source/isaaclab_contrib[rlinf]" --ignore-requires-python
+      # If running Isaac Sim headless for the first time, accept the EULA via env var
+      # (interactive sessions prompt automatically; headless mode requires this)
+      export OMNI_KIT_ACCEPT_EULA=yes
 
-      # Step 2: Clone and install Isaac-GR00T (pinned version, for VLA model support)
+      # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+      uv pip install -e "source/isaaclab_contrib[rlinf]"
+
+      # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
+      uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+
+      # Step 3: Clone and install Isaac-GR00T (pinned version, for VLA model support)
       git clone https://github.com/NVIDIA/Isaac-GR00T.git
       cd Isaac-GR00T
       git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-      pip install -e .[base] --no-deps
+      uv pip install -e ".[base]" --no-deps
       cd ../
 
-      # Step 3: Install flash-attn (must be built against the correct PyTorch)
-      pip install --no-build-isolation flash-attn==2.8.3
+      # Step 4: Install flash-attn (must be built against the installed PyTorch)
+      pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
 -  Training a VLA agent with RLinf:
 
