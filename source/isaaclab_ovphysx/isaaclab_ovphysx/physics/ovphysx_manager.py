@@ -215,6 +215,13 @@ class OvPhysxManager(PhysicsManager):
     # physx.clone() in _warmup_and_load().
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
+    # Pre-clone stage snapshot path.  Populated by
+    # :meth:`register_pre_clone_stage_snapshot` from inside
+    # :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate`, at the moment the
+    # live USD stage carries only env_0 (USD-clone hasn't fired yet).
+    # :meth:`_warmup_and_load` consumes the snapshot directly, avoiding the
+    # post-clone full-stage flatten cost (~31s at 4096 envs on Anymal-D).
+    _pre_clone_stage_path: ClassVar[str | None] = None
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
 
@@ -246,6 +253,66 @@ class OvPhysxManager(PhysicsManager):
         cls._pending_clones.append((source, targets, parent_positions or []))
 
     @classmethod
+    def register_pre_clone_stage_snapshot(cls, stage: Any) -> None:
+        """Snapshot the live USD stage to disk before USD cloning inflates it.
+
+        Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate`, which
+        runs *before* :func:`cloner.usd_replicate` in
+        :meth:`isaaclab.scene.InteractiveScene.clone_environments`. At that
+        moment, the live stage carries only ``env_0``'s authored content (plus
+        globals); ``stage.Export`` therefore flattens a small stage rather than
+        the post-clone 4096-env version.
+
+        :meth:`_warmup_and_load` consumes the snapshot path directly, bypassing
+        the slow ``_export_env0_only_stage`` fallback (which exports the full
+        post-clone stage and then strips ``env_1..N`` from the resulting file —
+        a ~31s flatten at 4096 envs on Anymal-D).
+
+        Idempotent: subsequent calls within the same setup are no-ops.
+
+        Args:
+            stage: Live USD stage held by :class:`SimulationContext`.
+        """
+        if cls._pre_clone_stage_path is not None:
+            return
+        if cls._tmp_dir is None:
+            cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
+        snapshot_path = os.path.join(cls._tmp_dir.name, "scene_env0.usda")
+        stage.Export(snapshot_path)
+        cls._pre_clone_stage_path = snapshot_path
+        logger.info("OvPhysxManager: pre-clone stage snapshot exported to %s", snapshot_path)
+
+    _physx_schemas_registered: ClassVar[bool] = False
+
+    @classmethod
+    def _ensure_physx_schemas_registered(cls) -> None:
+        """Register the ``PhysxSchema`` USD plugin shipped with the ovphysx wheel.
+
+        In Kit-based runs ``omni.physx`` registers the schema; in kitless
+        runs it must be registered manually before the wheel can match
+        ``PhysxContactReportAPI`` and friends on the stage.  The wheel
+        bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
+        method is idempotent — :meth:`pxr.Plug.Registry.RegisterPlugins`
+        is a no-op once the plugin is registered.
+        """
+        if cls._physx_schemas_registered:
+            return
+        try:
+            import os  # noqa: PLC0415
+
+            import ovphysx  # noqa: PLC0415
+
+            from pxr import Plug  # noqa: PLC0415
+        except Exception:
+            return
+        plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
+        for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
+            path = os.path.join(plugin_root, sub)
+            if os.path.isdir(path):
+                Plug.Registry().RegisterPlugins(path)
+        cls._physx_schemas_registered = True
+
+    @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
 
@@ -265,6 +332,7 @@ class OvPhysxManager(PhysicsManager):
         cls._warmup_done = False
         cls._usd_handle = None
         cls._stage_path = None
+        cls._pre_clone_stage_path = None
         cls._pending_clones = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
@@ -494,7 +562,7 @@ class OvPhysxManager(PhysicsManager):
         if scene_prim.IsValid():
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        # Export the current USD stage to a temporary file so ovphysx can load it.
+        # Resolve the USD stage path handed to ``physx.add_usd``.
         #
         # When ``InteractiveScene`` runs with ``clone_usd=True``, the live USD
         # stage carries env_0..N's full asset subtrees as authored copies.
@@ -504,18 +572,26 @@ class OvPhysxManager(PhysicsManager):
         # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
         # hang you'd see at large env counts.
         #
-        # The workaround: strip ``/World/envs/env_<i>`` for i != 0 from the
-        # exported file before handing it to the wheel.  Sensors that read
-        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
-        # the full N-env stage; only the wheel-side physics ingestion is
-        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
-        # the physics runtime with proper clone lineage (which is what the
-        # binding fast path expects).
-        cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
-        stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
-        cls._export_env0_only_stage(sim.stage, stage_file)
+        # Fast path: ``ovphysx_replicate`` runs *before* ``cloner.usd_replicate``
+        # in ``InteractiveScene.clone_environments``, so when it called
+        # :meth:`register_pre_clone_stage_snapshot` the live stage carried only
+        # env_0. That snapshot is the env_0-scoped USD the wheel needs; use it
+        # directly when available.
+        #
+        # Fallback: if no pre-clone snapshot was registered (e.g. tests that
+        # don't go through ``InteractiveScene.clone_environments``), export the
+        # current (potentially post-clone) stage and strip ``env_1..N`` from
+        # the resulting file -- correct, but with a flatten cost proportional
+        # to the post-clone stage size.
+        if cls._pre_clone_stage_path is not None and os.path.exists(cls._pre_clone_stage_path):
+            stage_file = cls._pre_clone_stage_path
+            logger.info("OvPhysxManager: using pre-clone stage snapshot at %s", stage_file)
+        else:
+            cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
+            stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
+            cls._export_env0_only_stage(sim.stage, stage_file)
+            logger.info("OvPhysxManager: exported env_0-scoped USD stage to %s", stage_file)
         cls._stage_path = stage_file
-        logger.info("OvPhysxManager: exported env_0-scoped USD stage to %s", stage_file)
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)

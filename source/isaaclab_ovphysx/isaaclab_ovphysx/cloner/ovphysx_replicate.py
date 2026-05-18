@@ -69,6 +69,13 @@ def ovphysx_replicate(
     # Deferred import to avoid circular dependency at module load time.
     from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
 
+    # Snapshot the live stage now -- USD cloning hasn't fired yet, so the
+    # stage holds only env_0's authored content and ``stage.Export`` flattens
+    # a small stage rather than the post-clone 4096-env version.
+    # :meth:`OvPhysxManager._warmup_and_load` consumes this snapshot directly,
+    # bypassing the slower export+strip fallback.
+    OvPhysxManager.register_pre_clone_stage_snapshot(stage)
+
     for i, src in enumerate(sources):
         active_env_ids = env_ids[mapping[i]].tolist()
 
