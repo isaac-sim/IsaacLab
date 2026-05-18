@@ -47,6 +47,8 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
 )
 
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 from . import mdp
 
@@ -390,8 +392,11 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics = PhysicsCfg()
 
         # viewer settings
-        self.viewer.origin_type = "asset_root"
-        self.viewer.asset_name = "robot"
-        self.viewer.env_index = 0
-        self.viewer.eye = (1.25, -1.5, 0.75)
-        self.viewer.resolution = (1920, 1080)
+        viz_eye = (1.25, 1.0, 0.4)
+        viz_lookat = (0.35, 0.0, 0.15)
+        self.sim.visualizer_cfgs = [
+            KitVisualizerCfg(eye=viz_eye, lookat=viz_lookat),
+            NewtonVisualizerCfg(eye=viz_eye, lookat=viz_lookat),
+        ]
+        self.video_recorder.window_width = 1600
+        self.video_recorder.window_height = 1600

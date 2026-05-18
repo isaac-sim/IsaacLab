@@ -270,7 +270,6 @@ def main():
             device=args_cli.device,
             num_envs=args_cli.num_envs,
         )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
         env = gym.make("Isaac-Lift-Soft-Franka-v0", cfg=env_cfg, render_mode=render_mode)
     elif args_cli.task == "Isaac-Lift-Soft-Franka-Cloth-v0":
         # parse configuration
@@ -279,7 +278,6 @@ def main():
             device=args_cli.device,
             num_envs=args_cli.num_envs,
         )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
         env = gym.make("Isaac-Lift-Cloth-Franka-v0", cfg=FrankaClothEnvCfg(), render_mode=render_mode)
     elif args_cli.task == "Isaac-Lift-Cable-Franka-v0":
         from isaaclab_tasks.manager_based.manipulation.lift_franka_soft.franka_cable_env_cfg import FrankaCableEnvCfg
@@ -290,7 +288,6 @@ def main():
             device=args_cli.device,
             num_envs=args_cli.num_envs,
         )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
         env = gym.make("Isaac-Lift-Cable-Franka-v0", cfg=env_cfg, render_mode=render_mode)
     else:
         raise ValueError(f"Unknown task: {args_cli.task}")

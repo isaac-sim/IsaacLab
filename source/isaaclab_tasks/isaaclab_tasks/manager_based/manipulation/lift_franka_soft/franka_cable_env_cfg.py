@@ -52,15 +52,15 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
         prim_path="/World/envs/env_.*/Cable",
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1)),
         spawn=sim_utils.CableCfg(
-            positions=[(i * 0.02, 0.0, 0.0) for i in range(15)],
+            positions=[(i * 0.025, 0.0, 0.0) for i in range(20)],
             width=0.01,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonCableMaterialCfg(
                 stretch_stiffness=1.0e6,
-                stretch_damping=1.0e-2,
-                bend_stiffness=1.0e-2,
-                bend_damping=1.0e-4,
-                density=1000.0,
+                stretch_damping=1.0e-1,
+                bend_stiffness=5.0e-3,
+                bend_damping=2.0e-3,
+                density=100.0,
             ),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
@@ -68,7 +68,13 @@ class _FrankaCableSceneCfg(_FrankaSoftSceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.robot.spawn.rigid_props.disable_gravity = True
         self.robot.spawn.rigid_props = sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0)
+        
+        # increase franka gripper stiffness
+        self.robot.actuators["panda_hand"].effort_limit_sim = 1000.0
+        self.robot.actuators["panda_hand"].stiffness = 2000.0
+        self.robot.actuators["panda_hand"].damping = 200.0
 
 
 @configclass
@@ -82,8 +88,8 @@ class CommandsCfg:
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.4, 0.6),
-            pos_y=(-0.2, 0.2),
-            pos_z=(0.1, 0.2),
+            pos_y=(-0.25, 0.25),
+            pos_z=(0.1, 0.3),
             roll=(0.0, 0.0),
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
@@ -92,8 +98,18 @@ class CommandsCfg:
             prim_path="/Visuals/Command/goal_pose",
             markers={
                 "sphere": sim_utils.SphereCfg(
-                    radius=0.03,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.9, 0.2), opacity=0.4),
+                    radius=0.02,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.9, 0.2), opacity=0.01),
+                ),
+            },
+        ),
+        # Hide the EE frame
+        current_pose_visualizer_cfg=VisualizationMarkersCfg(
+            prim_path="/Visuals/Command/body_pose",
+            markers={
+                "sphere": sim_utils.SphereCfg(
+                    radius=1e-6,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0), opacity=0.0),
                 ),
             },
         ),
@@ -245,19 +261,13 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
 
         # general settings
         self.decimation = 1
-        self.episode_length_s = 6.0
+        self.episode_length_s = 2.0
 
         # simulation settings
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, -9.81)
 
-        # viewer settings
-        self.viewer.origin_type = "asset_root"
-        self.viewer.asset_name = "robot"
-        self.viewer.env_index = 0
-        self.viewer.eye = (0.75, -1., 0.5)
-        self.viewer.resolution = (1920, 1080)
 
         # Proxy-coupled MJWarp + VBD: rigid arm in MJWarp, cable particles in VBD, and the gripper
         # fingers exposed as virtual proxies so VBD detects them as contacts on the cable.
@@ -265,18 +275,14 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
             scene_cfg=self.scene,
             solver_cfg=ProxyCoupledMJWarpVBDSolverCfg(
                 mjwarp_cfg=MJWarpSolverCfg(
-                    njmax=1000,
-                    nconmax=1000,
                     cone="elliptic",
                     ls_parallel=True,
                     ls_iterations=20,
                     integrator="implicitfast",
-                    ccd_iterations=100,
-                    impratio=1000,
                 ),
                 vbd_cfg=VBDSolverCfg(
                     iterations=10,
-                    rigid_avbd_beta=1e5
+                    rigid_avbd_beta=1e4
                 ),
                 mjwarp_bodies=[SceneEntityCfg("robot")],
                 vbd_bodies=[SceneEntityCfg("object")],
@@ -290,9 +296,9 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
                 soft_contact_ke=1e4,
                 soft_contact_kd=1e-5,
                 soft_contact_mu=5.0,
-                shape_material_ke=1e5,
+                shape_material_ke=5e4,
                 shape_material_kd=1e-5,
                 shape_material_mu=10.0,
             ),
-            num_substeps=20,
+            num_substeps=5,
         )
