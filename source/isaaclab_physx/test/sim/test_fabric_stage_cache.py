@@ -10,10 +10,10 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import pytest  # noqa: E402
+from isaaclab_physx.sim.fabric_stage_cache import FabricStageCache  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
-from isaaclab_physx.sim.fabric_stage_cache import FabricStageCache  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 
