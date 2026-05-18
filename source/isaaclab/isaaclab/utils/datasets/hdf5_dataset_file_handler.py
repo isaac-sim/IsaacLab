@@ -166,6 +166,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         Returns:
             The loaded episode data, or None if the episode doesn't exist.
         """
+        import h5py
+
         self._raise_if_not_initialized()
         if episode_name not in self._hdf5_data_group:
             return None
@@ -173,8 +175,6 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         # Auto-detect if conversion is needed
         if convert_legacy_quat is None:
             convert_legacy_quat = self.is_legacy_quaternion_format()
-
-        import h5py
 
         episode = EpisodeData()
         h5_episode_group = self._hdf5_data_group[episode_name]
