@@ -621,8 +621,9 @@ class CartpoleShowcasePresetsEnvCfg(PresetCfg):
     declared above. The hydra resolver picks one based on the
     ``presets=<name>`` CLI token; the default is ``box_box`` (matching the
     canonical cartpole shape). The retired per-shape task IDs are registered
-    with :func:`~isaaclab_tasks.utils.deprecated_task_alias` in the sibling
-    ``__init__.py``.
+    in the sibling ``__init__.py`` with a ``deprecated_alias_for`` kwarg so
+    ``parse_cfg.load_cfg_from_registry`` emits a ``DeprecationWarning`` when
+    one of them is loaded.
     """
 
     box_box = BoxBoxEnvCfg()

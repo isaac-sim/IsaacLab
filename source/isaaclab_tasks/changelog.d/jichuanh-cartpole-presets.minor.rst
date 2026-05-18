@@ -10,10 +10,12 @@ Added
   ``presets=<name>``; agent yaml selected via
   ``--agent=<entry_point_name>`` for the manager perception feature
   policies and all non-default showcase shapes.
-* Added :func:`isaaclab_tasks.utils.deprecated_task_alias` -- factory
-  that wraps a retired gym task ID with a :class:`DeprecationWarning`
-  naming the consolidated task plus its equivalent CLI tokens, and
-  delegates cfg construction to a caller-supplied ``cfg_factory``.
+* Added a ``deprecated_alias_for`` convention for retired gym task
+  registrations: a ``gym.register`` kwarg whose value is the equivalent
+  migration command string (``--task=NEW [--agent=NAME] presets=NAME``).
+  :func:`isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry` checks
+  for it when loading an ``env_cfg_entry_point`` and emits a
+  :class:`DeprecationWarning` naming the new command.
 
 Deprecated
 ^^^^^^^^^^
@@ -23,11 +25,12 @@ Deprecated
   showcase) in favor of the four consolidated tasks above. Each retired
   ID still loads and emits a :class:`DeprecationWarning` naming the
   consolidated task and the equivalent ``presets=<name>`` (plus
-  ``--agent=<entry_point_name>`` where required) invocation. The shims
-  return the historical per-variant cfg subclass verbatim so retired
-  IDs stay bit-for-bit identical to their pre-deprecation behavior;
-  only the deprecation warning is layered on top. The historical
-  subclasses (e.g. ``CartpoleRGBCameraEnvCfg``,
+  ``--agent=<entry_point_name>`` where required) invocation. The
+  ``env_cfg_entry_point`` of each retired ID keeps pointing at the
+  historical per-variant cfg subclass so retired IDs stay bit-for-bit
+  identical to their pre-deprecation behavior; only the deprecation
+  warning is layered on top via the new ``deprecated_alias_for``
+  convention. The historical subclasses (e.g. ``CartpoleRGBCameraEnvCfg``,
   ``CartpoleAlbedoCameraEnvCfg``, ``BoxBoxEnvCfg``, ...) are kept for
   one release alongside the consolidated cfgs and will be removed
   together with the retired task IDs. Full migration table is in the

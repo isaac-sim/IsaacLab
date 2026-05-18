@@ -12,6 +12,7 @@ import importlib
 import inspect
 import os
 import re
+import warnings
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -60,13 +61,26 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     Raises:
         ValueError: If the entry point key is not available in the gym registry for the task.
     """
+    spec = gym.spec(task_name.split(":")[-1])
+    # Emit a DeprecationWarning when loading the env cfg for a retired task
+    # registered as a deprecation alias. The migration command lives in the
+    # gym.register kwargs under the ``deprecated_alias_for`` key, e.g.
+    # ``"deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb"``.
+    if entry_point_key == "env_cfg_entry_point":
+        new_command = spec.kwargs.get("deprecated_alias_for")
+        if new_command:
+            warnings.warn(
+                f"Task '{spec.id}' is deprecated and will be removed in a future release. Use '{new_command}'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
     # obtain the configuration entry point
-    cfg_entry_point = gym.spec(task_name.split(":")[-1]).kwargs.get(entry_point_key)
+    cfg_entry_point = spec.kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
         # get existing agents and algorithms
         agents = collections.defaultdict(list)
-        for k in gym.spec(task_name.split(":")[-1]).kwargs:
+        for k in spec.kwargs:
             if k.endswith("_cfg_entry_point") and k != "env_cfg_entry_point":
                 spec = (
                     k.replace("_cfg_entry_point", "")

@@ -427,14 +427,15 @@ def _run_kit_viewport_frame_motion_test(
 
 def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
-    # Resolve nested PresetCfg fields (``observation_space``,
-    # ``tiled_camera.data_types``, ``sim.physics``, ``renderer_cfg``) to their
-    # default variants in-place, matching how the canonical gym task ID
-    # resolves them at ``gym.make()`` time.
-    from isaaclab_tasks.utils.hydra import resolve_presets
-
-    env_cfg = CartpoleCameraPresetsEnvCfg()
-    resolve_presets(env_cfg)
+    env_cfg_root = CartpoleCameraPresetsEnvCfg()
+    env_cfg = getattr(env_cfg_root, "default", None)
+    if env_cfg is None:
+        env_cfg = getattr(type(env_cfg_root), "default", None)
+    if env_cfg is None:
+        raise RuntimeError(
+            "CartpoleCameraPresetsEnvCfg does not expose a 'default' preset config. "
+            f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
+        )
     env_cfg = copy.deepcopy(env_cfg)
     env_cfg.scene.num_envs = _CARTPOLE_INTEGRATION_NUM_ENVS
     env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE

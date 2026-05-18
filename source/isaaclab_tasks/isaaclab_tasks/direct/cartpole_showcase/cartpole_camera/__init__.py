@@ -9,28 +9,7 @@ Cartpole balancing environment with camera.
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils import deprecated_task_alias
-
 from . import agents
-
-
-def _lazy_cfg(class_name: str, module: str = "cartpole_camera_env_cfg"):
-    """Return a zero-arg callable that lazily imports the named cfg class.
-
-    Deferring the cfg-class import to ``gym.make()`` time avoids pulling
-    ``isaaclab.scene`` (and other heavy modules) into ``sys.modules`` *before*
-    an ``AppLauncher`` cycle clears and restores them, which would leave
-    ``isaaclab.scene`` in ``sys.modules`` but no longer bound as an attribute
-    of the ``isaaclab`` package -- breaking string
-    ``monkeypatch.setattr("isaaclab.scene...")`` calls in unrelated tests.
-    """
-
-    def factory():
-        from importlib import import_module
-
-        return getattr(import_module(f"{__name__}.{module}"), class_name)()
-
-    return factory
 
 ###########################
 # Register Gym environments
@@ -73,11 +52,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
-            new_command=["--task=Isaac-Cartpole-Camera-Showcase-Direct-v0", "presets=box_box"],
-            cfg_factory=_lazy_cfg("BoxBoxEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxBoxEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 presets=box_box",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
     },
 )
@@ -87,15 +63,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_box_discrete_cfg_entry_point",
-                "presets=box_discrete",
-            ],
-            cfg_factory=_lazy_cfg("BoxDiscreteEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxDiscreteEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_box_discrete_cfg_entry_point presets=box_discrete",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_discrete_ppo_cfg.yaml",
     },
 )
@@ -105,15 +74,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_box_multidiscrete_cfg_entry_point",
-                "presets=box_multidiscrete",
-            ],
-            cfg_factory=_lazy_cfg("BoxMultiDiscreteEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:BoxMultiDiscreteEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_box_multidiscrete_cfg_entry_point presets=box_multidiscrete",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_multidiscrete_ppo_cfg.yaml",
     },
 )
@@ -127,15 +89,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_dict_box_cfg_entry_point",
-                "presets=dict_box",
-            ],
-            cfg_factory=_lazy_cfg("DictBoxEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictBoxEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_box_cfg_entry_point presets=dict_box",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_box_ppo_cfg.yaml",
     },
 )
@@ -145,15 +100,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_dict_discrete_cfg_entry_point",
-                "presets=dict_discrete",
-            ],
-            cfg_factory=_lazy_cfg("DictDiscreteEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictDiscreteEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_discrete_cfg_entry_point presets=dict_discrete",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_discrete_ppo_cfg.yaml",
     },
 )
@@ -163,15 +111,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_dict_multidiscrete_cfg_entry_point",
-                "presets=dict_multidiscrete",
-            ],
-            cfg_factory=_lazy_cfg("DictMultiDiscreteEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:DictMultiDiscreteEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_dict_multidiscrete_cfg_entry_point presets=dict_multidiscrete",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dict_multidiscrete_ppo_cfg.yaml",
     },
 )
@@ -185,15 +126,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_tuple_box_cfg_entry_point",
-                "presets=tuple_box",
-            ],
-            cfg_factory=_lazy_cfg("TupleBoxEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:TupleBoxEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_box_cfg_entry_point presets=tuple_box",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
     },
 )
@@ -203,15 +137,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_tuple_discrete_cfg_entry_point",
-                "presets=tuple_discrete",
-            ],
-            cfg_factory=_lazy_cfg("TupleDiscreteEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:TupleDiscreteEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_discrete_cfg_entry_point presets=tuple_discrete",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
     },
 )
@@ -221,15 +148,8 @@ gym.register(
     entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraShowcaseEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": deprecated_task_alias(
-            old_task_id="Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
-            new_command=[
-                "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0",
-                "--agent=skrl_tuple_multidiscrete_cfg_entry_point",
-                "presets=tuple_multidiscrete",
-            ],
-            cfg_factory=_lazy_cfg("TupleMultiDiscreteEnvCfg"),
-        ),
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env_cfg:TupleMultiDiscreteEnvCfg",
+        "deprecated_alias_for": "--task=Isaac-Cartpole-Camera-Showcase-Direct-v0 --agent=skrl_tuple_multidiscrete_cfg_entry_point presets=tuple_multidiscrete",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
     },
 )
