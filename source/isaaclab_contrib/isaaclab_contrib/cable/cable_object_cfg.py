@@ -11,6 +11,8 @@ from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.utils.configclass import configclass
 
+from .attachment_cfg import CableAttachmentCfg
+
 
 @configclass
 class CableObjectCfg(ArticulationCfg):
@@ -39,3 +41,5 @@ class CableObjectCfg(ArticulationCfg):
     ``MISSING`` default so the inherited ``_process_actuators_cfg`` iterates an
     empty dict instead of crashing on ``MISSING``; a harmless
     ``logger.warning("Not all actuators are configured!")`` is expected."""
+
+    attachments: list[CableAttachmentCfg] = []
