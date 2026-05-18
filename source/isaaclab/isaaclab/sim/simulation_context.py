@@ -11,7 +11,7 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 import toml
 import torch
@@ -30,6 +30,7 @@ from isaaclab.physics.scene_data_requirements import (
 )
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import SceneDataProvider
+from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -37,8 +38,6 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
     from isaaclab.cloner.clone_plan import ClonePlan
-
-_T = TypeVar("_T")
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -216,10 +215,7 @@ class SimulationContext:
             order=5,
         )
 
-        # Singleton service registry — backend-specific caches register themselves
-        # here, keyed by their class.  Services with a ``close()`` method are closed
-        # when the SimulationContext is torn down via ``clear_instance()``.
-        self._services: dict[type, object] = {}
+        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -861,33 +857,17 @@ class SimulationContext:
     # Service locator
     # ------------------------------------------------------------------
 
-    def get_service(self, cls: type[_T]) -> _T | None:
-        """Retrieve a registered singleton service by its class.
+    @property
+    def services(self) -> ServiceLocator:
+        """Typed service registry for backend-specific singletons.
 
-        Args:
-            cls: The service class used as key.
+        Usage::
 
-        Returns:
-            The registered instance, or ``None`` if not registered.
+            sim_context.services[FabricStageCache] = cache
+            cache = sim_context.services[FabricStageCache]
+            del sim_context.services[FabricStageCache]  # closes and removes
         """
-        return self._services.get(cls)  # type: ignore[return-value]
-
-    def set_service(self, cls: type[_T], instance: _T) -> None:
-        """Register a singleton service, keyed by its class.
-
-        Overwrites any previously registered instance for the same class.
-        If the old instance has a ``close()`` method it is called before
-        replacement.  Services are automatically closed and cleared when
-        :meth:`clear_instance` is called.
-
-        Args:
-            cls: The service class used as key.
-            instance: The service instance to register.
-        """
-        old = self._services.get(cls)
-        if old is not None and old is not instance and hasattr(old, "close"):
-            old.close()
-        self._services[cls] = instance
+        return self._services
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -903,10 +883,8 @@ class SimulationContext:
             cls._instance._visualizers.clear()
 
             # Close and drop all registered singleton services
-            for service in cls._instance._services.values():
-                if hasattr(service, "close"):
-                    service.close()
-            cls._instance._services.clear()
+            service_errors: list[Exception] = []
+            cls._instance._services.close_all(caught_exceptions=service_errors)
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
@@ -920,6 +898,11 @@ class SimulationContext:
 
             gc.collect()
             logger.info("SimulationContext cleared")
+
+            if service_errors:
+                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
+                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+                raise RuntimeError(msg) from service_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:
