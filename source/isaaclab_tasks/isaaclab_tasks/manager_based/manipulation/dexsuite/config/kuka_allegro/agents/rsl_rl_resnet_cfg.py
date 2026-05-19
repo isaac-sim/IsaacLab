@@ -3,13 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlOnPolicyRunnerCfg,
     RslRlPpoActorCriticCfg,
     RslRlPpoAlgorithmCfg,
 )
+
+from ..camera_cfg import RESNET_FEATURES_OBS_GROUP
 
 
 @configclass
@@ -36,7 +38,10 @@ class DexsuiteKukaAllegroPPOResNetRunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 17000
     save_interval = 250
     experiment_name = "dexsuite_kuka_allegro_resnet_features"
-    obs_groups = {"actor": ["policy", "proprio", "resnet_features"], "critic": ["policy", "proprio", "resnet_features"]}
+    obs_groups = {
+        "actor": ["policy", "proprio", RESNET_FEATURES_OBS_GROUP],
+        "critic": ["policy", "proprio", RESNET_FEATURES_OBS_GROUP],
+    }
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_obs_normalization=True,

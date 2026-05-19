@@ -22,6 +22,8 @@ from ... import mdp
 
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 
+RESNET_FEATURES_OBS_GROUP = "resnet_features"
+
 
 BASE_CAMERA_CFG = CameraCfg(
     prim_path="/World/envs/env_.*/Camera",

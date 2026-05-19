@@ -873,20 +873,6 @@ Fixed
 * Fixed cross-backend asset interface regression tests to cover tensor views passed to
   backend index resolution helpers.
 
-Changed
-^^^^^^^
-
-* Improved :class:`~isaaclab.envs.mdp.observations.image_features` ResNet model
-  preparation: removed the final FC classification layer to extract feature
-  vectors (512-dim for ResNet18/34, 2048-dim for ResNet50/101) instead of
-  classification logits (1000-dim), switched to the non-deprecated
-  :class:`torchvision.models.ResNet18_Weights` (and siblings) weights enum,
-  wrapped inference in :func:`torch.no_grad` to avoid building an autograd
-  graph through the frozen backbone, and added an optional ``freeze`` parameter
-  (default ``True``) to allow gradient flow through the backbone when needed.
-  **Breaking:** Policies trained on Cartpole Camera ResNet environments with the
-  previous 1000-dim logits output are incompatible and must be retrained.
-
 
 4.6.22 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~

@@ -15,8 +15,8 @@ import pytest
 import torch
 import torch.nn as nn
 
-from isaaclab.envs.mdp.resnet_utils import prepare_resnet_model
 from isaaclab.envs.mdp.observations import image_features
+from isaaclab.envs.mdp.resnet_utils import prepare_resnet_model
 
 
 def _make_image_features_term(freeze: bool) -> image_features:
@@ -48,6 +48,25 @@ class TestResNetModelPreparation:
         dummy = torch.randint(0, 256, (2, 224, 224, 3), dtype=torch.uint8)
         features = d["inference"](model, dummy)
         assert features.shape == (2, 512), f"Expected (2, 512), got {features.shape}"
+
+    def test_resnet18_resizes_camera_input_to_imagenet_resolution(self):
+        """Camera frames should be resized to the ImageNet pretraining resolution."""
+        d = prepare_resnet_model("resnet18", "cpu")
+        model = d["model"]()
+        seen_shape = None
+
+        def _capture_input(images: torch.Tensor) -> torch.Tensor:
+            nonlocal seen_shape
+            seen_shape = images.shape[-2:]
+            return torch.zeros(images.shape[0], 512)
+
+        model.forward = _capture_input
+        dummy = torch.randint(0, 256, (2, 64, 64, 3), dtype=torch.uint8)
+
+        features = d["inference"](model, dummy)
+
+        assert seen_shape == (224, 224)
+        assert features.shape == (2, 512)
 
     def test_resnet50_feature_dim(self):
         """ResNet50 should produce 2048-dim features."""

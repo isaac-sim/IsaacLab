@@ -13,11 +13,16 @@ from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.came
     ResNetSingleCameraObservationsCfg,
 )
 from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
+
+
+def _resolve_lift_with_args(*args: str):
+    with mock.patch.object(sys, "argv", [sys.argv[0], *fold_preset_tokens(list(args))]):
+        return resolve_task_config("Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point")
 
 
 def _resolve_lift_with_presets(presets: str):
-    with mock.patch.object(sys, "argv", [sys.argv[0], f"presets={presets}"]):
-        return resolve_task_config("Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point")
+    return _resolve_lift_with_args(f"presets={presets}")
 
 
 def test_resnet_single_camera_preset_selects_matching_agent():
@@ -31,3 +36,17 @@ def test_resnet_single_camera_preset_selects_matching_agent():
         "actor": ["policy", "proprio", "resnet_features"],
         "critic": ["policy", "proprio", "resnet_features"],
     }
+
+
+def test_resnet_single_camera_preset_supports_typed_selectors():
+    """Typed physics/renderer selectors should compose with the ResNet camera preset."""
+    env_cfg, agent_cfg = _resolve_lift_with_args(
+        "physics=newton_mjwarp",
+        "renderer=newton_renderer",
+        "presets=rgb64,cube,resnet_single_camera",
+    )
+
+    assert isinstance(env_cfg.observations, ResNetSingleCameraObservationsCfg)
+    assert env_cfg.scene.base_camera.width == 64
+    assert env_cfg.scene.base_camera.height == 64
+    assert agent_cfg.experiment_name == "dexsuite_kuka_allegro_resnet_features"

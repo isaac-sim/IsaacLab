@@ -12,6 +12,7 @@ These utilities can be imported and tested in a plain Python environment.
 from __future__ import annotations
 
 import torch
+import torch.nn.functional as F
 
 
 def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True) -> dict:
@@ -51,9 +52,7 @@ def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True
     }
 
     if model_name not in resnet_weights_map:
-        raise ValueError(
-            f"Unsupported ResNet model: {model_name}. Supported models: {list(resnet_weights_map.keys())}"
-        )
+        raise ValueError(f"Unsupported ResNet model: {model_name}. Supported models: {list(resnet_weights_map.keys())}")
 
     def _load_model() -> torch.nn.Module:
         model = getattr(models, model_name)(weights=resnet_weights_map[model_name])
@@ -81,12 +80,15 @@ def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True
             normalization_tensors[device] = (mean, std)
         return normalization_tensors[device]
 
-    def _inference(model, images: torch.Tensor) -> torch.Tensor:
+    def _inference(model, images: torch.Tensor, image_size: int | tuple[int, int] | None = 224) -> torch.Tensor:
         """Run inference on the ResNet model.
 
         Args:
             model: ResNet model with FC replaced by Identity.
             images: Input tensor of shape ``(N, H, W, C)`` in ``[0, 255]`` range.
+            image_size: Spatial size to resize images to before normalization. Defaults to
+                ``224`` to match the ImageNet pretraining resolution. Set to ``None`` to
+                keep the camera resolution unchanged.
 
         Returns:
             Feature tensor of shape ``(N, feature_dim)``.
@@ -94,6 +96,10 @@ def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True
         device = _get_model_device(model)
         image_proc = images.to(device)
         image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
+        if image_size is not None:
+            target_size = (image_size, image_size) if isinstance(image_size, int) else image_size
+            if image_proc.shape[-2:] != target_size:
+                image_proc = F.interpolate(image_proc, size=target_size, mode="bilinear", align_corners=False)
         mean, std = _get_normalization_tensors(device)
         image_proc = (image_proc - mean) / std
 
