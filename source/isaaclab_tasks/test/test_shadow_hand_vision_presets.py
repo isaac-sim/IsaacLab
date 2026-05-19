@@ -398,7 +398,12 @@ def render_correctness_env(request, shadow_hand_vision_presets):
     env = ShadowHandVisionEnv(cfg)
     env.reset()
     actions = torch.zeros(cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-    env.step(actions)
+    # Step enough frames for RTX MDL shader variants to finish compiling. A single step
+    # returns a still-zero framebuffer for ``simple_shading_*_mdl`` presets on cold caches,
+    # which trips the assertion in ``test_camera_renders_not_empty`` below. 10 steps is
+    # empirically enough across the MDL variants that flake in CI as of 2026-05.
+    for _ in range(10):
+        env.step(actions)
     yield renderer_preset, camera_preset, physics, env
     env.close()
 

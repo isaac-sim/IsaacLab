@@ -675,6 +675,24 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
+def _warmup_render(env, num_steps: int = 10) -> None:
+    """Step the env ``num_steps`` times to let RTX MDL shaders finish compiling.
+
+    RTX MDL materials compile asynchronously on first use. A single ``env.step()``
+    is not enough — the GPU may return a still-zero framebuffer for shader
+    variants that have not finished compiling, which trips
+    :func:`validate_camera_outputs` with "no non-zero pixels" or
+    "all zeros or all inf". ``10`` is empirically enough across the MDL
+    presets (``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``,
+    ``simple_shading_full_mdl``) that flake on the CI runners as of 2026-05.
+    Adds ~1-2 s of wall time per parametrize variant; cheap relative to the
+    cost of a CI re-run.
+    """
+    actions = torch.zeros(env.num_envs, env.action_space.shape[-1], device=env.device)
+    for _ in range(num_steps):
+        env.step(actions)
+
+
 def rendering_test_shadow_hand(
     physics_backend: str,
     renderer: str,
@@ -700,6 +718,7 @@ def rendering_test_shadow_hand(
     try:
         env = ShadowHandVisionEnv(env_cfg)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
+        _warmup_render(env)
 
         validate_camera_outputs(
             "shadow_hand",
@@ -739,6 +758,7 @@ def rendering_test_cartpole(
     try:
         env = CartpoleCameraEnv(env_cfg)
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
+        _warmup_render(env)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
@@ -795,6 +815,7 @@ def rendering_test_dexsuite_kuka(
     try:
         env = ManagerBasedRLEnv(env_cfg)
         maybe_save_stage("dexsuite_kuka", physics_backend, renderer, data_type)
+        _warmup_render(env)
         validate_camera_outputs(
             "dexsuite_kuka",
             physics_backend,
