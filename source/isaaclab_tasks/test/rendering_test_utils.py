@@ -14,6 +14,8 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.warp import ProxyArray
+
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
 
@@ -66,12 +68,9 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
 
-# OVRTX kitless paths can segfault on GitHub Actions runners; keep warp/Kit paths in CI.
-_SKIP_ON_GITHUB_ACTIONS = os.environ.get("GITHUB_ACTIONS") == "true"
-_SKIP_ON_GITHUB_ACTIONS_MARK = pytest.mark.skipif(
-    _SKIP_ON_GITHUB_ACTIONS,
-    reason="Skipped on GitHub Actions until the test can run on GitHub Actions.",
-)
+# Low-resolution camera outputs from RTX renderers are not deterministic enough to pass golden image testing
+# on every CI run. (NVBUG#6152566)
+_FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
@@ -80,42 +79,49 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "isaacsim_rtx_renderer",
         "rgb",
         id="physx-isaacsim_rtx-rgb",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "albedo",
         id="physx-isaacsim_rtx-albedo",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "depth",
         id="physx-isaacsim_rtx-depth",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_constant_diffuse",
         id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_diffuse_mdl",
         id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_full_mdl",
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "semantic_segmentation",
         id="physx-isaacsim_rtx-semantic_segmentation",
+        marks=_FLAKY_MARK,
     ),
     # newton + isaacsim_rtx_renderer
     pytest.param(
@@ -123,42 +129,49 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "isaacsim_rtx_renderer",
         "rgb",
         id="newton-isaacsim_rtx-rgb",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "albedo",
         id="newton-isaacsim_rtx-albedo",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "depth",
         id="newton-isaacsim_rtx-depth",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "simple_shading_full_mdl",
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "semantic_segmentation",
         id="newton-isaacsim_rtx-semantic_segmentation",
+        marks=_FLAKY_MARK,
     ),
     # physx + newton_renderer (warp)
     pytest.param(
@@ -182,49 +195,49 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "rgb",
         id="newton-ovrtx-rgb",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "albedo",
         id="newton-ovrtx-albedo",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "depth",
         id="newton-ovrtx-depth",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_full_mdl",
         id="newton-ovrtx-simple_shading_full_mdl",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "semantic_segmentation",
         id="newton-ovrtx-semantic_segmentation",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     # newton + newton_renderer (warp)
     pytest.param(
@@ -266,6 +279,14 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     hydra_cfg = {"env": env_cfg.to_dict()}
     env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
     return env_cfg
+
+
+def _physics_preset_name(physics_backend: str) -> str:
+    """Translate the historical ``"newton"`` backend label (still used by golden-image
+    filenames and ``pytest.param`` IDs) to the renamed Hydra preset
+    ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
+    """
+    return "newton_mjwarp" if physics_backend == "newton" else physics_backend
 
 
 def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
@@ -573,7 +594,7 @@ def validate_camera_outputs(
     test_name: str,
     physics_backend: str,
     renderer: str,
-    camera_outputs: dict[str, torch.Tensor],
+    camera_outputs: dict[str, ProxyArray],
     max_different_pixels_percentage: float,
     comparison_scores: list[dict],
 ) -> None:
@@ -586,7 +607,8 @@ def validate_camera_outputs(
     ssim_threshold = _SSIM_THRESHOLD_BY_ENV_NAME.get(test_name, _SSIM_THRESHOLD)
     failed_data_types = {}
 
-    for data_type, tensor in camera_outputs.items():
+    for data_type, output in camera_outputs.items():
+        tensor = output if isinstance(output, torch.Tensor) else output.torch
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.max()
@@ -662,7 +684,7 @@ def rendering_test_shadow_hand(
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
-    override_args = [f"presets={physics_backend},{renderer},{data_type}"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
     env_cfg = ShadowHandVisionEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
@@ -706,7 +728,9 @@ def rendering_test_cartpole(
     from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
     env_cfg = CartpoleCameraPresetsEnvCfg()
-    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_backend},{renderer},{data_type}"])
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
+    )
 
     env_cfg.scene.num_envs = 4
 
@@ -744,7 +768,7 @@ def rendering_test_dexsuite_kuka(
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
-    override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera,cube"]
 
     env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)

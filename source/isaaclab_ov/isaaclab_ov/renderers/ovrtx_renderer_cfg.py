@@ -5,11 +5,8 @@
 
 """Configuration for OVRTX Renderer."""
 
-import tempfile
-from pathlib import Path
-
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -26,16 +23,19 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
-    temp_usd_dir: str = str(Path(tempfile.gettempdir()) / "ovrtx")
+    temp_usd_dir: str | None = None
     """Directory for temporary combined USD files (scene + injected cameras).
     Used by the OVRTX renderer when building the render scope; must be writable.
     """
 
-    temp_usd_suffix: str = ".usda"
-    """File suffix for temporary combined USD files (e.g. '.usda' or '.usdc')."""
+    use_ovrtx_cloning: bool = True
+    """When True, export only env_0 and use OVRTX ``clone_usd``. When False, export full multi-environment stage.
 
-    use_cloning: bool = False
-    """When True, export only env_0 and use OVRTX clone_usd. When False, export full stage."""
+    OVRTX cloning is only supported in OVRTX 0.3.0 or newer.
+
+    If the simulation uses a heterogeneous env setup, the renderer disables this path and exports the full
+    multi-environment stage instead (same effect as setting this to ``False`` for that run).
+    """
 
     log_level: str = "verbose"
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""

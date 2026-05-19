@@ -142,7 +142,7 @@ import omni.kit.viewport.utility
 import omni.usd
 
 from isaaclab.managers import DatasetExportMode
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 from isaaclab.utils.seed import configure_seed
@@ -331,8 +331,8 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data
     object = env.scene["object"]
     current_object_pose = torch.cat(
         [
-            torch.as_tensor(object.data.root_pos_w[0:1], device=env.device, dtype=torch.float32),
-            torch.as_tensor(object.data.root_quat_w[0:1], device=env.device, dtype=torch.float32),
+            torch.as_tensor(object.data.root_pos_w.torch[0:1], device=env.device, dtype=torch.float32),
+            torch.as_tensor(object.data.root_quat_w.torch[0:1], device=env.device, dtype=torch.float32),
         ],
         dim=-1,
     )  # (1, 7)

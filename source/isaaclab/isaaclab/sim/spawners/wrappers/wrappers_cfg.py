@@ -15,7 +15,7 @@ except ImportError as e:
         Safe to ignore if using newton only. Complete exception: {e}"""
     )
     # import dummy class to avoid errors in type hints
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class DeformableObjectSpawnerCfg:
@@ -24,7 +24,7 @@ except ImportError as e:
 
 from isaaclab.sim.spawners.from_files import UsdFileCfg
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -48,6 +48,14 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     assets_cfg: list[SpawnerCfg] = MISSING
     """List of asset configurations to spawn."""
+
+    spawn_paths: list[str | None] | None = None
+    """Optional concrete spawn paths, one per asset configuration.
+
+    When set, :func:`spawn_multi_asset` uses these paths instead of deriving
+    sibling paths from the input ``prim_path``. Entries set to ``None`` are
+    skipped.
+    """
 
     random_choice: bool = True
     """ This parameter is ignored.
@@ -76,6 +84,14 @@ class MultiUsdFileCfg(UsdFileCfg):
 
     usd_path: str | list[str] = MISSING
     """Path or a list of paths to the USD files to spawn asset from."""
+
+    spawn_paths: list[str | None] | None = None
+    """Optional concrete spawn paths, one per USD path.
+
+    When set, :func:`spawn_multi_usd_file` uses these paths instead of deriving
+    sibling paths from the input ``prim_path``. Entries set to ``None`` are
+    skipped.
+    """
 
     random_choice: bool = True
     """Whether to randomly select an asset configuration. Default is True.

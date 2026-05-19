@@ -46,8 +46,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import subtract_frame_transforms
 
 ##
@@ -159,8 +159,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # change goal
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
         else:
-            # obtain quantities from simulation
-            jacobian = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
+            # obtain quantities from simulation. The Jacobian DoF axis prepends
+            # ``num_base_dofs`` floating-base columns (0 for fixed-base, 6 for
+            # floating-base); shift the actuated-joint ids accordingly.
+            jacobi_joint_ids = [j + robot.num_base_dofs for j in robot_entity_cfg.joint_ids]
+            jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, jacobi_joint_ids]
             ee_pose_w = robot.data.body_pose_w.torch[:, robot_entity_cfg.body_ids[0]]
             root_pose_w = robot.data.root_pose_w.torch
             joint_pos = robot.data.joint_pos.torch[:, robot_entity_cfg.joint_ids]

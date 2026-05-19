@@ -26,7 +26,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""

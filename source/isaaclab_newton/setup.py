@@ -38,10 +38,8 @@ INSTALL_REQUIRES = []
 EXTRAS_REQUIRE = {
     "all": [
         "prettytable==3.3.0",
-        "mujoco==3.6.0",
-        "mujoco-warp==3.6.0",
         "PyOpenGL-accelerate==3.1.10",
-        "newton @ git+https://github.com/newton-physics/newton.git@a27277ed49d6f307b8a1e4c394be7e1d14965a62",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
     ],
 }
 
@@ -69,7 +67,6 @@ setup(
         "isaaclab_newton.cloner",
         "isaaclab_newton.physics",
         "isaaclab_newton.renderers",
-        "isaaclab_newton.scene_data_providers",
         "isaaclab_newton.sensors",
         "isaaclab_newton.sensors.contact_sensor",
         "isaaclab_newton.sensors.frame_transformer",

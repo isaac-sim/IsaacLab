@@ -31,13 +31,12 @@ class NewtonGlPerspectiveVideo:
         if self._init_attempted:
             return
         self._init_attempted = True
-        from isaaclab.sim import SimulationContext
+        from isaaclab_newton.physics import NewtonManager
 
-        sdp = SimulationContext.instance().initialize_scene_data_provider()
-        model = sdp.get_newton_model()
+        model = NewtonManager.get_model()
         if model is None:
             raise RuntimeError(
-                "Newton GL perspective video requires a Newton model on the scene data provider. "
+                "Newton GL perspective video requires a Newton model from NewtonManager. "
                 "Do not use --video for this setup."
             )
 
@@ -105,9 +104,10 @@ class NewtonGlPerspectiveVideo:
         self._ensure_viewer()
         from isaaclab.sim import SimulationContext
 
+        from isaaclab_newton.physics import NewtonManager
+
         sim = SimulationContext.instance()
-        sdp = sim.initialize_scene_data_provider()
-        state = sdp.get_newton_state()
+        state = NewtonManager.get_state()
         dt = sim.get_physics_dt()
 
         viewer = self._viewer

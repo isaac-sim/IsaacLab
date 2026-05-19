@@ -13,7 +13,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -24,7 +24,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 class CartpolePhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
-    newton: NewtonCfg = NewtonCfg(
+    newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
             nconmax=3,
@@ -36,7 +36,7 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    kamino: NewtonCfg = NewtonCfg(
+    newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
             use_collision_detector=True,

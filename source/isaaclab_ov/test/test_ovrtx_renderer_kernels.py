@@ -11,13 +11,14 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
-    DEVICE,
     extract_all_depth_tiles_kernel,
     extract_all_depth_tiles_kernel_legacy,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     generate_random_colors_from_ids_kernel_legacy,
 )
+
+DEVICE = "cuda:0"
 
 
 def _color_hash(seed: int) -> int:

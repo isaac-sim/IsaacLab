@@ -23,8 +23,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -58,7 +58,7 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
     )
-    newton: SimulationCfg = SimulationCfg(
+    newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
         render_interval=1,
         physics=NewtonCfg(
@@ -260,7 +260,7 @@ class _CabinetNewtonEventCfg:
 class CabinetEventCfg(PresetCfg):
     default: EventCfg = EventCfg()
     physx: EventCfg = EventCfg()
-    newton: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
+    newton_mjwarp: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
 
 
 @configclass

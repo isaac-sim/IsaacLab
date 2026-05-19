@@ -30,19 +30,18 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    "mujoco==3.6.0",
-    "mujoco-warp==3.6.0",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.12.0",
+    "warp-lang==1.13.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",
     # required by omni.replicator.core S3 backend
     "botocore",
     # livestream
-    "starlette==0.49.1",
+    # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
+    "starlette>=0.46.0,<0.50",
     "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
@@ -54,6 +53,8 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     "psutil",
+    # cross-platform file locking (used to serialize USD spawn across distributed ranks)
+    "filelock",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",
@@ -66,7 +67,7 @@ INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
     f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
@@ -86,32 +87,24 @@ INSTALL_REQUIRES += [
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
-# Isaac Lab subpackages + Isaac Sim
+# Optional extras for pip/uv installs.
+# Use ``pip install isaaclab[isaacsim]`` to add Isaac Sim, or
+# ``pip install isaaclab[all]`` to pull in all sub-packages and extras.
 EXTRAS_REQUIRE = {
     "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
-    # Individual Isaac Lab sub-packages
-    "assets": ["isaaclab_assets"],
-    "physx": ["isaaclab_physx"],
-    "contrib": ["isaaclab_contrib"],
-    "mimic": ["isaaclab_mimic"],
-    "newton": ["isaaclab_newton"],
-    "rl": ["isaaclab_rl"],
-    "tasks": ["isaaclab_tasks"],
-    "teleop": ["isaaclab_teleop"],
-    "visualizers": ["isaaclab_visualizers[all]"],
-    "visualizers-kit": ["isaaclab_visualizers[kit]"],
-    "visualizers-newton": ["isaaclab_visualizers[newton]"],
-    "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
-    "visualizers-viser": ["isaaclab_visualizers[viser]"],
-    # Convenience: all sub-packages (does not include isaacsim)
     "all": [
+        "isaacsim[all,extscache]==5.1.0",
         "isaaclab_assets",
-        "isaaclab_physx",
         "isaaclab_contrib",
+        "isaaclab_experimental",
         "isaaclab_mimic",
-        "isaaclab_newton",
-        "isaaclab_rl",
+        "isaaclab_newton[all]",
+        "isaaclab_ov",
+        "isaaclab_ovphysx",
+        "isaaclab_physx[newton]",
+        "isaaclab_rl[all]",
         "isaaclab_tasks",
+        "isaaclab_tasks_experimental",
         "isaaclab_teleop",
         "isaaclab_visualizers[all]",
     ],
@@ -132,6 +125,13 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
+    entry_points={
+        "console_scripts": [
+            "isaaclab=isaaclab.cli:cli",
+            "play=isaaclab.cli:play",
+            "train=isaaclab.cli:train",
+        ],
+    },
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[

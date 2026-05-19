@@ -24,10 +24,16 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental/isaaclab_tasks_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx/isaaclab_physx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx/isaaclab_ovphysx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
@@ -140,7 +146,8 @@ intersphinx_mapping = {
     "torch": ("https://docs.pytorch.org/docs/2.11/", None),
     "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
-    "warp": ("https://nvidia.github.io/warp/", None),
+    # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
+    "warp": ("https://nvidia.github.io/warp/stable/", None),
     "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
@@ -156,7 +163,6 @@ exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store
 autodoc_mock_imports = [
     "torch",
     "torchvision",
-    "numpy",
     "matplotlib",
     "scipy",
     "carb",
@@ -170,6 +176,7 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "ovphysx",
     "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
@@ -202,8 +209,10 @@ autodoc_mock_imports = [
     "toml",
     "pink",
     "pinocchio",
+    "qpsolvers",
     "nvidia.srl",
     "flatdict",
+    "filelock",
     "IPython",
     "cv2",
     "imageio",

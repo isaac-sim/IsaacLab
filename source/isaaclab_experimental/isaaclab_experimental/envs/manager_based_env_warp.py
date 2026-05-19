@@ -12,6 +12,8 @@ pipelines without depending on (or subclassing) the stable env implementation.
 Behavior is intended to match the stable environment initially.
 """
 
+from __future__ import annotations
+
 # import builtins
 import contextlib
 import importlib
@@ -133,6 +135,7 @@ class ManagerBasedEnvWarp:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 # attach_stage_to_usd_context()
+                self.scene.initialize_renderers()
         print("[INFO]: Scene manager: ", self.scene)
 
         # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).

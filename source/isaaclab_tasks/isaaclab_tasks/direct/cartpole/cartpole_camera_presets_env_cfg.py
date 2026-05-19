@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -14,7 +15,7 @@ from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -26,7 +27,8 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg()
     physx = PhysxCfg()
-    newton = NewtonCfg()
+    newton_mjwarp = NewtonCfg()
+    ovphysx = OvPhysxCfg()
 
 
 @configclass
@@ -75,6 +77,13 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
         # camera
         tiled_camera: MultiDataTypeCartpoleTiledCameraCfg = MultiDataTypeCartpoleTiledCameraCfg()
         write_image_to_file = False
+
+        frame_stack: int = -1
+        """Number of frames to stack along the channel dim.
+
+        ``-1`` (default) auto-resolves to ``2`` for the Newton + Warp combo and ``1`` otherwise.
+        Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
+        """
 
         # spaces
         action_space = 1

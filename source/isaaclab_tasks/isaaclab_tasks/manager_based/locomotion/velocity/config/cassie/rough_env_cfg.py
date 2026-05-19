@@ -6,7 +6,7 @@
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
@@ -66,7 +66,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # Cassie Newton-only armature for biped stability on rough terrain; PhysX unchanged
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.02)
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
 
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 

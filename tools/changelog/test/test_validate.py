@@ -70,6 +70,14 @@ def test_validate_rejects_section_without_bullets_from_fixture():
     assert err is not None and "bullet" in err.lower()
 
 
+def test_validate_rejects_orphan_paragraph_from_fixture():
+    """A flush-left paragraph between bullets / after the last bullet must be
+    rejected — the compile step would splice it verbatim into ``CHANGELOG.rst``
+    and Sphinx then fails the doc build with ``Unexpected indentation``."""
+    err = cli.Fragment(FIXTURES / "invalid_content" / "3004.rst").validate()
+    assert err is not None and "orphan" in err.lower()
+
+
 # ---------------------------------------------------------------------------
 # check_fragments — gate orchestration: immutability, slug uniqueness, and
 # the "PR must add at least one fragment per touched package" rule

@@ -1964,7 +1964,19 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        r"""Write joint friction coefficients over selected environment indices into the simulation.
+        r"""Write Newton joint friction force/torque values over selected environment indices into the simulation.
+
+        This writes to Newton's ``Model.joint_friction`` field. Despite the ``coeff`` suffix in the Isaac Lab API
+        name, Newton treats this value as an absolute friction force/torque [N or N·m, depending on joint type], not
+        as a unitless coefficient.
+
+        For example, the MJWarp solver copies this value into MuJoCo Warp's ``dof_frictionloss``. Setting
+        ``joint_friction_coeff`` to 0.2 configures a dry-friction loss limit of 0.2 N·m on a revolute joint DOF,
+        or 0.2 N on a prismatic joint DOF.
+
+        .. note::
+            Solver support is defined by the active Newton solver. Unsupported solvers may ignore
+            ``Model.joint_friction``.
 
         .. note::
             This method expects partial data.
@@ -1974,7 +1986,7 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+            joint_friction_coeff: Joint friction force/torque [N or N·m, depending on joint type].
                 Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
@@ -2024,7 +2036,19 @@ class Articulation(BaseArticulation):
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ):
-        r"""Write joint friction coefficients over selected environment mask into the simulation.
+        r"""Write Newton joint friction force/torque values over selected environment mask into the simulation.
+
+        This writes to Newton's ``Model.joint_friction`` field. Despite the ``coeff`` suffix in the Isaac Lab API
+        name, Newton treats this value as an absolute friction force/torque [N or N·m, depending on joint type], not
+        as a unitless coefficient.
+
+        For example, the MJWarp solver copies this value into MuJoCo Warp's ``dof_frictionloss``. Setting
+        ``joint_friction_coeff`` to 0.2 configures a dry-friction loss limit of 0.2 N·m on a revolute joint DOF,
+        or 0.2 N on a prismatic joint DOF.
+
+        .. note::
+            Solver support is defined by the active Newton solver. Unsupported solvers may ignore
+            ``Model.joint_friction``.
 
         .. note::
             This method expects full data.
@@ -2034,7 +2058,7 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+            joint_friction_coeff: Joint friction force/torque [N or N·m, depending on joint type].
                 Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).

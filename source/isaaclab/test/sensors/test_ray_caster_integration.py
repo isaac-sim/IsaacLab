@@ -10,10 +10,10 @@
 These tests require Isaac Sim (AppLauncher). They cover the integration-level
 items from ``TODO_ray_caster_kernel_tests.md``:
 
-- ``_get_view_transforms_wp`` ArticulationView and RigidBodyView paths
+- ``_get_sensor_transforms_wp`` ArticulationView and RigidBodyView paths
 - ``MultiMeshRayCaster`` env_mask behavior
 - ``MultiMeshRayCasterCamera.set_intrinsic_matrices`` propagation
-- ``_update_mesh_transforms`` non-identity orientation offset (known bug, xfail)
+- ``_update_mesh_transforms`` non-identity orientation offset
 - Depth clipping ordering for ``MultiMeshRayCasterCamera``
 """
 
@@ -22,6 +22,7 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import copy
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -31,6 +32,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -75,6 +77,14 @@ def _single_downward_ray_cfg(prim_path: str) -> RayCasterCfg:
     )
 
 
+def _spawn_cube_part(part_path: str, translation: tuple[float, float, float]) -> None:
+    """Create a small mesh-bearing part under an Xform target."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim(part_path, "Xform", translation=translation, stage=stage)
+    cube = cast(Any, UsdGeom.Cube.Define(stage, f"{part_path}/Mesh"))
+    cube.CreateSizeAttr().Set(0.35)
+
+
 @pytest.fixture
 def sim_ground():
     sim = _make_sim_and_ground()
@@ -84,7 +94,7 @@ def sim_ground():
 
 
 # ---------------------------------------------------------------------------
-# _get_view_transforms_wp: ArticulationView path
+# _get_sensor_transforms_wp: ArticulationView path
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +105,7 @@ def test_articulation_view_path(sim_ground):
     Verifies that sensor pos_w matches the prim's initial position and that
     the downward ray hits the ground plane.  This exercises the
     ``ArticulationView.get_root_transforms()`` quaternion-convention path in
-    :meth:`_get_view_transforms_wp`.
+    :meth:`_get_sensor_transforms_wp`.
     """
     sim = sim_ground
     expected_pos = (3.0, 4.0, 5.0)
@@ -107,11 +117,11 @@ def test_articulation_view_path(sim_ground):
     UsdPhysics.RigidBodyAPI.Apply(prim)
     UsdPhysics.ArticulationRootAPI.Apply(prim)
     # Mass is needed for physics; collision is needed for PhysX to track the body.
-    mass_api = UsdPhysics.MassAPI.Apply(prim)
+    mass_api = cast(Any, UsdPhysics.MassAPI.Apply(prim))
     mass_api.CreateMassAttr().Set(1.0)
     # Create a small collision cube so PhysX treats this as a real body.
     cube_path = f"{prim_path}/CollisionCube"
-    cube_geom = UsdGeom.Cube.Define(stage, cube_path)
+    cube_geom = cast(Any, UsdGeom.Cube.Define(stage, cube_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
     sim_utils.update_stage()
@@ -133,7 +143,7 @@ def test_articulation_view_path(sim_ground):
 
 
 # ---------------------------------------------------------------------------
-# _get_view_transforms_wp: RigidBodyView path
+# _get_sensor_transforms_wp: RigidBodyView path
 # ---------------------------------------------------------------------------
 
 
@@ -142,7 +152,7 @@ def test_rigid_body_view_path(sim_ground):
     """Mount a ray caster on a prim with RigidBodyAPI (no ArticulationRootAPI).
 
     Exercises the ``RigidBodyView.get_transforms()`` path in
-    :meth:`_get_view_transforms_wp`.
+    :meth:`_get_sensor_transforms_wp`.
     """
     sim = sim_ground
     expected_pos = (1.0, 2.0, 6.0)
@@ -152,10 +162,10 @@ def test_rigid_body_view_path(sim_ground):
     stage = sim_utils.get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
     UsdPhysics.RigidBodyAPI.Apply(prim)
-    mass_api = UsdPhysics.MassAPI.Apply(prim)
+    mass_api = cast(Any, UsdPhysics.MassAPI.Apply(prim))
     mass_api.CreateMassAttr().Set(1.0)
     cube_path = f"{prim_path}/CollisionCube"
-    cube_geom = UsdGeom.Cube.Define(stage, cube_path)
+    cube_geom = cast(Any, UsdGeom.Cube.Define(stage, cube_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
     sim_utils.update_stage()
@@ -226,7 +236,8 @@ def test_multi_mesh_camera_set_intrinsic_matrices(sim_ground_camera):
     for _ in range(3):
         sim.step()
         camera.update(_DT)
-    output_before = camera.data.output["distance_to_camera"].clone()
+    camera_output = cast(dict[str, Any], camera.data.output)
+    output_before = camera_output["distance_to_camera"].torch.clone()
 
     # Change to a very different intrinsic matrix (different FOV)
     new_matrix = torch.tensor(
@@ -238,7 +249,8 @@ def test_multi_mesh_camera_set_intrinsic_matrices(sim_ground_camera):
     for _ in range(3):
         sim.step()
         camera.update(_DT)
-    output_after = camera.data.output["distance_to_camera"].clone()
+    camera_output = cast(dict[str, Any], camera.data.output)
+    output_after = camera_output["distance_to_camera"].torch.clone()
 
     assert not torch.allclose(output_before, output_after, atol=1e-3), (
         "MultiMeshRayCasterCamera: depth output must change after set_intrinsic_matrices; "
@@ -256,9 +268,8 @@ def test_multi_mesh_camera_set_intrinsic_matrices(sim_ground_camera):
 def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
     """Requesting both d2ip and d2c simultaneously must produce correct independent results.
 
-    The ``distance_to_image_plane`` computation reads ``_ray_distance`` before
-    ``distance_to_camera`` clips it in-place.  This test verifies the two data
-    types do not interfere with each other.
+    The two outputs are clipped independently from the same raw ray-distance buffer.
+    This test verifies the data types do not interfere with each other.
     """
     sim, base_cfg = sim_ground_camera
 
@@ -292,10 +303,13 @@ def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
     cam_d2ip.update(_DT)
     cam_d2c.update(_DT)
 
-    d2ip_joint = cam_joint.data.output["distance_to_image_plane"]
-    d2c_joint = cam_joint.data.output["distance_to_camera"]
-    d2ip_solo = cam_d2ip.data.output["distance_to_image_plane"]
-    d2c_solo = cam_d2c.data.output["distance_to_camera"]
+    joint_output = cast(dict[str, Any], cam_joint.data.output)
+    d2ip_output = cast(dict[str, Any], cam_d2ip.data.output)
+    d2c_output = cast(dict[str, Any], cam_d2c.data.output)
+    d2ip_joint = joint_output["distance_to_image_plane"].torch
+    d2c_joint = joint_output["distance_to_camera"].torch
+    d2ip_solo = d2ip_output["distance_to_image_plane"].torch
+    d2c_solo = d2c_output["distance_to_camera"].torch
 
     # Joint camera must match solo cameras (clipping one must not corrupt the other)
     torch.testing.assert_close(d2ip_joint, d2ip_solo, atol=1e-5, rtol=1e-5)
@@ -305,6 +319,85 @@ def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
 # ---------------------------------------------------------------------------
 # MultiMeshRayCaster env_mask behavior
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground):
+    """ClonePlan supplies source geometry while PhysX supplies per-env object poses."""
+    sim = sim_ground
+    num_envs = 3
+    stage = sim_utils.get_current_stage()
+
+    def _create_object_body(path: str) -> None:
+        sim_utils.create_prim(path, "Xform", stage=stage)
+        body_prim = cast(Any, stage.GetPrimAtPath(path))
+        UsdPhysics.RigidBodyAPI.Apply(body_prim)
+        mass_api = cast(Any, UsdPhysics.MassAPI.Apply(body_prim))
+        mass_api.CreateMassAttr().Set(1.0)
+        body_prim.GetAttribute("physics:kinematicEnabled").Set(True)
+        collision = cast(Any, UsdGeom.Cube.Define(stage, f"{path}/Collision"))
+        collision.CreateSizeAttr().Set(0.1)
+        UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(f"{path}/Collision"))
+
+    sim_utils.create_prim("/World/envs", "Xform", stage=stage)
+    for env_id in range(num_envs):
+        sim_utils.create_prim(f"/World/envs/env_{env_id}", "Xform", translation=(3.0 * env_id, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/envs/env_{env_id}/Sensor", "Xform", translation=(0.0, 0.0, 3.0), stage=stage)
+        _create_object_body(f"/World/envs/env_{env_id}/Object")
+
+    # Representative source assets live in the first concrete cloned instances,
+    # matching the scene convention used by the cloner. Env 2 has an object
+    # body for backend pose tracking, but intentionally has no destination mesh.
+    _spawn_cube_part("/World/envs/env_0/Object/part_0", (0.0, 0.0, 0.0))
+    _spawn_cube_part("/World/envs/env_1/Object/part_0", (0.0, 0.0, 0.0))
+
+    # This test intentionally does not author /env_2/Object/part_0. ClonePlan
+    # selects source geometry; the object body view supplies env_2's live pose.
+    sim.set_clone_plan(
+        ClonePlan(
+            sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
+            destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
+            clone_mask=torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool, device=sim.device),
+        )
+    )
+    sim_utils.update_stage()
+
+    cfg = MultiMeshRayCasterCfg(
+        prim_path="/World/envs/env_.*/Sensor",
+        mesh_prim_paths=[
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                prim_expr="/World/envs/env_.*/Object/part_.*",
+                track_mesh_transforms=True,
+            ),
+        ],
+        update_period=0,
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
+        debug_vis=False,
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=(1.0, 0.0), direction=(0.0, 0.0, -1.0)),
+        ray_alignment="world",
+    )
+    sensor = MultiMeshRayCaster(cfg)
+    sim.reset()
+    sensor.update(_DT, force_recompute=True)
+
+    env0_object = stage.GetPrimAtPath("/World/envs/env_0/Object")
+    env1_object = stage.GetPrimAtPath("/World/envs/env_1/Object")
+    assert env0_object is not None and env0_object.IsValid()
+    assert env1_object is not None and env1_object.IsValid()
+    env2_part = stage.GetPrimAtPath("/World/envs/env_2/Object/part_0")
+    assert env2_part is None or not env2_part.IsValid()
+
+    # Geometry is selected from ClonePlan rows, but poses come from the batched object view.
+    mesh_ids = wp.to_torch(sensor._mesh_ids_wp).cpu()
+    mesh_positions = wp.to_torch(sensor._mesh_positions_w).cpu()
+    assert sensor._mesh_ids_wp.shape == (num_envs, 1)
+    assert mesh_ids[2, 0] == mesh_ids[0, 0]
+    torch.testing.assert_close(mesh_positions[:, 0, 0], torch.tensor([0.0, 3.0, 6.0]), atol=0.15, rtol=0.0)
+
+    hits = sensor.data.ray_hits_w.torch
+    assert torch.isfinite(hits[0]).any(), "env_0 should hit the env_0 source geometry"
+    assert torch.isfinite(hits[1]).any(), "env_1 should hit the env_1 source geometry"
+    assert torch.isfinite(hits[2]).any(), "env_2 should hit env_0 geometry at env_2's backend object pose"
 
 
 @pytest.mark.isaacsim_ci
@@ -357,17 +450,18 @@ def test_multi_mesh_env_mask_preserves_masked_buffers(sim_ground):
 
 @pytest.mark.isaacsim_ci
 def test_update_mesh_transforms_non_identity_offset(sim_ground):
-    """Tracked mesh position must account for body orientation when applying offset.
+    """Tracked mesh geometry must account for body orientation when applying offset.
 
     Setup: a kinematic rigid body at (0, 0, 2) rotated 90 deg around Z, with a
     child mesh offset by (1, 0, 0) in the body's local frame.
 
-    Correct world position of mesh = body_pos + rotate(body_ori, local_offset)
+    Correct world position of the baked geometry = body_pos + rotate(body_ori, local_offset)
         = (0, 0, 2) + rotate(90degZ, (1, 0, 0))
         = (0, 0, 2) + (0, 1, 0)
         = (0, 1, 2)
 
-    Naive subtraction (the old bug) would give: body_pos - offset = (-1, 0, 2).
+    The mesh pose table stores the owner-body pose; the offset is baked into the
+    Warp mesh vertices so backend body poses remain the single runtime pose source.
     """
     sim = sim_ground
 
@@ -381,29 +475,29 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
     body_path = "/World/DynamicBody"
     sim_utils.create_prim(body_path, "Xform", translation=(0.0, 0.0, 2.0), orientation=yaw90_xyzw)
     stage = sim_utils.get_current_stage()
-    body_prim = stage.GetPrimAtPath(body_path)
+    body_prim = cast(Any, stage.GetPrimAtPath(body_path))
     UsdPhysics.RigidBodyAPI.Apply(body_prim)
-    mass_api = UsdPhysics.MassAPI.Apply(body_prim)
+    mass_api = cast(Any, UsdPhysics.MassAPI.Apply(body_prim))
     mass_api.CreateMassAttr().Set(1.0)
     body_prim.GetAttribute("physics:kinematicEnabled").Set(True)
 
     # Create a child Xform offset by (1, 0, 0) in the body's local frame,
-    # then place mesh geometry under it. The Xform translation is the offset
-    # that _obtain_trackable_prim_view / resolve_prim_pose will discover.
+    # then place mesh geometry under it. The tracked target view resolves this
+    # local offset and updates from the backend body pose.
     child_mesh_path = f"{body_path}/OffsetMesh"
     sim_utils.create_prim(child_mesh_path, "Xform", translation=(1.0, 0.0, 0.0))
     mesh_data = make_plane(size=(2, 2), height=0.0, center_zero=True)
     create_prim_from_mesh(f"{child_mesh_path}/Plane", mesh_data)
     # Add collision so PhysX tracks the body
     col_path = f"{body_path}/CollisionCube"
-    cube_geom = UsdGeom.Cube.Define(stage, col_path)
+    cube_geom = cast(Any, UsdGeom.Cube.Define(stage, col_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(col_path))
     sim_utils.update_stage()
 
     # Create a sensor prim to mount the MultiMeshRayCaster on
     sensor_path = "/World/SensorMount"
-    sim_utils.create_prim(sensor_path, "Xform", translation=(0.0, 0.0, 5.0))
+    sim_utils.create_prim(sensor_path, "Xform", translation=(0.0, 1.0, 5.0))
 
     # Configure MultiMeshRayCaster to track the child mesh
     cfg = MultiMeshRayCasterCfg(
@@ -422,18 +516,19 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
     )
     sensor = MultiMeshRayCaster(cfg)
     sim.reset()
-    sensor.update(_DT)
+    sensor.update(_DT, force_recompute=True)
 
-    # Verify mesh position: body at (0,0,2) rotated 90deg Z, child offset (1,0,0) local
-    # Expected: (0, 0, 2) + rotate(90degZ, (1,0,0)) = (0, 0, 2) + (0, 1, 0) = (0, 1, 2)
-    mesh_pos = sensor._mesh_positions_w_torch.clone()
+    # The runtime pose buffer stores the body pose; the child offset is in the mesh vertices.
+    mesh_pos = wp.to_torch(sensor._mesh_positions_w).clone()
     np.testing.assert_allclose(
         mesh_pos[0, 0].cpu().numpy(),
+        [0.0, 0.0, 2.0],
+        atol=0.15,
+        err_msg="Tracked mesh pose should be the owner body pose.",
+    )
+    np.testing.assert_allclose(
+        sensor.data.ray_hits_w.torch[0, 0].cpu().numpy(),
         [0.0, 1.0, 2.0],
         atol=0.15,
-        err_msg=(
-            "Mesh position should be (0, 1, 2) via proper frame decomposition: "
-            "body_pos + rotate(body_ori, local_offset). "
-            "If this fails, the offset is not being rotated by the body orientation."
-        ),
+        err_msg="Ray hit should include the child mesh offset baked into the Warp geometry.",
     )

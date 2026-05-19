@@ -33,22 +33,22 @@ timeout.  Only the first such test gets the extension — after it runs, the
 on-disk cache is populated.
 """
 
-STARTUP_DEADLINE = 45
+STARTUP_DEADLINE = 120
 """Seconds to wait for AppLauncher init or pytest collection before declaring a
 startup hang.
 
 AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
 prints ``collected N items`` to stdout after collection.  If neither appears
-within this deadline the process is treated as hung.  45 s is above any
-legitimate Kit startup (typically 30--60 s) while still catching real hangs
-without wasting the full hard timeout.
+within this deadline the process is treated as hung.  Kit startup can exceed
+60 s on cold CI workers, so this catches real startup hangs without killing
+legitimate slow launches.
 """
 
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
-TIMEOUT_RETRIES = 2
+TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
 SHUTDOWN_GRACE_PERIOD = 30
@@ -341,6 +341,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             sys.executable,
             "-m",
             "pytest",
+            "-s",
             "--no-header",
             f"--config-file={workspace_root}/pyproject.toml",
             f"--junitxml=tests/test-reports-{str(file_name)}.xml",

@@ -18,7 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -38,7 +38,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 class CartpolePhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
-    newton: NewtonCfg = NewtonCfg(
+    newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
             nconmax=3,
@@ -50,7 +50,7 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    kamino: NewtonCfg = NewtonCfg(
+    newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
             use_collision_detector=True,

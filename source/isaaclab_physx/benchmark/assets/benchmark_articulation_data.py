@@ -131,7 +131,6 @@ NOT_IMPLEMENTED_PROPERTIES = {
     "spatial_tendon_damping",
     "spatial_tendon_limit_stiffness",
     "spatial_tendon_offset",
-    "body_incoming_joint_wrench_b",
 }
 
 # Removed default_* properties that raise RuntimeError

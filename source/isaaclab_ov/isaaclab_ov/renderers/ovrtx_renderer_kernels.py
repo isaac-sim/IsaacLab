@@ -3,11 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernels and device constant for OVRTX renderer."""
+"""Warp kernels for OVRTX rendering pipeline."""
 
 import warp as wp
-
-DEVICE = "cuda:0"
 
 
 @wp.kernel
@@ -327,4 +325,4 @@ def sync_newton_transforms_kernel(
     i = wp.tid()
     body_idx = newton_body_indices[i]
     transform = newton_body_q[body_idx]
-    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))

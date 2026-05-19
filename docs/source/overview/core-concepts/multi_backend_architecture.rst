@@ -51,12 +51,12 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab.renderers.Renderer`
      - :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`
      - :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`
-   * - Scene Data Provider
-     - :class:`~isaaclab.physics.SceneDataProvider`
-     - :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`
-     - :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`
+   * - Scene Data Backend
+     - :class:`~isaaclab.physics.SceneDataBackend`
+     - ``PhysxSceneDataBackend`` (in :mod:`isaaclab_physx.physics`)
+     - ``NewtonSceneDataBackend`` (in :mod:`isaaclab_newton.physics`)
    * - Cloner
-     - :func:`~isaaclab.cloner.clone_from_template`
+     - :func:`~isaaclab.cloner.usd_replicate`
      - :func:`~isaaclab_physx.cloner.physx_replicate`
      - :func:`~isaaclab_newton.cloner.newton_physics_replicate`
 
@@ -139,7 +139,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
 
 .. code-block:: python
 
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
     from isaaclab_tasks.utils import PresetCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
@@ -148,7 +148,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
     class CartpolePhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
-        newton: NewtonCfg = NewtonCfg(
+        newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
         )
 
@@ -156,15 +156,15 @@ Environments can support multiple backends simultaneously using the :doc:`preset
     class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         sim: SimulationCfg = SimulationCfg(physics=CartpolePhysicsCfg())
 
-Users then select a backend at the command line:
+Users then select the MJWarp Newton preset at the command line:
 
 .. code-block:: bash
 
     # Default (PhysX)
     python train.py --task Isaac-Cartpole-v0
 
-    # Newton
-    python train.py --task Isaac-Cartpole-v0 presets=newton
+    # MJWarp (Newton backend)
+    python train.py --task Isaac-Cartpole-v0 presets=newton_mjwarp
 
 The Physics Manager
 -------------------
@@ -261,23 +261,53 @@ the established conventions:
         │   └── ...
         ├── renderers/
         │   └── ...
-        ├── cloner/
-        │   └── ...
-        └── scene_data_providers/
+        └── cloner/
             └── ...
 
 **2. Implement the physics manager:**
 
+The manager must expose a :class:`~isaaclab.physics.SceneDataBackend` so that
+:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` can read your backend's body
+transforms in a Warp-native format that renderers and visualizers consume directly.
+
 .. code-block:: python
 
     # isaaclab_mybackend/physics/mybackend_manager.py
-    from isaaclab.physics import PhysicsManager
+    from isaaclab.physics import PhysicsManager, SceneDataBackend, SceneDataFormat
+
+
+    class MyBackendSceneDataBackend(SceneDataBackend):
+        def __init__(self):
+            self._scene_data = SceneDataFormat.Transform()
+
+        @property
+        def transforms(self) -> SceneDataFormat.Transform:
+            # Return current world-space body transforms as a Warp ``transformf`` array.
+            self._scene_data.transforms = ...  # backend-native tensor view
+            return self._scene_data
+
+        @property
+        def transform_count(self) -> int:
+            ...
+
+        @property
+        def transform_paths(self) -> list[str]:
+            # Prim path per row of ``transforms``; used by ``SceneDataProvider.create_mapping``.
+            ...
+
 
     class MyBackendManager(PhysicsManager):
+        _scene_data_backend: ClassVar[MyBackendSceneDataBackend | None] = None
+
         @classmethod
         def initialize(cls, sim_context):
             super().initialize(sim_context)
+            cls._scene_data_backend = MyBackendSceneDataBackend()
             # Initialize your physics engine
+
+        @classmethod
+        def get_scene_data_backend(cls) -> SceneDataBackend:
+            return cls._scene_data_backend
 
         @classmethod
         def step(cls):
@@ -304,7 +334,7 @@ the established conventions:
 
     # isaaclab_mybackend/physics/mybackend_manager_cfg.py
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class MyBackendCfg(PhysicsCfg):

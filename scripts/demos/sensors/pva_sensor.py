@@ -31,7 +31,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import PvaCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -54,9 +54,9 @@ class PvaSensorSceneCfg(InteractiveSceneCfg):
     # robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    pva_RF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
+    pva_LF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
 
-    pva_LF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", debug_vis=True)
+    pva_RF = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", debug_vis=True)
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):

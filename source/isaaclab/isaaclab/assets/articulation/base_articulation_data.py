@@ -248,9 +248,14 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient provided to the simulation.
+        """Backend-specific joint friction values provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+
+        .. warning::
+            The physical meaning and units of this value depend on the concrete backend and solver. Do not assume
+            values are comparable across backends; check the backend-specific :class:`ArticulationData`
+            implementation before interpreting or reusing them.
         """
         raise NotImplementedError
 
@@ -664,23 +669,82 @@ class BaseArticulationData(ABC):
         """
         raise NotImplementedError
 
+    ##
+    # Dynamics quantities (task-space controllers).
+    ##
+
     @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.WRENCH)
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Joint reaction wrench applied from body parent to child body in parent body frame.
+    def body_link_jacobian_w(self) -> ProxyArray:
+        """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
-        (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
-        world of an articulation.
+        Shape: ``(num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs)``,
+        dtype ``wp.float32``. Linear rows ``[0:3]`` [m/s per unit DoF velocity];
+        angular rows ``[3:6]`` [rad/s per unit DoF velocity].
 
-        For more information on joint wrenches, please check the `PhysX documentation`_ and the
-        underlying `PhysX Tensor API`_.
+        Contract: for any generalized velocity ``v`` of length
+        ``num_joints + num_base_dofs``,
 
-        .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
-        .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.api.ArticulationView.get_link_incoming_joint_force
+        .. code-block:: text
+
+            J[:, jacobi_body_idx, 0:3, :] @ v == body_link_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ v == body_link_ang_vel_w[:, body_idx]
+
+        Conventions:
+            * Body axis: ``jacobi_body_idx == body_idx - 1`` for fixed-base (fixed-root
+              row excluded); ``jacobi_body_idx == body_idx`` for floating-base.
+            * DoF axis: leading
+              :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base
+              columns (world-frame ``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``),
+              then actuated-joint columns in :attr:`joint_names` order.
         """
-        raise NotImplementedError
+        raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
+
+    @property
+    def body_com_jacobian_w(self) -> ProxyArray:
+        """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
+
+        Same shape and indexing conventions as :attr:`body_link_jacobian_w`. Linear
+        rows ``[0:3]`` give the velocity at the body's center of mass; angular rows
+        ``[3:6]`` are reference-point invariant (identical to
+        :attr:`body_link_jacobian_w`).
+
+        Contract: for any generalized velocity ``v``,
+
+        .. code-block:: text
+
+            J[:, jacobi_body_idx, 0:3, :] @ v == body_com_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ v == body_com_ang_vel_w[:, body_idx]
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
+
+    @property
+    def mass_matrix(self) -> ProxyArray:
+        """Per-env generalized mass matrix ``M(q)`` in joint space.
+
+        Shape: ``(num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs)``,
+        dtype ``wp.float32`` [kg·m² or kg, per DoF type]. DoF-axis convention matches
+        :attr:`body_link_jacobian_w`.
+
+        ``M(q)`` is symmetric positive-definite. ``M[i, j]`` is the coefficient
+        relating DoF ``j``'s acceleration to the inertial torque on DoF ``i`` in
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
+
+    @property
+    def gravity_compensation_forces(self) -> ProxyArray:
+        """Per-env gravity compensation torques ``g(q)`` in joint space.
+
+        Shape: ``(num_instances, num_joints + num_base_dofs)``, dtype ``wp.float32``
+        [N·m or N, per DoF type]. DoF-axis convention matches
+        :attr:`body_link_jacobian_w`.
+
+        ``g(q)`` is the gravity-loading term in
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. Applying ``tau = g(q)`` at
+        ``q_dot = 0`` with no external load yields ``q_ddot = 0`` (static equilibrium
+        under gravity).
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement gravity_compensation_forces.")
 
     ##
     # Joint state properties.
