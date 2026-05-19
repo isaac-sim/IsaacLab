@@ -80,15 +80,15 @@ def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True
             normalization_tensors[device] = (mean, std)
         return normalization_tensors[device]
 
-    def _inference(model, images: torch.Tensor, image_size: int | tuple[int, int] | None = 224) -> torch.Tensor:
+    def _inference(model, images: torch.Tensor, image_size: int | tuple[int, int] | None = None) -> torch.Tensor:
         """Run inference on the ResNet model.
 
         Args:
             model: ResNet model with FC replaced by Identity.
             images: Input tensor of shape ``(N, H, W, C)`` in ``[0, 255]`` range.
-            image_size: Spatial size to resize images to before normalization. Defaults to
-                ``224`` to match the ImageNet pretraining resolution. Set to ``None`` to
-                keep the camera resolution unchanged.
+            image_size: Optional spatial size to resize images to before normalization.
+                Defaults to ``None`` to keep the camera resolution unchanged. Set to
+                ``224`` to match the ImageNet pretraining resolution.
 
         Returns:
             Feature tensor of shape ``(N, feature_dim)``.

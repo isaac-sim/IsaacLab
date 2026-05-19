@@ -49,8 +49,8 @@ class TestResNetModelPreparation:
         features = d["inference"](model, dummy)
         assert features.shape == (2, 512), f"Expected (2, 512), got {features.shape}"
 
-    def test_resnet18_resizes_camera_input_to_imagenet_resolution(self):
-        """Camera frames should be resized to the ImageNet pretraining resolution."""
+    def test_resnet18_keeps_camera_resolution_by_default(self):
+        """Camera frames should keep their configured resolution by default."""
         d = prepare_resnet_model("resnet18", "cpu")
         model = d["model"]()
         seen_shape = None
@@ -64,6 +64,25 @@ class TestResNetModelPreparation:
         dummy = torch.randint(0, 256, (2, 64, 64, 3), dtype=torch.uint8)
 
         features = d["inference"](model, dummy)
+
+        assert seen_shape == (64, 64)
+        assert features.shape == (2, 512)
+
+    def test_resnet18_can_resize_camera_input_to_imagenet_resolution(self):
+        """Camera frames can be explicitly resized to the ImageNet pretraining resolution."""
+        d = prepare_resnet_model("resnet18", "cpu")
+        model = d["model"]()
+        seen_shape = None
+
+        def _capture_input(images: torch.Tensor) -> torch.Tensor:
+            nonlocal seen_shape
+            seen_shape = images.shape[-2:]
+            return torch.zeros(images.shape[0], 512)
+
+        model.forward = _capture_input
+        dummy = torch.randint(0, 256, (2, 64, 64, 3), dtype=torch.uint8)
+
+        features = d["inference"](model, dummy, image_size=224)
 
         assert seen_shape == (224, 224)
         assert features.shape == (2, 512)
