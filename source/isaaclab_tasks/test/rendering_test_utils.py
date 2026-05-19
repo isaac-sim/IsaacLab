@@ -675,22 +675,30 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
-def _warmup_render(env, num_steps: int = 10) -> None:
-    """Step the env ``num_steps`` times to let RTX MDL shaders finish compiling.
+def _warmup_render(env, num_passes: int = 10) -> None:
+    """Drive extra render passes to let RTX MDL shaders finish compiling.
 
-    RTX MDL materials compile asynchronously on first use. A single ``env.step()``
-    is not enough — the GPU may return a still-zero framebuffer for shader
-    variants that have not finished compiling, which trips
-    :func:`validate_camera_outputs` with "no non-zero pixels" or
-    "all zeros or all inf". ``10`` is empirically enough across the MDL
-    presets (``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``,
-    ``simple_shading_full_mdl``) that flake on the CI runners as of 2026-05.
-    Adds ~1-2 s of wall time per parametrize variant; cheap relative to the
-    cost of a CI re-run.
+    RTX MDL materials compile asynchronously on first use. The single render
+    pass that env construction triggers (via ``scene.update`` in ``__init__``)
+    is not always enough — on cold-cache CI runners the GPU may return a
+    still-zero framebuffer for shader variants that have not finished
+    compiling, which trips :func:`validate_camera_outputs` with "no non-zero
+    pixels" or "all zeros or all inf". ``10`` passes is empirically enough
+    across the MDL presets (``simple_shading_constant_diffuse``,
+    ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``) that flake on
+    the CI runners as of 2026-05.
+
+    The warmup calls ``sim.render()`` + ``scene.update()`` rather than
+    ``env.step()``, so it does not advance physics state and the goldens
+    captured at the post-init state remain valid. This mirrors the pattern
+    already used by :attr:`~isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset`
+    and :attr:`~isaaclab.envs.DirectRLEnvCfg.wait_for_textures` in the core
+    env classes.
     """
-    actions = torch.zeros(env.num_envs, env.action_space.shape[-1], device=env.device)
-    for _ in range(num_steps):
-        env.step(actions)
+    physics_dt = env.physics_dt
+    for _ in range(num_passes):
+        env.sim.render()
+        env.scene.update(dt=physics_dt)
 
 
 def rendering_test_shadow_hand(
