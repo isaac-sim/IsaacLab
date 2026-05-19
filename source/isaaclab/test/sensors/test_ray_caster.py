@@ -5,15 +5,15 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-import torch
-import trimesh
-
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+
+import numpy as np
+import pytest
+import torch
+import trimesh
 
 # Import after app launch
 import warp as wp
