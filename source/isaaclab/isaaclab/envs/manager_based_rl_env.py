@@ -199,22 +199,34 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         is_rendering = self.sim.is_rendering
 
         # perform physics stepping
-        for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
-            # set actions into buffers
+        if self._physics_handles_decimation:
+            self._sim_step_counter += self.cfg.decimation
             self.action_manager.apply_action()
-            # set actions into simulator
             self.scene.write_data_to_sim()
-            # simulate
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
-            # render between steps only if the GUI or an RTX sensor needs it.
-            # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-            # but standalone visualizers (Newton, Rerun, Viser) still update.
+            # render only when a render_interval boundary falls within this decimation block,
+            # mirroring the per-sub-step check in the else branch.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.step_dt)
+        else:
+            for _ in range(self.cfg.decimation):
+                self._sim_step_counter += 1
+                # set actions into buffers
+                self.action_manager.apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
+                # simulate
+                self.sim.step(render=False)
+                self.recorder_manager.record_post_physics_decimation_step()
+                # render between steps only if the GUI or an RTX sensor needs it.
+                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+                # but standalone visualizers (Newton, Rerun, Viser) still update.
+                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                    self.sim.render(skip_app_pumping=not self.render_enabled)
+                # update buffers at sim dt
+                self.scene.update(dt=self.physics_dt)
 
         # post-step:
         # -- update env counters (used for curriculum generation)

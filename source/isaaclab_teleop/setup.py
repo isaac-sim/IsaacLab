@@ -20,7 +20,7 @@ SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # IsaacTeleop is only available on Linux x86_64
-    f"isaacteleop[retargeters,ui,cloudxr]~=1.2.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    f"isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
