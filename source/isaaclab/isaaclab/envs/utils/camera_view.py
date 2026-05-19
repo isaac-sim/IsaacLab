@@ -240,7 +240,7 @@ def prim_world_positions(stage: Any, prim_path_template: str, env_indices: list[
         except Exception:
             prim = stage.GetPrimAtPath(prim_path)
             if not prim.IsValid():
-                raise RuntimeError(f"cam_follow_prim_path resolved to missing prim: {prim_path!r}.")
+                raise RuntimeError(f"lookat_prim_path resolved to missing prim: {prim_path!r}.")
             transform = xform_cache.GetLocalToWorldTransform(prim)
             translation = transform.ExtractTranslation()
             positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
@@ -263,17 +263,37 @@ def apply_camera_view_from_origins(
     camera._update_poses(None)
 
 
-def apply_camera_follow_positions(
+def resolve_fixed_camera_targets(
+    lookat: tuple[float, float, float],
+    count: int,
+    *,
+    device: str | torch.device = "cpu",
+) -> torch.Tensor:
+    """Return a repeated fixed look-at target tensor."""
+    target = torch.tensor(lookat, dtype=torch.float32, device=device).reshape(1, 3)
+    return target.repeat(max(0, int(count)), 1)
+
+
+def apply_camera_target_positions(
     camera: Camera,
-    follow_positions: torch.Tensor,
+    target_positions: torch.Tensor,
     eye: tuple[float, float, float],
+    eye_reference_frame: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Set generated camera poses to look at followed prim positions."""
+    """Set generated camera poses from target positions and eye reference mode."""
     device = camera.device
-    follow_positions = follow_positions.to(device=device)
+    target_positions = target_positions.to(device=device)
     eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
-    eyes = follow_positions + eye_offset
-    targets = follow_positions
+    if eye_reference_frame == "world":
+        eyes = eye_offset.repeat(target_positions.shape[0], 1)
+    elif eye_reference_frame == "lookat_target":
+        eyes = target_positions + eye_offset
+    else:
+        raise ValueError(
+            "VisualizerCfg.eye_reference_frame must be either 'world' or 'lookat_target', "
+            f"got {eye_reference_frame!r}."
+        )
+    targets = target_positions
     camera.set_world_poses_from_view(eyes, targets)
     camera._update_poses(None)
     return eyes.detach().cpu(), targets.detach().cpu()

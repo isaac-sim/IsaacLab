@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import logging
+import math
 import os
 import webbrowser
 from pathlib import Path
@@ -155,7 +156,7 @@ class ViserVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
@@ -169,6 +170,7 @@ class ViserVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
+                ("focal_length", self.cfg.focal_length),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("bind_address", self.cfg.bind_address),
@@ -194,7 +196,7 @@ class ViserVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
         num_envs = NewtonManager.get_num_envs()
 
         self._sim_time += dt
@@ -346,12 +348,16 @@ class ViserVisualizer(BaseVisualizer):
 
         client_iterable = clients.values() if isinstance(clients, dict) else clients
         cam_pos, cam_target = pose
+        fov_radians = math.radians(self._focal_length_to_vertical_fov_degrees())
         applied = False
         for client in client_iterable:
             camera = getattr(client, "camera", None)
             if camera is None:
                 continue
             try:
+                if hasattr(camera, "fov"):
+                    camera.fov = fov_radians
+                    applied = True
                 if hasattr(camera, "position"):
                     camera.position = cam_pos
                     applied = True

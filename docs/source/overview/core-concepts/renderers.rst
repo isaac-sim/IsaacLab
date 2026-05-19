@@ -36,6 +36,13 @@ Choosing a renderer backend
    including the Newton Warp renderer. Use an RTX-based renderer, such as the
    Isaac RTX renderer or OVRTX renderer, when marker visualization is needed.
 
+.. note::
+   **Temporal information for camera-based RL.** Unlike RTX modes with temporal
+   anti-aliasing (DLSS, DLAA, TAA), the Newton Warp renderer does not inject
+   prior-frame information into the current image. Camera-control tasks that depend
+   on velocity-like visual cues should add explicit temporal observations
+   (e.g. task-local frame stacking) rather than relying on renderer-specific artifacts.
+
 Architecture Overview
 ---------------------
 

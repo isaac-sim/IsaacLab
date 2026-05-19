@@ -1507,6 +1507,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
                 :, 0
             ]
+            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[:, 0]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_pos", SimulationManager.get_control()
             )[:, 0]
@@ -1538,6 +1539,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_pos = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_effort = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_act = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_position_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )

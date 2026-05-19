@@ -101,6 +101,7 @@ class NewtonViewerRerun(ViewerRerun):
         else:
             original_serve_web_viewer = rr.serve_web_viewer
 
+            # Rerun Viewer launches a browser automatically, so here we suppress that behavior
             def _serve_web_viewer_without_browser(*serve_args, **serve_kwargs):
                 with contextlib.suppress(TypeError, ValueError):
                     supports_open_browser = "open_browser" in inspect.signature(original_serve_web_viewer).parameters
@@ -171,7 +172,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -230,6 +231,7 @@ class RerunVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
+                ("focal_length", f"{self.cfg.focal_length} (not applied: Rerun EyeControls3D has no FOV field)"),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("endpoint", f"http://{viewer_host}:{web_port}"),
@@ -261,7 +263,7 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
         num_envs = NewtonManager.get_num_envs()
 
         if not self._viewer.is_paused():

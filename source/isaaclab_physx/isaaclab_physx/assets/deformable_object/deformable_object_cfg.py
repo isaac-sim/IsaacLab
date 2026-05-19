@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import DEFORMABLE_TARGET_MARKER_CFG
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .deformable_object import DeformableObject

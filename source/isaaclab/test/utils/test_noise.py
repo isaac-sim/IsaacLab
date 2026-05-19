@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test noise utilities."""
-
 import pytest
 import torch
 

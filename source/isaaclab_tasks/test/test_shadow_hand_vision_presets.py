@@ -415,7 +415,8 @@ def test_camera_renders_not_empty(render_correctness_env):
     label = f"{physics}-{renderer_preset}+{camera_preset}"
     camera_output = env._tiled_camera.data.output
     assert len(camera_output) > 0, f"[{label}] Camera produced no output tensors at all."
-    for dt, tensor in camera_output.items():
+    for dt, output in camera_output.items():
+        tensor = output.torch
         finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
         # import pdb; pdb.set_trace()
         assert finite.max() > 0.2, (

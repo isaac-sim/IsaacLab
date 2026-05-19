@@ -22,10 +22,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Key Features
    * - **Omniverse**
      - High-fidelity, Isaac Sim integration
-     - USD, visualization markers, live plots
+     - Interactive viewport, USD, visualization markers, live plots, tiled camera image view
    * - **Newton**
      - Fast iteration
-     - Low overhead, visualization markers
+     - Low overhead, visualization markers, interactive GL camera, tiled camera image view
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export, visualization markers
@@ -187,6 +187,44 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
      - any
      - Run headless; ``--headless`` takes precedence.
 
+Camera Pose Behavior
+~~~~~~~~~~~~~~~~~~~~
+
+The default visualizer camera mode is interactive: ``cam_source="cfg"``, ``tiled_cam_view=False``,
+``eye_reference_frame="world"``, ``lookat`` set to a coordinate, and ``lookat_prim_path=None``.
+Kit and Newton can also run non-interactive camera image views, including tiled views. If
+``tiled_cam_view=True`` is set, that visualizer config uses a camera image view rather than the
+default interactive camera; launch a second visualizer config if you want both.
+
+.. list-table:: Camera pose modes
+   :header-rows: 1
+   :widths: 24 22 22 32
+
+   * - Mode
+     - Key fields
+     - ``eye`` meaning
+     - Behavior
+   * - **Default interactive**
+     - ``lookat=(0, 0, 0)``, ``lookat_prim_path=None``, ``eye_reference_frame="world"``
+     - Absolute world position
+     - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
+   * - Fixed eye, tracked target
+     - ``lookat=None``, ``lookat_prim_path="/World/envs/*/Robot/base"``, ``eye_reference_frame="world"``
+     - Absolute world position
+     - Camera stays at ``eye`` and rotates toward the matched prim.
+   * - Follow target
+     - ``lookat=None``, ``lookat_prim_path="/World/envs/*/Robot/base"``, ``eye_reference_frame="lookat_target"``
+     - Offset from target
+     - Camera moves with the matched prim and looks back at it.
+   * - Offset from fixed target
+     - ``lookat=(0, 0, 0)``, ``lookat_prim_path=None``, ``eye_reference_frame="lookat_target"``
+     - Offset from ``lookat``
+     - Camera position is ``lookat + eye`` and target is the fixed ``lookat`` coordinate.
+
+When ``cam_source="prim_path"``, the visualizer uses an existing Isaac Lab ``Camera`` sensor selected by
+``cam_prim_path``. In that mode, ``eye``, ``eye_reference_frame``, ``lookat``, and ``lookat_prim_path`` do
+not drive the sensor pose.
+
 Video Recording
 ---------------
 
@@ -286,10 +324,11 @@ Omniverse Visualizer
 **Main Features:**
 
 - Native USD stage integration
+- Interactive viewport camera by default
 - Live plots for monitoring training metrics
 - Full Isaac Sim rendering capabilities and tooling
 - Visualization markers for debugging (arrows, frames, object targets, etc.)
-- Tiled RGB camera views from Isaac Lab ``Camera`` sensors in a dockable image panel
+- Non-interactive tiled RGB camera views from Isaac Lab ``Camera`` sensors in a dockable image panel
 
 **Core Configuration:**
 
@@ -306,10 +345,29 @@ Omniverse Visualizer
         window_height=720,
 
         eye=(8.0, 8.0, 3.0),
+        eye_reference_frame="world",
         lookat=(0.0, 0.0, 0.0),
+        lookat_prim_path=None,
 
         enable_markers=True,
         enable_live_plots=True,
+    )
+
+Set ``tiled_cam_view=True`` on a Kit visualizer config to show camera sensor RGB in a dockable image
+panel. This config is non-interactive; use another ``KitVisualizerCfg`` if you also want an interactive
+viewport camera.
+
+.. code-block:: python
+
+    tiled_kit_cfg = KitVisualizerCfg(
+        create_viewport=True,
+        viewport_name="Tiled Cameras",
+        tiled_cam_view=True,
+        tiled_cam_num=16,
+        lookat=None,
+        lookat_prim_path="/World/envs/*/Robot/base",
+        eye_reference_frame="lookat_target",
+        eye=(4.0, -4.0, 3.0),
     )
 
 
@@ -323,7 +381,8 @@ Newton Visualizer
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
-- Tiled RGB camera views via Newton ``Viewer.log_image`` from Isaac Lab ``Camera`` sensors
+- Interactive GL camera by default
+- Non-interactive tiled RGB camera views via Newton ``Viewer.log_image`` from Isaac Lab ``Camera`` sensors
 
 
 **Interactive Controls:**
@@ -360,7 +419,9 @@ Newton Visualizer
 
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        eye_reference_frame="world",             # Interpret eye as a world-space position
         lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+        lookat_prim_path=None,                   # Optional dynamic target prim path
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -380,6 +441,23 @@ Newton Visualizer
         background_color=(0.53, 0.81, 0.92),     # Sky/background color (RGB [0,1])
         ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
+    )
+
+Set ``tiled_cam_view=True`` on a Newton visualizer config to show camera sensor RGB in Newton's image
+view. This config is non-interactive; use another ``NewtonVisualizerCfg`` if you also want an interactive
+GL camera.
+
+.. code-block:: python
+
+    tiled_newton_cfg = NewtonVisualizerCfg(
+        window_width=1280,
+        window_height=720,
+        tiled_cam_view=True,
+        tiled_cam_env_indices=[0, 1, 2, 3],
+        lookat=None,
+        lookat_prim_path="/World/envs/*/Robot/base",
+        eye_reference_frame="lookat_target",
+        eye=(4.0, -4.0, 3.0),
     )
 
 
@@ -591,5 +669,5 @@ See Also
 
 - :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
-- :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration guide
+- :doc:`/source/overview/core-concepts/physical-backends/newton/index` — Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details

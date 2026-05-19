@@ -142,7 +142,7 @@ multirotor_cfg = MultirotorCfg(
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 @configclass

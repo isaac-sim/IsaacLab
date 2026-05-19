@@ -8,6 +8,7 @@ This section we introduce core concepts in Isaac Lab.
 
 
   multi_backend_architecture
+  physical-backends/index
   schema_cfgs
   task_workflows
   actuators

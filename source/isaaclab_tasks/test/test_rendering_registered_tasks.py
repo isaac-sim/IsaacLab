@@ -50,7 +50,11 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
                 if not isinstance(output, dict):
                     continue
 
-                tensor_output = {k: v for k, v in output.items() if isinstance(v, torch.Tensor) and v.numel() > 0}
+                tensor_output = {}
+                for data_type, value in output.items():
+                    tensor = value if isinstance(value, torch.Tensor) else value.torch
+                    if tensor.numel() > 0:
+                        tensor_output[data_type] = tensor
                 if tensor_output:
                     outputs[name] = tensor_output
 

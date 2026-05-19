@@ -51,6 +51,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 _DIM = "\033[2m"
@@ -151,63 +152,142 @@ def _find_repo_root() -> Path:
 # Docker mode
 
 
+def _build_image(
+    repo_root: Path,
+    dockerfile: Path,
+    image_tag: str,
+    build_args: dict[str, str],
+    no_cache: bool,
+) -> int:
+    """Build a Docker image, returning the exit code."""
+    build_cmd = ["docker", "build", "--progress=plain"]
+    for key, value in build_args.items():
+        build_cmd.extend(["--build-arg", f"{key}={value}"])
+    build_cmd.extend(["-f", str(dockerfile), "-t", image_tag])
+    if no_cache:
+        build_cmd.append("--no-cache")
+    build_cmd.append(str(repo_root))
+    result = run_cmd(build_cmd, check=False, stream=True)
+    return result.returncode
+
+
+def _prepare_results_dir(results_dir: str) -> Path:
+    """Prepare a host directory for Docker-copied test results.
+
+    Args:
+        results_dir: Host directory where the JUnit XML file should be copied.
+
+    Returns:
+        Path to the expected host JUnit XML file.
+    """
+    results_abs = Path(results_dir).resolve()
+    results_abs.mkdir(parents=True, exist_ok=True)
+
+    # Keep the directory writable across repeated self-hosted runner jobs. The
+    # actual XML is copied out with ``docker cp`` after the container exits, so
+    # pytest never has to open a bind-mounted host file from inside Docker.
+    try:
+        results_abs.chmod(0o777)
+    except OSError as exc:
+        print(f"Warning: could not chmod results directory {results_abs}: {exc}", file=sys.stderr)
+
+    results_xml = results_abs / "results.xml"
+    if results_xml.exists() or results_xml.is_symlink():
+        try:
+            if results_xml.is_dir():
+                shutil.rmtree(results_xml)
+            else:
+                results_xml.unlink()
+        except OSError as exc:
+            print(f"Warning: could not remove stale results file {results_xml}: {exc}", file=sys.stderr)
+
+    return results_xml
+
+
+def _copy_junit_xml(container_name: str, container_results_xml: str, host_results_xml: Path) -> None:
+    """Copy JUnit XML from a completed Docker container to the host.
+
+    Args:
+        container_name: Name of the Docker container to copy from.
+        container_results_xml: Path to the JUnit XML file inside the container.
+        host_results_xml: Host path where the JUnit XML file should be stored.
+    """
+    copy_cmd = ["docker", "cp", f"{container_name}:{container_results_xml}", str(host_results_xml)]
+    copy_result = run_cmd(copy_cmd, check=False, stream=True)
+    if copy_result.returncode != 0:
+        print(
+            f"Warning: could not copy JUnit XML from {container_name}:{container_results_xml} to {host_results_xml}.",
+            file=sys.stderr,
+        )
+        return
+
+    try:
+        host_results_xml.chmod(0o666)
+    except OSError as exc:
+        print(f"Warning: could not chmod results file {host_results_xml}: {exc}", file=sys.stderr)
+
+
 def _cmd_docker(args: argparse.Namespace) -> int:
     """Build the Docker image and run tests inside the container based on *args*."""
 
     repo_root = _find_repo_root()
-    dockerfile = repo_root / "docker" / "Dockerfile.installci"
-    image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
-    # Build the Docker image
-    build_cmd = [
-        "docker",
-        "build",
-        "--build-arg",
-        f"BASE_IMAGE={args.base_image}",
-        "-f",
-        str(dockerfile),
-        "-t",
-        image_tag,
-        "--progress=plain",
-    ]
+    # Build the uv base image first.
+    _install_ci_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
+    uv_dockerfile = _install_ci_dir / "Dockerfile.installci"
+    uv_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
-    if args.no_cache:
-        build_cmd.append("--no-cache")
+    rc = _build_image(repo_root, uv_dockerfile, uv_tag, {"BASE_IMAGE": args.base_image}, args.no_cache)
+    if rc != 0:
+        print(f"Docker build (uv base) failed (exit {rc})")
+        return rc
+    print(f"Docker uv base image built: {uv_tag}")
 
-    build_cmd.append(str(repo_root))
+    # If conda mode, build the conda layer on top.
+    if getattr(args, "conda", False):
+        conda_dockerfile = _install_ci_dir / "Dockerfile.installci-conda"
+        image_tag = f"{uv_tag}-conda"
+        rc = _build_image(repo_root, conda_dockerfile, image_tag, {"UV_IMAGE": uv_tag}, args.no_cache)
+        if rc != 0:
+            print(f"Docker build (conda layer) failed (exit {rc})")
+            return rc
+        print(f"Docker conda image built: {image_tag}")
+    else:
+        image_tag = uv_tag
 
-    result = run_cmd(build_cmd, check=False, stream=True)
-    if result.returncode != 0:
-        print(f"Docker build failed (exit {result.returncode})")
-        return result.returncode
-
-    print(f"Docker image built successfully: {image_tag}")
+    host_results_xml: Path | None = None
+    container_name: str | None = None
+    container_results_xml = "/tmp/isaaclab-installci-results.xml"
+    if args.results_dir:
+        host_results_xml = _prepare_results_dir(args.results_dir)
+        if not args.shell:
+            container_name = f"isaaclab-installci-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
     # Run
-    docker_run_cmd: list[str] = [
-        "docker",
-        "run",
-        "--rm",
-        "--network=host",
-    ]
+    docker_run_cmd: list[str] = ["docker", "run"]
+    if container_name:
+        docker_run_cmd.extend(["--name", container_name])
+    else:
+        docker_run_cmd.append("--rm")
+    docker_run_cmd.append("--network=host")
 
     if args.gpu:
         docker_run_cmd.extend(["--gpus", "all"])
 
-    # Persist pip and uv caches across runs via named Docker volumes
+    # Persist pip and uv caches across runs via named Docker volumes.
+    # The container runs as the non-root 'isaaclab' user (uid 1000), so caches
+    # must live under /home/isaaclab rather than /root.
     if not args.no_pip_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/root/.cache/pip"])
+        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/home/isaaclab/.cache/pip"])
     if not args.no_uv_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/root/.cache/uv"])
+        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/home/isaaclab/.cache/uv"])
 
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
     docker_run_cmd.extend(["-e", "ACCEPT_EULA=Y"])
 
-    if args.results_dir:
-        results_abs = Path(args.results_dir).resolve()
-        results_abs.mkdir(parents=True, exist_ok=True)
-        docker_run_cmd.extend(["-v", f"{results_abs}:/tmp/results"])
+    if args.results_dir and args.shell and host_results_xml is not None:
+        docker_run_cmd.extend(["-v", f"{host_results_xml.parent}:/tmp/results"])
 
     if args.wheel:
         wheel_abs = Path(args.wheel).resolve()
@@ -222,7 +302,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         # Test execution mode
         pytest_args = args.pytest_args or ["--tb=short"]
         if args.results_dir:
-            pytest_args = ["--junitxml=/tmp/results/results.xml"] + pytest_args
+            pytest_args = [f"--junitxml={container_results_xml}"] + pytest_args
         docker_run_cmd.extend([image_tag] + pytest_args)
 
     print(f"{_MAGENTA}[COMMAND] {' '.join(docker_run_cmd)}{_RESET}")
@@ -232,7 +312,14 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         ret = subprocess.call(docker_run_cmd, timeout=5400)
     except subprocess.TimeoutExpired:
         print("Docker run timed out after 90 minutes", file=sys.stderr)
+        if container_name:
+            run_cmd(["docker", "kill", container_name], check=False, stream=True)
         ret = 124
+    finally:
+        if container_name:
+            if host_results_xml is not None:
+                _copy_junit_xml(container_name, container_results_xml, host_results_xml)
+            run_cmd(["docker", "rm", "-f", container_name], check=False, stream=True)
     elapsed = time.monotonic() - t0
     print(f"{_MAGENTA}[{elapsed:.1f}s]{_RESET}")
     return ret
@@ -279,6 +366,7 @@ def main() -> int:
 docker options:
   --base-image IMAGE   Docker base image (default: ubuntu:24.04)
   --gpu                Pass --gpus all to docker run
+  --conda              Build and use a conda-enabled image (layered on the uv base)
   --shell              Drop into interactive bash instead of running tests
   --no-cache           Build Docker image without layer cache
   --no-pip-cache       Disable persistent pip cache volume
@@ -296,7 +384,8 @@ pytest arguments:
     %(prog)s docker                                          # run all tests in Docker
     %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
     %(prog)s docker --gpu                                    # GPU support (--gpus all)
-    %(prog)s docker -- -m uv                                 # filter by marker
+    %(prog)s docker --gpu -- -m uv                           # uv tests only
+    %(prog)s docker --gpu --conda -- -m conda                # conda tests (conda image)
     %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
     %(prog)s docker --gpu -- -m nvbugs_5968136               # filter by bug ID
     %(prog)s docker --shell                                  # drop into shell for debugging
@@ -315,6 +404,11 @@ pytest arguments:
         help="Docker base image (default: ubuntu:24.04)",
     )
     docker_p.add_argument("--gpu", action="store_true", help="Pass --gpus all to docker run")
+    docker_p.add_argument(
+        "--conda",
+        action="store_true",
+        help="Build and use a conda-enabled Docker image (layered on top of the uv base image)",
+    )
     docker_p.add_argument(
         "--shell", action="store_true", help="Drop into an interactive bash shell instead of running tests"
     )
