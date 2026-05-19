@@ -386,16 +386,14 @@ class randomize_rigid_body_material(ManagerTermBase):
             )
 
         # detect physics backend and instantiate the appropriate implementation.
-        # Exact name matches: ``"physx" in name.lower()`` would also catch
-        # ``OvPhysxManager`` and route it to the PhysX impl, which assumes a
-        # ``root_view`` with ``.link_paths`` — OVPhysX's per-tensor-type
-        # bindings dict does not satisfy that contract.
-        manager_name = env.sim.physics_manager.__name__
-        if manager_name == "NewtonManager":
-            self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
-        elif manager_name == "PhysxManager":
-            self._impl = _RandomizeRigidBodyMaterialPhysx(cfg, env, self.asset, self.asset_cfg)
-        elif manager_name == "OvPhysxManager":
+        # Check ``ovphysxmanager`` first: it contains the substring ``physx`` so
+        # would otherwise be caught by the ``"physx" in ...`` branch below and
+        # routed to the PhysX impl, which assumes a ``root_view`` with
+        # ``.link_paths`` — OVPhysX's per-tensor-type bindings dict does not
+        # satisfy that contract.  Newton's subclasses (``NewtonMJWarpManager``,
+        # ``NewtonKaminoManager``, ...) are caught by the substring branch.
+        manager_name = env.sim.physics_manager.__name__.lower()
+        if manager_name == "ovphysxmanager":
             # No OVPhysX implementation yet — wheel-side
             # ``RIGID_BODY_MATERIAL`` tensor binding is missing; randomization
             # would require per-body view creation that ovphysx does not yet
@@ -412,6 +410,10 @@ class randomize_rigid_body_material(ManagerTermBase):
                     pass
 
             self._impl = _Noop()
+        elif "newton" in manager_name:
+            self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
+        elif "physx" in manager_name:
+            self._impl = _RandomizeRigidBodyMaterialPhysx(cfg, env, self.asset, self.asset_cfg)
         else:
             raise ValueError(f"Unsupported physics manager for randomize_rigid_body_material: {manager_name!r}")
 
