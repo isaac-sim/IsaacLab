@@ -35,12 +35,12 @@ from newton.solvers import SolverBase, SolverNotifyFlags
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
-from isaaclab.sim import SimulationContext
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 
@@ -1569,7 +1569,7 @@ class NewtonManager(PhysicsManager):
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
             return
-        sim = sim = SimulationContext.instance()
+        sim = SimulationContext.instance()
         if sim is None:
             return
 
