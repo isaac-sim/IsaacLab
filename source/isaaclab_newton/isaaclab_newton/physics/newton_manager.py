@@ -40,6 +40,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+from isaaclab.sim import SimulationContext
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 
@@ -223,8 +224,8 @@ class NewtonManager(PhysicsManager):
     # Visualization-only state used when the sim backend is PhysX. Populated
     # lazily in :meth:`_ensure_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
-    _visualization_scene_data: SceneDataFormat.Transform | None = None
-    _visualization_mapping: wp.array | None = None
+    _scene_data: SceneDataFormat.Transform | None = None
+    _scene_data_mapping: wp.array | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -465,7 +466,7 @@ class NewtonManager(PhysicsManager):
         super().close()
 
     @classmethod
-    def get_scene_data_backend(cls) -> SceneDataBackend:
+    def get_scene_data_backend(cls) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
 
@@ -532,8 +533,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
         NewtonManager._up_axis = "Z"
-        NewtonManager._visualization_scene_data = None
-        NewtonManager._visualization_mapping = None
+        NewtonManager._scene_data = None
+        NewtonManager._scene_data_mapping = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -1568,23 +1569,19 @@ class NewtonManager(PhysicsManager):
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
             return
-        sim = PhysicsManager._sim
+        sim = sim = SimulationContext.instance()
         if sim is None:
             return
 
         sdp = sim.get_scene_data_provider()
-        if cls._visualization_scene_data is None:
-            cls._visualization_scene_data = SceneDataFormat.Transform()
-        if cls._visualization_mapping is None:
+        if cls._scene_data is None:
+            cls._scene_data = SceneDataFormat.Transform()
+        if cls._scene_data_mapping is None:
             body_paths = list(getattr(cls._model, "body_label", None) or [])
-            cls._visualization_mapping = sdp.create_mapping(body_paths)
+            cls._scene_data_mapping = sdp.create_mapping(body_paths)
 
-        cls._visualization_scene_data.transforms = cls._state_0.body_q
-        sdp.get_transforms(
-            cls._visualization_scene_data,
-            mapping=cls._visualization_mapping,
-            allow_passthrough=False,
-        )
+        cls._scene_data.transforms = cls._state_0.body_q
+        sdp.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
 
     @classmethod
     def get_state_1(cls) -> State:
