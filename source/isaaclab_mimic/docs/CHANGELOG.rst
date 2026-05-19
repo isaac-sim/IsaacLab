@@ -1,6 +1,57 @@
 Changelog
 ---------
 
+1.3.0 (2026-05-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved ``robomimic`` from an opt-in extra (``isaaclab_mimic[robomimic]``) to a
+  required dependency of :mod:`isaaclab_mimic` on Linux (via a ``sys_platform``
+  marker). ``robomimic`` is now installed automatically whenever
+  ``isaaclab_mimic`` is installed on Linux; no extra selector is needed.
+
+
+1.2.7 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :mod:`isaaclab_mimic.datagen` imports in packaged installs and avoided
+  importing task configuration modules until data generation config setup.
+
+
+1.2.6 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a temporary ``warp.torch`` compatibility shim at
+  :mod:`isaaclab_mimic` import time so that cuRobo (NVlabs/curobo) keeps
+  working with ``warp-lang>=1.13``, which dropped the ``warp.torch``
+  submodule in favour of top-level ``warp.*`` (e.g.
+  ``wp.torch.device_from_torch`` → ``wp.device_from_torch``). cuRobo's
+  pinned commit and ``main`` still call ``wp.torch.*`` and raise
+  ``AttributeError: module 'warp' has no attribute 'torch'`` at
+  :meth:`MotionGenConfig.load_from_robot_config` time. The shim
+  reconstructs ``warp.torch`` as a thin forwarding module and is a
+  no-op once warp re-introduces the namespace or cuRobo migrates.
+  Remove this shim once the cuRobo pin in ``docker/Dockerfile.curobo``
+  is bumped to a commit that uses the top-level ``wp.*`` API directly.
+
+
+1.2.5 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated mobility path utilities to import from ``isaacsim.replicator.experimental.mobility_gen``.
+
+
 1.2.4 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -14,8 +14,8 @@ from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -46,7 +46,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     spatial_tendons_props: schemas.SpatialTendonPropertiesCfg | None = None
     """Properties to apply to the spatial tendons (if any)."""
 
-    joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
+    joint_drive_props: schemas.JointDriveBaseCfg | None = None
     """Properties to apply to a joint.
 
     .. note::

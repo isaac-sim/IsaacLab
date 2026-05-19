@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 
@@ -47,9 +47,3 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
-
-    max_worlds: int | None = None
-    """Maximum number of worlds/environments rendered by the viewer.
-
-    Set to ``None`` to leave this option disabled.
-    """

@@ -36,14 +36,24 @@ __all__ = [
     "ArticulationRootPropertiesCfg",
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
-    "CollisionPropertiesCfg",
+    "CollisionBaseCfg",
     "ConvexDecompositionPropertiesCfg",
     "ConvexHullPropertiesCfg",
     "FixedTendonPropertiesCfg",
-    "JointDrivePropertiesCfg",
+    "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionPropertiesCfg",
-    "RigidBodyPropertiesCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "MujocoRigidBodyPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
+    "PhysxJointDrivePropertiesCfg",
+    "PhysxRigidBodyPropertiesCfg",
+    "RigidBodyBaseCfg",
     "SDFMeshPropertiesCfg",
     "SpatialTendonPropertiesCfg",
     "TriangleMeshPropertiesCfg",
@@ -90,8 +100,10 @@ __all__ = [
     "MeshSphereCfg",
     "MeshSquareCfg",
     "spawn_camera",
+    "spawn_sensor_frame",
     "FisheyeCameraCfg",
     "PinholeCameraCfg",
+    "SensorFrameCfg",
     "spawn_capsule",
     "spawn_cone",
     "spawn_cuboid",
@@ -160,6 +172,10 @@ __all__ = [
     "resolve_prim_pose",
     "resolve_prim_scale",
     "convert_world_pose_to_local",
+    "BaseFrameView",
+    "UsdFrameView",
+    "FrameView",
+    # Deprecated alias
     "XformPrimView",
 ]
 
@@ -196,19 +212,31 @@ from .schemas import (
     ArticulationRootPropertiesCfg,
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
-    CollisionPropertiesCfg,
+    CollisionBaseCfg,
     ConvexDecompositionPropertiesCfg,
     ConvexHullPropertiesCfg,
     FixedTendonPropertiesCfg,
-    JointDrivePropertiesCfg,
+    JointDriveBaseCfg,
     MassPropertiesCfg,
     MeshCollisionPropertiesCfg,
-    RigidBodyPropertiesCfg,
+    PhysxJointDrivePropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+    RigidBodyBaseCfg,
     SDFMeshPropertiesCfg,
     SpatialTendonPropertiesCfg,
     TriangleMeshPropertiesCfg,
     TriangleMeshSimplificationPropertiesCfg,
 )
+
+# Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
+MujocoJointDrivePropertiesCfg = ...
+MujocoRigidBodyPropertiesCfg = ...
+NewtonArticulationRootPropertiesCfg = ...
+NewtonCollisionPropertiesCfg = ...
+NewtonJointDrivePropertiesCfg = ...
+NewtonMaterialPropertiesCfg = ...
+NewtonMeshCollisionPropertiesCfg = ...
+NewtonRigidBodyPropertiesCfg = ...
 from .spawners import (
     SpawnerCfg,
     RigidObjectSpawnerCfg,
@@ -252,8 +280,10 @@ from .spawners import (
     MeshSphereCfg,
     MeshSquareCfg,
     spawn_camera,
+    spawn_sensor_frame,
     FisheyeCameraCfg,
     PinholeCameraCfg,
+    SensorFrameCfg,
     spawn_capsule,
     spawn_cone,
     spawn_cuboid,
@@ -325,4 +355,5 @@ from .utils import (
     resolve_prim_scale,
     convert_world_pose_to_local,
 )
-from .views import XformPrimView
+from .views import BaseFrameView, UsdFrameView, FrameView
+from .views import XformPrimView  # deprecated alias

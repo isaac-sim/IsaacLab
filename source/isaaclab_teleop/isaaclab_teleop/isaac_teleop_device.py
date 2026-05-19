@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 from .command_handler import CommandHandler
+from .control_events import ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .session_lifecycle import TeleopSessionLifecycle
 from .xr_anchor_manager import XrAnchorManager
@@ -35,8 +36,8 @@ class IsaacTeleopDevice:
       and coordinate-frame transform computation.
     * :class:`TeleopSessionLifecycle` -- pipeline building, OpenXR handle
       acquisition, session creation/destruction, and action-tensor extraction.
-    * :class:`CommandHandler` -- callback registration and XR message-bus
-      command dispatch.
+    * :class:`CommandHandler` -- callback registration for START / STOP / RESET
+      commands, bridged from the pipeline-based control events.
 
     Together they manage:
 
@@ -67,7 +68,8 @@ class IsaacTeleopDevice:
 
     Teleop commands:
         The device supports callbacks for START, STOP, and RESET commands
-        that can be triggered via XR controller buttons or the message bus.
+        that can be triggered via the message-channel control pipeline or
+        registered directly via :meth:`add_callback`.
 
     Example:
         .. code-block:: python
@@ -103,6 +105,8 @@ class IsaacTeleopDevice:
         cfg: IsaacTeleopCfg,
         cloudxr_env_file: str | None = None,
         auto_launch_cloudxr: bool = True,
+        mcap_record_path: str | None = None,
+        mcap_replay_path: str | None = None,
     ):
         """Initialize the IsaacTeleop device.
 
@@ -115,23 +119,31 @@ class IsaacTeleopDevice:
             auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
                 when *cloudxr_env_file* is set.  Ignored when
                 *cloudxr_env_file* is ``None``.
+            mcap_record_path: Optional MCAP file path to record the live
+                teleop session into.  Mutually exclusive with
+                *mcap_replay_path*.  Debug-grade only -- the produced file
+                has no per-episode segmentation, no world-frame anchor, and
+                no public Python decoder.
+            mcap_replay_path: Optional MCAP file path to replay.  When set,
+                the device runs in :class:`SessionMode.REPLAY` with no live
+                XR connection and feeds the recorded tracker stream
+                through the pipeline.  Mutually exclusive with
+                *mcap_record_path*.
         """
         self._cfg = cfg
 
-        # Compose the three collaborators
         self._anchor_manager = XrAnchorManager(cfg.xr_cfg)
+        self._command_handler = CommandHandler()
         self._session_lifecycle = TeleopSessionLifecycle(
             cfg,
             cloudxr_env_file=cloudxr_env_file,
             auto_launch_cloudxr=auto_launch_cloudxr,
-        )
-        self._command_handler = CommandHandler(
-            xr_core=self._anchor_manager.xr_core,
-            on_reset=self._anchor_manager.reset,
+            mcap_record_path=mcap_record_path,
+            mcap_replay_path=mcap_replay_path,
         )
 
-        # Controller button polling state (edge detection for right 'A')
         self._prev_right_a_pressed = False
+        self._prev_control_is_active: bool | None = None
 
     def __del__(self):
         """Clean up resources when the object is destroyed."""
@@ -188,9 +200,23 @@ class IsaacTeleopDevice:
     def reset(self) -> None:
         """Reset the device state.
 
-        Resets the XR anchor synchronizer if present.
+        Resets the XR anchor synchronizer and schedules a
+        ``reset`` :class:`~isaacteleop.retargeting_engine.interface.execution_events.ExecutionEvents`
+        for the next pipeline step so that all retargeters reinitialize
+        their cross-step state.
         """
         self._anchor_manager.reset()
+        self._session_lifecycle.request_reset()
+
+    @property
+    def last_control_events(self) -> ControlEvents:
+        """Control events from the most recent :meth:`advance`.
+
+        Returns a :class:`ControlEvents` derived from the teleop control
+        pipeline.  When no control channel is configured, returns a
+        default (no-op) :class:`ControlEvents`.
+        """
+        return self._session_lifecycle.last_control_events
 
     def add_callback(self, key: str, func: Callable) -> None:
         """Add a callback function for teleop commands.
@@ -252,7 +278,38 @@ class IsaacTeleopDevice:
             # Poll controller buttons (e.g. toggle anchor rotation on right 'A' press)
             self._poll_buttons()
 
+        self._dispatch_control_callbacks()
+
         return action
+
+    # ------------------------------------------------------------------
+    # Control event -> callback bridge
+    # ------------------------------------------------------------------
+
+    def _dispatch_control_callbacks(self) -> None:
+        """Fire legacy callbacks when control events indicate a state change.
+
+        This bridges the pipeline-based :class:`ControlEvents` with the
+        callback-based :class:`CommandHandler` so that scripts which registered
+        callbacks via :meth:`add_callback` still receive dispatches.
+
+        Only fires START/STOP when ``is_active`` transitions between ``True``
+        and ``False``; initial transitions from ``None`` are ignored to avoid
+        spurious callbacks during ``DefaultTeleopStateManager``'s
+        STOPPED -> PAUSED progression.
+        """
+        from .control_events import _NO_OP_EVENTS
+
+        events = self._session_lifecycle.last_control_events
+        if events is _NO_OP_EVENTS:
+            return
+        if events.should_reset:
+            self._command_handler.fire("RESET")
+            self._anchor_manager.reset()
+        if events.is_active is not None:
+            if self._prev_control_is_active is not None and events.is_active != self._prev_control_is_active:
+                self._command_handler.fire("START" if events.is_active else "STOP")
+            self._prev_control_is_active = events.is_active
 
     # ------------------------------------------------------------------
     # Target frame transform (config-driven rebase)
@@ -368,6 +425,8 @@ def create_isaac_teleop_device(
     callbacks: dict[str, Callable] | None = None,
     cloudxr_env_file: str | None = None,
     auto_launch_cloudxr: bool = True,
+    mcap_record_path: str | None = None,
+    mcap_replay_path: str | None = None,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -375,7 +434,9 @@ def create_isaac_teleop_device(
     before constructing an :class:`IsaacTeleopDevice`:
 
     1. Disable default OpenXR input bindings (prevents conflicts).
-    2. Enable the ``isaacsim.kit.xr.teleop.bridge`` extension.
+    2. Enable the ``isaacsim.kit.xr.teleop.bridge`` extension (live mode
+       only -- replay mode skips this since it never touches the XR
+       runtime).
     3. Optionally override :attr:`IsaacTeleopCfg.sim_device` so action tensors
        land on the same device the caller uses for the simulation.
 
@@ -397,21 +458,42 @@ def create_isaac_teleop_device(
             when *cloudxr_env_file* is set.  Set to ``False`` to skip the
             launch (e.g. when running the runtime externally).  Ignored
             when *cloudxr_env_file* is ``None``.
+        mcap_record_path: Optional MCAP file path to record the live teleop
+            session into.  Debug-grade only.  Mutually exclusive with
+            *mcap_replay_path*.
+        mcap_replay_path: Optional MCAP file path to replay.  When set, the
+            returned device runs in :class:`SessionMode.REPLAY` and the XR
+            teleop bridge is left untouched.  Mutually exclusive with
+            *mcap_record_path*.
 
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
         ``with`` block.
     """
-    _enable_teleop_bridge()
+    if mcap_record_path is not None and mcap_replay_path is not None:
+        raise ValueError(
+            "mcap_record_path and mcap_replay_path are mutually exclusive; "
+            "set at most one to switch between LIVE recording and REPLAY playback."
+        )
+
+    # Replay sessions never talk to Kit's XR bridge, so loading/enabling the
+    # bridge extension would only add startup latency and noisy log lines.
+    if mcap_replay_path is None:
+        _enable_teleop_bridge()
 
     if sim_device is not None:
         cfg.sim_device = sim_device
 
-    logger.info("Using IsaacTeleop stack for teleoperation")
+    if mcap_replay_path is not None:
+        logger.info("Using IsaacTeleop stack for teleoperation (REPLAY mode)")
+    else:
+        logger.info("Using IsaacTeleop stack for teleoperation")
     device = IsaacTeleopDevice(
         cfg,
         cloudxr_env_file=cloudxr_env_file,
         auto_launch_cloudxr=auto_launch_cloudxr,
+        mcap_record_path=mcap_record_path,
+        mcap_replay_path=mcap_replay_path,
     )
 
     if callbacks is not None:

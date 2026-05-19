@@ -13,15 +13,18 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
+from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
+    from isaaclab.scene.scene_data_provider import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -266,13 +269,16 @@ class NewtonVisualizer(BaseVisualizer):
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
+        self._resolved_visible_env_ids: list[int] | None = None
 
-    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
@@ -280,17 +286,11 @@ class NewtonVisualizer(BaseVisualizer):
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        metadata = scene_data_provider.get_metadata()
+        num_envs = scene_data_provider.num_envs
+        metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
-            get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
-            if callable(get_filtered_model):
-                self._model = get_filtered_model(self._env_ids)
-            else:
-                self._model = scene_data_provider.get_newton_model()
-        else:
-            self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(self._env_ids)
+        self._model = NewtonManager.get_model()
+        self._state = NewtonManager.get_state()
 
         # Use pyglet's EGL headless backend when requested. Must run before the first
         # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
@@ -308,8 +308,13 @@ class NewtonVisualizer(BaseVisualizer):
         )
 
         if self._viewer is not None:
-            max_worlds = self.cfg.max_worlds
-            self._viewer.set_model(self._model, max_worlds=max_worlds)
+            self._viewer.set_model(self._model)
+            apply_viewer_visible_worlds(
+                self._viewer,
+                env_ids=self._env_ids,
+                max_visible_envs=self.cfg.max_visible_envs,
+                num_envs=num_envs,
+            )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
@@ -334,7 +339,10 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
+        )
         self._log_initialization_table(
             logger=logger,
             title="NewtonVisualizer Configuration",
@@ -363,23 +371,16 @@ class NewtonVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
+        from isaaclab_newton.physics import NewtonManager
+
         if self._viewer is None:
-            if self._scene_data_provider is not None:
-                self._state = self._scene_data_provider.get_newton_state(self._env_ids)
+            self._state = NewtonManager.get_state()
             return
 
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state(self._env_ids)
-
-        contacts = None
-        if self._viewer.show_contacts:
-            contacts_data = self._scene_data_provider.get_contacts()
-            if isinstance(contacts_data, dict):
-                contacts = contacts_data.get("contacts", contacts_data)
-            else:
-                contacts = contacts_data
+        self._state = NewtonManager.get_state()
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
@@ -394,11 +395,6 @@ class NewtonVisualizer(BaseVisualizer):
                         self._viewer.end_frame()
                         return
                     self._viewer.log_state(self._state)
-                    if contacts is not None and hasattr(self._viewer, "log_contacts"):
-                        try:
-                            self._viewer.log_contacts(contacts, self._state)
-                        except RuntimeError as exc:
-                            logger.debug(f"[NewtonVisualizer] Failed to log contacts: {exc}")
                 self._viewer.end_frame()
             else:
                 self._viewer._update()
@@ -452,7 +448,8 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
-        self._viewer.camera.pos = wp.vec3(*cam_pos)
+        # Match Newton's Camera native pos type: PyVec3, not wp.vec3.
+        self._viewer.camera.pos = PygletVec3(*cam_pos)
         cam_pos_np = np.array(cam_pos, dtype=np.float32)
         cam_target_np = np.array(cam_target, dtype=np.float32)
         direction = cam_target_np - cam_pos_np
@@ -473,8 +470,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
-        """Newton OpenGL viewer does not implement Isaac Lab marker primitives."""
-        return False
+        """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Newton OpenGL viewer does not provide live-plot panels."""

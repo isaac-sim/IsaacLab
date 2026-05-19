@@ -49,6 +49,7 @@ class MockNewtonCollectionView:
         # Internal state (lazily initialised)
         self._root_transforms: wp.array | None = None
         self._root_velocities: wp.array | None = None
+        self._articulation_ids: wp.array | None = None
         self._attributes: dict[str, wp.array | None] = {
             "body_com": None,
             "body_mass": None,
@@ -66,6 +67,16 @@ class MockNewtonCollectionView:
     @property
     def body_names(self) -> list[str]:
         return self._body_names
+
+    @property
+    def articulation_ids(self) -> wp.array:
+        """Mapping from ``(world, arti)`` to model articulation index. Shape ``(N, B)`` dtype=int."""
+        if self._articulation_ids is None:
+            ids_np = np.arange(self._num_envs * self._num_bodies, dtype=np.int32).reshape(
+                self._num_envs, self._num_bodies
+            )
+            self._articulation_ids = wp.array(ids_np, dtype=int, device=self._device)
+        return self._articulation_ids
 
     # -- Lazy init helpers -------------------------------------------------
 
@@ -86,7 +97,9 @@ class MockNewtonCollectionView:
     def _ensure_attribute(self, name: str) -> wp.array:
         if self._attributes[name] is None:
             self._attributes[name] = self._create_default_attribute(name)
-        return self._attributes[name]
+        value = self._attributes[name]
+        assert value is not None
+        return value
 
     def _create_default_attribute(self, name: str) -> wp.array:
         N, B = self._num_envs, self._num_bodies
@@ -222,6 +235,7 @@ class MockNewtonArticulationView:
         self._link_velocities: wp.array | None = None
         self._dof_positions: wp.array | None = None
         self._dof_velocities: wp.array | None = None
+        self._articulation_ids: wp.array | None = None
 
         # Attributes dict (lazily initialized)
         self._attributes: dict[str, wp.array | None] = {
@@ -238,6 +252,7 @@ class MockNewtonArticulationView:
             "joint_effort_limit": None,
             "body_f": None,
             "joint_f": None,
+            "joint_act": None,
             "joint_target_pos": None,
             "joint_target_vel": None,
             "joint_limit_ke": None,
@@ -280,6 +295,14 @@ class MockNewtonArticulationView:
     def link_names(self) -> list[str]:
         """Alias for body_names (Newton calls bodies 'links')."""
         return self._body_names
+
+    @property
+    def articulation_ids(self) -> wp.array:
+        """Mapping from ``(world, arti)`` to model articulation index. Shape ``(N, 1)`` dtype=int."""
+        if self._articulation_ids is None:
+            ids_np = np.arange(self._count, dtype=np.int32).reshape(self._count, 1)
+            self._articulation_ids = wp.array(ids_np, dtype=int, device=self._device)
+        return self._articulation_ids
 
     # -- Lazy Initialization Helpers --
 
@@ -338,7 +361,9 @@ class MockNewtonArticulationView:
         """Lazily create an attribute array."""
         if self._attributes[name] is None:
             self._attributes[name] = self._create_default_attribute(name)
-        return self._attributes[name]
+        value = self._attributes[name]
+        assert value is not None
+        return value
 
     def _create_default_attribute(self, name: str) -> wp.array:
         """Create a default attribute array based on name."""
@@ -363,6 +388,7 @@ class MockNewtonArticulationView:
             "joint_velocity_limit",
             "joint_effort_limit",
             "joint_f",
+            "joint_act",
             "joint_target_pos",
             "joint_target_vel",
             "joint_limit_ke",
@@ -638,6 +664,7 @@ class MockNewtonArticulationView:
             "joint_velocity_limit",
             "joint_effort_limit",
             "joint_f",
+            "joint_act",
             "joint_target_pos",
             "joint_target_vel",
             "joint_limit_ke",

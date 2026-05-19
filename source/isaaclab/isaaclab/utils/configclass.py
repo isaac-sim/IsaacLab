@@ -5,6 +5,7 @@
 
 """Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
 
+import dataclasses
 import inspect
 import re
 import types
@@ -451,9 +452,13 @@ def _process_mutable_types(cls):
     for key in ann:
         # find matching field in class
         value = class_members.get(key, MISSING)
-        # check if key belongs to ClassVar
-        # in that case, we cannot use default_factory!
-        origin = getattr(ann[key], "__origin__", None)
+        # check if key belongs to ClassVar -- in that case, we cannot use default_factory!
+        # ``from __future__ import annotations`` turns annotations into strings, so we
+        # also detect the string form (``"ClassVar[...]"``) for files using PEP 563.
+        ann_value = ann[key]
+        if isinstance(ann_value, str) and ann_value.startswith(("ClassVar", "typing.ClassVar")):
+            continue
+        origin = getattr(ann_value, "__origin__", None)
         if origin is ClassVar:
             continue
         # check if f is MISSING
@@ -633,3 +638,37 @@ def resolve_cfg_presets(cfg: object) -> object:
         else:
             resolve_cfg_presets(value)
     return cfg
+
+
+def checked_apply(src: Any, target: Any) -> None:
+    """Forward every declared field on ``src`` (a dataclass) onto ``target``.
+
+    Used by Isaac Lab configclasses that mirror an upstream/external dataclass
+    (for example, Newton's ``ShapeConfig``): declare the overridable fields
+    once on the wrapper, then forward them to the upstream object via this
+    helper instead of writing ``setattr`` lines per field.
+
+    Raises :class:`AttributeError` if ``target`` is missing a field declared
+    on ``src``. The two structures must match — the check guards against
+    silent no-ops when the upstream API drifts (the bug class PR #5289 fixed
+    for Newton ``ShapeConfig.contact_margin`` → ``margin``).
+
+    Args:
+        src: Dataclass instance whose declared fields will be forwarded.
+            Field names live here; this is the single source of truth.
+        target: Object to receive the field values. Must already expose
+            an attribute for every declared field on ``src``.
+
+    Raises:
+        AttributeError: If ``target`` does not already have an attribute
+            matching one of ``src``'s declared field names.
+    """
+    if not hasattr(src, "__dataclass_fields__"):
+        raise TypeError(f"checked_apply: src must be a dataclass, got {type(src).__name__}")
+    for f in dataclasses.fields(src):
+        if not hasattr(target, f.name):
+            target_path = f"{type(target).__module__}.{type(target).__name__}"
+            raise AttributeError(
+                f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
+            )
+        setattr(target, f.name, getattr(src, f.name))

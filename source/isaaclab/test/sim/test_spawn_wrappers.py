@@ -19,6 +19,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture
 def sim():
@@ -158,6 +160,41 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
     for prim_path in prim_paths:
         prim = sim.stage.GetPrimAtPath(prim_path)
         assert prim.GetAttribute("physics:mass").Get() in mass_variations
+
+
+def test_spawn_multiple_shapes_with_explicit_spawn_paths(sim):
+    """Multi-asset spawner accepts planned per-variant source paths."""
+    sim_utils.create_prim("/World/planned", "Xform", translation=(0, 0, 0))
+
+    cfg = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            sim_utils.ConeCfg(radius=0.3, height=0.6),
+            sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3)),
+            sim_utils.SphereCfg(radius=0.3),
+        ],
+        spawn_paths=["/World/planned/apple", None, "/World/planned/banana"],
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+
+    prim = cfg.func("/World/ignored_without_regex", cfg)
+
+    assert str(prim.GetPath()) == "/World/planned/apple"
+    assert sim.stage.GetPrimAtPath("/World/planned/apple").IsValid()
+    assert not sim.stage.GetPrimAtPath("/World/planned/ignored").IsValid()
+    assert sim.stage.GetPrimAtPath("/World/planned/banana").IsValid()
+    assert sim.stage.GetPrimAtPath("/World/planned/apple").GetAttribute("physics:mass").Get() == 1.0
+
+
+def test_spawn_multiple_shapes_spawn_paths_length_mismatch(sim):
+    """Explicit multi-asset paths must align one-to-one with variants."""
+    cfg = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[sim_utils.ConeCfg(radius=0.3, height=0.6), sim_utils.SphereCfg(radius=0.3)],
+        spawn_paths=["/World/planned/apple"],
+    )
+
+    with pytest.raises(ValueError, match="spawn_paths"):
+        cfg.func("/World/ignored_without_regex", cfg)
 
 
 """

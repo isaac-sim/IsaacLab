@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
+from pxr import Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
@@ -53,6 +55,9 @@ class AssetBase(ABC):
     :meth:`_debug_vis_callback` methods.
     """
 
+    _check_shapes: bool = __debug__
+    """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
+
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
 
@@ -66,10 +71,17 @@ class AssetBase(ABC):
         cfg.validate()
         # store inputs
         self.cfg = cfg.copy()
+        # Resolve shape-check flag once: True means checks are active.
+        # cfg.disable_shape_checks: None -> follow __debug__
+        # True -> force disable checks; False -> force enable checks.
+        if self.cfg.disable_shape_checks is None:
+            self._check_shapes = __debug__
+        else:
+            self._check_shapes = not self.cfg.disable_shape_checks
         # flag for whether the asset is initialized
         self._is_initialized = False
         # get stage handle
-        self.stage = get_current_stage()
+        self.stage: Usd.Stage = get_current_stage()
 
         # spawn the asset
         # determine path where prims should exist after spawn
@@ -86,6 +98,8 @@ class AssetBase(ABC):
             matching_prims = sim_utils.find_matching_prims(check_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {check_path}.")
+            # schema-side post-spawn hook (e.g. ArticulationCfg authors NewtonActuator prims here)
+            self.cfg._post_spawn(self.stage)
         else:
             # asset should exist at run time
             check_path = self.cfg.prim_path
@@ -195,16 +209,13 @@ class AssetBase(ABC):
         if debug_vis:
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
-                if "physx" in sim_ctx.physics_manager.__name__.lower():
-                    import omni.kit.app
-
-                    app_interface = omni.kit.app.get_app_interface()
-                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
+                if sim_ctx is not None:
+                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+            else:
                 self._debug_vis_handle = None
         # return success
         return True
@@ -257,13 +268,16 @@ class AssetBase(ABC):
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`. When checks are
+        disabled this method is a no-op.
+
         Args:
             tensor: The tensor or warp array to assert the shape of. Floats are skipped.
             shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
             dtype: The expected warp dtype.
             name: Optional parameter name for error messages.
         """
-        if __debug__:
+        if self._check_shapes:
             cls = type(self).__name__
             prefix = f"{cls}: '{name}' " if name else f"{cls}: "
             if isinstance(tensor, (int, float)):
@@ -294,6 +308,9 @@ class AssetBase(ABC):
         ``(mask_0.shape[0], mask_1.shape[0], ...)`` (i.e. the *total* size of each dimension, not the
         number of selected entries).
 
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`. When checks are
+        disabled this method is a no-op.
+
         Args:
             tensor: The tensor or warp array to assert the shape of. Floats are skipped.
             masks: Tuple of mask arrays whose ``shape[0]`` dimensions form the expected leading shape.
@@ -301,7 +318,7 @@ class AssetBase(ABC):
             name: Optional parameter name for error messages.
             trailing_dims: Extra trailing dimensions to append (e.g. ``(9,)`` for inertias with ``wp.float32``).
         """
-        if __debug__:
+        if self._check_shapes:
             shape = (*tuple(m.shape[0] for m in masks), *trailing_dims)
             self.assert_shape_and_dtype(tensor, shape, dtype, name)
 
@@ -388,8 +405,10 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None
 
     def _on_prim_deletion(self, event) -> None:
@@ -419,6 +438,8 @@ class AssetBase(ABC):
         if self._prim_deletion_handle is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None

@@ -4,10 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -17,7 +18,7 @@ from .rough_env_cfg import AnymalDRoughEnvCfg
 @configclass
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    newton = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=60,
             nconmax=25,
@@ -28,6 +29,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = default
+    ovphysx = OvPhysxCfg()
 
 
 @configclass

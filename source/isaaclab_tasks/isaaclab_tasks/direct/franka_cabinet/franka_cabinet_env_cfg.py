@@ -12,8 +12,8 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -149,3 +149,7 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     open_reward_scale = 10.0
     action_penalty_scale = 0.05
     finger_reward_scale = 2.0
+
+    # success criteria
+    success_drawer_pos_threshold: float = 0.30
+    """Drawer joint position above which the drawer is considered successfully opened [m]."""

@@ -5,7 +5,6 @@
 import os
 import tempfile
 
-import torch
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
@@ -24,8 +23,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.configclass import configclass
 
 from . import mdp
 
@@ -534,49 +533,47 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (12), right hand joint pos (12)]
-    idle_action = torch.tensor(
-        [
-            # 14 hand joints for EEF control
-            -0.1487,
-            0.2038,
-            1.0952,
-            0.0,
-            0.0,
-            0.707,
-            0.707,
-            0.1487,
-            0.2038,
-            1.0952,
-            0.0,
-            0.0,
-            0.707,
-            0.707,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ]
-    )
+    idle_action = [
+        # 14 hand joints for EEF control
+        -0.1487,
+        0.2038,
+        1.0952,
+        0.0,
+        0.0,
+        0.707,
+        0.707,
+        0.1487,
+        0.2038,
+        1.0952,
+        0.0,
+        0.0,
+        0.707,
+        0.707,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
 
     def __post_init__(self):
         """Post initialization."""

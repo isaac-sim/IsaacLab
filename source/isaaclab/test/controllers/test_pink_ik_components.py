@@ -5,11 +5,6 @@
 
 """Test cases for PinkKinematicsConfiguration class."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +13,8 @@ import pytest
 from pink.exceptions import FrameNotFound
 
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
+
+pytestmark = pytest.mark.isaacsim_ci
 
 
 class TestPinkKinematicsConfiguration:

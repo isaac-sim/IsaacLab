@@ -5,9 +5,8 @@
 
 """Data container for the multi-mesh ray-cast camera sensor."""
 
-import torch
-
 from isaaclab.sensors.camera import CameraData
+from isaaclab.utils.warp import ProxyArray
 
 
 class MultiMeshRayCasterCameraData(CameraData):
@@ -19,7 +18,7 @@ class MultiMeshRayCasterCameraData(CameraData):
     warp-native :class:`RayCasterData`.
     """
 
-    image_mesh_ids: torch.Tensor = None
+    image_mesh_ids: ProxyArray = None
     """The mesh ids of the image pixels.
 
     Shape is (N, H, W, 1), where N is the number of sensors, H and W are the height and width of the image,

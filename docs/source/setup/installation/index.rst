@@ -42,6 +42,13 @@ installation methods.
 
 .. caution::
 
+   **Compatibility warning for Isaac Sim GitHub develop:** A recent breaking change on the Isaac Lab
+   ``develop`` branch is not compatible with the ``develop`` branch of Isaac Sim on GitHub. To run
+   Isaac Lab with Isaac Sim's GitHub ``develop`` branch, use Isaac Lab commit
+   `f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa <https://github.com/isaac-sim/IsaacLab/commit/f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa>`__
+   or an earlier commit. Alternatively, use the Isaac Lab
+   `v3.0.0-beta <https://github.com/isaac-sim/IsaacLab/tree/v3.0.0-beta>`__ tag.
+
    We have dropped support for Isaac Sim versions 5.1.0 and below. We recommend using the latest
    Isaac Sim 6.0.0 release to benefit from the latest features and improvements.
 
@@ -77,10 +84,9 @@ Drivers other than those recommended on `Omniverse Technical Requirements <https
 may work but have not been validated against all Omniverse tests.
 
 - Use the **latest NVIDIA production branch driver**.
-- On Linux, version ``580.65.06`` or later is recommended, especially when upgrading to
-  **Ubuntu 22.04.5 with kernel 6.8.0-48-generic** or newer.
-- On Spark, version ``580.95.05`` is recommended.
-- On Windows, version ``580.88`` is recommended.
+- On Linux (x86_64 and aarch64), version ``580.95.05`` or later is recommended.
+- On Spark (Linux aarch64), version ``580.142`` is recommended.
+- On Windows, version ``581.42.00`` is recommended.
 - If you are using a new GPU or encounter driver issues, install the latest production branch
   driver from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_
   using the ``.run`` installer.
@@ -231,3 +237,4 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
    source_installation
    isaaclab_pip_installation
    asset_caching
+   uv run (experimental) <uv_run>

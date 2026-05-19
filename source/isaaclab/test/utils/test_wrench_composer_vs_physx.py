@@ -110,7 +110,7 @@ def test_composer_vs_physx_local_force(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -139,20 +139,20 @@ def test_composer_vs_physx_local_force(device):
 
         # Compare velocities
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # Both should have ~zero angular velocity (force at CoM, no torque)
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
             torch.zeros(1, 3, device=device),
             rtol=0.0,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_raw.data.root_ang_vel_w.torch,
             torch.zeros(1, 3, device=device),
             rtol=0.0,
             atol=1e-4,
@@ -175,7 +175,7 @@ def test_composer_vs_physx_global_force(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -204,27 +204,27 @@ def test_composer_vs_physx_global_force(device):
 
         # Linear velocities should match (same global force, same mass)
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # Angular velocities should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # Both should have ~zero angular velocity (force at CoM, no torque)
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
             torch.zeros(1, 3, device=device),
             rtol=0.0,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_raw.data.root_ang_vel_w.torch,
             torch.zeros(1, 3, device=device),
             rtol=0.0,
             atol=1e-4,
@@ -249,7 +249,7 @@ def test_composer_vs_physx_local_force_at_position(device):
         positions = torch.zeros(1, len(body_ids), 3, device=device)
         positions[..., 1] = 0.5  # +0.5m Y offset in local frame
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=positions,
@@ -281,20 +281,20 @@ def test_composer_vs_physx_local_force_at_position(device):
 
         # Both linear and angular velocities should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
 
         # Sanity: angular velocity should be nonzero (cross-product torque)
-        assert torch.abs(wp.to_torch(cube_composer.data.root_ang_vel_w)[0, 2]).item() > 0.1, (
+        assert torch.abs(cube_composer.data.root_ang_vel_w.torch[0, 2]).item() > 0.1, (
             "Expected nonzero Z angular velocity from cross-product torque"
         )
 
@@ -319,10 +319,10 @@ def test_composer_vs_physx_global_force_at_position(device):
         offset = torch.zeros(1, len(body_ids), 3, device=device)
         offset[..., 1] = 1.0  # +1m Y offset in world frame
 
-        pos_composer = wp.to_torch(cube_composer.data.body_com_pos_w)[:, body_ids, :3].clone() + offset
-        pos_raw = wp.to_torch(cube_raw.data.body_com_pos_w)[:, body_ids, :3].clone() + offset
+        pos_composer = cube_composer.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
+        pos_raw = cube_raw.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=pos_composer,
@@ -353,20 +353,20 @@ def test_composer_vs_physx_global_force_at_position(device):
 
         # Both linear and angular velocities should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
 
         # Sanity: angular velocity should be nonzero (cross-product torque)
-        assert torch.abs(wp.to_torch(cube_composer.data.root_ang_vel_w)[0, 2]).item() > 0.1, (
+        assert torch.abs(cube_composer.data.root_ang_vel_w.torch[0, 2]).item() > 0.1, (
             "Expected nonzero Z angular velocity from positional torque"
         )
 
@@ -387,7 +387,7 @@ def test_composer_vs_physx_local_torque(device):
         torques = torch.zeros(1, len(body_ids), 3, device=device)
         torques[..., 2] = TORQUE_MAGNITUDE
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -416,20 +416,20 @@ def test_composer_vs_physx_local_torque(device):
 
         # Angular velocities should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # Linear velocity should be ~zero for both (no force)
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
             torch.zeros(1, 3, device=device),
             rtol=0.0,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_raw.data.root_lin_vel_w.torch,
             torch.zeros(1, 3, device=device),
             rtol=0.0,
             atol=1e-4,
@@ -452,7 +452,7 @@ def test_composer_vs_physx_global_torque(device):
         torques = torch.zeros(1, len(body_ids), 3, device=device)
         torques[..., 2] = TORQUE_MAGNITUDE
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -481,8 +481,8 @@ def test_composer_vs_physx_global_torque(device):
 
         # Angular velocities should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
@@ -513,7 +513,7 @@ def test_composer_vs_physx_global_force_multi_env(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -542,21 +542,21 @@ def test_composer_vs_physx_global_force_multi_env(device):
 
         # Linear velocities should match across all envs
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # Angular velocities should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # All envs should have ~zero angular velocity
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
             torch.zeros(NUM_CUBES_MULTI, 3, device=device),
             rtol=0.0,
             atol=1e-4,
@@ -583,17 +583,17 @@ def test_composer_vs_physx_global_force_with_reset(device):
         cube_raw.update(sim.cfg.dt)
         initial_state_composer = torch.cat(
             [
-                wp.to_torch(cube_composer.data.root_link_pos_w),
-                wp.to_torch(cube_composer.data.root_link_quat_w),
-                wp.to_torch(cube_composer.data.root_com_vel_w),
+                cube_composer.data.root_link_pos_w.torch,
+                cube_composer.data.root_link_quat_w.torch,
+                cube_composer.data.root_com_vel_w.torch,
             ],
             dim=-1,
         ).clone()
         initial_state_raw = torch.cat(
             [
-                wp.to_torch(cube_raw.data.root_link_pos_w),
-                wp.to_torch(cube_raw.data.root_link_quat_w),
-                wp.to_torch(cube_raw.data.root_com_vel_w),
+                cube_raw.data.root_link_pos_w.torch,
+                cube_raw.data.root_link_quat_w.torch,
+                cube_raw.data.root_com_vel_w.torch,
             ],
             dim=-1,
         ).clone()
@@ -605,7 +605,7 @@ def test_composer_vs_physx_global_force_with_reset(device):
             forces = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
             forces[..., 0] = FORCE_MAGNITUDE
             torques = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
-            cube_composer.permanent_wrench_composer.set_forces_and_torques(
+            cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
                 forces=forces,
                 torques=torques,
                 body_ids=body_ids,
@@ -641,8 +641,18 @@ def test_composer_vs_physx_global_force_with_reset(device):
         reset_ids_torch = torch.tensor(reset_ids, dtype=torch.long, device=device)
 
         # Reset root state using captured world-frame initial state (includes env origins)
-        cube_composer.write_root_state_to_sim(initial_state_composer[reset_ids_torch], env_ids=reset_ids_torch)
-        cube_raw.write_root_state_to_sim(initial_state_raw[reset_ids_torch], env_ids=reset_ids_torch)
+        cube_composer.write_root_link_pose_to_sim_index(
+            root_pose=initial_state_composer[reset_ids_torch, :7], env_ids=reset_ids_torch
+        )
+        cube_composer.write_root_com_velocity_to_sim_index(
+            root_velocity=initial_state_composer[reset_ids_torch, 7:], env_ids=reset_ids_torch
+        )
+        cube_raw.write_root_link_pose_to_sim_index(
+            root_pose=initial_state_raw[reset_ids_torch, :7], env_ids=reset_ids_torch
+        )
+        cube_raw.write_root_com_velocity_to_sim_index(
+            root_velocity=initial_state_raw[reset_ids_torch, 7:], env_ids=reset_ids_torch
+        )
 
         cube_composer.reset(reset_ids)
         cube_raw.reset(reset_ids)
@@ -667,20 +677,20 @@ def test_composer_vs_physx_global_force_with_reset(device):
 
         # All envs: composer vs raw should match
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # All envs should have ~zero angular velocity
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
             torch.zeros(NUM_CUBES_MULTI, 3, device=device),
             rtol=0.0,
             atol=1e-4,
@@ -707,8 +717,8 @@ def test_composer_vs_physx_payload_scenario(device):
         cube_raw.update(sim.cfg.dt)
 
         # Record initial positions to compare displacements (cubes spawn at different Y)
-        init_pos_composer = wp.to_torch(cube_composer.data.root_pos_w).clone()
-        init_pos_raw = wp.to_torch(cube_raw.data.root_pos_w).clone()
+        init_pos_composer = cube_composer.data.root_pos_w.torch.clone()
+        init_pos_raw = cube_raw.data.root_pos_w.torch.clone()
 
         body_ids, _ = cube_composer.find_bodies(".*")
 
@@ -717,7 +727,7 @@ def test_composer_vs_physx_payload_scenario(device):
         forces[..., 2] = -payload_force
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -744,19 +754,19 @@ def test_composer_vs_physx_payload_scenario(device):
             cube_raw.update(sim.cfg.dt)
 
         # Compare displacements (not absolute positions — cubes have different spawn Y)
-        disp_composer = wp.to_torch(cube_composer.data.root_pos_w) - init_pos_composer
-        disp_raw = wp.to_torch(cube_raw.data.root_pos_w) - init_pos_raw
+        disp_composer = cube_composer.data.root_pos_w.torch - init_pos_composer
+        disp_raw = cube_raw.data.root_pos_w.torch - init_pos_raw
 
         torch.testing.assert_close(disp_composer, disp_raw, rtol=1e-4, atol=1e-4)
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
@@ -787,10 +797,10 @@ def test_composer_vs_physx_permanent_global_force_at_position_long_run(device):
         offset = torch.zeros(1, len(body_ids), 3, device=device)
         offset[..., 1] = 1.0
 
-        pos_composer = wp.to_torch(cube_composer.data.body_com_pos_w)[:, body_ids, :3].clone() + offset
-        pos_raw = wp.to_torch(cube_raw.data.body_com_pos_w)[:, body_ids, :3].clone() + offset
+        pos_composer = cube_composer.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
+        pos_raw = cube_raw.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=pos_composer,
@@ -819,19 +829,19 @@ def test_composer_vs_physx_permanent_global_force_at_position_long_run(device):
             cube_raw.update(sim.cfg.dt)
 
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_lin_vel_w),
-            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            cube_composer.data.root_lin_vel_w.torch,
+            cube_raw.data.root_lin_vel_w.torch,
             rtol=1e-3,
             atol=1e-3,
         )
         torch.testing.assert_close(
-            wp.to_torch(cube_composer.data.root_ang_vel_w),
-            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            cube_composer.data.root_ang_vel_w.torch,
+            cube_raw.data.root_ang_vel_w.torch,
             rtol=1e-3,
             atol=1e-3,
         )
 
         # Sanity: angular velocity should be nonzero
-        assert torch.abs(wp.to_torch(cube_composer.data.root_ang_vel_w)).max().item() > 0.1, (
+        assert torch.abs(cube_composer.data.root_ang_vel_w.torch).max().item() > 0.1, (
             "Expected nonzero angular velocity from positional torque over 100 steps"
         )

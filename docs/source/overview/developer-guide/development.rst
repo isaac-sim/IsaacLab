@@ -81,18 +81,21 @@ Custom Extension Dependency Management
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Certain extensions may have dependencies which require the installation of additional packages before the extension
-can be used. While Python dependencies are handled by the `setuptools <https://setuptools.pypa.io/en/latest/>`__
-package and specified in the ``setup.py`` file, non-Python dependencies such as `ROS <https://www.ros.org/>`__
-packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__ packages are not handled by setuptools.
-Handling these kinds of dependencies requires an additional procedure.
+can be used. Python dependencies are handled by the `setuptools <https://setuptools.pypa.io/en/latest/>`__
+package and specified in the ``setup.py`` file. Non-Python dependencies such as
+`ROS <https://www.ros.org/>`__ packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__
+packages are not handled by setuptools. Handling these kinds of dependencies requires an additional procedure.
 
-There are two types of dependencies that can be specified in the ``extension.toml`` file
+There are three types of dependencies that can be specified in the ``extension.toml`` file
 under the ``isaac_lab_settings`` section:
 
 1. **apt_deps**: A list of apt packages that need to be installed. These are installed using the
    `apt <https://ubuntu.com/server/docs/package-management>`__ package manager.
 2. **ros_ws**: The path to the ROS workspace that contains the ROS packages. These are installed using
    the `rosdep <https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html>`__ dependency manager.
+3. **pip_upgrade_dependencies**: A list of ``install_requires`` dependency names that should be explicitly
+   upgraded after installing the extension with ``./isaaclab.sh --install``. List package names only. Version
+   ranges, extras, and platform markers are read from the installed extension metadata generated from ``setup.py``.
 
 As an example, the following ``extension.toml`` file specifies the dependencies for the extension:
 
@@ -106,8 +109,11 @@ As an example, the following ``extension.toml`` file specifies the dependencies 
    # note: if this path is relative, it is relative to the extension directory's root
    ros_ws = "/home/user/catkin_ws"
 
-These dependencies are installed using the ``install_deps.py`` script provided in the ``tools`` directory.
-To install all dependencies for all extensions, run the following command:
+   # Python dependency names to upgrade after installing this extension
+   pip_upgrade_dependencies = ["example_package"]
+
+The ``apt_deps`` and ``ros_ws`` dependencies are installed using the ``install_deps.py`` script provided in the
+``tools`` directory. To install all apt and ROS dependencies for all extensions, run the following command:
 
 .. code-block:: bash
 
@@ -120,6 +126,9 @@ To install all dependencies for all extensions, run the following command:
    Currently, this script is automatically executed during the build process of the ``Dockerfile.base``
    and ``Dockerfile.ros2``. This ensures that all the 'apt' and 'rosdep' dependencies are installed
    before building the extensions respectively.
+
+The ``pip_upgrade_dependencies`` entries are handled by ``./isaaclab.sh --install`` after the extension's editable
+pip install completes.
 
 
 Standalone applications

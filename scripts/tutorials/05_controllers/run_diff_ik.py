@@ -20,8 +20,6 @@ PhysX. This helps perform parallelized computation of the inverse kinematics.
 
 import argparse
 
-import warp as wp
-
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -48,8 +46,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import subtract_frame_transforms
 
 ##
@@ -147,8 +145,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset time
             count = 0
             # reset joint state
-            joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
-            joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+            joint_pos = robot.data.default_joint_pos.torch.clone()
+            joint_vel = robot.data.default_joint_vel.torch.clone()
             robot.write_joint_position_to_sim_index(position=joint_pos)
             robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
             robot.reset()
@@ -161,11 +159,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # change goal
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
         else:
-            # obtain quantities from simulation
-            jacobian = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
-            ee_pose_w = wp.to_torch(robot.data.body_pose_w)[:, robot_entity_cfg.body_ids[0]]
-            root_pose_w = wp.to_torch(robot.data.root_pose_w)
-            joint_pos = wp.to_torch(robot.data.joint_pos)[:, robot_entity_cfg.joint_ids]
+            # obtain quantities from simulation. The Jacobian DoF axis prepends
+            # ``num_base_dofs`` floating-base columns (0 for fixed-base, 6 for
+            # floating-base); shift the actuated-joint ids accordingly.
+            jacobi_joint_ids = [j + robot.num_base_dofs for j in robot_entity_cfg.joint_ids]
+            jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, jacobi_joint_ids]
+            ee_pose_w = robot.data.body_pose_w.torch[:, robot_entity_cfg.body_ids[0]]
+            root_pose_w = robot.data.root_pose_w.torch
+            joint_pos = robot.data.joint_pos.torch[:, robot_entity_cfg.joint_ids]
             # compute frame in root frame
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
                 root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
@@ -184,7 +185,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.update(sim_dt)
 
         # obtain quantities from simulation
-        ee_pose_w = wp.to_torch(robot.data.body_state_w)[:, robot_entity_cfg.body_ids[0], 0:7]
+        ee_pose_w = robot.data.body_state_w.torch[:, robot_entity_cfg.body_ids[0], 0:7]
         # update marker positions
         ee_marker.visualize(ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
         goal_marker.visualize(ik_commands[:, 0:3] + scene.env_origins, ik_commands[:, 3:7])

@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import os
 import tempfile
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
+
+from filelock import FileLock
 
 # deformables only supported on PhysX backend
 from isaaclab_physx.sim import schemas as schemas_physx
@@ -316,10 +318,10 @@ def _spawn_from_usd_file(
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
     if _world_size > 1:
-        lock_path = os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock")
-        lock_fd = open(lock_path, "w")  # noqa: SIM115
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
-    try:
+        lock = FileLock(os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock"))
+    else:
+        lock = nullcontext()
+    with lock:
         if file_status == 2:
             usd_path = retrieve_file_path(usd_path, force_download=False)
         stage = get_current_stage()
@@ -334,10 +336,6 @@ def _spawn_from_usd_file(
             )
         else:
             logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
-    finally:
-        if _world_size > 1:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:
@@ -365,6 +363,25 @@ def _spawn_from_usd_file(
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.
     if cfg.joint_drive_props is not None:
+        # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested
+        # without it — actuatorgravcomp has no effect since there are no forces to route.
+        # Only auto-populates when the user did not already set ``gravcomp`` themselves;
+        # an explicit ``MujocoRigidBodyPropertiesCfg(gravcomp=0.5)`` is preserved as-is.
+        from isaaclab_newton.sim.schemas.schemas_cfg import MujocoJointDrivePropertiesCfg, MujocoRigidBodyPropertiesCfg
+
+        body_gravcomp_unset = (
+            not isinstance(cfg.rigid_props, MujocoRigidBodyPropertiesCfg) or cfg.rigid_props.gravcomp is None
+        )
+        if (
+            isinstance(cfg.joint_drive_props, MujocoJointDrivePropertiesCfg)
+            and cfg.joint_drive_props.actuatorgravcomp
+            and body_gravcomp_unset
+        ):
+            logger.info(
+                "Joint-level actuator gravity compensation requires body-level gravcomp."
+                " Auto-setting MujocoRigidBodyPropertiesCfg(gravcomp=1.0)."
+            )
+            schemas.modify_rigid_body_properties(prim_path, MujocoRigidBodyPropertiesCfg(gravcomp=1.0))
         schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
 
     # define deformable body properties, or modify if deformable body API is present (PhysX only)

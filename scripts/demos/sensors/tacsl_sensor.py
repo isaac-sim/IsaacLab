@@ -30,7 +30,6 @@ import os
 import cv2
 import numpy as np
 import torch
-import warp as wp
 
 from isaaclab.app import AppLauncher
 
@@ -83,9 +82,9 @@ simulation_app = app_launcher.app
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.timer import Timer
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
@@ -158,7 +157,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         # Camera configuration
         # Note: the camera is already spawned in the scene, properties are set in the
         # 'gelsight_r15_finger.usd' USD file
-        camera_cfg=TiledCameraCfg(
+        camera_cfg=CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             height=GELSIGHT_R15_CFG.image_height,
             width=GELSIGHT_R15_CFG.image_width,
@@ -333,10 +332,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # Reset robot and contact object positions
             count = 0
             for entity in entity_list:
-                root_pose = wp.to_torch(scene[entity].data.default_root_pose).clone()
+                root_pose = scene[entity].data.default_root_pose.torch.clone()
                 root_pose[:, :3] += scene.env_origins
                 scene[entity].write_root_pose_to_sim_index(root_pose=root_pose)
-                root_vel = wp.to_torch(scene[entity].data.default_root_vel).clone()
+                root_vel = scene[entity].data.default_root_vel.torch.clone()
                 scene[entity].write_root_velocity_to_sim_index(root_velocity=root_vel)
 
             scene.reset()

@@ -3,14 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
-    EventsCfg,
-    LocomotionVelocityRoughEnvCfg,
-    StartupEventsCfg,
-)
-from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -19,27 +16,13 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass
-class AnymalCPhysxEventsCfg(EventsCfg, StartupEventsCfg):
-    pass
-
-
-@configclass
-class AnymalCEventsCfg(PresetCfg):
-    default = AnymalCPhysxEventsCfg()
-    newton = EventsCfg()
-    physx = default
-
-
-@configclass
 class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    events: AnymalCEventsCfg = AnymalCEventsCfg()
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
         # switch robot to anymal-c
         self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.01, physx=0.0)
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.01, physx=0.0)
 
 
 @configclass

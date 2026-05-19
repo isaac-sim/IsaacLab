@@ -15,7 +15,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -111,6 +111,15 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     feet_air_time_reward_scale = 0.5
     undesired_contact_reward_scale = -1.0
     flat_orientation_reward_scale = -5.0
+
+    # success criteria — episode success_rate = per-env binary check that the *episode-mean*
+    # error stayed below both thresholds, mean-reduced across resetting envs. Matches the
+    # manager-based ``UniformVelocityCommandCfg`` defaults so flat/rough/direct curves are
+    # comparable on the unified ``Metrics/success_rate`` card.
+    vel_xy_success_threshold: float = 0.5
+    """Threshold on the per-episode mean XY velocity error norm [m/s]."""
+    vel_yaw_success_threshold: float = 0.4
+    """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
 
 @configclass

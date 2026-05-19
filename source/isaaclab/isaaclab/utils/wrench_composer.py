@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.kernels import (
     add_forces_to_dual_buffers_index,
     add_forces_to_dual_buffers_mask,
@@ -66,11 +67,11 @@ class WrenchComposer:
         self._active = False
         self._dirty = False
         if hasattr(self._asset.data, "body_com_pos_w"):
-            self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w
+            self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
         if hasattr(self._asset.data, "body_link_quat_w"):
-            self._get_link_quat_fn = lambda a=self._asset: a.data.body_link_quat_w
+            self._get_link_quat_fn = lambda a=self._asset: a.data.body_link_quat_w.warp
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
@@ -84,6 +85,10 @@ class WrenchComposer:
         # -- Output buffers (2 total) --
         self._out_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._out_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+
+        # ProxyArray caches for the output buffers, exposed via the public properties.
+        self._out_force_b_ta = ProxyArray(self._out_force_b)
+        self._out_torque_b_ta = ProxyArray(self._out_torque_b)
 
         # -- Index / mask helper arrays --
         self._ALL_ENV_INDICES = wp.array(np.arange(self.num_envs, dtype=np.int32), dtype=wp.int32, device=self.device)
@@ -164,26 +169,34 @@ class WrenchComposer:
         return self._local_torque_b
 
     @property
-    def out_force_b(self) -> wp.array:
-        """Composed output force [N] in the body frame, dtype ``wp.vec3f``. Shape: ``(num_envs, num_bodies)``.
+    def out_force_b(self) -> ProxyArray:
+        """Composed output force [N] in the body frame.
+
+        Shape is ``(num_envs, num_bodies)``, dtype = ``wp.vec3f``. In torch this resolves to
+        ``(num_envs, num_bodies, 3)``. Use ``.warp`` for the underlying :class:`wp.array` or
+        ``.torch`` for a cached zero-copy :class:`torch.Tensor` view.
 
         Triggers composition from input buffers if dirty.
         """
         self._ensure_composed()
-        return self._out_force_b
+        return self._out_force_b_ta
 
     @property
-    def out_torque_b(self) -> wp.array:
-        """Composed output torque [N·m] in the body frame, dtype ``wp.vec3f``. Shape: ``(num_envs, num_bodies)``.
+    def out_torque_b(self) -> ProxyArray:
+        """Composed output torque [N·m] in the body frame.
+
+        Shape is ``(num_envs, num_bodies)``, dtype = ``wp.vec3f``. In torch this resolves to
+        ``(num_envs, num_bodies, 3)``. Use ``.warp`` for the underlying :class:`wp.array` or
+        ``.torch`` for a cached zero-copy :class:`torch.Tensor` view.
 
         Triggers composition from input buffers if dirty.
         """
         self._ensure_composed()
-        return self._out_torque_b
+        return self._out_torque_b_ta
 
     @property
-    def composed_force(self) -> wp.array:
-        """Composed force at the body frame, dtype ``wp.vec3f``. Shape: ``(num_envs, num_bodies)``.
+    def composed_force(self) -> ProxyArray:
+        """Composed force in the body frame.
 
         .. deprecated:: 4.5.33
             Use :attr:`out_force_b` instead.
@@ -196,8 +209,8 @@ class WrenchComposer:
         return self.out_force_b
 
     @property
-    def composed_torque(self) -> wp.array:
-        """Composed torque at the body frame, dtype ``wp.vec3f``. Shape: ``(num_envs, num_bodies)``.
+    def composed_torque(self) -> ProxyArray:
+        """Composed torque in the body frame.
 
         .. deprecated:: 4.5.33
             Use :attr:`out_torque_b` instead.

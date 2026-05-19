@@ -55,6 +55,10 @@ inputs:
     description: 'Host path to bind-mount at /workspace/isaaclab (for deps-cache-hit mode)'
     default: ''
     required: false
+  extra-pip-packages:
+    description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -77,10 +81,31 @@ runs:
           local shard_index="${11}"
           local shard_count="${12}"
           local volume_mount_source="${13}"
+          local extra_pip_packages="${14}"
+          local logs_pid=""
+          local wait_pid=""
+          local docker_wait_file="/tmp/.docker_exit_${container_name}"
+          local docker_runtime_dir=""
+
+          # Kill the container immediately if the runner is cancelled.
+          # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
+          # (see actions/runner#1309). Trap all three so the cleanup always fires.
+          # shellcheck disable=SC2064
+          trap "echo '::warning::Cancellation signal - killing container ${container_name}'; \
+                docker kill '${container_name}' 2>/dev/null || true; \
+                docker rm -f '${container_name}' 2>/dev/null || true; \
+                rm -f '${docker_wait_file}'; \
+                if [ -n \"\$docker_runtime_dir\" ]; then rm -rf \"\$docker_runtime_dir\" 2>/dev/null || true; fi; \
+                if [ -n \"\$logs_pid\" ]; then kill \"\$logs_pid\" 2>/dev/null || true; fi; \
+                if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
+                exit 130" HUP INT TERM
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
             echo "With pytest options: $pytest_options"
+          fi
+          if [ -n "$extra_pip_packages" ]; then
+            echo "With extra pip packages: $extra_pip_packages"
           fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
@@ -110,6 +135,7 @@ runs:
             -e ISAAC_SIM_LOW_MEMORY=1 \
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
+            -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
             -e TEST_RESULT_FILE=$result_file"
 
           if [ "$curobo_only" = "true" ]; then
@@ -151,15 +177,60 @@ runs:
             echo "No filter pattern provided"
           fi
 
-          echo "Docker environment variables: '$docker_env_vars'"
+          if [ -n "$extra_pip_packages" ]; then
+            export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
+            docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+          fi
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
           # source code over /workspace/isaaclab instead of baking it into the image.
           docker_volume_args=""
+          docker_user_args=""
           if [ -n "$volume_mount_source" ]; then
-            docker_volume_args="-v ${volume_mount_source}:/workspace/isaaclab"
+            host_uid="$(id -u)"
+            host_gid="$(id -g)"
+            host_user="$(id -un)"
+            # Kit writes generated cache, config, data, and log files outside
+            # the Isaac Lab source tree. Provide writable runtime storage for
+            # host-uid test runs, mirroring the compose/singularity mounts.
+            docker_runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/isaaclab-docker-runtime.XXXXXX")"
+            mkdir -p \
+              "${docker_runtime_dir}/home/.cache" \
+              "${docker_runtime_dir}/home/.local/share/ov/data" \
+              "${docker_runtime_dir}/home/.local/share/ov/pkg" \
+              "${docker_runtime_dir}/home/.nv/ComputeCache" \
+              "${docker_runtime_dir}/home/.nvidia-omniverse/config" \
+              "${docker_runtime_dir}/home/.nvidia-omniverse/logs" \
+              "${docker_runtime_dir}/home/Documents/Kit/shared" \
+              "${docker_runtime_dir}/isaac-sim/kit/cache" \
+              "${docker_runtime_dir}/isaac-sim/kit/data" \
+              "${docker_runtime_dir}/isaac-sim/kit/logs" \
+              "${docker_runtime_dir}/isaac-sim/cache" \
+              "${docker_runtime_dir}/isaac-sim/computecache" \
+              "${docker_runtime_dir}/isaac-sim/config" \
+              "${docker_runtime_dir}/isaac-sim/data" \
+              "${docker_runtime_dir}/isaac-sim/logs" \
+              "${docker_runtime_dir}/isaac-sim/pkg"
+            docker_volume_args="\
+              -v ${volume_mount_source}:/workspace/isaaclab:rw \
+              -v ${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw \
+              -v ${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw \
+              -v ${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw \
+              -v ${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw \
+              -v ${docker_runtime_dir}/isaac-sim/cache:/isaac-sim/.cache:rw \
+              -v ${docker_runtime_dir}/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw \
+              -v ${docker_runtime_dir}/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw \
+              -v ${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw \
+              -v ${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw \
+              -v ${docker_runtime_dir}/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw"
+            docker_user_args="--user ${host_uid}:${host_gid}"
+            docker_env_vars="$docker_env_vars -e HOME=/tmp/isaaclab-ci-home -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share -e USER=${host_user} -e LOGNAME=${host_user}"
             echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"
+            echo "🔵 Mounting writable Docker runtime storage from ${docker_runtime_dir}"
+            echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
           fi
+
+          echo "Docker environment variables: '$docker_env_vars'"
 
           # Run tests in a detached container and follow logs.  Running detached
           # means the container lifecycle is independent of the shell - if the
@@ -177,6 +248,7 @@ runs:
             --ulimit nofile=65536:65536 \
             --ulimit nproc=4096:4096 \
             $docker_volume_args \
+            $docker_user_args \
             $docker_env_vars \
             $image_tag \
             -c "
@@ -185,20 +257,48 @@ runs:
               mkdir -p tests
               rm _isaac_sim || true
               ln -s /isaac-sim _isaac_sim
+              # Allow OmniHub to start in the test container. Some base images
+              # set this detect-only flag, which makes cold asset downloads
+              # fall back to slow repeated retries.
+              unset HUB__ARGS__DETECT_ONLY
+              if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
+                echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
+                ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+                case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
+                  *\" leapp\"*)
+                    echo \"Resolved LEAPP package:\"
+                    ./isaaclab.sh -p -m pip show leapp || true
+                    ;;
+                esac
+              fi
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
-          # Stream container logs to CI output (this is the killable foreground process).
-          docker logs -f $container_name &
-          local logs_pid=$!
+          # Stream container logs in background.
+          docker logs -f "$container_name" &
+          logs_pid=$!
 
-          # Wait for the container to exit and capture its exit code.
-          DOCKER_EXIT=$(docker wait $container_name) || DOCKER_EXIT=1
+          # Background `docker wait` + bash `wait` (interruptible by signals).
+          docker wait "$container_name" > "$docker_wait_file" &
+          wait_pid=$!
+          wait $wait_pid 2>/dev/null
+          local wait_status=$?
+          wait_pid=""
+
+          # If interrupted by signal, trap already handled cleanup.
+          if [ $wait_status -gt 128 ]; then
+            kill $logs_pid 2>/dev/null || true
+            exit 130
+          fi
+
+          DOCKER_EXIT=$(cat "$docker_wait_file" 2>/dev/null) || DOCKER_EXIT=1
+          rm -f "$docker_wait_file"
 
           # Stop following logs.
           kill $logs_pid 2>/dev/null || true
           wait $logs_pid 2>/dev/null || true
+          logs_pid=""
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -249,7 +349,7 @@ runs:
             fi
           fi
 
-          # Copy comparison images (saved by test_rendering_correctness.py).
+          # Copy comparison images (saved by source/isaaclab_tasks/test/test_rendering_*.py).
           local img_dir="$reports_dir/comparison-images"
           if [ -n "$volume_mount_source" ] && [ -d "${volume_mount_source}/tests/comparison-images" ]; then
             cp -r "${volume_mount_source}/tests/comparison-images" "$img_dir"
@@ -261,12 +361,23 @@ runs:
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
+          if [ -n "$docker_runtime_dir" ]; then
+            rm -rf "$docker_runtime_dir" || echo "🟠 Docker runtime storage cleanup failed, but continuing..."
+          fi
 
           return $DOCKER_EXIT
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
+
+    - name: Kill container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        echo "::warning::Job cancelled - force-killing container"
+        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
+        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
 
     - name: Write job summary
       if: always()
@@ -295,7 +406,7 @@ runs:
         retention-days: 7
 
     - name: Clean up Docker container
-      if: always()
+      if: always() && !cancelled()
       shell: bash
       run: |
         echo "🔵 Cleaning up Docker container..."

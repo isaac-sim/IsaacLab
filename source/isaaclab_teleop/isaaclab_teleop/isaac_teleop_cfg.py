@@ -12,8 +12,11 @@ from dataclasses import MISSING, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaacteleop.teleop_session_manager import DeadlinePacingConfig, RetargetingExecutionConfig
 
+from isaaclab.utils.configclass import configclass
+
+from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg
 
 _CLOUDXR_ENV_DIR = Path(__file__).resolve().parent
@@ -94,6 +97,19 @@ class IsaacTeleopCfg:
     sim_device: str = "cuda:0"
     """Torch device string for placing output action tensors."""
 
+    retargeting_execution: RetargetingExecutionConfig = field(
+        default_factory=lambda: RetargetingExecutionConfig(
+            mode="pipelined",
+            pacing=DeadlinePacingConfig(safety_margin_s=0.025),
+        )
+    )
+    """IsaacTeleop retargeting execution settings.
+
+    Isaac Lab opts into IsaacTeleop's pipelined execution by default. Set this
+    to ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
+    retargeting while debugging or comparing behavior.
+    """
+
     teleoperation_active_default: bool = False
     """Whether teleoperation should be active by default when the session starts.
 
@@ -115,6 +131,24 @@ class IsaacTeleopCfg:
     have a ``ParameterState`` (i.e. tunable parameters) will appear.
 
     If ``None``, the tuning UI will not be opened.
+    """
+
+    control_channel_uuid: bytes | None = TELEOP_CONTROL_CHANNEL_UUID
+    """16-byte UUID for the teleop control message channel.
+
+    Defaults to :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
+    (``uuid5(NAMESPACE_DNS, "teleop_command")``), which is the well-known
+    channel both the Isaac Lab server and CloudXR JS client use to
+    exchange start/stop/reset commands.
+
+    When set, a ``teleop_control_pipeline`` is created automatically
+    using :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+    and :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+    The remote client sends UTF-8 control commands over the OpenXR opaque
+    data channel identified by this UUID, and the results are exposed via
+    :func:`~isaaclab_teleop.poll_control_events`.
+
+    Set to ``None`` to disable the control channel entirely.
     """
 
     target_frame_prim_path: str | None = None

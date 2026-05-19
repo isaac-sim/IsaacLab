@@ -41,10 +41,9 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaacsim.core.cloner import GridCloner
-
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab import cloner as lab_cloner
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -57,8 +56,10 @@ from isaaclab.utils.timer import Timer
 def design_scene(sim: SimulationContext, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0, stage=sim.stage)
-    cloner.define_base_env("/World/envs")
+    # Create environment clones using Lab's cloner utilities
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
@@ -75,13 +76,23 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
     # Clone the scene
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
-    physics_scene_path = sim.get_physics_context().prim_path
-    cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
-    )
+    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
+    # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
+    # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
+    physics_scene_path = None
+    for prim in sim.stage.Traverse():
+        if "PhysxSceneAPI" in prim.GetAppliedSchemas():
+            physics_scene_path = prim.GetPrimPath().pathString
+            break
+    if physics_scene_path is not None:
+        lab_cloner.filter_collisions(
+            sim.stage,
+            physics_scene_path,
+            "/World/collisions",
+            prim_paths=envs_prim_paths,
+            global_paths=["/World/ground"],
+        )
 
 
 def main():
@@ -103,6 +114,7 @@ def main():
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
         max_init_terrain_level=None,
         num_envs=1,
+        env_spacing=10.0,
     )
     _ = TerrainImporter(terrain_importer_cfg)
 
@@ -133,8 +145,8 @@ def main():
     print(ray_caster)
 
     # Get the initial positions of the balls
-    ball_initial_poses = balls.data.root_pose_w.clone()
-    ball_initial_velocities = balls.data.root_vel_w.clone()
+    ball_initial_poses = balls.data.root_pose_w.torch.clone()
+    ball_initial_velocities = balls.data.root_vel_w.torch.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
