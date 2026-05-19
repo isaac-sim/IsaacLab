@@ -675,7 +675,7 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
-def _warmup_render_until_nonzero(env, max_passes: int = 30) -> None:
+def warmup_render_until_nonzero(env, max_passes: int = 30) -> None:
     """Drive extra render passes until every camera output tensor has a non-zero max.
 
     RTX MDL materials compile asynchronously on first use. The single render pass that env
@@ -691,25 +691,33 @@ def _warmup_render_until_nonzero(env, max_passes: int = 30) -> None:
     :attr:`~isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset` and
     :attr:`~isaaclab.envs.DirectRLEnvCfg.wait_for_textures` in the core env classes.
     """
-    camera = getattr(env, "_tiled_camera", None)
-    if camera is None:
-        camera = env.scene.sensors.get("base_camera")
-    if camera is None:
+    base = getattr(env, "unwrapped", env)
+    scene = getattr(base, "scene", None)
+    if scene is None or not getattr(scene, "sensors", None):
         return
 
-    physics_dt = env.physics_dt
+    physics_dt = base.physics_dt
     for _ in range(max_passes):
         outputs_ready = True
-        for output in camera.data.output.values():
-            tensor = output if isinstance(output, torch.Tensor) else output.torch
-            finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
-            if finite.max() <= 0.2:
-                outputs_ready = False
+        for sensor in scene.sensors.values():
+            data = getattr(sensor, "data", None)
+            output = getattr(data, "output", None) if data is not None else None
+            if not isinstance(output, dict):
+                continue
+            for value in output.values():
+                tensor = value if isinstance(value, torch.Tensor) else getattr(value, "torch", None)
+                if tensor is None:
+                    continue
+                finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
+                if finite.max() <= 0.2:
+                    outputs_ready = False
+                    break
+            if not outputs_ready:
                 break
         if outputs_ready:
             return
-        env.sim.render()
-        env.scene.update(dt=physics_dt)
+        base.sim.render()
+        scene.update(dt=physics_dt)
 
 
 def rendering_test_shadow_hand(
@@ -737,7 +745,7 @@ def rendering_test_shadow_hand(
     try:
         env = ShadowHandVisionEnv(env_cfg)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
-        _warmup_render_until_nonzero(env)
+        warmup_render_until_nonzero(env)
 
         validate_camera_outputs(
             "shadow_hand",
@@ -777,7 +785,7 @@ def rendering_test_cartpole(
     try:
         env = CartpoleCameraEnv(env_cfg)
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
-        _warmup_render_until_nonzero(env)
+        warmup_render_until_nonzero(env)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
@@ -834,7 +842,7 @@ def rendering_test_dexsuite_kuka(
     try:
         env = ManagerBasedRLEnv(env_cfg)
         maybe_save_stage("dexsuite_kuka", physics_backend, renderer, data_type)
-        _warmup_render_until_nonzero(env)
+        warmup_render_until_nonzero(env)
         validate_camera_outputs(
             "dexsuite_kuka",
             physics_backend,

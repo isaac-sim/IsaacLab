@@ -24,6 +24,7 @@ from rendering_test_utils import (  # noqa: E402
     make_generate_html_report_fixture,
     maybe_save_stage,
     validate_camera_outputs,
+    warmup_render_until_nonzero,
 )
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -99,6 +100,7 @@ def test_rendering_registered_tasks(task_id: str, env_name: str):
             sim._app_control_on_stop_handle = None
 
         maybe_save_stage(f"registered_tasks_{task_id}", "default_physics", "default_renderer", "stage")
+        warmup_render_until_nonzero(env)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
