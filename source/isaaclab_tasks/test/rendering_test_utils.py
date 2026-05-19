@@ -675,32 +675,6 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
-def _warmup_render(env, num_passes: int = 10) -> None:
-    """Drive extra render passes to let RTX MDL shaders finish compiling.
-
-    RTX MDL materials compile asynchronously on first use. The single render
-    pass that env construction triggers (via ``scene.update`` in ``__init__``)
-    is not always enough — on cold-cache CI runners the GPU may return a
-    still-zero framebuffer for shader variants that have not finished
-    compiling, which trips :func:`validate_camera_outputs` with "no non-zero
-    pixels" or "all zeros or all inf". ``10`` passes is empirically enough
-    across the MDL presets (``simple_shading_constant_diffuse``,
-    ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``) that flake on
-    the CI runners as of 2026-05.
-
-    The warmup calls ``sim.render()`` + ``scene.update()`` rather than
-    ``env.step()``, so it does not advance physics state and the goldens
-    captured at the post-init state remain valid. This mirrors the pattern
-    already used by :attr:`~isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset`
-    and :attr:`~isaaclab.envs.DirectRLEnvCfg.wait_for_textures` in the core
-    env classes.
-    """
-    physics_dt = env.physics_dt
-    for _ in range(num_passes):
-        env.sim.render()
-        env.scene.update(dt=physics_dt)
-
-
 def rendering_test_shadow_hand(
     physics_backend: str,
     renderer: str,
@@ -726,7 +700,6 @@ def rendering_test_shadow_hand(
     try:
         env = ShadowHandVisionEnv(env_cfg)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
-        _warmup_render(env)
 
         validate_camera_outputs(
             "shadow_hand",
@@ -766,7 +739,6 @@ def rendering_test_cartpole(
     try:
         env = CartpoleCameraEnv(env_cfg)
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
-        _warmup_render(env)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
@@ -823,7 +795,6 @@ def rendering_test_dexsuite_kuka(
     try:
         env = ManagerBasedRLEnv(env_cfg)
         maybe_save_stage("dexsuite_kuka", physics_backend, renderer, data_type)
-        _warmup_render(env)
         validate_camera_outputs(
             "dexsuite_kuka",
             physics_backend,
