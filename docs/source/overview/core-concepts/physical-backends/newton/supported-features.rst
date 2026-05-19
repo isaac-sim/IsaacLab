@@ -22,8 +22,8 @@ error at launch. The :doc:`mjwarp-solver` page covers how to add a Newton
 preset to your own task.
 
 
-Supported Surface
------------------
+Supported APIs
+--------------
 
 The following capabilities are covered by the Newton backend on ``develop`` at
 the time of writing. The list is non-exhaustive and continues to grow.
@@ -38,6 +38,12 @@ isaaclab
 * Omniverse Kit visualizer (when Isaac Sim is installed)
 * Newton-Warp visualizer (kit-less)
 * Tiled rendering via the Newton-Warp renderer
+
+The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
+and work transparently with Newton:
+
+* Ray Caster
+* Camera — see :doc:`../../sensors/camera`
 
 isaaclab_assets
 ^^^^^^^^^^^^^^^

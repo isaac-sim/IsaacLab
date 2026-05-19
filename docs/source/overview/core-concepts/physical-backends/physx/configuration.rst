@@ -65,7 +65,9 @@ Contact and Stability
 
 * ``enable_ccd``: continuous-collision detection for fast-moving bodies.
 * ``enable_stabilization``: extra solver stabilization pass; recommended only
-  when ``dt`` is large (< 30 Hz). May affect contact-sensor force reports.
+  when ``dt`` is large (< 30 Hz). Corrupts contact-sensor force-magnitude
+  readings — disable it if you rely on the contact sensor for force
+  observations.
 * ``bounce_threshold_velocity``: relative velocity threshold [m/s] above which
   contacts bounce.
 * ``friction_offset_threshold``: contact point distance [m] at which friction
