@@ -92,6 +92,7 @@ class DirectMARLEnv(gym.Env):
         self.render_mode = render_mode
         # initialize internal variables
         self._is_closed = False
+        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
