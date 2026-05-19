@@ -675,6 +675,43 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
+def _warmup_render_until_nonzero(env, max_passes: int = 30) -> None:
+    """Drive extra render passes until every camera output tensor has a non-zero max.
+
+    RTX MDL materials compile asynchronously on first use. The single render pass that env
+    construction triggers (via ``scene.update`` in ``__init__``) is not always enough — on
+    cold-cache CI runners the GPU returns a still-zero framebuffer for shader variants that
+    have not finished compiling, which trips :func:`validate_camera_outputs` with
+    "no non-zero pixels" or "all zeros or all inf".
+
+    Polling exits as soon as every camera output is ready, so the scene state stays at the
+    same "first non-zero frame" the existing goldens were captured at. Renders are driven by
+    ``sim.render()`` + ``scene.update()`` (no ``env.step()``) so physics state is not
+    advanced. This mirrors the pattern used by
+    :attr:`~isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset` and
+    :attr:`~isaaclab.envs.DirectRLEnvCfg.wait_for_textures` in the core env classes.
+    """
+    camera = getattr(env, "_tiled_camera", None)
+    if camera is None:
+        camera = env.scene.sensors.get("base_camera")
+    if camera is None:
+        return
+
+    physics_dt = env.physics_dt
+    for _ in range(max_passes):
+        outputs_ready = True
+        for output in camera.data.output.values():
+            tensor = output if isinstance(output, torch.Tensor) else output.torch
+            finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
+            if finite.max() <= 0.2:
+                outputs_ready = False
+                break
+        if outputs_ready:
+            return
+        env.sim.render()
+        env.scene.update(dt=physics_dt)
+
+
 def rendering_test_shadow_hand(
     physics_backend: str,
     renderer: str,
@@ -700,6 +737,7 @@ def rendering_test_shadow_hand(
     try:
         env = ShadowHandVisionEnv(env_cfg)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
+        _warmup_render_until_nonzero(env)
 
         validate_camera_outputs(
             "shadow_hand",
@@ -739,6 +777,7 @@ def rendering_test_cartpole(
     try:
         env = CartpoleCameraEnv(env_cfg)
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
+        _warmup_render_until_nonzero(env)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
@@ -795,6 +834,7 @@ def rendering_test_dexsuite_kuka(
     try:
         env = ManagerBasedRLEnv(env_cfg)
         maybe_save_stage("dexsuite_kuka", physics_backend, renderer, data_type)
+        _warmup_render_until_nonzero(env)
         validate_camera_outputs(
             "dexsuite_kuka",
             physics_backend,
