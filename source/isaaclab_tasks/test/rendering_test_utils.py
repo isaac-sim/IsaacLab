@@ -70,7 +70,7 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 
 # Low-resolution camera outputs from RTX renderers are not deterministic enough to pass golden image testing
 # on every CI run. (NVBUG#6152566)
-_FLAKY_MARK = []  # pytest.mark.flaky(max_runs=3, min_passes=1)
+_FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
@@ -79,49 +79,42 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "isaacsim_rtx_renderer",
         "rgb",
         id="physx-isaacsim_rtx-rgb",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "albedo",
         id="physx-isaacsim_rtx-albedo",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "depth",
         id="physx-isaacsim_rtx-depth",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_constant_diffuse",
         id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_diffuse_mdl",
         id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_full_mdl",
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "semantic_segmentation",
         id="physx-isaacsim_rtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
     ),
     # newton + isaacsim_rtx_renderer
     pytest.param(
@@ -129,49 +122,42 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "isaacsim_rtx_renderer",
         "rgb",
         id="newton-isaacsim_rtx-rgb",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "albedo",
         id="newton-isaacsim_rtx-albedo",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "depth",
         id="newton-isaacsim_rtx-depth",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "simple_shading_full_mdl",
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "isaacsim_rtx_renderer",
         "semantic_segmentation",
         id="newton-isaacsim_rtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
     ),
     # physx + newton_renderer (warp)
     pytest.param(
