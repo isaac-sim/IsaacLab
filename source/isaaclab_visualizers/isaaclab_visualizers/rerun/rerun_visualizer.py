@@ -262,7 +262,7 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
         num_envs = NewtonManager.get_num_envs()
 
         if not self._viewer.is_paused():

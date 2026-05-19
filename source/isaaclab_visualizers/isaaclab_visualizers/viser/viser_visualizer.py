@@ -196,7 +196,7 @@ class ViserVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
         num_envs = NewtonManager.get_num_envs()
 
         self._sim_time += dt

@@ -30,14 +30,6 @@ class KitVisualizerCfg(VisualizerCfg):
     headless: bool = False
     """Run without creating viewport windows when supported by the app."""
 
-    cfg_camera_prim_path: str = "/World/Visualizers/KitVisualizer/Camera"
-    """Camera prim owned by KitVisualizer for cfg-driven rendering.
-
-    ``cam_source="cfg"`` uses this private camera instead of the shared
-    ``/OmniverseKit_Persp`` viewport camera so environment viewer controllers cannot
-    overwrite the visualizer's configured pose in headed or headless runs.
-    """
-
     dock_position: str = "SAME"
     """Dock position for a new viewport. Options: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'."""
 

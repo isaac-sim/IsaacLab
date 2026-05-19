@@ -829,6 +829,23 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
     assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
 
 
+def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):
+    """Default Kit visualizer camera follows SimulationContext/ViewportCameraController updates."""
+    applied_camera_poses = []
+    monkeypatch.setattr(
+        kit_visualizer.KitVisualizer,
+        "_set_viewport_camera",
+        lambda self, eye, target: applied_camera_poses.append((tuple(eye), tuple(target))),
+    )
+
+    visualizer = kit_visualizer.KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+
+    visualizer.set_camera_view((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+
+    assert applied_camera_poses == [((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))]
+
+
 def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
     ctx = object.__new__(SimulationContext)
     ctx.get_setting = lambda name: {"types": "newton,kit"} if name == "/isaaclab/visualizer/types" else None

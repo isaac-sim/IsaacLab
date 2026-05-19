@@ -290,7 +290,7 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         # Use pyglet's EGL headless backend when requested. Must run before the first
         # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.

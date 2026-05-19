@@ -111,7 +111,7 @@ _VIS_LOGGER_PREFIXES = (
     "isaaclab.sim.simulation_context",
 )
 
-_WRITE_VIS_DEBUG_FRAMES = False
+_WRITE_VIS_DEBUG_FRAMES = True
 """Whether to emit visualizer debug PNGs during integration tests."""
 
 _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
@@ -998,7 +998,6 @@ def test_cartpole_env_kit_visualizer_motion_with_play_pause(
         _configure_sim_for_visualizer_test(env)
         with caplog.at_level(logging.WARNING):
             env.reset()
-            _freeze_visualizer_updates_for_frozen_check(env)
             kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
             assert kit_visualizers, "Expected an initialized Kit visualizer."
             _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
