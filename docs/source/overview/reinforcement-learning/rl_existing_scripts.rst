@@ -4,26 +4,34 @@ Reinforcement Learning Scripts
 We provide wrappers to different reinforcement libraries. These wrappers convert the data
 from the environments into the respective libraries function argument and return types.
 
-Newton Backend
---------------
+Preset Selectors
+----------------
 
-All training and play scripts support the **Newton physics backend** via the ``presets=newton_mjwarp``
-Hydra override. Appending ``presets=newton_mjwarp`` to any command below switches the physics engine
-from the default PhysX to Newton:
+All training and play scripts accept ``physics=NAME``, ``renderer=NAME``, and
+``presets=NAME[,NAME,...]`` tokens appended directly to the command (no leading dashes).
+See :doc:`/source/features/hydra` for all available names and how the selectors work.
 
 .. code:: bash
 
-   # Generic pattern — works with any framework and task that supports Newton
+   # Switch physics backend
    ./isaaclab.sh -p scripts/reinforcement_learning/<framework>/train.py \
-       --task <task-name> --headless presets=newton_mjwarp
+       --task <task-name> --headless physics=newton_mjwarp
+
+   # Switch renderer (camera environments)
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
+       --enable_cameras renderer=newton_renderer
+
+   # Combine selectors freely
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
+       --enable_cameras physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 .. note::
 
-   **Not all environments support the Newton backend yet.** Using ``presets=newton_mjwarp`` with an
-   environment that has not been configured for Newton will raise an error at launch. See
-   :doc:`/source/experimental-features/newton-physics-integration/index`
-   for more details, and the :ref:`migrating-to-isaaclab-3-0`
-   guide for how to add Newton support to your own environments.
+   **Not all environments support every backend.** Using a preset with an environment
+   that has not been configured for that backend will raise an error at launch. See
+   :doc:`/source/experimental-features/newton-physics-integration/index` for details.
 
 Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installation` for setup.
 
@@ -31,16 +39,14 @@ Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installatio
 Observation-mode Presets
 ------------------------
 
-Some environments support multiple observation modes — for example different camera
-modalities or combinations of state and image observations — selectable via the same
-``presets=`` mechanism.  Unlike physics-backend presets, **observation-mode presets
-affect the checkpoint structure**, so you must pass the same preset to both the
-training script and the play/evaluation script.  Using a different preset (or none)
-at play time will cause a model-architecture mismatch when loading the checkpoint.
+Some environments support multiple observation modes selectable via ``presets=``.
+Unlike physics or renderer presets, **observation-mode presets affect the checkpoint
+structure**: you must pass the same preset to both the training and play scripts.
+Using a different preset (or none) at play time will cause a model-architecture
+mismatch when loading the checkpoint.
 
 For example, ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` defaults to RGB + depth
-+ segmentation inputs but can be switched to RGB-only (fewer input channels, lighter
-model) with ``presets=rgb``:
++ segmentation inputs but can be switched to RGB-only with ``presets=rgb``:
 
 .. code:: bash
 
@@ -58,15 +64,6 @@ Other available presets for this environment: ``albedo``,
 ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``,
 ``simple_shading_full_mdl``.  The ``depth`` preset is intended for
 benchmarking only (see the environment's config for details).
-
-Multiple presets can be combined with a comma when they do not conflict —
-for instance to switch both the physics backend and the camera modality:
-
-.. code:: bash
-
-   presets=newton_renderer,rgb
-
-See :doc:`/source/features/hydra` for the full preset system documentation.
 
 
 RL-Games
@@ -355,58 +352,25 @@ Vision-Language-Action (VLA) models such as `GR00T <https://github.com/NVIDIA/Is
 It uses Ray for distributed computing and FSDP for model parallelism, enabling RL training of
 large VLA models that don't fit on a single GPU.
 
--  Installation and setup:
-
-   .. code:: bash
-
-      # Step 1: Install RLinf and its dependencies (from isaaclab_contrib)
-      pip install -e "source/isaaclab_contrib[rlinf]" --ignore-requires-python
-
-      # Step 2: Clone and install Isaac-GR00T (pinned version, for VLA model support)
-      git clone https://github.com/NVIDIA/Isaac-GR00T.git
-      cd Isaac-GR00T
-      git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-      pip install -e .[base] --no-deps
-      cd ../
-
-      # Step 3: Install flash-attn (must be built against the correct PyTorch)
-      pip install --no-build-isolation flash-attn==2.8.3
+For installation instructions, see :ref:`rlinf-post-training`.
 
 -  Training a VLA agent with RLinf:
 
    .. code:: bash
 
-      # Train with default config (assemble trocar task with GR00T)
-      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py
-
       # Train with a specific config
       ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py \
-          --config_name isaaclab_ppo_gr00t_assemble_trocar
-
-      # Train with task override and custom settings
-      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py \
           --config_name isaaclab_ppo_gr00t_assemble_trocar \
-          --task Isaac-Assemble-Trocar-G129-Dex3-RLinf-v0 \
-          --num_envs 64 --max_epochs 1000
-
-      # List available tasks
-      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py --list_tasks
+          --model_path /path/to/checkpoint
 
 -  Evaluating a trained VLA agent:
 
    .. code:: bash
 
-      # Evaluate a trained checkpoint
-      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/play.py \
-          --model_path /path/to/checkpoint
-
       # Evaluate with video recording
       ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/play.py \
+          --config_name isaaclab_ppo_gr00t_assemble_trocar \
           --model_path /path/to/checkpoint --video
-
-      # Evaluate with specific number of environments and episodes
-      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/play.py \
-          --model_path /path/to/checkpoint --num_envs 8 --num_episodes 10
 
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of

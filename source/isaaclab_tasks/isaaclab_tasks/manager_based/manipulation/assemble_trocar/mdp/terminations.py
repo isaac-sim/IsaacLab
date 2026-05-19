@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 
 from .rewards import get_task_stage
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
 logger = logging.getLogger(__name__)
