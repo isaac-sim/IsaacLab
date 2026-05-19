@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.9.0 (2026-05-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed DexSuite Kuka-Allegro camera RSL-RL PPO examples to use 8 mini-batches per update.
+* Changed the robot setup and mount configuration for the Flexiv reach policy
+  training environment with ROS inference.
+
+
 1.8.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~
 
