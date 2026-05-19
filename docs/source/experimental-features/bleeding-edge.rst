@@ -10,6 +10,8 @@ Directly integrating such features before they are complete and without feedback
 To address this, some major features will be released as Experimental Feature Branches.
 This way, the community can experiment with and contribute to the feature before it's fully integrated, reducing the likelihood of being derailed by unexpected and new errors.
 
+.. _rlinf-post-training:
+
 RL Post-Training for VLA Models
 -------------------------------
 
@@ -101,8 +103,6 @@ Quick Start
 .. code-block:: bash
 
    python scripts/reinforcement_learning/rlinf/train.py \
-       --task Isaac-Assemble-Trocar-G129-Dex3-v0 \
-       --config_path /path/to/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/checkpoint
 
@@ -111,11 +111,14 @@ Quick Start
 .. code-block:: bash
 
    python scripts/reinforcement_learning/rlinf/play.py \
-       --task Isaac-Assemble-Trocar-G129-Dex3-Eval-v0 \
-       --model_path /path/to/checkpoint \
-       --config_path /path/to/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/checkpoint \
        --video
+
+.. note::
+
+   The ``--config_path`` flag is optional. When omitted, the scripts automatically
+   search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
 Configuration
 ~~~~~~~~~~~~~
