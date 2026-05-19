@@ -998,6 +998,7 @@ def test_cartpole_env_kit_visualizer_motion_with_play_pause(
         _configure_sim_for_visualizer_test(env)
         with caplog.at_level(logging.WARNING):
             env.reset()
+            _freeze_visualizer_updates_for_frozen_check(env)
             kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
             assert kit_visualizers, "Expected an initialized Kit visualizer."
             _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
