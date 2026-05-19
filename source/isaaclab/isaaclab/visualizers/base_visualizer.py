@@ -189,28 +189,9 @@ class BaseVisualizer(ABC):
         self, _visualizer_name: str
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve camera pose from cfg eye/lookat fields."""
-        self._validate_cfg_camera_target(_visualizer_name)
-        if self.cfg.lookat_prim_path is not None:
-            raise RuntimeError(
-                f"[{_visualizer_name}] lookat_prim_path is not supported by this cfg camera pose path."
-            )
         eye = tuple(float(v) for v in self.cfg.eye)
         lookat = tuple(float(v) for v in self.cfg.lookat)
         return eye, lookat
-
-    def _validate_cfg_camera_target(self, _visualizer_name: str) -> None:
-        """Validate mutually exclusive cfg camera target fields."""
-        if self.cfg.cam_source == "prim_path":
-            return
-        if self.cfg.lookat is not None and self.cfg.lookat_prim_path is not None:
-            raise RuntimeError(
-                f"[{_visualizer_name}] lookat and lookat_prim_path are mutually exclusive. "
-                "Set lookat=None when using lookat_prim_path."
-            )
-        if self.cfg.lookat is None and self.cfg.lookat_prim_path is None:
-            raise RuntimeError(
-                f"[{_visualizer_name}] either lookat or lookat_prim_path must be set for cfg camera mode."
-            )
 
     def _focal_length_to_vertical_fov_degrees(self) -> float:
         """Convert cfg focal length to vertical FOV using USD's default aperture."""

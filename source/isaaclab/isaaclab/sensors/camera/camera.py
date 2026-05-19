@@ -330,7 +330,7 @@ class Camera(SensorBase):
             elif not isinstance(positions, torch.Tensor):
                 positions = torch.tensor(positions, device=self._device)
             positions = positions.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
-            pos_wp = wp.from_torch(positions.contiguous())
+            pos_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3f)
         ori_wp = None
         if orientations is not None:
             if isinstance(orientations, np.ndarray):
@@ -339,7 +339,7 @@ class Camera(SensorBase):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
-            ori_wp = wp.from_torch(orientations.contiguous())
+            ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f)
         idx_wp = self._resolve_env_ids_wp(env_ids)
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
@@ -400,8 +400,8 @@ class Camera(SensorBase):
         orientations = quat_from_matrix(rotation_matrix)
         idx_wp = wp.from_torch(env_ids_torch.contiguous(), dtype=wp.int32)
         self._view.set_world_poses(
-            wp.from_torch(eyes.contiguous()),
-            wp.from_torch(orientations.contiguous()),
+            wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
+            wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
             idx_wp,
         )
 

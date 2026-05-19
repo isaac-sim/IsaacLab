@@ -190,40 +190,27 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
 Camera Pose Behavior
 ~~~~~~~~~~~~~~~~~~~~
 
-The default visualizer camera mode is interactive: ``cam_source="cfg"``, ``tiled_cam_view=False``,
-``eye_reference_frame="world"``, ``lookat`` set to a coordinate, and ``lookat_prim_path=None``.
-Kit and Newton can also run non-interactive camera image views, including tiled views. If
-``tiled_cam_view=True`` is set, that visualizer config uses a camera image view rather than the
+The default visualizer camera mode is interactive: ``tiled_cam_view=False`` with ``eye`` and ``lookat``
+controlling the viewer camera. Kit and Newton can also run non-interactive tiled camera image views.
+If ``tiled_cam_view=True`` is set, that visualizer config uses a camera image view rather than the
 default interactive camera; launch a second visualizer config if you want both.
 
-.. list-table:: Camera pose modes
+.. list-table:: Camera configuration modes
    :header-rows: 1
-   :widths: 24 22 22 32
+   :widths: 24 30 46
 
    * - Mode
      - Key fields
-     - ``eye`` meaning
      - Behavior
    * - **Default interactive**
-     - ``lookat=(0, 0, 0)``, ``lookat_prim_path=None``, ``eye_reference_frame="world"``
-     - Absolute world position
+     - ``tiled_cam_view=False``, ``eye=(4, -4, 3)``, ``lookat=(0, 0, 0)``
      - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
-   * - Fixed eye, tracked target
-     - ``lookat=None``, ``lookat_prim_path="/World/envs/*/Robot/base"``, ``eye_reference_frame="world"``
-     - Absolute world position
-     - Camera stays at ``eye`` and rotates toward the matched prim.
-   * - Follow target
-     - ``lookat=None``, ``lookat_prim_path="/World/envs/*/Robot/base"``, ``eye_reference_frame="lookat_target"``
-     - Offset from target
-     - Camera moves with the matched prim and looks back at it.
-   * - Offset from fixed target
-     - ``lookat=(0, 0, 0)``, ``lookat_prim_path=None``, ``eye_reference_frame="lookat_target"``
-     - Offset from ``lookat``
-     - Camera position is ``lookat + eye`` and target is the fixed ``lookat`` coordinate.
-
-When ``cam_source="prim_path"``, the visualizer uses an existing Isaac Lab ``Camera`` sensor selected by
-``cam_prim_path``. In that mode, ``eye``, ``eye_reference_frame``, ``lookat``, and ``lookat_prim_path`` do
-not drive the sensor pose.
+   * - Generated tiled camera
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot/base"``
+     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
+   * - Existing tiled camera sensors
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
+     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
 
 Video Recording
 ---------------
@@ -345,9 +332,7 @@ Omniverse Visualizer
         window_height=720,
 
         eye=(8.0, 8.0, 3.0),
-        eye_reference_frame="world",
         lookat=(0.0, 0.0, 0.0),
-        lookat_prim_path=None,
 
         enable_markers=True,
         enable_live_plots=True,
@@ -364,10 +349,8 @@ viewport camera.
         viewport_name="Tiled Cameras",
         tiled_cam_view=True,
         tiled_cam_num=16,
-        lookat=None,
-        lookat_prim_path="/World/envs/*/Robot/base",
-        eye_reference_frame="lookat_target",
-        eye=(4.0, -4.0, 3.0),
+        tiled_cam_eye=(4.0, -4.0, 3.0),
+        tiled_cam_target_prim_path="/World/envs/*/Robot/base",
     )
 
 
@@ -419,9 +402,7 @@ Newton Visualizer
 
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
-        eye_reference_frame="world",             # Interpret eye as a world-space position
         lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
-        lookat_prim_path=None,                   # Optional dynamic target prim path
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -454,10 +435,8 @@ GL camera.
         window_height=720,
         tiled_cam_view=True,
         tiled_cam_env_indices=[0, 1, 2, 3],
-        lookat=None,
-        lookat_prim_path="/World/envs/*/Robot/base",
-        eye_reference_frame="lookat_target",
-        eye=(4.0, -4.0, 3.0),
+        tiled_cam_eye=(4.0, -4.0, 3.0),
+        tiled_cam_target_prim_path="/World/envs/*/Robot/base",
     )
 
 

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
 
@@ -35,58 +35,35 @@ class VisualizerCfg:
     """Enable live plotting of data."""
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Camera eye position.
+    """Interactive visualizer camera eye position in world coordinates."""
 
-    Interpreted according to :attr:`eye_reference_frame`.
-    """
-
-    eye_reference_frame: Literal["world", "lookat_target"] = "world"
-    """Reference frame for :attr:`eye`.
-
-    - ``"world"``: ``eye`` is an absolute world-space camera position.
-    - ``"lookat_target"``: ``eye`` is an offset from the active look-at target.
-    """
-
-    lookat: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
-    """Fixed camera look-at target in world coordinates.
-
-    Mutually exclusive with :attr:`lookat_prim_path`.
-    """
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Interactive visualizer camera look-at target in world coordinates."""
 
     focal_length: float = 15.0
-    """Camera focal length in millimeters for visualizer camera views.
+    """Camera focal length in millimeters for visualizer camera views."""
 
-    Kit applies this directly to USD cameras. Newton-style backends convert it
-    to a vertical field-of-view using the USD default vertical aperture.
-    """
-
-    cam_source: Literal["cfg", "prim_path"] = "cfg"
-    """Camera source mode.
-
-    - ``"cfg"`` uses the configured camera pose fields.
-    - ``"prim_path"`` uses existing Isaac Lab camera sensor output and ignores
-      :attr:`eye`, :attr:`eye_reference_frame`, :attr:`lookat`, and :attr:`lookat_prim_path`.
-    """
-
-    cam_prim_path: str = "/World/envs/*/Camera"
-    """Camera prim path or env wildcard path when cam_source='prim_path'."""
-
-    lookat_prim_path: str | None = None
-    """Prim path used as a dynamic look-at target.
-
-    When set, the camera orients toward the prim's world position. Supports env
-    wildcard paths such as ``"/World/envs/*/Robot/base"``. Mutually exclusive
-    with :attr:`lookat`.
-    """
-
-    tiled_cam_view: bool = False
+    tiled_cam_view: bool = True
     """Enable a non-interactive tiled camera image view."""
 
-    tiled_cam_num: int = 100
+    tiled_cam_num: int = 24
     """Number of camera tiles to show when tiled_cam_env_indices is None."""
 
     tiled_cam_env_indices: list[int] | None = None
     """Env ids to show in tiled camera view; if None, sample tiled_cam_num envs once at initialization."""
+
+    tiled_cam_prim_path: str | None = None
+    """Existing Isaac Lab Camera sensor prim path to display.
+
+    If ``None``, the visualizer creates generated tiled cameras. If set, it should
+    point to an existing camera sensor, for example ``"/World/envs/*/Camera"``.
+    """
+
+    tiled_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye offset from tiled_cam_target_prim_path for generated tiled cameras."""
+
+    tiled_cam_target_prim_path: str = "/World/envs/*/Robot/base"
+    """Prim path that generated tiled cameras follow and look at."""
 
     max_visible_envs: int | None = None
     """Upper bound on how many envs are shown.

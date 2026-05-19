@@ -679,7 +679,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
 
     visualizer._setup_viewport()
 
-    assert cfg.cam_source == "cfg"
+    assert not cfg.tiled_cam_view
     assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
     assert viewport_window.viewport_api.set_active_camera_calls == []
     assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"

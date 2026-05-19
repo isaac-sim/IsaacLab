@@ -24,8 +24,6 @@ from isaaclab.envs.utils.camera_view import (
     find_camera_by_prim_path,
     prim_world_positions,
     remove_generated_prims,
-    resolve_fixed_camera_targets,
-    resolve_mono_env_index,
     resolve_tiled_env_indices,
 )
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -317,7 +315,6 @@ class NewtonVisualizer(BaseVisualizer):
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        self._validate_cfg_camera_target("NewtonVisualizer")
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -352,12 +349,7 @@ class NewtonVisualizer(BaseVisualizer):
             )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
             self._apply_camera_focal_length()
-            # Sensor-backed camera views are non-interactive image panels; keep the GL camera at cfg pose.
-            initial_pose = (
-                self._resolve_static_viewer_camera_pose()
-                if self._uses_camera_sensor_view()
-                else self._resolve_initial_camera_pose()
-            )
+            initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
             self._viewer.up_axis = 2  # Z-up
 
@@ -393,11 +385,10 @@ class NewtonVisualizer(BaseVisualizer):
                     "eye",
                     tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye,
                 ),
-                ("eye_reference_frame", self.cfg.eye_reference_frame),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
-                ("lookat_prim_path", self.cfg.lookat_prim_path),
                 ("focal_length", self.cfg.focal_length),
-                ("cam_source", self.cfg.cam_source),
+                ("tiled_cam_view", self.cfg.tiled_cam_view),
+                ("tiled_cam_num", self.cfg.tiled_cam_num),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
             ],
@@ -421,9 +412,6 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is None:
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
-
-        if self.cfg.cam_source == "prim_path" and not self._uses_camera_sensor_view():
-            self._update_camera_from_usd_path()
 
         self._state = NewtonManager.get_state(self._scene_data_provider)
 
@@ -488,43 +476,25 @@ class NewtonVisualizer(BaseVisualizer):
         Returns:
             Camera eye and target tuples.
         """
-        if self.cfg.cam_source == "prim_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-            if pose is not None:
-                return pose
-            raise RuntimeError(
-                "[NewtonVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
-                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
-            )
         return self._resolve_cfg_camera_pose("NewtonVisualizer")
-
-    def _resolve_static_viewer_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve a non-interactive fallback pose for the GL camera."""
-        if self.cfg.lookat is not None:
-            return self._resolve_cfg_camera_pose("NewtonVisualizer")
-        return tuple(float(v) for v in self.cfg.eye), (0.0, 0.0, 0.0)
 
     def _uses_camera_sensor_view(self) -> bool:
         """Return whether the visualizer displays camera sensor images instead of interactive camera controls."""
-        return bool(self.cfg.tiled_cam_view or self.cfg.cam_source == "prim_path" or self.cfg.lookat_prim_path)
+        return bool(self.cfg.tiled_cam_view)
 
     def _setup_camera_sensor_view(self, num_envs: int) -> None:
         """Resolve or create the camera sensor used by non-interactive image views."""
         if not self._uses_camera_sensor_view():
             return
-        env_ids = (
-            resolve_tiled_env_indices(num_envs, self.cfg.tiled_cam_num, self.cfg.tiled_cam_env_indices)
-            if self.cfg.tiled_cam_view
-            else resolve_mono_env_index(num_envs)
-        )
+        env_ids = resolve_tiled_env_indices(num_envs, self.cfg.tiled_cam_num, self.cfg.tiled_cam_env_indices)
         self._camera_env_indices = env_ids
-        if self.cfg.cam_source == "prim_path":
+        if self.cfg.tiled_cam_prim_path is not None:
             logger.debug(
-                "[NewtonVisualizer] cam_source='prim_path' uses existing camera sensor output; "
-                "cfg camera pose fields are ignored."
+                "[NewtonVisualizer] tiled_cam_prim_path uses existing camera sensor output; "
+                "generated tiled camera pose fields are ignored."
             )
             cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.cam_prim_path, env_ids)
+            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.tiled_cam_prim_path, env_ids)
             self._camera_sensor_indices = env_ids
             return
 
@@ -538,7 +508,7 @@ class NewtonVisualizer(BaseVisualizer):
             height=tile_h,
             renderer_cfg=NewtonWarpRendererCfg(),
         )
-        self._camera_sensor_indices = []
+        self._camera_sensor_indices = env_ids
         self._camera_is_owned = True
         self._update_owned_camera_poses()
 
@@ -546,21 +516,14 @@ class NewtonVisualizer(BaseVisualizer):
         """Update generated camera poses from env origins or follow prims."""
         if self._camera_sensor is None or not self._camera_is_owned:
             return
-        if self.cfg.lookat_prim_path:
-            target_positions = prim_world_positions(
-                self._scene_data_provider.get_usd_stage(),
-                self.cfg.lookat_prim_path,
-                self._camera_env_indices,
-                scene=self._scene_data_provider.get_interactive_scene(),
-            )
-        elif self.cfg.lookat is not None:
-            target_positions = resolve_fixed_camera_targets(
-                self.cfg.lookat, len(self._camera_env_indices), device=self._camera_sensor.device
-            )
-        else:
-            raise RuntimeError("[NewtonVisualizer] lookat or lookat_prim_path must be set for generated camera views.")
+        target_positions = prim_world_positions(
+            self._scene_data_provider.get_usd_stage(),
+            self.cfg.tiled_cam_target_prim_path,
+            self._camera_env_indices,
+            scene=self._scene_data_provider.get_interactive_scene(),
+        )
         eyes, targets = apply_camera_target_positions(
-            self._camera_sensor, target_positions, self.cfg.eye, self.cfg.eye_reference_frame
+            self._camera_sensor, target_positions, self.cfg.tiled_cam_eye, self._camera_env_indices
         )
         self._log_camera_pose_debug(eyes, targets)
 
@@ -585,7 +548,7 @@ class NewtonVisualizer(BaseVisualizer):
         """Log the selected camera sensor RGB output into Newton's image panel."""
         if self._viewer is None or self._camera_sensor is None:
             return
-        if self._camera_is_owned and self.cfg.lookat_prim_path:
+        if self._camera_is_owned:
             self._update_owned_camera_poses()
         if self._camera_is_owned:
             self._camera_sensor.update(dt=0.0, force_recompute=True)
@@ -634,15 +597,6 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
-
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-        if pose is None:
-            return
-        if self._last_camera_pose == pose:
-            return
-        self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""

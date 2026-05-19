@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
@@ -81,7 +82,7 @@ def find_camera_by_prim_path(camera_sensors: dict[str, Camera], cam_prim_path: s
     if stage_matches:
         raise RuntimeError(
             f"cam_prim_path={cam_prim_path!r} matched USD camera prims, but no Isaac Lab Camera sensor owns them. "
-            "Add the camera to scene.sensors or use cam_source='cfg'."
+            "Add the camera to scene.sensors or leave tiled_cam_prim_path unset to use generated tiled cameras."
         )
     raise RuntimeError(f"No Isaac Lab Camera sensor matched cam_prim_path={cam_prim_path!r}.")
 
@@ -141,6 +142,10 @@ def remove_generated_prims(prim_paths: list[str] | None) -> None:
 def camera_rgb_batch(camera: Camera, env_indices: list[int]) -> torch.Tensor:
     """Return RGB output for selected env indices."""
     rgb = camera.data.output["rgb"]
+    if isinstance(rgb, wp.array):
+        rgb = wp.to_torch(rgb)
+    elif hasattr(rgb, "torch"):
+        rgb = rgb.torch
     if env_indices:
         index = torch.tensor(env_indices, dtype=torch.long, device=rgb.device)
         return rgb.index_select(0, index)
@@ -240,7 +245,7 @@ def prim_world_positions(stage: Any, prim_path_template: str, env_indices: list[
         except Exception:
             prim = stage.GetPrimAtPath(prim_path)
             if not prim.IsValid():
-                raise RuntimeError(f"lookat_prim_path resolved to missing prim: {prim_path!r}.")
+                raise RuntimeError(f"tiled_cam_target_prim_path resolved to missing prim: {prim_path!r}.")
             transform = xform_cache.GetLocalToWorldTransform(prim)
             translation = transform.ExtractTranslation()
             positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
@@ -263,38 +268,19 @@ def apply_camera_view_from_origins(
     camera._update_poses(None)
 
 
-def resolve_fixed_camera_targets(
-    lookat: tuple[float, float, float],
-    count: int,
-    *,
-    device: str | torch.device = "cpu",
-) -> torch.Tensor:
-    """Return a repeated fixed look-at target tensor."""
-    target = torch.tensor(lookat, dtype=torch.float32, device=device).reshape(1, 3)
-    return target.repeat(max(0, int(count)), 1)
-
-
 def apply_camera_target_positions(
     camera: Camera,
     target_positions: torch.Tensor,
     eye: tuple[float, float, float],
-    eye_reference_frame: str,
+    env_ids: list[int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Set generated camera poses from target positions and eye reference mode."""
+    """Set generated tiled camera poses as target-relative eye offsets."""
     device = camera.device
     target_positions = target_positions.to(device=device)
     eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
-    if eye_reference_frame == "world":
-        eyes = eye_offset.repeat(target_positions.shape[0], 1)
-    elif eye_reference_frame == "lookat_target":
-        eyes = target_positions + eye_offset
-    else:
-        raise ValueError(
-            "VisualizerCfg.eye_reference_frame must be either 'world' or 'lookat_target', "
-            f"got {eye_reference_frame!r}."
-        )
+    eyes = target_positions + eye_offset
     targets = target_positions
-    camera.set_world_poses_from_view(eyes, targets)
+    camera.set_world_poses_from_view(eyes, targets, env_ids=env_ids)
     camera._update_poses(None)
     return eyes.detach().cpu(), targets.detach().cpu()
 
