@@ -385,12 +385,37 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
-        # detect physics backend and instantiate the appropriate implementation
+        # detect physics backend and instantiate the appropriate implementation.
+        # Check ``ovphysxmanager`` first: it contains the substring ``physx`` so
+        # would otherwise be caught by the ``"physx" in ...`` branch below and
+        # routed to the PhysX impl, which assumes a ``root_view`` with
+        # ``.link_paths`` — OVPhysX's per-tensor-type bindings dict does not
+        # satisfy that contract.  Newton's subclasses (``NewtonMJWarpManager``,
+        # ``NewtonKaminoManager``, ...) are caught by the substring branch.
         manager_name = env.sim.physics_manager.__name__.lower()
-        if "newton" in manager_name:
+        if manager_name == "ovphysxmanager":
+            # No OVPhysX implementation yet — wheel-side
+            # ``RIGID_BODY_MATERIAL`` tensor binding is missing; randomization
+            # would require per-body view creation that ovphysx does not yet
+            # expose.  Run with material randomization disabled (warns once).
+            import logging  # noqa: PLC0415
+
+            logging.getLogger(__name__).warning(
+                "randomize_rigid_body_material is a no-op on the OVPhysX backend "
+                "(wheel-side gap — see docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md)."
+            )
+
+            class _Noop:
+                def __call__(self, *args, **kwargs):
+                    pass
+
+            self._impl = _Noop()
+        elif "newton" in manager_name:
             self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
-        else:
+        elif "physx" in manager_name:
             self._impl = _RandomizeRigidBodyMaterialPhysx(cfg, env, self.asset, self.asset_cfg)
+        else:
+            raise ValueError(f"Unsupported physics manager for randomize_rigid_body_material: {manager_name!r}")
 
     def __call__(
         self,

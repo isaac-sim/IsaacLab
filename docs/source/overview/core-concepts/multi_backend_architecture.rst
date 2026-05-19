@@ -382,6 +382,6 @@ See Also
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide from Isaac Lab 2.x to the
   multi-backend architecture
 - :doc:`/source/features/hydra` — preset system for multi-backend environment configurations
-- :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration
-  guide
+- :doc:`physical-backends/index` — feature matrix and per-backend guides (PhysX, Newton, OvPhysX)
+- :doc:`physical-backends/newton/index` — Newton backend guide
 - :doc:`renderers` — renderer backend architecture
