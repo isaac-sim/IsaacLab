@@ -37,6 +37,7 @@ setup(
         "isaaclab_ovphysx",
         "isaaclab_ovphysx.assets",
         "isaaclab_ovphysx.assets.articulation",
+        "isaaclab_ovphysx.assets.rigid_object_collection",
         "isaaclab_ovphysx.cloner",
         "isaaclab_ovphysx.physics",
         "isaaclab_ovphysx.test",

@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import modifier
 

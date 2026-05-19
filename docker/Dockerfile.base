@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Nvidia Dockerfiles: https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles
-# Please check above link for license information.
+# Isaac Sim base container: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
+# Please check the NGC container page for license information.
 
 # Base image
 ARG ISAACSIM_BASE_IMAGE_ARG
@@ -26,14 +26,17 @@ ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
 # Path to the Isaac Lab directory
 ARG ISAACLAB_PATH_ARG
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
-# Home dir of docker user, typically '/root'
+# Home dir of the runtime docker user, typically '/root'
 ARG DOCKER_USER_HOME_ARG
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+ENV HOME=${DOCKER_USER_HOME}
 
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Base image may end with a non-root user; switch to root for system-level
+# setup and package installation.
 USER root
 
 # Install dependencies
@@ -121,19 +124,40 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
 # aliasing isaaclab.sh and python for convenience
-RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
-    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
-    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
-    echo "shopt -s histappend" >> /root/.bashrc && \
-    echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
+RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
+
+# Create the non-root runtime user after root-only image setup is complete.
+# The uid/gid 1000 match GitHub runner bind mounts used by Docker tests.
+# --non-unique is required because some base image revisions already carry
+# another user or group at uid/gid 1000.
+RUN groupadd --non-unique --gid 1000 isaaclab \
+ && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
+
+RUN chown -R isaaclab:isaaclab \
+        ${ISAACLAB_PATH} \
+        ${DOCKER_USER_HOME}
+
+# Open up traversal of the Isaac Sim root and runtime home for non-root users.
+# Inner Isaac Sim files keep their original permissions, so avoid chowning the
+# full install. Keep the runtime home closed to unrelated users.
+RUN chmod 755 \
+        ${ISAACSIM_ROOT_PATH} \
+ && chmod 750 \
+        ${DOCKER_USER_HOME}
 
 # copy the rest of the files
-COPY ../ ${ISAACLAB_PATH}/
+COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
+
+USER isaaclab
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run

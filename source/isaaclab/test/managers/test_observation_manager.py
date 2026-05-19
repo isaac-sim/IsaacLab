@@ -29,7 +29,8 @@ from isaaclab.managers import (
     ObservationTermCfg,
     RewardTermCfg,
 )
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import modifiers
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

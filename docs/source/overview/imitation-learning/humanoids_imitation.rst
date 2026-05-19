@@ -608,7 +608,7 @@ Finetune GR00T N1.5 policy for locomanipulation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Prerequisites:** Generate the locomanipulation dataset using the command in the previous section (e.g. ``generated_dataset_g1_locomanipulation_sdg.hdf5``).
-You may place one or more such HDF5 files in a single directory for the conversion step.
+The conversion step accepts a directory of SDG HDF5 files, so you may group multiple ``generate_data.py`` outputs together — but the directory must contain **only** SDG outputs, not other HDF5 files from earlier steps (e.g. ``dataset_annotated_g1_locomanip.hdf5`` or ``generated_dataset_g1_locomanip.hdf5``).
 
 Install GR00T with Isaac Lab (uv)
 """""""""""""""""""""""""""""""""
@@ -636,20 +636,38 @@ Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencie
    MAX_JOBS=4 uv pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
    uv pip install diffusers decord zmq
 
+.. note::
+
+   **If you cannot install or use flash-attn**, an optional patch is provided that switches the
+   bundled Eagle 2.5 VL model to PyTorch SDPA. Use this if ``flash-attn`` fails to build for your
+   environment, or if it installs but raises a runtime error such as
+   ``RuntimeError: FlashAttention only supports Ampere GPUs or newer`` (for example on Blackwell
+   GPUs, which ``flash-attn==2.7.1.post4`` does not have prebuilt kernels for). After the patch,
+   finetune and rollout run on any CUDA arch supported by your PyTorch build, at the cost of
+   flash-attn's training speedup. Skip the ``flash-attn`` install line above, then apply the
+   patch from the **Isaac-GR00T** directory (the sibling layout above means the IsaacLab
+   checkout is at ``../IsaacLab``):
+
+   .. code:: bash
+
+      git apply ../IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
+
 Convert dataset to LeRobot format
 """""""""""""""""""""""""""""""""
 
-GR00T N1.5 expects data in LeRobot format. From the **IsaacLab** repository root, run the conversion script. ``<input_dir>`` is a directory containing one or more ``.hdf5`` files (e.g. the output directory where you saved files from ``generate_data.py``). ``<output_path>`` is the LeRobot-format output directory (e.g. ``./datasets/datasets_train_200_lerobot``). Episodes with very low object displacement are skipped.
+GR00T N1.5 expects data in LeRobot format. From the **IsaacLab** repository root, run the conversion script. ``<input_dir>`` is a directory containing one or more SDG ``.hdf5`` files produced by ``generate_data.py`` (and **no other HDF5 files**). ``<output_path>`` is the LeRobot-format output directory (e.g. ``./datasets/datasets_train_200_lerobot``). Episodes with very low object displacement are skipped.
 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
 
-Example:
+Example — move the SDG output into its own directory first so the converter only sees SDG files:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets ./datasets/datasets_train_200_lerobot
+   mkdir -p ./datasets/locomanip_sdg
+   mv ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 ./datasets/locomanip_sdg/
+   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
 
 Finetune the policy
 """""""""""""""""""

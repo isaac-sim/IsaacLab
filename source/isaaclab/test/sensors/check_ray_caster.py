@@ -78,10 +78,21 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Clone the scene
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
-    physics_scene_path = sim.get_physics_context().prim_path
-    lab_cloner.filter_collisions(
-        sim.stage, physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
-    )
+    # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
+    # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
+    physics_scene_path = None
+    for prim in sim.stage.Traverse():
+        if "PhysxSceneAPI" in prim.GetAppliedSchemas():
+            physics_scene_path = prim.GetPrimPath().pathString
+            break
+    if physics_scene_path is not None:
+        lab_cloner.filter_collisions(
+            sim.stage,
+            physics_scene_path,
+            "/World/collisions",
+            prim_paths=envs_prim_paths,
+            global_paths=["/World/ground"],
+        )
 
 
 def main():
@@ -103,6 +114,7 @@ def main():
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
         max_init_terrain_level=None,
         num_envs=1,
+        env_spacing=10.0,
     )
     _ = TerrainImporter(terrain_importer_cfg)
 

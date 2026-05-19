@@ -1,6 +1,68 @@
 Changelog
 ---------
 
+0.3.0 (2026-05-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the ``[ovrtx]`` optional extra for :mod:`isaaclab_ov` to ``ovrtx>=0.3.0,<0.4.0``
+ (previously ``>=0.2.0,<0.3.0``). The renderer remains compatible with ``ovrtx`` 0.2.x when
+ that version is installed separately; the extra now tracks the supported 0.3.x line by default.
+
+
+0.2.1 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.temp_usd_dir` defaults to ``None``. Set it to a writable
+  directory when you want the combined stage written to disk for debugging.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.temp_usd_suffix`. When a temp file is written, the renderer
+  uses ``ovrtx_renderer_stage.usda`` filename under the configured temp directory.
+
+Fixed
+^^^^^
+
+* Avoided OVRTX staging disk I/O by exporting the prepared USD to memory and loading it with ``open_usd_from_string``
+  instead of always writing intermediate scene and combined USD files.
+
+
+0.2.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the ``use_cloning`` field on :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` to ``use_ovrtx_cloning``.
+  Changed its default value to ``True``. This will bring notable speedup for the total startup time (Launch to Train),
+  esp. for large-scale env setups. On Isaac-Dexsuite-Kuka-Allegro-Lift-v0 with 1024 env clones, the total startup time
+  dropped from ~78s to ~43s. Note that if ``use_ovrtx_cloning`` is enabled but the env setup is heterogeneous, the
+  OVRTX renderer will disable the internal cloning path and logs a warning, exporting the full multi-environment stage
+  instead (same effect as setting ``use_ovrtx_cloning`` to ``False`` for that run).
+* Updated :class:`~isaaclab_ov.renderers.OVRTXRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  accessed via their underlying warp array directly.
+
+Fixed
+^^^^^
+
+* Fixed :class:`OVRTXRenderer` crash on multi-GPU systems when ``sim.device``
+  is not ``cuda:0``. All Warp kernel launches, buffer allocations, and OVRTX
+  ``binding.map()`` calls now use the device from :class:`CameraRenderSpec`
+  instead of hardcoded defaults.
+* Fixed cloned environments disappearing from tiled camera output if
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.use_ovrtx_cloning` is set to ``True``,
+  by correcting scene-partition attribute creation on env roots and cameras.
+
+
 0.1.9 (2026-05-14)
 ~~~~~~~~~~~~~~~~~~
 

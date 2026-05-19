@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.0.5 (2026-05-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :mod:`isaaclab_experimental.utils` package exports so its utility
+  modules appear in API documentation.
+
+
 0.0.4 (2026-05-12)
 ~~~~~~~~~~~~~~~~~~
 

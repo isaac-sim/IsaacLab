@@ -9,7 +9,7 @@ Visuo-Tactile Sensor
 The visuo-tactile sensor in Isaac Lab provides realistic tactile feedback through integration with TacSL (Tactile Sensor Learning) [Akinola2025]_. It is designed to simulate high-fidelity tactile interactions, generating both visual and force-based data that mirror real-world tactile sensors like GelSight devices. The sensor can provide tactile RGB images, force field distributions, and other intermediate tactile measurements essential for robotic manipulation tasks requiring fine tactile feedback.
 
 
-.. figure:: ../../../_static/overview/sensors/tacsl_diagram.jpg
+.. figure:: ../_static/overview/sensors/tacsl_diagram.jpg
     :align: center
     :figwidth: 100%
     :alt: Tactile sensor with RGB visualization and force fields
@@ -142,7 +142,7 @@ For a complete list of available options:
 .. note::
    The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
 
-.. figure:: ../../../_static/overview/sensors/tacsl_demo.jpg
+.. figure:: ../_static/overview/sensors/tacsl_demo.jpg
     :align: center
     :figwidth: 100%
     :alt: TacSL tactile sensor demo showing RGB tactile images and force field visualizations
@@ -163,12 +163,12 @@ Output Tactile Data
    :widths: 50 50
    :class: borderless
 
-   * - .. figure:: ../../../_static/overview/sensors/tacsl_taxim_example.jpg
+   * - .. figure:: ../_static/overview/sensors/tacsl_taxim_example.jpg
           :align: center
           :figwidth: 80%
           :alt: Tactile output with RGB visualization
 
-     - .. figure:: ../../../_static/overview/sensors/tacsl_force_field_example.jpg
+     - .. figure:: ../_static/overview/sensors/tacsl_force_field_example.jpg
           :align: center
           :figwidth: 80%
           :alt: Tactile output with force field visualization

@@ -1,6 +1,71 @@
 Changelog
 ---------
 
+0.11.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton backend for :class:`~isaaclab.sensors.ray_caster.RayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`. Site-based,
+  matching :class:`~isaaclab_newton.sensors.pva.Pva` and
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer`:
+  registers body-attached sites via
+  :meth:`~isaaclab_newton.physics.NewtonManager.cl_register_site` for both
+  the sensor frame and any tracked target meshes, and reads per-step
+  transforms off :class:`~newton.sensors.SensorFrameTransform` against a
+  world-origin reference. Static parents/targets bypass the site
+  machinery and serve cached per-env ``wp.transformf`` arrays.
+
+Changed
+^^^^^^^
+
+* Changed Newton tracked target mesh updates to copy site poses directly into
+  Warp mesh pose tables instead of staging through torch views.
+
+
+0.10.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime verification of the ``omni::cubric::IAdapter`` interface
+  version in :mod:`~isaaclab_newton.physics._cubric` as defense-in-depth
+  against future ABI shifts. The shim falls back to the CPU path on
+  major-version mismatch or older-minor.
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin from ``v1.2.0rc2`` to ``v1.2.0``
+  (stable). Upstream release notes: `newton-physics/newton v1.2.0
+  <https://github.com/newton-physics/newton/releases/tag/v1.2.0>`_.
+* Updated :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  reinterpreted directly from the ProxyArray's underlying warp array, removing the previous
+  :func:`warp.from_torch` conversion path.
+
+Fixed
+^^^^^
+
+* Fixed per-environment string identifiers (e.g. ``mujoco:tendon_label``)
+  keeping the source proto path after replication.
+  :func:`~isaaclab_newton.cloner.newton_replicate._rename_builder_labels`
+  now also walks string-typed custom-attribute columns whose frequency
+  declares a ``references="world"`` companion, rewriting their per-row
+  source-path prefix to the destination world root in the same pass that
+  handles built-in label arrays. Adds ``constraint_mimic`` and
+  ``equality_constraint`` to that built-in pass for completeness. The
+  prefix match uses a path-separator boundary so a source path that is a
+  string prefix of another (e.g. ``/Sources/protoA`` vs
+  ``/Sources/protoAB``) does not cross-contaminate during the rename.
+
+
 0.9.1 (2026-05-15)
 ~~~~~~~~~~~~~~~~~~
 

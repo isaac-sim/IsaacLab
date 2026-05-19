@@ -347,6 +347,29 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def set_decimation(cls, decimation: int) -> None:
+        """Inform the physics backend how many substeps the environment runs per policy step.
+
+        Backends that can fold the full decimation loop into a single
+        :meth:`step` call (e.g. Newton with all-graphable actuators) use this
+        to size their internal loop / CUDA graph.  The default implementation
+        is a no-op.
+
+        Args:
+            decimation: Number of physics steps per environment step.
+        """
+        pass
+
+    @classmethod
+    def handles_decimation(cls) -> bool:
+        """``True`` when :meth:`step` executes the full decimation loop internally.
+
+        When this returns ``True`` the environment should call :meth:`step`
+        once per policy step instead of looping ``decimation`` times.
+        """
+        return False
+
+    @classmethod
     def get_backend(cls) -> str:
         """Get the tensor backend being used ("numpy" or "torch")."""
         return "torch" if "cuda" in PhysicsManager._device else "numpy"

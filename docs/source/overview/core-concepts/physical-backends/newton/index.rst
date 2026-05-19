@@ -41,3 +41,5 @@ new backend, see :doc:`../../multi_backend_architecture`.
   supported-features
   mjwarp-solver
   kamino-solver
+  warp-environments
+  warp-env-migration

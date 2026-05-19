@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import warnings
 from collections.abc import Sequence
@@ -22,6 +23,10 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+
+_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
+
+
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -35,6 +40,8 @@ from isaaclab_physx.physics import PhysxManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
+    from isaaclab_newton.actuators import NewtonActuatorAdapter
+
     import omni.physics.tensors.api as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -111,7 +118,12 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
         super().__init__(cfg)
+
+        sim_ctx = SimulationContext.instance()
+        self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
 
     """
     Properties
@@ -217,9 +229,15 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset actuators
+        # reset actuators (including Newton-native adapter which owns its states)
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
+        # Reset Newton-actuator per-env states (delay queues, neural hidden state, etc.).
+        # The adapter is per-articulation on PhysX and is not part of ``self.actuators``.
+        # ``getattr`` guards subclasses (e.g. ``Multirotor``) that override
+        # ``_process_actuators_cfg`` and never initialize these attributes.
+        if getattr(self, "_has_newton_actuators", False) and getattr(self, "newton_actuator_adapter", None) is not None:
+            self.newton_actuator_adapter.reset(env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -239,30 +257,40 @@ class Articulation(BaseArticulation):
             if self._instantaneous_wrench_composer.active:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
-                get_force_data = self._get_inst_wrench_force_f32
-                get_torque_data = self._get_inst_wrench_torque_f32
             else:
                 composer = self._permanent_wrench_composer
-                get_force_data = self._get_perm_wrench_force_f32
-                get_torque_data = self._get_perm_wrench_torque_f32
             composer.compose_to_body_frame()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=get_force_data(),
-                torque_data=get_torque_data(),
+                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
+                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
                 is_global=False,
             )
         self._instantaneous_wrench_composer.reset()
 
-        # apply actuator models
-        self._apply_actuator_model()
-        # write actions into simulation
-        self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
-        # position and velocity targets only for implicit actuators
-        if self._has_implicit_actuators:
-            self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-            self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+        if getattr(self, "_has_newton_actuators", False):
+            # Newton fast path: pos/vel targets pass straight through; the
+            # in-graph kernel inside ``_apply_actuator_model_newton`` merges
+            # Newton's actuator output (explicit DOFs) with user FF
+            # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
+            # to PhysX as the actuation force.
+            self._apply_actuator_model_newton()
+            self.root_view.set_dof_actuation_forces(
+                self._physx_actuator_wrapper.joint_f_2d,
+                self._ALL_INDICES,
+            )
+            if self._has_implicit_actuators:
+                self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
+                self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
+        else:
+            # Standard Lab actuator path: per-group ``actuator.compute()`` may
+            # transform targets, so we push the staging buffers PhysX-side.
+            self._apply_actuator_model()
+            self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+            if self._has_implicit_actuators:
+                self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
+                self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -469,7 +497,7 @@ class Articulation(BaseArticulation):
         self.data._body_com_jacobian_w.timestamp = -1.0
         self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -562,7 +590,7 @@ class Articulation(BaseArticulation):
         self.data._body_com_jacobian_w.timestamp = -1.0
         self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -699,7 +727,7 @@ class Articulation(BaseArticulation):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -789,7 +817,7 @@ class Articulation(BaseArticulation):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self._get_root_link_vel_w_f32(), indices=env_ids)
+        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -913,12 +941,9 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # resolve masks to indices (PhysX only supports index-based TensorAPI)
-        env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
-        self.write_joint_state_to_sim_index(
-            position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True
-        )
+        # set into simulation
+        self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)
+        self.write_joint_velocity_to_sim_mask(velocity=velocity, env_mask=env_mask, joint_mask=joint_mask)
 
     def write_joint_position_to_sim_index(
         self,
@@ -1152,8 +1177,7 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_stiffness, self.data._joint_stiffness)
-        self.root_view.set_dof_stiffnesses(self._cpu_joint_stiffness, indices=cpu_env_ids)
+        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1247,8 +1271,104 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_damping, self.data._joint_damping)
-        self.root_view.set_dof_dampings(self._cpu_joint_damping, indices=cpu_env_ids)
+        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
+
+    def write_actuator_stiffness_to_sim(
+        self,
+        *,
+        stiffness: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write actuator kp at the (env_ids, joint_ids) sub-grid and propagate to controllers.
+
+        Iterates the per-articulation adapter's Newton actuators and uses
+        :data:`patch_actuator_param_kernel` to overwrite each
+        controller's ``kp`` array at the ``(env_ids × joint_ids)``
+        cells. DOFs not owned by an actuator are skipped by the kernel's
+        per-slot index mapping.
+
+        Args:
+            stiffness: Sub-grid of new kp values, shape ``(len(env_ids), len(joint_ids))``.
+            env_ids: 1D torch tensor of env indices.
+            joint_ids: 1D torch tensor of articulation-local joint indices.
+
+        No-op when no Newton actuators are registered for this articulation.
+        """
+        self._write_actuator_param("kp", stiffness, env_ids, joint_ids)
+
+    def write_actuator_damping_to_sim(
+        self,
+        *,
+        damping: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write actuator kd at the (env_ids, joint_ids) sub-grid and propagate to controllers."""
+        self._write_actuator_param("kd", damping, env_ids, joint_ids)
+
+    def _write_actuator_param(
+        self,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Shared body for :meth:`write_actuator_stiffness_to_sim` / :meth:`write_actuator_damping_to_sim`."""
+        adapter = self.newton_actuator_adapter
+        if adapter is None:
+            return
+
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
+        env_id_pos = torch.full(
+            (self.num_instances,),
+            -1,
+            dtype=torch.int32,
+            device=self.device,
+        )
+        env_id_pos[env_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            env_ids.shape[0],
+            dtype=torch.int32,
+            device=self.device,
+        )
+        joint_id_pos = torch.full(
+            (self.num_joints,),
+            -1,
+            dtype=torch.int32,
+            device=self.device,
+        )
+        joint_id_pos[joint_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            joint_ids.shape[0],
+            dtype=torch.int32,
+            device=self.device,
+        )
+
+        values_wp = wp.from_torch(
+            values.to(self.device, dtype=torch.float32).contiguous(),
+            dtype=wp.float32,
+        )
+        env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
+        joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
+
+        for act in adapter.actuators:
+            ctrl = act.controller
+            if not hasattr(ctrl, attr):
+                continue
+            wp.launch(
+                actuator_kernels.patch_actuator_param_kernel,
+                dim=act.indices.shape[0],
+                inputs=[
+                    act.indices,
+                    env_id_pos_wp,
+                    joint_id_pos_wp,
+                    values_wp,
+                    0,
+                    self.num_joints,
+                ],
+                outputs=[getattr(ctrl, attr)],
+                device=self.device,
+            )
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1348,8 +1468,7 @@ class Articulation(BaseArticulation):
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_pos_limits, self.data._joint_pos_limits)
-        self.root_view.set_dof_limits(self._cpu_joint_pos_limits, indices=cpu_env_ids)
+        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1453,8 +1572,7 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_vel_limits, self.data._joint_vel_limits)
-        self.root_view.set_dof_max_velocities(self._cpu_joint_vel_limits, indices=cpu_env_ids)
+        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1555,8 +1673,7 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_effort_limits, self.data._joint_effort_limits)
-        self.root_view.set_dof_max_forces(self._cpu_joint_effort_limits, indices=cpu_env_ids)
+        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1655,8 +1772,7 @@ class Articulation(BaseArticulation):
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_armature, self.data._joint_armature)
-        self.root_view.set_dof_armatures(self._cpu_joint_armature, indices=cpu_env_ids)
+        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1700,23 +1816,16 @@ class Articulation(BaseArticulation):
     ):
         r"""Write joint friction coefficients over selected environment indices into the simulation.
 
-        For Isaac Sim versions below 5.0, only the legacy unitless joint friction coefficient is set.
-        This limits the resisting force or torque up to a maximum proportional to the transmitted spatial force:
-        :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
+        For Isaac Sim versions below 5.0, only the static friction coefficient is set.
+        This limits the resisting force or torque up to a maximum proportional to the transmitted
+        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
 
-        For Isaac Sim versions 5.0 and above, the PhysX joint friction parameter model is used. It combines
-        Coulomb (static and dynamic) friction with a viscous term:
+        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
+        are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
 
-        - Static friction effort defines the maximum effort that prevents motion at rest [N or N·m, depending on
-          joint type].
-        - Dynamic friction effort applies once motion begins and remains constant during motion [N or N·m,
-          depending on joint type].
-        - Viscous friction coefficient is a velocity-proportional resistive term [N·s/m or N·m·s/rad, depending
-          on joint type].
-
-        .. warning::
-            For Isaac Sim versions 5.0 and above, the static friction effort must be greater than or equal to the
-            dynamic friction effort.
+        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
+        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
+        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
 
         .. note::
             This method expects partial data or full data.
@@ -1726,12 +1835,11 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_friction_coeff: Legacy unitless coefficient for Isaac Sim versions below 5.0, or static friction
-                effort [N or N·m, depending on joint type] for Isaac Sim versions 5.0 and above. Shape is
-                (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
-            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type].
+            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+                Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
                 Same shape as above. If None, the dynamic coefficient is not updated.
-            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
+            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
                 Same shape as above. If None, the viscous coefficient is not updated.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
@@ -1803,8 +1911,7 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_friction_props, friction_props)
-        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1817,23 +1924,16 @@ class Articulation(BaseArticulation):
     ):
         r"""Write joint friction coefficients over selected environment mask into the simulation.
 
-        For Isaac Sim versions below 5.0, only the legacy unitless joint friction coefficient is set.
-        This limits the resisting force or torque up to a maximum proportional to the transmitted spatial force:
-        :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
+        For Isaac Sim versions below 5.0, only the static friction coefficient is set.
+        This limits the resisting force or torque up to a maximum proportional to the transmitted
+        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
 
-        For Isaac Sim versions 5.0 and above, the PhysX joint friction parameter model is used. It combines
-        Coulomb (static and dynamic) friction with a viscous term:
+        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
+        are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
 
-        - Static friction effort defines the maximum effort that prevents motion at rest [N or N·m, depending on
-          joint type].
-        - Dynamic friction effort applies once motion begins and remains constant during motion [N or N·m,
-          depending on joint type].
-        - Viscous friction coefficient is a velocity-proportional resistive term [N·s/m or N·m·s/rad, depending
-          on joint type].
-
-        .. warning::
-            For Isaac Sim versions 5.0 and above, the static friction effort must be greater than or equal to the
-            dynamic friction effort.
+        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
+        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
+        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
 
         .. note::
             This method expects full data.
@@ -1843,12 +1943,11 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_friction_coeff: Legacy unitless coefficient for Isaac Sim versions below 5.0, or static friction
-                effort [N or N·m, depending on joint type] for Isaac Sim versions 5.0 and above. Shape is
-                (num_instances, num_joints).
-            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type].
+            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+                Shape is (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
                 Same shape as above. If None, the dynamic coefficient is not updated.
-            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
+            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
                 Same shape as above. If None, the viscous coefficient is not updated.
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
@@ -1874,9 +1973,7 @@ class Articulation(BaseArticulation):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
-        """Write joint dynamic friction effort over selected environment indices into the simulation.
-
-        The dynamic friction effort is [N or N·m, depending on joint type].
+        """Write joint dynamic friction coefficient over selected environment indices into the simulation.
 
         .. note::
             This method expects partial data or full data.
@@ -1886,8 +1983,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type]. Shape is
-                (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids))
+                or (num_instances, num_joints) if full_data.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -1931,8 +2028,7 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_friction_props, friction_props)
-        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -1941,9 +2037,7 @@ class Articulation(BaseArticulation):
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Write joint dynamic friction effort over selected environment mask into the simulation.
-
-        The dynamic friction effort is [N or N·m, depending on joint type].
+        """Write joint dynamic friction coefficient over selected environment mask into the simulation.
 
         .. note::
             This method expects full data.
@@ -1953,8 +2047,7 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type]. Shape is
-                (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -1979,8 +2072,6 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write joint viscous friction coefficient over selected environment indices into the simulation.
 
-        The coefficient is [N·s/m or N·m·s/rad, depending on joint type].
-
         .. note::
             This method expects partial data or full data.
 
@@ -1989,8 +2080,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
-                Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
+            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids))
+                or (num_instances, num_joints) if full_data.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2037,8 +2128,7 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_joint_friction_props, friction_props)
-        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -2049,8 +2139,6 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write joint viscous friction coefficient over selected environment mask into the simulation.
 
-        The coefficient is [N·s/m or N·m·s/rad, depending on joint type].
-
         .. note::
             This method expects full data.
 
@@ -2059,8 +2147,7 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
-                Shape is (num_instances, num_joints).
+            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -2128,8 +2215,7 @@ class Articulation(BaseArticulation):
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_body_mass, self.data._body_mass)
-        self.root_view.set_masses(self._cpu_body_mass, indices=cpu_env_ids)
+        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -2208,11 +2294,12 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(
-            self._cpu_body_coms,
-            self.data._body_com_pose_b.data.view(wp.float32).reshape((self.num_instances, self.num_bodies, 7)),
+        body_com_flat = (
+            wp.clone(self.data._body_com_pose_b.data, device="cpu")
+            .view(wp.float32)
+            .reshape((self.num_instances, self.num_bodies, 7))
         )
-        self.root_view.set_coms(self._cpu_body_coms, indices=cpu_env_ids)
+        self.root_view.set_coms(body_com_flat, indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
@@ -2290,8 +2377,7 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_body_inertia, self.data._body_inertia)
-        self.root_view.set_inertias(self._cpu_body_inertia, indices=cpu_env_ids)
+        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -3782,35 +3868,6 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        # Cached .view(wp.float32) wrappers for structured warp arrays.
-        # These avoid per-call wp.array metadata allocation in writers.
-        # Reset to None each time _create_buffers runs (during initialization).
-        self._root_link_pose_w_f32: wp.array | None = None
-        self._root_com_vel_w_f32: wp.array | None = None
-        self._root_link_vel_w_f32: wp.array | None = None
-        # Cached wrench views for write_data_to_sim
-        self._inst_wrench_force_f32: wp.array | None = None
-        self._inst_wrench_torque_f32: wp.array | None = None
-        self._perm_wrench_force_f32: wp.array | None = None
-        self._perm_wrench_torque_f32: wp.array | None = None
-
-        # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
-        # PhysX requires CPU arrays for "model" property updates (stiffness, damping, etc.).
-        # Pinned memory enables DMA fast path and avoids per-call malloc.
-        N, J, B = self.num_instances, self.num_joints, self.num_bodies
-        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
-        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
-        self._cpu_joint_stiffness = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_joint_damping = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_joint_pos_limits = wp.zeros((N, J, 2), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_joint_vel_limits = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_joint_effort_limits = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_joint_armature = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_joint_friction_props = wp.zeros((N, J, 3), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
-        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
-
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -3869,165 +3926,143 @@ class Articulation(BaseArticulation):
         """Process and apply articulation joint properties."""
         # create actuators
         self.actuators = dict()
+        self._physx_actuator_wrapper = None
+        # Per-articulation Newton actuator adapter and the frozen kp/kd
+        # snapshot consumed by ``randomize_actuator_gains``. ``None`` for
+        # articulations not on the Newton fast path or with only implicit
+        # Lab actuators.
+        self.newton_actuator_adapter: NewtonActuatorAdapter | None = None
+        self.newton_default_stiffness: torch.Tensor | None = None
+        self.newton_default_damping: torch.Tensor | None = None
+        self.newton_managed_local_joints: torch.Tensor | slice | None = None
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+        self._has_newton_actuators = False
+        # Per-DOF implicit/explicit mask consumed by the
+        # ``sync_torque_telemetry`` kernel. ``None`` when no Newton fast path
+        # is active.
+        self._implicit_dof_mask: wp.array | None = None
 
-        # iterate over all actuator configurations
-        for actuator_name, actuator_cfg in self.cfg.actuators.items():
-            # type annotation for type checkers
-            actuator_cfg: ActuatorBaseCfg
-            # create actuator group
-            joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
-            # check if any joints are found
-            if len(joint_names) == 0:
-                raise ValueError(
-                    f"No joints found for actuator group: {actuator_name} with joint name expression:"
-                    f" {actuator_cfg.joint_names_expr}."
+        _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
+
+        if _use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
+            logger.warning(
+                "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available."
+                " Newton-native actuators will be disabled and the simulation will fall back to the"
+                " Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
+            )
+
+        if _HAS_NEWTON_ACTUATORS and _use_newton_actuators:
+            from isaaclab_newton.actuators import (  # noqa: PLC0415
+                NewtonActuatorAdapter,
+                PhysxActuatorWrapper,
+                build_implicit_dof_mask,
+                build_newton_actuator_defaults,
+            )
+
+            from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+
+            # Enable the fast path even for all-implicit articulations:
+            # PhysX runs PD internally; Lab only forwards targets.
+            self._has_newton_actuators = True
+
+            # Author Newton actuator prims only if any explicit Lab group exists.
+            has_explicit = any(
+                not (
+                    "ImplicitActuator" in actuator_cfg.class_type
+                    if isinstance(actuator_cfg.class_type, str)
+                    else issubclass(actuator_cfg.class_type, ImplicitActuator)
                 )
-            # resolve joint indices
-            # we pass a slice if all joints are selected to avoid indexing overhead
-            if len(joint_names) == self.num_joints:
-                joint_ids = slice(None)
-            else:
-                joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
-            # create actuator collection
-            # note: for efficiency avoid indexing when over all indices
-            actuator: ActuatorBase = actuator_cfg.class_type(
-                cfg=actuator_cfg,
-                joint_names=joint_names,
-                joint_ids=joint_ids,
-                num_envs=self.num_instances,
-                device=self.device,
-                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
-                damping=self._data.joint_damping.torch[:, joint_ids],
-                armature=self._data.joint_armature.torch[:, joint_ids],
-                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
-                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, joint_ids],
-                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, joint_ids],
-                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
-                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
+                for actuator_cfg in self.cfg.actuators.values()
             )
-            # store actuator group
-            self.actuators[actuator_name] = actuator
-            # Store the configured values from the actuator model
-            # note: this is the value configured in the actuator model (for implicit and explicit actuators)
-            joint_ids = actuator.joint_indices
-            if joint_ids == slice(None):
-                joint_ids = self._ALL_JOINT_INDICES
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.stiffness,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_stiffness,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.damping,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_damping,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.armature,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_armature,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.dynamic_friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_dynamic_friction_coeff,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.viscous_friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_viscous_friction_coeff,
-                ],
-                device=self.device,
-            )
-            # set the passed gains and limits into the simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
-            # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(
-                limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices
+            # Always allocate the wrapper so ``_apply_actuator_model_newton``
+            # has a ``joint_f_2d`` buffer to merge effort into, even when
+            # there are no explicit Newton actuators (implicit-only case).
+            self._physx_actuator_wrapper = PhysxActuatorWrapper.create(
+                num_envs=self.num_instances,
+                num_joints=self.num_joints,
+                device=self.device,
             )
-            self.write_joint_velocity_limit_to_sim_index(
-                limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices
+
+            if has_explicit:
+                first_prim = find_first_matching_prim(self.cfg.prim_path)
+                art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
+
+                adapter = NewtonActuatorAdapter.from_usd(
+                    stage=get_current_stage(),
+                    joint_names=self.joint_names,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    device=self.device,
+                    articulation_prim_path=art_prim_path,
+                )
+
+                # Bind the wrapper's flat aliases of state/input buffers once.
+                # The underlying wp.arrays alias stable PhysX-owned GPU memory
+                # whose device pointer is fixed for the articulation's lifetime,
+                # so the views remain valid for every subsequent step.
+                w = self._physx_actuator_wrapper
+                w.joint_q = self._data.joint_pos.warp.reshape(-1)
+                w.joint_qd = self._data.joint_vel.warp.reshape(-1)
+                w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
+                w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
+                w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
+                adapter.finalize(w)
+                self.newton_actuator_adapter = adapter
+                (
+                    self.newton_default_stiffness,
+                    self.newton_default_damping,
+                    self.newton_managed_local_joints,
+                ) = build_newton_actuator_defaults(
+                    actuators=adapter.actuators,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    dof_offset=0,
+                    device=self.device,
+                )
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
+
+            for actuator_name, actuator_cfg in self.cfg.actuators.items():
+                cls_type = actuator_cfg.class_type
+                is_implicit = (
+                    "ImplicitActuator" in cls_type
+                    if isinstance(cls_type, str)
+                    else issubclass(cls_type, ImplicitActuator)
+                )
+                if is_implicit:
+                    self._create_lab_actuator(actuator_name, actuator_cfg)
+                else:
+                    self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
+
+            # ``_implicit_dof_mask_owner`` is the underlying torch tensor that owns
+            # the GPU memory aliased by ``_implicit_dof_mask``. We keep it as an
+            # instance attribute so the memory isn't freed while a CUDA graph
+            # holds a captured pointer into it.
+            self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
+                self.actuators,
+                self.num_joints,
+                self.device,
             )
-            self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(
-                joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_dynamic_friction_coefficient_to_sim_index(
-                joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_viscous_friction_coefficient_to_sim_index(
-                joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices
-            )
+            # Per-articulation view of the adapter's pre-clamp computed-effort
+            # buffer (or zero fallback when there are no explicit Newton
+            # actuators). Set once here so ``_apply_actuator_model_newton``
+            # passes it straight to ``sync_torque_telemetry``.
+            if self.newton_actuator_adapter is not None:
+                self._data._sim_bind_joint_computed_effort = self.newton_actuator_adapter.computed_effort_2d
+            else:
+                self._data._sim_bind_joint_computed_effort = wp.zeros(
+                    (self.num_instances, self.num_joints),
+                    dtype=wp.float32,
+                    device=self.device,
+                )
+            return
+
+        # --- Standard Isaac Lab actuator path ---
+        for actuator_name, actuator_cfg in self.cfg.actuators.items():
+            self._create_lab_actuator(actuator_name, actuator_cfg)
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -4038,8 +4073,14 @@ class Articulation(BaseArticulation):
             )
 
         if self.cfg.actuator_value_resolution_debug_print:
+            if _HAS_NEWTON_ACTUATORS:
+                from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+            else:
+                NewtonActuatorAdapter = None  # type: ignore[assignment]
             t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
             for actuator_group, actuator in self.actuators.items():
+                if NewtonActuatorAdapter is not None and isinstance(actuator, NewtonActuatorAdapter):
+                    continue
                 group_count = 0
                 for property, resolution_details in actuator.joint_property_resolution_table.items():
                     for prop_idx, resolution_detail in enumerate(resolution_details):
@@ -4049,6 +4090,106 @@ class Articulation(BaseArticulation):
                         t.add_row([actuator_group_str, property_str, *fmt])
                         group_count += 1
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+
+    def _create_lab_actuator(
+        self,
+        actuator_name: str,
+        actuator_cfg: ActuatorBaseCfg,
+        *,
+        properties_only: bool = False,
+    ) -> None:
+        """Instantiate a single Lab actuator from its config and write properties to sim.
+
+        Args:
+            actuator_name: Name for the actuator group.
+            actuator_cfg: Configuration for the actuator.
+            properties_only: When ``True``, only write physical joint properties
+                (armature, limits, friction) without registering the actuator or
+                writing stiffness/damping. Used for explicit joints managed by
+                Newton actuators.
+        """
+        joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
+        if len(joint_names) == 0:
+            raise ValueError(
+                f"No joints found for actuator group: {actuator_name} with joint name expression:"
+                f" {actuator_cfg.joint_names_expr}."
+            )
+        if len(joint_names) == self.num_joints:
+            joint_ids = slice(None)
+        else:
+            joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
+
+        actuator: ActuatorBase = actuator_cfg.class_type(
+            cfg=actuator_cfg,
+            joint_names=joint_names,
+            joint_ids=joint_ids,
+            num_envs=self.num_instances,
+            device=self.device,
+            stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
+            damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
+            armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
+            friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
+            dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
+            viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
+            effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
+            velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+        )
+
+        # Write physical joint properties (armature, limits, friction) — always needed.
+        self.write_joint_effort_limit_to_sim_index(
+            limits=actuator.effort_limit_sim,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_velocity_limit_to_sim_index(
+            limits=actuator.velocity_limit_sim,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff=actuator.friction,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_dynamic_friction_coefficient_to_sim_index(
+            joint_dynamic_friction_coeff=actuator.dynamic_friction,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=actuator.viscous_friction,
+            joint_ids=actuator.joint_indices,
+        )
+
+        if properties_only:
+            return
+
+        self.actuators[actuator_name] = actuator
+
+        # Store the configured values from the actuator model
+        j_ids = actuator.joint_indices
+        if j_ids == slice(None):
+            j_ids = self._ALL_JOINT_INDICES
+        for attr, buf in (
+            (actuator.stiffness, self.data._joint_stiffness),
+            (actuator.damping, self.data._joint_damping),
+            (actuator.armature, self.data._joint_armature),
+            (actuator.friction, self.data._joint_friction_coeff),
+            (actuator.dynamic_friction, self.data._joint_dynamic_friction_coeff),
+            (actuator.viscous_friction, self.data._joint_viscous_friction_coeff),
+        ):
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, j_ids.shape[0]),
+                inputs=[attr, self._ALL_INDICES, j_ids, False],
+                outputs=[buf],
+                device=self.device,
+            )
+
+        if isinstance(actuator, ImplicitActuator):
+            self._has_implicit_actuators = True
+            self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
+        else:
+            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
@@ -4142,6 +4283,47 @@ class Articulation(BaseArticulation):
                 ],
                 device=self.device,
             )
+
+    def _apply_actuator_model_newton(self):
+        """Pre-fill effort buffer with FF, step Newton actuators, sync telemetry.
+
+        Pre-fills ``w.joint_f_2d`` with the user's effort target across all
+        DOFs. ``newton_adapter.step`` (no-op if no explicit Newton actuators
+        exist) then zeroes ``joint_f_2d`` at explicit DOFs and overwrites
+        them with each actuator's computed effort, while implicit DOFs keep
+        the FF. The :func:`sync_torque_telemetry` kernel then fills
+        ``_data._computed_torque`` / ``_data._applied_torque`` from the
+        resulting buffer. The final ``joint_f_2d`` is what gets pushed to
+        PhysX as the actuation force in :meth:`write_data_to_sim`.
+        """
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
+        w = self._physx_actuator_wrapper
+        w.joint_f_2d.assign(self._data._joint_effort_target)
+        if self.newton_actuator_adapter is not None:
+            self.newton_actuator_adapter.step(w, w, SimulationManager.get_physics_dt())
+
+        wp.launch(
+            actuator_kernels.sync_torque_telemetry,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data.joint_pos.warp,
+                self._data.joint_vel.warp,
+                self._data._joint_pos_target,
+                self._data._joint_vel_target,
+                self._data.joint_stiffness.warp,
+                self._data.joint_damping.warp,
+                self._data.joint_effort_limits.warp,
+                self._implicit_dof_mask,
+                w.joint_f_2d,
+                self._data._sim_bind_joint_computed_effort,
+            ],
+            outputs=[
+                self._data._computed_torque,
+                self._data._applied_torque,
+            ],
+            device=self.device,
+        )
 
     """
     Internal helpers -- Debugging.
@@ -4355,23 +4537,17 @@ class Articulation(BaseArticulation):
             )
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Get the CPU environment indices.
-
-        For the full-index case (all environments), returns the pre-allocated
-        pinned CPU buffer. For partial indices (e.g. during partial resets), clones to CPU.
+        """
+        Get the CPU environment indices.
 
         Args:
             env_ids: Environment indices.
 
         Returns:
-            A warp array of environment indices on CPU.
+            A warp array of environment indices.
         """
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
-        # Fast path: if these are all indices, use pre-allocated pinned buffer
-        if env_ids.ptr == self._ALL_INDICES.ptr:
-            return self._cpu_env_ids_all
-        # Slow path: partial indices (reset), clone to CPU
         return wp.clone(env_ids, device="cpu")
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4393,54 +4569,11 @@ class Articulation(BaseArticulation):
             env_ids = self._ALL_INDICES
         return env_ids
 
-    def _get_root_link_pose_w_f32(self) -> wp.array:
-        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
-        if self._root_link_pose_w_f32 is None:
-            self._root_link_pose_w_f32 = self.data._root_link_pose_w.data.view(wp.float32)
-        return self._root_link_pose_w_f32
-
-    def _get_root_com_vel_w_f32(self) -> wp.array:
-        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
-        if self._root_com_vel_w_f32 is None:
-            self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
-        return self._root_com_vel_w_f32
-
-    def _get_root_link_vel_w_f32(self) -> wp.array:
-        """Get a cached float32 view of root_link_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
-        if self._root_link_vel_w_f32 is None:
-            self._root_link_vel_w_f32 = self.data._root_link_vel_w.data.view(wp.float32)
-        return self._root_link_vel_w_f32
-
-    def _get_inst_wrench_force_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
-        if self._inst_wrench_force_f32 is None:
-            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.out_force_b.warp.flatten().view(
-                wp.float32
-            )
-        return self._inst_wrench_force_f32
-
-    def _get_inst_wrench_torque_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
-        if self._inst_wrench_torque_f32 is None:
-            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.out_torque_b.warp.flatten().view(
-                wp.float32
-            )
-        return self._inst_wrench_torque_f32
-
-    def _get_perm_wrench_force_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
-        if self._perm_wrench_force_f32 is None:
-            self._perm_wrench_force_f32 = self._permanent_wrench_composer.out_force_b.warp.flatten().view(wp.float32)
-        return self._perm_wrench_force_f32
-
-    def _get_perm_wrench_torque_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
-        if self._perm_wrench_torque_f32 is None:
-            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.out_torque_b.warp.flatten().view(wp.float32)
-        return self._perm_wrench_torque_f32
-
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
+
+        .. note::
+            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -4451,6 +4584,7 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
+            # Convert int64 to int32 if needed, as warp expects int32
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)
             return wp.from_torch(env_ids, dtype=wp.int32)
@@ -4478,6 +4612,9 @@ class Articulation(BaseArticulation):
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
 
+        .. note::
+            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
+
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
 
@@ -4488,10 +4625,6 @@ class Articulation(BaseArticulation):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
         if (joint_ids is None) or (joint_ids == slice(None)):
             return self._ALL_JOINT_INDICES
-        if isinstance(joint_ids, torch.Tensor):
-            if joint_ids.dtype == torch.int64:
-                joint_ids = joint_ids.to(torch.int32)
-            return wp.from_torch(joint_ids, dtype=wp.int32)
         return joint_ids
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4524,10 +4657,6 @@ class Articulation(BaseArticulation):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
-        if isinstance(body_ids, torch.Tensor):
-            if body_ids.dtype == torch.int64:
-                body_ids = body_ids.to(torch.int32)
-            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_fixed_tendon_mask(self, fixed_tendon_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4740,11 +4869,14 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_state_to_sim_index' instead.",
+            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        # set into simulation
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
