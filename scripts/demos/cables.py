@@ -96,7 +96,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             prim_path=plug_prim_path,
             spawn=sim_utils.UsdFileCfg(usd_path=PLUG_USDA),
             init_state=RigidObjectCfg.InitialStateCfg(
-                pos=(-0.38398558, 0.34585292, 0.5-0.36874688),
+                pos=(-0.38398558, 0.34585292, 0.5 - 0.36874688),
                 rot=(0.0, -0.57096256, 0.0, 0.8209761),
             ),
         )
@@ -121,6 +121,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 CableAttachmentCfg(
                     target_prim_path=plug_prim_path,
                     cable_anchor="head",
+                    cable_local_pos=(0.0, 0.0, 0.022), # the head node is 22mm along +Z from the head body center
                 ),
             ],
         )
