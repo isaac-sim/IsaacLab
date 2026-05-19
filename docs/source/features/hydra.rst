@@ -355,8 +355,93 @@ including inside dict-valued fields such as ``actuators``:
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
 
 
+Typed Preset Selectors
+^^^^^^^^^^^^^^^^^^^^^^
+
+The preset CLI layer recognizes three ``key=value`` tokens (no leading dashes)
+that can be appended to any training or play script command:
+
+.. list-table::
+   :widths: 35 65
+   :header-rows: 1
+
+   * - Token
+     - Effect
+   * - ``physics=NAME``
+     - Typed selector for :class:`~isaaclab.physics.PhysicsCfg` variants
+   * - ``renderer=NAME``
+     - Typed selector for :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` variants
+   * - ``presets=NAME[,NAME,...]``
+     - Broadcast: applied to every matching :class:`~isaaclab_tasks.utils.hydra.PresetCfg` in the config tree
+
+The typed selectors ``physics=`` and ``renderer=`` fold into ``presets=`` automatically
+before Hydra resolves the config, so they are fully interchangeable with the equivalent
+``presets=NAME`` form. They exist to surface only relevant variants in ``--help`` and
+to make intent explicit on the command line.
+
+**Available physics backends** (when defined by the task):
+
+.. list-table::
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Name
+     - Backend
+   * - ``physx``
+     - PhysX (explicit; also selected when no ``physics=`` or ``presets=`` is given)
+   * - ``newton_mjwarp``
+     - Newton physics with the MuJoCo-Warp solver
+   * - ``newton_kamino``
+     - Newton physics with the Kamino solver (beta; limited tasks — see :ref:`hydra-backend-solver-presets`)
+   * - ``ovphysx``
+     - OV PhysX backend (kit-less mode; select classic tasks only)
+
+**Available renderer backends** (provided by :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`):
+
+.. list-table::
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Name
+     - Renderer
+   * - ``default`` / ``isaacsim_rtx_renderer``
+     - Isaac Sim RTX renderer (used when no ``renderer=`` or ``presets=`` is given)
+   * - ``newton_renderer``
+     - Newton Warp renderer
+   * - ``ovrtx_renderer``
+     - OV RTX renderer
+
+Domain presets (observation modes, camera configurations, etc.) are task-specific.
+Pass ``--task=<task-name> --help`` to a training script to see all presets available
+for that task, grouped by selector type:
+
+.. code-block:: bash
+
+    python scripts/reinforcement_learning/rsl_rl/train.py \
+        --task Isaac-Cartpole-Camera-Presets-Direct-v0 --help
+
+.. note::
+
+    Legacy aliases ``newton`` → ``newton_mjwarp`` and ``kamino`` → ``newton_kamino``
+    are still accepted but emit a :class:`FutureWarning`. Prefer the canonical names.
+
+
 Using Presets
 ^^^^^^^^^^^^^
+
+**Typed selectors** -- preferred form for physics and renderer backends:
+
+.. code-block:: bash
+
+    # Switch to Newton MuJoCo-Warp physics
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 physics=newton_mjwarp
+
+    # Switch to Newton renderer for camera environments
+    python train.py --task=Isaac-Cartpole-Camera-Presets-Direct-v0 renderer=newton_renderer
+
+    # Combine typed selectors -- each one applies to its own PresetCfg type
+    python train.py --task=Isaac-Cartpole-Camera-Presets-Direct-v0 \
+        physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 **Path presets** -- select a specific preset for one config path:
 
@@ -444,6 +529,12 @@ Summary
    * - Global preset
      - ``presets=newton_mjwarp``
      - Apply everywhere matching
+   * - Typed physics selector
+     - ``physics=newton_mjwarp``
+     - Selects a :class:`~isaaclab.physics.PhysicsCfg` variant; folds into ``presets=``
+   * - Typed renderer selector
+     - ``renderer=newton_renderer``
+     - Selects a :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` variant; folds into ``presets=``
    * - Combined
-     - ``presets=newton_mjwarp env.sim.dt=0.001``
-     - Global + scalar overrides
+     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb env.sim.dt=0.001``
+     - Typed selectors + domain preset + scalar override

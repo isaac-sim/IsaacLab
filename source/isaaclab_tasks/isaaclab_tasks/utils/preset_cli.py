@@ -178,6 +178,37 @@ def fold_preset_tokens(tokens: list[str]) -> list[str]:
 
 
 # ============================================================================
+# Public preset enumeration (for tooling, e.g. list_envs)
+# ============================================================================
+
+
+def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | None:
+    """Return the available preset names for *task_name*, bucketed by selector type.
+
+    Loads the env config registered under *task_name* and walks its preset tree
+    using the same logic that the CLI help-text renderer uses, so the returned
+    view matches what ``--task=<name> --help`` shows at the command line.
+
+    This function is safe to call after :class:`~isaaclab.app.AppLauncher` has
+    booted (i.e. inside a running Isaac Sim session).
+
+    Args:
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-v0"``).
+
+    Returns:
+        A mapping ``{PresetTarget: sorted list of preset names}`` on success.
+        Returns ``None`` if the env config cannot be loaded (import error,
+        missing registration, etc.).  The ``"default"`` fallback is excluded
+        from every list because it is implicit, not a user-selectable name.
+    """
+    try:
+        result = _enumerate_variants(task_name)
+        return {target: sorted(names) for target, names in result.items()}
+    except Exception:
+        return None
+
+
+# ============================================================================
 # Help-text rendering
 # ============================================================================
 
