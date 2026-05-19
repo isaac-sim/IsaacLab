@@ -14,8 +14,4 @@ solver managers.
 
 from isaaclab.utils.module import lazy_export
 
-from .attachment_cfg import CableAttachmentCfg
-
-__all__ = ["CableAttachmentCfg"]
-
 lazy_export()

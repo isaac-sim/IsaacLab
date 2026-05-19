@@ -255,11 +255,12 @@ def apply_cable_attachments_to_builder(
         )
 
         builder.add_joint_fixed(
-            parent=target_body_idx,
-            child=cable_body_idx,
+            parent=cable_body_idx,
+            child=target_body_idx,
             parent_xform=parent_xform,
             child_xform=wp.transform_identity(),
             label=f"{entry.prim_path}/attachment_{attachment.cable_anchor}_{world_idx}",
+            collision_filter_parent=True,
         )
 
         # Filter contacts between every shape on the cable's anchor segment and
