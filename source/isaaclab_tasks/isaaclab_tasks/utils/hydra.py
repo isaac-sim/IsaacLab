@@ -24,9 +24,11 @@ Example usage::
     presets=newton_mjwarp env.backend.dt=0.001 env.decimation=10
 """
 
+import ast
 import functools
 import sys
 import warnings
+from collections import deque
 from collections.abc import Callable, Mapping
 
 import hydra
@@ -185,20 +187,27 @@ def _preset_fields(preset_obj) -> dict:
     return d
 
 
+def _iter_cfg_items(cfg):
+    if isinstance(cfg, Mapping):
+        return cfg.items()
+    if isinstance(cfg, list):
+        return enumerate(cfg)
+    return ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
+
+
+def _is_walkable_cfg(cfg) -> bool:
+    return hasattr(cfg, "__dataclass_fields__") or isinstance(cfg, (Mapping, list))
+
+
 def _walk_cfg(cfg, path: str, on_preset: Callable) -> None:
     """Depth-first walk of a config tree, calling *on_preset(parent, key, obj, path)*
-    for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts, and
-    nested dicts transparently."""
-    items = (
-        cfg.items()
-        if isinstance(cfg, dict)
-        else ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
-    )
-    for key, val in items:
-        child_path = f"{path}.{key}" if path else key
+    for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts,
+    nested dicts, and lists transparently."""
+    for key, val in _iter_cfg_items(cfg):
+        child_path = f"{path}.{key}" if path else str(key)
         if isinstance(val, PresetCfg):
             on_preset(cfg, key, val, child_path)
-        elif hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
+        elif _is_walkable_cfg(val):
             _walk_cfg(val, child_path, on_preset)
 
 
@@ -225,7 +234,11 @@ def collect_presets(cfg, path: str = "") -> dict:
                 result.update(collect_presets(alt, preset_path))
             elif isinstance(alt, dict):
                 for v in alt.values():
-                    if hasattr(v, "__dataclass_fields__"):
+                    if _is_walkable_cfg(v):
+                        result.update(collect_presets(v, preset_path))
+            elif isinstance(alt, list):
+                for v in alt:
+                    if _is_walkable_cfg(v):
                         result.update(collect_presets(v, preset_path))
 
     if isinstance(cfg, PresetCfg):
@@ -241,7 +254,13 @@ def collect_presets(cfg, path: str = "") -> dict:
 # ============================================================================
 
 
-def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = ""):
+def _pick_alternative(
+    preset_obj: PresetCfg,
+    selected,
+    path: str = "",
+    explicit_name: str | None = None,
+    consumed_selected: set[str] | None = None,
+):
     """Choose the best alternative from a PresetCfg.
 
     Priority: first match in ``selected``, then ``default`` (preferring
@@ -252,10 +271,38 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
     """
     fields = _preset_fields(preset_obj)
     field_names = set(fields)
+    if explicit_name is not None:
+        explicit_name = _normalize_preset_name(explicit_name, field_names)
+        if explicit_name in fields:
+            return fields[explicit_name]
+        avail = list(fields)
+        hint = ""
+        if explicit_name in PresetTarget.all_legacy_aliases():
+            replacement = PresetTarget.all_legacy_aliases()[explicit_name]
+            hint = (
+                f" '{explicit_name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
+            )
+        raise ValueError(f"Unknown preset '{explicit_name}' for {path}. Available: {avail}.{hint}")
+
+    match_name = None
+    match_value = None
     for name in selected:
-        name = _normalize_preset_name(name, field_names)
-        if name in fields:
-            return fields[name]
+        raw_name = name
+        name = _normalize_preset_name(raw_name, field_names)
+        if name not in fields or name == match_name:
+            continue
+        if consumed_selected is not None:
+            consumed_selected.add(raw_name)
+            consumed_selected.add(name)
+        if match_name is not None:
+            val = fields[name]
+            if match_value is not val and match_value != val:
+                raise ValueError(
+                    f"Conflicting global presets: '{match_name}' and '{name}' both define preset for '{path}'"
+                )
+        match_name, match_value = name, fields[name]
+    if match_name is not None:
+        return match_value
     if "default" in fields:
         return fields["default"]
     raise ValueError(
@@ -264,10 +311,80 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
     )
 
 
-def resolve_presets(cfg, selected: set[str] = frozenset()):
+def _resolve_active_presets(
+    cfg,
+    selected=(),
+    explicit: dict[str, str] | None = None,
+    root_path: str = "",
+    *,
+    strict_explicit: bool = True,
+    consumed_selected: set[str] | None = None,
+    consumed_explicit: set[str] | None = None,
+):
+    """Resolve presets by walking only the currently active tree.
+
+    Preset alternatives are choice nodes. Once a choice is resolved, only the
+    selected replacement is queued for further traversal, so inactive sibling
+    branches cannot contribute descendant presets.
+    """
+    explicit = explicit or {}
+    consumed_explicit = consumed_explicit if consumed_explicit is not None else set()
+
+    def resolve_chain(preset_obj: PresetCfg, path: str):
+        seen: set[int] = set()
+        val = preset_obj
+        while isinstance(val, PresetCfg):
+            if id(val) in seen:
+                raise ValueError(
+                    f"Cyclic PresetCfg chain detected at '{path}': {type(val).__name__} was already visited."
+                )
+            seen.add(id(val))
+            val = _pick_alternative(
+                val,
+                selected,
+                path=path,
+                explicit_name=explicit.get(path),
+                consumed_selected=consumed_selected,
+            )
+        return val
+
+    if isinstance(cfg, PresetCfg):
+        if root_path in explicit:
+            consumed_explicit.add(root_path)
+        cfg = resolve_chain(cfg, root_path or "<root>")
+
+    queue = deque([(root_path, cfg)])
+    while queue:
+        path, obj = queue.popleft()
+        if not _is_walkable_cfg(obj):
+            continue
+        for key, val in _iter_cfg_items(obj):
+            child_path = f"{path}.{key}" if path else str(key)
+            if isinstance(val, PresetCfg):
+                if child_path in explicit:
+                    consumed_explicit.add(child_path)
+                resolved = resolve_chain(val, child_path or "<root>")
+                if isinstance(obj, list):
+                    obj[int(key)] = resolved
+                elif isinstance(obj, dict):
+                    obj[key] = resolved
+                else:
+                    setattr(obj, key, resolved)
+                if _is_walkable_cfg(resolved):
+                    queue.append((child_path, resolved))
+            elif _is_walkable_cfg(val):
+                queue.append((child_path, val))
+
+    missing = sorted(set(explicit) - consumed_explicit)
+    if strict_explicit and missing:
+        raise ValueError(f"Unknown or inactive preset group(s): {', '.join(missing)}")
+    return cfg
+
+
+def resolve_presets(cfg, selected=()):
     """Replace every :class:`PresetCfg` in the tree with the best alternative.
 
-    For each ``PresetCfg`` found during a depth-first walk:
+    For each ``PresetCfg`` found during an active-tree breadth-first walk:
 
     1. Pick the first name from *selected* that exists as a field on the
        preset, otherwise fall back to ``default``.
@@ -283,37 +400,7 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         The resolved ``cfg`` (possibly a different object if the root itself
         was a PresetCfg).
     """
-    if isinstance(cfg, PresetCfg):
-        seen: set[int] = {id(cfg)}
-        replacement = _pick_alternative(cfg, selected, path="<root>")
-        while isinstance(replacement, PresetCfg):
-            if id(replacement) in seen:
-                raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '<root>': {type(replacement).__name__} was already visited."
-                )
-            seen.add(id(replacement))
-            replacement = _pick_alternative(replacement, selected, path="<root>")
-        return resolve_presets(replacement, selected)
-
-    def _resolve(parent, key, preset_obj, _path):
-        seen: set[int] = {id(preset_obj)}
-        val = _pick_alternative(preset_obj, selected, path=_path)
-        while isinstance(val, PresetCfg):
-            if id(val) in seen:
-                raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '{_path}': {type(val).__name__} was already visited."
-                )
-            seen.add(id(val))
-            val = _pick_alternative(val, selected, path=_path)
-        if isinstance(parent, dict):
-            parent[key] = val
-        else:
-            setattr(parent, key, val)
-        if hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
-            _walk_cfg(val, _path, _resolve)
-
-    _walk_cfg(cfg, "", _resolve)
-    return cfg
+    return _resolve_active_presets(cfg, selected)
 
 
 # ============================================================================
@@ -321,17 +408,18 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
 # ============================================================================
 
 
-def _run_hydra(task, env_cfg, agent_cfg, presets, callback):
+def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
     """Shared Hydra entry point for :func:`resolve_task_config` and :func:`hydra_task_config`."""
-    global_presets, preset_sel, preset_scalar, global_scalar = parse_overrides(sys.argv[1:], presets)
-    original_argv, sys.argv = sys.argv, [sys.argv[0]] + global_scalar
+    if not hydra_args:
+        env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
+        callback(env_cfg, agent_cfg)
+        return
+
+    original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
 
     @hydra.main(config_path=None, config_name=task, version_base="1.3")
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
         hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        env_cfg, agent_cfg = apply_overrides(
-            env_cfg, agent_cfg, hydra_cfg, global_presets, preset_sel, preset_scalar, presets
-        )
         env_cfg.from_dict(hydra_cfg["env"])
         env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
         if isinstance(agent_cfg, dict) or agent_cfg is None:
@@ -361,9 +449,9 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
         Tuple of (env_cfg, agent_cfg) fully resolved.
     """
     task = task_name.split(":")[-1]
-    env_cfg, agent_cfg, presets = register_task(task, agent_cfg_entry_point)
+    env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point)
     resolved = {}
-    _run_hydra(task, env_cfg, agent_cfg, presets, lambda e, a: resolved.update(env_cfg=e, agent_cfg=a))
+    _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: resolved.update(env_cfg=e, agent_cfg=a))
     return resolved["env_cfg"], resolved["agent_cfg"]
 
 
@@ -382,8 +470,8 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             task = task_name.split(":")[-1]
-            env_cfg, agent_cfg, presets = register_task(task, agent_cfg_entry_point)
-            _run_hydra(task, env_cfg, agent_cfg, presets, lambda e, a: func(e, a, *args, **kwargs))
+            env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point)
+            _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: func(e, a, *args, **kwargs))
 
         return wrapper
 
@@ -435,53 +523,86 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
     NOT registered as Hydra groups to avoid Hydra's merge behavior.
 
     Returns:
-        (env_cfg, agent_cfg, presets) where presets =
-        {"env": {"path": {"name": cfg}}, "agent": {...}}
+        Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
+        resolved and ``hydra_args`` contains the remaining non-preset Hydra
+        overrides.
     """
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
-    # Collect presets before resolution (needed for path-based overrides)
-    presets = {
-        "env": collect_presets(env_cfg),
-        "agent": collect_presets(agent_cfg) if agent_cfg else {},
-    }
+    global_presets: list[str] = []
+    override_items: list[tuple[str, str, str]] = []
+    hydra_args: list[str] = []
+    for arg in sys.argv[1:]:
+        if "=" not in arg:
+            hydra_args.append(arg)
+            continue
+        key, val = arg.split("=", 1)
+        if key.lstrip("-") == "presets":
+            global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+        else:
+            override_items.append((key, val, arg))
 
-    known_names = _known_preset_names(presets)
-    selected = {
-        _normalize_preset_name(v.strip(), known_names)
-        for arg in sys.argv[1:]
-        if "=" in arg
-        for key, val in [arg.split("=", 1)]
-        if key.lstrip("-") == "presets"
-        for v in val.split(",")
-        if v.strip()
-    }
+    explicit = {key: val for key, val, _arg in override_items}
+    consumed_presets: set[str] = set()
+    consumed_explicit: set[str] = set()
+    env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
+    agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
+    env_cfg = _resolve_active_presets(
+        env_cfg,
+        global_presets,
+        env_explicit,
+        root_path="env",
+        strict_explicit=False,
+        consumed_selected=consumed_presets,
+        consumed_explicit=consumed_explicit,
+    )
+    if agent_cfg is not None:
+        agent_cfg = _resolve_active_presets(
+            agent_cfg,
+            global_presets,
+            agent_explicit,
+            root_path="agent",
+            strict_explicit=False,
+            consumed_selected=consumed_presets,
+            consumed_explicit=consumed_explicit,
+        )
 
-    if selected:
+    unknown_presets = set(global_presets) - consumed_presets
+    if unknown_presets:
+        # Build the full discovery table only on the error path, or when a
+        # selected name applies only to inactive branches and therefore has no
+        # effect in the active-tree walk.
+        all_presets = {
+            "env": collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point")),
+            "agent": collect_presets(load_cfg_from_registry(task_name, agent_entry)) if agent_entry else {},
+        }
         name_to_paths: dict[str, list[str]] = {}
-        for sec, sec_presets in presets.items():
+        for sec, sec_presets in all_presets.items():
             for path, fields in sec_presets.items():
                 full = f"{sec}.{path}" if path else sec
                 for name in fields:
                     name_to_paths.setdefault(name, []).append(full)
-        unknown = selected - set(name_to_paths)
+        known_names = set(name_to_paths)
+        unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
         if unknown:
             display = {n: p for n, p in name_to_paths.items() if n != "default"}
             raise ValueError(_format_unknown_presets_error(unknown, display))
 
-    env_cfg = resolve_presets(env_cfg, selected)
-    if agent_cfg is not None:
-        agent_cfg = resolve_presets(agent_cfg, selected)
+    cfgs = {"env": env_cfg, "agent": agent_cfg}
+    for key, val, arg in override_items:
+        if key in consumed_explicit:
+            continue
+        if key.startswith(("env.", "agent.")) and not key.endswith("+"):
+            sec, path = key.split(".", 1)
+            _setattr(cfgs[sec], path, _parse_val(val))
+        else:
+            hydra_args.append(arg)
 
-    # Also resolve presets inside collected alternatives so that apply_overrides
-    # never re-introduces unresolved PresetCfg objects when applying a selection.
-    for section_presets in presets.values():
-        for path_presets in section_presets.values():
-            for name, alt in path_presets.items():
-                resolve_presets(alt, selected)
+    if not hydra_args:
+        return env_cfg, agent_cfg, hydra_args
 
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
@@ -491,7 +612,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
 
     # Register plain config (no groups) - Hydra only handles global scalars
     ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
-    return env_cfg, agent_cfg, presets
+    return env_cfg, agent_cfg, hydra_args
 
 
 def parse_overrides(args: list[str], presets: dict) -> tuple:
@@ -543,91 +664,39 @@ def apply_overrides(
 ):
     """Apply preset selections and scalar overrides with REPLACE semantics.
 
-    Global presets are already applied by :func:`resolve_presets` in
-    :func:`register_task`. This function handles:
-
-    1. Path-based selections (``env.backend=newton_mjwarp``)
-    2. Scalar overrides within preset paths (``env.backend.dt=0.001``)
+    Presets are resolved by walking the active tree from root to leaves. A
+    nested preset is only considered after its parent branch has been selected,
+    which prevents inactive sibling branches from contributing colliding
+    descendant paths.
 
     Returns:
         (env_cfg, agent_cfg) -- possibly replaced if root-level PresetCfg was resolved.
 
     Raises:
-        ValueError: If multiple global presets conflict on the same path.
+        ValueError: If multiple global presets conflict on an active path, or
+            an explicit preset path is not reachable in the active tree.
     """
     cfgs = {"env": env_cfg, "agent": agent_cfg}
 
-    def _path_reachable(sec: str, path: str) -> bool:
-        if not path:
-            return cfgs[sec] is not None
-        obj = cfgs[sec]
-        for part in path.split("."):
-            try:
-                obj = obj[part] if isinstance(obj, dict) else getattr(obj, part)
-            except (AttributeError, TypeError, KeyError):
-                return False
-            if obj is None:
-                return False
-        return True
-
-    # --- Phase 1: path-based selections + global broadcast for reachable paths
-    resolved: dict[str, tuple[str, str, str]] = {}
-    for sec, path, name in preset_sel:
-        if path not in presets.get(sec, {}):
-            raise ValueError(f"Unknown preset group: {sec}.{path}")
-        name = _normalize_preset_name(name, set(presets[sec][path]))
-        if name not in presets[sec][path]:
-            avail = list(presets[sec][path].keys())
-            hint = ""
-            if name in PresetTarget.all_legacy_aliases():
-                replacement = PresetTarget.all_legacy_aliases()[name]
-                hint = f" '{name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
-            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}.{hint}")
-        full_path = f"{sec}.{path}" if path else sec
-        resolved[full_path] = (sec, path, name)
-
-    applied_by: dict[str, str] = {}
-    known_names = _known_preset_names(presets)
-    for name in global_presets:
-        name = _normalize_preset_name(name, known_names)
-        for sec in ("env", "agent"):
-            for path, path_presets in presets.get(sec, {}).items():
-                if name in path_presets:
-                    full_path = f"{sec}.{path}" if path else sec
-                    if full_path in applied_by:
-                        prev_name = applied_by[full_path]
-                        prev_val = path_presets[prev_name]
-                        cur_val = path_presets[name]
-                        if prev_val is not cur_val and prev_val != cur_val:
-                            raise ValueError(
-                                f"Conflicting global presets: '{prev_name}' and '{name}' "
-                                f"both define preset for '{full_path}'"
-                            )
-                    else:
-                        applied_by[full_path] = name
-                    resolved.setdefault(full_path, (sec, path, name))
-
+    explicit = {f"{sec}.{path}" if path else sec: name for sec, path, name in preset_sel}
     for sec in ("env", "agent"):
-        for path, path_presets in presets.get(sec, {}).items():
-            if "default" in path_presets:
-                full_path = f"{sec}.{path}" if path else sec
-                resolved.setdefault(full_path, (sec, path, "default"))
+        if cfgs[sec] is None:
+            continue
+        section_explicit = {path: name for path, name in explicit.items() if path == sec or path.startswith(sec + ".")}
+        cfgs[sec] = _resolve_active_presets(cfgs[sec], global_presets, section_explicit, root_path=sec)
+        hydra_cfg[sec] = (
+            cfgs[sec].to_dict()
+            if hasattr(cfgs[sec], "to_dict")
+            else dict(cfgs[sec])
+            if isinstance(cfgs[sec], Mapping)
+            else cfgs[sec]
+        )
 
-    # --- Phase 2: apply in depth order, pruning unreachable children
-    for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
-        sec, path, name = resolved[full_path]
-        if cfgs[sec] is not None and _path_reachable(sec, path):
-            node = presets[sec][path][name]
-            node_dict = (
-                node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
-            )
-            if not path:
-                cfgs[sec], hydra_cfg[sec] = node, node_dict
-            else:
-                _setattr(cfgs[sec], path, node)
-                _setattr(hydra_cfg, f"{sec}.{path}", node_dict)
+    _apply_preset_scalars(cfgs, hydra_cfg, preset_scalar)
+    return cfgs["env"], cfgs["agent"]
 
-    # --- Phase 3: scalar overrides within preset paths
+
+def _apply_preset_scalars(cfgs: dict, hydra_cfg: dict, preset_scalar: list) -> None:
     for full_path, val_str in preset_scalar:
         sec = full_path.split(".", 1)[0]
         if sec not in cfgs:
@@ -637,8 +706,6 @@ def apply_overrides(
             val = _parse_val(val_str)
             _setattr(cfgs[sec], path, val)
             _setattr(hydra_cfg, full_path, val)
-
-    return cfgs["env"], cfgs["agent"]
 
 
 def _setattr(obj, path: str, val):
@@ -657,6 +724,6 @@ def _parse_val(s: str):
     if s.lower() in _LITERAL_MAP:
         return _LITERAL_MAP[s.lower()]
     try:
-        return float(s) if "." in s else int(s)
-    except ValueError:
-        return s[1:-1] if len(s) >= 2 and s[0] in "\"'" and s[-1] in "\"'" else s
+        return ast.literal_eval(s)
+    except (ValueError, SyntaxError):
+        return s

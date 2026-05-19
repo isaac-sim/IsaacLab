@@ -97,7 +97,9 @@ class MockNewtonCollectionView:
     def _ensure_attribute(self, name: str) -> wp.array:
         if self._attributes[name] is None:
             self._attributes[name] = self._create_default_attribute(name)
-        return self._attributes[name]
+        value = self._attributes[name]
+        assert value is not None
+        return value
 
     def _create_default_attribute(self, name: str) -> wp.array:
         N, B = self._num_envs, self._num_bodies
@@ -252,6 +254,7 @@ class MockNewtonArticulationView:
             "joint_effort_limit": None,
             "body_f": None,
             "joint_f": None,
+            "joint_act": None,
             "joint_target_pos": None,
             "joint_target_vel": None,
             "joint_limit_ke": None,
@@ -364,7 +367,9 @@ class MockNewtonArticulationView:
         """Lazily create an attribute array."""
         if self._attributes[name] is None:
             self._attributes[name] = self._create_default_attribute(name)
-        return self._attributes[name]
+        value = self._attributes[name]
+        assert value is not None
+        return value
 
     def _create_default_attribute(self, name: str) -> wp.array:
         """Create a default attribute array based on name."""
@@ -389,6 +394,7 @@ class MockNewtonArticulationView:
             "joint_velocity_limit",
             "joint_effort_limit",
             "joint_f",
+            "joint_act",
             "joint_target_pos",
             "joint_target_vel",
             "joint_limit_ke",
@@ -664,6 +670,7 @@ class MockNewtonArticulationView:
             "joint_velocity_limit",
             "joint_effort_limit",
             "joint_f",
+            "joint_act",
             "joint_target_pos",
             "joint_target_vel",
             "joint_limit_ke",

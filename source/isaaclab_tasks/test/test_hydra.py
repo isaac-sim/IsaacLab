@@ -142,6 +142,12 @@ class CameraLargeCfg:
 
 
 @configclass
+class CameraWideCfg:
+    width: int = 512
+    height: int = 128
+
+
+@configclass
 class CameraPresetCfg(PresetCfg):
     small: CameraSmallCfg = CameraSmallCfg()
     large: CameraLargeCfg = CameraLargeCfg()
@@ -149,14 +155,21 @@ class CameraPresetCfg(PresetCfg):
 
 
 @configclass
+class WideCameraPresetCfg(PresetCfg):
+    small: CameraWideCfg = CameraWideCfg()
+    default: CameraWideCfg = CameraWideCfg()
+
+
+@configclass
 class BaseSceneCfg:
     num_envs: int = 1024
-    camera: CameraPresetCfg | None = None
+    camera: PresetCfg | None = None
 
 
 @configclass
 class ScenePresetCfg(PresetCfg):
     default: BaseSceneCfg = BaseSceneCfg()
+    wide_camera: BaseSceneCfg = BaseSceneCfg(camera=WideCameraPresetCfg())
     with_camera: BaseSceneCfg = BaseSceneCfg(camera=CameraPresetCfg())
 
 
@@ -293,8 +306,6 @@ def _apply(env_cfg, agent_cfg=None, global_presets=None, preset_sel=None, preset
     if agent_cfg is None:
         agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    env_cfg = resolve_presets(env_cfg)
-    agent_cfg = resolve_presets(agent_cfg)
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
     return apply_overrides(
         env_cfg,
@@ -512,7 +523,7 @@ def test_collect_nested_presetcfg():
     """PresetCfg inside another PresetCfg's alternatives is discovered."""
     presets = collect_presets(NestedPresetEnvCfg())
     assert "scene" in presets
-    assert set(presets["scene"].keys()) == {"default", "with_camera"}
+    assert set(presets["scene"].keys()) == {"default", "wide_camera", "with_camera"}
     assert "scene.camera" in presets
     assert set(presets["scene.camera"].keys()) == {"small", "large", "default"}
     assert isinstance(presets["scene.camera"]["small"], CameraSmallCfg)
@@ -549,6 +560,23 @@ def test_nested_presetcfg_path_selection():
     assert isinstance(env_cfg.scene, BaseSceneCfg)
     assert isinstance(env_cfg.scene.camera, CameraLargeCfg)
     assert env_cfg.scene.camera.width == 256
+
+
+def test_nested_presetcfg_global_preset_uses_selected_parent_branch():
+    """Same nested preset names should resolve inside the selected parent branch."""
+    env_cfg, _ = _apply(NestedPresetEnvCfg(), global_presets=["wide_camera", "small"])
+
+    assert isinstance(env_cfg.scene, BaseSceneCfg)
+    assert isinstance(env_cfg.scene.camera, CameraWideCfg)
+
+
+def test_nested_presetcfg_path_preset_uses_selected_parent_branch():
+    """Unqualified public paths should still resolve against the selected active branch."""
+    sel = [("env", "scene", "wide_camera"), ("env", "scene.camera", "small")]
+    env_cfg, _ = _apply(NestedPresetEnvCfg(), preset_sel=sel)
+
+    assert isinstance(env_cfg.scene, BaseSceneCfg)
+    assert isinstance(env_cfg.scene.camera, CameraWideCfg)
 
 
 # =============================================================================
@@ -1093,7 +1121,7 @@ def test_apply_overrides_unknown_preset_group_raises():
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    with pytest.raises(ValueError, match="Unknown preset group"):
+    with pytest.raises(ValueError, match="Unknown or inactive preset group"):
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "nonexistent", "val")], [], presets)
 
 
@@ -1276,8 +1304,6 @@ def test_parse_val_types():
 def test_scalar_override_within_preset_path(class_presets):
     """Scalar overrides within preset paths are applied on top of the preset."""
     env_cfg, agent_cfg, presets = class_presets
-    env_cfg = resolve_presets(env_cfg)
-    agent_cfg = resolve_presets(agent_cfg)
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
     apply_overrides(
         env_cfg,

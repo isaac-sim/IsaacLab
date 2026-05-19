@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils.configclass import configclass
@@ -74,3 +74,25 @@ class ArticulationCfg(AssetBaseCfg):
     actuator_value_resolution_debug_print = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
+
+    def _post_spawn(self, stage: Any) -> None:
+        """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
+
+        Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims
+        exist on the stage. Delegates to
+        :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
+        on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
+        is not configured for Newton-native actuators.
+        """
+        if self.actuators is MISSING:
+            return
+        from isaaclab.sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
+
+        # In InteractiveScene, articulated assets are often spawned first under
+        # a template path (for example ``/World/template/Robot``) and cloned
+        # into ``{ENV_REGEX_NS}`` later. Author NewtonActuator prims on the
+        # actual spawned source prim so clones inherit them.
+        author_prim_path = (
+            self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path is not None else self.prim_path
+        )
+        define_actuator_properties(author_prim_path, self.actuators, stage=stage)
