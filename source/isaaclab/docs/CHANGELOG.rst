@@ -1,6 +1,363 @@
 Changelog
 ---------
 
+5.5.1 (2026-05-19)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a Windows fatal exception (``0xc0000139``) that crashed the process on startup when
+  running any :class:`~isaaclab.envs.ManagerBasedRLEnv`-based script (e.g. ``skrl/play.py``)
+  on machines where ``h5py``'s native DLL could not be loaded. The ``import h5py`` in
+  :class:`~isaaclab.utils.datasets.HDF5DatasetFileHandler` was a top-level statement that
+  executed unconditionally at import time. It is now deferred to the individual methods that
+  open or create HDF5 files, so the DLL is only loaded when dataset recording is actually used.
+
+
+5.5.0 (2026-05-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the installation model of :meth:`~isaaclab.cli.commands.install.command_install`
+  from per-submodule selection to a three-tier system. All core submodules
+  (``isaaclab``, ``isaaclab_assets``, ``isaaclab_contrib``, ``isaaclab_experimental``,
+  ``isaaclab_newton``, ``isaaclab_ov``, ``isaaclab_ovphysx``, ``isaaclab_physx``,
+  ``isaaclab_rl``, ``isaaclab_tasks``, ``isaaclab_tasks_experimental``,
+  ``isaaclab_visualizers``)
+  are now always installed by ``./isaaclab.sh -i``. Optional submodules
+  (``mimic``, ``teleop``) and automatic extra feature sets
+  (``newton``, ``rl[...]``, ``visualizer[...]``) are installed by ``./isaaclab.sh -i``
+  / ``./isaaclab.sh -i all``.
+  Optional dependency extras require selectors, so rlinf dependencies are
+  installed with ``contrib[rlinf]`` and the ``ovrtx`` / ``ovphysx`` wheels are installed
+  with ``ov[ovrtx]``, ``ov[ovphysx]``, or ``ov[all]``. Old per-submodule tokens (e.g.
+  ``assets``, ``tasks``, ``physx``) now emit a warning and are skipped gracefully.
+  Migrate using the table below:
+
+  +----------------------------------------------+-------------------------------------------+
+  | Old command                                  | New command                               |
+  +==============================================+===========================================+
+  | ``./isaaclab.sh -i assets,tasks,physx``      | ``./isaaclab.sh -i none``                 |
+  +----------------------------------------------+-------------------------------------------+
+  | ``./isaaclab.sh -i assets,tasks,ov,rl[...]`` | ``./isaaclab.sh -i ov[all],rl[...]``      |
+  +----------------------------------------------+-------------------------------------------+
+  | ``./isaaclab.sh -i newton,rl[all]``          | unchanged                                 |
+  +----------------------------------------------+-------------------------------------------+
+  | ``./isaaclab.sh -i mimic,teleop``            | unchanged                                 |
+  +----------------------------------------------+-------------------------------------------+
+  | ``uv pip install isaaclab[tasks,rl,assets]`` | ``uv pip install isaaclab[all]``          |
+  +----------------------------------------------+-------------------------------------------+
+
+* Simplified :mod:`isaaclab` package extras to ``isaacsim`` and ``all``; removed the old
+  per-submodule extras (``tasks``, ``rl``, ``assets``, etc.) from ``pip install isaaclab[...]``.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.cloner.cloner_utils.is_homogeneous` because it is an implementation detail.
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab`` wheel's ``rsl-rl`` optional dependency to install
+  ``rsl-rl-lib==5.0.1``, matching the version required by the RSL-RL training
+  scripts.
+* Fixed the root ``uv run`` workflow by restoring the documented
+  ``pyproject.toml`` extras, the IsaacLab-only ``all`` extra, and removing the
+  Isaac Sim extra from the development project.
+* Fixed ``uv run`` creating ``.venv`` from an active conda Python by requiring
+  uv-managed Python for the development project.
+
+
+5.4.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sensors.ray_caster.BaseRayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.BaseRayCasterCamera`,
+  :class:`~isaaclab.sensors.ray_caster.BaseMultiMeshRayCaster`, and
+  :class:`~isaaclab.sensors.ray_caster.BaseMultiMeshRayCasterCamera`
+  carrying the backend-agnostic ray-caster logic. Backend subclasses
+  override only the body-tracker and target-mesh-tracker hooks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab.sensors.camera.CameraData`
+  camera-owned buffers to :class:`~isaaclab.utils.warp.ProxyArray`.
+  Access torch tensor operations through the explicit ``.torch`` view.
+* :class:`~isaaclab.sensors.ray_caster.RayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera`,
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster`, and
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera` are now
+  :class:`~isaaclab.utils.backend_utils.FactoryBase` shims dispatching
+  to PhysX / Newton implementations. Cfg surface and runtime semantics
+  unchanged.
+* Changed ray-caster camera update paths to keep pose, ray, depth, normal,
+  and mesh-id buffers Warp-owned internally, while exposing public camera
+  outputs through :class:`~isaaclab.utils.warp.ProxyArray`.
+
+
+5.3.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unified ``train`` and ``play`` console-script entry points (``isaaclab.cli:train``
+  and ``isaaclab.cli:play``) that dispatch to a library-specific implementation via
+  ``--rl_library``. Supported libraries are ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``,
+  and ``rlinf``.
+* Added refactored per-library train/play scripts under
+  ``scripts/reinforcement_learning/`` with a shared ``common.dispatch_library_entrypoint``
+  helper, replacing the previous standalone per-library scripts.
+* Added experimental ``uv run`` workflow allowing ``uv run train`` and ``uv run play``
+  directly from the repository root without manual environment setup. See
+  :ref:`uv-run-training` for usage.
+* Added :attr:`~isaaclab.sim.converters.UrdfConverterCfg.ros_package_paths`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.robot_type`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.run_asset_transformer`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.run_multi_physics_conversion`, and
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.debug_mode` config fields that mirror the
+  new :class:`isaacsim.asset.importer.urdf.URDFImporterConfig` options.
+* Extended :attr:`~isaaclab.sim.converters.UrdfConverterCfg.collision_type` to accept
+  ``"Bounding Sphere"`` and ``"Bounding Cube"`` in addition to the existing ``"Convex Hull"``
+  and ``"Convex Decomposition"`` values.
+* Added :attr:`~isaaclab.sim.converters.MjcfConverterCfg.fix_base`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.link_density`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.robot_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_gain_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_bias_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_gain_prm`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_bias_prm`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.run_asset_transformer`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.run_multi_physics_conversion`, and
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.debug_mode` config fields that mirror the
+  new :class:`isaacsim.asset.importer.mjcf.MJCFImporterConfig` options.
+* Added ``--deterministic`` flag to :class:`~isaaclab.app.app_launcher.AppLauncher` so training and
+  rendering runs can opt into RTX/RTPT carb settings for more reproducible output after startup.
+* Added :func:`~isaaclab.cloner.cloner_utils.is_homogeneous` to detect whether a :class:`~isaaclab.cloner.ClonePlan`
+  assigns every environment from every source (a homogeneous clone mask).
+* Added :class:`~isaaclab.envs.mdp.observations.stacked_image`, a stateful
+  :class:`~isaaclab.managers.ManagerTermBase` that channel-stacks the last ``N`` frames
+  from a camera sensor. Manager-based environments can reference it in observation cfg
+  to add explicit temporal information for camera-based RL tasks whose renderer doesn't
+  supply implicit temporal data (e.g., Newton Warp).
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.converters.UrdfConverter` to delegate the full conversion
+  pipeline to :class:`isaacsim.asset.importer.urdf.URDFImporter` /
+  :class:`isaacsim.asset.importer.urdf.URDFImporterConfig`. The duplicated IsaacLab
+  implementations of ``_apply_fix_base``, ``_apply_link_density``, ``_apply_joint_drives``,
+  ``_set_drive_type_on_joints``, ``_set_target_type_on_joints``, ``_set_drive_gains_on_joints``,
+  and ``_fix_articulation_root_for_fixed_base`` have been removed and replaced with a thin
+  translation layer that maps :class:`~isaaclab.sim.converters.UrdfConverterCfg` onto the
+  Isaac Sim importer config. All behaviour is preserved.
+* Updated :class:`~isaaclab.sim.converters.MjcfConverter` to forward the full set of
+  :class:`isaacsim.asset.importer.mjcf.MJCFImporterConfig` options to the Isaac Sim importer.
+* Bumped the ``newton[sim]`` pin from ``v1.2.0rc2`` to ``v1.2.0``
+  (stable) across :mod:`isaaclab_newton`, :mod:`isaaclab_physx`
+  (``[newton]`` extra), :mod:`isaaclab_visualizers` (3×), and
+  ``tools/wheel_builder/res/python_packages.toml``. Upstream release
+  notes: `newton-physics/newton v1.2.0
+  <https://github.com/newton-physics/newton/releases/tag/v1.2.0>`_.
+* No IsaacLab-side ``mujoco`` / ``mujoco-warp`` pin change — the
+  transitive ``mjwarp`` bump flows in through ``newton[sim]`` since
+  `isaac-sim/IsaacLab#5566
+  <https://github.com/isaac-sim/IsaacLab/pull/5566>`_ dropped the
+  explicit pins.
+* Changed Isaac Lab Docker images to run as the non-root ``isaaclab`` user by default. Use an explicit
+  container user override when root access is required.
+* Changed :class:`~isaaclab.sensors.camera.CameraData` to expose all sensor buffers as
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of :class:`torch.Tensor`. The fields
+  :attr:`~isaaclab.sensors.camera.CameraData.pos_w` (``wp.vec3f``),
+  :attr:`~isaaclab.sensors.camera.CameraData.quat_w_world` (``wp.quatf``),
+  :attr:`~isaaclab.sensors.camera.CameraData.intrinsic_matrices` (``wp.mat33f``), and all
+  entries in :attr:`~isaaclab.sensors.camera.CameraData.output` are now backed by warp arrays.
+  Use ``.torch`` for a zero-copy :class:`torch.Tensor` view or ``.warp`` to pass the array
+  directly to a warp kernel. Existing code using these fields as tensors (indexing, arithmetic,
+  :func:`torch.testing.assert_close`, etc.) continues to work via the
+  :class:`~isaaclab.utils.warp.ProxyArray` deprecation bridge with a one-time
+  :class:`DeprecationWarning`.
+* Updated :meth:`~isaaclab.renderers.BaseRenderer.set_outputs` and
+  :meth:`~isaaclab.renderers.BaseRenderer.update_camera` in :class:`~isaaclab.renderers.BaseRenderer`
+  to accept :class:`~isaaclab.utils.warp.ProxyArray` arguments instead of :class:`torch.Tensor`.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.sim.converters.urdf_utils.merge_fixed_joints` as it is now handled by the Isaac Sim URDF importer.
+
+Fixed
+^^^^^
+
+* Fixed a startup crash in :class:`~isaaclab.app.AppLauncher` when launching with a CUDA device.
+  Setting the current torch CUDA device used to happen before ``SimulationApp`` was created, which
+  imported ``torch`` (and transitively NumPy/OpenBLAS) prior to Kit's platform-info fork. On systems
+  where OpenBLAS's at-fork handlers were not yet safe, that fork could crash. The
+  ``torch.cuda.set_device`` call is now deferred until after ``SimulationApp`` starts.
+* Fixed ``calculate_rotation_error`` in
+  ``source/isaaclab/test/controllers/test_pink_ik.py`` composing rotation matrices
+  with element-wise ``*`` instead of matrix multiplication ``@`` — a latent bug
+  from `isaac-sim/IsaacLab#3149
+  <https://github.com/isaac-sim/IsaacLab/pull/3149>`_ that surfaced as NaN after
+  `isaac-sim/IsaacLab#5609
+  <https://github.com/isaac-sim/IsaacLab/pull/5609>`_ added the unit-norm guard to
+  ``quat_from_matrix``.
+* Made ``test_pink_ik`` deterministic by seeding the env (``env_cfg.seed = 42``)
+  in ``create_test_env``.
+* Loosened the G1 Pink IK rotation tolerance from ``0.030`` rad to ``0.100`` rad
+  in ``pink_ik_g1_test_configs.json`` to accommodate G1's intentionally smooth IK
+  tuning (slower-converging than GR1T2). GR1T2 tolerance unchanged at ``0.020`` rad.
+
+
+5.2.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.math.create_rotation_matrix_from_view` returning a singular
+  matrix when the look-at direction was parallel to the up axis. The function now produces
+  a valid orthonormal frame via an alternate reference vector, and fills NaN for rows with
+  truly undefined forward direction (``eyes == targets`` or non-finite input). Callers
+  detect per-row failure with ``torch.isnan(R).any(dim=(-2, -1))``.
+* Fixed :func:`~isaaclab.utils.math.quat_from_matrix` silently returning a non-unit
+  quaternion for non-rotation input (singular, reflection, or scale-error matrices).
+  Such inputs now return NaN, detectable via :func:`torch.isnan`.
+* Fixed :meth:`~isaaclab.sensors.camera.Camera.set_world_poses_from_view` and
+  :meth:`~isaaclab.sensors.ray_caster.RayCasterCamera.set_world_poses_from_view` silently
+  applying garbage poses when an eye position equaled its target. Degenerate rows are now
+  skipped (with a logged warning), and ``ValueError`` is raised if every row in the batch
+  is degenerate.
+
+
+5.2.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` and
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w` properties,
+  exposing the per-body geometric Jacobian referenced at the link origin and
+  body center of mass respectively. The pair mirrors the existing
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_pose_w` /
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_pose_w` and
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_vel_w` /
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_vel_w` exposure pattern.
+  Backends without a native primitive raise :class:`NotImplementedError`.
+* Added :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix` property,
+  exposing the joint-space generalized mass matrix ``M(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  property, exposing the joint-space gravity-loading torque vector ``g(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` — number of
+  free DoFs of the floating base (``0`` for fixed-base, ``6`` for floating-
+  base). Use it to map an actuated-joint index ``j`` to its column in the
+  Jacobian / mass matrix / gravity vector via ``j + num_base_dofs``.
+
+* The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
+  base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
+  num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
+  num_joints + num_base_dofs)`` for the mass matrix. This matches the
+  cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
+  Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
+  ``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
+  6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
+  returning ``(6 + dofs, 6 + dofs)``).
+* Added :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.usd_stage`,
+  :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`, and
+  :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
+  so visualizers and renderers can pull stage-derived data through the same
+  Warp-native provider that already exposes transforms.
+
+Changed
+^^^^^^^
+
+* Migrated :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`,
+  :class:`~isaaclab.envs.mdp.actions.task_space_actions.OperationalSpaceControllerAction`,
+  and :class:`~isaaclab.envs.mdp.actions.rmpflow_task_space_actions.RMPFlowAction`
+  to fetch dynamic quantities through the new
+  :class:`~isaaclab.assets.BaseArticulationData` properties instead of the
+  PhysX-only ``root_view``. The OSC action term now also gates the
+  per-step mass-matrix and gravity-compensation fetches behind the
+  controller cfg's :attr:`inertial_dynamics_decoupling`,
+  :attr:`nullspace_control`, and :attr:`gravity_compensation` flags
+  so backends without a native primitive are not invoked when the
+  controller does not consume the result.
+* Action terms (DiffIK / OSC / RMPFlow / Pink) compute their Jacobian
+  joint-axis indices via
+  ``[j + asset.num_base_dofs for j in joint_ids]``, which is ``0`` for
+  fixed-base and ``+6`` for floating-base. Pink IK previously hardcoded
+  a private ``_physx_floating_joint_indices_offset = 6``; that was
+  removed in favor of the cross-backend property.
+* PhysX backend's :attr:`body_link_jacobian_w` applies the COM→origin shift to
+  PhysX's natively COM-referenced Jacobian. The previously-exposed
+  ``Articulation.get_jacobians()`` was a passthrough that returned the raw
+  COM-referenced Jacobian, while IK / OSC consumers also read
+  :attr:`body_link_pose_w` as the EE pose setpoint — a frame mismatch that
+  produced a ``ω × r_com_w`` per-body bias in tracking. The new property
+  reads the same engine buffer and applies the shift so ``J · q_dot`` matches
+  ``body_link_lin_vel_w``. Consumers that intentionally want the raw
+  COM-referenced form can read :attr:`body_com_jacobian_w`.
+* **Breaking:** :class:`~isaaclab.visualizers.base_visualizer.BaseVisualizer`
+  subclasses now receive a
+  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
+  :meth:`~isaaclab.visualizers.base_visualizer.BaseVisualizer.initialize`
+  instead of the removed ``BaseSceneDataProvider``. Read environment count
+  from :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`
+  and call
+  :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
+  on the new provider; both replace the previous ``get_metadata()`` /
+  ``get_camera_transforms()`` calls on the legacy interface.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.physics.BaseSceneDataProvider``,
+  ``isaaclab.physics.SceneDataProvider`` (the legacy factory),
+  ``SimulationContext.initialize_scene_data_provider()``, and
+  ``SimulationContext.update_scene_data_provider()``. Use
+  :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_scene_data_provider`
+  to obtain the new provider; consumers that previously called
+  ``get_newton_model()`` / ``get_newton_state()`` should call
+  ``NewtonManager.get_model()`` / ``NewtonManager.get_state()`` instead.
+* Removed explicit ``mujoco`` and ``mujoco-warp`` dependencies from
+  :mod:`isaaclab`. These packages are not used by ``isaaclab`` core and are
+  now resolved transitively through Newton's ``[sim]`` extra in
+  :mod:`isaaclab_newton`. Users installing only the PhysX or Kit backends no
+  longer pull in MuJoCo.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~envs.LeappDeploymentEnv` crashing on ``reset()`` with
+  ``AttributeError: 'LeappDeploymentEnv' object has no attribute 'extras'``
+  by initializing ``self.extras`` in ``__init__``.
+* Fixed ``./isaaclab.sh -p -m pip ...`` failing with ``No module named pip``
+  in the conda env created from ``environment.yml`` on Linux aarch64
+  (e.g. DGX Spark / GB10). The conda-forge solver was not pulling
+  ``pip`` in transitively on aarch64, so the resulting ``env_isaaclab``
+  had no pip. ``environment.yml`` now lists ``pip`` explicitly so it
+  is seeded on every platform.
+* Fixed ``pip install isaaclab[isaacsim,all]==3.0.0`` failing with
+  ``No solution found`` (UV) or ``error: resolution-too-deep`` (pip) when
+  resolving against ``isaacsim==6.0.0.0``. ``viser>=1.0.16`` was a base
+  dependency of the built ``isaaclab`` wheel and transitively requires
+  ``websockets>=13.1``, but ``isaacsim-kernel==6.0.0.0`` pins
+  ``websockets==12.0``. Moved ``viser`` to an opt-in ``viser`` extra in
+  ``tools/wheel_builder/res/python_packages.toml`` so the base wheel is
+  installable alongside ``isaacsim==6.0.0.0``. Users who want the Viser
+  visualizer can request it explicitly with ``isaaclab[viser]``.
+
+
 5.1.1 (2026-05-13)
 ~~~~~~~~~~~~~~~~~~
 

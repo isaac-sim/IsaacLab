@@ -31,8 +31,42 @@ running the following command:
          isaaclab.bat -p scripts\environments\list_envs.py --keyword <search_term>
 
 
+To also see the available presets for each environment, pass ``--show_presets``:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         isaaclab.bat -p scripts\environments\list_envs.py --show_presets
+
+
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
+
+
+Preset Selectors
+----------------
+
+Many environments support multiple physics backends, rendering backends, and observation
+modes, selectable via ``physics=NAME``, ``renderer=NAME``, and ``presets=NAME[,NAME,...]``
+tokens appended to any training or play command. The **Presets** column in each table below
+lists the names available for that environment; pass ``--task=<task-name> --help`` to a
+training script to see them grouped by selector type at the command line.
+
+See :doc:`/source/features/hydra` for the full preset system documentation, including
+all available backend names and how the typed selectors work.
+
 
 Single-agent
 ------------

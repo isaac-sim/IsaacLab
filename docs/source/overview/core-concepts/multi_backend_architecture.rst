@@ -139,7 +139,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
 
 .. code-block:: python
 
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
     from isaaclab_tasks.utils import PresetCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
@@ -334,7 +334,7 @@ transforms in a Warp-native format that renderers and visualizers consume direct
 
     # isaaclab_mybackend/physics/mybackend_manager_cfg.py
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class MyBackendCfg(PhysicsCfg):
@@ -382,6 +382,6 @@ See Also
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide from Isaac Lab 2.x to the
   multi-backend architecture
 - :doc:`/source/features/hydra` — preset system for multi-backend environment configurations
-- :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration
-  guide
+- :doc:`physical-backends/index` — feature matrix and per-backend guides (PhysX, Newton, OvPhysX)
+- :doc:`physical-backends/newton/index` — Newton backend guide
 - :doc:`renderers` — renderer backend architecture

@@ -589,7 +589,7 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab_tasks.utils import PresetCfg
-   from isaaclab.utils import configclass
+   from isaaclab.utils.configclass import configclass
 
    @configclass
    class MyPhysicsCfg(PresetCfg):

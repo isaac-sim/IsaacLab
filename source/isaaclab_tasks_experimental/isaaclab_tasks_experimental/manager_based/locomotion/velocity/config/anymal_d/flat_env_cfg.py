@@ -6,7 +6,7 @@
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .rough_env_cfg import AnymalDRoughEnvCfg
 

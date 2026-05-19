@@ -1,6 +1,124 @@
 Changelog
 ---------
 
+0.9.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX backend for :class:`~isaaclab.sensors.ray_caster.RayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`. Sensor
+  body and tracked target meshes both run off ``RigidObjectView`` —
+  per-step compose via small warp kernels, no
+  :class:`~isaaclab_physx.sim.views.FabricFrameView` path. Static
+  parents/targets serve cached per-env ``wp.transformf`` arrays.
+
+Fixed
+^^^^^
+
+* Fixed all four ray-caster sensors (:class:`~isaaclab.sensors.ray_caster.RayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera`,
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`) returning
+  their spawn-time pose forever when parented under a rigid body. Previous
+  path went through :class:`~isaaclab_physx.sim.views.FabricFrameView`
+  which regressed in #5179; the new backend reads body pose directly from
+  PhysX. The same fix applies to tracked target meshes
+  (``track_mesh_transforms=True``) parented under rigid bodies.
+* Fixed PhysX tracked target mesh updates to write directly into Warp mesh
+  pose tables instead of staging through torch views.
+
+
+0.8.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the optional ``[newton]`` extra to ``v1.2.0`` (stable) so the
+  pin matches :mod:`isaaclab_newton`.
+* Updated :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  accessed via ``.warp`` directly, avoiding intermediate :func:`warp.from_torch` conversions.
+
+
+0.7.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the acceleration-arrow debug visualizer in
+  :class:`~isaaclab_physx.sensors.pva.Pva` drawing arrows in undefined directions for
+  bodies with effectively zero acceleration. Such bodies are now skipped from the
+  visualization.
+
+
+0.7.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX implementations of
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`, and
+  :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  on :class:`~isaaclab_physx.assets.ArticulationData`. The COM
+  variant is a passthrough to ``physx.ArticulationView.get_jacobians``;
+  the link-origin variant applies a new
+  :func:`~isaaclab_physx.assets.articulation.kernels.shift_jacobian_com_to_origin`
+  Warp kernel to convert the COM-referenced linear-velocity rows to
+  link-origin references using each body's pose and COM offset. All
+  four properties preserve the full DoF axis, including the 6 leading
+  floating-base columns/rows PhysX's raw tensor view prepends on
+  floating-base assets — matching the cross-library industry convention
+  (Pinocchio, Drake, MuJoCo, RBDL, OCS2, iDynTree) and Newton's
+  ``ArticulationView`` layout.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.pre_render` so the
+  PhysX backend can drive
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  once per render frame when the active visualizer/renderer set requires a
+  Newton model.
+
+Changed
+^^^^^^^
+
+* Switched the Newton install spec to ``newton[sim]`` in the ``newton``
+  extra so the MuJoCo solver dependencies are pulled in transitively.
+  Required because pip resolves a git-URL requirement once for the URL;
+  a bare ``newton @ git+...`` here would shadow the ``[sim]`` extra
+  requested elsewhere.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_physx.scene_data_providers`` package
+  (``PhysxSceneDataProvider``). The Warp-native
+  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` now exposes
+  PhysX rigid-body transforms via
+  :class:`~isaaclab_physx.physics.PhysxSceneDataBackend`, and the
+  PhysX→Newton state sync used by Newton visualizers/renderers moved to
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`.
+
+Fixed
+^^^^^
+
+* Fixed a latent correctness bug in IK / OSC controllers on the PhysX
+  backend, where the previously-exposed Jacobian was COM-referenced but
+  the controllers used :attr:`~isaaclab_physx.assets.ArticulationData.body_link_pose_w`
+  as the EE pose setpoint. The frame mismatch caused tracking error on
+  bodies whose COM offset is non-trivial. The new
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+  applies the COM→origin shift so the Jacobian and pose share a
+  reference point.
+
+
 0.6.4 (2026-05-13)
 ~~~~~~~~~~~~~~~~~~
 

@@ -16,7 +16,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
 )
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

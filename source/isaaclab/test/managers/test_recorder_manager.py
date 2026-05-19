@@ -31,7 +31,7 @@ from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     import numpy as np
