@@ -769,11 +769,6 @@ class SimulationContext:
         if any(viz.supports_markers() for viz in self._visualizers):
             self.vis_marker_registry.dispatch_callbacks()
 
-        # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
-            self.vis_marker_registry.dispatch_callbacks()
-
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
