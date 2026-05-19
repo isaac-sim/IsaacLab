@@ -376,13 +376,13 @@ class NewtonVisualizer(BaseVisualizer):
         from isaaclab_newton.physics import NewtonManager
 
         if self._viewer is None:
-            self._state = NewtonManager.get_state()
+            self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:

@@ -257,7 +257,7 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
 
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
 
-    state_calls: list[None] = []
+    state_calls: list[object] = []
 
     class _FakeNewtonManager:
         @staticmethod
@@ -265,8 +265,8 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
             return "dummy-model"
 
         @staticmethod
-        def get_state():
-            state_calls.append(None)
+        def get_state(scene_data_provider=None):
+            state_calls.append(scene_data_provider)
             return {"state_call": len(state_calls)}
 
         @staticmethod
@@ -282,11 +282,11 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
-    assert state_calls == [None, None]
+    assert state_calls == [provider, provider]
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    # log_state passes NewtonManager.get_state() through as-is; no env_ids merged in.
+    # log_state passes NewtonManager.get_state(provider) through as-is; no env_ids merged in.
     assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
 
@@ -308,7 +308,7 @@ def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
     monkeypatch.setattr(viser_visualizer, "render_newton_visualization_markers", _raise_marker_render)
 
-    state_calls: list[None] = []
+    state_calls: list[object] = []
 
     class _FakeNewtonManager:
         @staticmethod
@@ -316,8 +316,8 @@ def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates
             return "dummy-model"
 
         @staticmethod
-        def get_state():
-            state_calls.append(None)
+        def get_state(scene_data_provider=None):
+            state_calls.append(scene_data_provider)
             return {"state_call": len(state_calls)}
 
         @staticmethod
@@ -334,6 +334,7 @@ def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates
     with caplog.at_level("WARNING"):
         visualizer.step(0.25)
 
+    assert state_calls == [provider, provider]
     assert marker_calls
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[1] == ("log_state", {"state_call": 2})
@@ -712,7 +713,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             return "dummy-model"
 
         @staticmethod
-        def get_state():
+        def get_state(scene_data_provider=None):
+            captured["state_provider"] = scene_data_provider
             return {"ok": True}
 
         @staticmethod
@@ -814,6 +816,8 @@ def test_rerun_visualizer_open_browser_is_opt_in(monkeypatch: pytest.MonkeyPatch
 
 
 def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.MonkeyPatch):
+    captured = {}
+
     class _FakeRerunViewer:
         def __init__(self):
             self.calls = []
@@ -851,7 +855,8 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
             return "dummy-model"
 
         @staticmethod
-        def get_state():
+        def get_state(scene_data_provider=None):
+            captured["state_provider"] = scene_data_provider
             return {"ok": True}
 
         @staticmethod
@@ -873,6 +878,7 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
     with pytest.raises(RuntimeError, match="marker render failed"):
         visualizer.step(0.25)
 
+    assert captured["state_provider"] is visualizer._scene_data_provider
     assert [call[0] for call in viewer.calls] == ["begin_frame", "log_state", "end_frame"]
 
 

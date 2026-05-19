@@ -40,9 +40,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-from pxr import UsdGeom
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+
+from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
@@ -107,7 +108,7 @@ _VIS_LOGGER_PREFIXES = (
     "isaaclab.sim.simulation_context",
 )
 
-_WRITE_VIS_DEBUG_FRAMES = True
+_WRITE_VIS_DEBUG_FRAMES = False
 """Whether to emit visualizer debug PNGs during integration tests."""
 
 _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
@@ -396,8 +397,7 @@ def _log_usd_camera_pose(stage, camera_path: str, *, viz_kind: str, physics_kind
     rotation_matrix = np.array(matrix.ExtractRotationMatrix(), dtype=np.float64)
     rotation_rows = tuple(tuple(round(float(v), 4) for v in row) for row in rotation_matrix)
     _log_camera_debug(
-        f"{viz_kind}/{physics_kind}: {label} camera world translation="
-        f"{tuple(round(float(v), 4) for v in translation)}"
+        f"{viz_kind}/{physics_kind}: {label} camera world translation={tuple(round(float(v), 4) for v in translation)}"
     )
     _log_camera_debug(
         f"{viz_kind}/{physics_kind}: {label} camera world rotation="
@@ -976,9 +976,7 @@ def test_cartpole_env_newton_visualizer_motion_with_play_pause(
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", _BACKEND_TEST_IDS)
-def test_cartpole_env_rerun_visualizer_no_errors_in_logs(
-    backend_kind: str, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_cartpole_env_rerun_visualizer_no_errors_in_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Cartpole env + Rerun visualizer: initialize, step, and emit no visualizer log errors.
 
     Rerun does not expose a per-frame RGB API like ``get_frame``, so we do not assert pixel content.
@@ -1007,9 +1005,7 @@ def test_cartpole_env_rerun_visualizer_no_errors_in_logs(
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", _BACKEND_TEST_IDS)
-def test_cartpole_env_viser_visualizer_no_errors_in_logs(
-    backend_kind: str, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_cartpole_env_viser_visualizer_no_errors_in_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Cartpole env + Viser visualizer: initialize, step, and emit no visualizer log errors.
 
     No per-frame RGB assertion (Viser does not mirror the Newton ``get_frame`` path used elsewhere).

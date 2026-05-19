@@ -1321,7 +1321,7 @@ class NewtonManager(PhysicsManager):
         return cls._state_0
 
     @classmethod
-    def get_state(cls) -> State:
+    def get_state(cls, scene_data_provider=None) -> State:
         """Get the current Newton state for visualization.
 
         Use this method from visualizers/renderers/video recorders that need a
@@ -1332,7 +1332,7 @@ class NewtonManager(PhysicsManager):
         :meth:`update_visualization_state` is a no-op and this is equivalent to
         :meth:`get_state_0`.
         """
-        cls.update_visualization_state()
+        cls.update_visualization_state(scene_data_provider)
         return cls.get_state_0()
 
     @classmethod
@@ -1340,8 +1340,10 @@ class NewtonManager(PhysicsManager):
         return cls._num_envs
 
     @classmethod
-    def _backend_is_newton(cls) -> bool:
+    def _backend_is_newton(cls, scene_data_provider=None) -> bool:
         """Return ``True`` when the active sim backend is Newton."""
+        if scene_data_provider is not None:
+            return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
         sim = PhysicsManager._sim
         if sim is None:
             return False
@@ -1547,7 +1549,7 @@ class NewtonManager(PhysicsManager):
         return builder
 
     @classmethod
-    def update_visualization_state(cls) -> None:
+    def update_visualization_state(cls, scene_data_provider=None) -> None:
         """Refresh visualization state for the active sim backend.
 
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
@@ -1562,16 +1564,19 @@ class NewtonManager(PhysicsManager):
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
         """
-        if cls._backend_is_newton():
+        if cls._backend_is_newton(scene_data_provider):
             return
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
             return
-        sim = PhysicsManager._sim
-        if sim is None:
+        sdp = scene_data_provider
+        if sdp is None:
+            sim = PhysicsManager._sim
+            if sim is not None:
+                sdp = sim.get_scene_data_provider()
+        if sdp is None:
             return
 
-        sdp = sim.get_scene_data_provider()
         if cls._visualization_scene_data is None:
             cls._visualization_scene_data = SceneDataFormat.Transform()
         if cls._visualization_mapping is None:

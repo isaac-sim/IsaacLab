@@ -171,7 +171,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
