@@ -4,71 +4,49 @@ Reinforcement Learning Scripts
 We provide wrappers to different reinforcement libraries. These wrappers convert the data
 from the environments into the respective libraries function argument and return types.
 
-Newton Backend
---------------
+Preset Selectors
+----------------
 
-All training and play scripts support the **Newton physics backend** via the ``physics=newton_mjwarp``
-typed selector or the equivalent ``presets=newton_mjwarp`` Hydra override. Appending either
-form to any command below switches the physics engine from the default PhysX to Newton:
+All training and play scripts accept ``physics=NAME``, ``renderer=NAME``, and
+``presets=NAME[,NAME,...]`` tokens appended directly to the command (no leading dashes).
+See :doc:`/source/features/hydra` for all available names and how the selectors work.
 
 .. code:: bash
 
-   # Generic pattern — works with any framework and task that supports Newton
+   # Switch physics backend
    ./isaaclab.sh -p scripts/reinforcement_learning/<framework>/train.py \
        --task <task-name> --headless physics=newton_mjwarp
 
-   # Equivalent long form (presets= is the broadcast token physics= folds into)
-   ./isaaclab.sh -p scripts/reinforcement_learning/<framework>/train.py \
-       --task <task-name> --headless presets=newton_mjwarp
-
-Available physics backend names:
-
-- ``physics=physx`` — PhysX (default; also selectable explicitly)
-- ``physics=newton_mjwarp`` — Newton with the MuJoCo-Warp solver
-- ``physics=newton_kamino`` — Newton with the Kamino solver (experimental; limited tasks)
-- ``physics=ovphysx`` — OV PhysX (experimental; limited tasks)
-
-.. note::
-
-   **Not all environments support every backend yet.** Using a physics preset with an
-   environment that has not been configured for that backend will raise an error at launch. See
-   :doc:`/source/experimental-features/newton-physics-integration/index`
-   for more details, and the :ref:`migrating-to-isaaclab-3-0`
-   guide for how to add Newton support to your own environments.
-
-Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installation` for setup.
-
-
-Renderer Presets
-----------------
-
-Camera environments support multiple rendering backends selectable via the ``renderer=``
-typed selector or the equivalent ``presets=`` token:
-
-- ``renderer=default`` / ``renderer=isaacsim_rtx_renderer`` — Isaac Sim RTX renderer (default)
-- ``renderer=newton_renderer`` — Newton Warp renderer
-- ``renderer=ovrtx_renderer`` — OV RTX renderer
-
-.. code:: bash
-
+   # Switch renderer (camera environments)
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
        --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
        --enable_cameras renderer=newton_renderer
+
+   # Combine selectors freely
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
+       --enable_cameras physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+.. note::
+
+   **Not all environments support every backend.** Using a preset with an environment
+   that has not been configured for that backend will raise an error at launch. See
+   :doc:`/source/experimental-features/newton-physics-integration/index` for details.
+
+Newton does not require Isaac Sim (kit-less mode). See :ref:`kitless-installation` for setup.
 
 
 Observation-mode Presets
 ------------------------
 
-Some environments support multiple observation modes — for example different camera
-modalities or combinations of state and image observations — selectable via the
-``presets=`` token.  Unlike physics-backend presets, **observation-mode presets
-affect the checkpoint structure**, so you must pass the same preset to both the
-training script and the play/evaluation script.  Using a different preset (or none)
-at play time will cause a model-architecture mismatch when loading the checkpoint.
+Some environments support multiple observation modes selectable via ``presets=``.
+Unlike physics or renderer presets, **observation-mode presets affect the checkpoint
+structure**: you must pass the same preset to both the training and play scripts.
+Using a different preset (or none) at play time will cause a model-architecture
+mismatch when loading the checkpoint.
 
 For example, ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` defaults to RGB + depth
-+ segmentation inputs but can be switched to RGB-only (fewer input channels, lighter
-model) with ``presets=rgb``:
++ segmentation inputs but can be switched to RGB-only with ``presets=rgb``:
 
 .. code:: bash
 
@@ -86,16 +64,6 @@ Other available presets for this environment: ``albedo``,
 ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``,
 ``simple_shading_full_mdl``.  The ``depth`` preset is intended for
 benchmarking only (see the environment's config for details).
-
-Multiple presets can be combined freely when they do not conflict —
-for instance to switch both the physics backend, the rendering backend, and the
-camera modality using typed selectors and ``presets=`` together:
-
-.. code:: bash
-
-   physics=newton_mjwarp renderer=newton_renderer presets=rgb
-
-See :doc:`/source/features/hydra` for the full preset system documentation.
 
 
 RL-Games
