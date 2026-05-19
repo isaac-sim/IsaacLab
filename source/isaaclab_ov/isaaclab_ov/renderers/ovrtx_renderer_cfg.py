@@ -37,8 +37,8 @@ class OVRTXRendererCfg(RendererCfg):
     multi-environment stage instead (same effect as setting this to ``False`` for that run).
     """
 
-    log_level: str = "verbose"
+    log_level: str = "info"
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""
 
-    log_file_path: str = "/tmp/ovrtx_renderer.log"
+    log_file_path: str = "/dev/stdout"
     """Path for OVRTX log file."""
