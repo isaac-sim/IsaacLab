@@ -254,7 +254,9 @@ class Articulation(BaseArticulation):
         # be cleared for the resetting envs). The adapter spans the whole model,
         # so calling reset here resets state for every articulation that shares
         # this env id; that's correct because env ids are world-scoped.
-        if self._has_newton_actuators and SimulationManager._adapter is not None:
+        # ``getattr`` guards subclasses (e.g. ``Multirotor``) that override
+        # ``_process_actuators_cfg`` and never initialize ``_has_newton_actuators``.
+        if getattr(self, "_has_newton_actuators", False) and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
@@ -292,7 +294,7 @@ class Articulation(BaseArticulation):
             )
         self._instantaneous_wrench_composer.reset()
 
-        if self._has_newton_actuators:
+        if getattr(self, "_has_newton_actuators", False):
             # Raw targets go directly to Newton's control object. Newton PD
             # consumes ``joint_act`` for explicit (Newton-managed) joints; the
             # solver's built-in joint drive does the PD for implicit joints

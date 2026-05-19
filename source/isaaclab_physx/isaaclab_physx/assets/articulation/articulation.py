@@ -234,7 +234,9 @@ class Articulation(BaseArticulation):
             actuator.reset(env_ids)
         # Reset Newton-actuator per-env states (delay queues, neural hidden state, etc.).
         # The adapter is per-articulation on PhysX and is not part of ``self.actuators``.
-        if self._has_newton_actuators and self.newton_actuator_adapter is not None:
+        # ``getattr`` guards subclasses (e.g. ``Multirotor``) that override
+        # ``_process_actuators_cfg`` and never initialize these attributes.
+        if getattr(self, "_has_newton_actuators", False) and getattr(self, "newton_actuator_adapter", None) is not None:
             self.newton_actuator_adapter.reset(env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
@@ -267,7 +269,7 @@ class Articulation(BaseArticulation):
             )
         self._instantaneous_wrench_composer.reset()
 
-        if self._has_newton_actuators:
+        if getattr(self, "_has_newton_actuators", False):
             # Newton fast path: pos/vel targets pass straight through; the
             # in-graph kernel inside ``_apply_actuator_model_newton`` merges
             # Newton's actuator output (explicit DOFs) with user FF
