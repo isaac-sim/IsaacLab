@@ -26,7 +26,8 @@ class FrameView(FactoryBase, BaseFrameView):
     - **PhysX / no backend**: :class:`~isaaclab_physx.sim.views.FabricFrameView`
       (Fabric GPU acceleration with USD fallback).
     - **OVPhysX**: :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView`
-      (Warp-native, reads ``body_q`` via the OVPhysX scene data provider).
+      (Warp-native, reads body poses via an OVPhysX ``RIGID_BODY_POSE``
+      tensor binding).
     - **Newton**: :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
       (Warp-native, reads ``body_q`` from the Newton state).
     """

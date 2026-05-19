@@ -11,11 +11,17 @@ Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 from __future__ import annotations
 
 import pytest
-from isaaclab_ovphysx.physics import OvPhysxCfg
 
-import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.sim.views import FrameView
+# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
+# but the ovphysx wheel is not installed in that environment. Skip gracefully
+# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
+
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 
