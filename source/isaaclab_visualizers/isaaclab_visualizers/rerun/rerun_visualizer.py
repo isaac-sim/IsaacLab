@@ -101,6 +101,7 @@ class NewtonViewerRerun(ViewerRerun):
         else:
             original_serve_web_viewer = rr.serve_web_viewer
 
+            # Rerun Viewer launches a browser automatically, so here we suppress that behavior
             def _serve_web_viewer_without_browser(*serve_args, **serve_kwargs):
                 with contextlib.suppress(TypeError, ValueError):
                     supports_open_browser = "open_browser" in inspect.signature(original_serve_web_viewer).parameters

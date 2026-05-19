@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
@@ -452,17 +451,7 @@ class NewtonVisualizer(BaseVisualizer):
         cam_pos, cam_target = pose
         # Match Newton's Camera native pos type: PyVec3, not wp.vec3.
         self._viewer.camera.pos = PygletVec3(*cam_pos)
-        if hasattr(self._viewer.camera, "look_at"):
-            self._viewer.camera.look_at(cam_target)
-        else:
-            cam_pos_np = np.array(cam_pos, dtype=np.float32)
-            cam_target_np = np.array(cam_target, dtype=np.float32)
-            direction = cam_target_np - cam_pos_np
-            yaw = np.degrees(np.arctan2(direction[1], direction[0]))
-            horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
-            pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
-            self._viewer.camera.yaw = float(yaw)
-            self._viewer.camera.pitch = float(pitch)
+        self._viewer.camera.look_at(cam_target)
         self._last_camera_pose = (cam_pos, cam_target)
 
     def _apply_camera_focal_length(self) -> None:

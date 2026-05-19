@@ -111,7 +111,7 @@ _VIS_LOGGER_PREFIXES = (
     "isaaclab.sim.simulation_context",
 )
 
-_WRITE_VIS_DEBUG_FRAMES = True
+_WRITE_VIS_DEBUG_FRAMES = False
 """Whether to emit visualizer debug PNGs during integration tests."""
 
 _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
@@ -505,9 +505,7 @@ def _retry_visualizer_control_phase(phase: str, attempt_fn):
             last_error = exc
             if attempt == _VISUALIZER_CONTROL_RETRY_ATTEMPTS:
                 break
-            _log_camera_debug(
-                f"{phase} attempt {attempt}/{_VISUALIZER_CONTROL_RETRY_ATTEMPTS} failed; retrying: {exc}"
-            )
+            _log_camera_debug(f"{phase} attempt {attempt}/{_VISUALIZER_CONTROL_RETRY_ATTEMPTS} failed; retrying: {exc}")
     assert last_error is not None
     raise last_error
 
@@ -870,7 +868,7 @@ def _run_kit_viewport_frame_motion_test(
     render_product = None
     try:
         annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
-        # TODO: Remove this workaround step during the Visualizer class refactor 
+        # TODO: Remove this workaround step during the Visualizer class refactor
         if viz_kind == "kit" and physics_kind == "newton":
             _reapply_kit_camera_pose(env, kit_visualizer)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
