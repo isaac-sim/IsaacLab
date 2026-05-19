@@ -118,23 +118,14 @@ if args_cli.external_callback:
 # intersection are pre-fold (the callback reads the user's original sys.argv), so
 # preset tokens like ``physics=NAME`` compare correctly here. Fold runs after.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
-# Build the chosen frontend and let it pre-process Hydra args. Frontends
-# may inject preset selections (e.g. WarpFrontend appends ``presets=newton``
-# for stable manager-based tasks so PresetCfg wrappers resolve to the Newton
-# field before Hydra builds the cfg). Frontend injection runs *before*
-# ``fold_preset_tokens`` so the injected tokens fold alongside any
-# user-supplied ``physics=`` / ``presets=`` selectors.
-#
-# The frontend package lives under ``isaaclab_experimental``, which is
-# optional. If it isn't installed, ``--frontend=torch`` (the default) still
-# needs to work — fall back to plain ``gym.make`` in that case. The warp
-# selection requires the experimental package, so import failure there is
-# fatal.
-_frontend = None
-try:
-    from isaaclab_experimental.envs.frontend import get_frontend  # noqa: E402
 
-    _frontend = get_frontend(args_cli.frontend)
+# Build path for ``--frontend=warp`` lives in ``isaaclab_experimental``, which is an
+# optional package — torch (the default) must still work without it, so import lazily.
+# Warp callers are required to pass ``presets=newton`` themselves; the frontend hard-checks
+# it at build time rather than mutating Hydra args here.
+_frontend_build = None
+try:
+    from isaaclab_experimental.envs.frontend import build as _frontend_build  # noqa: E402
 except ImportError as _frontend_import_err:
     if args_cli.frontend != "torch":
         raise SystemExit(
@@ -142,9 +133,6 @@ except ImportError as _frontend_import_err:
             f" but the import failed: {_frontend_import_err}"
         ) from _frontend_import_err
     logger.info("isaaclab_experimental not available; --frontend=torch will dispatch via plain gym.make.")
-
-if _frontend is not None and args_cli.task is not None:
-    remaining_args = _frontend.preprocess_hydra_args(args_cli.task, remaining_args)
 
 sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining_args)
 
@@ -230,16 +218,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the log directory for the environment (works for all environment types)
         env_cfg.log_dir = log_dir
 
-        # create isaac environment via the chosen frontend's rule pipeline.
-        # The frontend may mutate env_cfg in place (preset resolution,
-        # SceneEntityCfg promotion, mdp twin swaps, ...) before constructing
-        # the env. ``env.unwrapped.frontend_report`` carries what changed
-        # and what was missing. When the experimental frontend package isn't
-        # available we already validated --frontend=torch above, so a plain
-        # gym.make is the documented fallback.
+        # Build the env via the selected frontend. The warp frontend mutates env_cfg
+        # in place (SceneEntityCfg promotion + MDP func/class_type swap) and then
+        # constructs ``ManagerBasedRLEnvWarp``; missing warp twins are a hard failure.
+        # When ``isaaclab_experimental`` isn't installed, the argparse step above
+        # has already constrained --frontend to ``torch``, so the plain ``gym.make``
+        # fallback is safe.
         render_mode = "rgb_array" if args_cli.video else None
-        if _frontend is not None:
-            env = _frontend.build(env_cfg, task_id=args_cli.task, render_mode=render_mode)
+        if _frontend_build is not None:
+            env = _frontend_build(args_cli.frontend, env_cfg, args_cli.task, render_mode=render_mode)
         else:
             env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
 
