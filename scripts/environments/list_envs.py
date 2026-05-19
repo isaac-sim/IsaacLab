@@ -28,8 +28,8 @@ parser.add_argument(
     default=False,
     help=(
         "Show available preset selectors for each environment. "
-        "Presets are grouped by selector type: physics (``physics=NAME``), "
-        "renderer (``renderer=NAME``), and domain (``presets=NAME``)."
+        "Presets are grouped by selector type: physics (physics=NAME), "
+        "renderer (renderer=NAME), and domain (presets=NAME)."
     ),
 )
 # parse the arguments
