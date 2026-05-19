@@ -24,6 +24,16 @@ import signal
 import sys
 from typing import Any, Literal
 
+# Prevent OpenBLAS fork-safety crash.  NumPy/SciPy ship a bundled OpenBLAS
+# that spawns worker threads and registers a pthread_atfork child handler
+# (blas_thread_shutdown_).  When Kit's platform-info plugin calls fork()
+# during startup the handler runs in the child and tries to pthread_join
+# threads that were not carried across the fork → SIGSEGV.  Setting the
+# thread count to 1 *before* the library is loaded avoids the crash because
+# no worker threads are created and the atfork handler becomes a no-op.
+# Uses setdefault so that an explicit user/CI setting is respected.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
     from isaacsim import SimulationApp

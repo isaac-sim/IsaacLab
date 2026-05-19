@@ -316,6 +316,14 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
+        # Prevent OpenBLAS fork-safety crash: when NumPy or SciPy is imported
+        # before Kit starts, OpenBLAS spawns a worker-thread pool and registers
+        # a pthread_atfork handler (blas_thread_shutdown_).  Kit's platform-info
+        # plugin calls fork() during startup; in the child the handler tries to
+        # pthread_join threads that no longer exist → SIGSEGV.  Limiting
+        # OpenBLAS to a single thread before the subprocess starts avoids the
+        # crash because no worker threads are created and the handler is a no-op.
+        env.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
