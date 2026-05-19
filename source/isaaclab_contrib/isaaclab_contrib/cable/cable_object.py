@@ -211,9 +211,6 @@ def apply_cable_attachments_to_builder(
        ``(x, y, z, w)`` form Newton's ``wp.transform`` expects.
     4. Call :meth:`newton.ModelBuilder.add_joint_fixed` with the resolved
        indices and transforms.
-    5. Call :meth:`newton.ModelBuilder.add_shape_collision_filter_pair` for
-       every (cable-anchor-shape, target-shape) pair so the welded shapes
-       don't generate penetration contacts that fight the joint constraint.
 
     Args:
         builder: The Newton ``ModelBuilder`` for the current scene.
@@ -268,15 +265,6 @@ def apply_cable_attachments_to_builder(
             label=f"{entry.prim_path}/attachment_{attachment.cable_anchor}_{world_idx}",
             collision_filter_parent=True,
         )
-
-        # Filter contacts between every shape on the cable's anchor segment and
-        # every shape on the target rigid body. Without this, the plug's
-        # collision mesh and the cable capsule sitting at the same pose generate
-        # penetration contacts each step that fight the fixed joint constraint,
-        # which manifests as the welded pair flailing.
-        for cable_shape in builder.body_shapes[cable_body_idx]:
-            for target_shape in builder.body_shapes[target_body_idx]:
-                builder.add_shape_collision_filter_pair(cable_shape, target_shape)
 
 
 def install_cable_builder_hooks() -> None:
