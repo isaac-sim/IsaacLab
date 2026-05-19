@@ -206,9 +206,9 @@ def apply_cable_attachments_to_builder(
     3. Build the parent-frame transform from
        ``(attachment.cable_local_pos, attachment.cable_local_quat)`` and the
        child-frame transform from
-       ``(attachment.target_local_pos, attachment.target_local_quat)``,
-       converting the ``(w, x, y, z)`` cfg quaternions into the
-       ``(x, y, z, w)`` form Newton's ``wp.transform`` expects.
+       ``(attachment.target_local_pos, attachment.target_local_quat)``. The
+       cfg quaternions are already in the ``(x, y, z, w)`` form Newton's
+       ``wp.transform`` expects and are passed through unchanged.
     4. Call :meth:`newton.ModelBuilder.add_joint_fixed` with the resolved
        indices and transforms.
 
@@ -225,12 +225,11 @@ def apply_cable_attachments_to_builder(
     if not pending:
         return
 
-    # configclass quat is (w, x, y, z); wp.transform expects (x, y, z, w).
-    def _to_wp_xform(pos, quat_wxyz):
-        w, x, y, z = quat_wxyz
+    # configclass quat and wp.transform both use (x, y, z, w); pass through.
+    def _to_wp_xform(pos, quat_xyzw):
         return wp.transform(
             (float(pos[0]), float(pos[1]), float(pos[2])),
-            (float(x), float(y), float(z), float(w)),
+            (float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2]), float(quat_xyzw[3])),
         )
 
     for cable_idx, attachment in pending:
@@ -245,14 +244,34 @@ def apply_cable_attachments_to_builder(
                 f"CableAttachmentCfg.cable_anchor must be 'head' or 'tail', got {attachment.cable_anchor!r}."
             )
 
-        try:
-            target_body_idx = builder.body_label.index(attachment.target_prim_path)
-        except ValueError:
-            available = list(builder.body_label)
+        # Resolve the target body in THIS world: filter body_label by body_world so
+        # that under multi-env cloning we don't accidentally bind to env-0's copy of
+        # the rigid asset. Newton's `body_world` parallels `body_label`.
+        #
+        # Bodies tagged with the sentinel ``-1`` belong to no particular world
+        # (Newton's "global" scope — e.g. when ``add_usd`` is called outside any
+        # ``begin_world``/``end_world`` block, as in the single-world flat path).
+        # Accepting ``world_idx`` OR ``-1`` keeps the single-env flat-loading
+        # scenario working without re-introducing the multi-env binding bug:
+        # under cloning every clone of the target body is tagged with its env's
+        # world index, so the world-specific match wins before the global one.
+        body_label = builder.body_label
+        body_world = builder.body_world
+        target_body_idx = -1
+        for body_idx in range(len(body_label)):
+            if body_label[body_idx] != attachment.target_prim_path:
+                continue
+            if body_world[body_idx] == world_idx or body_world[body_idx] == -1:
+                target_body_idx = body_idx
+                break
+        if target_body_idx < 0:
+            available_in_world = [
+                body_label[i] for i in range(len(body_label)) if body_world[i] in (world_idx, -1)
+            ]
             raise ValueError(
-                f"CableAttachmentCfg.target_prim_path '{attachment.target_prim_path}' "
-                f"did not match any body_label in world {world_idx}. Available body labels: {available}."
-            ) from None
+                f"CableAttachmentCfg.target_prim_path '{attachment.target_prim_path}' did not match "
+                f"any body in world {world_idx}. Available body labels in this world: {available_in_world}."
+            )
 
         parent_xform = _to_wp_xform(attachment.cable_local_pos, attachment.cable_local_quat)
         child_xform = _to_wp_xform(attachment.target_local_pos, attachment.target_local_quat)
@@ -322,9 +341,14 @@ class CableObject(Articulation):
         self._registry_entry = self._register_cable()
 
         # Forward any declared attachments to the simulation manager so the
-        # per-world attachment hook can realize them at builder time. The
-        # cable_idx points at the entry we just appended.
-        cable_idx = len(SimulationManager._cable_registry) - 1
+        # per-world attachment hook can realize them at builder time. Capture
+        # the entry's index by identity (via ``list.index``) rather than
+        # ``len(registry) - 1``, which would be fragile to any future
+        # base-class init mutating the registry concurrently. Each
+        # :class:`CableRegistryEntry` is uniquely constructed per cable, so
+        # the structural ``==`` lookup used by ``list.index`` resolves to
+        # exactly this entry.
+        cable_idx = SimulationManager._cable_registry.index(self._registry_entry)
         for attachment in self.cfg.attachments:
             SimulationManager._pending_cable_attachments.append((cable_idx, attachment))
 

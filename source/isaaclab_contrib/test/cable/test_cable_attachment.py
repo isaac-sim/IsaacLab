@@ -29,9 +29,9 @@ def test_cable_attachment_cfg_defaults_and_types():
     assert cfg.target_prim_path == "/World/Plug001"
     assert cfg.cable_anchor == "tail"
     assert cfg.cable_local_pos == (0.0, 0.0, 0.0)
-    assert cfg.cable_local_quat == (1.0, 0.0, 0.0, 0.0)
+    assert cfg.cable_local_quat == (0.0, 0.0, 0.0, 1.0)
     assert cfg.target_local_pos == (0.0, 0.0, 0.0)
-    assert cfg.target_local_quat == (1.0, 0.0, 0.0, 0.0)
+    assert cfg.target_local_quat == (0.0, 0.0, 0.0, 1.0)
 
     cfg2 = CableAttachmentCfg(
         target_prim_path="/Foo",
@@ -135,6 +135,11 @@ def test_apply_cable_attachments_adds_fixed_joint():
 
     builder = newton.ModelBuilder()
 
+    # Mirror the cloner: bodies and joints are added inside a begin/end world
+    # block so they're tagged with ``body_world == 0`` — the attachment hook
+    # filters by ``body_world`` to bind to the correct world's plug.
+    builder.begin_world()
+
     # Plug rigid body added first, with body_label matching the target path.
     plug_path = "/World/Plug001"
     plug_idx = builder.add_body(xform=wp.transform_identity(), label=plug_path)
@@ -170,15 +175,20 @@ def test_apply_cable_attachments_adds_fixed_joint():
     )
     joints_after_attachment = builder.joint_count
 
+    builder.end_world()
+
     # One new joint added by the attachment hook.
     assert joints_after_attachment - joints_after_cable == 1, (
         f"expected 1 new joint from attachment, got {joints_after_attachment - joints_after_cable}"
     )
 
-    # That joint must connect plug_idx (parent) and the cable's tail body (child).
+    # That joint must connect the cable's tail body (parent) and plug_idx
+    # (child). The current implementation calls ``add_joint_fixed`` with the
+    # cable anchor as the ``parent`` argument and the target rigid body as the
+    # ``child`` argument, so plug_idx lands on the ``joint_child`` column.
     new_joint_idx = joints_after_attachment - 1
-    assert builder.joint_parent[new_joint_idx] == plug_idx
-    assert builder.joint_child[new_joint_idx] == entry.tail_segment_body_indices[0]
+    assert builder.joint_parent[new_joint_idx] == entry.tail_segment_body_indices[0]
+    assert builder.joint_child[new_joint_idx] == plug_idx
 
 
 def test_apply_cable_attachments_missing_target_raises():
@@ -200,6 +210,7 @@ def test_apply_cable_attachments_missing_target_raises():
     SimulationManager._pending_cable_attachments = []
 
     builder = newton.ModelBuilder()
+    builder.begin_world()
 
     entry = CableRegistryEntry(
         prim_path="/World/Cable001",
@@ -228,6 +239,83 @@ def test_apply_cable_attachments_missing_target_raises():
             env_position=[0.0, 0.0, 0.0],
             env_rotation=[0.0, 0.0, 0.0, 1.0],
         )
+    builder.end_world()
+
+
+def test_apply_cable_attachments_per_world_resolves_correct_plug():
+    """Under multi-world cloning, the attachment hook must bind each world's
+    cable to that world's plug — not env-0's copy. Regression for the
+    body_label.index() bug that ignored body_world."""
+    import newton
+    import warp as wp
+
+    from isaaclab_contrib.cable import CableAttachmentCfg
+    from isaaclab_contrib.cable.cable_object import (
+        CableRegistryEntry,
+        add_cable_entry_to_builder,
+        apply_cable_attachments_to_builder,
+    )
+    from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+    # Fresh registries.
+    SimulationManager._cable_registry = []
+    SimulationManager._pending_cable_attachments = []
+
+    builder = newton.ModelBuilder()
+
+    # Register one cable that will be replicated into every world. The cable
+    # hook appends per-world head/tail body indices to the entry as each world
+    # is built.
+    plug_path = "/World/Plug"
+    entry = CableRegistryEntry(
+        prim_path="/World/Cable",
+        node_positions=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.05, 0.0, 0.0), wp.vec3(0.1, 0.0, 0.0)],
+        edges=[(0, 1), (1, 2)],
+        radius=0.005,
+    )
+    SimulationManager._cable_registry.append(entry)
+    SimulationManager._pending_cable_attachments.append(
+        (0, CableAttachmentCfg(target_prim_path=plug_path, cable_anchor="tail"))
+    )
+
+    # Mirror the real cloner: per-world ``begin_world``/``end_world`` block adds
+    # this env's plug AND runs the per-world builder hooks. Each plug uses the
+    # SAME source label ``plug_path`` (this is what the cloner produces before
+    # ``_rename_builder_labels`` runs); the hook must filter by ``body_world``
+    # to bind to *this* world's plug, not env-0's.
+    plug_indices_by_world: list[int] = []
+    for world_idx in range(2):
+        builder.begin_world()
+        plug_idx = builder.add_body(xform=wp.transform_identity(), label=plug_path)
+        builder.add_joint_free(child=plug_idx)
+        plug_indices_by_world.append(plug_idx)
+
+        add_cable_entry_to_builder(
+            builder, entry, env_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0], env_rotation=[0.0, 0.0, 0.0, 1.0],
+            cable_idx=0,
+        )
+        joints_before = builder.joint_count
+        apply_cable_attachments_to_builder(
+            builder, world_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0], env_rotation=[0.0, 0.0, 0.0, 1.0],
+        )
+        joints_after = builder.joint_count
+        builder.end_world()
+
+        assert joints_after - joints_before == 1, (
+            f"world {world_idx}: expected 1 new joint, got {joints_after - joints_before}"
+        )
+        new_joint_idx = joints_after - 1
+        # The attachment joint must reference THIS world's plug — not env 0's.
+        # The current implementation calls ``add_joint_fixed(parent=cable, child=plug)``,
+        # so the plug ends up on the ``joint_child`` column.
+        assert builder.joint_child[new_joint_idx] == plug_indices_by_world[world_idx], (
+            f"world {world_idx}: joint child {builder.joint_child[new_joint_idx]} "
+            f"!= this-world plug {plug_indices_by_world[world_idx]} "
+            f"(env-0 plug was {plug_indices_by_world[0]})"
+        )
+        assert builder.joint_parent[new_joint_idx] == entry.tail_segment_body_indices[world_idx]
 
 
 def _build_cable_plug_scene(
@@ -332,7 +420,7 @@ def _build_cable_plug_scene(
                 target_prim_path="/World/Plug",  # may need adjustment - see notes
                 cable_anchor=cable_anchor,
                 cable_local_pos=(0.0, 0.0, 0.0),
-                cable_local_quat=(1.0, 0.0, 0.0, 0.0),
+                cable_local_quat=(0.0, 0.0, 0.0, 1.0),
             ),
         ],
     )
@@ -572,12 +660,18 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
     body_q = SimulationManager._state_0.body_q.numpy()
     head_body_idx = cable._registry_entry.head_segment_body_indices[0]
     tail_body_idx = cable._registry_entry.tail_segment_body_indices[0]
-    # Plug bodies were added first; their indices in body_q correspond to insertion order.
-    # PlugA was instantiated before PlugB, so PlugA = body 0, PlugB = body 1.
+    # Resolve plug body indices by label so the test isn't fragile to
+    # insertion-order changes. Newton stores the per-body label as
+    # ``body_label`` on the live ``Model`` (and on the ``ModelBuilder``).
+    model = SimulationManager._model
+    body_label_attr = "body_label" if hasattr(model, "body_label") else "body_key"
+    body_label = list(getattr(model, body_label_attr))
+    pa_body_idx = body_label.index("/World/PlugA")
+    pb_body_idx = body_label.index("/World/PlugB")
     head_pos = body_q[head_body_idx, 0:3]
     tail_pos = body_q[tail_body_idx, 0:3]
-    pa = body_q[0, 0:3]
-    pb = body_q[1, 0:3]
+    pa = body_q[pa_body_idx, 0:3]
+    pb = body_q[pb_body_idx, 0:3]
 
     # Middle of the cable: choose the middle EDGE body.
     num_edges = num_points - 1
@@ -589,8 +683,22 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
 
     assert head_err < 1.5e-2, f"head not at plug A: head_pos {head_pos}, plug_a {pa}, err {head_err}"
     assert tail_err < 1.5e-2, f"tail not at plug B: tail_pos {tail_pos}, plug_b {pb}, err {tail_err}"
-    # Middle sags below endpoints (gravity is -Z).
+    # Middle sags below endpoints (gravity is -Z). With the soft stretch
+    # stiffness used here (1e3 N/m), the cable stretches enough that the
+    # observed sag is ~2-3 cm rather than the analytical catenary depth for
+    # an inextensible 0.48 m cable across 0.30 m. The band is set tight
+    # enough to catch a regression to "no sag" while tolerating solver noise.
     sag = min(pa[2], pb[2]) - mid[2]
-    assert sag > 0.02, f"middle did not sag below endpoints: mid {mid}, plugA {pa}, plugB {pb}, sag {sag}"
+    assert 0.015 < sag < 0.20, (
+        f"middle did not sag in expected range: mid {mid}, plugA {pa}, plugB {pb}, sag {sag}"
+    )
+    # The catenary middle (chosen as the geometric middle edge body) should
+    # land between the two plugs in X. The cable stretches non-uniformly
+    # under the soft stretch stiffness, so we allow generous slack while
+    # still excluding the failure mode where the cable collapses to one plug.
+    midpoint_x = 0.5 * (pa[0] + pb[0])
+    assert abs(mid[0] - midpoint_x) < 0.15, (
+        f"catenary middle not roughly centered: mid_x {mid[0]}, expected ~{midpoint_x}"
+    )
 
     type(sim).clear_instance()

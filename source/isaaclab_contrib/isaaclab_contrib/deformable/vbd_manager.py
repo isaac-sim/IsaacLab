@@ -104,6 +104,7 @@ class NewtonVBDManager(NewtonManager):
         cls._cable_body_q_cpu = None
         cls._non_cable_articulation_mask = None
         NewtonManager._cable_registry = []
+        NewtonManager._pending_cable_attachments = []
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
 

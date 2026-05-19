@@ -24,6 +24,14 @@ class CableAttachmentCfg:
     is realized at Newton model-build time, after both assets are registered
     with the builder. Newton's rigid solver then enforces the constraint
     natively each step; no per-step Python synchronization is required.
+
+    Note:
+        The constraint is realized as a Newton fixed joint that bridges the
+        cable's VBD articulation and the target's rigid articulation. The
+        constraint is enforced by solvers that honor cross-articulation fixed
+        joints (VBD, XPBD); solvers that iterate per-articulation only
+        (e.g., MuJoCo, Featherstone) may silently drop it. The default
+        IsaacLab Newton solver in this contrib (VBD) honors it.
     """
 
     target_prim_path: str = MISSING
@@ -31,10 +39,16 @@ class CableAttachmentCfg:
 
     Must resolve to a prim that has been registered with Newton as a rigid body
     (e.g., spawned via :class:`~isaaclab.assets.RigidObject`) prior to the cable
-    being realized. Regex patterns are not supported here; the path must be the
-    same concrete spawn path the rigid asset's :class:`RigidObjectCfg` uses
-    (the per-world resolver matches it against ``builder.body_label`` at
-    builder-hook time).
+    being realized.
+
+    Note:
+        Regex patterns are not supported here -- the path must be the concrete
+        per-world prim path of the target body. Under :class:`InteractiveScene`
+        cloning, where the user's :attr:`RigidObjectCfg.prim_path` is a regex
+        template like ``"/World/envs/env_.*/Plug"``, callers should pass the
+        same string here; the per-world attachment hook resolves it against
+        the cloned model's ``body_label`` filtered by world index. Direct
+        (non-cloned) spawns must pass the concrete path used at spawn time.
     """
 
     cable_anchor: Literal["head", "tail"] = "tail"
@@ -53,8 +67,8 @@ class CableAttachmentCfg:
     :meth:`newton.ModelBuilder.add_joint_fixed`.
     """
 
-    cable_local_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """Joint anchor orientation as quaternion ``(w, x, y, z)`` in the cable
+    cable_local_quat: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Joint anchor orientation as quaternion ``(x, y, z, w)`` in the cable
     end-segment's local frame.
 
     Becomes the ``parent_xform`` rotation passed to
@@ -70,8 +84,8 @@ class CableAttachmentCfg:
     relative to the plug's rigid-body origin).
     """
 
-    target_local_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """Joint anchor orientation as quaternion ``(w, x, y, z)`` in the target
+    target_local_quat: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Joint anchor orientation as quaternion ``(x, y, z, w)`` in the target
     body's local frame.
 
     Becomes the ``child_xform`` rotation passed to
