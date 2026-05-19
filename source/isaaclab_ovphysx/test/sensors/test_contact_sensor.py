@@ -44,26 +44,25 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_ovphysx.assets import RigidObject
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_ovphysx.sensors import ContactSensor
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
-
-wp.init()
-
-# The CI isaaclab_ov* pattern may collect these tests in environments where the
-# ovphysx wheel is not installed.  Skip gracefully so other pipelines are not
-# blocked by a missing dependency.
+# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
+# but the ovphysx wheel is not installed in that environment. Skip gracefully
+# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
-from isaaclab_ovphysx.sensors import ContactSensorCfg  # noqa: E402
+from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
+from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ovphysx.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
+
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
+from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
+from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
+from isaaclab.utils.configclass import configclass  # noqa: E402
+
+wp.init()
 
 # ---------------------------------------------------------------------------
 # Device-lock autouse fixture
