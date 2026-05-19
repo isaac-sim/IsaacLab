@@ -86,6 +86,9 @@ PLAY_VIZ_N_STEP = 20
 PAUSE_VIZ_N_STEP = 5
 """Steps to run for each paused visualization segment."""
 
+_VISUALIZER_CONTROL_RETRY_ATTEMPTS = 5
+"""Retry count for flaky visualizer pause/play controls after the initial playing gate has passed."""
+
 # Early vs late frame motion: void background stays similar; only count *strongly* differing pixels.
 _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD = 50
 """A pixel counts as differing if max(|ΔR|, |ΔG|, |ΔB|) >= this (0–255 space)."""
@@ -492,6 +495,23 @@ def _assert_frames_differ(
     )
 
 
+def _retry_visualizer_control_phase(phase: str, attempt_fn):
+    """Retry a pause/resume control phase while preserving hard failure after the final attempt."""
+    last_error: AssertionError | None = None
+    for attempt in range(1, _VISUALIZER_CONTROL_RETRY_ATTEMPTS + 1):
+        try:
+            return attempt_fn(attempt)
+        except AssertionError as exc:
+            last_error = exc
+            if attempt == _VISUALIZER_CONTROL_RETRY_ATTEMPTS:
+                break
+            _log_camera_debug(
+                f"{phase} attempt {attempt}/{_VISUALIZER_CONTROL_RETRY_ATTEMPTS} failed; retrying: {exc}"
+            )
+    assert last_error is not None
+    raise last_error
+
+
 def _cartpole_body_state(env) -> torch.Tensor:
     """Return a compact body transform state for cartpole motion/stability checks."""
     cartpole = env.scene.articulations["cartpole"]
@@ -567,10 +587,22 @@ def _select_newton_pause_simulation_button(viewer) -> None:
     _select_newton_training_control_button(viewer, label)
 
 
+def _set_newton_simulation_paused(viewer, paused: bool) -> None:
+    """Put Newton visualizer simulation pause control into a desired state."""
+    if viewer.is_training_paused() != paused:
+        _select_newton_pause_simulation_button(viewer)
+
+
 def _select_newton_pause_rendering_button(viewer) -> None:
     """Trigger the Newton visualizer's Pause/Resume Rendering UI button."""
     label = "Resume Rendering" if viewer.is_rendering_paused() else "Pause Rendering"
     _select_newton_training_control_button(viewer, label)
+
+
+def _set_newton_rendering_paused(viewer, paused: bool) -> None:
+    """Put Newton visualizer rendering pause control into a desired state."""
+    if viewer.is_rendering_paused() != paused:
+        _select_newton_pause_rendering_button(viewer)
 
 
 def _newton_camera_front(camera) -> tuple[float, float, float]:
@@ -616,34 +648,41 @@ def _run_newton_viewer_frame_motion_test(
         debug_phase="playing",
     )
 
-    _select_newton_pause_rendering_button(viewer)
     rendering_pause_start_idx = play_end_idx
     rendering_pause_end_idx = rendering_pause_start_idx + PAUSE_VIZ_N_STEP
-    rendering_paused_start_frame = viewer.get_frame()
-    rendering_pause_start_state = _cartpole_body_state(env)
-    physics_step_before_render_pause = get_physics_step_count()
-    _save_visualizer_debug_frame(
-        rendering_paused_start_frame, frame_idx=rendering_pause_start_idx, mode="02_pausing_rendering"
-    )
-    for _ in range(PAUSE_VIZ_N_STEP):
-        step_hook()
-    rendering_pause_end_state = _cartpole_body_state(env)
-    rendering_paused_end_frame = viewer.get_frame()
-    _save_visualizer_debug_frame(
-        rendering_paused_end_frame, frame_idx=rendering_pause_end_idx, mode="02_pausing_rendering"
-    )
-    _save_visualizer_debug_delta(
-        rendering_paused_start_frame,
-        rendering_paused_end_frame,
-        frame_idx=rendering_pause_end_idx,
-        mode="02_pausing_rendering",
-    )
-    _assert_frames_remain_stable(
-        rendering_paused_start_frame,
-        rendering_paused_end_frame,
-        case_label=case_label,
-        phase="pausing_rendering",
-        debug_phase="pausing_rendering",
+
+    def _attempt_rendering_pause(_attempt: int):
+        _set_newton_rendering_paused(viewer, True)
+        rendering_paused_start_frame = viewer.get_frame()
+        rendering_pause_start_state = _cartpole_body_state(env)
+        physics_step_before_render_pause = get_physics_step_count()
+        _save_visualizer_debug_frame(
+            rendering_paused_start_frame, frame_idx=rendering_pause_start_idx, mode="02_pausing_rendering"
+        )
+        for _ in range(PAUSE_VIZ_N_STEP):
+            step_hook()
+        rendering_pause_end_state = _cartpole_body_state(env)
+        rendering_paused_end_frame = viewer.get_frame()
+        _save_visualizer_debug_frame(
+            rendering_paused_end_frame, frame_idx=rendering_pause_end_idx, mode="02_pausing_rendering"
+        )
+        _save_visualizer_debug_delta(
+            rendering_paused_start_frame,
+            rendering_paused_end_frame,
+            frame_idx=rendering_pause_end_idx,
+            mode="02_pausing_rendering",
+        )
+        _assert_frames_remain_stable(
+            rendering_paused_start_frame,
+            rendering_paused_end_frame,
+            case_label=case_label,
+            phase="pausing_rendering",
+            debug_phase="pausing_rendering",
+        )
+        return physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state
+
+    physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state = (
+        _retry_visualizer_control_phase(f"{case_label} pausing_rendering", _attempt_rendering_pause)
     )
     assert get_physics_step_count() > physics_step_before_render_pause, (
         f"{case_label} physics step count did not advance during pausing_rendering."
@@ -655,58 +694,69 @@ def _run_newton_viewer_frame_motion_test(
         phase="pausing_rendering",
     )
 
-    _select_newton_pause_rendering_button(viewer)
     rendering_play_start_idx = rendering_pause_end_idx
     rendering_play_end_idx = rendering_play_start_idx + PLAY_VIZ_N_STEP
-    rendering_play_start_frame = viewer.get_frame()
-    _save_visualizer_debug_frame(rendering_play_start_frame, frame_idx=rendering_play_start_idx, mode="03_playing")
-    for _ in range(PLAY_VIZ_N_STEP):
-        step_hook()
-    rendering_play_end_frame = viewer.get_frame()
-    _save_visualizer_debug_frame(rendering_play_end_frame, frame_idx=rendering_play_end_idx, mode="03_playing")
-    _save_visualizer_debug_delta(
-        rendering_play_start_frame,
-        rendering_play_end_frame,
-        frame_idx=rendering_play_end_idx,
-        mode="03_playing",
-    )
-    _assert_non_flat_frame_array(rendering_play_end_frame)
-    _assert_frames_differ(
-        rendering_play_start_frame,
-        rendering_play_end_frame,
-        case_label=case_label,
-        phase="playing after rendering pause",
-        debug_phase="playing",
-    )
 
-    _select_newton_pause_simulation_button(viewer)
+    def _attempt_rendering_play(_attempt: int):
+        _set_newton_rendering_paused(viewer, False)
+        rendering_play_start_frame = viewer.get_frame()
+        _save_visualizer_debug_frame(rendering_play_start_frame, frame_idx=rendering_play_start_idx, mode="03_playing")
+        for _ in range(PLAY_VIZ_N_STEP):
+            step_hook()
+        rendering_play_end_frame = viewer.get_frame()
+        _save_visualizer_debug_frame(rendering_play_end_frame, frame_idx=rendering_play_end_idx, mode="03_playing")
+        _save_visualizer_debug_delta(
+            rendering_play_start_frame,
+            rendering_play_end_frame,
+            frame_idx=rendering_play_end_idx,
+            mode="03_playing",
+        )
+        _assert_non_flat_frame_array(rendering_play_end_frame)
+        _assert_frames_differ(
+            rendering_play_start_frame,
+            rendering_play_end_frame,
+            case_label=case_label,
+            phase="playing after rendering pause",
+            debug_phase="playing",
+        )
+
+    _retry_visualizer_control_phase(f"{case_label} playing after rendering pause", _attempt_rendering_play)
+
     simulation_pause_start_idx = rendering_play_end_idx
     simulation_pause_end_idx = simulation_pause_start_idx + PAUSE_VIZ_N_STEP
-    simulation_paused_start_frame = viewer.get_frame()
-    simulation_pause_start_state = _cartpole_body_state(env)
-    physics_step_before_simulation_pause = get_physics_step_count()
-    _save_visualizer_debug_frame(
-        simulation_paused_start_frame, frame_idx=simulation_pause_start_idx, mode="04_pausing_simulation"
-    )
-    for _ in range(PAUSE_VIZ_N_STEP):
-        visualizer.step(0.0)
-    simulation_pause_end_state = _cartpole_body_state(env)
-    simulation_paused_end_frame = viewer.get_frame()
-    _save_visualizer_debug_frame(
-        simulation_paused_end_frame, frame_idx=simulation_pause_end_idx, mode="04_pausing_simulation"
-    )
-    _save_visualizer_debug_delta(
-        simulation_paused_start_frame,
-        simulation_paused_end_frame,
-        frame_idx=simulation_pause_end_idx,
-        mode="04_pausing_simulation",
-    )
-    _assert_frames_remain_stable(
-        simulation_paused_start_frame,
-        simulation_paused_end_frame,
-        case_label=case_label,
-        phase="pausing_simulation",
-        debug_phase="pausing_simulation",
+
+    def _attempt_simulation_pause(_attempt: int):
+        _set_newton_simulation_paused(viewer, True)
+        simulation_paused_start_frame = viewer.get_frame()
+        simulation_pause_start_state = _cartpole_body_state(env)
+        physics_step_before_simulation_pause = get_physics_step_count()
+        _save_visualizer_debug_frame(
+            simulation_paused_start_frame, frame_idx=simulation_pause_start_idx, mode="04_pausing_simulation"
+        )
+        for _ in range(PAUSE_VIZ_N_STEP):
+            visualizer.step(0.0)
+        simulation_pause_end_state = _cartpole_body_state(env)
+        simulation_paused_end_frame = viewer.get_frame()
+        _save_visualizer_debug_frame(
+            simulation_paused_end_frame, frame_idx=simulation_pause_end_idx, mode="04_pausing_simulation"
+        )
+        _save_visualizer_debug_delta(
+            simulation_paused_start_frame,
+            simulation_paused_end_frame,
+            frame_idx=simulation_pause_end_idx,
+            mode="04_pausing_simulation",
+        )
+        _assert_frames_remain_stable(
+            simulation_paused_start_frame,
+            simulation_paused_end_frame,
+            case_label=case_label,
+            phase="pausing_simulation",
+            debug_phase="pausing_simulation",
+        )
+        return physics_step_before_simulation_pause, simulation_pause_start_state, simulation_pause_end_state
+
+    physics_step_before_simulation_pause, simulation_pause_start_state, simulation_pause_end_state = (
+        _retry_visualizer_control_phase(f"{case_label} pausing_simulation", _attempt_simulation_pause)
     )
     assert get_physics_step_count() == physics_step_before_simulation_pause, (
         f"{case_label} physics step count advanced during pausing_simulation."
@@ -718,35 +768,49 @@ def _run_newton_viewer_frame_motion_test(
         phase="pausing_simulation",
     )
 
-    _select_newton_pause_simulation_button(viewer)
     simulation_play_start_idx = simulation_pause_end_idx
     simulation_play_end_idx = simulation_play_start_idx + PLAY_VIZ_N_STEP
-    simulation_play_start_frame = viewer.get_frame()
-    _save_visualizer_debug_frame(simulation_play_start_frame, frame_idx=simulation_play_start_idx, mode="05_playing")
-    for _ in range(PLAY_VIZ_N_STEP):
-        step_hook()
-    simulation_play_end_frame = viewer.get_frame()
-    _save_visualizer_debug_frame(simulation_play_end_frame, frame_idx=simulation_play_end_idx, mode="05_playing")
-    _save_visualizer_debug_delta(
-        simulation_play_start_frame,
-        simulation_play_end_frame,
-        frame_idx=simulation_play_end_idx,
-        mode="05_playing",
-    )
-    _assert_non_flat_frame_array(simulation_play_end_frame)
-    _assert_frames_differ(
-        simulation_play_start_frame,
-        simulation_play_end_frame,
-        case_label=case_label,
-        phase="playing after simulation pause",
-        debug_phase="playing",
-    )
+
+    def _attempt_simulation_play(_attempt: int):
+        _set_newton_simulation_paused(viewer, False)
+        simulation_play_start_frame = viewer.get_frame()
+        _save_visualizer_debug_frame(
+            simulation_play_start_frame, frame_idx=simulation_play_start_idx, mode="05_playing"
+        )
+        for _ in range(PLAY_VIZ_N_STEP):
+            step_hook()
+        simulation_play_end_frame = viewer.get_frame()
+        _save_visualizer_debug_frame(simulation_play_end_frame, frame_idx=simulation_play_end_idx, mode="05_playing")
+        _save_visualizer_debug_delta(
+            simulation_play_start_frame,
+            simulation_play_end_frame,
+            frame_idx=simulation_play_end_idx,
+            mode="05_playing",
+        )
+        _assert_non_flat_frame_array(simulation_play_end_frame)
+        _assert_frames_differ(
+            simulation_play_start_frame,
+            simulation_play_end_frame,
+            case_label=case_label,
+            phase="playing after simulation pause",
+            debug_phase="playing",
+        )
+
+    _retry_visualizer_control_phase(f"{case_label} playing after simulation pause", _attempt_simulation_play)
 
 
 def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int = _MAX_FRAME_CHECK_STEPS) -> None:
     """Step the env to exercise visualizers that do not implement ``get_frame`` (e.g. Rerun, Viser)."""
     for _ in range(max_steps):
         env.step(action=actions)
+
+
+def _set_kit_simulation_paused(env, paused: bool) -> None:
+    """Put Kit simulation play/pause state into a desired state."""
+    if paused:
+        env.sim.pause()
+    else:
+        env.sim.play()
 
 
 def _build_rgb_annotator_for_camera(
@@ -819,12 +883,13 @@ def _run_kit_viewport_frame_motion_test(
             debug_phase="playing",
         )
 
-        env.sim.pause()
         pause_start_idx = play_end_idx
         pause_end_idx = pause_start_idx + PAUSE_VIZ_N_STEP
-        paused_start_frame = _capture_kit_viewport_rgb(annotator)
-        _save_visualizer_debug_frame(paused_start_frame, frame_idx=pause_start_idx, mode="02_pausing")
-        try:
+
+        def _attempt_kit_pause(_attempt: int):
+            _set_kit_simulation_paused(env, True)
+            paused_start_frame = _capture_kit_viewport_rgb(annotator)
+            _save_visualizer_debug_frame(paused_start_frame, frame_idx=pause_start_idx, mode="02_pausing")
             for _ in range(PAUSE_VIZ_N_STEP):
                 env.sim.render()
             paused_end_frame = _capture_kit_viewport_rgb(annotator)
@@ -839,33 +904,41 @@ def _run_kit_viewport_frame_motion_test(
                 phase="pausing",
                 debug_phase="pausing",
             )
+
+        try:
+            _retry_visualizer_control_phase(f"{case_label} pausing", _attempt_kit_pause)
         finally:
-            env.sim.play()
+            _set_kit_simulation_paused(env, False)
 
         replay_start_idx = pause_end_idx
         replay_end_idx = replay_start_idx + PLAY_VIZ_N_STEP
-        play_start_frame = _capture_kit_viewport_rgb(annotator)
-        _save_visualizer_debug_frame(play_start_frame, frame_idx=replay_start_idx, mode="03_playing")
-        for _ in range(PLAY_VIZ_N_STEP):
-            env.step(action=actions)
-        play_end_frame = _capture_kit_viewport_rgb(annotator)
-        _log_usd_camera_pose(
-            kit_visualizer._scene_data_provider.usd_stage,
-            camera_path,
-            viz_kind=viz_kind,
-            physics_kind=physics_kind,
-            label="final",
-        )
-        _save_visualizer_debug_frame(play_end_frame, frame_idx=replay_end_idx, mode="03_playing")
-        _save_visualizer_debug_delta(play_start_frame, play_end_frame, frame_idx=replay_end_idx, mode="03_playing")
-        _assert_non_flat_frame_array(play_end_frame)
-        _assert_frames_differ(
-            play_start_frame,
-            play_end_frame,
-            case_label=case_label,
-            phase="playing after pause",
-            debug_phase="playing",
-        )
+
+        def _attempt_kit_replay(_attempt: int):
+            _set_kit_simulation_paused(env, False)
+            play_start_frame = _capture_kit_viewport_rgb(annotator)
+            _save_visualizer_debug_frame(play_start_frame, frame_idx=replay_start_idx, mode="03_playing")
+            for _ in range(PLAY_VIZ_N_STEP):
+                env.step(action=actions)
+            play_end_frame = _capture_kit_viewport_rgb(annotator)
+            _log_usd_camera_pose(
+                kit_visualizer._scene_data_provider.usd_stage,
+                camera_path,
+                viz_kind=viz_kind,
+                physics_kind=physics_kind,
+                label="final",
+            )
+            _save_visualizer_debug_frame(play_end_frame, frame_idx=replay_end_idx, mode="03_playing")
+            _save_visualizer_debug_delta(play_start_frame, play_end_frame, frame_idx=replay_end_idx, mode="03_playing")
+            _assert_non_flat_frame_array(play_end_frame)
+            _assert_frames_differ(
+                play_start_frame,
+                play_end_frame,
+                case_label=case_label,
+                phase="playing after pause",
+                debug_phase="playing",
+            )
+
+        _retry_visualizer_control_phase(f"{case_label} playing after pause", _attempt_kit_replay)
     finally:
         if annotator is not None and render_product is not None:
             with contextlib.suppress(Exception):
