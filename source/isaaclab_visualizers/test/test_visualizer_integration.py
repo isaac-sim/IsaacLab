@@ -490,8 +490,6 @@ def _assert_frames_differ(
     assert n_diff >= min_differing_pixels, (
         f"{case_label} is frozen during {phase}: {n_diff} pixels differed, expected at least "
         f"{min_differing_pixels} with per-channel threshold {channel_diff_threshold} in 0-255 space. "
-        f"Frame shape={_frame_shape_for_message(frame_a)}. "
-        f"Debug frames: {_current_visualizer_debug_dir()}/*{debug_phase}*.png."
     )
 
 
