@@ -8,6 +8,7 @@ __all__ = [
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
     "activate_contact_sensors",
+    "define_actuator_properties",
     "define_articulation_root_properties",
     "define_collision_properties",
     "define_mass_properties",
@@ -57,6 +58,9 @@ from .schemas import (
     modify_mesh_collision_properties,
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
+)
+from .schemas_actuators import (
+    define_actuator_properties,
 )
 from .schemas_cfg import (
     ArticulationRootBaseCfg,

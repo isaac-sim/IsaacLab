@@ -288,6 +288,22 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
+    use_newton_actuators: bool = False
+    """Use Newton-native actuators instead of IsaacLab explicit actuator models.
+
+    When ``True``, explicit actuator configs (e.g. :class:`IdealPDActuatorCfg`,
+    :class:`DCMotorCfg`) are translated into ``NewtonActuator`` USD prims and
+    stepped by the physics engine.  The Lab config values (stiffness, damping,
+    effort_limit, etc.) take precedence: for every joint covered by a Lab
+    actuator config, any existing ``NewtonActuator`` prim targeting that joint
+    is replaced by one synthesised from the config.  Joints that are *not*
+    covered by a Lab config keep their USD-authored actuators (if any).
+
+    :class:`ImplicitActuatorCfg` entries are still instantiated normally and
+    their gains are written to the simulation, so joints that use implicit
+    actuation continue to work as expected.
+    """
+
     physics: PhysicsCfg | None = None
     """Physics manager configuration. Default is None (uses PhysxCfg()).
 
