@@ -480,10 +480,13 @@ def _compute_fps_stats(samples_ms: list[float]) -> dict:
     n = len(samples_ms)
     if n == 0:
         return {"mean": None, "min_instantaneous": None, "max_instantaneous": None}
+    sample_mean_ms = statistics.fmean(samples_ms)
+    sample_max_ms = max(samples_ms)
+    sample_min_ms = min(samples_ms)
     return {
-        "mean": 1000.0 / statistics.fmean(samples_ms),
-        "min_instantaneous": 1000.0 / max(samples_ms),
-        "max_instantaneous": 1000.0 / min(samples_ms),
+        "mean": 1000.0 / sample_mean_ms if sample_mean_ms > 0 else None,
+        "min_instantaneous": 1000.0 / sample_max_ms if sample_max_ms > 0 else None,
+        "max_instantaneous": 1000.0 / sample_min_ms if sample_min_ms > 0 else None,
     }
 
 
@@ -1350,13 +1353,14 @@ def main() -> int:
         )
 
         env_cfg, success_term = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
-        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
         if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
             raise ValueError(
                 f"Task '{args_cli.task}' does not configure an IsaacTeleop pipeline. "
                 "MCAP replay requires env_cfg.isaac_teleop to be set."
             )
+
+        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
         for run_idx in range(args_cli.num_replays):
             run_stats = _run_single_replay(

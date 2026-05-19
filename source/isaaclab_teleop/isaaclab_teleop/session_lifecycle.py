@@ -611,6 +611,7 @@ class TeleopSessionLifecycle:
             pipeline=self._pipeline,
             teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
+            retargeting_execution=self._cfg.retargeting_execution,
             mode=SessionMode.REPLAY,
             mcap_config=mcap_config,
         )
