@@ -16,6 +16,7 @@ from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
@@ -382,6 +383,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
 
         self._state = NewtonManager.get_state(self._scene_data_provider)
+        num_envs = NewtonManager.get_num_envs()
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
@@ -390,13 +392,18 @@ class NewtonVisualizer(BaseVisualizer):
         try:
             if not self._viewer.is_paused():
                 self._viewer.begin_frame(self._sim_time)
-                if self._state is not None:
-                    body_q = getattr(self._state, "body_q", None)
-                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                        self._viewer.end_frame()
-                        return
-                    self._viewer.log_state(self._state)
-                self._viewer.end_frame()
+                try:
+                    if self._state is not None:
+                        body_q = getattr(self._state, "body_q", None)
+                        if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                            return
+                        self._viewer.log_state(self._state)
+                        if self.cfg.enable_markers:
+                            render_newton_visualization_markers(
+                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                            )
+                finally:
+                    self._viewer.end_frame()
             else:
                 self._viewer._update()
         except Exception as exc:
