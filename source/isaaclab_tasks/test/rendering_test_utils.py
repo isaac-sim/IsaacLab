@@ -70,7 +70,7 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 
 # Low-resolution camera outputs from RTX renderers are not deterministic enough to pass golden image testing
 # on every CI run. (NVBUG#6152566)
-_FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
+_FLAKY_MARK = []  # pytest.mark.flaky(max_runs=3, min_passes=1)
 
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
