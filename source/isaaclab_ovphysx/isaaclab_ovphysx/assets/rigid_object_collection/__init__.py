@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .xcr_replay import XcrReplayConfig, start_xcr_replay
+"""Sub-module for ovphysx-backed rigid object collection assets."""
 
-__all__ = ["XcrReplayConfig", "start_xcr_replay"]
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

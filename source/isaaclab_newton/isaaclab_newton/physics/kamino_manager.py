@@ -101,11 +101,11 @@ class NewtonKaminoManager(NewtonManager):
         # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
             wp.capture_launch(cls._graph)
-            if cls._usdrt_stage is not None:
-                cls._mark_transforms_dirty()
         else:
             with wp.ScopedDevice(device):
-                cls._simulate()
+                cls._simulate_physics_only()
+        if cls._usdrt_stage is not None:
+            cls._mark_transforms_dirty()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -138,7 +138,7 @@ class NewtonKaminoManager(NewtonManager):
             if cls._usdrt_stage is None:
                 # No RTX active — use standard Warp capture (cudaStreamCaptureModeGlobal).
                 with wp.ScopedCapture() as capture:
-                    cls._simulate()
+                    cls._simulate_physics_only()
                 NewtonManager._graph = capture.graph
                 logger.info("Newton CUDA graph captured (standard Warp mode)")
 

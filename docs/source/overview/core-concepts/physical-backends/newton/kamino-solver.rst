@@ -1,7 +1,7 @@
-.. _newton-using-kamino:
+.. _newton-kamino-solver:
 
-Using the Kamino Solver
-=======================
+Kamino Solver
+=============
 
 Kamino is a Newton solver, not a separate Isaac Lab physics backend. In Isaac Lab,
 Kamino is enabled by selecting a :class:`~isaaclab_newton.physics.NewtonCfg` whose
@@ -49,7 +49,7 @@ solver config types used by the presets:
 Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, and
 ``newton_mjwarp`` entries:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env_cfg.py
     :language: python
     :start-at: class CartpolePhysicsCfg
     :end-at: ovphysx: OvPhysxCfg = OvPhysxCfg()

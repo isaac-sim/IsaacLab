@@ -245,6 +245,36 @@ class OvPhysxManager(PhysicsManager):
         """
         cls._pending_clones.append((source, targets, parent_positions or []))
 
+    _physx_schemas_registered: ClassVar[bool] = False
+
+    @classmethod
+    def _ensure_physx_schemas_registered(cls) -> None:
+        """Register the ``PhysxSchema`` USD plugin shipped with the ovphysx wheel.
+
+        In Kit-based runs ``omni.physx`` registers the schema; in kitless
+        runs it must be registered manually before the wheel can match
+        ``PhysxContactReportAPI`` and friends on the stage.  The wheel
+        bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
+        method is idempotent — :meth:`pxr.Plug.Registry.RegisterPlugins`
+        is a no-op once the plugin is registered.
+        """
+        if cls._physx_schemas_registered:
+            return
+        try:
+            import os  # noqa: PLC0415
+
+            import ovphysx  # noqa: PLC0415
+
+            from pxr import Plug  # noqa: PLC0415
+        except Exception:
+            return
+        plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
+        for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
+            path = os.path.join(plugin_root, sub)
+            if os.path.isdir(path):
+                Plug.Registry().RegisterPlugins(path)
+        cls._physx_schemas_registered = True
+
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
@@ -262,6 +292,7 @@ class OvPhysxManager(PhysicsManager):
         instance is bound to.
         """
         super().initialize(sim_context)
+        cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
         cls._usd_handle = None
         cls._stage_path = None
