@@ -837,6 +837,13 @@ def _annotator_rgb_to_numpy(rgb_data) -> np.ndarray:
     return rgb_array[:, :, :3]
 
 
+def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
+    """Re-apply Kit camera pose after Newton MJWarp stage/render-product setup settles."""
+    kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
+    env.sim.render()
+    simulation_app.update()
+
+
 def _run_kit_viewport_frame_motion_test(
     env,
     kit_visualizer: KitVisualizer,
@@ -863,6 +870,9 @@ def _run_kit_viewport_frame_motion_test(
     render_product = None
     try:
         annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
+        # TODO: Remove this workaround step during the Visualizer class refactor 
+        if viz_kind == "kit" and physics_kind == "newton":
+            _reapply_kit_camera_pose(env, kit_visualizer)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
         for _ in range(_START_BUFFER_STEPS):
             env.step(action=actions)
