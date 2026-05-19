@@ -204,9 +204,11 @@ def apply_cable_attachments_to_builder(
        column at hook time). If no match is found, raise :class:`ValueError`
        with the searched path and the available body labels for that world.
     3. Build the parent-frame transform from
-       ``(attachment.local_pos, attachment.local_quat)``, converting the
-       ``(w, x, y, z)`` cfg quaternion into the ``(x, y, z, w)`` form Newton's
-       ``wp.transform`` expects.
+       ``(attachment.cable_local_pos, attachment.cable_local_quat)`` and the
+       child-frame transform from
+       ``(attachment.target_local_pos, attachment.target_local_quat)``,
+       converting the ``(w, x, y, z)`` cfg quaternions into the
+       ``(x, y, z, w)`` form Newton's ``wp.transform`` expects.
     4. Call :meth:`newton.ModelBuilder.add_joint_fixed` with the resolved
        indices and transforms.
     5. Call :meth:`newton.ModelBuilder.add_shape_collision_filter_pair` for
@@ -225,6 +227,14 @@ def apply_cable_attachments_to_builder(
     pending = getattr(SimulationManager, "_pending_cable_attachments", None)
     if not pending:
         return
+
+    # configclass quat is (w, x, y, z); wp.transform expects (x, y, z, w).
+    def _to_wp_xform(pos, quat_wxyz):
+        w, x, y, z = quat_wxyz
+        return wp.transform(
+            (float(pos[0]), float(pos[1]), float(pos[2])),
+            (float(x), float(y), float(z), float(w)),
+        )
 
     for cable_idx, attachment in pending:
         entry = SimulationManager._cable_registry[cable_idx]
@@ -247,18 +257,14 @@ def apply_cable_attachments_to_builder(
                 f"did not match any body_label in world {world_idx}. Available body labels: {available}."
             ) from None
 
-        # configclass quat is (w, x, y, z); wp.transform expects (x, y, z, w).
-        w, x, y, z = attachment.local_quat
-        parent_xform = wp.transform(
-            (float(attachment.local_pos[0]), float(attachment.local_pos[1]), float(attachment.local_pos[2])),
-            (float(x), float(y), float(z), float(w)),
-        )
+        parent_xform = _to_wp_xform(attachment.cable_local_pos, attachment.cable_local_quat)
+        child_xform = _to_wp_xform(attachment.target_local_pos, attachment.target_local_quat)
 
         builder.add_joint_fixed(
             parent=cable_body_idx,
             child=target_body_idx,
             parent_xform=parent_xform,
-            child_xform=wp.transform_identity(),
+            child_xform=child_xform,
             label=f"{entry.prim_path}/attachment_{attachment.cable_anchor}_{world_idx}",
             collision_filter_parent=True,
         )

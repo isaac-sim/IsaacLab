@@ -28,18 +28,24 @@ def test_cable_attachment_cfg_defaults_and_types():
     cfg = CableAttachmentCfg(target_prim_path="/World/Plug001", cable_anchor="tail")
     assert cfg.target_prim_path == "/World/Plug001"
     assert cfg.cable_anchor == "tail"
-    assert cfg.local_pos == (0.0, 0.0, 0.0)
-    assert cfg.local_quat == (1.0, 0.0, 0.0, 0.0)
+    assert cfg.cable_local_pos == (0.0, 0.0, 0.0)
+    assert cfg.cable_local_quat == (1.0, 0.0, 0.0, 0.0)
+    assert cfg.target_local_pos == (0.0, 0.0, 0.0)
+    assert cfg.target_local_quat == (1.0, 0.0, 0.0, 0.0)
 
     cfg2 = CableAttachmentCfg(
         target_prim_path="/Foo",
         cable_anchor="head",
-        local_pos=(1.0, 2.0, 3.0),
-        local_quat=(0.5, 0.5, 0.5, 0.5),
+        cable_local_pos=(1.0, 2.0, 3.0),
+        cable_local_quat=(0.5, 0.5, 0.5, 0.5),
+        target_local_pos=(4.0, 5.0, 6.0),
+        target_local_quat=(0.7071, 0.7071, 0.0, 0.0),
     )
     assert cfg2.cable_anchor == "head"
-    assert cfg2.local_pos == (1.0, 2.0, 3.0)
-    assert cfg2.local_quat == (0.5, 0.5, 0.5, 0.5)
+    assert cfg2.cable_local_pos == (1.0, 2.0, 3.0)
+    assert cfg2.cable_local_quat == (0.5, 0.5, 0.5, 0.5)
+    assert cfg2.target_local_pos == (4.0, 5.0, 6.0)
+    assert cfg2.target_local_quat == (0.7071, 0.7071, 0.0, 0.0)
 
 
 def test_cable_object_cfg_attachments_field_default_empty():
@@ -325,8 +331,8 @@ def _build_cable_plug_scene(
             CableAttachmentCfg(
                 target_prim_path="/World/Plug",  # may need adjustment - see notes
                 cable_anchor=cable_anchor,
-                local_pos=(0.0, 0.0, 0.0),
-                local_quat=(1.0, 0.0, 0.0, 0.0),
+                cable_local_pos=(0.0, 0.0, 0.0),
+                cable_local_quat=(1.0, 0.0, 0.0, 0.0),
             ),
         ],
     )

@@ -6,6 +6,7 @@
 """Configuration for the cable asset class."""
 
 from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import Literal
 
@@ -45,11 +46,37 @@ class CableAttachmentCfg:
     cable's registry entry at :meth:`newton.ModelBuilder.add_rod_graph` time.
     """
 
-    local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Joint anchor position [m] in the target body's local frame."""
+    cable_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Joint anchor position [m] in the cable end-segment's local frame.
 
-    local_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """Joint anchor orientation as quaternion ``(w, x, y, z)`` in the target body's local frame."""
+    Becomes the ``parent_xform`` translation passed to
+    :meth:`newton.ModelBuilder.add_joint_fixed`.
+    """
+
+    cable_local_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    """Joint anchor orientation as quaternion ``(w, x, y, z)`` in the cable
+    end-segment's local frame.
+
+    Becomes the ``parent_xform`` rotation passed to
+    :meth:`newton.ModelBuilder.add_joint_fixed`.
+    """
+
+    target_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Joint anchor position [m] in the target body's local frame.
+
+    Becomes the ``child_xform`` translation passed to
+    :meth:`newton.ModelBuilder.add_joint_fixed`. Use this to encode an offset
+    baked on the target asset (e.g., the cable attachment point on a plug
+    relative to the plug's rigid-body origin).
+    """
+
+    target_local_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    """Joint anchor orientation as quaternion ``(w, x, y, z)`` in the target
+    body's local frame.
+
+    Becomes the ``child_xform`` rotation passed to
+    :meth:`newton.ModelBuilder.add_joint_fixed`.
+    """
 
 
 @configclass
