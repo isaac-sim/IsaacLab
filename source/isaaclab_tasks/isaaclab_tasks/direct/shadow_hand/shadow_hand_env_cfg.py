@@ -134,7 +134,7 @@ class PhysxEventCfg:
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
     newton_mjwarp = NewtonEventCfg()
-    default = newton_mjwarp
+    default = physx
 
 
 @configclass
@@ -163,14 +163,13 @@ class ShadowHandRobotCfg(PresetCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            # pos=(-0.33, -0.36, 0.3),
             # WARNING(Octi): Newton's import_usd.py bakes the USD body xformOp rotation into
             # joint_X_p for the root fixed joint, which cancels with the matching localPose1
             # rotation in joint_X_c during FK (joint_X_p * inv(joint_X_c) ≈ identity). This
             # discards the root body's native USD orientation, so we must re-apply it here as a
             # spawn rotation. PhysX or USD does not have this issue. Remove once Newton fixes root joint
             # transform handling in import_usd.py.
-            rot=(0.0, 0.0, 0.0, 1.0),
+            rot=(0.0, 0.0, -0.70710678118, 0.70710678118),
             joint_pos={".*": 0.0},
         ),
         actuators={
@@ -207,7 +206,7 @@ class ShadowHandRobotCfg(PresetCfg):
         },
         soft_joint_pos_limit_factor=1.0,
     )
-    default = newton_mjwarp
+    default = physx
 
 
 @configclass
@@ -241,12 +240,12 @@ class ObjectCfg(PresetCfg):
             scale=(0.9, 0.9, 0.9),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.3, 0.0, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
+            pos=(0.0, -0.36, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
         ),
         actuators={},
         articulation_root_prim_path="",
     )
-    default = newton_mjwarp
+    default = physx
 
 
 @configclass
@@ -263,7 +262,7 @@ class ShadowHandSceneCfg(PresetCfg):
     newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
-    default: InteractiveSceneCfg = newton_mjwarp
+    default: InteractiveSceneCfg = physx
 
 
 @configclass
@@ -287,7 +286,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    default = newton_mjwarp
+    default = physx
 
 
 @configclass
