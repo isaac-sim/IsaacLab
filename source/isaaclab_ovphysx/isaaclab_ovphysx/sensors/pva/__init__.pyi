@@ -4,12 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "ContactSensor",
-    "ContactSensorCfg",
-    "ContactSensorData",
     "Pva",
     "PvaData",
 ]
 
-from .contact_sensor import ContactSensor, ContactSensorCfg, ContactSensorData
-from .pva import Pva, PvaData
+from .pva import Pva
+from .pva_data import PvaData
