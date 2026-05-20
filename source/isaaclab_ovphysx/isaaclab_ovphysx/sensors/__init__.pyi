@@ -7,6 +7,9 @@ __all__ = [
     "ContactSensor",
     "ContactSensorCfg",
     "ContactSensorData",
+    "Imu",
+    "ImuData",
 ]
 
 from .contact_sensor import ContactSensor, ContactSensorCfg, ContactSensorData
+from .imu import Imu, ImuData

@@ -1,0 +1,67 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import warp as wp
+
+
+@wp.kernel
+def imu_update_kernel(
+    # indexing
+    env_mask: wp.array(dtype=wp.bool),
+    # OVPhysX binding data
+    transforms: wp.array(dtype=wp.transformf),
+    velocities: wp.array(dtype=wp.spatial_vectorf),
+    coms: wp.array(dtype=wp.transformf),
+    # sensor config (per-env)
+    offset_pos_b: wp.array(dtype=wp.vec3f),
+    offset_quat_b: wp.array(dtype=wp.quatf),
+    gravity_bias_w: wp.array(dtype=wp.vec3f),
+    # previous velocities (read + write)
+    prev_lin_vel_w: wp.array(dtype=wp.vec3f),
+    # scalar
+    inv_dt: wp.float32,
+    # outputs (written in-place)
+    out_ang_vel_b: wp.array(dtype=wp.vec3f),
+    out_lin_acc_b: wp.array(dtype=wp.vec3f),
+):
+    idx = wp.tid()
+    if not env_mask[idx]:
+        return
+
+    body_quat = wp.transform_get_rotation(transforms[idx])
+    sensor_quat = body_quat * offset_quat_b[idx]
+
+    lin_vel_w = wp.spatial_top(velocities[idx])
+    ang_vel_w = wp.spatial_bottom(velocities[idx])
+
+    com_pos_b = wp.transform_get_translation(coms[idx])
+    lever_arm = wp.quat_rotate(body_quat, offset_pos_b[idx] - com_pos_b)
+    lin_vel_w = lin_vel_w + wp.cross(ang_vel_w, lever_arm)
+
+    lin_acc_w = (lin_vel_w - prev_lin_vel_w[idx]) * inv_dt + gravity_bias_w[idx]
+
+    ang_vel_b = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
+    lin_acc_b = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
+
+    out_ang_vel_b[idx] = ang_vel_b
+    out_lin_acc_b[idx] = lin_acc_b
+
+    prev_lin_vel_w[idx] = lin_vel_w
+
+
+@wp.kernel
+def imu_reset_kernel(
+    env_mask: wp.array(dtype=wp.bool),
+    out_ang_vel_b: wp.array(dtype=wp.vec3f),
+    out_lin_acc_b: wp.array(dtype=wp.vec3f),
+    prev_lin_vel_w: wp.array(dtype=wp.vec3f),
+):
+    idx = wp.tid()
+    if not env_mask[idx]:
+        return
+
+    out_ang_vel_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
+    out_lin_acc_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
+    prev_lin_vel_w[idx] = wp.vec3f(0.0, 0.0, 0.0)
