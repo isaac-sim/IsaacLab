@@ -1795,15 +1795,15 @@ class NewtonManager(PhysicsManager):
         coordinate the sync explicitly.
         """
 
+        if scene_data_provider is None:
+            scene_data_provider = cls.get_scene_data_provider()
+        if scene_data_provider is None:
+            return
+
         if cls._backend_is_newton(scene_data_provider):
             return
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
-            return
-
-        if scene_data_provider is None:
-            scene_data_provider = cls.get_scene_data_provider()
-        if scene_data_provider is None:
             return
 
         if cls._scene_data is None:
