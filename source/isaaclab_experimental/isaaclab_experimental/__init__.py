@@ -5,6 +5,7 @@
 
 """Package containing the core framework."""
 
+import importlib
 import os
 import toml
 from enum import IntEnum
@@ -18,3 +19,17 @@ ISAACLAB_EXPERIMENTAL_METADATA = toml.load(os.path.join(ISAACLAB_EXPERIMENTAL_EX
 
 # Configure the module-level variables
 __version__ = ISAACLAB_EXPERIMENTAL_METADATA["package"]["version"]
+
+_SUBMODULES = frozenset({"envs", "managers", "utils"})
+
+
+def __getattr__(name: str):
+    if name in _SUBMODULES:
+        module = importlib.import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | _SUBMODULES)

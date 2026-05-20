@@ -9,13 +9,22 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
 # import RigidBodyMaterialCfg`` continue to work without importing ``isaaclab_physx`` at module
 # load time.
-_PHYSX_FORWARDS = frozenset({"RigidBodyMaterialCfg", "PhysxRigidBodyMaterialCfg"})
+_PHYSX_FORWARDS = frozenset(
+    {
+        "DeformableBodyMaterialCfg",
+        "RigidBodyMaterialCfg",
+        "SurfaceDeformableBodyMaterialCfg",
+        "PhysxRigidBodyMaterialCfg",
+        "PhysxDeformableBodyMaterialCfg",
+        "PhysxSurfaceDeformableBodyMaterialCfg",
+    }
+)
 
 
 def __getattr__(name):
@@ -27,7 +36,7 @@ def __getattr__(name):
                 f"'isaaclab.sim.spawners.materials.physics_materials_cfg.{name}' has moved to"
                 " 'isaaclab_physx.sim.spawners.materials.physics_materials_cfg'. Install the"
                 " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
-                " for removal in 5.0."
+                " for removal in 4.0."
             ) from e
         return getattr(_physx_mat_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")
@@ -78,3 +87,19 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
 
     restitution: float = 0.0
     """The restitution coefficient. Defaults to 0.0."""
+
+
+@configclass
+class DeformableBodyMaterialBaseCfg(PhysicsMaterialCfg):
+    """Base physics material parameters for volume deformable bodies.
+
+    Backend-specific subclasses provide the material fields and spawning function
+    through :attr:`func`.
+    """
+
+    func: Callable | str | None = None
+
+
+@configclass
+class SurfaceDeformableBodyMaterialBaseCfg(DeformableBodyMaterialBaseCfg):
+    """Base physics material parameters for surface deformable bodies."""

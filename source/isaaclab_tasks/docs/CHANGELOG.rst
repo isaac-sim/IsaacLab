@@ -1,6 +1,203 @@
 Changelog
 ---------
 
+1.10.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.preset_cli.enumerate_task_presets` public helper that
+  returns the available preset names for a registered task, bucketed by selector type
+  (``physics=``, ``renderer=``, ``presets=``). Used by tooling such as ``list_envs.py``.
+* Added ``--show_presets`` flag to ``scripts/environments/list_envs.py``. When set, a
+  **Presets** column is added to the environment table showing physics, renderer, and domain
+  preset names available for each environment.
+* Added ``Isaac-Assemble-Trocar-G129-Dex3-v0`` and ``Isaac-Assemble-Trocar-G129-Dex3-Eval-v0``
+  environments for RL fine-tuning of VLA models with RLinf.
+* Added ``ovphysx`` preset to ``isaaclab_tasks.manager_based.locomotion.velocity``
+  for use under the OVPhysX backend. ``AnymalDFlatPhysicsCfg`` now exposes
+  an ``ovphysx`` member, and the shared ``LocomotionVelocityRoughEnvCfg``
+  injects the OVPhysX :class:`~isaaclab_ovphysx.sensors.ContactSensorCfg`
+  alongside the existing PhysX and Newton entries so the velocity task
+  selects the right contact sensor backend when run with
+  ``presets=ovphysx``.
+* Added manager-based Franka soft-body lifting environment
+  ``Isaac-Lift-Soft-Franka-v0`` as the documented rigid-deformable coupling
+  task.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the lazy legacy ``teleop_devices`` (``handtracking`` / ``manusvive``)
+  accessor on
+  :class:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.PickPlaceGR1T2EnvCfg`.
+  The env still exposes ``isaac_teleop`` (an :class:`~isaaclab_teleop.IsaacTeleopCfg`), which is
+  what the in-tree teleoperation, recording, and replay scripts use by default. Consumers that
+  read ``env_cfg.teleop_devices`` directly to build a legacy
+  :class:`~isaaclab.devices.openxr.OpenXRDevice` should construct it themselves or migrate to
+  :class:`~isaaclab_teleop.IsaacTeleopDevice` (see ``scripts/environments/teleoperation/teleop_se3_agent.py``
+  for the migrated pattern).
+* Changed Franka soft-object task configs to use backend-specific deformable cfgs.
+  Use Newton deformable cfgs from :mod:`isaaclab_newton.sim` or PhysX deformable
+  cfgs from :mod:`isaaclab_physx.sim` when customizing these tasks.
+
+Fixed
+^^^^^
+
+* Fixed nested :class:`~isaaclab_tasks.utils.hydra.PresetCfg` resolution so
+  child preset choices are scoped to the selected parent branch.
+* Improved task config resolution time by bypassing Hydra composition when only
+  preset selections or plain scalar overrides are used.
+* Removed the stale file-level ``@pytest.mark.xfail`` decorator on
+  ``test_environments_newton`` (the cited Hydra deep-nesting issue was already
+  resolved by PR #5029 and follow-ups #5130 / #5177).
+
+
+1.9.0 (2026-05-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed DexSuite Kuka-Allegro camera RSL-RL PPO examples to use 8 mini-batches per update.
+* Changed the robot setup and mount configuration for the Flexiv reach policy
+  training environment with ROS inference.
+
+
+1.8.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ovphysx`` preset to ``Isaac-Repose-Cube-Allegro-Direct-v0``
+  (``ObjectCfg`` and ``PhysicsCfg`` in
+  :mod:`isaaclab_tasks.direct.allegro_hand.allegro_hand_env_cfg`), so the
+  task can be selected with ``presets=ovphysx`` against the OVPhysX
+  backend.  Exercises the OVPhysX :class:`~isaaclab_ovphysx.assets.Articulation`
+  (Allegro hand) and :class:`~isaaclab_ovphysx.assets.RigidObject` (cube)
+  in the same scene.
+* Added raycaster-camera depth presets (``raycaster_depth64``, ``raycaster_depth128``,
+  ``raycaster_depth256``) for both base and wrist views in the Dexsuite Kuka-Allegro
+  manipulation task, backed by
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`. Targets the table,
+  ground plane, manipulated object, and robot visuals.
+
+
+1.7.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`isaaclab_tasks.utils.preset_target.PresetTarget` -- closed enum
+  of typed preset categories (``PHYSICS``, ``RENDERER``, ``DOMAIN``).
+* Added :func:`isaaclab_tasks.utils.preset_cli.setup_preset_cli` -- a typed
+  selection layer over the ``presets=<csv>`` Hydra-decorator preset flow.
+  Recognizes three Hydra-style tokens (``physics=NAME``, ``renderer=NAME``,
+  ``presets=NAME[,...]``) and folds them into the existing token. When
+  ``--task=X`` is given alongside ``--help``, lists the
+  :class:`~isaaclab_tasks.utils.hydra.PresetCfg` variants present in the
+  task's env_cfg, bucketed by typed target.
+* Added :class:`~isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env.CartpoleCameraPresetsEnv`,
+  a subclass of :class:`~isaaclab_tasks.direct.cartpole.cartpole_camera_env.CartpoleCameraEnv` that
+  wires :class:`~isaaclab.utils.buffers.CircularBuffer` into the ``Isaac-Cartpole-Camera-Presets-Direct-v0``
+  task. ``frame_stack`` defaults to ``2`` for the Newton + Warp combo and ``1`` otherwise;
+  CLI overrides via ``env.frame_stack=N`` are respected.
+
+Changed
+^^^^^^^
+
+* Changed :mod:`isaaclab_tasks.utils.hydra` to source legacy preset aliases
+  from :meth:`~isaaclab_tasks.utils.preset_target.PresetTarget.all_legacy_aliases`
+  instead of a local literal dict.
+
+Fixed
+^^^^^
+
+* Fixed ``AttributeError: 'NoneType' object has no attribute 'shape'`` raised
+  when instantiating skrl PPO models for the ``Isaac-TrackPositionNoObstacles-ARL-Robot-1-*``
+  and ``Isaac-Navigation-3DObstacles-ARL-Robot-1-*`` tasks. The drone-ARL skrl
+  configs used ``input: STATES`` for both policy and value networks, which
+  skrl 2.0 resolves against ``state_space`` (``None`` for single-agent
+  environments). Updated the configs to use ``input: OBSERVATIONS`` to match
+  the rest of the single-agent skrl configs in IsaacLab.
+
+
+1.6.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton backend support for the multi-agent
+  ``Isaac-Shadow-Hand-Over-Direct-v0`` (MAPPO/IPPO) env. Mirrors the
+  single-agent Shadow Hand Newton port: per-hand
+  :class:`~isaaclab.actuators.ImplicitActuatorCfg`,
+  ``shadow_hand_instanceable_newton.usd``, per-backend
+  :class:`~isaaclab_tasks.utils.PresetCfg` wrappers for sim physics, the
+  hand-over object (``RigidObjectCfg`` on both backends, dropping
+  PhysX-only knobs on Newton), and the two robot configs. Selectable via
+  ``--preset newton`` / Hydra preset resolution; PhysX behavior unchanged.
+  Migration details (Newton-side actuator gain overrides for ``fingers``
+  and ``distal_passive``, and the ``ccd_iterations`` bump for multi-finger
+  contacts) live in
+  ``source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand_over/shadow_hand_over_env_cfg.py``.
+
+Changed
+^^^^^^^
+
+* Removed the ``self.sim.physics = PhysxCfg(...)`` overrides from
+  ``Isaac-Reach-Franka-{IK-Abs,IK-Rel,OSC}-v0`` env configs so they
+  inherit the parent ``ReachPhysicsCfg`` preset. Selecting
+  ``presets=newton`` now picks ``NewtonCfg``; the previous
+  ``bounce_threshold_velocity=0.2`` PhysX behavior is preserved as
+  the default in ``ReachPhysicsCfg``. Direct-workflow callers in
+  ``automate``, ``factory``, and the deploy MDP events module were
+  migrated to the new
+  :class:`~isaaclab.assets.BaseArticulationData` properties
+  (:attr:`body_link_jacobian_w`, :attr:`mass_matrix`).
+* Changed RSL-RL task agent configs to use ``actor`` and ``critic`` model
+  configs with distribution configs instead of deprecated ``policy`` configs.
+
+Fixed
+^^^^^
+
+* Fixed ``Isaac-Navigation-3DObstacles-ARL-Robot-1-v0`` config load
+  raising ``TypeError: only 0-dimensional arrays can be converted to
+  Python scalars`` under NumPy 2.0+. The wall-color sampling now
+  requests a scalar from :func:`numpy.random.randint` instead of a
+  shape-``(1,)`` array.
+* Fixed ``make current-docs`` failing to import
+  :mod:`isaaclab_mimic.datagen` because the ``assemble_trocar`` robot
+  config evaluated ``np.pi`` at module scope, which raised
+  ``TypeError`` under Sphinx's mocked ``numpy``. Switched the constant
+  factors to :data:`math.pi`.
+
+
+1.5.38 (2026-05-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton MJWarp physics preset support and mesh-based heterogeneous
+  object spawning for Dexsuite manipulation environments.
+
+
+1.5.37 (2026-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Assemble-Trocar-G129-Dex3-v0`` and
+  ``Isaac-Assemble-Trocar-G129-Dex3-Eval-v0`` manipulation tasks: a Unitree G1
+  29-DOF humanoid with Dex3 hands assembles a trocar from a tray, trained via
+  RL post-training of a VLA model using RLinf.
+
+
 1.5.36 (2026-05-09)
 ~~~~~~~~~~~~~~~~~~~
 

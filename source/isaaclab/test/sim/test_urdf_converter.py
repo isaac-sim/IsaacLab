@@ -25,7 +25,6 @@ import omni.kit.app
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
-from isaaclab.sim.converters.urdf_utils import merge_fixed_joints
 
 
 # Create a fixture for setup and teardown
@@ -79,7 +78,13 @@ def test_no_change(sim_config):
 @pytest.mark.isaacsim_ci
 def test_config_change(sim_config):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+
     sim, config = sim_config
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_config_change")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
     time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
@@ -87,7 +92,7 @@ def test_config_change(sim_config):
     new_config = config
     new_config.fix_base = not config.fix_base
     # define the usd directory
-    new_config.usd_dir = urdf_converter.usd_dir
+    new_config.usd_dir = output_dir
     # convert to usd but this time in the same directory as previous step
     new_urdf_converter = UrdfConverter(new_config)
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
@@ -184,6 +189,8 @@ def test_merge_fixed_joints_xml():
         manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
     extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
     extension_path = manager.get_extension_path(extension_id)
+
+    from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
 
     urdf_path = os.path.join(extension_path, "data", "urdf", "tests", "test_merge_joints.urdf")
 
@@ -359,7 +366,12 @@ def test_no_collision_from_visuals(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_self_collision(sim_config):
-    """Verify that self_collision=True enables self-collision on the articulation."""
+    """Verify that ``self_collision=True`` enables self-collision on the Newton articulation root.
+
+    The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
+    attribute on prims tagged as articulation roots (``UsdPhysics.ArticulationRootAPI``,
+    ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
+    """
     sim, config = sim_config
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "urdf_self_collision")
@@ -370,21 +382,29 @@ def test_self_collision(sim_config):
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
 
-    from pxr import PhysxSchema, Usd
+    from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(urdf_converter.usd_path)
 
-    # find prim with PhysxArticulationAPI and check self-collision flag
-    found_self_collision = False
-    for prim in stage.Traverse():
-        if prim.HasAPI(PhysxSchema.PhysxArticulationAPI):
-            physx_api = PhysxSchema.PhysxArticulationAPI(prim)
-            sc_attr = physx_api.GetEnabledSelfCollisionsAttr()
-            if sc_attr and sc_attr.HasValue() and sc_attr.Get():
-                found_self_collision = True
-                break
+    articulation_roots = [
+        prim
+        for prim in stage.Traverse()
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        or prim.HasAPI("PhysicsArticulationRootAPI")
+        or prim.HasAPI("NewtonArticulationRootAPI")
+    ]
+    assert articulation_roots, "Expected at least one articulation root in the converted USD"
 
-    assert found_self_collision, "Expected self-collision to be enabled on the articulation"
+    found_self_collision = False
+    for prim in articulation_roots:
+        print(prim.GetName())
+        print(prim.GetAttribute("newton:selfCollisionEnabled"))
+        sc_attr = prim.GetAttribute("newton:selfCollisionEnabled")
+        if sc_attr and sc_attr.HasValue() and sc_attr.Get():
+            found_self_collision = True
+            break
+
+    assert found_self_collision, "Expected ``newton:selfCollisionEnabled`` to be True on a Newton articulation root"
 
 
 @pytest.mark.isaacsim_ci
@@ -636,9 +656,9 @@ def test_usd_structure_has_joints_and_links(sim_config):
 def test_link_density(sim_config):
     """Verify that link_density applies density to rigid body links.
 
-    Note: The Franka Panda URDF has explicit mass on all links, so ``_apply_link_density``
-    only sets density on links without explicit mass (mass == 0). This test verifies the
-    pipeline runs without errors when link_density is set.
+    Note: The Franka Panda URDF has explicit mass on all links, so the importer's
+    ``apply_link_density`` only sets density on links without explicit mass (mass == 0).
+    This test verifies the pipeline runs without errors when ``link_density`` is set.
     """
     sim, config = sim_config
     test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -665,8 +685,8 @@ def test_link_density(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_collider_type_convex_decomposition(sim_config):
-    """Verify that collider_type='convex_decomposition' runs without error and produces valid output.
+def test_collision_type_convex_decomposition(sim_config):
+    """Verify that ``collision_type='Convex Decomposition'`` runs without error and produces valid output.
 
     Note: MeshCollisionAPI is applied on the intermediate stage before the asset transformer.
     The transformer may not preserve these schemas in the final output, so this test
@@ -678,7 +698,7 @@ def test_collider_type_convex_decomposition(sim_config):
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
-    config.collider_type = "convex_decomposition"
+    config.collision_type = "Convex Decomposition"
     config.force_usd_conversion = True
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)

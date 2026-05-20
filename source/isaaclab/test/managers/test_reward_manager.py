@@ -19,7 +19,7 @@ import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 def grilled_chicken(env):

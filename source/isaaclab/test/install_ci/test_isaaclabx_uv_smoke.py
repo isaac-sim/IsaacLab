@@ -36,38 +36,49 @@ class Test_UV_Env_Smoke(UV_Mixin):
 
     @pytest.mark.uv
     @pytest.mark.timeout(200)
-    def test_isaaclab_install_assets(self, isaaclab_root):
-        """Run ./isaaclab.x -i 'assets' and verify isaaclab_assets is importable."""
+    def test_isaaclab_none_installs_core_including_assets(self, isaaclab_root):
+        """Run ./isaaclab.x -i none and verify the core set (incl. assets) is importable.
+
+        Under the new install model, ``isaaclab_assets`` is always installed as
+        part of the core set.  Passing ``none`` installs the full core set without
+        any optional submodules or extra feature dependencies.
+        """
 
         try:
             self.create_uv_env(isaaclab_root)
 
-            # ./isaaclab.x -i assets
-            result = self.run_in_uv_env([str(self.cli_script), "-i", "assets"], cwd=isaaclab_root)
-            assert result.returncode == 0, f"isaaclab -i assets failed:\n{result.stdout}\n{result.stderr}"
+            # ./isaaclab.x -i none — core set only, no optional extras
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
 
-            # import isaaclab_assets
-            result = self.run_in_uv_env(["python", "-c", "import isaaclab_assets; print(isaaclab_assets.__version__)"])
-            assert result.returncode == 0, f"import isaaclab_assets failed:\n{result.stdout}\n{result.stderr}"
+            # All core packages should be importable.
+            for pkg in ("isaaclab_assets", "isaaclab_tasks", "isaaclab_rl", "isaaclab_physx"):
+                result = self.run_in_uv_env(["python", "-c", f"import {pkg}; print('{pkg} ok')"])
+                assert result.returncode == 0, f"import {pkg} failed:\n{result.stdout}\n{result.stderr}"
 
         finally:
             self.destroy_uv_env()
 
     @pytest.mark.uv
     @pytest.mark.timeout(300)
-    def test_isaaclab_newton_installs_isaaclab_newton(self, isaaclab_root):
-        """Run ./isaaclab.x -i 'newton' and verify isaaclab_newton is importable."""
+    def test_isaaclab_newton_extra_installs_newton_sim(self, isaaclab_root):
+        """Run ./isaaclab.x -i newton and verify the newton[sim] extra is installed.
+
+        ``newton`` is an extra feature selector: it reinstalls the already-present
+        core packages (``isaaclab_newton``, ``isaaclab_physx``, ``isaaclab_visualizers``)
+        with their newton extras, pulling in the ``newton[sim]`` git dependency.
+        """
 
         try:
             self.create_uv_env(isaaclab_root)
 
-            # ./isaaclab.x -i newton
+            # ./isaaclab.x -i newton — installs core + newton extras
             result = self.run_in_uv_env([str(self.cli_script), "-i", "newton"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i newton failed:\n{result.stdout}\n{result.stderr}"
 
-            # import isaaclab_newton
-            result = self.run_in_uv_env(["python", "-c", "import isaaclab_newton; print(isaaclab_newton.__version__)"])
-            assert result.returncode == 0, f"import isaaclab_newton failed:\n{result.stdout}\n{result.stderr}"
+            # The newton[sim] extra should make the newton package importable.
+            result = self.run_in_uv_env(["python", "-c", "import newton; print('newton ok')"])
+            assert result.returncode == 0, f"import newton failed:\n{result.stdout}\n{result.stderr}"
 
         finally:
             self.destroy_uv_env()

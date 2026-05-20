@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
+from pxr import Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
@@ -79,7 +81,7 @@ class AssetBase(ABC):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # get stage handle
-        self.stage = get_current_stage()
+        self.stage: Usd.Stage = get_current_stage()
 
         # spawn the asset
         # determine path where prims should exist after spawn
@@ -96,6 +98,8 @@ class AssetBase(ABC):
             matching_prims = sim_utils.find_matching_prims(check_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {check_path}.")
+            # schema-side post-spawn hook (e.g. ArticulationCfg authors NewtonActuator prims here)
+            self.cfg._post_spawn(self.stage)
         else:
             # asset should exist at run time
             check_path = self.cfg.prim_path

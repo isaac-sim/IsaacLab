@@ -14,13 +14,31 @@ from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
-    import torch
-
     from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.utils.warp import ProxyArray
 
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
+    def initialize(self) -> None:
+        """Post-physics one-time initialization hook. Called only once."""
+        return
+
+    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
+        """Pre-render per-camera setup the backend needs.
+
+        The default implementation is a no-op. Renderer subclasses override
+        to perform whatever per-camera initialization their backend requires
+        — e.g. authoring stage attributes on the resolved camera prims,
+        configuring per-tile GPU buffers, or any other state setup.
+
+        Args:
+            stage: Scene stage the camera prims live on, or ``None``
+                when no stage context applies. Stage-less backends ignore it.
+            spec: Immutable description of the tiled camera bundle.
+        """
+        return
 
     @abstractmethod
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
@@ -60,13 +78,15 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:
+    def set_outputs(self, render_data: Any, output_data: dict[str, ProxyArray]) -> None:
         """Store reference to output buffers for writing during render.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
             output_data: Dictionary mapping output names (e.g. ``"rgb"``, ``"depth"``)
-                to pre-allocated tensors where rendered data will be written.
+                to pre-allocated :class:`~isaaclab.utils.warp.ProxyArray` wrappers where
+                rendered data will be written. Use ``.warp`` for the underlying warp array
+                or ``.torch`` for a zero-copy tensor view.
         """
         pass
 
@@ -80,15 +100,22 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def update_camera(
-        self, render_data: Any, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+        self,
+        render_data: Any,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
     ) -> None:
         """Update camera poses and intrinsics for the next render.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            positions: Camera positions in world frame, shape ``(N, 3)``.
-            orientations: Camera orientations as quaternions (x, y, z, w), shape ``(N, 4)``.
-            intrinsics: Camera intrinsic matrices, shape ``(N, 3, 3)``.
+            positions: Camera positions in world frame. Shape ``(N,)``, dtype ``wp.vec3f``.
+                Use ``.torch`` for a ``(N, 3)`` tensor view.
+            orientations: Camera orientations as quaternions ``(x, y, z, w)``. Shape ``(N,)``,
+                dtype ``wp.quatf``. Use ``.torch`` for a ``(N, 4)`` tensor view.
+            intrinsics: Camera intrinsic matrices. Shape ``(N,)``, dtype ``wp.mat33f``.
+                Use ``.torch`` for a ``(N, 3, 3)`` tensor view.
         """
         pass
 

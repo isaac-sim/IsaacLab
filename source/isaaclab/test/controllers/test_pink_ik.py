@@ -67,6 +67,8 @@ def create_test_env(env_name, num_envs):
 
     try:
         env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
+        # Deterministic seed so IK convergence residual is reproducible across runs / machines.
+        env_cfg.seed = 42
         # Modify scene config to not spawn the packing table to avoid collision with the robot
         del env_cfg.scene.packing_table
         del env_cfg.terminations.object_dropping
@@ -306,7 +308,7 @@ def calculate_rotation_error(current_rot, target_rot):
             target_rot_tensor = target_rot_tensor.unsqueeze(0).expand(current_rot.shape[0], -1)
 
     return axis_angle_from_quat(
-        quat_from_matrix(matrix_from_quat(target_rot_tensor) * matrix_from_quat(quat_inv(current_rot)))
+        quat_from_matrix(matrix_from_quat(target_rot_tensor) @ matrix_from_quat(quat_inv(current_rot)))
     )
 
 

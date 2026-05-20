@@ -15,6 +15,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
+    from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
@@ -156,11 +157,23 @@ class PhysicsManager(ABC):
 
     @classmethod
     def clear_callbacks(cls) -> None:
-        """Remove all registered callbacks."""
+        """Remove all registered callbacks.
+
+        Do NOT reset ``_callback_id`` — handle IDs must remain monotonically
+        unique across the lifetime of the process.  Resetting the counter
+        would let a future :meth:`register_callback` hand out an ID that an
+        old, still-alive :class:`CallbackHandle` (e.g. on a sensor that has
+        not been garbage-collected yet) holds, so when the old object
+        eventually finalizes its ``__del__`` would deregister the new
+        callback.  This bit ovphysx's kitless multi-context tests where two
+        ``InteractiveScene``s are created in sequence: the first scene's
+        sensor would post-GC deregister the second scene's
+        ``_initialize_callback`` by ID collision, leaving the second sensor
+        forever uninitialized.
+        """
         for cid in list(cls._callbacks.keys()):
             cls.deregister_callback(cid)
         cls._callbacks.clear()
-        cls._callback_id = 0
 
     @classmethod
     def _wrap_weak_ref(cls, callback: Callable) -> Callable:
@@ -261,6 +274,12 @@ class PhysicsManager(ABC):
 
     @classmethod
     @abstractmethod
+    def get_scene_data_backend(cls) -> SceneDataBackend:
+        """Return the SceneDataBackend for the SceneDataProvider."""
+        pass
+
+    @classmethod
+    @abstractmethod
     def step(cls) -> None:
         """Step physics simulation by one timestep (physics only, no rendering)."""
         pass
@@ -338,6 +357,29 @@ class PhysicsManager(ABC):
     def wait_for_playing(cls) -> None:
         """Block until the timeline is playing. Default is no-op."""
         pass
+
+    @classmethod
+    def set_decimation(cls, decimation: int) -> None:
+        """Inform the physics backend how many substeps the environment runs per policy step.
+
+        Backends that can fold the full decimation loop into a single
+        :meth:`step` call (e.g. Newton with all-graphable actuators) use this
+        to size their internal loop / CUDA graph.  The default implementation
+        is a no-op.
+
+        Args:
+            decimation: Number of physics steps per environment step.
+        """
+        pass
+
+    @classmethod
+    def handles_decimation(cls) -> bool:
+        """``True`` when :meth:`step` executes the full decimation loop internally.
+
+        When this returns ``True`` the environment should call :meth:`step`
+        once per policy step instead of looping ``decimation`` times.
+        """
+        return False
 
     @classmethod
     def get_backend(cls) -> str:

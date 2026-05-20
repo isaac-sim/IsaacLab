@@ -1,6 +1,149 @@
 Changelog
 ---------
 
+0.5.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MCAP record/replay support to :class:`~isaaclab_teleop.IsaacTeleopDevice` via new
+  ``mcap_record_path`` and ``mcap_replay_path`` parameters on
+  :func:`~isaaclab_teleop.create_isaac_teleop_device` (mutually exclusive). ``mcap_replay_path``
+  switches the underlying :class:`isacteleop.teleop_session_manager.TeleopSession` into
+  :class:`SessionMode.REPLAY` and feeds the recorded tracker stream through the configured
+  retargeting pipeline; ``mcap_record_path`` is a debug-grade knob that writes the live session
+  to a single continuous MCAP file for pairing with the replay agent in CI. It is **not** a
+  data-generation format -- the produced MCAP has no per-episode segmentation, no world-frame
+  anchor state, no env reset state, and no public Python decoder.
+* Added a ``--mcap_record_path`` (debug-only) flag to ``scripts/tools/record_demos.py`` that
+  forwards into :func:`~isaaclab_teleop.create_isaac_teleop_device` when the IsaacTeleop stack
+  is in use.
+* Added ``scripts/environments/teleoperation/teleop_replay_agent.py``, a non-interactive entry
+  point used by CI to replay captured Isaac Teleop sessions against an Isaac Lab environment.
+  The agent gates env stepping on :func:`~isaaclab_teleop.poll_control_events` so the recorded
+  START / STOP / RESET boundaries reproduce the original recording's pacing, and asks Kit to
+  ``post_quit`` on the first STOP-edge after teleop has been active so the host process exits
+  deterministically.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_teleop.automation`` subpackage, including
+  ``XcrReplayConfig`` and ``start_xcr_replay``. The XCR backend was a transitional Kit-level
+  OpenXR capture/replay path that pre-dated Isaac Teleop's native MCAP record/replay. Replays
+  now go through ``teleop_replay_agent.py`` against an MCAP capture produced by Isaac Teleop.
+* **Breaking:** Removed the lazy legacy ``teleop_devices`` (``handtracking`` / ``manusvive``)
+  accessor on
+  :class:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.PickPlaceGR1T2EnvCfg`.
+  All in-tree scripts (``teleop_se3_agent.py``, ``record_demos.py``, ``teleop_replay_agent.py``)
+  prefer ``env_cfg.isaac_teleop``; consumers that built the legacy
+  :class:`~isaaclab.devices.openxr.OpenXRDevice` directly from the env config should construct
+  it themselves or migrate to :class:`~isaaclab_teleop.IsaacTeleopDevice`.
+
+
+0.4.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``scripts/environments/teleoperation/teleop_replay_agent.py``, a
+  non-interactive entry point used by CI to replay captured teleop sessions
+  against an Isaac Lab environment, plus a small internal
+  ``isaaclab_teleop.automation`` subpackage backing it. Replaces the runtime
+  patch the ``teleop-cicd`` pipeline previously applied to
+  ``teleop_se3_agent.py``.
+* Expanded the **Optimize XR Performance** documentation with guidance for
+  lower-spec GPUs and complex scenes: a walkthrough for switching the
+  Isaac Lab viewport to the RTX - Minimal renderer (including the
+  ``DistantLight``-only lighting limitation), notes on the
+  ``sim.dt`` / ``sim.render_interval`` trade-off, a description of the
+  XR **Resolution Multiplier** slider for trading image sharpness for GPU
+  headroom, guidance on ``RetargetingExecutionConfig`` (sync vs pipelined
+  modes and ``DeadlinePacingConfig.safety_margin_s``), and a CloudXR
+  frame-pacing diagnostic note. See :ref:`isaac-teleop-performance`.
+
+Changed
+^^^^^^^
+
+* Added :paramref:`~isaaclab_teleop.automation.XcrReplayConfig.max_replay_duration_s`
+  (default: ``3600``) so the completion-poll loop in
+  :func:`~isaaclab_teleop.automation.start_xcr_replay` is bounded. If
+  Kit's :mod:`xcr_player` ever fails to clear its private playback
+  subscription, the coroutine now returns instead of spinning forever.
+* Stored the :class:`omni.kit.xr.core.recorder._xr_xcr.XCRReplayAPI`
+  instance in a local variable inside
+  :func:`~isaaclab_teleop.automation.start_xcr_replay` so it stays alive
+  for the lifetime of the replay coroutine.
+
+Fixed
+^^^^^
+
+* Fixed ``teleop_replay_agent.py`` driving the robot toward the world origin
+  for the duration of ``--replay_start_delay_s``. The legacy
+  :class:`~isaaclab.devices.openxr.OpenXRDevice` returns a default zero pose
+  while the OpenXR runtime is silent, so calling ``env.step()`` during the
+  start-delay window fed the Pink IK garbage targets and corrupted the robot
+  pose long before real hand-tracking data flowed. The agent now registers
+  ``"START"`` / ``"STOP"`` callbacks on the device -- the same path
+  ``record_demos.py`` uses -- and only steps the env once the XCR replay
+  dispatches the recorded ``"start"`` message through Kit's OpenXR message
+  bus.
+* Fixed ``teleop_replay_agent.py`` hanging the CI process when the XCR
+  replay driver coroutine raised before reaching ``post_quit``. The
+  previously discarded :class:`asyncio.Future` is now retained and a done
+  callback logs the failure with traceback and asks Kit to quit so the
+  host process exits cleanly.
+* Fixed ``teleop_replay_agent.py`` leaking the USD stage when device
+  construction or environment setup raised. ``env.close()`` now runs from a
+  ``try/finally`` block so cleanup happens on every exit path.
+* Fixed ``teleop_replay_agent.py`` producing a frozen-arms / hands-only
+  symptom during replay. Kit's ``teleop_command`` message bus drains
+  queued events as a batch when the AR profile is enabled, so the
+  recorded user's STOP gesture would fire within milliseconds of START
+  and gate ``env.step()`` off again before Pink IK had time to converge.
+  The replay agent now subscribes only to ``"START"``: replay is one-shot
+  and the only valid termination is the driver's ``post_quit``.
+* Aligned ``teleop_replay_agent.py``'s pre-loop reset sequence with
+  ``record_demos.py`` -- ``env.sim.reset()`` then ``env.reset()`` then
+  ``teleop_interface.reset()`` -- so the hard physics reinit re-binds the
+  articulation tensor views that
+  :meth:`~isaaclab.controllers.pink_ik.PinkIKController.compute` reads
+  from each step.
+* Cleared :attr:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.TerminationsCfg.success`
+  in the replay env config so a successful replay does not snap the robot
+  back to its initial pose mid-loop.
+
+
+0.3.11 (2026-05-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` for
+  configuring IsaacTeleop retargeting execution mode from Isaac Lab.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_teleop.IsaacTeleopCfg` to enable IsaacTeleop
+  deadline-paced pipelined retargeting by default. This returns the latest
+  completed retargeting output while the current frame is submitted, using
+  ``DeadlinePacingConfig(safety_margin_s=0.025)`` to sample close to the next
+  simulation consumption point and stagger IsaacTeleop's Python work behind
+  Isaac Lab's step Python. Set
+  ``retargeting_execution=RetargetingExecutionConfig(mode="sync")`` to restore
+  exact current-frame retargeting.
+
+Fixed
+^^^^^
+
+* Fixed installation to upgrade to the latest compatible ``isaacteleop``
+  package when installing ``isaaclab_teleop``.
+
+
 0.3.10 (2026-05-08)
 ~~~~~~~~~~~~~~~~~~~
 

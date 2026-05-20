@@ -1,6 +1,300 @@
 Changelog
 ---------
 
+0.12.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton-specific deformable property and material cfgs.
+* Added Newton deformable asset exports under
+  :mod:`isaaclab_newton.assets.deformable_object`.
+* Added deformable registration hooks to Newton cloning so deformable assets can
+  be added per replicated world while their USD proxy meshes are skipped by the
+  Newton USD importer.
+* Added Newton manager abstraction documentation for adding solver managers and
+  custom coupled solvers.
+
+Changed
+^^^^^^^
+
+* Moved Newton-native actuator USD authoring out of
+  ``isaaclab_newton.actuators.authoring`` (now deleted) into
+  :func:`~isaaclab.sim.schemas.define_actuator_properties`. The authoring step
+  is now invoked via the schema-side ``_post_spawn`` hook on
+  :class:`~isaaclab.assets.AssetBaseCfg`.
+* Grouped :attr:`~isaaclab_newton.physics.NewtonManager._decimation` next to
+  :attr:`~isaaclab_newton.physics.NewtonManager._num_substeps` for consistency
+  with related solver-stepping configuration.
+* Changed Newton solver configuration exports so
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg`,
+  :class:`~isaaclab_newton.physics.XPBDSolverCfg`,
+  :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`, and
+  :class:`~isaaclab_newton.physics.KaminoSolverCfg` are provided from
+  :mod:`isaaclab_newton.physics.newton_manager_cfg`.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` to use
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` as its explicit default
+  solver configuration.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` validation to reject
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` configurations that combine
+  ``use_mujoco_contacts=True`` with ``collision_cfg``. Remove ``collision_cfg``
+  or set ``use_mujoco_contacts=False``.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Fixed
+^^^^^
+
+* Fixed Newton visualization state updates for PhysX-backed simulations.
+* Fixed Newton Fabric synchronization for deformable particle meshes and
+  particle-only scenes.
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  retrieving the wrong simulation context. It now uses
+  :meth:`~isaaclab.sim.SimulationContext.instance` instead of the stale
+  ``PhysicsManager._sim`` reference.
+
+
+0.11.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton backend for :class:`~isaaclab.sensors.ray_caster.RayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`. Site-based,
+  matching :class:`~isaaclab_newton.sensors.pva.Pva` and
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer`:
+  registers body-attached sites via
+  :meth:`~isaaclab_newton.physics.NewtonManager.cl_register_site` for both
+  the sensor frame and any tracked target meshes, and reads per-step
+  transforms off :class:`~newton.sensors.SensorFrameTransform` against a
+  world-origin reference. Static parents/targets bypass the site
+  machinery and serve cached per-env ``wp.transformf`` arrays.
+
+Changed
+^^^^^^^
+
+* Changed Newton tracked target mesh updates to copy site poses directly into
+  Warp mesh pose tables instead of staging through torch views.
+
+
+0.10.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime verification of the ``omni::cubric::IAdapter`` interface
+  version in :mod:`~isaaclab_newton.physics._cubric` as defense-in-depth
+  against future ABI shifts. The shim falls back to the CPU path on
+  major-version mismatch or older-minor.
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin from ``v1.2.0rc2`` to ``v1.2.0``
+  (stable). Upstream release notes: `newton-physics/newton v1.2.0
+  <https://github.com/newton-physics/newton/releases/tag/v1.2.0>`_.
+* Updated :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  reinterpreted directly from the ProxyArray's underlying warp array, removing the previous
+  :func:`warp.from_torch` conversion path.
+
+Fixed
+^^^^^
+
+* Fixed per-environment string identifiers (e.g. ``mujoco:tendon_label``)
+  keeping the source proto path after replication.
+  :func:`~isaaclab_newton.cloner.newton_replicate._rename_builder_labels`
+  now also walks string-typed custom-attribute columns whose frequency
+  declares a ``references="world"`` companion, rewriting their per-row
+  source-path prefix to the destination world root in the same pass that
+  handles built-in label arrays. Adds ``constraint_mimic`` and
+  ``equality_constraint`` to that built-in pass for completeness. The
+  prefix match uses a path-separator boundary so a source path that is a
+  string prefix of another (e.g. ``/Sources/protoA`` vs
+  ``/Sources/protoAB``) does not cross-contaminate during the rename.
+
+
+0.9.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the acceleration-arrow debug visualizer in
+  :class:`~isaaclab_newton.sensors.pva.Pva` drawing arrows in undefined directions for
+  bodies with effectively zero acceleration. Such bodies are now skipped from the
+  visualization.
+
+
+0.9.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton implementations of
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w`, and
+  :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix` on
+  :class:`~isaaclab_newton.assets.ArticulationData`. The properties wrap
+  ``ArticulationView.eval_jacobian`` and ``ArticulationView.eval_mass_matrix``
+  with view-sized output buffers cached via the standard timestamped-buffer
+  pattern. Per-step behavior is allocation-free and safe under CUDA-graph
+  capture: source / scratch / output buffers are pre-allocated in
+  ``_create_buffers``, and
+  :func:`~isaaclab_newton.assets.articulation.kernels.gather_jacobian_rows`
+  and :func:`~isaaclab_newton.assets.articulation.kernels.gather_mass_matrix_rows`
+  Warp kernels gather just this view's rows from the model-sized buffers
+  Newton populates. The DoF axis preserves the leading 6 floating-base
+  columns Newton fills for floating-base articulations (matching the
+  cross-library industry convention and PhysX's layout).
+* Added the
+  :func:`~isaaclab_newton.assets.articulation.kernels.shift_jacobian_com_to_origin`
+  Warp kernel applying the
+  ``v_origin = v_com - omega x (R · body_com_pos_b)`` shift to the
+  linear-velocity rows of the gathered, view-sized Jacobian, so the link-
+  origin form matches the cross-backend
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+  contract.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.get_state` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state` so
+  Newton-based renderers, visualizers, and video recorders can fetch a Newton
+  ``Model``/``State`` regardless of the active sim backend. When the sim
+  backend is PhysX the manager builds a shadow Newton model directly from the
+  USD stage (via
+  :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`)
+  and refreshes ``state_0.body_q`` from rigid-body transforms supplied by the
+  :class:`~isaaclab.scene_data.SceneDataProvider` each render
+  frame.
+
+Changed
+^^^^^^^
+
+* :attr:`~isaaclab_newton.assets.ArticulationData.gravity_compensation_forces`
+  raises :class:`NotImplementedError` with a message pointing at the
+  upstream gap. Newton's ``ArticulationView`` does not expose an
+  inverse-dynamics primitive yet (upstream Newton issues
+  `#2497 <https://github.com/newton-physics/newton/issues/2497>`_,
+  `#2529 <https://github.com/newton-physics/newton/issues/2529>`_,
+  `#2625 <https://github.com/newton-physics/newton/issues/2625>`_).
+  OSC users on Newton must set ``gravity_compensation=False`` until
+  upstream lands the primitive.
+* **Breaking:** :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`,
+  :class:`~isaaclab_newton.video_recording.NewtonGlPerspectiveVideo`, and the
+  Newton/Rerun/Viser visualizers now read Newton ``Model``/``State`` from
+  :class:`~isaaclab_newton.physics.NewtonManager` instead of the removed
+  ``BaseSceneDataProvider.get_newton_model()`` / ``get_newton_state()``.
+* Switched the Newton install to ``newton[sim]`` so that ``mujoco`` and
+  ``mujoco-warp`` are pulled in transitively via Newton's ``[sim]`` extra.
+  The explicit ``mujoco==3.8.0`` and ``mujoco-warp==3.8.0.1`` pins were
+  removed from :mod:`isaaclab_newton` — Newton is now the single source of
+  truth for those versions.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_newton.scene_data_providers`` package
+  (``NewtonSceneDataProvider``). Replace direct uses with
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_state` and the
+  Warp-native :class:`~isaaclab.scene_data.SceneDataProvider`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.ContactSensor` metadata extraction
+  after the migration to Newton 1.1, where ``sensing_obj_type`` and
+  ``counterpart_type`` became scalar strings and ``counterpart_indices``
+  became per-row.
+* Fixed per-environment string identifiers (e.g. ``mujoco:tendon_label``)
+  keeping the source proto path after replication.
+  :func:`~isaaclab_newton.cloner.newton_replicate._rename_builder_labels`
+  now also walks string-typed custom-attribute columns whose frequency
+  declares a ``references="world"`` companion, rewriting their per-row
+  source-path prefix to the destination world root in the same pass that
+  handles built-in label arrays. Adds ``constraint_mimic`` and
+  ``equality_constraint`` to that built-in pass for completeness. The
+  prefix match uses a path-separator boundary so a source path that is a
+  string prefix of another (e.g. ``/Sources/protoA`` vs
+  ``/Sources/protoAB``) does not cross-contaminate during the rename.
+
+
+0.8.1 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton integration to use the packaged Newton 1.2.0 release candidate
+  and updated transform conversion calls for Warp 1.13 compatibility.
+
+Fixed
+^^^^^
+
+* Fixed a spurious ``[Error][carb] Client passed into the framework is nullptr.``
+  log emitted from :meth:`~isaaclab_newton.physics._cubric.CubricBindings.initialize`
+  when the first ``tryAcquireInterfaceWithClient`` attempt returned null. The
+  helper used to retry with ``clientName=None``, which Carbonite has rejected as
+  invalid since 2018 — the retry only emitted a misleading error log. Removed
+  the null-client retry; the existing ``acquireInterfaceWithClient`` fallback
+  with the ``isaaclab.cubric`` client name still handles configurations where
+  the plugin needs to be loaded on demand.
+
+
+0.8.0 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonRigidBodyPropertiesCfg` and
+  :class:`~isaaclab_newton.sim.schemas.NewtonJointDrivePropertiesCfg` as Newton-targeted
+  bases for solver-specific subclasses. Currently empty (no Newton-native ``newton:*``
+  rigid-body or joint-drive attributes today); reserved as the family root for any
+  future Newton-native fields.
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` (subclasses
+  :class:`NewtonRigidBodyPropertiesCfg`) with :attr:`gravcomp` for body-level gravity
+  compensation (``mjc:gravcomp``).
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` (subclasses
+  :class:`NewtonJointDrivePropertiesCfg`) with :attr:`actuatorgravcomp` for joint-level
+  gravity compensation routing (``mjc:actuatorgravcomp`` via ``MjcJointAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg` with
+  :attr:`contact_margin` and :attr:`contact_gap` (``newton:*`` via ``NewtonCollisionAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg` with
+  :attr:`max_hull_vertices` (``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg` with
+  :attr:`torsional_friction` and :attr:`rolling_friction` (``newton:*`` via ``NewtonMaterialAPI``).
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg` with
+  :attr:`self_collision_enabled` (``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``).
+
+Changed
+^^^^^^^
+
+* Split :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` construction
+  into a pre-physics ``__init__`` (stores cfg and registers the Newton-Warp
+  scene-data requirement on
+  :class:`~isaaclab.sim.SimulationContext`) and a post-physics
+  :meth:`~isaaclab_newton.renderers.NewtonWarpRenderer.initialize` (reads
+  the built Newton model.
+
+
+0.7.2 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed rigid object collection spawning to honor planned ``spawn_path``
+  values while falling back to ``prim_path`` for direct construction.
+
+
 0.7.1 (2026-05-09)
 ~~~~~~~~~~~~~~~~~~
 

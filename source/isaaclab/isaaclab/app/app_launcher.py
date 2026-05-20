@@ -119,6 +119,16 @@ class AppLauncher:
                 settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
 
     @staticmethod
+    def apply_rtx_determinism_settings() -> None:
+        """Apply RTX RealTimePathTracing and disable RTPT caches for reproducible RTX rendering.
+        Called after :class:`isaacsim.simulation_app.SimulationApp` starts whenever ``--deterministic`` is set.
+        """
+        settings = get_settings_manager()
+        settings.set_string("/rtx/rendermode", "RealTimePathTracing")
+        settings.set_bool("/rtx/rtpt/cached/enabled", False)
+        settings.set_bool("/rtx/rtpt/lightcache/cached/enabled", False)
+
+    @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str]:
         """Parse visualizer list from a single comma-delimited CLI token."""
         valid = {"kit", "newton", "rerun", "viser", "none"}
@@ -232,6 +242,7 @@ class AppLauncher:
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
         self.device: str  # resolved device string (e.g. "cuda:0" or "cpu")
+        self._deferred_cuda_device_id: int | None = None
         self.local_rank: int  # local rank of GPUs in the current node
         self.global_rank: int  # global rank for multi-node training
 
@@ -240,6 +251,7 @@ class AppLauncher:
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
+        self._set_deferred_cuda_device()
         # Load IsaacSim extensions
         self._load_extensions()
 
@@ -362,6 +374,9 @@ class AppLauncher:
             ``isaaclab.python.kit``.
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
+
+        * ``deterministic`` (bool): After startup, applies RTX/RTPT carb settings for reproducible rendering.
+          Does not change how the default experience file is chosen.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
@@ -489,6 +504,12 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
+            "--deterministic",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
+            help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
+        )
+        arg_group.add_argument(
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
@@ -556,6 +577,7 @@ class AppLauncher:
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
+        "deterministic": ([bool], False),
         "rendering_mode": ([str], "balanced"),
         "max_visible_envs": ([int, type(None)], None),
     }
@@ -985,24 +1007,34 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
-        # Set the current CUDA device early so that physics backends (e.g. Newton/Warp)
-        # that allocate on the "current" device during initialization get the correct GPU.
-        # Without this, all ranks may default to cuda:0 for early allocations.
+        # Defer importing torch until after SimulationApp starts.  Importing
+        # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
+        # Kit's platform-info fork during startup.
         if "cuda" in device:
-            import torch
-
-            torch.cuda.set_device(self.device_id)
+            self._deferred_cuda_device_id = self.device_id
 
         # Store the resolved device string for downstream consumers (e.g. sim_launcher)
         self.device = device
 
         logger.info("Using device: %s", device)
 
+    def _set_deferred_cuda_device(self) -> None:
+        """Set the current torch CUDA device after Kit startup."""
+        if self._deferred_cuda_device_id is None:
+            return
+
+        import torch
+
+        torch.cuda.set_device(self._deferred_cuda_device_id)
+
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
         self._sim_experience_file = launcher_args.pop("experience", "")
+        deterministic_mode = bool(
+            launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
+        )
 
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
@@ -1055,6 +1087,7 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        self._apply_rtx_determinism = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
@@ -1139,6 +1172,10 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized.
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
+
+        if self._apply_rtx_determinism:
+            AppLauncher.apply_rtx_determinism_settings()
+            logger.info("Applied RTX settings for deterministic rendering (--deterministic).")
 
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
         # Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.

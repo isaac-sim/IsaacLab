@@ -60,8 +60,12 @@ _stub_getattr, _stub_dir, __all__ = lazy_export()
 # Resolved lazily on first access so importing ``isaaclab.sim.spawners.materials`` does
 # not require ``isaaclab_physx`` to be installed.
 _PHYSX_FORWARDS = frozenset({
+    "DeformableBodyMaterialCfg",
     "RigidBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
     "PhysxRigidBodyMaterialCfg",
+    "PhysxDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableBodyMaterialCfg",
 })
 
 
@@ -73,7 +77,7 @@ def __getattr__(name):
             raise ImportError(
                 f"'isaaclab.sim.spawners.materials.{name}' has moved to"
                 " 'isaaclab_physx.sim.spawners.materials'. Install the isaaclab_physx extension"
-                " or update your import. This forwarding shim is scheduled for removal in 5.0."
+                " or update your import. This forwarding shim is scheduled for removal in 4.0."
             ) from e
         return getattr(_physx_cfg, name)
     return _stub_getattr(name)

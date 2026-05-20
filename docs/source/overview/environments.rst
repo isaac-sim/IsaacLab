@@ -31,8 +31,42 @@ running the following command:
          isaaclab.bat -p scripts\environments\list_envs.py --keyword <search_term>
 
 
+To also see the available presets for each environment, pass ``--show_presets``:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/environments/list_envs.py --show_presets
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         isaaclab.bat -p scripts\environments\list_envs.py --show_presets
+
+
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
+
+
+Preset Selectors
+----------------
+
+Many environments support multiple physics backends, rendering backends, and observation
+modes, selectable via ``physics=NAME``, ``renderer=NAME``, and ``presets=NAME[,NAME,...]``
+tokens appended to any training or play command. The **Presets** column in each table below
+lists the names available for that environment; pass ``--task=<task-name> --help`` to a
+training script to see them grouped by selector type at the command line.
+
+See :doc:`/source/features/hydra` for the full preset system documentation, including
+all available backend names and how the typed selectors work.
+
 
 Single-agent
 ------------
@@ -116,6 +150,9 @@ for the lift-cube environment:
     |                         |                              | This policy has been deployed to a real robot                               |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |lift-soft-franka|      | |lift-soft-franka-link|      | Pick a deformable soft body and bring it to a sampled target position with  | ``newton_mjwarp_vdb``,       |
+    |                         |                              | the Franka robot                                                            | ``physx``                    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |                              |
     |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |                              |
@@ -204,11 +241,14 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cabi_openarm_uni|      | |cabi_openarm_uni-link|      | Grasp the handle of a cabinet's drawer and open it with the OpenArm robot   |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |g1_assemble_trocar|    | |g1_assemble_trocar-link|    | Assemble trocar with a Unitree G1 humanoid robot with Dex3 hands            |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
 .. |deploy-reach-ur10e| image:: ../_static/tasks/manipulation/ur10e_reach.jpg
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
+.. |lift-soft-franka| image:: ../_static/newton/franka-mjwarp-vbd-coupling.png
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
@@ -228,6 +268,7 @@ for the lift-cube environment:
 .. |reach_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_reach.jpg
 .. |lift_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_lift.jpg
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
+.. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -235,6 +276,7 @@ for the lift-cube environment:
 .. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/joint_pos_env_cfg.py>`__
 .. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_abs_env_cfg.py>`__
 .. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/franka/ik_rel_env_cfg.py>`__
+.. |lift-soft-franka-link| replace:: `Isaac-Lift-Soft-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift_franka_soft/franka_soft_env_cfg.py>`__
 .. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/franka/joint_pos_env_cfg.py>`__
 .. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py>`__
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py>`__
@@ -261,6 +303,7 @@ for the lift-cube environment:
 .. |reach_openarm_uni-link| replace:: `Isaac-Reach-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
 .. |lift_openarm_uni-link| replace:: `Isaac-Lift-Cube-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift/config/openarm/joint_pos_env_cfg.py>`__
 .. |cabi_openarm_uni-link| replace:: `Isaac-Open-Drawer-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/config/openarm/joint_pos_env_cfg.py>`__
+.. |g1_assemble_trocar-link| replace:: `Isaac-Assemble-Trocar-G129-Dex3-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/g129_dex3_env_cfg.py>`__
 
 
 Contact-rich Manipulation
@@ -769,6 +812,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO), **sb3** (PPO)
       - ``newton_mjwarp``, ``physx``
+    * - Isaac-Assemble-Trocar-G129-Dex3-v0
+      - Isaac-Assemble-Trocar-G129-Dex3-Eval-v0
+      - Manager Based
+      - **rlinf** (PPO)
+      -
     * - Isaac-Cart-Double-Pendulum-Direct-v0
       -
       - Direct
@@ -1004,6 +1052,16 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO), **sb3** (PPO)
       -
+    * - Isaac-Lift-Soft-Franka-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - ``newton_mjwarp_vdb``, ``physx``
+    * - Isaac-Lift-Cloth-Franka-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - ``newton_mjwarp_vdb``
     * - Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0
       -
       - Manager Based

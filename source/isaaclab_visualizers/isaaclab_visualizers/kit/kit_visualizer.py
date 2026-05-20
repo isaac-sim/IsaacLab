@@ -23,7 +23,7 @@ from .kit_visualizer_cfg import KitVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 
@@ -55,7 +55,7 @@ class KitVisualizer(BaseVisualizer):
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
-    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewport resources and bind scene data provider.
 
         Args:
@@ -68,26 +68,23 @@ class KitVisualizer(BaseVisualizer):
         if scene_data_provider is None:
             raise RuntimeError("[KitVisualizer] Requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
-        usd_stage = scene_data_provider.get_usd_stage()
+        usd_stage = scene_data_provider.usd_stage
         if usd_stage is None:
             raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
-        metadata = scene_data_provider.get_metadata()
+        num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
         self._setup_viewport()
 
         self._env_ids = self._compute_visualized_env_ids()
-        num_envs_meta = int(metadata.get("num_envs", 0))
-        self._resolved_visible_env_ids = resolve_visible_env_indices(
-            self._env_ids, self.cfg.max_visible_envs, num_envs_meta
-        )
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         if self._resolved_visible_env_ids is not None:
             logger.warning(
                 "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
-            self._apply_env_visibility(usd_stage, metadata, self._resolved_visible_env_ids)
+            self._apply_env_visibility(usd_stage, num_envs, self._resolved_visible_env_ids)
         num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
         self._log_initialization_table(
             logger=logger,
@@ -191,17 +188,10 @@ class KitVisualizer(BaseVisualizer):
     ) -> None:
         """Set active viewport camera eye/target.
 
-        When :attr:`self.cfg.cam_source` is ``"cfg"``, this is a no-op: the pose comes only from
-        :attr:`self.cfg.eye` / :attr:`self.cfg.lookat` (applied in :meth:`_setup_viewport`). Otherwise
-        :class:`~isaaclab.sim.simulation_context.SimulationContext` and :class:`ViewportCameraController`
-        would overwrite that pose with :class:`~isaaclab.envs.common.ViewerCfg`-driven views.
-
         Args:
             eye: Camera eye position.
             target: Camera look-at target.
         """
-        if self.cfg.cam_source == "cfg":
-            return
         if not self._is_initialized:
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
@@ -353,8 +343,14 @@ class KitVisualizer(BaseVisualizer):
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
 
+        # ``rotate=False`` for the position set: a freshly-opened stage's default
+        # ``/OmniverseKit_Persp`` has no authored ``omni:kit:centerOfInterest``,
+        # which ``set_position_world(..., rotate=True)`` would feed into
+        # ``Matrix4d.Transform`` as ``None`` and crash. The follow-up
+        # ``set_target_world(..., rotate=True)`` performs the look-at rotation
+        # and authors the COI as a side effect, so the final pose is unchanged.
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
-        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
+        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
@@ -369,7 +365,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if self._viewport_api is None:
             return False
-        usd_stage = self._scene_data_provider.get_usd_stage() if self._scene_data_provider else None
+        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
         if usd_stage is None:
             return False
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
@@ -378,9 +374,8 @@ class KitVisualizer(BaseVisualizer):
         self._viewport_api.set_active_camera(camera_path)
         return True
 
-    def _apply_env_visibility(self, usd_stage, metadata: dict, visible_env_ids: list[int]) -> None:
+    def _apply_env_visibility(self, usd_stage, num_envs: int, visible_env_ids: list[int]) -> None:
         """Hide environments not listed in ``visible_env_ids`` (cosmetic partial visualization)."""
-        num_envs = int(metadata.get("num_envs", 0))
         if num_envs <= 0:
             return
         visible = set(visible_env_ids)
@@ -406,10 +401,10 @@ class KitVisualizer(BaseVisualizer):
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
         if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
             return
-        usd_stage = self._scene_data_provider.get_usd_stage()
+        usd_stage = self._scene_data_provider.usd_stage
         if usd_stage is None:
             return
-        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
+        num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
             return
         self._apply_visual_point_instancer_visibility(usd_stage, num_envs, set(self._resolved_visible_env_ids))
@@ -457,7 +452,7 @@ class KitVisualizer(BaseVisualizer):
 
     def _restore_env_visibility(self) -> None:
         """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
-        usd_stage = self._scene_data_provider.get_usd_stage() if self._scene_data_provider else None
+        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
         if usd_stage is None:
             return
         for env_path, prev in self._hidden_env_visibilities.items():

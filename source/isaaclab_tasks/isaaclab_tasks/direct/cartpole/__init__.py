@@ -96,7 +96,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Camera-Presets-Direct-v0",
-    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_presets_env:CartpoleCameraPresetsEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",

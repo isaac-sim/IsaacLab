@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
+import inspect
 import logging
 import socket
 import webbrowser
@@ -26,7 +28,7 @@ from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, res
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -85,15 +87,32 @@ def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
 
 def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
     """Return rerun web UI URL with prefilled endpoint."""
-    return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe='')}"
+    # Keep the nested URL readable while still encoding '+' in the rerun+http scheme.
+    return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe=':/')}"
 
 
 class NewtonViewerRerun(ViewerRerun):
     """Wrapper around Newton's ViewerRerun with rendering pause controls."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, open_browser: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
-        super().__init__(*args, **kwargs)
+        if open_browser:
+            super().__init__(*args, **kwargs)
+        else:
+            original_serve_web_viewer = rr.serve_web_viewer
+
+            # Rerun Viewer launches a browser automatically, so here we suppress that behavior
+            def _serve_web_viewer_without_browser(*serve_args, **serve_kwargs):
+                with contextlib.suppress(TypeError, ValueError):
+                    supports_open_browser = "open_browser" in inspect.signature(original_serve_web_viewer).parameters
+                    if supports_open_browser:
+                        serve_kwargs.setdefault("open_browser", False)
+                return original_serve_web_viewer(*serve_args, **serve_kwargs)
+
+            with contextlib.ExitStack() as stack:
+                rr.serve_web_viewer = _serve_web_viewer_without_browser
+                stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
+                super().__init__(*args, **kwargs)
         self._paused_rendering = False
 
     def is_rendering_paused(self) -> bool:
@@ -136,23 +155,24 @@ class RerunVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
 
-    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if self._is_initialized:
             return
         if scene_data_provider is None:
             raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        metadata = scene_data_provider.get_metadata()
-        num_envs = int(metadata.get("num_envs", 0))
+        num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state()
+        self._model = NewtonManager.get_model()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -176,11 +196,14 @@ class RerunVisualizer(BaseVisualizer):
             keep_historical_data=self.cfg.keep_historical_data,
             keep_scalar_history=self.cfg.keep_scalar_history,
             record_to_rrd=self.cfg.record_to_rrd,
+            open_browser=self.cfg.open_browser,
         )
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         viewer_host = _normalize_host(bind_address)
         viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
+        print()
+        self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
         self._viewer.set_model(self._model)
@@ -208,10 +231,10 @@ class RerunVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
+                ("focal_length", f"{self.cfg.focal_length} (not applied: Rerun EyeControls3D has no FOV field)"),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("endpoint", f"http://{viewer_host}:{web_port}"),
-                ("viewer_url", viewer_url),
                 ("bind_address", bind_address),
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),
@@ -229,6 +252,8 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
@@ -238,8 +263,8 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state()
-        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
+        self._state = NewtonManager.get_state(self._scene_data_provider)
+        num_envs = NewtonManager.get_num_envs()
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)

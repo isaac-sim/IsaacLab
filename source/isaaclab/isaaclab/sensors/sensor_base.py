@@ -294,7 +294,9 @@ class SensorBase(ABC):
             PhysicsEvent.STOP,
             order=10,
         )
-        # Optional: prim deletion (only supported by PhysX backend)
+        # Optional: prim deletion (only supported by PhysX backend; the substring
+        # check would also match ``OvPhysxManager``, which does not expose
+        # ``IsaacEvents``, so use an exact class-name match).
         self._prim_deletion_handle = None
         if physics_mgr_cls.__name__ == "PhysxManager":
             from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415

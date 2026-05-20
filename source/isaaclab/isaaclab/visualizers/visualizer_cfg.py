@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -39,6 +39,13 @@ class VisualizerCfg:
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera look-at point (x, y, z) in world coordinates."""
+
+    focal_length: float = 15.0
+    """Camera focal length in millimeters for visualizer camera views.
+
+    Kit applies this directly to USD cameras. Newton-style backends convert it
+    to a vertical field-of-view using the USD default vertical aperture.
+    """
 
     cam_source: Literal["cfg", "prim_path"] = "cfg"
     """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim."""
