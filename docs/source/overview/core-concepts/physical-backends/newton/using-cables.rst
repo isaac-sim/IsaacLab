@@ -203,10 +203,75 @@ device** because Kit / Hydra reads curve points from the CPU Fabric bucket for
 runtime-spawned ``UsdGeomBasisCurves``. If your visualizer skips curves at
 runtime, prefer the default ``--visualizer kit`` flag used by the demo.
 
-A ``reset()`` call on a :class:`~isaaclab_contrib.cable.CableObject` does
-**not** snap control points back to their initial positions: cables have no
-nodal snap-back, only internal-buffer reset. To re-pose cables, write directly
-into ``body_q`` or recreate the scene.
+A ``reset()`` call on a :class:`~isaaclab_contrib.cable.CableObject` snaps
+each environment's cable bodies back to the spawn pose stored in
+``newton.Model.body_q`` and zeroes both ``state.body_qd`` and the AVBD
+``solver.body_inertia_q`` buffer. The implicit-velocity buffer
+``solver.body_q_prev`` is also restored to the rest pose — without this,
+AVBD's ``(body_q - body_q_prev) / dt`` velocity estimate would emit ~700 m/s
+spurious velocities the step after a snap-back. Joint state and AVBD
+penalty / Dahl buffers are intentionally left alone: they are either global
+to the world or would require joint offsets in the registry to slice
+per-env, and the body-side reset is sufficient to keep post-reset dynamics
+bounded in practice.
+
+
+Loading Cables from USD
+-----------------------
+
+In addition to the procedural :class:`~isaaclab.sim.spawners.shapes.CableCfg`
+path, a cable can be loaded from an arbitrary USD via
+:class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`. The USD must contain
+exactly one ``UsdGeomBasisCurves`` prim anywhere under the loaded template
+prim — :class:`~isaaclab_contrib.cable.CableObject` walks the template
+prim's descendants with ``Usd.PrimRange`` and raises
+``NotImplementedError`` if more than one curve is found (multi-curve cables
+under a single :class:`CableObject` are not supported yet).
+
+.. code-block:: python
+
+    from isaaclab_contrib.cable import CableObject, CableObjectCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
+
+    import isaaclab.sim as sim_utils
+
+    cable = CableObject(
+        cfg=CableObjectCfg(
+            prim_path="/World/Origin/Cable",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path="path/to/cable.usda",
+                physics_material=NewtonCableMaterialCfg(density=100.0),
+            ),
+            init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+        )
+    )
+
+The curve prim must author three attributes:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Attribute
+      - Description
+    * - ``point3f[] points``
+      - Control points in the curve prim's local frame [m]. The curve prim's
+        xform is baked into these positions at registration time, so the
+        replicate hook only needs to apply the per-env transform.
+    * - ``float[] widths``
+      - One width per control point [m]. For now, only the first entry is
+         read — it defines the capsule diameter for every segment.
+    * - ``int2[] connections``
+      - Edge topology — each ``Vec2i`` lists the indices of one segment's two
+        endpoint control points. :func:`~isaaclab.sim.spawners.shapes.spawn_cable`
+        writes a linear chain ``[(0,1), (1,2), ...]`` automatically;
+        user-imported curve USDs must author this attribute explicitly, since
+        ``connections`` is not part of the ``UsdGeomBasisCurves`` schema and
+        cannot be inferred from the curve's vertex counts.
+
+The Newton cable material is taken from the spawner's ``physics_material``
+binding on the curve prim. If no Newton cable material is bound, the
+:class:`~isaaclab_contrib.cable.CableRegistryEntry` defaults are used.
 
 
 Limitations
