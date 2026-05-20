@@ -1533,7 +1533,7 @@ class NewtonManager(PhysicsManager):
         return cls._state_0
 
     @classmethod
-    def get_state(cls, scene_data_provider=None) -> State:
+    def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
         """Get the current Newton state for visualization.
 
         Use this method from visualizers/renderers/video recorders that need a
@@ -1552,15 +1552,11 @@ class NewtonManager(PhysicsManager):
         return cls._num_envs
 
     @classmethod
-    def _backend_is_newton(cls, scene_data_provider=None) -> bool:
+    def _backend_is_newton(cls, scene_data_provider: SceneDataProvider | None = None) -> bool:
         """Return ``True`` when the active sim backend is Newton."""
         if scene_data_provider is not None:
             return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
-
-        scene_data_provider = cls.get_scene_data_provider()
-        if scene_data_provider is None:
-            return False
-        return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
+        return isinstance(cls.get_scene_data_provider().backend, NewtonSceneDataBackend)
 
     @classmethod
     def _ensure_visualization_model(cls) -> None:
@@ -1762,7 +1758,7 @@ class NewtonManager(PhysicsManager):
         return builder
 
     @classmethod
-    def get_scene_data_provider(cls) -> SceneDataProvider | None:
+    def get_scene_data_provider(cls) -> SceneDataProvider:
         """Return the active scene data provider, or None if unavailable.
 
         Prefers ``PhysicsManager._sim`` when set; otherwise falls back to
@@ -1774,12 +1770,11 @@ class NewtonManager(PhysicsManager):
 
             sim = SimulationContext.instance()
 
-        if sim is not None:
-            return sim.get_scene_data_provider()
-        return None
+        assert sim is not None
+        return sim.get_scene_data_provider()
 
     @classmethod
-    def update_visualization_state(cls, scene_data_provider=None) -> None:
+    def update_visualization_state(cls, scene_data_provider: SceneDataProvider | None = None) -> None:
         """Refresh visualization state for the active sim backend.
 
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
@@ -1797,8 +1792,8 @@ class NewtonManager(PhysicsManager):
 
         if scene_data_provider is None:
             scene_data_provider = cls.get_scene_data_provider()
-        if scene_data_provider is None:
-            return
+
+        assert scene_data_provider is not None
 
         if cls._backend_is_newton(scene_data_provider):
             return
