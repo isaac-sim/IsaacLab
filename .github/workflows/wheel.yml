@@ -26,7 +26,7 @@ jobs:
   build-wheel:
     name: Build Wheel
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
 
     steps:
       - name: Detect wheel-relevant changes
@@ -119,14 +119,14 @@ jobs:
 
       - name: Checkout code
         if: steps.changes.outputs.run_build == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           fetch-depth: 1
           lfs: true
 
       - name: Setup Python
         if: steps.changes.outputs.run_build == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           architecture: x64
@@ -159,3 +159,36 @@ jobs:
           path: tools/wheel_builder/build/dist/isaaclab-*.whl
           if-no-files-found: error
           retention-days: 30
+
+      - name: Download wheel artifact for install test
+        if: steps.changes.outputs.run_build == 'true'
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: /tmp/isaaclab-wheel-artifact
+
+      - name: Test wheel extras resolution
+        if: steps.changes.outputs.run_build == 'true'
+        run: |
+          set -euo pipefail
+
+          python -m pip install --user uv
+          export PATH="$HOME/.local/bin:$PATH"
+          cd /tmp
+
+          uv venv --python 3.12 /tmp/isaaclab-wheel-install
+          source /tmp/isaaclab-wheel-install/bin/activate
+          uv pip install --upgrade pip
+
+          wheel="$(find /tmp/isaaclab-wheel-artifact -name 'isaaclab-*.whl' -print -quit)"
+          if [ -z "$wheel" ]; then
+            echo "No isaaclab wheel found in downloaded artifact" >&2
+            exit 1
+          fi
+
+          uv pip install \
+            --dry-run \
+            --extra-index-url https://pypi.nvidia.com \
+            --index-strategy unsafe-best-match \
+            --prerelease=allow \
+            "${wheel}[isaacsim,all]"

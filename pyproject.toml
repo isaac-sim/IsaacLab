@@ -12,21 +12,21 @@ dependencies = [
     "isaaclab",
     "isaaclab-assets",
     "isaaclab-contrib",
+    "isaaclab-experimental",
     "isaaclab-newton[all]",
     "isaaclab-ov",
     "isaaclab-ovphysx",
     "isaaclab-physx[newton]",
     "isaaclab-rl[rsl-rl]",
     "isaaclab-tasks",
+    "isaaclab-tasks-experimental",
+    "isaaclab-visualizers",
     "torch==2.10.0",
     "torchaudio==2.10.0",
     "torchvision==0.25.0",
 ]
 
 [project.optional-dependencies]
-assets = [
-    "isaaclab-assets",
-]
 contrib = [
     "isaaclab-contrib",
 ]
@@ -36,12 +36,10 @@ mimic = [
 newton = [
     "isaaclab-newton[all]",
     "isaaclab-physx[newton]",
+    "isaaclab-visualizers[newton]",
 ]
 ov = [
     "isaaclab-ovphysx[ovphysx]",
-]
-physx = [
-    "isaaclab-physx",
 ]
 rl = [
     "isaaclab-rl[rsl-rl]",
@@ -52,17 +50,11 @@ rl-all = [
 rtx = [
     "isaaclab-ov[ovrtx]",
 ]
-tasks = [
-    "isaaclab-assets",
-    "isaaclab-contrib",
-    "isaaclab-ov",
-    "isaaclab-ovphysx",
-    "isaaclab-tasks",
-]
-tasks-experimental = [
-    "isaaclab-tasks-experimental",
-]
-visualizers = [
+all = [
+    "isaaclab-mimic",
+    "isaaclab-newton[all]",
+    "isaaclab-physx[newton]",
+    "isaaclab-rl[all]",
     "isaaclab-visualizers[all]",
 ]
 
@@ -227,6 +219,7 @@ explicit = true
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 override-dependencies = ["numpy>=2"]
+python-preference = "only-managed"
 package = false
 
 [tool.uv.sources]

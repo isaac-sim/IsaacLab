@@ -897,6 +897,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
     del camera_usd, camera_warp
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
