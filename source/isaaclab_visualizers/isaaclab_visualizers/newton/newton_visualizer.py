@@ -8,15 +8,28 @@
 from __future__ import annotations
 
 import logging
+import math
+import os
 from typing import TYPE_CHECKING
 
-import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
+from isaaclab.envs.utils.camera_view import (
+    VISUALIZER_TILED_CAMERA_MAX_TILES,
+    apply_camera_target_positions,
+    camera_rgb_batch,
+    compute_tile_resolution,
+    create_visualizer_camera,
+    find_camera_by_prim_path,
+    prim_world_positions,
+    remove_generated_prims,
+    resolve_tiled_env_indices,
+)
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
@@ -24,7 +37,7 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.scene.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -226,6 +239,11 @@ class NewtonViewerGL(ViewerGL):
                 except Exception as exc:
                     logger.debug("[NewtonVisualizer] Rendering color controls failed: %s", exc)
 
+            # Newton's ImageLogger owns camera-output image windows. Since Isaac Lab overrides
+            # ViewerGL's left panel, explicitly keep the logged-image selector and draw path.
+            if self._image_logger is not None:
+                self._image_logger.draw_controls()
+
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
                 imgui.separator()
@@ -246,7 +264,50 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("ESC - Exit")
 
         imgui.end()
+        if self._image_logger is not None:
+            self._prime_image_logger_window_layout()
+            self._image_logger.draw()
         return
+
+    def _prime_image_logger_window_layout(self) -> None:
+        """Make first-open image windows use the available viewer space.
+
+        Newton's ImageLogger initializes windows from a fixed per-tile size, so
+        small tiled batches otherwise open as small windows. Prime the next
+        ImGui window size once, then let users move/resize it normally.
+        """
+        image_logger = self._image_logger
+        if image_logger is None:
+            return
+        selected = image_logger._selected
+        if selected is None:
+            return
+        entry = image_logger._images.get(selected)
+        if entry is None or entry.window_initialized:
+            return
+
+        imgui = self.ui.imgui
+        viewport = imgui.get_main_viewport()
+        sidebar_width = float(image_logger._sidebar_width_px)
+        margin = 20.0
+        available_w = max(320.0, viewport.work_size.x - sidebar_width - 2.0 * margin)
+        available_h = max(240.0, viewport.work_size.y - 2.0 * margin)
+
+        n_tiles = max(1, int(entry.n))
+        tile_aspect = float(entry.tile_aspect)
+        cols = max(1, math.ceil(math.sqrt(n_tiles)))
+        rows = math.ceil(n_tiles / cols)
+        grid_aspect = (rows * tile_aspect) / cols
+        title_and_padding_h = 40.0
+
+        window_w = available_w
+        window_h = min(available_h, max(240.0, window_w * grid_aspect + title_and_padding_h))
+        pos_x = sidebar_width + margin
+        pos_y = margin
+
+        imgui.set_next_window_pos(imgui.ImVec2(float(pos_x), float(pos_y)), imgui.Cond_.once)
+        imgui.set_next_window_size(imgui.ImVec2(float(window_w), float(window_h)), imgui.Cond_.once)
+        entry.window_initialized = True
 
 
 class NewtonVisualizer(BaseVisualizer):
@@ -266,10 +327,14 @@ class NewtonVisualizer(BaseVisualizer):
         self._model = None
         self._state = None
         self._update_frequency = cfg.update_frequency
-        self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
         self._resolved_visible_env_ids: list[int] | None = None
+        self._camera_sensor = None
+        self._camera_sensor_indices: list[int] = []
+        self._camera_env_indices: list[int] = []
+        self._camera_is_owned = False
+        self._generated_camera_prim_paths: list[str] = []
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -282,19 +347,20 @@ class NewtonVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
-        # Use pyglet's EGL headless backend when requested. Must run before the first
-        # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
-        if self.cfg.headless:
+        runtime_headless = self.cfg.headless or not os.environ.get("DISPLAY")
+
+        # Use pyglet's EGL headless backend when requested or when no X display is available.
+        # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
+        # :class:`~pyglet.window.headless.HeadlessWindow`.
+        if runtime_headless:
             import pyglet
 
             pyglet.options["headless"] = True
@@ -302,7 +368,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
-            headless=self.cfg.headless,
+            headless=runtime_headless,
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
         )
@@ -316,6 +382,7 @@ class NewtonVisualizer(BaseVisualizer):
                 num_envs=num_envs,
             )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+            self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
             self._viewer.up_axis = 2  # Z-up
@@ -340,6 +407,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        self._setup_camera_sensor_view(num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
@@ -352,7 +420,9 @@ class NewtonVisualizer(BaseVisualizer):
                     tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye,
                 ),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
-                ("cam_source", self.cfg.cam_source),
+                ("focal_length", self.cfg.focal_length),
+                ("tiled_cam_view", self.cfg.tiled_cam_view),
+                ("tiled_cam_num", self.cfg.tiled_cam_num),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
             ],
@@ -374,32 +444,37 @@ class NewtonVisualizer(BaseVisualizer):
         from isaaclab_newton.physics import NewtonManager
 
         if self._viewer is None:
-            self._state = NewtonManager.get_state()
+            self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
-        if self.cfg.cam_source == "prim_path":
-            self._update_camera_from_usd_path()
-
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
             return
 
+        num_envs = NewtonManager.get_num_envs()
+
         try:
             if not self._viewer.is_paused():
                 self._viewer.begin_frame(self._sim_time)
-                if self._state is not None:
-                    body_q = getattr(self._state, "body_q", None)
-                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                        self._viewer.end_frame()
-                        return
-                    self._viewer.log_state(self._state)
-                self._viewer.end_frame()
+                try:
+                    if self._state is not None:
+                        body_q = getattr(self._state, "body_q", None)
+                        if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                            return
+                        self._viewer.log_state(self._state)
+                        if self.cfg.enable_markers:
+                            render_newton_visualization_markers(
+                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                            )
+                        self._log_camera_sensor_image()
+                finally:
+                    self._viewer.end_frame()
             else:
                 self._viewer._update()
-        except Exception as exc:
-            logger.debug("[NewtonVisualizer] Viewer update failed: %s", exc)
+        except Exception:
+            logger.exception("[NewtonVisualizer] Viewer update failed.")
 
     def close(self) -> None:
         """Release viewer resources."""
@@ -407,6 +482,9 @@ class NewtonVisualizer(BaseVisualizer):
             return
         if self._viewer is not None:
             self._viewer = None
+        if self._camera_sensor is not None and self._camera_is_owned:
+            remove_generated_prims(self._generated_camera_prim_paths)
+        self._camera_sensor = None
         self._is_closed = True
 
     def is_running(self) -> bool:
@@ -429,15 +507,72 @@ class NewtonVisualizer(BaseVisualizer):
         Returns:
             Camera eye and target tuples.
         """
-        if self.cfg.cam_source == "prim_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-            if pose is not None:
-                return pose
-            raise RuntimeError(
-                "[NewtonVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
-                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
-            )
         return self._resolve_cfg_camera_pose("NewtonVisualizer")
+
+    def _uses_camera_sensor_view(self) -> bool:
+        """Return whether the visualizer displays camera sensor images instead of interactive camera controls."""
+        return bool(self.cfg.tiled_cam_view)
+
+    def _setup_camera_sensor_view(self, num_envs: int) -> None:
+        """Resolve or create the camera sensor used by non-interactive image views."""
+        if not self._uses_camera_sensor_view():
+            return
+        env_ids = resolve_tiled_env_indices(
+            num_envs,
+            self.cfg.tiled_cam_num,
+            self.cfg.tiled_cam_env_indices,
+            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
+            sample_from=self._resolved_visible_env_ids,
+        )
+        self._camera_env_indices = env_ids
+        if self.cfg.tiled_cam_prim_path is not None:
+            logger.debug(
+                "[NewtonVisualizer] tiled_cam_prim_path uses existing camera sensor output; "
+                "generated tiled camera pose fields are ignored."
+            )
+            cameras = self._scene_data_provider.get_camera_sensors()
+            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.tiled_cam_prim_path, env_ids)
+            self._camera_sensor_indices = env_ids
+            return
+
+        from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+        count = max(1, len(env_ids))
+        tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)
+        self._camera_sensor, self._generated_camera_prim_paths = create_visualizer_camera(
+            num_envs=num_envs,
+            width=tile_w,
+            height=tile_h,
+            renderer_cfg=NewtonWarpRendererCfg(),
+        )
+        self._camera_sensor_indices = env_ids
+        self._camera_is_owned = True
+        self._update_owned_camera_poses()
+
+    def _update_owned_camera_poses(self) -> None:
+        """Update generated camera poses from env origins or follow prims."""
+        if self._camera_sensor is None or not self._camera_is_owned:
+            return
+        target_positions = prim_world_positions(
+            self._scene_data_provider.get_usd_stage(),
+            self.cfg.tiled_cam_target_prim_path,
+            self._camera_env_indices,
+            scene=self._scene_data_provider.get_interactive_scene(),
+        )
+        eyes, targets = apply_camera_target_positions(
+            self._camera_sensor, target_positions, self.cfg.tiled_cam_eye, self._camera_env_indices
+        )
+
+    def _log_camera_sensor_image(self) -> None:
+        """Log the selected camera sensor RGB output into Newton's image panel."""
+        if self._viewer is None or self._camera_sensor is None:
+            return
+        if self._camera_is_owned:
+            self._update_owned_camera_poses()
+        if self._camera_is_owned:
+            self._camera_sensor.update(dt=0.0, force_recompute=True)
+        rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices).contiguous()
+        self._viewer.log_image("Visualizer Tiled Camera", wp.from_torch(rgb))
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera eye/target pose to the Newton viewer.
@@ -450,24 +585,14 @@ class NewtonVisualizer(BaseVisualizer):
         cam_pos, cam_target = pose
         # Match Newton's Camera native pos type: PyVec3, not wp.vec3.
         self._viewer.camera.pos = PygletVec3(*cam_pos)
-        cam_pos_np = np.array(cam_pos, dtype=np.float32)
-        cam_target_np = np.array(cam_target, dtype=np.float32)
-        direction = cam_target_np - cam_pos_np
-        yaw = np.degrees(np.arctan2(direction[1], direction[0]))
-        horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
-        pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
-        self._viewer.camera.yaw = float(yaw)
-        self._viewer.camera.pitch = float(pitch)
+        self._viewer.camera.look_at(cam_target)
         self._last_camera_pose = (cam_pos, cam_target)
 
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-        if pose is None:
+    def _apply_camera_focal_length(self) -> None:
+        """Apply cfg focal length to Newton's vertical-FOV camera."""
+        if self._viewer is None:
             return
-        if self._last_camera_pose == pose:
-            return
-        self._apply_camera_pose(pose)
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""

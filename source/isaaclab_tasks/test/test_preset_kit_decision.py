@@ -29,6 +29,18 @@ def _resolve_with_presets(presets: str):
         sys.argv = old_argv
 
 
+def test_resolve_task_config_applies_plain_scalar_override():
+    """Plain ``env.*=value`` overrides should resolve without requiring Hydra composition."""
+    old_argv = sys.argv.copy()
+    try:
+        sys.argv = [sys.argv[0], "env.scene.num_envs=123"]
+        env_cfg, _ = resolve_task_config(_CAMERA_PRESETS_TASK, "rl_games_cfg_entry_point")
+    finally:
+        sys.argv = old_argv
+
+    assert env_cfg.scene.num_envs == 123
+
+
 def test_preset_mjwarp_ovrtx_does_not_need_kit():
     """Newton + OVRTX renderer is kitless — no AppLauncher required."""
     env_cfg = _resolve_with_presets("newton_mjwarp,ovrtx_renderer")

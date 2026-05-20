@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing utilities for schemas used in Omniverse for PhysX backend."""
+"""Sub-module containing PhysX schema configuration exports."""
 
 from isaaclab.utils.module import lazy_export
 

@@ -111,6 +111,7 @@ class TestInstallConstants:
     def test_core_submodules_contains_expected_packages(self):
         expected = {
             "isaaclab",
+            "isaaclab_ppisp",
             "isaaclab_assets",
             "isaaclab_contrib",
             "isaaclab_experimental",

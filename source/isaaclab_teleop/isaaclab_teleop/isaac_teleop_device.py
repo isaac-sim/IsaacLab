@@ -105,6 +105,8 @@ class IsaacTeleopDevice:
         cfg: IsaacTeleopCfg,
         cloudxr_env_file: str | None = None,
         auto_launch_cloudxr: bool = True,
+        mcap_record_path: str | None = None,
+        mcap_replay_path: str | None = None,
     ):
         """Initialize the IsaacTeleop device.
 
@@ -117,6 +119,16 @@ class IsaacTeleopDevice:
             auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
                 when *cloudxr_env_file* is set.  Ignored when
                 *cloudxr_env_file* is ``None``.
+            mcap_record_path: Optional MCAP file path to record the live
+                teleop session into.  Mutually exclusive with
+                *mcap_replay_path*.  Debug-grade only -- the produced file
+                has no per-episode segmentation, no world-frame anchor, and
+                no public Python decoder.
+            mcap_replay_path: Optional MCAP file path to replay.  When set,
+                the device runs in :class:`SessionMode.REPLAY` with no live
+                XR connection and feeds the recorded tracker stream
+                through the pipeline.  Mutually exclusive with
+                *mcap_record_path*.
         """
         self._cfg = cfg
 
@@ -126,6 +138,8 @@ class IsaacTeleopDevice:
             cfg,
             cloudxr_env_file=cloudxr_env_file,
             auto_launch_cloudxr=auto_launch_cloudxr,
+            mcap_record_path=mcap_record_path,
+            mcap_replay_path=mcap_replay_path,
         )
 
         self._prev_right_a_pressed = False
@@ -411,6 +425,8 @@ def create_isaac_teleop_device(
     callbacks: dict[str, Callable] | None = None,
     cloudxr_env_file: str | None = None,
     auto_launch_cloudxr: bool = True,
+    mcap_record_path: str | None = None,
+    mcap_replay_path: str | None = None,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -418,7 +434,9 @@ def create_isaac_teleop_device(
     before constructing an :class:`IsaacTeleopDevice`:
 
     1. Disable default OpenXR input bindings (prevents conflicts).
-    2. Enable the ``isaacsim.kit.xr.teleop.bridge`` extension.
+    2. Enable the ``isaacsim.kit.xr.teleop.bridge`` extension (live mode
+       only -- replay mode skips this since it never touches the XR
+       runtime).
     3. Optionally override :attr:`IsaacTeleopCfg.sim_device` so action tensors
        land on the same device the caller uses for the simulation.
 
@@ -440,21 +458,42 @@ def create_isaac_teleop_device(
             when *cloudxr_env_file* is set.  Set to ``False`` to skip the
             launch (e.g. when running the runtime externally).  Ignored
             when *cloudxr_env_file* is ``None``.
+        mcap_record_path: Optional MCAP file path to record the live teleop
+            session into.  Debug-grade only.  Mutually exclusive with
+            *mcap_replay_path*.
+        mcap_replay_path: Optional MCAP file path to replay.  When set, the
+            returned device runs in :class:`SessionMode.REPLAY` and the XR
+            teleop bridge is left untouched.  Mutually exclusive with
+            *mcap_record_path*.
 
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
         ``with`` block.
     """
-    _enable_teleop_bridge()
+    if mcap_record_path is not None and mcap_replay_path is not None:
+        raise ValueError(
+            "mcap_record_path and mcap_replay_path are mutually exclusive; "
+            "set at most one to switch between LIVE recording and REPLAY playback."
+        )
+
+    # Replay sessions never talk to Kit's XR bridge, so loading/enabling the
+    # bridge extension would only add startup latency and noisy log lines.
+    if mcap_replay_path is None:
+        _enable_teleop_bridge()
 
     if sim_device is not None:
         cfg.sim_device = sim_device
 
-    logger.info("Using IsaacTeleop stack for teleoperation")
+    if mcap_replay_path is not None:
+        logger.info("Using IsaacTeleop stack for teleoperation (REPLAY mode)")
+    else:
+        logger.info("Using IsaacTeleop stack for teleoperation")
     device = IsaacTeleopDevice(
         cfg,
         cloudxr_env_file=cloudxr_env_file,
         auto_launch_cloudxr=auto_launch_cloudxr,
+        mcap_record_path=mcap_record_path,
+        mcap_replay_path=mcap_replay_path,
     )
 
     if callbacks is not None:
