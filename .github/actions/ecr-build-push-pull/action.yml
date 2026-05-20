@@ -37,6 +37,10 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
+  platform:
+    description: Target platform for `docker buildx build --platform` (e.g. "linux/amd64", "linux/arm64").
+    required: false
+    default: 'linux/amd64'
 runs:
   using: composite
   steps:
@@ -256,7 +260,7 @@ runs:
       run: |
         BUILD_ARGS=(
           --progress=plain
-          --platform linux/amd64
+          --platform ${{ inputs.platform }}
           -f "${{ inputs.dockerfile-path }}"
           --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
           --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"

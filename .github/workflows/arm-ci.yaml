@@ -1,0 +1,335 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# ARM/Spark CI — exercises Isaac Lab on aarch64 Linux self-hosted runners
+# (NVIDIA DGX Spark). Mirrors the spirit of build.yaml but stays lean by
+# running tests inside the multi-arch nvcr.io/nvidian/isaac-sim image
+# instead of building a full isaac-lab-ci image. (Once the apt deps and
+# editable-install scope stabilize, we can promote to a Dockerfile.base
+# build that mirrors build.yaml's structure end-to-end.)
+#
+# Single job, multiple steps. Each test step sets `continue-on-error: true`
+# so a failure in one tier does not abort the others. Each pytest invocation
+# passes `--timeout=N --timeout-method=signal --continue-on-collection-errors`
+# so a hung or import-broken test cannot consume the whole job slot.
+#
+# Marker-driven discovery: `pytest <path> -m arm_ci`. Adding a new aarch64-safe
+# test = tag it with arm_ci, no yaml edit.
+
+name: ARM CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_arm_ci: ${{ steps.detect.outputs.run_arm_ci }}
+    steps:
+      - id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          patterns=(
+            $'^source/\tLibrary source code'
+            $'^tools/\tBuild tooling'
+            $'^apps/\tStandalone apps'
+            $'^docker/\tContainer build inputs'
+            $'(^|/)pyproject\\.toml$\tPython project metadata'
+            $'^\\.github/workflows/arm-ci\\.yaml$\tThis workflow file'
+            $'^\\.github/actions/ecr-build-push-pull/\tECR action'
+            $'^VERSION$\tVersion file'
+          )
+          any_match() {
+            local files="$1" entry regex
+            for entry in "${patterns[@]}"; do
+              IFS=$'\t' read -r regex _ <<< "$entry"
+              if grep -qE "$regex" <<< "$files"; then
+                return 0
+              fi
+            done
+            return 1
+          }
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run_arm_ci=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' || true)"
+          if [ -z "$changed_files" ] || any_match "$changed_files"; then
+            echo "run_arm_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_arm_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.run_arm_ci == 'true'
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - id: load
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Read isaacsim_image_name/tag from .github/workflows/config.yaml.
+          # Fallback to nightly tag if yq is unavailable on ubuntu-latest.
+          if command -v yq >/dev/null 2>&1; then
+            name=$(yq -r .isaacsim_image_name .github/workflows/config.yaml)
+            tag=$(yq -r .isaacsim_image_tag .github/workflows/config.yaml)
+          else
+            name=$(grep '^isaacsim_image_name:' .github/workflows/config.yaml | awk '{print $2}')
+            tag=$(grep '^isaacsim_image_tag:' .github/workflows/config.yaml | awk '{print $2}')
+          fi
+          echo "isaacsim_image_name=$name" >> "$GITHUB_OUTPUT"
+          echo "isaacsim_image_tag=$tag" >> "$GITHUB_OUTPUT"
+
+  arm-ci:
+    name: arm-ci
+    runs-on: [self-hosted, arm64]
+    needs: [changes, config]
+    if: needs.changes.outputs.run_arm_ci == 'true'
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - name: Login to nvcr.io
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${NGC_API_KEY:-}" ]; then
+            echo "${NGC_API_KEY}" | docker login nvcr.io --username '$oauthtoken' --password-stdin
+          fi
+
+      - name: Pull arm64 Isaac Sim image
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Multi-arch manifest at this tag has both linux/arm64 and linux/amd64.
+          # Docker on an aarch64 host auto-resolves to the arm64 variant.
+          docker pull --platform linux/arm64 \
+            "${{ needs.config.outputs.isaacsim_image_name }}:${{ needs.config.outputs.isaacsim_image_tag }}"
+
+      - name: Install system build deps inside the container
+        shell: bash
+        run: |
+          set -euo pipefail
+          # pytetwild's fTetWild source build needs libgmp / libmpfr / libeigen3 /
+          # libcgal / libboost; isaaclab's editable install pulls pytetwild as a
+          # hard dep (added in PR isaac-sim/IsaacLab#5710 on 2026-05-20).
+          # We install into a fresh container layer per run so the apt cost (~1-2
+          # min) shows up only when this workflow runs, not on the Sim image.
+          # Persist by committing into a per-run image tagged isaac-lab-arm-ci.
+          # Build a tagged image with deps baked in so subsequent test runs are fast.
+          # Override the Sim image's entrypoint (Kit launcher) with bash so we can
+          # run plain shell commands. EULA env vars set per build.yaml conventions.
+          docker run --name arm-deps-prep --user root \
+            --entrypoint bash \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            "${{ needs.config.outputs.isaacsim_image_name }}:${{ needs.config.outputs.isaacsim_image_tag }}" \
+            -c "
+              set -euo pipefail
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                libgmp-dev libmpfr-dev libeigen3-dev libcgal-dev libboost-all-dev \
+                cmake build-essential git
+              rm -rf /var/lib/apt/lists/*
+            "
+          docker commit arm-deps-prep isaac-lab-arm-ci:${{ github.sha }}
+          docker rm arm-deps-prep
+
+      - name: Editable install of isaaclab + isaaclab_tasks in a uv venv
+        shell: bash
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          # All Tier 2 jobs need both packages installed once. We do the install
+          # inside a uv venv mounted under /workspace/isaaclab so subsequent
+          # docker run invocations see the same env_isaaclab_uv directory.
+          docker run --rm --user root \
+            --entrypoint bash \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            -v "${{ github.workspace }}":/workspace/isaaclab \
+            -w /workspace/isaaclab \
+            --gpus all \
+            isaac-lab-arm-ci:${{ github.sha }} \
+            -c "
+              set -e
+              if ! command -v uv >/dev/null 2>&1; then
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+                export PATH=\$HOME/.local/bin:\$PATH
+              fi
+              uv venv --python 3.12 env_isaaclab_uv
+              source env_isaaclab_uv/bin/activate
+              uv pip install -e source/isaaclab
+              uv pip install -e source/isaaclab_assets
+              uv pip install -e source/isaaclab_tasks
+              uv pip install pytest pytest-timeout
+              python -c 'import isaaclab, isaaclab_assets, isaaclab_tasks; print(\"editable imports ok\")'
+            "
+
+      - name: Tier 1 — general-arm smoke (torch + scipy)
+        shell: bash
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          set -e
+          mkdir -p reports
+          docker run --rm --user root \
+            --entrypoint bash \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            -v "${{ github.workspace }}":/workspace/isaaclab \
+            -w /workspace/isaaclab \
+            --gpus all \
+            isaac-lab-arm-ci:${{ github.sha }} \
+            -c "
+              source env_isaaclab_uv/bin/activate
+              python -m pytest \
+                source/isaaclab/test/deps \
+                --ignore=tools/conftest.py \
+                -m arm_ci \
+                --continue-on-collection-errors \
+                --timeout=60 \
+                --timeout-method=signal \
+                -v \
+                --junitxml=reports/general-arm.xml
+            "
+
+      - name: Tier 1 — kit-launch-arm (boot Kit headless)
+        shell: bash
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          set -e
+          docker run --rm --user root \
+            --entrypoint bash \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            -v "${{ github.workspace }}":/workspace/isaaclab \
+            -w /workspace/isaaclab \
+            --gpus all \
+            isaac-lab-arm-ci:${{ github.sha }} \
+            -c "
+              source env_isaaclab_uv/bin/activate
+              uv pip install --extra-index-url https://pypi.nvidia.com 'isaacsim[all]'
+              timeout 120 python - <<'EOF'
+              import sys
+              from isaaclab.app import AppLauncher
+              sim = AppLauncher(headless=True).app
+              assert sim is not None, 'AppLauncher did not return a SimulationApp'
+              sim.close()
+              sys.exit(0)
+              EOF
+            "
+
+      - name: Tier 2 — kitless-arm (Warp + OvRTX rendering on aarch64)
+        shell: bash
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          set -e
+          docker run --rm --user root \
+            --entrypoint bash \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            -v "${{ github.workspace }}":/workspace/isaaclab \
+            -w /workspace/isaaclab \
+            --gpus all \
+            isaac-lab-arm-ci:${{ github.sha }} \
+            -c "
+              source env_isaaclab_uv/bin/activate
+              python -m pytest \
+                source/isaaclab_tasks/test \
+                --ignore=tools/conftest.py \
+                -m arm_ci \
+                --continue-on-collection-errors \
+                --timeout=300 \
+                --timeout-method=signal \
+                -v \
+                --junitxml=reports/kitless-arm.xml
+            "
+
+      - name: Tier 2 — determinism-arm (controllers / math)
+        shell: bash
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          set -e
+          docker run --rm --user root \
+            --entrypoint bash \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            -v "${{ github.workspace }}":/workspace/isaaclab \
+            -w /workspace/isaaclab \
+            --gpus all \
+            isaac-lab-arm-ci:${{ github.sha }} \
+            -c "
+              source env_isaaclab_uv/bin/activate
+              python -m pytest \
+                source/isaaclab/test \
+                --ignore=tools/conftest.py \
+                --ignore=source/isaaclab/test/deps \
+                -m arm_ci \
+                --continue-on-collection-errors \
+                --timeout=180 \
+                --timeout-method=signal \
+                -v \
+                --junitxml=reports/determinism-arm.xml
+            "
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm-ci-reports
+          path: reports/
+          retention-days: 7
+
+      - name: Clean up per-run image
+        if: always()
+        shell: bash
+        run: |
+          docker rmi -f isaac-lab-arm-ci:${{ github.sha }} || true

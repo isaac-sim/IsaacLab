@@ -15,6 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 
+pytestmark = pytest.mark.arm_ci
+
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation

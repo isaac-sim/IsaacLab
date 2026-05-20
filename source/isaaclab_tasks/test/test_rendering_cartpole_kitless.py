@@ -17,7 +17,7 @@ from rendering_test_utils import (
     rendering_test_cartpole,
 )
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
 _COMPARISON_SCORES: list[dict] = []
 
