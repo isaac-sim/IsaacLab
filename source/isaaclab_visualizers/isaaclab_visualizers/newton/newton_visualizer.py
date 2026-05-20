@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,7 @@ from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.envs.utils.camera_view import (
+    VISUALIZER_TILED_CAMERA_MAX_TILES,
     apply_camera_target_positions,
     camera_rgb_batch,
     compute_tile_resolution,
@@ -264,8 +266,49 @@ class NewtonViewerGL(ViewerGL):
 
         imgui.end()
         if getattr(self, "_image_logger", None) is not None:
+            self._prime_image_logger_window_layout()
             self._image_logger.draw()
         return
+
+    def _prime_image_logger_window_layout(self) -> None:
+        """Make first-open image windows use the available viewer space.
+
+        Newton's ImageLogger initializes windows from a fixed per-tile size, so
+        small tiled batches otherwise open as small windows. Prime the next
+        ImGui window size once, then let users move/resize it normally.
+        """
+        image_logger = getattr(self, "_image_logger", None)
+        if image_logger is None:
+            return
+        selected = getattr(image_logger, "_selected", None)
+        if selected is None:
+            return
+        entry = getattr(image_logger, "_images", {}).get(selected)
+        if entry is None or getattr(entry, "window_initialized", False):
+            return
+
+        imgui = self.ui.imgui
+        viewport = imgui.get_main_viewport()
+        sidebar_width = float(getattr(image_logger, "_sidebar_width_px", 300.0))
+        margin = 20.0
+        available_w = max(320.0, viewport.work_size.x - sidebar_width - 2.0 * margin)
+        available_h = max(240.0, viewport.work_size.y - 2.0 * margin)
+
+        n_tiles = max(1, int(getattr(entry, "n", 1)))
+        tile_aspect = float(getattr(entry, "tile_aspect", 1.0))
+        cols = max(1, math.ceil(math.sqrt(n_tiles)))
+        rows = math.ceil(n_tiles / cols)
+        grid_aspect = (rows * tile_aspect) / cols
+        title_and_padding_h = 40.0
+
+        window_w = available_w
+        window_h = min(available_h, max(240.0, window_w * grid_aspect + title_and_padding_h))
+        pos_x = sidebar_width + margin
+        pos_y = margin
+
+        imgui.set_next_window_pos(imgui.ImVec2(float(pos_x), float(pos_y)), imgui.Cond_.once)
+        imgui.set_next_window_size(imgui.ImVec2(float(window_w), float(window_h)), imgui.Cond_.once)
+        entry.window_initialized = True
 
 
 class NewtonVisualizer(BaseVisualizer):
@@ -486,7 +529,13 @@ class NewtonVisualizer(BaseVisualizer):
         """Resolve or create the camera sensor used by non-interactive image views."""
         if not self._uses_camera_sensor_view():
             return
-        env_ids = resolve_tiled_env_indices(num_envs, self.cfg.tiled_cam_num, self.cfg.tiled_cam_env_indices)
+        env_ids = resolve_tiled_env_indices(
+            num_envs,
+            self.cfg.tiled_cam_num,
+            self.cfg.tiled_cam_env_indices,
+            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
+            sample_from=self._resolved_visible_env_ids,
+        )
         self._camera_env_indices = env_ids
         if self.cfg.tiled_cam_prim_path is not None:
             logger.debug(
@@ -576,7 +625,7 @@ class NewtonVisualizer(BaseVisualizer):
                 rgb_nonzero,
             )
             self._logged_camera_stats = True
-        self._viewer.log_image("IsaacLab Camera", wp.from_torch(rgb))
+        self._viewer.log_image("Visualizer Tiled Camera", wp.from_torch(rgb))
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera eye/target pose to the Newton viewer.

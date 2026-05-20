@@ -194,6 +194,8 @@ The default visualizer camera mode is interactive: ``tiled_cam_view=False`` with
 controlling the viewer camera. Kit and Newton can also run non-interactive tiled camera image views.
 If ``tiled_cam_view=True`` is set, that visualizer config uses a camera image view rather than the
 default interactive camera; launch a second visualizer config if you want both.
+Kit and Newton cap tiled camera views at 100 tiles.
+Kit tiled camera views require launching with ``--enable_cameras``.
 
 .. list-table:: Camera configuration modes
    :header-rows: 1

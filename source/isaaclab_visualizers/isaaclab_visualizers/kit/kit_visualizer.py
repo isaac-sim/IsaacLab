@@ -16,6 +16,7 @@ import torch
 from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.envs.utils.camera_view import (
+    VISUALIZER_TILED_CAMERA_MAX_TILES,
     apply_camera_target_positions,
     camera_rgb_batch,
     compose_rgb_grid_tensor,
@@ -27,6 +28,7 @@ from isaaclab.envs.utils.camera_view import (
     resolve_tiled_env_indices,
 )
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -102,7 +104,6 @@ class KitVisualizer(BaseVisualizer):
             raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
         num_envs = scene_data_provider.num_envs
 
-        self._validate_cfg_camera_target("KitVisualizer")
         self._ensure_simulation_app()
         self._setup_viewport()
 
@@ -331,7 +332,14 @@ class KitVisualizer(BaseVisualizer):
 
     def _setup_camera_sensor_view(self, num_envs: int) -> None:
         """Resolve or create the Camera sensor backing non-interactive image views."""
-        if not self._uses_camera_sensor_view() or self._runtime_headless:
+        if not self._uses_camera_sensor_view():
+            return
+        if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
+            raise RuntimeError(
+                "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
+                "Rerun with --enable_cameras, or disable tiled_cam_view for this visualizer config."
+            )
+        if self._runtime_headless:
             return
         logger.debug(
             "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",
@@ -339,7 +347,13 @@ class KitVisualizer(BaseVisualizer):
             "prim_path" if self.cfg.tiled_cam_prim_path is not None else "generated",
             num_envs,
         )
-        env_ids = resolve_tiled_env_indices(num_envs, self.cfg.tiled_cam_num, self.cfg.tiled_cam_env_indices)
+        env_ids = resolve_tiled_env_indices(
+            num_envs,
+            self.cfg.tiled_cam_num,
+            self.cfg.tiled_cam_env_indices,
+            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
+            sample_from=self._resolved_visible_env_ids,
+        )
         self._camera_env_indices = env_ids
         if self.cfg.tiled_cam_prim_path is not None:
             logger.debug(
@@ -423,6 +437,7 @@ class KitVisualizer(BaseVisualizer):
         eyes, targets = apply_camera_target_positions(
             self._camera_sensor, target_positions, self.cfg.tiled_cam_eye, self._camera_env_indices
         )
+        self._set_generated_usd_camera_poses(eyes, targets)
         self._log_camera_pose_debug(eyes, targets)
 
     def _log_camera_pose_debug(self, eyes, targets) -> None:
@@ -452,6 +467,7 @@ class KitVisualizer(BaseVisualizer):
         self._camera_update_count += 1
         if self._camera_is_owned:
             self._update_owned_camera_poses()
+            self._sync_camera_pose_updates_to_kit()
         if not hasattr(self, "_logged_camera_panel_before_data"):
             logger.debug("[KitVisualizer] Fetching camera RGB tensor.")
             self._logged_camera_panel_before_data = True
@@ -528,6 +544,23 @@ class KitVisualizer(BaseVisualizer):
             logger.debug("[KitVisualizer] Camera image upload complete.")
             self._logged_camera_panel_after_upload = True
 
+    def _sync_camera_pose_updates_to_kit(self) -> None:
+        """Flush generated camera pose writes before camera RGB is sampled."""
+        try:
+            import omni.kit.app
+
+            app = omni.kit.app.get_app()
+            if app is None or not app.is_running():
+                return
+            settings = get_settings_manager()
+            play_flag = settings.get("/app/player/playSimulations")
+            settings.set_bool("/app/player/playSimulations", False)
+            app.update()
+            if play_flag is not None:
+                settings.set_bool("/app/player/playSimulations", bool(play_flag))
+        except Exception as exc:
+            logger.debug("[KitVisualizer] Camera pose Kit sync skipped: %s", exc)
+
     def _refresh_controlled_camera_path(self) -> None:
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
         if self._viewport_api is not None:
@@ -585,6 +618,48 @@ class KitVisualizer(BaseVisualizer):
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
+
+    def _set_generated_usd_camera_poses(self, eyes: torch.Tensor, targets: torch.Tensor) -> None:
+        """Author generated camera poses directly on USD camera prims for Kit/Fabric visibility."""
+        # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
+        for local_idx, env_id in enumerate(self._camera_env_indices):
+            if local_idx >= eyes.shape[0]:
+                break
+            camera_path = (
+                self._generated_camera_prim_paths[env_id]
+                if 0 <= env_id < len(self._generated_camera_prim_paths)
+                else f"/World/envs/env_{env_id}/VisualizerCamera"
+            )
+            self._set_usd_camera_pose(camera_path, eyes[local_idx], targets[local_idx])
+
+    def _set_usd_camera_pose(self, camera_path: str, position, target) -> None:
+        """Apply eye/target camera pose directly to a USD camera prim."""
+        # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
+        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
+        if usd_stage is None:
+            return
+
+        camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+        camera_xform = UsdGeom.Xformable(camera.GetPrim())
+        camera_xform.ClearXformOpOrder()
+        # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
+        # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
+        camera_xform.SetResetXformStack(True)
+
+        eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
+        lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
+        up_axis = UsdGeom.GetStageUpAxis(usd_stage)
+        rotation_matrix = create_rotation_matrix_from_view(eye, lookat, up_axis=up_axis, device="cpu")
+        if torch.isnan(rotation_matrix).any():
+            raise ValueError("[KitVisualizer] Cannot set camera pose because eye and lookat are degenerate.")
+        quat_xyzw = quat_from_matrix(rotation_matrix)[0]
+        quat_gf = Gf.Quatd(
+            float(quat_xyzw[3]),
+            Gf.Vec3d(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
+        )
+
+        camera_xform.AddTranslateOp().Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
+        camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(quat_gf)
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
         """Apply configured camera pose from eye/lookat."""

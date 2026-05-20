@@ -20,6 +20,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 
 _GENERATED_CAMERA_NAME = "VisualizerCamera"
+VISUALIZER_TILED_CAMERA_MAX_TILES = 100
 
 
 @dataclass
@@ -32,14 +33,28 @@ class ResolvedCameraView:
     generated_prim_paths: list[str] | None = None
 
 
-def resolve_tiled_env_indices(num_envs: int, tiled_cam_num: int, env_indices: list[int] | None) -> list[int]:
+def resolve_tiled_env_indices(
+    num_envs: int,
+    tiled_cam_num: int,
+    env_indices: list[int] | None,
+    max_tiles: int | None = None,
+    sample_from: list[int] | None = None,
+) -> list[int]:
     """Resolve env ids for tiled camera view once at visualizer initialization."""
     if num_envs <= 0:
         return []
-    max_count = min(max(1, int(tiled_cam_num)), num_envs)
     if env_indices is not None:
+        max_count = min(max(1, int(tiled_cam_num)), num_envs)
+        if max_tiles is not None:
+            max_count = min(max_count, max(1, int(max_tiles)))
         return [idx for idx in env_indices if 0 <= int(idx) < num_envs][:max_count]
-    return sorted(random.sample(range(num_envs), max_count))
+    candidates = [idx for idx in (sample_from if sample_from is not None else range(num_envs)) if 0 <= int(idx) < num_envs]
+    if not candidates:
+        return []
+    max_count = min(max(1, int(tiled_cam_num)), len(candidates))
+    if max_tiles is not None:
+        max_count = min(max_count, max(1, int(max_tiles)))
+    return sorted(random.sample(candidates, max_count))
 
 
 def resolve_mono_env_index(num_envs: int) -> list[int]:

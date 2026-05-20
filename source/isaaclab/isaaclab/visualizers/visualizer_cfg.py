@@ -46,11 +46,14 @@ class VisualizerCfg:
     tiled_cam_view: bool = True
     """Enable a non-interactive tiled camera image view."""
 
-    tiled_cam_num: int = 24
-    """Number of camera tiles to show when tiled_cam_env_indices is None."""
+    tiled_cam_num: int = 57
+    """Number of camera tiles to show when tiled_cam_env_indices is None, capped at 100."""
 
     tiled_cam_env_indices: list[int] | None = None
-    """Env ids to show in tiled camera view; if None, sample tiled_cam_num envs once at initialization."""
+    """Env ids to show in tiled camera view; capped at 100 entries.
+    
+    If ``None``, envs are randomly sampled from all visible envs.
+    """
 
     tiled_cam_prim_path: str | None = None
     """Existing Isaac Lab Camera sensor prim path to display.
