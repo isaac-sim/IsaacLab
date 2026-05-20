@@ -22,10 +22,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Key Features
    * - **Omniverse**
      - High-fidelity, Isaac Sim integration
-     - USD, visualization markers, live plots, tiled camera image view
+     - USD, visualization markers, live plots, tiled camera panel
    * - **Newton**
      - Fast iteration
-     - Low overhead, visualization markers, tiled camera image view
+     - Low overhead, visualization markers, tiled camera panel
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export, visualization markers
@@ -191,8 +191,8 @@ Camera Pose Behavior
 ~~~~~~~~~~~~~~~~~~~~
 
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
-Kit and Newton visualizers can also run non-interactive tiled camera image views.
-If ``tiled_cam_view=True`` is set, an additional window is launched in the visualizer which shows
+Kit and Newton visualizers can also run additional tiled camera image panels.
+If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
 a non-interactive tiled camera image view.
 
 Kit and Newton cap tiled camera views at 100 tiles.

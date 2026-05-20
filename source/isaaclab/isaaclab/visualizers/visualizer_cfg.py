@@ -40,7 +40,7 @@ class VisualizerCfg:
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Interactive visualizer camera look-at target in world coordinates."""
 
-    focal_length: float = 12.0
+    focal_length: float = 15.0
     """Camera focal length in millimeters for visualizer camera views."""
 
     tiled_cam_view: bool = False

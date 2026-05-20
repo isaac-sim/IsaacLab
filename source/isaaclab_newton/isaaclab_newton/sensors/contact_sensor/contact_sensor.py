@@ -40,30 +40,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _flatten_metadata(values) -> list:
-    """Return Newton contact sensor metadata as a flat Python list."""
-    if values is None:
-        return []
-    if isinstance(values, wp.array):
-        values = values.numpy()
-    flat_values = np.asarray(values, dtype=object).reshape(-1).tolist()
-    if flat_values and isinstance(flat_values[0], list | tuple | np.ndarray):
-        return [
-            value
-            for nested_values in flat_values
-            for value in np.asarray(nested_values, dtype=object).reshape(-1).tolist()
-        ]
-    return flat_values
-
-
-def _broadcast_metadata_kind(kind_values, count: int) -> list:
-    """Broadcast scalar Newton metadata kinds to match per-object indices."""
-    flat_values = _flatten_metadata(kind_values)
-    if len(flat_values) == 1 and count > 1:
-        return flat_values * count
-    return flat_values
-
-
 class ContactSensor(BaseContactSensor):
     """A contact reporting sensor.
 

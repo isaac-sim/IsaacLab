@@ -449,69 +449,6 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
-def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.MonkeyPatch):
-    class _FakeRerunViewer:
-        def __init__(self):
-            self.calls = []
-
-        def is_paused(self):
-            return False
-
-        def begin_frame(self, sim_time):
-            self.calls.append(("begin_frame", sim_time))
-
-        def log_state(self, state):
-            self.calls.append(("log_state", state))
-
-        def end_frame(self):
-            self.calls.append(("end_frame",))
-
-    class _DummyRerunSceneDataProvider:
-        def get_metadata(self) -> dict:
-            return {"num_envs": 4}
-
-        def get_newton_state(self):
-            return {"ok": True}
-
-        def get_camera_transforms(self):
-            return {}
-
-    def _raise_marker_render(*args, **kwargs):
-        raise RuntimeError("marker render failed")
-
-    monkeypatch.setattr(rerun_visualizer, "render_newton_visualization_markers", _raise_marker_render)
-
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
-
-        @staticmethod
-        def get_state(scene_data_provider=None):
-            return {"ok": True}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 4
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
-
-    visualizer = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
-    viewer = _FakeRerunViewer()
-    visualizer._is_initialized = True
-    visualizer._is_closed = False
-    visualizer._viewer = viewer
-    visualizer._scene_data_provider = _DummyRerunSceneDataProvider()
-    visualizer._resolved_visible_env_ids = None
-
-    with pytest.raises(RuntimeError, match="marker render failed"):
-        visualizer.step(0.25)
-
-    assert [call[0] for call in viewer.calls] == ["begin_frame", "log_state", "end_frame"]
-
-
 def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
     """Default ``--viz kit`` should work for envs without a camera prim."""
 

@@ -27,7 +27,6 @@ import math
 import pytest
 import torch
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
-from isaaclab_newton.sensors.contact_sensor.contact_sensor import _broadcast_metadata_kind, _flatten_metadata
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -68,12 +67,6 @@ class ContactSensorTestSceneCfg(InteractiveSceneCfg):
 
 
 SIM_DT = 1.0 / 120.0
-
-
-def test_contact_sensor_metadata_helpers_broadcast_scalar_kind():
-    """Newton exposes object kind as a scalar while indices are per object."""
-    assert _flatten_metadata([[0, 1], [2]]) == [0, 1, 2]
-    assert _broadcast_metadata_kind("body", 3) == ["body", "body", "body"]
 
 
 # ===================================================================

@@ -241,7 +241,7 @@ class NewtonViewerGL(ViewerGL):
 
             # Newton's ImageLogger owns camera-output image windows. Since Isaac Lab overrides
             # ViewerGL's left panel, explicitly keep the logged-image selector and draw path.
-            if getattr(self, "_image_logger", None) is not None:
+            if self._image_logger is not None:
                 self._image_logger.draw_controls()
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
@@ -264,7 +264,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("ESC - Exit")
 
         imgui.end()
-        if getattr(self, "_image_logger", None) is not None:
+        if self._image_logger is not None:
             self._prime_image_logger_window_layout()
             self._image_logger.draw()
         return
@@ -276,25 +276,25 @@ class NewtonViewerGL(ViewerGL):
         small tiled batches otherwise open as small windows. Prime the next
         ImGui window size once, then let users move/resize it normally.
         """
-        image_logger = getattr(self, "_image_logger", None)
+        image_logger = self._image_logger
         if image_logger is None:
             return
-        selected = getattr(image_logger, "_selected", None)
+        selected = image_logger._selected
         if selected is None:
             return
-        entry = getattr(image_logger, "_images", {}).get(selected)
-        if entry is None or getattr(entry, "window_initialized", False):
+        entry = image_logger._images.get(selected)
+        if entry is None or entry.window_initialized:
             return
 
         imgui = self.ui.imgui
         viewport = imgui.get_main_viewport()
-        sidebar_width = float(getattr(image_logger, "_sidebar_width_px", 300.0))
+        sidebar_width = float(image_logger._sidebar_width_px)
         margin = 20.0
         available_w = max(320.0, viewport.work_size.x - sidebar_width - 2.0 * margin)
         available_h = max(240.0, viewport.work_size.y - 2.0 * margin)
 
-        n_tiles = max(1, int(getattr(entry, "n", 1)))
-        tile_aspect = float(getattr(entry, "tile_aspect", 1.0))
+        n_tiles = max(1, int(entry.n))
+        tile_aspect = float(entry.tile_aspect)
         cols = max(1, math.ceil(math.sqrt(n_tiles)))
         rows = math.ceil(n_tiles / cols)
         grid_aspect = (rows * tile_aspect) / cols
