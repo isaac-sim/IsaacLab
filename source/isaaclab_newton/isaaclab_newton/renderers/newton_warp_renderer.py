@@ -118,9 +118,7 @@ class RenderData:
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
-                self.width, self.height, fov_warp
-            )
+            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(self.width, self.height, fov_warp)
 
     @wp.kernel
     def _update_transforms(

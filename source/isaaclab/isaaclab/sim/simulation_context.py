@@ -11,7 +11,6 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import toml

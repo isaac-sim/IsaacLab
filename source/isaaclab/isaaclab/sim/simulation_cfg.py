@@ -335,6 +335,3 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
     """The visualizer configuration(s). Default is an empty list."""
-
-    default_visualizer_cfg: VisualizerCfg = VisualizerCfg()
-    """Default visualizer settings applied to backend configs created from explicit CLI visualizer requests."""
