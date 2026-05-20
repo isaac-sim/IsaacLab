@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from collections.abc import Sequence
@@ -146,9 +145,10 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._body_names = list(self._wrench_binding.body_names)
 
         # OVPhysX clone_usd=False means SensorBase's USD-glob count only saw env_0;
-        # the binding has the true env count. Re-allocate env-sized SensorBase buffers
-        # to match (mirrors the OVPhysX ContactSensor handling).
-        binding_num_envs = self._wrench_binding.count // self._num_bodies
+        # the binding's ``count`` reports the true number of articulation instances
+        # (one per env).  Mirrors how OVPhysX Articulation reads ``sample.count``
+        # directly as ``num_instances``.
+        binding_num_envs = self._wrench_binding.count
         if binding_num_envs != self._num_envs:
             self._num_envs = binding_num_envs
             self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
@@ -161,8 +161,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._create_joint_frame_buffers()
 
         # Wrench storage as (N, L) spatial_vectorf; a float32 alias view targets the
-        # same memory and is the buffer passed to TensorBinding.read(...).  Same alias
-        # trick OVPhysX Articulation uses for LINK_VELOCITY / LINK_INCOMING_JOINT_FORCE.
+        # same memory and is the buffer passed to TensorBinding.read(...). Mirrors the
+        # OVPhysX Articulation pattern (see articulation_data.py:_get_read_view).
         self._wrench_buf = wp.zeros((self._num_envs, self._num_bodies), dtype=wp.spatial_vectorf, device=self._device)
         self._wrench_read_view = wp.array(
             ptr=self._wrench_buf.ptr,
@@ -280,13 +280,13 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             event: An invalidate event.
         """
         super()._invalidate_initialize_callback(event)
-        if self._wrench_binding is not None:
-            with contextlib.suppress(Exception):
-                self._wrench_binding.destroy()
+        # Drop the float32 alias view before the wrench buffer it aliases via raw
+        # ptr: if the buffer is freed while the alias still references its memory,
+        # Warp's array deallocator aborts.
+        self._wrench_read_view = None
         self._wrench_binding = None
         self._physx_instance = None
         self._wrench_buf = None
-        self._wrench_read_view = None
         self._joint_pos_b = None
         self._joint_quat_b = None
         self._num_bodies = 0
