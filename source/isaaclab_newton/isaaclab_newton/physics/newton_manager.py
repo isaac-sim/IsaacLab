@@ -1763,6 +1763,11 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_scene_data_provider(cls) -> SceneDataProvider | None:
+        """Return the active scene data provider, or None if unavailable.
+
+        Prefers ``PhysicsManager._sim`` when set; otherwise falls back to
+        ``SimulationContext.instance()``.
+        """
         sim = PhysicsManager._sim
         if sim is None:
             from isaaclab.sim import SimulationContext
