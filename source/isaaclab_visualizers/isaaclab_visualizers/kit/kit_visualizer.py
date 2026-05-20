@@ -166,9 +166,7 @@ class KitVisualizer(BaseVisualizer):
             return
         self._restore_env_visibility()
         if self._camera_sensor is not None and self._camera_is_owned:
-            cleanup = getattr(self._camera_sensor, "__del__", None)
-            if callable(cleanup):
-                cleanup()
+            self._camera_sensor.__del__()
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
         self._camera_image_provider = None

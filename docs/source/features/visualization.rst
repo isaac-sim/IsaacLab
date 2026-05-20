@@ -187,8 +187,8 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
      - any
      - Run headless; ``--headless`` takes precedence.
 
-Camera Pose Behavior
-~~~~~~~~~~~~~~~~~~~~
+Camera Modes
+~~~~~~~~~~~~
 
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
 Kit and Newton visualizers can also run additional tiled camera image panels.
@@ -397,7 +397,9 @@ Newton Visualizer
         tiled_cam_env_indices=None,               # Optional explicit env ids to show in the tiled view
         tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
         tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
-        tiled_cam_target_prim_path="/World/envs/*/Robot/base",  # Prim that generated cameras follow/look at
+        tiled_cam_target_prim_path=(              # Prim that generated cameras follow/look at
+            "/World/envs/*/Robot/base"
+        ),
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)

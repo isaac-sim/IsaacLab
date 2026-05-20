@@ -490,6 +490,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2  # 50 Hz
+        self.sim.default_visualizer_cfg.tiled_cam_target_prim_path = "/World/envs/*/Object"
 
         # *single-goal setup
         self.commands.object_pose.resampling_time_range = (2.0, 3.0)

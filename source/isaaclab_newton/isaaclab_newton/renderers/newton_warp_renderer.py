@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -119,12 +118,9 @@ class RenderData:
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            if hasattr(self.newton_sensor, "utils"):
-                self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
-                    self.width, self.height, fov_warp
-                )
-            else:
-                self.camera_rays = self.newton_sensor.compute_pinhole_camera_rays(self.width, self.height, fov_warp)
+            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
+                self.width, self.height, fov_warp
+            )
 
     @wp.kernel
     def _update_transforms(
@@ -189,49 +185,7 @@ class NewtonWarpRenderer(BaseRenderer):
             newton.geometry.build_bvh_shape(self._newton_model, self._newton_model.state())
 
         if self.cfg.create_default_light:
-            if hasattr(self.newton_sensor, "utils"):
-                self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
-            elif hasattr(self.newton_sensor, "create_default_light"):
-                self.newton_sensor.create_default_light(enable_shadows=self.cfg.enable_shadows)
-
-    def _create_sensor_config(self, sensor_cls):
-        """Create a tiled-camera config compatible with the loaded Newton package."""
-        if hasattr(sensor_cls, "RenderConfig"):
-            config_cls = sensor_cls.RenderConfig
-            requested = {
-                "enable_textures": self.cfg.enable_textures,
-                "enable_shadows": self.cfg.enable_shadows,
-                "enable_ambient_lighting": self.cfg.enable_ambient_lighting,
-                "enable_backface_culling": self.cfg.enable_backface_culling,
-                "max_distance": self.cfg.max_distance,
-            }
-        else:
-            config_cls = sensor_cls.Config
-            requested = {
-                "default_light": self.cfg.create_default_light,
-                "default_light_shadows": self.cfg.enable_shadows,
-                "enable_ambient_lighting": self.cfg.enable_ambient_lighting,
-                "enable_textures": self.cfg.enable_textures,
-                "backface_culling": self.cfg.enable_backface_culling,
-            }
-        params = inspect.signature(config_cls).parameters
-        return config_cls(**{name: value for name, value in requested.items() if name in params})
-
-    def _apply_render_context_config(self) -> None:
-        """Fill renderer options that older Newton config objects do not accept."""
-        render_config = getattr(getattr(self.newton_sensor, "render_context", None), "config", None)
-        if render_config is None:
-            return
-        optional_values = {
-            "enable_textures": self.cfg.enable_textures,
-            "enable_shadows": self.cfg.enable_shadows,
-            "enable_ambient_lighting": self.cfg.enable_ambient_lighting,
-            "enable_backface_culling": self.cfg.enable_backface_culling,
-            "max_distance": self.cfg.max_distance,
-        }
-        for name, value in optional_values.items():
-            if hasattr(render_config, name):
-                setattr(render_config, name, value)
+            self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
@@ -287,7 +241,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         # Refit the shape BVH against the current state since env body poses move every frame.
         # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
-        if self.newton_sensor.model.shape_count > 0 and hasattr(newton.geometry, "refit_bvh_shape"):
+        if self.newton_sensor.model.shape_count > 0:
             newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
 
         self.newton_sensor.update(
