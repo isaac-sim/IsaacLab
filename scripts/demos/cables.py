@@ -23,7 +23,6 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Spawn a pile of cables at varied z-axis rotations.")
 parser.add_argument("--num_cables", type=int, default=25, help="Number of cables to spawn.")
 AppLauncher.add_app_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 app_launcher = AppLauncher(args_cli)
@@ -98,40 +97,6 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
 
-        # spawn_cfg = sim_utils.UsdFileCfg(
-        #     usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable001.usda",
-        #     physics_material=NewtonCableMaterialCfg(
-        #         stretch_stiffness=1e6,
-        #         bend_stiffness=1e-4,
-        #         stretch_damping=1e-4,
-        #         bend_damping=1e-4,
-        #         density=100.0,
-        #     ),
-        # )
-        # cfg = CableObjectCfg(
-        #     prim_path=f"/World/Origin/Cable1{idx:03d}",
-        #     spawn=spawn_cfg,
-        #     init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
-        # )
-        # entities[f"Cable1{idx:03d}"] = CableObject(cfg=cfg)
-
-        # spawn_cfg = sim_utils.UsdFileCfg(
-        #     usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable002.usda",
-        #     physics_material=NewtonCableMaterialCfg(
-        #         stretch_stiffness=1e6,
-        #         bend_stiffness=1e-4,
-        #         stretch_damping=1e-4,
-        #         bend_damping=1e-4,
-        #         density=100.0,
-        #     ),
-        # )
-        # cfg = CableObjectCfg(
-        #     prim_path=f"/World/Origin/Cable2{idx:03d}",
-        #     spawn=spawn_cfg,
-        #     init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
-        # )
-        # entities[f"Cable2{idx:03d}"] = CableObject(cfg=cfg)
-
     return entities
 
 
@@ -178,7 +143,7 @@ def main():
         dt=0.01,
         device=args_cli.device,
         physics=physics_cfg,
-        visualizer_cfgs=[NewtonVisualizerCfg(eye=(2.5, 2.5, 1.0), lookat=(0.0, 0.0, 0.25))],
+        visualizer_cfgs=[NewtonVisualizerCfg(eye=(2.0, 2.0, 1.0), lookat=(0.0, 0.0, 0.25))],
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
