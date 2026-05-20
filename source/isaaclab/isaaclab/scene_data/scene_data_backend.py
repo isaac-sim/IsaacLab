@@ -18,25 +18,56 @@ from __future__ import annotations
 
 import warp as wp
 
+# Under Sphinx ``autodoc_mock_imports``, ``wp.struct`` is a ``_MockObject``
+# that replaces the decorated class with another mock, hiding its docstring
+# and fields from autodoc. Fall back to an identity decorator when warp is
+# mocked so the documentation builds from the source classes directly.
+if getattr(wp, "__sphinx_mock__", False):
+
+    def wp_struct(cls):
+        return cls
+else:
+    wp_struct = wp.struct
+
 
 class SceneDataFormat:
-    @wp.struct
+    """Warp struct variants describing the transform layouts that a
+    :class:`SceneDataBackend` may publish to consumers.
+    """
+
+    @wp_struct
     class Vec3_Quat:
+        """Separate position and quaternion arrays."""
+
         positions: wp.array(dtype=wp.vec3f) = None
+        """Per-transform positions [m]."""
+
         orientations: wp.array(dtype=wp.quatf) = None
+        """Per-transform orientations as quaternions."""
 
-    @wp.struct
+    @wp_struct
     class Vec3_Matrix33:
+        """Separate position and rotation-matrix arrays."""
+
         positions: wp.array(dtype=wp.vec3f) = None
+        """Per-transform positions [m]."""
+
         orientations: wp.array(dtype=wp.mat33f) = None
+        """Per-transform orientations as 3x3 rotation matrices."""
 
-    @wp.struct
+    @wp_struct
     class Transform:
-        transforms: wp.array(dtype=wp.transformf) = None
+        """Packed warp transforms (position + quaternion)."""
 
-    @wp.struct
+        transforms: wp.array(dtype=wp.transformf) = None
+        """Per-transform packed position + orientation transforms [m, -]."""
+
+    @wp_struct
     class Matrix44:
+        """Packed 4x4 homogeneous transform matrices."""
+
         matrices: wp.array(dtype=wp.mat44f) = None
+        """Per-transform 4x4 homogeneous transform matrices [m]."""
 
 
 class SceneDataBackend:
