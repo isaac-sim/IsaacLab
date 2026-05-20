@@ -1,0 +1,151 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Nightly auto-compile: rolls accumulated fragments under
+# ``source/<pkg>/changelog.d/`` into per-package ``CHANGELOG.rst`` entries,
+# bumps each ``extension.toml``, deletes consumed fragments, and pushes the
+# result back to ``develop``. Keeps the develop branch's changelog current
+# without requiring a maintainer to run ``compile`` by hand.
+#
+# Scheduled workflow — must live on the default branch (``main``) for the
+# cron to register. See ``.github/workflows/README.md``.
+#
+# The push uses a short-lived GitHub App installation token minted from
+# ``CHANGELOG_APP_ID`` + ``CHANGELOG_APP_PRIVATE_KEY`` (repo secrets). The
+# App must be installed on this repository with ``contents: write`` and
+# added to the bypass-actor list of ``develop``'s branch ruleset so the
+# auto-commit can push directly without satisfying required-checks /
+# required-approval gates.
+# Commits signed by an App token (unlike ``GITHUB_TOKEN``) are treated as
+# external pushes, so they DO trigger downstream workflow runs (Docker
+# rebuild, docs, etc.) without needing a separate PAT.
+
+name: Nightly Changelog Compilation
+
+on:
+  schedule:
+    # Run nightly at 5 AM UTC (one hour after daily-compatibility, so we
+    # don't compete for runner capacity).
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only — do not commit / push'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  # Only one nightly compile may be in flight at a time. ``cancel-in-progress``
+  # is intentionally false: if a previous run is still finishing its push, we
+  # queue rather than abort it mid-commit.
+  group: nightly-changelog
+  cancel-in-progress: false
+
+permissions:
+  # Reduced: the App installation token below carries its own write scope.
+  # GITHUB_TOKEN only needs read access for the standard checkout machinery.
+  contents: read
+
+jobs:
+  compile-changelog:
+    name: Compile changelog fragments
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Mint a short-lived (1 h) installation access token for the
+      # ``isaaclab-bot`` GitHub App. The App is on develop's branch-ruleset
+      # bypass list, so its push lands without needing the standard
+      # required-checks / required-approval pipeline.
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+        id: app-token
+        with:
+          # ``client-id`` (the App's OAuth client ID, ``Iv23...``) supersedes
+          # the deprecated ``app-id`` integer input as of v3.x.
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          # Declare the scope the App must have so token mint fails loudly
+          # if the App is misconfigured, instead of failing silently at the
+          # push step.
+          permission-contents: write
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # Operate on develop, not the repo's default branch. Scheduled
+          # workflows fire from the default branch's workflow file by
+          # default, but we want the *checkout* to be develop so the
+          # compile sees develop's accumulated fragments and the push
+          # writes back to develop.
+          ref: develop
+          # App token (vs. GITHUB_TOKEN) means the push is signed by
+          # ``isaaclab-bot`` — the bypass identity — and downstream CI
+          # workflows DO trigger on the resulting commit.
+          token: ${{ steps.app-token.outputs.token }}
+          # Full history so the compiler can resolve each fragment's merge
+          # time via ``git log --diff-filter=A --first-parent``.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Compile fragments
+        run: |
+          ARGS="--all"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          echo "Running: python3 tools/changelog/cli.py compile $ARGS"
+          python3 tools/changelog/cli.py compile $ARGS
+
+      - name: Commit and push if fragments were compiled
+        if: ${{ !inputs.dry_run }}
+        run: |
+          # Author commits as the App's bot user so the GitHub UI attributes
+          # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
+          git config user.name "isaaclab-bot[bot]"
+          git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+          git add source/*/changelog.d/ \
+                  source/*/docs/CHANGELOG.rst \
+                  source/*/config/extension.toml
+          if git diff --staged --quiet; then
+            echo "No changelog fragments found — nothing to commit."
+          else
+            # Convention for CI-driven auto-commits on this repo:
+            #   [CI][<Specific Action>] <one-line summary>
+            # The leading ``[CI]`` tag groups every machine-driven commit
+            # (so future automations — auto image rebuilds, auto publish,
+            # etc. — all share the prefix and are easy to find/filter in
+            # ``git log --grep``). The second tag names the specific
+            # action. The trigger event suffix (``schedule`` vs
+            # ``workflow_dispatch``) is preserved for traceability.
+            #
+            # The body lists every package that bumped, derived from the
+            # staged ``extension.toml`` diff so the entries are accurate
+            # regardless of which packages happen to have pending
+            # fragments this run.
+            MSG_FILE=$(mktemp)
+            {
+              echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
+              echo
+              echo "Bumped packages:"
+              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
+                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
+                old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
+                new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
+                echo "- $pkg: $old → $new"
+              done
+            } > "$MSG_FILE"
+            git commit -F "$MSG_FILE"
+            # Rebase onto develop's current tip in case a human commit
+            # landed during this run (~2 min window between checkout and
+            # push). Without this the push fails non-fast-forward and the
+            # batch waits for the next run.
+            git pull --rebase origin develop
+            # Push explicitly to develop so we don't accidentally write
+            # to the source ref of a workflow_dispatch run.
+            git push origin HEAD:develop
+          fi

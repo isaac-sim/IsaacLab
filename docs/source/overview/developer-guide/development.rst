@@ -68,12 +68,12 @@ python package to build the python module provided by the extensions. This is do
 .. note::
 
    The ``setup.py`` file is not required for extensions that are only loaded into Omniverse
-   using the `Extension Manager <https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_extension-manager.html>`__.
+   using the `Extension Manager <https://docs.omniverse.nvidia.com/extensions/latest/ext_extension-manager.html>`__.
 
 Lastly, the ``tests`` directory contains the unit tests for the extension. These are written
 using the `unittest <https://docs.python.org/3/library/unittest.html>`__ framework. It is
 important to note that Omniverse also provides a similar
-`testing framework <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/104.0/guide/testing_exts_python.html>`__.
+`testing framework <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/testing_exts_python.html>`__.
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.
 
