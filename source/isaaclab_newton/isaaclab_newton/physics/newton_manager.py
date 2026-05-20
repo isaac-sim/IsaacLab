@@ -34,8 +34,7 @@ from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.sim import SimulationContext
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -1557,10 +1556,11 @@ class NewtonManager(PhysicsManager):
         """Return ``True`` when the active sim backend is Newton."""
         if scene_data_provider is not None:
             return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
-        sim = PhysicsManager._sim
-        if sim is None:
+
+        scene_data_provider = cls.get_scene_data_provider()
+        if scene_data_provider is None:
             return False
-        return isinstance(sim.get_scene_data_provider().backend, NewtonSceneDataBackend)
+        return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
 
     @classmethod
     def _ensure_visualization_model(cls) -> None:
@@ -1762,6 +1762,18 @@ class NewtonManager(PhysicsManager):
         return builder
 
     @classmethod
+    def get_scene_data_provider(cls) -> SceneDataProvider | None:
+        sim = PhysicsManager._sim
+        if sim is None:
+            from isaaclab.sim import SimulationContext
+
+            sim = SimulationContext.instance()
+
+        if sim is not None:
+            return sim.get_scene_data_provider()
+        return None
+
+    @classmethod
     def update_visualization_state(cls, scene_data_provider=None) -> None:
         """Refresh visualization state for the active sim backend.
 
@@ -1777,27 +1789,26 @@ class NewtonManager(PhysicsManager):
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
         """
+
         if cls._backend_is_newton(scene_data_provider):
             return
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
             return
-        sdp = scene_data_provider
-        if sdp is None:
-            sim = SimulationContext.instance()
-            if sim is not None:
-                sdp = sim.get_scene_data_provider()
-        if sdp is None:
+
+        if scene_data_provider is None:
+            scene_data_provider = cls.get_scene_data_provider()
+        if scene_data_provider is None:
             return
 
         if cls._scene_data is None:
             cls._scene_data = SceneDataFormat.Transform()
         if cls._scene_data_mapping is None:
             body_paths = list(getattr(cls._model, "body_label", None) or [])
-            cls._scene_data_mapping = sdp.create_mapping(body_paths)
+            cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
         cls._scene_data.transforms = cls._state_0.body_q
-        sdp.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
+        scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
 
     @classmethod
     def get_state_1(cls) -> State:
