@@ -365,7 +365,7 @@ def test_set_world_indexed_only_affects_subset(device, view_factory):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_return_types_are_torcharray(device, view_factory):
-    """Public API contract — every backend returns ProxyArray from the pose getters."""
+    """Public API contract — every backend returns ProxyArray from the pose and scale getters."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         pos_full, quat_full = bundle.view.get_world_poses()
@@ -399,6 +399,13 @@ def test_return_types_are_torcharray(device, view_factory):
         )
         assert isinstance(lquat_idx, ProxyArray), (
             f"get_local_poses(indices)[1] must be ProxyArray, got {type(lquat_idx).__name__}"
+        )
+
+        scales_full = bundle.view.get_scales()
+        assert isinstance(scales_full, ProxyArray), f"get_scales() must be ProxyArray, got {type(scales_full).__name__}"
+        scales_idx = bundle.view.get_scales(indices)
+        assert isinstance(scales_idx, ProxyArray), (
+            f"get_scales(indices) must be ProxyArray, got {type(scales_idx).__name__}"
         )
     finally:
         bundle.teardown()

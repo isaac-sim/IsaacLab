@@ -507,7 +507,7 @@ class NewtonSiteFrameView(BaseFrameView):
     ``set_world_poses`` and ``set_local_poses`` update ``site_local`` --
     neither touches ``body_q``.
 
-    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
+    Getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
 
     Raises:
         ValueError: If any matched prim resolves to a Newton physics body
@@ -884,14 +884,14 @@ class NewtonSiteFrameView(BaseFrameView):
     # Scales
     # ------------------------------------------------------------------
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get per-site scales by reading from the first collision shape on the same body.
 
         Args:
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
         """
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
@@ -915,7 +915,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 outputs=[out],
                 device=self._device,
             )
-        return out
+        return ProxyArray(out)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set per-site scales by writing to all collision shapes on the same body.

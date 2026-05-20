@@ -22,7 +22,7 @@ class BaseFrameView(abc.ABC):
     :class:`~isaaclab.sim.views.FrameView` selects the correct
     implementation at runtime based on the active physics backend.
 
-    All pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
+    All getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
 
     @property
@@ -98,14 +98,14 @@ class BaseFrameView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get scales for prims in the view.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
         """
         ...
 
