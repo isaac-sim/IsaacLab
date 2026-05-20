@@ -98,53 +98,52 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
 
-        spawn_cfg = sim_utils.UsdFileCfg(
-            usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable001.usda",
-            physics_material=NewtonCableMaterialCfg(
-                stretch_stiffness=1e6,
-                bend_stiffness=1e-4,
-                stretch_damping=1e-4,
-                bend_damping=1e-4,
-                density=100.0,
-            ),
-        )
-        cfg = CableObjectCfg(
-            prim_path=f"/World/Origin/Cable1{idx:03d}",
-            spawn=spawn_cfg,
-            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
-        )
-        entities[f"Cable1{idx:03d}"] = CableObject(cfg=cfg)
+        # spawn_cfg = sim_utils.UsdFileCfg(
+        #     usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable001.usda",
+        #     physics_material=NewtonCableMaterialCfg(
+        #         stretch_stiffness=1e6,
+        #         bend_stiffness=1e-4,
+        #         stretch_damping=1e-4,
+        #         bend_damping=1e-4,
+        #         density=100.0,
+        #     ),
+        # )
+        # cfg = CableObjectCfg(
+        #     prim_path=f"/World/Origin/Cable1{idx:03d}",
+        #     spawn=spawn_cfg,
+        #     init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+        # )
+        # entities[f"Cable1{idx:03d}"] = CableObject(cfg=cfg)
 
-        spawn_cfg = sim_utils.UsdFileCfg(
-            usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable002.usda",
-            physics_material=NewtonCableMaterialCfg(
-                stretch_stiffness=1e6,
-                bend_stiffness=1e-4,
-                stretch_damping=1e-4,
-                bend_damping=1e-4,
-                density=100.0,
-            ),
-        )
-        cfg = CableObjectCfg(
-            prim_path=f"/World/Origin/Cable2{idx:03d}",
-            spawn=spawn_cfg,
-            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
-        )
-        entities[f"Cable2{idx:03d}"] = CableObject(cfg=cfg)
+        # spawn_cfg = sim_utils.UsdFileCfg(
+        #     usd_path="/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable002.usda",
+        #     physics_material=NewtonCableMaterialCfg(
+        #         stretch_stiffness=1e6,
+        #         bend_stiffness=1e-4,
+        #         stretch_damping=1e-4,
+        #         bend_damping=1e-4,
+        #         density=100.0,
+        #     ),
+        # )
+        # cfg = CableObjectCfg(
+        #     prim_path=f"/World/Origin/Cable2{idx:03d}",
+        #     spawn=spawn_cfg,
+        #     init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+        # )
+        # entities[f"Cable2{idx:03d}"] = CableObject(cfg=cfg)
 
     return entities
 
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObject]):
-    """Step the sim and periodically reset cable state."""
+    """Step the sim and periodically snap cables back to their initial state."""
     sim_dt = sim.get_physics_dt()
-    reset_steps = int(3.0 / sim_dt)
+    reset_steps = int(2.0 / sim_dt)
     count = 0
 
     while simulation_app.is_running():
         if count % reset_steps == 0:
             count = 0
-            # Cables have no nodal snap-back; reset internal buffers only.
             for cable in entities.values():
                 cable.reset()
             print("[INFO]: Resetting cable state...")
@@ -156,7 +155,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
 
 def main():
     """Main entry point."""
-    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.physics import NewtonCfg, NewtonCollisionPipelineCfg
 
     from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
@@ -165,6 +164,7 @@ def main():
             iterations=20, rigid_body_contact_buffer_size=1024, rigid_contact_k_start=1.0e1, rigid_avbd_beta=1e2
         ),
         num_substeps=8,
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=65536),
     )
     # Soften body-body contact: lower ke + nonzero kd damps out the
     # spikes when many cable segments pile onto one segment. mu=1.0 keeps
