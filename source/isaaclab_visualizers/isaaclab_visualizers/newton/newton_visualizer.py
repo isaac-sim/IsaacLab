@@ -327,7 +327,6 @@ class NewtonVisualizer(BaseVisualizer):
         self._model = None
         self._state = None
         self._update_frequency = cfg.update_frequency
-        self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
         self._resolved_visible_env_ids: list[int] | None = None
@@ -348,10 +347,8 @@ class NewtonVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()

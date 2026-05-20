@@ -130,7 +130,6 @@ class ViserVisualizer(BaseVisualizer):
         self._model: Any | None = None
         self._state = None
         self._sim_time = 0.0
-        self._scene_data_provider = None
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -148,10 +147,8 @@ class ViserVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Viser visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()

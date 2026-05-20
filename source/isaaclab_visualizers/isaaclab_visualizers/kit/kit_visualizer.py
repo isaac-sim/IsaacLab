@@ -62,7 +62,6 @@ class KitVisualizer(BaseVisualizer):
         self._is_initialized = False
         self._sim_time = 0.0
         self._step_counter = 0
-        self._scene_data_provider = None
         self._env_ids = None
         self._resolved_visible_env_ids: list[int] | None = None
         self._hidden_env_visibilities: dict[str, str] = {}
@@ -96,9 +95,7 @@ class KitVisualizer(BaseVisualizer):
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
 
-        if scene_data_provider is None:
-            raise RuntimeError("[KitVisualizer] Requires a scene_data_provider.")
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         usd_stage = scene_data_provider.usd_stage
         if usd_stage is None:
             raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")

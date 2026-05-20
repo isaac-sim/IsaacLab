@@ -151,7 +151,6 @@ class RerunVisualizer(BaseVisualizer):
         self._step_counter = 0
         self._model = None
         self._state = None
-        self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
 
@@ -165,10 +164,8 @@ class RerunVisualizer(BaseVisualizer):
 
         if self._is_initialized:
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
