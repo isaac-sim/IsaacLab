@@ -14,7 +14,6 @@ import warp as wp
 
 from pxr import Usd
 
-import isaaclab.sim as sim_utils
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import ProxyArray
@@ -322,8 +321,21 @@ class FabricFrameView(BaseFrameView):
         import usdrt  # noqa: PLC0415
         from usdrt import Rt  # noqa: PLC0415
 
-        stage_id = sim_utils.get_current_stage_id()
-        fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+        from isaaclab_physx.sim.fabric_stage_cache import FabricStageCache  # noqa: PLC0415
+
+        sim_context = SimulationContext.instance()
+        if sim_context is None:
+            raise RuntimeError("SimulationContext must be initialized before FabricFrameView.")
+
+        # Get or create the FabricStageCache service.
+        cache = sim_context.services[FabricStageCache]
+        if cache is None:
+            cache = FabricStageCache(sim_context.stage)
+            sim_context.services[FabricStageCache] = cache
+
+        fabric_stage = cache.stage
 
         for i in range(self.count):
             rt_prim = fabric_stage.GetPrimAtPath(self.prim_paths[i])
@@ -342,9 +354,7 @@ class FabricFrameView(BaseFrameView):
             rt_prim.CreateAttribute(self._view_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
             rt_prim.GetAttribute(self._view_index_attr).Set(i)
 
-        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
-        )
+        self._fabric_hierarchy, _ = cache.get_hierarchy()
         self._fabric_hierarchy.update_world_xforms()
 
         self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
@@ -352,6 +362,12 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.arange_k, dim=self.count, inputs=[self._default_view_indices], device=self._device
         )
         wp.synchronize()
+
+        if self._device not in _fabric_supported_devices:
+            raise RuntimeError(
+                f"Fabric mode is not supported on device '{self._device}'. "
+                f"Supported devices: {_fabric_supported_devices}"
+            )
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
