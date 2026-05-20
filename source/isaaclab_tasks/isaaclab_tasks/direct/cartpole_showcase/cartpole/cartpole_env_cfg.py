@@ -622,8 +622,8 @@ class CartpoleShowcasePresetsEnvCfg(PresetCfg):
     ``presets=<name>`` CLI token; the default is ``box_box`` (matching the
     canonical cartpole shape). The retired per-shape task IDs are registered
     in the sibling ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg
-    so ``parse_cfg.load_cfg_from_registry`` emits a ``DeprecationWarning``
-    when one of them is loaded.
+    so ``parse_cfg.load_cfg_from_registry`` emits a ``FutureWarning`` when
+    one of them is loaded.
     """
 
     box_box = BoxBoxEnvCfg()

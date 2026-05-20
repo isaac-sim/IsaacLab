@@ -43,7 +43,7 @@ gym.register(
 # Retired per-data-type camera task IDs. Each carries a ``deprecated`` kwarg
 # whose ``alias`` field names the consolidated task with the equivalent
 # ``presets=<name>`` -- parse_cfg.load_cfg_from_registry consults that kwarg
-# and emits a DeprecationWarning when the retired ID's env cfg is loaded.
+# and emits a FutureWarning when the retired ID's env cfg is loaded.
 # The ``env_cfg_entry_point`` keeps pointing at the historical per-variant
 # cfg so the retired ID stays bit-for-bit identical to develop.
 

@@ -16,7 +16,7 @@ Added
   equivalent migration command. The dict shape is open for future
   fields (``reason``, ``removed_in``, ...). :func:`isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry`
   reads ``kwargs["deprecated"]["alias"]`` when loading an
-  ``env_cfg_entry_point`` and emits a :class:`DeprecationWarning`
+  ``env_cfg_entry_point`` and emits a :class:`FutureWarning`
   naming the new command.
 
 Deprecated
@@ -25,7 +25,7 @@ Deprecated
 * Deprecated 35 per-variant Cartpole task IDs (7 Direct-backend camera,
   4 manager-based camera, 15 proprioceptive showcase, 9 camera-based
   showcase) in favor of the four consolidated tasks above. Each retired
-  ID still loads and emits a :class:`DeprecationWarning` naming the
+  ID still loads and emits a :class:`FutureWarning` naming the
   consolidated task and the equivalent ``presets=<name>`` (plus
   ``--agent=<entry_point_name>`` where required) invocation. The
   ``env_cfg_entry_point`` of each retired ID keeps pointing at the
