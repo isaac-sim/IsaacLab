@@ -134,7 +134,7 @@ class PhysxEventCfg:
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
     newton_mjwarp = NewtonEventCfg()
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -150,7 +150,8 @@ class ShadowHandRobotCfg(PresetCfg):
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
             # newton/mujoco have separate usd schema
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandNewton/shadow_hand_instanceable.usda",
+            # usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandNewton/shadow_hand_instanceable.usda",
+            usd_path="/home/rgresia/Downloads/shadow_hand_instanceable.usda",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -162,7 +163,8 @@ class ShadowHandRobotCfg(PresetCfg):
             fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(-0.33, -0.36, 0.3),
+            pos=(0.0, 0.0, 0.5),
+            # pos=(-0.33, -0.36, 0.3),
             # WARNING(Octi): Newton's import_usd.py bakes the USD body xformOp rotation into
             # joint_X_p for the root fixed joint, which cancels with the matching localPose1
             # rotation in joint_X_c during FK (joint_X_p * inv(joint_X_c) ≈ identity). This
@@ -206,7 +208,7 @@ class ShadowHandRobotCfg(PresetCfg):
         },
         soft_joint_pos_limit_factor=1.0,
     )
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -240,12 +242,12 @@ class ObjectCfg(PresetCfg):
             scale=(0.9, 0.9, 0.9),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, -0.36, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
+            pos=(0.3, 0.0, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
         ),
         actuators={},
         articulation_root_prim_path="",
     )
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -262,7 +264,7 @@ class ShadowHandSceneCfg(PresetCfg):
     newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
-    default: InteractiveSceneCfg = physx
+    default: InteractiveSceneCfg = newton_mjwarp
 
 
 @configclass
@@ -286,7 +288,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    default = physx
+    default = newton_mjwarp
 
 
 @configclass
