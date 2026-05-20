@@ -22,10 +22,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Key Features
    * - **Omniverse**
      - High-fidelity, Isaac Sim integration
-     - Interactive viewport, USD, visualization markers, live plots, tiled camera image view
+     - USD, visualization markers, live plots, tiled camera image view
    * - **Newton**
      - Fast iteration
-     - Low overhead, visualization markers, interactive GL camera, tiled camera image view
+     - Low overhead, visualization markers, tiled camera image view
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export, visualization markers
@@ -190,12 +190,14 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
 Camera Pose Behavior
 ~~~~~~~~~~~~~~~~~~~~
 
-The default visualizer camera mode is interactive: ``tiled_cam_view=False`` with ``eye`` and ``lookat``
-controlling the viewer camera. Kit and Newton can also run non-interactive tiled camera image views.
-If ``tiled_cam_view=True`` is set, that visualizer config uses a camera image view rather than the
-default interactive camera; launch a second visualizer config if you want both.
+The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
+Kit and Newton visualizers can also run non-interactive tiled camera image views.
+If ``tiled_cam_view=True`` is set, an additional window is launched in the visualizer which shows
+a non-interactive tiled camera image view.
+
 Kit and Newton cap tiled camera views at 100 tiles.
-Kit tiled camera views require launching with ``--enable_cameras``.
+
+Note, Kit tiled camera views require launching with ``--enable_cameras``.
 
 .. list-table:: Camera configuration modes
    :header-rows: 1
@@ -313,11 +315,10 @@ Omniverse Visualizer
 **Main Features:**
 
 - Native USD stage integration
-- Interactive viewport camera by default
 - Live plots for monitoring training metrics
 - Full Isaac Sim rendering capabilities and tooling
 - Visualization markers for debugging (arrows, frames, object targets, etc.)
-- Non-interactive tiled RGB camera views from Isaac Lab ``Camera`` sensors in a dockable image panel
+- Tiled camera views which can track multiple robots
 
 **Core Configuration:**
 
@@ -340,22 +341,6 @@ Omniverse Visualizer
         enable_live_plots=True,
     )
 
-Set ``tiled_cam_view=True`` on a Kit visualizer config to show camera sensor RGB in a dockable image
-panel. This config is non-interactive; use another ``KitVisualizerCfg`` if you also want an interactive
-viewport camera.
-
-.. code-block:: python
-
-    tiled_kit_cfg = KitVisualizerCfg(
-        create_viewport=True,
-        viewport_name="Tiled Cameras",
-        tiled_cam_view=True,
-        tiled_cam_num=16,
-        tiled_cam_eye=(4.0, -4.0, 3.0),
-        tiled_cam_target_prim_path="/World/envs/*/Robot/base",
-    )
-
-
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~
 
@@ -366,8 +351,7 @@ Newton Visualizer
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
-- Interactive GL camera by default
-- Non-interactive tiled RGB camera views via Newton ``Viewer.log_image`` from Isaac Lab ``Camera`` sensors
+- Tiled camera views which can track multiple robots
 
 
 **Interactive Controls:**
@@ -405,6 +389,15 @@ Newton Visualizer
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
         lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+        focal_length=12.0,                        # Camera focal length in millimeters
+
+        # Tiled camera view settings
+        tiled_cam_view=True,                      # Enable non-interactive tiled camera image view
+        tiled_cam_num=57,                         # Number of generated camera tiles to display
+        tiled_cam_env_indices=None,               # Optional explicit env ids to show in the tiled view
+        tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
+        tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
+        tiled_cam_target_prim_path="/World/envs/*/Robot/base",  # Prim that generated cameras follow/look at
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -424,21 +417,6 @@ Newton Visualizer
         background_color=(0.53, 0.81, 0.92),     # Sky/background color (RGB [0,1])
         ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
-    )
-
-Set ``tiled_cam_view=True`` on a Newton visualizer config to show camera sensor RGB in Newton's image
-view. This config is non-interactive; use another ``NewtonVisualizerCfg`` if you also want an interactive
-GL camera.
-
-.. code-block:: python
-
-    tiled_newton_cfg = NewtonVisualizerCfg(
-        window_width=1280,
-        window_height=720,
-        tiled_cam_view=True,
-        tiled_cam_env_indices=[0, 1, 2, 3],
-        tiled_cam_eye=(4.0, -4.0, 3.0),
-        tiled_cam_target_prim_path="/World/envs/*/Robot/base",
     )
 
 
