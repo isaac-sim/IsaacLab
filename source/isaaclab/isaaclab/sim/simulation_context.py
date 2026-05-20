@@ -29,7 +29,8 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene.scene_data_provider import SceneDataProvider
+from isaaclab.scene_data import SceneDataProvider
+from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -213,6 +214,8 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+
+        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -761,13 +764,11 @@ class SimulationContext:
         if not self._visualizers:
             return
 
+        for viz in self._visualizers:
+            viz.flush_startup_messages()
+
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
-
-        # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
-            self.vis_marker_registry.dispatch_callbacks()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
         # consumes that state later in this method.
@@ -852,6 +853,22 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
+    # ------------------------------------------------------------------
+    # Service locator
+    # ------------------------------------------------------------------
+
+    @property
+    def services(self) -> ServiceLocator:
+        """Typed service registry for backend-specific singletons.
+
+        Usage::
+
+            sim_context.services[FabricStageCache] = cache
+            cache = sim_context.services[FabricStageCache]
+            del sim_context.services[FabricStageCache]  # closes and removes
+        """
+        return self._services
+
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
@@ -865,6 +882,10 @@ class SimulationContext:
                 viz.close()
             cls._instance._visualizers.clear()
 
+            # Close and drop all registered singleton services
+            service_errors: list[Exception] = []
+            cls._instance._services.close_all(caught_exceptions=service_errors)
+
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
@@ -877,6 +898,11 @@ class SimulationContext:
 
             gc.collect()
             logger.info("SimulationContext cleared")
+
+            if service_errors:
+                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
+                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+                raise RuntimeError(msg) from service_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:
