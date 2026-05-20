@@ -649,6 +649,8 @@ _PREBUNDLE_REPOINT_PACKAGES: list[str] = [
     "websockets",
     "viser",
     "imgui_bundle",
+    "attr",
+    "attrs",
 ]
 """Package directory names in Isaac Sim prebundle directories to repoint.
 

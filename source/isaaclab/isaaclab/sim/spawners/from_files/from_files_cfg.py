@@ -8,12 +8,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
-
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
+from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
