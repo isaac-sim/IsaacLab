@@ -494,8 +494,11 @@ class FrameTransformer(BaseFrameTransformer):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._frame_physx_view = None
+        # release the per-body ovphysx bindings + their read buffers so re-initialize starts fresh
+        self._body_bindings = []
+        self._body_read_bufs = []
+        self._body_dst_flat_indices = []
+        self._raw_transforms = None
 
     """
     Internal helpers.
