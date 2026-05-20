@@ -15,7 +15,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.physics import PhysicsManager
 from isaaclab.sensors.imu import BaseImu
 
 import isaaclab_ovphysx.tensor_types as TT
@@ -74,7 +73,7 @@ class Imu(BaseImu):
         """Returns: A string containing information about the instance."""
         return (
             f"Imu sensor @ '{self.cfg.prim_path}': \n"
-            f"\tbackend           : ovphysx\n"
+            f"\tbinding pattern   : {self._rigid_parent_expr}\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tnumber of sensors : {self._num_bodies}\n"
         )
@@ -131,10 +130,7 @@ class Imu(BaseImu):
 
         physx_instance = SimulationManager.get_physx_instance()
         if physx_instance is None:
-            raise RuntimeError(
-                "OVPhysX Imu: physics instance is not initialized. "
-                "Ensure SimulationContext.reset() has been called before sensor initialization."
-            )
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
@@ -154,23 +150,22 @@ class Imu(BaseImu):
             self._rigid_parent_expr = self.cfg.prim_path.replace("/" + relative_path, "")
             fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
 
-        # Translate the user-facing path expression (".*" / "{ENV_REGEX_NS}") to an ovphysx glob.
+        # Translate the regex-style path expression to an ovphysx fnmatch glob.
         pattern = self._rigid_parent_expr.replace(".*", "*")
 
-        # Open the three pattern-bound tensor bindings on the rigid-body ancestor.
         self._pose_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
         self._vel_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_VELOCITY)
         self._com_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_COM_POSE)
         self._num_bodies = self._pose_binding.count
 
         if self._num_bodies != self._num_envs:
-            raise RuntimeError(
-                f"OVPhysX Imu: pattern '{pattern}' matched {self._num_bodies} rigid bodies but the scene has "
-                f"{self._num_envs} environments. The IMU expects exactly one body per environment."
+            raise ValueError(
+                f"OvPhysx Imu: pattern '{pattern}' matched {self._num_bodies} rigid bodies; expected exactly one"
+                f" body per environment (num_envs={self._num_envs}). Check that the prim path or its rigid-body"
+                " ancestor is unique per env."
             )
 
-        # Read scene gravity from the simulation cfg (OvPhysxManager has no get_gravity()).
-        gravity = PhysicsManager._sim.cfg.gravity
+        gravity = SimulationManager.get_gravity()
         gravity_bias = torch.tensor((-gravity[0], -gravity[1], -gravity[2]), device=self._device)
         gravity_bias_torch = gravity_bias.repeat(self._num_bodies, 1)
         self._gravity_bias_w = wp.from_torch(gravity_bias_torch.contiguous(), dtype=wp.vec3f)
@@ -195,14 +190,11 @@ class Imu(BaseImu):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # ovphysx binding.read(dst) writes into a pre-allocated dst buffer.
-        # For structured-dtype targets (transformf, spatial_vectorf) we pass a
-        # zero-copy flat float32 view of the same memory; the kernel then reads
-        # the structured buffer directly.
+        # ovphysx ``binding.read(dst)`` writes into the pre-allocated dst buffer;
+        # ``_*_view`` are float32 aliases of the structured-dtype buffers below.
         self._pose_binding.read(self._transforms_view)
         self._vel_binding.read(self._velocities_view)
-
-        # COM is CPU-resident in ovphysx; read into the CPU scratch, then copy into the GPU buffer.
+        # COM is CPU-resident in ovphysx; stage on CPU, then copy into the GPU buffer.
         self._com_binding.read(self._coms_cpu_view)
         wp.copy(self._coms_gpu_view, self._coms_cpu_view)
 
@@ -211,8 +203,8 @@ class Imu(BaseImu):
             dim=self._num_envs,
             inputs=[
                 env_mask,
-                self._transforms_buf,
-                self._velocities_buf,
+                self._transforms,
+                self._velocities,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
@@ -236,23 +228,20 @@ class Imu(BaseImu):
         self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
         self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
 
-        # Persistent destination buffers for ovphysx tensor reads.
-        # The kernel consumes the structured-dtype buffers; the *_view aliases are
-        # flat float32 reinterpretations of the same memory used as ovphysx
-        # binding.read() destinations.
-        self._transforms_buf = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
-        self._velocities_buf = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
+        # Structured-dtype buffers consumed by the kernel.
+        self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
+        self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
         self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
 
         self._transforms_view = wp.array(
-            ptr=self._transforms_buf.ptr,
+            ptr=self._transforms.ptr,
             shape=self._pose_binding.shape,
             dtype=wp.float32,
             device=self._device,
             copy=False,
         )
         self._velocities_view = wp.array(
-            ptr=self._velocities_buf.ptr,
+            ptr=self._velocities.ptr,
             shape=self._vel_binding.shape,
             dtype=wp.float32,
             device=self._device,
@@ -265,5 +254,4 @@ class Imu(BaseImu):
             device=self._device,
             copy=False,
         )
-        # COM binding lives on CPU, so its read destination must also be CPU.
         self._coms_cpu_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu")
