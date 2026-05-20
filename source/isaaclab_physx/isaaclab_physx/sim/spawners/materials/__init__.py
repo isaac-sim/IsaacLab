@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for spawners that spawn PhysX-based materials."""
+"""Sub-module for PhysX material configuration compatibility exports."""
 
 from isaaclab.utils.module import lazy_export
 

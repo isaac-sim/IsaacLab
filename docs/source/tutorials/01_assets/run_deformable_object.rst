@@ -7,14 +7,17 @@ Interacting with a deformable object
 .. currentmodule:: isaaclab
 
 While deformable objects sometimes refer to a broader class of objects, such as cloths, fluids and soft bodies,
-in PhysX, deformable objects are represented as either surface or volume deformables. Unlike rigid objects, soft bodies can deform
-under external forces and collisions. In this tutorial, we will focus on volume deformable bodies. For an example of surface
-deformables (cloth), see the deformable demo at ``scripts/demos/deformables.py``.
+Isaac Lab represents deformable objects as either surface or volume deformables. Unlike rigid objects, soft bodies can
+deform under external forces and collisions. In this tutorial, we focus on volume deformable bodies. For an example of
+surface deformables (cloth), see the deformable demo at ``scripts/demos/deformables.py``.
 
-Soft bodies are simulated using Finite Element Method (FEM) in PhysX. The volume deformable comprises of two tetrahedral
-meshes -- a simulation mesh and a collision mesh. The simulation mesh is used to simulate the deformations of
-the soft body, while the collision mesh is used to detect collisions with other objects in the scene.
-For more details, please check the `PhysX documentation`_.
+The deformable object API and schema define/modify functions are shared across backends, while deformable
+property and material configuration classes are backend-specific. PhysX simulates soft bodies using the Finite
+Element Method (FEM); the Newton experimental backend uses VBD-based deformable support from
+:mod:`isaaclab_contrib.deformable`.
+The volume deformable comprises of two tetrahedral meshes -- a simulation mesh and a collision mesh. The simulation
+mesh is used to simulate the deformations of the soft body, while the collision mesh is used to detect collisions
+with other objects in the scene. For PhysX-specific details, please check the `PhysX documentation`_.
 
 This tutorial shows how to interact with a deformable object in the simulation. We will spawn a
 set of soft cubes and see how to set their nodal positions and velocities, along with apply kinematic
@@ -31,7 +34,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 68-82, 110-126, 131-139, 141-149
+      :emphasize-lines: 65-98, 119-124, 126-135, 140-148, 150-158
       :linenos:
 
 
@@ -54,8 +57,10 @@ the :class:`assets.DeformableObject` class, it spawns the object and initializes
 when the simulation is played.
 
 .. note::
-    The deformable object is only supported in GPU simulation and requires a mesh object to be spawned with the
-    deformable body physics properties on it.
+    Deformable objects require a mesh object to be spawned with backend-specific deformable body physics
+    properties and a matching deformable physics material.
+    Use ``--backend physx`` for the PhysX implementation or ``--backend newton`` for the experimental Newton
+    implementation.
 
 
 As seen in the rigid body tutorial, we can spawn the deformable object into the scene in a similar fashion by creating
@@ -63,7 +68,7 @@ an instance of the :class:`assets.DeformableObject` class by passing the configu
 
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
-   :start-at: # Create separate groups called "Origin0", "Origin1", ...
+   :start-at: # Create separate groups called "env_0", "env_1", ...
    :end-at: cube_object = DeformableObject(cfg=cfg)
 
 Running the simulation loop
@@ -112,8 +117,8 @@ Stepping the simulation
 """""""""""""""""""""""
 
 Deformable bodies support user-driven kinematic control where a user can specify position targets for some of
-the mesh nodes while the rest of the nodes are simulated using the FEM solver. This `partial kinematic`_ control
-is useful for applications where the user wants to interact with the deformable object in a controlled manner.
+the mesh nodes while the rest of the nodes are simulated by the active deformable solver. This `partial kinematic`_
+control is useful for applications where the user wants to interact with the deformable object in a controlled manner.
 
 In this tutorial, we apply kinematic commands to two out of the four cubes in the scene. We set the position
 targets for the node at index 0 (bottom-left corner) to move the cube along the z-axis.
@@ -161,6 +166,12 @@ Now that we have gone through the code, let's run the script and see the result:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
+
+To run the same tutorial with the experimental Newton deformable backend:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --backend newton --visualizer kit
 
 
 This should open a stage with a ground plane, lights, and several cubes. Two of the four cubes must be dropping

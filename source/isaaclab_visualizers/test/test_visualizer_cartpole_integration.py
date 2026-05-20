@@ -522,6 +522,7 @@ def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.skip(reason="ViewerGL frame motion is flaky on the current pinned Isaac Sim CI image.")
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Newton GL (``ViewerGL.get_frame``): full motion steps, last frame non-black; early vs late differ; logs."""

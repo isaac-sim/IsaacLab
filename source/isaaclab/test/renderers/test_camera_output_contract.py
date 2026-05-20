@@ -6,6 +6,7 @@
 """Tests for the renderer→camera output contract."""
 
 import warnings
+from types import SimpleNamespace
 
 import pytest
 import warp as wp
@@ -127,11 +128,32 @@ def test_newton_warp_supported_output_types_key_set():
     assert set(specs.keys()) == {
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
+        RenderBufferKind.RGB_HDR,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
         RenderBufferKind.NORMALS,
         RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
     }
+    assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+
+
+def test_newton_warp_wraps_requested_rgb_hdr_output():
+    """NewtonWarpRenderer wires requested RGB_HDR proxies to the Newton HDR output slot."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    wp.init()
+    from isaaclab_newton.renderers.newton_warp_renderer import RenderData
+
+    from isaaclab.utils.warp.proxy_array import ProxyArray
+
+    fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
+    render_data = RenderData(fake_sensor, SimpleNamespace(cfg=SimpleNamespace(width=4, height=3, isp_cfg=None)))
+    hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
+
+    render_data.set_outputs({str(RenderBufferKind.RGB_HDR): hdr_proxy})
+
+    assert render_data.outputs.hdr_color_image is not None
+    assert render_data.get_output(RenderBufferKind.RGB_HDR) is render_data.outputs.hdr_color_image
 
 
 def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
