@@ -393,7 +393,7 @@ Newton Visualizer
 
         # Tiled camera view settings
         tiled_cam_view=True,                      # Enable non-interactive tiled camera image view
-        tiled_cam_num=57,                         # Number of generated camera tiles to display
+        tiled_cam_num=16,                         # Number of generated camera tiles to display
         tiled_cam_env_indices=None,               # Optional explicit env ids to show in the tiled view
         tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
         tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras

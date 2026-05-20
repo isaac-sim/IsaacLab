@@ -173,6 +173,8 @@ def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
 
 def compute_tile_resolution(window_width: int, window_height: int, num_tiles: int) -> tuple[int, int]:
     """Derive a conservative per-tile resolution from the visualizer window."""
+    if window_width <= 0 or window_height <= 0:
+        raise ValueError(f"Window dimensions must be positive, got {window_width}x{window_height}.")
     cols = max(1, math.ceil(math.sqrt(max(1, num_tiles))))
     rows = math.ceil(max(1, num_tiles) / cols)
     return max(1, int(window_width) // cols), max(1, int(window_height) // rows)
@@ -255,7 +257,7 @@ def apply_camera_view_from_origins(
     origins = origins.to(device=device)
     eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
     lookat_offset = torch.tensor(lookat, dtype=torch.float32, device=device).unsqueeze(0)
-    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset)
+    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset, env_ids=env_ids)
     camera._update_poses(None)
 
 

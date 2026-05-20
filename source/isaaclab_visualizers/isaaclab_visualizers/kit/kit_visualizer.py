@@ -76,6 +76,9 @@ class KitVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._generated_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
+        self._generated_camera_pose_cache: dict[str, tuple[float, ...]] = {}
+        self._generated_camera_poses_dirty = False
         self._camera_image_provider = None
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
@@ -166,9 +169,11 @@ class KitVisualizer(BaseVisualizer):
             return
         self._restore_env_visibility()
         if self._camera_sensor is not None and self._camera_is_owned:
-            self._camera_sensor.__del__()
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
+        self._generated_camera_xform_ops.clear()
+        self._generated_camera_pose_cache.clear()
+        self._generated_camera_poses_dirty = False
         self._camera_image_provider = None
         self._camera_image_window = None
         self._simulation_app = None
@@ -329,13 +334,13 @@ class KitVisualizer(BaseVisualizer):
         """Resolve or create the Camera sensor backing non-interactive image views."""
         if not self._uses_camera_sensor_view():
             return
+        if self._runtime_headless:
+            return
         if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
             raise RuntimeError(
                 "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
                 "Rerun with --enable_cameras, or disable tiled_cam_view for this visualizer config."
             )
-        if self._runtime_headless:
-            return
         logger.debug(
             "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",
             self.cfg.tiled_cam_view,
@@ -387,7 +392,7 @@ class KitVisualizer(BaseVisualizer):
         """Create a dockable Kit UI image panel for camera sensor RGB output."""
         import omni.ui
 
-        title = self.cfg.viewport_name or "Visualizer Camera"
+        title = self.cfg.viewport_name or "Visualizer Tiled Camera"
         self._camera_image_provider = omni.ui.ByteImageProvider()
         self._camera_image_window = omni.ui.Window(title, width=self.cfg.window_width, height=self.cfg.window_height)
         with self._camera_image_window.frame:
@@ -440,7 +445,9 @@ class KitVisualizer(BaseVisualizer):
             return
         if self._camera_is_owned:
             self._update_owned_camera_poses()
-            self._sync_camera_pose_updates_to_kit()
+            if self._generated_camera_poses_dirty:
+                self._sync_camera_pose_updates_to_kit()
+                self._generated_camera_poses_dirty = False
         if self._camera_is_owned:
             self._camera_sensor.update(dt=dt, force_recompute=True)
         rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices)
@@ -562,21 +569,20 @@ class KitVisualizer(BaseVisualizer):
                 if 0 <= env_id < len(self._generated_camera_prim_paths)
                 else f"/World/envs/env_{env_id}/VisualizerCamera"
             )
-            self._set_usd_camera_pose(camera_path, eyes[local_idx], targets[local_idx])
+            self._generated_camera_poses_dirty |= self._set_usd_camera_pose(
+                camera_path, eyes[local_idx], targets[local_idx]
+            )
 
-    def _set_usd_camera_pose(self, camera_path: str, position, target) -> None:
-        """Apply eye/target camera pose directly to a USD camera prim."""
+    def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
+        """Apply eye/target camera pose directly to a USD camera prim.
+
+        Returns:
+            ``True`` when authored values changed, otherwise ``False``.
+        """
         # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
         usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
         if usd_stage is None:
-            return
-
-        camera = UsdGeom.Camera.Define(usd_stage, camera_path)
-        camera_xform = UsdGeom.Xformable(camera.GetPrim())
-        camera_xform.ClearXformOpOrder()
-        # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
-        # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
-        camera_xform.SetResetXformStack(True)
+            return False
 
         eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
         lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
@@ -585,13 +591,40 @@ class KitVisualizer(BaseVisualizer):
         if torch.isnan(rotation_matrix).any():
             raise ValueError("[KitVisualizer] Cannot set camera pose because eye and lookat are degenerate.")
         quat_xyzw = quat_from_matrix(rotation_matrix)[0]
+        pose_key = (
+            float(eye[0, 0]),
+            float(eye[0, 1]),
+            float(eye[0, 2]),
+            float(quat_xyzw[0]),
+            float(quat_xyzw[1]),
+            float(quat_xyzw[2]),
+            float(quat_xyzw[3]),
+        )
+        if self._generated_camera_pose_cache.get(camera_path) == pose_key:
+            return False
+
+        if camera_path not in self._generated_camera_xform_ops:
+            camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+            camera_xform = UsdGeom.Xformable(camera.GetPrim())
+            camera_xform.ClearXformOpOrder()
+            # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
+            # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
+            camera_xform.SetResetXformStack(True)
+            translate_op = camera_xform.AddTranslateOp()
+            orient_op = camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+            self._generated_camera_xform_ops[camera_path] = (translate_op, orient_op)
+        else:
+            translate_op, orient_op = self._generated_camera_xform_ops[camera_path]
+
         quat_gf = Gf.Quatd(
             float(quat_xyzw[3]),
             Gf.Vec3d(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
         )
 
-        camera_xform.AddTranslateOp().Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
-        camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(quat_gf)
+        translate_op.Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
+        orient_op.Set(quat_gf)
+        self._generated_camera_pose_cache[camera_path] = pose_key
+        return True
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
         """Apply configured camera pose from eye/lookat."""

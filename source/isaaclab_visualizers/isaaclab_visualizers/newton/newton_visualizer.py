@@ -486,7 +486,6 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is not None:
             self._viewer = None
         if self._camera_sensor is not None and self._camera_is_owned:
-            self._camera_sensor.__del__()
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
         self._is_closed = True
