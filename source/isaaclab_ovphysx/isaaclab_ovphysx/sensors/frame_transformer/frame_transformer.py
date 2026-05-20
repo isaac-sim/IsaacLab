@@ -9,16 +9,23 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
 
+from pxr import UsdPhysics
+
+import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.utils.math import normalize, quat_from_angle_axis
+from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
+
+import isaaclab_ovphysx.tensor_types as TT
+from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .frame_transformer_data import FrameTransformerData
+from .kernels import frame_transformer_update_kernel  # noqa: F401
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer import FrameTransformerCfg
@@ -109,7 +116,287 @@ class FrameTransformer(BaseFrameTransformer):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        raise NotImplementedError("FrameTransformer._initialize_impl lands in the next commit.")
+
+        # resolve source frame offset
+        source_frame_offset_pos = torch.tensor(self.cfg.source_frame_offset.pos, device=self.device)
+        source_frame_offset_quat = torch.tensor(self.cfg.source_frame_offset.rot, device=self.device)
+        # Only need to perform offsetting of source frame if the position offsets is non-zero and rotation offset is
+        # not the identity quaternion for efficiency in _update_buffer_impl
+        self._apply_source_frame_offset = True
+        # Handle source frame offsets
+        if is_identity_pose(source_frame_offset_pos, source_frame_offset_quat):
+            logger.debug(f"No offset application needed for source frame as it is identity: {self.cfg.prim_path}")
+            self._apply_source_frame_offset = False
+        else:
+            logger.debug(f"Applying offset to source frame as it is not identity: {self.cfg.prim_path}")
+            # Store offsets as tensors (duplicating each env's offsets for ease of multiplication later)
+            self._source_frame_offset_pos = source_frame_offset_pos.unsqueeze(0).repeat(self._num_envs, 1)
+            self._source_frame_offset_quat = source_frame_offset_quat.unsqueeze(0).repeat(self._num_envs, 1)
+
+        # Keep track of mapping from the rigid body name to the desired frames and prim path,
+        # as there may be multiple frames based upon the same body name and we don't want to
+        # create unnecessary views.
+        body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
+        # The offsets associated with each target frame
+        target_offsets: dict[str, dict[str, torch.Tensor]] = {}
+        # The frames whose offsets are not identity (use set to avoid duplicates across envs)
+        non_identity_offset_frames: set[str] = set()
+
+        # Only need to perform offsetting of target frame if any of the position offsets are non-zero or any of the
+        # rotation offsets are not the identity quaternion for efficiency in _update_buffer_impl
+        self._apply_target_frame_offset = False
+
+        # Need to keep track of whether the source frame is also a target frame
+        self._source_is_also_target_frame = False
+
+        # Collect all target frames, their associated body prim paths and their offsets so that we can extract
+        # the prim, check that it has the appropriate rigid body API in a single loop.
+        # First element is None because user can't specify source frame name
+        frames = [None] + [target_frame.name for target_frame in self.cfg.target_frames]
+        frame_prim_paths = [self.cfg.prim_path] + [target_frame.prim_path for target_frame in self.cfg.target_frames]
+        # First element is None because source frame offset is handled separately
+        frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
+        frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
+        for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
+            # Find correct prim
+            matching_prims = sim_utils.find_matching_prims(prim_path)
+            if len(matching_prims) == 0:
+                raise ValueError(
+                    f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
+                    " No matching prims were found."
+                )
+            for prim in matching_prims:
+                # Get the prim path of the matching prim
+                matching_prim_path = prim.GetPath().pathString
+                # Check if it is a rigid prim
+                if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    raise ValueError(
+                        f"While resolving expression '{prim_path}' found a prim '{matching_prim_path}' which is not a"
+                        " rigid body. The class only supports transformations between rigid bodies."
+                    )
+
+                # Get the name of the body: use relative prim path for unique identification
+                body_name = self._get_relative_body_path(matching_prim_path)
+                # Use leaf name of prim path if frame name isn't specified by user
+                frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
+
+                # Keep track of which frames are associated with which bodies
+                if body_name in body_names_to_frames:
+                    body_names_to_frames[body_name]["frames"].add(frame_name)
+
+                    # This is a corner case where the source frame is also a target frame
+                    if body_names_to_frames[body_name]["type"] == "source" and frame_type == "target":
+                        self._source_is_also_target_frame = True
+
+                else:
+                    # Store the first matching prim path and the type of frame
+                    body_names_to_frames[body_name] = {
+                        "frames": {frame_name},
+                        "prim_path": matching_prim_path,
+                        "type": frame_type,
+                    }
+
+                if offset is not None:
+                    offset_pos = torch.tensor(offset.pos, device=self.device)
+                    offset_quat = torch.tensor(offset.rot, device=self.device)
+                    # Check if we need to apply offsets (optimized code path in _update_buffer_impl)
+                    if not is_identity_pose(offset_pos, offset_quat):
+                        non_identity_offset_frames.add(frame_name)
+                        self._apply_target_frame_offset = True
+                    target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
+
+        if not self._apply_target_frame_offset:
+            logger.info(
+                f"No offsets application needed from '{self.cfg.prim_path}' to target frames as all"
+                f" are identity: {frames[1:]}"
+            )
+        else:
+            logger.info(
+                f"Offsets application needed from '{self.cfg.prim_path}' to the following target frames:"
+                f" {sorted(non_identity_offset_frames)}"
+            )
+
+        # The names of bodies that RigidPrim will be tracking to later extract transforms from
+        tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
+        tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
+
+        # --- OVPhysX: create one TT.RIGID_BODY_POSE binding per unique tracked body ---
+        physx_instance = OvPhysxManager.get_physx_instance()
+        if physx_instance is None:
+            raise RuntimeError(
+                "OvPhysxManager has not been initialized yet."
+                " Reset the simulation context before adding the FrameTransformer."
+            )
+
+        self._body_bindings: list[Any] = []
+        self._body_read_bufs: list[wp.array] = []  # one (num_envs, 7) float32 buffer per body
+        self._body_dst_flat_indices: list[wp.array] = []  # (num_envs,) int32 destination slots per body
+
+        num_unique_bodies = len(tracked_body_names)
+
+        for body_slot, tracked_path in enumerate(tracked_prim_paths):
+            pattern = self._env_wildcardify(tracked_path)
+            binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
+            if binding.count == 0:
+                raise RuntimeError(
+                    f"FrameTransformer: TT.RIGID_BODY_POSE binding for pattern {pattern!r} matched zero bodies."
+                    " Verify the prim has UsdPhysics.RigidBodyAPI."
+                )
+
+            if binding.count != self._num_envs:
+                # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
+                # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
+                # sensor stays correct if a future scene runs with clone_usd=False.
+                logger.warning(
+                    "FrameTransformer: binding.count=%d for pattern %r differs from self._num_envs=%d;"
+                    " overriding env count from binding (clone_usd=False scene).",
+                    binding.count,
+                    pattern,
+                    self._num_envs,
+                )
+                self._num_envs = binding.count
+                self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
+                self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
+                self._reset_mask_torch = wp.to_torch(self._reset_mask)
+                self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+                self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+                self._timestamp_last_update = wp.zeros_like(self._timestamp)
+
+            read_buf = wp.zeros((self._num_envs, 7), dtype=wp.float32, device=self._device)
+            dst_torch = torch.tensor(
+                [env_id * num_unique_bodies + body_slot for env_id in range(self._num_envs)],
+                dtype=torch.int32,
+                device=self._device,
+            )
+            self._body_bindings.append(binding)
+            self._body_read_bufs.append(read_buf)
+            self._body_dst_flat_indices.append(wp.from_torch(dst_torch.contiguous(), dtype=wp.int32))
+
+        # Flat raw transforms buffer with layout slot = env_id * num_unique_bodies + body_slot.
+        # Same layout PhysX produces after its _per_env_indices reorder.
+        self._raw_transforms = wp.zeros(self._num_envs * num_unique_bodies, dtype=wp.transformf, device=self._device)
+
+        # OVPhysX chooses the flat layout itself; _per_env_indices is the identity permutation.
+        self._per_env_indices = list(range(self._num_envs * num_unique_bodies))
+
+        # tracked_prim_paths is already the env-0 representative list in insertion order.
+        sorted_prim_paths = tracked_prim_paths
+
+        # -- target frames: use relative prim path for unique identification
+        self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
+
+        # -- source frame: use relative prim path for unique identification
+        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
+
+        # Only remove source frame from tracked bodies if it is not also a target frame
+        if not self._source_is_also_target_frame:
+            self._target_frame_body_names.remove(self._source_frame_body_name)
+
+        # Determine indices into all tracked body frames for both source and target frames
+        all_ids = torch.arange(self._num_envs * len(tracked_body_names))
+        self._source_frame_body_ids = torch.arange(self._num_envs) * len(tracked_body_names) + source_frame_index
+
+        # If source frame is also a target frame, then the target frame body ids are the same as
+        # the source frame body ids
+        if self._source_is_also_target_frame:
+            self._target_frame_body_ids = all_ids
+        else:
+            self._target_frame_body_ids = all_ids[~torch.isin(all_ids, self._source_frame_body_ids)]
+
+        # The name of each of the target frame(s) - either user specified or defaulted to the body name
+        self._target_frame_names: list[str] = []
+        # The position and rotation components of target frame offsets
+        target_frame_offset_pos = []
+        target_frame_offset_quat = []
+        # Stores the indices of bodies that need to be duplicated. For instance, if body "LF_SHANK" is needed
+        # for 2 frames, this list enables us to duplicate the body to both frames when doing the calculations
+        # when updating sensor in _update_buffers_impl
+        duplicate_frame_indices = []
+
+        # Go through each body name and determine the number of duplicates we need for that frame
+        # and extract the offsets. This is all done to handle the case where multiple frames
+        # reference the same body, but have different names and/or offsets
+        for i, body_name in enumerate(self._target_frame_body_names):
+            for frame in body_names_to_frames[body_name]["frames"]:
+                # Only need to handle target frames here as source frame is handled separately
+                if frame in target_offsets:
+                    target_frame_offset_pos.append(target_offsets[frame]["pos"])
+                    target_frame_offset_quat.append(target_offsets[frame]["quat"])
+                    self._target_frame_names.append(frame)
+                    duplicate_frame_indices.append(i)
+
+        # To handle multiple environments, need to expand so [0, 1, 1, 2] with 2 environments becomes
+        # [0, 1, 1, 2, 3, 4, 4, 5]. Again, this is a optimization to make _update_buffer_impl more efficient
+        duplicate_frame_indices = torch.tensor(duplicate_frame_indices, device=self.device)
+        if self._source_is_also_target_frame:
+            num_target_body_frames = len(tracked_body_names)
+        else:
+            num_target_body_frames = len(tracked_body_names) - 1
+
+        self._duplicate_frame_indices = torch.cat(
+            [duplicate_frame_indices + num_target_body_frames * env_num for env_num in range(self._num_envs)]
+        )
+
+        # Target frame offsets are only applied if at least one of the offsets are non-identity
+        if self._apply_target_frame_offset:
+            # Stack up all the frame offsets for shape (num_envs, num_frames, 3) and (num_envs, num_frames, 4)
+            self._target_frame_offset_pos = torch.stack(target_frame_offset_pos).repeat(self._num_envs, 1)
+            self._target_frame_offset_quat = torch.stack(target_frame_offset_quat).repeat(self._num_envs, 1)
+
+        # Store number of target frames for kernel launch
+        self._num_target_frames = len(self._target_frame_names)
+
+        # --- Pre-compute warp index arrays for fused kernel ---
+        # Source raw indices: (N,) — direct index into raw_transforms per env
+        source_raw_list = []
+        for e in range(self._num_envs):
+            source_raw_list.append(self._per_env_indices[self._source_frame_body_ids[e].item()])
+        self._source_raw_indices = wp.from_torch(
+            torch.tensor(source_raw_list, dtype=torch.int32, device=self._device), dtype=wp.int32
+        )
+
+        # Target raw indices: (N, M) — direct index into raw_transforms per (env, frame)
+        M = self._num_target_frames
+        target_raw = torch.zeros((self._num_envs, M), dtype=torch.int32, device=self._device)
+        for e in range(self._num_envs):
+            for f in range(M):
+                dup_idx = self._duplicate_frame_indices[e * M + f].item()
+                body_idx = self._target_frame_body_ids[dup_idx].item()
+                target_raw[e, f] = self._per_env_indices[body_idx]
+        self._target_raw_indices = wp.from_torch(target_raw.contiguous(), dtype=wp.int32)
+
+        # --- Pre-compute warp offset arrays (always created; identity when not configured) ---
+        # Source offsets: (N,)
+        if self._apply_source_frame_offset:
+            self._source_offset_pos_wp = wp.from_torch(self._source_frame_offset_pos.contiguous(), dtype=wp.vec3f)
+            self._source_offset_quat_wp = wp.from_torch(self._source_frame_offset_quat.contiguous(), dtype=wp.quatf)
+        else:
+            self._source_offset_pos_wp = wp.zeros(self._num_envs, dtype=wp.vec3f, device=self._device)
+            self._source_offset_quat_wp = wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device)
+            # Identity quaternion: (0, 0, 0, 1)
+            wp.to_torch(self._source_offset_quat_wp)[:, 3] = 1.0
+
+        # Target offsets: (M,)
+        if self._apply_target_frame_offset:
+            # Only need per-frame offsets (not per-env*frame), take first M entries
+            tgt_off_pos = torch.stack(target_frame_offset_pos)  # (M, 3)
+            tgt_off_quat = torch.stack(target_frame_offset_quat)  # (M, 4)
+            self._target_offset_pos_wp = wp.from_torch(tgt_off_pos.contiguous(), dtype=wp.vec3f)
+            self._target_offset_quat_wp = wp.from_torch(tgt_off_quat.contiguous(), dtype=wp.quatf)
+        else:
+            self._target_offset_pos_wp = wp.zeros(M, dtype=wp.vec3f, device=self._device)
+            self._target_offset_quat_wp = wp.zeros(M, dtype=wp.quatf, device=self._device)
+            # Identity quaternion: (0, 0, 0, 1)
+            wp.to_torch(self._target_offset_quat_wp)[:, 3] = 1.0
+
+        # Create data buffers
+        self._data.create_buffers(
+            num_envs=self._num_envs,
+            num_target_frames=self._num_target_frames,
+            target_frame_names=self._target_frame_names,
+            device=self._device,
+        )
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         raise NotImplementedError("FrameTransformer._update_buffers_impl lands in the next commit.")
@@ -224,6 +511,25 @@ class FrameTransformer(BaseFrameTransformer):
         orientations = quat_from_angle_axis(angle, rotation_axis)
 
         return positions, orientations, lengths
+
+    @staticmethod
+    def _env_wildcardify(prim_path: str) -> str:
+        """Convert an env-0 prim path into an ovphysx fnmatch glob matching all envs.
+
+        Mirrors the pattern construction used by :class:`isaaclab_ovphysx.sensors.ContactSensor`.
+
+        Args:
+            prim_path: An env-0 prim path (e.g. ``"/World/envs/env_0/Robot/LF_FOOT"``) or an
+                IsaacLab regex form (e.g. ``"/World/envs/env_.*/Robot/LF_FOOT"`` or
+                ``"{ENV_REGEX_NS}/Robot/LF_FOOT"``).
+
+        Returns:
+            The same path with the env segment replaced by ``env_*`` (fnmatch glob).
+        """
+        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
+        pattern = re.sub(r"\.\*", "*", pattern)
+        pattern = re.sub(r"/envs/env_\d+(/|$)", r"/envs/env_*\1", pattern)
+        return pattern
 
     @staticmethod
     def _get_relative_body_path(prim_path: str) -> str:
