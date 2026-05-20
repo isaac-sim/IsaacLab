@@ -516,7 +516,14 @@ class FrameTransformer(BaseFrameTransformer):
     def _env_wildcardify(prim_path: str) -> str:
         """Convert an env-0 prim path into an ovphysx fnmatch glob matching all envs.
 
-        Mirrors the pattern construction used by :class:`isaaclab_ovphysx.sensors.ContactSensor`.
+        Extends the two-substitution pattern used by
+        :class:`~isaaclab_ovphysx.sensors.ContactSensor` with a third substitution
+        for concrete ``env_<N>`` paths produced by ``sim_utils.find_matching_prims``.
+        The three substitutions, in order:
+
+        1. ``{ENV_REGEX_NS}`` → ``*`` (placeholder form).
+        2. ``.*`` → ``*`` (IsaacLab regex form, e.g. ``env_.*``).
+        3. ``/envs/env_<digits>`` → ``/envs/env_*`` (concrete env-0 path form).
 
         Args:
             prim_path: An env-0 prim path (e.g. ``"/World/envs/env_0/Robot/LF_FOOT"``) or an
@@ -524,7 +531,11 @@ class FrameTransformer(BaseFrameTransformer):
                 ``"{ENV_REGEX_NS}/Robot/LF_FOOT"``).
 
         Returns:
-            The same path with the env segment replaced by ``env_*`` (fnmatch glob).
+            The same path with the env namespace replaced by an fnmatch wildcard
+            (``*`` for the ``{ENV_REGEX_NS}`` placeholder, ``env_*`` for concrete or
+            regex env paths). Assumes the standard IsaacLab ``/World/envs/env_<N>/...``
+            layout; non-standard scene structures will only get the first two
+            substitutions.
         """
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
         pattern = re.sub(r"\.\*", "*", pattern)
