@@ -177,8 +177,6 @@ class SimulationContext:
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
         self._scene_data_requirements = SceneDataRequirement()
-        # TODO: move to SDP?
-        self._interactive_scene = None
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
         # their own backend args. None until :meth:`InteractiveScene.clone_environments` runs.

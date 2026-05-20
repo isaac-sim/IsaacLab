@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
 import torch
 import warp as wp
 
@@ -21,16 +19,6 @@ from isaaclab.sensors.camera import Camera, CameraCfg
 
 _GENERATED_CAMERA_NAME = "VisualizerCamera"
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
-
-
-@dataclass
-class ResolvedCameraView:
-    """Camera sensor plus selected sensor indices."""
-
-    camera: Camera
-    env_indices: list[int]
-    owns_camera: bool = False
-    generated_prim_paths: list[str] | None = None
 
 
 def resolve_tiled_env_indices(
@@ -169,22 +157,6 @@ def camera_rgb_batch(camera: Camera, env_indices: list[int]) -> torch.Tensor:
     return rgb
 
 
-def compose_rgb_grid(rgb_batch: torch.Tensor) -> np.ndarray:
-    """Compose an RGB batch into a near-square uint8 image grid for Kit UI display."""
-    rgb_np = rgb_batch.detach().contiguous().cpu().numpy()
-    if rgb_np.ndim == 3:
-        return rgb_np[..., :3]
-    n, h, w, _ = rgb_np.shape
-    cols = max(1, math.ceil(math.sqrt(n)))
-    rows = math.ceil(n / cols)
-    pad = rows * cols - n
-    if pad > 0:
-        rgb_np = np.concatenate([rgb_np[..., :3], np.zeros((pad, h, w, 3), dtype=rgb_np.dtype)], axis=0)
-    else:
-        rgb_np = rgb_np[..., :3]
-    return rgb_np.reshape(rows, cols, h, w, 3).transpose(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3)
-
-
 def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
     """Compose an RGB batch into a near-square uint8 image grid without leaving its device."""
     if rgb_batch.ndim == 3:
@@ -302,34 +274,3 @@ def apply_camera_target_positions(
     camera.set_world_poses_from_view(eyes, targets, env_ids=env_ids)
     camera._update_poses(None)
     return eyes.detach().cpu(), targets.detach().cpu()
-
-
-def apply_debug_top_down_grid_camera_poses(camera: Camera, env_indices: list[int], spacing: float = 20.0) -> None:
-    """Temporary debug pose: place cameras on a grid at z=10 looking straight down."""
-    device = camera.device
-    count = len(env_indices)
-    cols = max(1, math.ceil(math.sqrt(max(1, count))))
-    eyes = []
-    targets = []
-    for i, _env_id in enumerate(env_indices):
-        row, col = divmod(i, cols)
-        x = float(col) * spacing
-        y = float(row) * spacing
-        eyes.append((x, y, 10.0))
-        targets.append((x, y, 0.0))
-    eye_tensor = torch.tensor(eyes, dtype=torch.float32, device=device)
-    target_tensor = torch.tensor(targets, dtype=torch.float32, device=device)
-    camera.set_world_poses_from_view(eye_tensor, target_tensor)
-    camera._update_poses(None)
-
-
-def apply_debug_oblique_env_camera_poses(camera: Camera, origins: torch.Tensor, env_indices: list[int]) -> None:
-    """Temporary debug pose: place cameras near each env origin with an oblique view."""
-    device = camera.device
-    origins = origins.to(device=device)
-    # Use a high, nearly top-down view for rough terrain. The small horizontal
-    # offset avoids the Z-up singularity from a perfectly vertical look vector.
-    eye_offset = torch.tensor((2.0, -2.0, 3.0), dtype=torch.float32, device=device).unsqueeze(0)
-    lookat_offset = torch.tensor((0.0, 0.0, 0.0), dtype=torch.float32, device=device).unsqueeze(0)
-    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset)
-    camera._update_poses(None)

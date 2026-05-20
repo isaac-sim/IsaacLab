@@ -79,10 +79,6 @@ class KitVisualizer(BaseVisualizer):
         self._camera_image_provider = None
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
-        self._camera_update_count = 0
-        self._camera_last_checksum: int | None = None
-        self._camera_pose_update_count = 0
-        self._camera_last_pose_debug: tuple[float, ...] | None = None
         self._warned_gpu_upload_failure = False
 
     # ---- Lifecycle ------------------------------------------------------------------------
@@ -439,62 +435,17 @@ class KitVisualizer(BaseVisualizer):
             self._camera_sensor, target_positions, self.cfg.tiled_cam_eye, self._camera_env_indices
         )
         self._set_generated_usd_camera_poses(eyes, targets)
-        self._log_camera_pose_debug(eyes, targets)
-
-    def _log_camera_pose_debug(self, eyes, targets) -> None:
-        """Log generated camera pose changes for follow-mode debugging."""
-        self._camera_pose_update_count += 1
-        first_eye = tuple(float(v) for v in eyes[0])
-        first_target = tuple(float(v) for v in targets[0])
-        pose_key = (*first_eye, *first_target)
-        changed = self._camera_last_pose_debug is None or pose_key != self._camera_last_pose_debug
-        if self._camera_pose_update_count <= 5 or self._camera_pose_update_count % 30 == 0:
-            logger.debug(
-                "[KitVisualizer] Camera pose update #%s first_eye=%s first_target=%s changed=%s",
-                self._camera_pose_update_count,
-                first_eye,
-                first_target,
-                changed,
-            )
-        self._camera_last_pose_debug = pose_key
 
     def _update_camera_image_panel(self, dt: float) -> None:
         """Refresh the non-interactive Kit image panel from camera RGB output."""
         if self._camera_sensor is None or self._camera_image_provider is None:
             return
-        if not hasattr(self, "_logged_camera_panel_first_update"):
-            logger.debug("[KitVisualizer] Updating camera image panel for the first time.")
-            self._logged_camera_panel_first_update = True
-        self._camera_update_count += 1
         if self._camera_is_owned:
             self._update_owned_camera_poses()
             self._sync_camera_pose_updates_to_kit()
-        if not hasattr(self, "_logged_camera_panel_before_data"):
-            logger.debug("[KitVisualizer] Fetching camera RGB tensor.")
-            self._logged_camera_panel_before_data = True
         if self._camera_is_owned:
             self._camera_sensor.update(dt=dt, force_recompute=True)
         rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices)
-        if self._camera_update_count <= 5 or self._camera_update_count % 30 == 0:
-            checksum = int(rgb.to(dtype=torch.int64).sum().item())
-            logger.debug(
-                "[KitVisualizer] Camera update #%s checksum=%s changed=%s",
-                self._camera_update_count,
-                checksum,
-                self._camera_last_checksum is None or checksum != self._camera_last_checksum,
-            )
-            self._camera_last_checksum = checksum
-        if not hasattr(self, "_logged_camera_panel_after_data"):
-            tile_means = rgb[..., :3].float().mean(dim=(1, 2)).detach().cpu().numpy()
-            logger.debug(
-                "[KitVisualizer] Camera RGB tensor ready: shape=%s dtype=%s min=%s max=%s",
-                tuple(rgb.shape),
-                rgb.dtype,
-                int(rgb.min().item()),
-                int(rgb.max().item()),
-            )
-            logger.debug("[KitVisualizer] First tile RGB means: %s", tile_means[: min(4, len(tile_means))].tolist())
-            self._logged_camera_panel_after_data = True
         image = compose_rgb_grid_tensor(rgb) if self.cfg.tiled_cam_view else rgb[0].contiguous()
         self._upload_camera_image_to_panel(image)
 
@@ -520,30 +471,12 @@ class KitVisualizer(BaseVisualizer):
                         self._warned_gpu_upload_failure = True
             image = image.detach().contiguous().cpu().numpy()
 
-        if not hasattr(self, "_logged_camera_panel_image_stats"):
-            channel_mean = image[..., :3].reshape(-1, 3).mean(axis=0)
-            logger.debug(
-                "[KitVisualizer] Composed camera image stats: shape=%s min=%s max=%s mean_rgb=(%.2f, %.2f, %.2f)",
-                image.shape,
-                int(image.min()),
-                int(image.max()),
-                float(channel_mean[0]),
-                float(channel_mean[1]),
-                float(channel_mean[2]),
-            )
-            self._logged_camera_panel_image_stats = True
-        if not hasattr(self, "_logged_camera_panel_before_upload"):
-            logger.debug("[KitVisualizer] Uploading camera image to UI provider: shape=%s", image.shape)
-            self._logged_camera_panel_before_upload = True
         image = image.astype("uint8", copy=False)
         if image.ndim == 3 and image.shape[2] == 3:
             alpha = np.full((*image.shape[:2], 1), 255, dtype=np.uint8)
             image = np.concatenate((image, alpha), axis=2)
         image = np.ascontiguousarray(image)
         self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
-        if not hasattr(self, "_logged_camera_panel_after_upload"):
-            logger.debug("[KitVisualizer] Camera image upload complete.")
-            self._logged_camera_panel_after_upload = True
 
     def _sync_camera_pose_updates_to_kit(self) -> None:
         """Flush generated camera pose writes before camera RGB is sampled."""

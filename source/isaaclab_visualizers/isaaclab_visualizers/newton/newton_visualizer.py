@@ -12,7 +12,6 @@ import math
 import os
 from typing import TYPE_CHECKING
 
-import torch
 import warp as wp
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
@@ -337,11 +336,6 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
-        self._logged_camera_stats = False
-        self._camera_update_count = 0
-        self._camera_last_checksum: int | None = None
-        self._camera_pose_update_count = 0
-        self._camera_last_pose_debug: tuple[float, ...] | None = None
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -574,24 +568,6 @@ class NewtonVisualizer(BaseVisualizer):
         eyes, targets = apply_camera_target_positions(
             self._camera_sensor, target_positions, self.cfg.tiled_cam_eye, self._camera_env_indices
         )
-        self._log_camera_pose_debug(eyes, targets)
-
-    def _log_camera_pose_debug(self, eyes, targets) -> None:
-        """Log generated camera pose changes for follow-mode debugging."""
-        self._camera_pose_update_count += 1
-        first_eye = tuple(float(v) for v in eyes[0])
-        first_target = tuple(float(v) for v in targets[0])
-        pose_key = (*first_eye, *first_target)
-        changed = self._camera_last_pose_debug is None or pose_key != self._camera_last_pose_debug
-        if self._camera_pose_update_count <= 5 or self._camera_pose_update_count % 30 == 0:
-            logger.debug(
-                "[NewtonVisualizer] Camera pose update #%s first_eye=%s first_target=%s changed=%s",
-                self._camera_pose_update_count,
-                first_eye,
-                first_target,
-                changed,
-            )
-        self._camera_last_pose_debug = pose_key
 
     def _log_camera_sensor_image(self) -> None:
         """Log the selected camera sensor RGB output into Newton's image panel."""
@@ -602,29 +578,6 @@ class NewtonVisualizer(BaseVisualizer):
         if self._camera_is_owned:
             self._camera_sensor.update(dt=0.0, force_recompute=True)
         rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices).contiguous()
-        self._camera_update_count += 1
-        if self._camera_update_count <= 5 or self._camera_update_count % 30 == 0:
-            checksum = int(rgb.to(dtype=torch.int64).sum().item())
-            logger.debug(
-                "[NewtonVisualizer] Camera update #%s checksum=%s changed=%s",
-                self._camera_update_count,
-                checksum,
-                self._camera_last_checksum is None or checksum != self._camera_last_checksum,
-            )
-            self._camera_last_checksum = checksum
-        if not self._logged_camera_stats:
-            rgb_min = int(rgb.min().item())
-            rgb_max = int(rgb.max().item())
-            rgb_nonzero = int(torch.count_nonzero(rgb).item())
-            logger.debug(
-                "[NewtonVisualizer] Camera image stats: shape=%s dtype=%s min=%s max=%s nonzero=%s",
-                tuple(rgb.shape),
-                rgb.dtype,
-                rgb_min,
-                rgb_max,
-                rgb_nonzero,
-            )
-            self._logged_camera_stats = True
         self._viewer.log_image("Visualizer Tiled Camera", wp.from_torch(rgb))
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:

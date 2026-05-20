@@ -31,7 +31,7 @@ from isaaclab.managers import CommandManager, EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils import resolve_cfg_presets
+from isaaclab.utils.configclass import resolve_cfg_presets
 
 from .ui import ViewportCameraController
 
