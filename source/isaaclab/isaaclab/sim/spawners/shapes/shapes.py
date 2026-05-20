@@ -297,7 +297,8 @@ def spawn_cable(
     # explicitly because ``connections`` is not part of the UsdGeomBasisCurves
     # schema; ``create_prim``'s attribute dict relies on ``GetAttribute().Set()``
     # which can't infer a type for non-schema attributes.
-    # TODO: Remove in the future once UsdGeomBasisCurves natively supports curve topology. For now, the Newton replicate hook expects this attribute to build the rod graph.
+    # TODO: Remove in the future once UsdGeomBasisCurves natively supports curve topology.
+    # For now, the Newton replicate hook expects this attribute to build the rod graph.
     mesh_prim = stage.GetPrimAtPath(prim_path + "/geometry/mesh")
     connections_attr = mesh_prim.CreateAttribute("connections", Sdf.ValueTypeNames.Int2Array, True)
     connections_attr.Set([Gf.Vec2i(i, i + 1) for i in range(n_points - 1)])
