@@ -444,3 +444,104 @@ def test_start_simulation_preserves_curved_cable_body_q():
                 " restore them."
             ),
         )
+
+
+def test_cable_object_reset_restores_body_state():
+    """``CableObject.reset()`` snaps the cable's body slice back to the rest pose.
+
+    Steps the sim to drift the cable away from its spawn pose, calls
+    :meth:`CableObject.reset`, and verifies that:
+
+    1. ``state.body_q`` matches ``model.body_q`` for the cable's bodies.
+    2. ``state.body_qd`` is zero for the cable's bodies.
+    3. ``solver.body_q_prev`` is refreshed to the rest pose (otherwise AVBD's
+       implicit velocity ``(body_q - body_q_prev) / dt`` would produce
+       hundreds of m/s on the next step).
+    4. ``solver.body_inertia_q`` is zero (matches solver-init default).
+    5. One more ``sim.step()`` keeps ``|body_qd|`` bounded (regression for the
+       ~700 m/s spurious-velocity bug).
+    """
+    import numpy as np
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.utils import configclass
+
+    from isaaclab_contrib.cable import CableObjectCfg
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
+
+    cable_spawn = sim_utils.CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.05, 0.0, 0.0), (0.1, 0.0, 0.0)],
+        width=0.01,
+        physics_material=_NewtonCableMaterialCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+
+    @configclass
+    class _SceneCfg(InteractiveSceneCfg):
+        num_envs: int = 1
+        env_spacing: float = 1.0
+        cable: CableObjectCfg = CableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cable",
+            spawn=cable_spawn,
+            init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+        )
+
+    newton_sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=VBDSolverCfg(iterations=10), num_substeps=4), dt=0.01)
+
+    with build_simulation_context(device="cuda:0", sim_cfg=newton_sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_SceneCfg())
+        sim.reset()
+
+        cable = scene["cable"]
+        entry = cable._registry_entry
+        body_indices = list(range(entry.body_offsets[0], entry.body_offsets[0] + len(entry.edges)))
+
+        body_q_model = NewtonVBDManager._model.body_q.numpy()[body_indices]
+
+        # Step under gravity so the cable's body slice drifts away from the rest pose.
+        for _ in range(20):
+            sim.step()
+        body_q_drifted = NewtonVBDManager._state_0.body_q.numpy()[body_indices]
+        assert not np.allclose(body_q_drifted, body_q_model, atol=1e-4), (
+            "Sim did not advance: cable body_q matches model.body_q without stepping."
+        )
+
+        cable.reset()
+
+        body_q_after = NewtonVBDManager._state_0.body_q.numpy()[body_indices]
+        body_qd_after = NewtonVBDManager._state_0.body_qd.numpy()[body_indices]
+        body_q_prev_after = NewtonVBDManager._solver.body_q_prev.numpy()[body_indices]
+        body_inertia_q_after = NewtonVBDManager._solver.body_inertia_q.numpy()[body_indices]
+
+        np.testing.assert_allclose(
+            body_q_after,
+            body_q_model,
+            err_msg="state.body_q was not restored to model.body_q after CableObject.reset().",
+        )
+        np.testing.assert_array_equal(
+            body_qd_after,
+            np.zeros_like(body_qd_after),
+            err_msg="state.body_qd was not zeroed after CableObject.reset().",
+        )
+        np.testing.assert_allclose(
+            body_q_prev_after,
+            body_q_model,
+            err_msg="solver.body_q_prev was not refreshed to model.body_q after CableObject.reset().",
+        )
+        np.testing.assert_array_equal(
+            body_inertia_q_after,
+            np.zeros_like(body_inertia_q_after),
+            err_msg="solver.body_inertia_q was not zeroed after CableObject.reset().",
+        )
+
+        # One step of free-fall should add at most ~g*dt = ~0.1 m/s. A failure
+        # here (e.g. ~700 m/s) indicates AVBD picked up stale solver-side state.
+        sim.step()
+        max_speed = float(np.abs(NewtonVBDManager._state_0.body_qd.numpy()[body_indices]).max())
+        assert max_speed < 1.0, f"body_qd exploded after first post-reset step: |body_qd|_max={max_speed}"
