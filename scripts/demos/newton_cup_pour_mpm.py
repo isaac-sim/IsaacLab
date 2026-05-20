@@ -132,7 +132,9 @@ CUP_BODY_PATH = "/World/Teapot"
 CUP_ASSET_PATH = f"{CUP_BODY_PATH}/Asset"
 GROUND_PATH = "/World/Ground"
 VISUALS_PATH = "/World/Visuals"
-TEAPOT_USD_REL_PATH = "Props/Teapot/teapot_hollow_separate_lid.usdc"
+TEAPOT_USD_PATH = (
+    "/home/maximiliank/Work/IsaacLab/source/isaaclab_assets/isaaclab_assets/rand/teapot_hollow_separate_lid.usdc"
+)
 
 TABLE_TOP_Z = 0.85
 TABLE_HALF_EXTENTS = (0.85, 0.55, 0.03)
@@ -248,12 +250,7 @@ def cup_pose_at_time(sim_time: float) -> tuple[np.ndarray, np.ndarray, np.ndarra
 def get_teapot_usd_path() -> str:
     """Return the local hollow teapot USD asset path."""
 
-    if args_cli.teapot_usd is not None:
-        usd_path = os.path.abspath(args_cli.teapot_usd)
-    else:
-        from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
-
-        usd_path = os.path.join(ISAACLAB_ASSETS_DATA_DIR, TEAPOT_USD_REL_PATH)
+    usd_path = os.path.abspath(args_cli.teapot_usd or TEAPOT_USD_PATH)
     if not os.path.exists(usd_path):
         raise FileNotFoundError(
             f"Teapot USD not found: {usd_path}. Pass --teapot-usd with the local hollow teapot asset path."
