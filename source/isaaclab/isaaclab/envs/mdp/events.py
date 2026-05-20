@@ -1709,6 +1709,10 @@ def apply_external_force_torque(
     # resolve number of bodies
     num_bodies = len(asset_cfg.body_ids) if isinstance(asset_cfg.body_ids, list) else asset.num_bodies
 
+    # Skip force application if the wrench ranges are zero
+    if force_range[0] == 0.0 and force_range[1] == 0.0 and torque_range[0] == 0.0 and torque_range[1] == 0.0:
+        return
+
     # sample random forces and torques
     size = (len(env_ids), num_bodies, 3)
     forces = math_utils.sample_uniform(*force_range, size, asset.device)

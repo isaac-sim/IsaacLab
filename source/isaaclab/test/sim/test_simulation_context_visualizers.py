@@ -28,6 +28,11 @@ def test_web_visualizer_cfgs_do_not_open_browser_by_default():
     assert ViserVisualizerCfg().open_browser is False
 
 
+def test_web_visualizer_cfgs_do_not_open_browser_by_default():
+    assert RerunVisualizerCfg().open_browser is False
+    assert ViserVisualizerCfg().open_browser is False
+
+
 class _FakePhysicsManager:
     def __init__(self):
         self.forward_calls = 0

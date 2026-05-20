@@ -83,6 +83,7 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    actuators
    assets
    controllers
+   deformable
    mdp
    rl
    sensors
@@ -129,17 +130,10 @@ The following modules are available in the ``isaaclab_physx`` extension:
    physics
    renderers
    sensors
-   sim.schemas
-   sim.spawners
 
 .. toctree::
    :hidden:
 
-   lab_physx/isaaclab_physx.assets
-   lab_physx/isaaclab_physx.cloner
-   lab_physx/isaaclab_physx.physics
-   lab_physx/isaaclab_physx.renderers
-   lab_physx/isaaclab_physx.sensors
    lab_physx/isaaclab_physx.sim.schemas
    lab_physx/isaaclab_physx.sim.spawners
 
@@ -163,12 +157,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
 .. toctree::
    :hidden:
 
-   lab_newton/isaaclab_newton.assets
-   lab_newton/isaaclab_newton.cloner
-   lab_newton/isaaclab_newton.physics
-   lab_newton/isaaclab_newton.renderers
-   lab_newton/isaaclab_newton.sensors
-   lab_newton/isaaclab_newton.sim.schemas
+   lab_newton/isaaclab_newton.sim.spawners
 
 isaaclab_ov extension
 ---------------------
@@ -182,11 +171,6 @@ The following modules are available in the ``isaaclab_ov`` extension:
 
    renderers
 
-.. toctree::
-   :hidden:
-
-   lab_ov/isaaclab_ov.renderers
-
 isaaclab_assets extension
 -------------------------
 
@@ -199,12 +183,6 @@ The following modules are available in the ``isaaclab_assets`` extension:
 
    robots
    sensors
-
-.. toctree::
-   :hidden:
-
-   lab_assets/isaaclab_assets.robots
-   lab_assets/isaaclab_assets.sensors
 
 isaaclab_visualizers extension
 ------------------------------
@@ -221,14 +199,6 @@ The following modules are available in the ``isaaclab_visualizers`` extension:
    rerun
    viser
 
-.. toctree::
-   :hidden:
-
-   lab_visualizers/isaaclab_visualizers.kit
-   lab_visualizers/isaaclab_visualizers.newton
-   lab_visualizers/isaaclab_visualizers.rerun
-   lab_visualizers/isaaclab_visualizers.viser
-
 
 isaaclab_ovphysx extension
 ---------------------------
@@ -244,13 +214,6 @@ The following modules are available in the ``isaaclab_ovphysx`` extension:
    cloner
    physics
 
-.. toctree::
-   :hidden:
-
-   lab_ovphysx/isaaclab_ovphysx.assets
-   lab_ovphysx/isaaclab_ovphysx.cloner
-   lab_ovphysx/isaaclab_ovphysx.physics
-
 
 isaaclab_experimental extension
 --------------------------------
@@ -265,13 +228,6 @@ The following modules are available in the ``isaaclab_experimental`` extension:
    envs
    managers
    utils
-
-.. toctree::
-   :hidden:
-
-   lab_experimental/isaaclab_experimental.envs
-   lab_experimental/isaaclab_experimental.managers
-   lab_experimental/isaaclab_experimental.utils
 
 
 isaaclab_tasks_experimental extension

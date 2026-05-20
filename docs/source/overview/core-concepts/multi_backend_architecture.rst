@@ -43,6 +43,10 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab.assets.RigidObject`
      - :class:`~isaaclab_physx.assets.RigidObject`
      - :class:`~isaaclab_newton.assets.RigidObject`
+   * - Deformable Object
+     - :class:`~isaaclab.assets.DeformableObject`
+     - :class:`~isaaclab_physx.assets.DeformableObject`
+     - :class:`~isaaclab_newton.assets.DeformableObject`
    * - Contact Sensor
      - :class:`~isaaclab.sensors.ContactSensor`
      - :class:`~isaaclab_physx.sensors.ContactSensor`
@@ -254,6 +258,8 @@ the established conventions:
         │   │   └── articulation_data.py
         │   ├── rigid_object/
         │   │   └── ...
+        │   ├── deformable_object/
+        │   │   └── ...
         │   └── rigid_object_collection/
         │       └── ...
         ├── sensors/
@@ -384,4 +390,6 @@ See Also
 - :doc:`/source/features/hydra` — preset system for multi-backend environment configurations
 - :doc:`physical-backends/index` — feature matrix and per-backend guides (PhysX, Newton, OvPhysX)
 - :doc:`physical-backends/newton/index` — Newton backend guide
+- :doc:`physical-backends/newton/newton-manager-abstraction` — adding Newton solver managers and
+  coupled solvers
 - :doc:`renderers` — renderer backend architecture

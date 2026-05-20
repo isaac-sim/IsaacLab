@@ -502,5 +502,10 @@
     "package": "decorator",
     "license": "UNKNOWN",
     "comment": "BSD-2"
+  },
+  {
+    "package": "pytetwild",
+    "license": "Mozilla Public License 2.0 (MPL 2.0)",
+    "comment": "MPL-2.0 / OSRB"
   }
 ]

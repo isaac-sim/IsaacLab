@@ -712,6 +712,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
         .. note::
             This sets the velocity of the root's center of mass rather than the root's frame.
 
@@ -738,6 +739,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
         .. note::
             This sets the velocity of the root's center of mass rather than the root's frame.
 
@@ -764,6 +766,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
         .. note::
             This sets the velocity of the root's center of mass rather than the root's frame.
 
@@ -812,6 +815,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
         .. note::
             This sets the velocity of the root's center of mass rather than the root's frame.
 
@@ -858,6 +862,7 @@ class Articulation(BaseArticulation):
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
         .. note::
             This sets the velocity of the root's frame rather than the root's center of mass.
 
@@ -912,6 +917,7 @@ class Articulation(BaseArticulation):
         """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
         .. note::
             This sets the velocity of the root's frame rather than the root's center of mass.
 
