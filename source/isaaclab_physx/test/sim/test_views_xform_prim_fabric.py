@@ -17,6 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test"
 
 from isaaclab.app import AppLauncher
 
+# Workaround: Kit reads sys.argv directly during startup and segfaults on
+# unrecognized flags (e.g. pytest's ``-m``, ``-k``, ``--co``).  Strip
+# everything but argv[0] before booting.  See GDAT ticket for upstream fix.
+sys.argv = sys.argv[:1]
+
 simulation_app = AppLauncher(headless=True).app
 
 import pytest  # noqa: E402
