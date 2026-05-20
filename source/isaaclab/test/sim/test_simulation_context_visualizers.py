@@ -526,6 +526,73 @@ def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatc
     assert applied_camera_poses == [((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))]
 
 
+def test_kit_visualizer_set_viewport_camera_does_not_require_authored_coi(monkeypatch: pytest.MonkeyPatch):
+    """Regression: ``_set_viewport_camera`` must not feed an unauthored ``omni:kit:centerOfInterest`` into
+    ``ViewportCameraState.set_position_world``.
+
+    A freshly-opened stage's default ``/OmniverseKit_Persp`` camera has no ``omni:kit:centerOfInterest`` attribute
+    authored. ``ViewportCameraState.set_position_world(..., rotate=True)`` reads that attribute as ``None`` and
+    crashes inside ``Matrix4d.Transform`` (the boost binding rejects ``NoneType``). ``_set_viewport_camera`` must
+    therefore use ``rotate=False`` for the eye set; the follow-up ``set_target_world(..., rotate=True)`` performs
+    the look-at rotation and authors the COI as a side effect.
+
+    The fake ``ViewportCameraState`` here mirrors that boost-binding behavior: ``set_position_world(..., rotate=True)``
+    raises ``TypeError``, so the old call path would surface inside ``_set_viewport_camera`` exactly as it did in
+    production.
+    """
+
+    class _FakeViewportApi:
+        def get_active_camera(self):
+            return "/OmniverseKit_Persp"
+
+    state_holder: dict[str, Any] = {}
+
+    class _FakeCameraState:
+        def __init__(self, camera_path: str, viewport_api):
+            self.position_calls: list[tuple[Any, bool]] = []
+            self.target_calls: list[tuple[Any, bool]] = []
+            state_holder["state"] = self
+
+        def set_position_world(self, world_position, rotate):
+            if rotate:
+                raise TypeError(
+                    "Python argument types in Matrix4d.Transform(Matrix4d, NoneType) did not match C++ signature"
+                )
+            self.position_calls.append((world_position, rotate))
+
+        def set_target_world(self, world_target, rotate):
+            self.target_calls.append((world_target, rotate))
+
+    camera_state_module = type(sys)("omni.kit.viewport.utility.camera_state")
+    camera_state_module.ViewportCameraState = _FakeCameraState
+
+    monkeypatch.setitem(sys.modules, "omni", type(sys)("omni"))
+    monkeypatch.setitem(sys.modules, "omni.kit", type(sys)("omni.kit"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport", type(sys)("omni.kit.viewport"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility", type(sys)("omni.kit.viewport.utility"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility.camera_state", camera_state_module)
+
+    cfg = KitVisualizerCfg()
+    visualizer = kit_visualizer.KitVisualizer(cfg)
+    visualizer._viewport_api = _FakeViewportApi()
+
+    eye = (1.0, 2.0, 3.0)
+    target = (4.0, 5.0, 6.0)
+
+    visualizer._set_viewport_camera(eye, target)
+
+    state = state_holder["state"]
+    assert len(state.position_calls) == 1
+    pos_arg, pos_rotate = state.position_calls[0]
+    assert pos_rotate is False
+    assert (float(pos_arg[0]), float(pos_arg[1]), float(pos_arg[2])) == eye
+
+    assert len(state.target_calls) == 1
+    tgt_arg, tgt_rotate = state.target_calls[0]
+    assert tgt_rotate is True
+    assert (float(tgt_arg[0]), float(tgt_arg[1]), float(tgt_arg[2])) == target
+
+
 def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
     ctx = object.__new__(SimulationContext)
     ctx.get_setting = lambda name: {"types": "newton,kit"} if name == "/isaaclab/visualizer/types" else None

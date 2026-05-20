@@ -343,8 +343,14 @@ class KitVisualizer(BaseVisualizer):
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
 
+        # ``rotate=False`` for the position set: a freshly-opened stage's default
+        # ``/OmniverseKit_Persp`` has no authored ``omni:kit:centerOfInterest``,
+        # which ``set_position_world(..., rotate=True)`` would feed into
+        # ``Matrix4d.Transform`` as ``None`` and crash. The follow-up
+        # ``set_target_world(..., rotate=True)`` performs the look-at rotation
+        # and authors the COI as a side effect, so the final pose is unchanged.
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
-        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
+        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
