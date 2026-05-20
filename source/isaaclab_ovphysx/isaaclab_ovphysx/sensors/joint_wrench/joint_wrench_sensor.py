@@ -163,9 +163,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         # Wrench storage as (N, L) spatial_vectorf; a float32 alias view targets the
         # same memory and is the buffer passed to TensorBinding.read(...).  Same alias
         # trick OVPhysX Articulation uses for LINK_VELOCITY / LINK_INCOMING_JOINT_FORCE.
-        self._wrench_buf = wp.zeros(
-            (self._num_envs, self._num_bodies), dtype=wp.spatial_vectorf, device=self._device
-        )
+        self._wrench_buf = wp.zeros((self._num_envs, self._num_bodies), dtype=wp.spatial_vectorf, device=self._device)
         self._wrench_read_view = wp.array(
             ptr=self._wrench_buf.ptr,
             shape=self._wrench_binding.shape,
