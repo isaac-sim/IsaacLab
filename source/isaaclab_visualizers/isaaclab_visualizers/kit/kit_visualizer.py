@@ -13,8 +13,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+
 from pxr import Gf, Usd, UsdGeom, Vt
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.camera_view import (
     VISUALIZER_TILED_CAMERA_MAX_TILES,
     apply_camera_target_positions,
@@ -27,7 +29,6 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_tiled_env_indices,
 )
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 

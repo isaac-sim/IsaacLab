@@ -27,6 +27,7 @@ import math
 import pytest
 import torch
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_newton.sensors.contact_sensor.contact_sensor import _broadcast_metadata_kind, _flatten_metadata
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -48,7 +49,6 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
-from isaaclab_newton.sensors.contact_sensor.contact_sensor import _broadcast_metadata_kind, _flatten_metadata
 
 ##
 # Scene Configuration

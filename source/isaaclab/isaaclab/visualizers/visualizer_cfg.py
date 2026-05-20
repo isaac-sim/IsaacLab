@@ -51,7 +51,7 @@ class VisualizerCfg:
 
     tiled_cam_env_indices: list[int] | None = None
     """Env ids to show in tiled camera view; capped at 100 entries.
-    
+
     If ``None``, envs are randomly sampled from all visible envs.
     """
 

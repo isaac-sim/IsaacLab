@@ -48,7 +48,9 @@ def resolve_tiled_env_indices(
         if max_tiles is not None:
             max_count = min(max_count, max(1, int(max_tiles)))
         return [idx for idx in env_indices if 0 <= int(idx) < num_envs][:max_count]
-    candidates = [idx for idx in (sample_from if sample_from is not None else range(num_envs)) if 0 <= int(idx) < num_envs]
+    candidates = [
+        idx for idx in (sample_from if sample_from is not None else range(num_envs)) if 0 <= int(idx) < num_envs
+    ]
     if not candidates:
         return []
     max_count = min(max(1, int(tiled_cam_num)), len(candidates))
@@ -231,7 +233,9 @@ def _scene_articulation_positions(scene: Any, prim_path_template: str, env_indic
     return None
 
 
-def prim_world_positions(stage: Any, prim_path_template: str, env_indices: list[int], scene: Any | None = None) -> torch.Tensor:
+def prim_world_positions(
+    stage: Any, prim_path_template: str, env_indices: list[int], scene: Any | None = None
+) -> torch.Tensor:
     """Return world-space translations for concrete prim paths resolved from env ids.
 
     Uses ``FrameView`` first so PhysX/Fabric-backed transforms are current; falls
