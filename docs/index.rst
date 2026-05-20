@@ -142,7 +142,6 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
-   source/experimental-features/newton-physics-integration/index
    source/experimental-features/visuo_tactile_sensor
 
 .. toctree::

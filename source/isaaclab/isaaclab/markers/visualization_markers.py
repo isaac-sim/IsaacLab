@@ -250,7 +250,10 @@ class VisualizationMarkers:
             self._ensure_kit_backend()
             return
 
-        if any(viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers):
+        needs_kit_backend = sim.is_rendering or any(
+            viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+        )
+        if needs_kit_backend:
             self._ensure_kit_backend()
         if any(
             viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers

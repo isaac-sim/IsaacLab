@@ -79,6 +79,18 @@ parser.add_argument(
     default=True,
     help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
 )
+parser.add_argument(
+    "--mcap_record_path",
+    type=str,
+    default=None,
+    help=(
+        "Debug-only: write the live IsaacTeleop session to this MCAP file (one continuous file for the whole run)."
+        " Intended for pairing with teleop_replay_agent.py in CI -- NOT a data-generation format. MCAPs produced"
+        " here lack per-episode segmentation, world-frame anchor state, env reset state, and have no public Python"
+        " decoder. For data-gen workflows use the HDF5 dataset path (default). Ignored when the IsaacTeleop stack"
+        " is not in use."
+    ),
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -326,7 +338,10 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 callbacks=callbacks,
                 cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                mcap_record_path=args_cli.mcap_record_path,
             )
+            if args_cli.mcap_record_path is not None:
+                logger.info("Recording live IsaacTeleop session to MCAP (debug-only): %s", args_cli.mcap_record_path)
 
         elif teleop_device_explicitly_set:
             device_name = args_cli.teleop_device

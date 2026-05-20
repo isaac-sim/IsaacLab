@@ -62,6 +62,25 @@ def _build_newton_builder_from_mapping(
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
     env0_pos = positions[0]
+
+    # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
+    # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
+    # can skip them via ignore_paths.
+    import re
+
+    _deformable_ignore_paths: list[str] = []
+    if hasattr(NewtonManager, "_deformable_registry"):
+        for entry in NewtonManager._deformable_registry:
+            pat = re.compile(entry.prim_path.replace(".*", "[^/]*") + "$")
+            for src_path in sources:
+                # Check if any prim under this source matches the deformable pattern
+                prim = stage.GetPrimAtPath(src_path)
+                if prim.IsValid():
+                    for child in Usd.PrimRange(prim):
+                        child_path = str(child.GetPath())
+                        if pat.match(child_path):
+                            _deformable_ignore_paths.append(child_path)
+
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = NewtonManager.create_builder(up_axis=up_axis)
@@ -72,6 +91,7 @@ def _build_newton_builder_from_mapping(
             load_visual_shapes=True,
             skip_mesh_approximation=True,
             schema_resolvers=schema_resolvers,
+            ignore_paths=_deformable_ignore_paths if _deformable_ignore_paths else None,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
@@ -107,8 +127,19 @@ def _build_newton_builder_from_mapping(
                     local_site_map[label] = [[] for _ in range(num_worlds)]
                 for proto_shape_idx in proto_shape_indices:
                     local_site_map[label][col].append(offset + proto_shape_idx)
+
+        # Run per-world builder hooks (e.g. deformable body registration).
+        if hasattr(NewtonManager, "_per_world_builder_hooks"):
+            for hook in NewtonManager._per_world_builder_hooks:
+                hook(builder, col, positions[col].tolist(), quaternions[col].tolist())
+
         # end the world context
         builder.end_world()
+
+    # Run post-replicate hooks (e.g. builder.color() for deformable coloring).
+    if hasattr(NewtonManager, "_post_replicate_hooks"):
+        for hook in NewtonManager._post_replicate_hooks:
+            hook(builder)
 
     site_index_map = {
         **global_site_map,
