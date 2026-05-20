@@ -100,7 +100,7 @@ Removed
 
 * **Breaking:** Removed the ``isaaclab_physx.scene_data_providers`` package
   (``PhysxSceneDataProvider``). The Warp-native
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` now exposes
+  :class:`~isaaclab.scene_data.SceneDataProvider` now exposes
   PhysX rigid-body transforms via
   :class:`~isaaclab_physx.physics.PhysxSceneDataBackend`, and the
   PhysX→Newton state sync used by Newton visualizers/renderers moved to

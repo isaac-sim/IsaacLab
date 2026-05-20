@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import warp as wp
 
-from isaaclab.physics.scene_data_backend import SceneDataBackend, SceneDataFormat
+from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
     from pxr import Usd

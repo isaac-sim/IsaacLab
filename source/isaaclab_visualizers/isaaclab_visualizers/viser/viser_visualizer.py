@@ -28,7 +28,7 @@ from .viser_visualizer_cfg import ViserVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.scene.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 
 def _disable_viser_runtime_client_rebuild_if_bundled() -> None:

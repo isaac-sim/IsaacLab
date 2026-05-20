@@ -56,7 +56,7 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`
      - :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`
    * - Scene Data Backend
-     - :class:`~isaaclab.physics.SceneDataBackend`
+     - :class:`~isaaclab.scene_data.SceneDataBackend`
      - ``PhysxSceneDataBackend`` (in :mod:`isaaclab_physx.physics`)
      - ``NewtonSceneDataBackend`` (in :mod:`isaaclab_newton.physics`)
    * - Cloner
@@ -272,14 +272,15 @@ the established conventions:
 
 **2. Implement the physics manager:**
 
-The manager must expose a :class:`~isaaclab.physics.SceneDataBackend` so that
-:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` can read your backend's body
+The manager must expose a :class:`~isaaclab.scene_data.SceneDataBackend` so that
+:class:`~isaaclab.scene_data.SceneDataProvider` can read your backend's body
 transforms in a Warp-native format that renderers and visualizers consume directly.
 
 .. code-block:: python
 
     # isaaclab_mybackend/physics/mybackend_manager.py
-    from isaaclab.physics import PhysicsManager, SceneDataBackend, SceneDataFormat
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
 
     class MyBackendSceneDataBackend(SceneDataBackend):

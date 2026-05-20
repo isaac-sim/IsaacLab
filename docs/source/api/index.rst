@@ -25,6 +25,7 @@ The following modules are available in the ``isaaclab`` extension:
    physics
    renderers
    scene
+   scene_data
    sensors
    sim
    terrains

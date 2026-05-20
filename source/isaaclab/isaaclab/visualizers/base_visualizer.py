@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-    from isaaclab.scene.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
     from .visualizer_cfg import VisualizerCfg
 

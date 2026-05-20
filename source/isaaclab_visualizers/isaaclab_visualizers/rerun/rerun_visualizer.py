@@ -28,7 +28,7 @@ from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, res
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
-    from isaaclab.scene.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 logger = logging.getLogger(__name__)
 

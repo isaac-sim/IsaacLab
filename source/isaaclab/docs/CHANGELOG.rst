@@ -272,9 +272,9 @@ Added
   ``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
   6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
   returning ``(6 + dofs, 6 + dofs)``).
-* Added :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.usd_stage`,
-  :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`, and
-  :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
+* Added :attr:`~isaaclab.scene_data.SceneDataProvider.usd_stage`,
+  :attr:`~isaaclab.scene_data.SceneDataProvider.num_envs`, and
+  :meth:`~isaaclab.scene_data.SceneDataProvider.get_camera_transforms`
   so visualizers and renderers can pull stage-derived data through the same
   Warp-native provider that already exposes transforms.
 
@@ -309,12 +309,12 @@ Changed
   COM-referenced form can read :attr:`body_com_jacobian_w`.
 * **Breaking:** :class:`~isaaclab.visualizers.base_visualizer.BaseVisualizer`
   subclasses now receive a
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
+  :class:`~isaaclab.scene_data.SceneDataProvider` in
   :meth:`~isaaclab.visualizers.base_visualizer.BaseVisualizer.initialize`
   instead of the removed ``BaseSceneDataProvider``. Read environment count
-  from :attr:`~isaaclab.scene.scene_data_provider.SceneDataProvider.num_envs`
+  from :attr:`~isaaclab.scene_data.SceneDataProvider.num_envs`
   and call
-  :meth:`~isaaclab.scene.scene_data_provider.SceneDataProvider.get_camera_transforms`
+  :meth:`~isaaclab.scene_data.SceneDataProvider.get_camera_transforms`
   on the new provider; both replace the previous ``get_metadata()`` /
   ``get_camera_transforms()`` calls on the legacy interface.
 

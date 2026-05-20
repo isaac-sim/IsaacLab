@@ -24,7 +24,8 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext

@@ -4,11 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "CallbackHandle",
-    "PhysicsEvent",
-    "PhysicsManager",
-    "PhysicsCfg",
+    "SceneDataBackend",
+    "SceneDataFormat",
+    "SceneDataProvider",
 ]
 
-from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
-from .physics_manager_cfg import PhysicsCfg
+from .scene_data_backend import SceneDataBackend, SceneDataFormat
+from .scene_data_provider import SceneDataProvider

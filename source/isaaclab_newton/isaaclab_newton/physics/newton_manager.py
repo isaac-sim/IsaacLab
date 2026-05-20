@@ -33,7 +33,9 @@ from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
 
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -264,8 +266,8 @@ class NewtonManager(PhysicsManager):
     # Visualization-only state used when the sim backend is PhysX. Populated
     # lazily in :meth:`_ensure_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
-    _visualization_scene_data: SceneDataFormat.Transform | None = None
-    _visualization_mapping: wp.array | None = None
+    _scene_data: SceneDataFormat.Transform | None = None
+    _scene_data_mapping: wp.array | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -609,7 +611,7 @@ class NewtonManager(PhysicsManager):
         super().close()
 
     @classmethod
-    def get_scene_data_backend(cls) -> SceneDataBackend:
+    def get_scene_data_backend(cls) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
 
@@ -683,8 +685,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transforms_dirty = False
         NewtonManager._particles_dirty = False
         NewtonManager._up_axis = "Z"
-        NewtonManager._visualization_scene_data = None
-        NewtonManager._visualization_mapping = None
+        NewtonManager._scene_data = None
+        NewtonManager._scene_data_mapping = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -1573,7 +1575,7 @@ class NewtonManager(PhysicsManager):
         :meth:`_build_visualization_model_from_stage` and finalizing the resulting
         :class:`~newton.ModelBuilder`. Per-frame body transforms are pushed into
         ``_state_0.body_q`` by :meth:`update_visualization_state` using the new
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+        :class:`~isaaclab.scene_data.SceneDataProvider`.
         """
 
         if cls._model is not None and cls._state_0 is not None:
@@ -1767,7 +1769,7 @@ class NewtonManager(PhysicsManager):
         already advanced by :meth:`step` / forward kinematics.
 
         PhysX sim backend: pull rigid-body transforms from the
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` and write
+        :class:`~isaaclab.scene_data.SceneDataProvider` and write
         them into the shadow ``_state_0.body_q`` so Newton-native consumers
         (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
         GL video) see fresh poses.
@@ -1782,24 +1784,20 @@ class NewtonManager(PhysicsManager):
             return
         sdp = scene_data_provider
         if sdp is None:
-            sim = PhysicsManager._sim
+            sim = SimulationContext.instance()
             if sim is not None:
                 sdp = sim.get_scene_data_provider()
         if sdp is None:
             return
 
-        if cls._visualization_scene_data is None:
-            cls._visualization_scene_data = SceneDataFormat.Transform()
-        if cls._visualization_mapping is None:
+        if cls._scene_data is None:
+            cls._scene_data = SceneDataFormat.Transform()
+        if cls._scene_data_mapping is None:
             body_paths = list(getattr(cls._model, "body_label", None) or [])
-            cls._visualization_mapping = sdp.create_mapping(body_paths)
+            cls._scene_data_mapping = sdp.create_mapping(body_paths)
 
-        cls._visualization_scene_data.transforms = cls._state_0.body_q
-        sdp.get_transforms(
-            cls._visualization_scene_data,
-            mapping=cls._visualization_mapping,
-            allow_passthrough=False,
-        )
+        cls._scene_data.transforms = cls._state_0.body_q
+        sdp.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
 
     @classmethod
     def get_state_1(cls) -> State:

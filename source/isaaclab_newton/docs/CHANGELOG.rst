@@ -116,7 +116,7 @@ Added
   USD stage (via
   :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`)
   and refreshes ``state_0.body_q`` from rigid-body transforms supplied by the
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` each render
+  :class:`~isaaclab.scene_data.SceneDataProvider` each render
   frame.
 
 Changed
@@ -149,7 +149,7 @@ Removed
   (``NewtonSceneDataProvider``). Replace direct uses with
   :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
   :meth:`~isaaclab_newton.physics.NewtonManager.get_state` and the
-  Warp-native :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+  Warp-native :class:`~isaaclab.scene_data.SceneDataProvider`.
 
 Fixed
 ^^^^^
