@@ -188,17 +188,10 @@ class KitVisualizer(BaseVisualizer):
     ) -> None:
         """Set active viewport camera eye/target.
 
-        When :attr:`self.cfg.cam_source` is ``"cfg"``, this is a no-op: the pose comes only from
-        :attr:`self.cfg.eye` / :attr:`self.cfg.lookat` (applied in :meth:`_setup_viewport`). Otherwise
-        :class:`~isaaclab.sim.simulation_context.SimulationContext` and :class:`ViewportCameraController`
-        would overwrite that pose with :class:`~isaaclab.envs.common.ViewerCfg`-driven views.
-
         Args:
             eye: Camera eye position.
             target: Camera look-at target.
         """
-        if self.cfg.cam_source == "cfg":
-            return
         if not self._is_initialized:
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return

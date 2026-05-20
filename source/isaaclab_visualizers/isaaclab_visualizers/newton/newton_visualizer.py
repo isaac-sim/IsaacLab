@@ -10,13 +10,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
@@ -290,7 +290,7 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         # Use pyglet's EGL headless backend when requested. Must run before the first
         # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
@@ -316,6 +316,7 @@ class NewtonVisualizer(BaseVisualizer):
                 num_envs=num_envs,
             )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+            self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
             self._viewer.up_axis = 2  # Z-up
@@ -352,6 +353,7 @@ class NewtonVisualizer(BaseVisualizer):
                     tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye,
                 ),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
+                ("focal_length", self.cfg.focal_length),
                 ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
@@ -374,28 +376,35 @@ class NewtonVisualizer(BaseVisualizer):
         from isaaclab_newton.physics import NewtonManager
 
         if self._viewer is None:
-            self._state = NewtonManager.get_state()
+            self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
             return
 
+        num_envs = NewtonManager.get_num_envs()
+
         try:
             if not self._viewer.is_paused():
                 self._viewer.begin_frame(self._sim_time)
-                if self._state is not None:
-                    body_q = getattr(self._state, "body_q", None)
-                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                        self._viewer.end_frame()
-                        return
-                    self._viewer.log_state(self._state)
-                self._viewer.end_frame()
+                try:
+                    if self._state is not None:
+                        body_q = getattr(self._state, "body_q", None)
+                        if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                            return
+                        self._viewer.log_state(self._state)
+                        if self.cfg.enable_markers:
+                            render_newton_visualization_markers(
+                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                            )
+                finally:
+                    self._viewer.end_frame()
             else:
                 self._viewer._update()
         except Exception as exc:
@@ -450,15 +459,14 @@ class NewtonVisualizer(BaseVisualizer):
         cam_pos, cam_target = pose
         # Match Newton's Camera native pos type: PyVec3, not wp.vec3.
         self._viewer.camera.pos = PygletVec3(*cam_pos)
-        cam_pos_np = np.array(cam_pos, dtype=np.float32)
-        cam_target_np = np.array(cam_target, dtype=np.float32)
-        direction = cam_target_np - cam_pos_np
-        yaw = np.degrees(np.arctan2(direction[1], direction[0]))
-        horizontal_dist = np.sqrt(direction[0] ** 2 + direction[1] ** 2)
-        pitch = np.degrees(np.arctan2(direction[2], horizontal_dist))
-        self._viewer.camera.yaw = float(yaw)
-        self._viewer.camera.pitch = float(pitch)
+        self._viewer.camera.look_at(cam_target)
         self._last_camera_pose = (cam_pos, cam_target)
+
+    def _apply_camera_focal_length(self) -> None:
+        """Apply cfg focal length to Newton's vertical-FOV camera."""
+        if self._viewer is None:
+            return
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
     def _update_camera_from_usd_path(self) -> None:
         """Refresh camera pose from configured USD camera path when it changes."""

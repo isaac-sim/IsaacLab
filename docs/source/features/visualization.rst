@@ -121,6 +121,8 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
             ),
             ViserVisualizerCfg(
                 port=8080,
+                bind_address="0.0.0.0",
+                display_address="localhost",
                 share=False,
             ),
         ]
@@ -390,6 +392,22 @@ Rerun Visualizer
 - Timeline scrubbing and playback controls of recordings
 - Visualization debug markers
 
+.. important::
+
+   A highlighted Rerun browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead.
+
+   Example:
+
+   .. code-block:: text
+
+      ╭─────────────────────────── rerun (listening *:9090) ───────────────────────────╮
+      │             ╷                                                                  │
+      │   URL       │ http://127.0.0.1:9090/?url=rerun%2Bhttp://127.0.0.1:9876/proxy   │
+      │             ╵                                                                  │
+      ╰────────────────────────────────────────────────────────────────────────────────╯
+
 **Core Configuration:**
 
 .. code-block:: python
@@ -400,8 +418,9 @@ Rerun Visualizer
         # Server settings
         app_id="isaaclab-simulation",             # Application identifier for viewer
         grpc_port=9876,                           # gRPC endpoint for logging SDK connection
-        web_port=9090,                            # Port for local web viewer (launched in browser)
+        web_port=9090,                            # Port for local web viewer URL printed in logs
         bind_address="0.0.0.0",                  # Endpoint host formatting/reuse checks
+        open_browser=False,                       # Set True to auto-launch the browser
 
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
@@ -427,7 +446,7 @@ The `Viser <https://viser.studio/>`_ visualizer provides a **web-based** 3D view
 simulations powered by the Newton Warp renderer. It streams the simulation state to a local web
 server, allowing you to view and interact with the scene from any browser.
 
-**Key features:**
+**Main Features:**
 
 - Browser-based visualization accessible at ``http://localhost:8080`` by default
 - Optional public share URL for remote viewing
@@ -435,34 +454,55 @@ server, allowing you to view and interact with the scene from any browser.
 - Environment filtering to control which environments are rendered
 - Visualization debug markers
 
-**Launch with Viser:**
+.. important::
 
-.. code-block:: bash
+   A highlighted Viser browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead. For remote access, keep ``bind_address="0.0.0.0"`` and set
+   ``display_address`` to the hostname or IP address reachable from your browser.
 
-    ./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py --viz viser
+   Example:
 
-**Configuration example:**
+   .. code-block:: text
+
+      ╭────── viser (listening *:8080) ───────╮
+      │             ╷                         │
+      │   URL       │ http://localhost:8080   │
+      │             ╵                         │
+      ╰───────────────────────────────────────╯
+
+**Core Configuration:**
 
 .. code-block:: python
 
     from isaaclab_visualizers.viser import ViserVisualizerCfg
 
     visualizer_cfg = ViserVisualizerCfg(
-        port=8080,
-        open_browser=True,
-        label="Isaac Lab Simulation",
-        share=False,
-        max_visible_envs=16,
+        # Server settings
+        port=8080,                                # Port for local Viser web server
+        bind_address="0.0.0.0",                  # Interface to listen on; use 0.0.0.0 for remote access
+        display_address="localhost",             # Host/IP shown in the printed browser URL
+        open_browser=False,                       # Set True to auto-launch the browser
+        label="Isaac Lab Simulation",             # Page title shown in the viewer
+        share=False,                              # Request a public share URL for remote viewing
+        verbose=True,                             # Print viewer server startup information
+
+        # Camera settings
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+
+        # Environment filtering
+        max_visible_envs=16,                      # Maximum number of environments to visualize
+
+        # Recording
+        record_to_viser="recording.viser",        # Path to save .viser file (None = no recording)
     )
 
-**Configuration options:**
-
-- ``port`` (int, default ``8080``): Port of the local Viser web server.
-- ``open_browser`` (bool, default ``True``): Automatically open the viewer URL in a browser.
-- ``label`` (str or None, default ``"Isaac Lab Simulation"``): Page title shown in the viewer.
-- ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
-- ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
-- ``verbose`` (bool, default ``True``): Print viewer server startup information.
+Viser uses an in-process ``viser.ViserServer`` through ``newton.viewer.ViewerViser``. ``bind_address``
+controls the network interface that the server listens on, while ``display_address`` controls only the
+URL printed by Isaac Lab. On a remote machine, set ``display_address`` to the machine hostname/IP and
+ensure the configured ``port`` is reachable from your browser. Set ``share=True`` to request Viser's
+public share/tunnel URL when that service is available.
 
 .. note::
 

@@ -7,7 +7,9 @@ for the Newton backend in Isaac Lab. It is enabled by setting
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, usually exposed as the
 ``newton_mjwarp`` physics preset on a task configuration. Newton ships with
 beta support for an alternative Kamino solver — see :doc:`kamino-solver` and
-:ref:`hydra-backend-solver-presets` for how presets are selected.
+:ref:`hydra-backend-solver-presets` for how presets are selected. For details
+on how solver-specific managers are implemented, or how to add a new solver
+manager, see :doc:`newton-manager-abstraction`.
 
 .. note::
 

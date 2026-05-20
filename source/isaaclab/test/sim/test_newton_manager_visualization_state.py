@@ -26,8 +26,8 @@ def _reset_newton_manager_state():
     NewtonManager._model = None
     NewtonManager._state_0 = None
     NewtonManager._num_envs = None
-    NewtonManager._physx_visualization_scene_data = None
-    NewtonManager._physx_visualization_mapping = None
+    NewtonManager._visualization_scene_data = None
+    NewtonManager._visualization_mapping = None
 
 
 def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
@@ -35,7 +35,7 @@ def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: True))
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
     NewtonManager._ensure_visualization_model()
     assert NewtonManager._model is None
     assert NewtonManager._state_0 is None
@@ -47,7 +47,7 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     from isaaclab_newton.physics import newton_manager as nm
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: SimpleNamespace())
     monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
 
@@ -80,7 +80,7 @@ def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, ca
     from isaaclab_newton.physics import newton_manager as nm
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: SimpleNamespace())
 
     class _EmptyBuilder:
@@ -106,7 +106,7 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
     from isaaclab_newton.physics import newton_manager as nm
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: SimpleNamespace())
     monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
 
@@ -136,7 +136,7 @@ def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch
     from isaaclab_newton.physics import newton_manager as nm
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: None)
 
     with caplog.at_level("ERROR"):
@@ -152,7 +152,7 @@ def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls: True))
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
 
     # Pre-set sentinel values to ensure update doesn't touch them.
     NewtonManager._model = "live-model"
