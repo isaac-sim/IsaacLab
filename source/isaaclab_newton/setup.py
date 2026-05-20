@@ -60,6 +60,7 @@ setup(
     extras_require=EXTRAS_REQUIRE,
     packages=[
         "isaaclab_newton",
+        "isaaclab_newton.actuators",
         "isaaclab_newton.assets",
         "isaaclab_newton.assets.articulation",
         "isaaclab_newton.assets.rigid_object",

@@ -11,18 +11,19 @@ import sys
 from typing import Any, cast
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
-import isaaclab_visualizers.newton.newton_visualization_markers as newton_markers
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
-import numpy as np
 import pytest
-import torch
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
-from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
+
+
+def test_web_visualizer_cfgs_do_not_open_browser_by_default():
+    assert RerunVisualizerCfg().open_browser is False
+    assert ViserVisualizerCfg().open_browser is False
 
 
 class _FakePhysicsManager:
@@ -114,6 +115,9 @@ class _FakeVisualizer:
     def supports_markers(self):
         return False
 
+    def flush_startup_messages(self):
+        pass
+
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
@@ -188,26 +192,6 @@ def test_update_visualizers_handles_training_pause_loop():
     assert viz.step_calls == [0.0, 0.2]
 
 
-def test_vis_marker_registry_dispatch_allows_callback_mutation():
-    registry = VisMarkerRegistry()
-    calls = []
-
-    def _remove_other_callback(event):
-        calls.append(("remove_other", event))
-        registry.remove_callback("other")
-
-    def _other_callback(event):
-        calls.append(("other", event))
-
-    registry.add_callback("remove_other", _remove_other_callback)
-    registry.add_callback("other", _other_callback)
-
-    registry.dispatch_callbacks("tick")
-
-    assert calls == [("remove_other", "tick"), ("other", "tick")]
-    assert "other" not in registry._callbacks
-
-
 class _DummyViserSceneDataProvider:
     @property
     def num_envs(self) -> int:
@@ -249,7 +233,7 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
 
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
 
-    state_calls: list[None] = []
+    state_calls: list[object] = []
 
     class _FakeNewtonManager:
         @staticmethod
@@ -257,8 +241,8 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
             return "dummy-model"
 
         @staticmethod
-        def get_state():
-            state_calls.append(None)
+        def get_state(scene_data_provider=None):
+            state_calls.append(scene_data_provider)
             return {"state_call": len(state_calls)}
 
         @staticmethod
@@ -274,241 +258,13 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
-    assert state_calls == [None, None]
+    assert state_calls == [provider, provider]
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    # log_state passes NewtonManager.get_state() through as-is; no env_ids merged in.
+    # log_state passes NewtonManager.get_state(provider) through as-is; no env_ids merged in.
     assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
-
-
-def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-):
-    provider = _DummyViserSceneDataProvider()
-    viewer = _DummyViserViewer()
-    marker_calls = []
-
-    def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
-        self._viewer = viewer
-
-    def _raise_marker_render(*args, **kwargs):
-        marker_calls.append((args, kwargs))
-        raise RuntimeError("marker overlay failed")
-
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
-    monkeypatch.setattr(viser_visualizer, "render_newton_visualization_markers", _raise_marker_render)
-
-    state_calls: list[None] = []
-
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
-
-        @staticmethod
-        def get_state():
-            state_calls.append(None)
-            return {"state_call": len(state_calls)}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 1
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
-
-    visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
-    visualizer.initialize(cast(Any, provider))
-
-    with caplog.at_level("WARNING"):
-        visualizer.step(0.25)
-
-    assert marker_calls
-    assert viewer.calls[0][0] == "begin_frame"
-    assert viewer.calls[1] == ("log_state", {"state_call": 2})
-    assert viewer.calls[2] == ("end_frame",)
-    assert "Marker rendering failed; continuing body updates" in caplog.text
-
-
-def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.MonkeyPatch):
-    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
-    marker._registered_meshes = set()
-
-    class _FakeMesh:
-        vertices = np.zeros((1, 3), dtype=np.float32)
-        indices = np.zeros((3,), dtype=np.int32)
-        normals = np.zeros((0, 3), dtype=np.float32)
-        uvs = np.zeros((0, 2), dtype=np.float32)
-
-    class _FakeViewer:
-        def __init__(self):
-            self.meshes = []
-
-        def log_mesh(self, name, vertices, indices, **kwargs):
-            self.meshes.append((name, vertices, indices, kwargs))
-
-    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
-
-    spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
-    viewer_a = _FakeViewer()
-    viewer_b = _FakeViewer()
-
-    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
-    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
-    marker._ensure_mesh_registered(viewer_b, "/Visuals/marker/meshes/arrow", spec)
-
-    assert len(viewer_a.meshes) == 1
-    assert len(viewer_b.meshes) == 1
-
-
-class _FakeNewtonMarkerMesh:
-    vertices = np.zeros((1, 3), dtype=np.float32)
-    indices = np.zeros((3,), dtype=np.int32)
-    normals = np.zeros((0, 3), dtype=np.float32)
-    uvs = np.zeros((0, 2), dtype=np.float32)
-
-
-class _FakeNewtonMarkerViewer:
-    def __init__(self):
-        self.meshes = []
-        self.instances = []
-        self.lines = []
-
-    def log_mesh(self, name, vertices, indices, **kwargs):
-        self.meshes.append((name, vertices, indices, kwargs))
-
-    def log_instances(self, batch_name, mesh_name, xforms, scales, colors, materials, hidden=False):
-        self.instances.append(
-            {
-                "batch_name": batch_name,
-                "mesh_name": mesh_name,
-                "xforms": xforms,
-                "scales": scales,
-                "colors": colors,
-                "materials": materials,
-                "hidden": hidden,
-            }
-        )
-
-    def log_lines(self, batch_name, starts, ends, colors, width=None, hidden=False):
-        self.lines.append(
-            {
-                "batch_name": batch_name,
-                "starts": starts,
-                "ends": ends,
-                "colors": colors,
-                "width": width,
-                "hidden": hidden,
-            }
-        )
-
-
-def _make_newton_marker_for_render(
-    *,
-    marker_names: list[str],
-    translations: torch.Tensor,
-    marker_indices: torch.Tensor | None = None,
-    visible: bool = True,
-):
-    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
-    marker_cfg_type = type("MarkerCfg", (), {"visual_material": None})
-    marker.cfg = type("Cfg", (), {"markers": {name: marker_cfg_type() for name in marker_names}})()
-    marker.group_id = "/Visuals/marker::test"
-    marker.visible = visible
-    marker.translations = translations
-    marker.orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32).repeat(translations.shape[0], 1)
-    marker.scales = torch.ones((translations.shape[0], 3), dtype=torch.float32)
-    marker.marker_indices = marker_indices
-    marker.count = translations.shape[0]
-    marker._registered_meshes = set()
-    marker._warned_unsupported = set()
-    return marker
-
-
-def _patch_newton_marker_render_deps(monkeypatch: pytest.MonkeyPatch) -> None:
-    specs = {
-        "arrow": newton_markers._NewtonMarkerSpec(
-            renderer="mesh",
-            mesh_type="box",
-            mesh_params={"size": (1.0, 1.0, 1.0)},
-            color=(1.0, 1.0, 1.0),
-            texture=np.zeros((2, 2, 3), dtype=np.uint8),
-        ),
-        "sphere": newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="sphere", mesh_params={"radius": 1.0}),
-        "frame": newton_markers._NewtonMarkerSpec(renderer="frame"),
-    }
-
-    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
-    monkeypatch.setattr(newton_markers, "_resolve_newton_marker_cfg", lambda name, marker_cfg, cfg: specs[name])
-
-
-def test_newton_marker_render_filters_visible_envs(monkeypatch: pytest.MonkeyPatch):
-    _patch_newton_marker_render_deps(monkeypatch)
-    translations = torch.arange(8, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
-    marker = _make_newton_marker_for_render(
-        marker_names=["arrow"],
-        translations=translations,
-        marker_indices=torch.zeros(8, dtype=torch.int32),
-    )
-    viewer = _FakeNewtonMarkerViewer()
-
-    marker.render(viewer, visible_env_ids=[1, 3], num_envs=4)
-
-    assert len(viewer.instances) == 1
-    assert viewer.instances[0]["hidden"] is False
-    assert viewer.instances[0]["xforms"][:, 0].tolist() == [1.0, 3.0, 5.0, 7.0]
-
-
-def test_newton_marker_render_routes_instances_by_prototype(monkeypatch: pytest.MonkeyPatch):
-    _patch_newton_marker_render_deps(monkeypatch)
-    translations = torch.arange(4, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
-    marker = _make_newton_marker_for_render(
-        marker_names=["arrow", "sphere"],
-        translations=translations,
-        marker_indices=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
-    )
-    viewer = _FakeNewtonMarkerViewer()
-
-    marker.render(viewer, visible_env_ids=None, num_envs=4)
-
-    visible_instances = [call for call in viewer.instances if not call["hidden"]]
-    assert [call["batch_name"] for call in visible_instances] == [
-        "/Visuals/marker::test/arrow",
-        "/Visuals/marker::test/sphere",
-    ]
-    assert [call["xforms"].shape[0] for call in visible_instances] == [2, 2]
-    assert visible_instances[0]["materials"][:, 3].tolist() == [1.0, 1.0]
-    assert visible_instances[1]["materials"][:, 3].tolist() == [0.0, 0.0]
-
-
-def test_newton_marker_render_hides_unselected_prototypes(monkeypatch: pytest.MonkeyPatch):
-    _patch_newton_marker_render_deps(monkeypatch)
-    marker = _make_newton_marker_for_render(
-        marker_names=["arrow", "sphere", "frame"],
-        translations=torch.zeros((3, 3), dtype=torch.float32),
-        marker_indices=torch.zeros(3, dtype=torch.int32),
-    )
-    viewer = _FakeNewtonMarkerViewer()
-
-    marker.render(viewer, visible_env_ids=None, num_envs=3)
-
-    hidden_instances = [call for call in viewer.instances if call["hidden"]]
-    assert [call["batch_name"] for call in hidden_instances] == ["/Visuals/marker::test/sphere"]
-    assert viewer.lines == [
-        {
-            "batch_name": "/Visuals/marker::test/frame",
-            "starts": None,
-            "ends": None,
-            "colors": None,
-            "width": None,
-            "hidden": True,
-        }
-    ]
 
 
 @pytest.mark.parametrize(
@@ -531,6 +287,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
             self,
             *,
             port: int,
+            bind_address: str,
             label: str | None,
             verbose: bool,
             share: bool,
@@ -539,6 +296,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         ):
             captured["init"] = {
                 "port": port,
+                "bind_address": bind_address,
                 "label": label,
                 "verbose": verbose,
                 "share": share,
@@ -554,6 +312,10 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
+
+        @property
+        def share_url(self) -> str | None:
+            return None
 
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
     monkeypatch.setattr(
@@ -574,6 +336,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
+    assert captured["init"]["bind_address"] == cfg.bind_address
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
@@ -605,6 +368,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             keep_historical_data: bool,
             keep_scalar_history: bool,
             record_to_rrd: str | None,
+            open_browser: bool,
         ):
             captured["init"] = {
                 "app_id": app_id,
@@ -615,6 +379,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
                 "keep_historical_data": keep_historical_data,
                 "keep_scalar_history": keep_scalar_history,
                 "record_to_rrd": record_to_rrd,
+                "open_browser": open_browser,
             }
 
         def set_model(self, model: Any) -> None:
@@ -647,7 +412,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             return "dummy-model"
 
         @staticmethod
-        def get_state():
+        def get_state(scene_data_provider=None):
+            captured["state_provider"] = scene_data_provider
             return {"ok": True}
 
         @staticmethod
@@ -681,69 +447,6 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_model"] == "dummy-model"
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
-
-
-def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.MonkeyPatch):
-    class _FakeRerunViewer:
-        def __init__(self):
-            self.calls = []
-
-        def is_paused(self):
-            return False
-
-        def begin_frame(self, sim_time):
-            self.calls.append(("begin_frame", sim_time))
-
-        def log_state(self, state):
-            self.calls.append(("log_state", state))
-
-        def end_frame(self):
-            self.calls.append(("end_frame",))
-
-    class _DummyRerunSceneDataProvider:
-        def get_metadata(self) -> dict:
-            return {"num_envs": 4}
-
-        def get_newton_state(self):
-            return {"ok": True}
-
-        def get_camera_transforms(self):
-            return {}
-
-    def _raise_marker_render(*args, **kwargs):
-        raise RuntimeError("marker render failed")
-
-    monkeypatch.setattr(rerun_visualizer, "render_newton_visualization_markers", _raise_marker_render)
-
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
-
-        @staticmethod
-        def get_state():
-            return {"ok": True}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 4
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
-
-    visualizer = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
-    viewer = _FakeRerunViewer()
-    visualizer._is_initialized = True
-    visualizer._is_closed = False
-    visualizer._viewer = viewer
-    visualizer._scene_data_provider = _DummyRerunSceneDataProvider()
-    visualizer._resolved_visible_env_ids = None
-
-    with pytest.raises(RuntimeError, match="marker render failed"):
-        visualizer.step(0.25)
-
-    assert [call[0] for call in viewer.calls] == ["begin_frame", "log_state", "end_frame"]
 
 
 def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
@@ -804,6 +507,23 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
     assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
     assert viewport_window.viewport_api.set_active_camera_calls == []
     assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
+
+
+def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):
+    """Default Kit visualizer camera follows SimulationContext/ViewportCameraController updates."""
+    applied_camera_poses = []
+    monkeypatch.setattr(
+        kit_visualizer.KitVisualizer,
+        "_set_viewport_camera",
+        lambda self, eye, target: applied_camera_poses.append((tuple(eye), tuple(target))),
+    )
+
+    visualizer = kit_visualizer.KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+
+    visualizer.set_camera_view((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+
+    assert applied_camera_poses == [((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))]
 
 
 def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():

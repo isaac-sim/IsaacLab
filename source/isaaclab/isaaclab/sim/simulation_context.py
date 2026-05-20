@@ -29,7 +29,7 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene.scene_data_provider import SceneDataProvider
+from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -761,13 +761,11 @@ class SimulationContext:
         if not self._visualizers:
             return
 
+        for viz in self._visualizers:
+            viz.flush_startup_messages()
+
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
-
-        # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
-            self.vis_marker_registry.dispatch_callbacks()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
         # consumes that state later in this method.

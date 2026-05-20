@@ -86,7 +86,7 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=2),
+        algorithm=ALGO_CFG.replace(num_mini_batches=8),
     )
 
     duo_camera = DexsuiteKukaAllegroPPOBaseRunnerCfg().replace(
@@ -97,5 +97,5 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         },
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=2),
+        algorithm=ALGO_CFG.replace(num_mini_batches=8),
     )

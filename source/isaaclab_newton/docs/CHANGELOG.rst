@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.11.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton backend for :class:`~isaaclab.sensors.ray_caster.RayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`. Site-based,
+  matching :class:`~isaaclab_newton.sensors.pva.Pva` and
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer`:
+  registers body-attached sites via
+  :meth:`~isaaclab_newton.physics.NewtonManager.cl_register_site` for both
+  the sensor frame and any tracked target meshes, and reads per-step
+  transforms off :class:`~newton.sensors.SensorFrameTransform` against a
+  world-origin reference. Static parents/targets bypass the site
+  machinery and serve cached per-env ``wp.transformf`` arrays.
+
+Changed
+^^^^^^^
+
+* Changed Newton tracked target mesh updates to copy site poses directly into
+  Warp mesh pose tables instead of staging through torch views.
+
+
 0.10.0 (2026-05-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -90,7 +116,7 @@ Added
   USD stage (via
   :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`)
   and refreshes ``state_0.body_q`` from rigid-body transforms supplied by the
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` each render
+  :class:`~isaaclab.scene_data.SceneDataProvider` each render
   frame.
 
 Changed
@@ -123,7 +149,7 @@ Removed
   (``NewtonSceneDataProvider``). Replace direct uses with
   :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
   :meth:`~isaaclab_newton.physics.NewtonManager.get_state` and the
-  Warp-native :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+  Warp-native :class:`~isaaclab.scene_data.SceneDataProvider`.
 
 Fixed
 ^^^^^

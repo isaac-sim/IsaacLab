@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import DeformableObject, SurfaceGripper
+    from isaaclab_physx.assets import SurfaceGripper
 
     from isaaclab.renderers.base_renderer import BaseRenderer
 
@@ -25,6 +25,8 @@ from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
     AssetBaseCfg,
+    DeformableObject,
+    DeformableObjectCfg,
     RigidObject,
     RigidObjectCfg,
     RigidObjectCollection,
@@ -454,11 +456,21 @@ class InteractiveScene:
     def physics_scene_path(self) -> str:
         """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
+            # Prefer a prim with PhysxSceneAPI applied (Isaac Sim flow).  Fall
+            # back to any UsdPhysics.Scene prim (kitless OvPhysX flow does not
+            # load the omni.physx schema, so the auto-created scene only
+            # carries the stock USD type without PhysxSceneAPI).
+            fallback_path: str | None = None
             for prim in self.stage.Traverse():
                 if "PhysxSceneAPI" in prim.GetAppliedSchemas():
                     self._physics_scene_path = prim.GetPrimPath().pathString
                     logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
+                if fallback_path is None and prim.GetTypeName() == "PhysicsScene":
+                    fallback_path = prim.GetPrimPath().pathString
+            if self._physics_scene_path is None and fallback_path is not None:
+                self._physics_scene_path = fallback_path
+                logger.info(f"Physics scene prim path (no PhysxSceneAPI): {self._physics_scene_path}")
             if self._physics_scene_path is None:
                 raise RuntimeError("No physics scene found! Please make sure one exists.")
         return self._physics_scene_path
@@ -868,7 +880,7 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
-        from isaaclab_physx.assets import DeformableObjectCfg, SurfaceGripperCfg  # noqa: PLC0415
+        from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()

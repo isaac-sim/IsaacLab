@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_physx.assets import DeformableObjectCfg
+from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
+from isaaclab.assets import DeformableObjectCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -77,6 +79,8 @@ class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
                 scale=(0.01, 0.01, 0.01),
+                deformable_props=PhysxDeformableBodyPropertiesCfg(),
+                physics_material=PhysxDeformableBodyMaterialCfg(),
             ),
         )
 

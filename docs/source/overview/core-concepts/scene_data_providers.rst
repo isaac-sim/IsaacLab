@@ -1,7 +1,7 @@
 Scene Data Provider
 ===================
 
-The :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` bridges physics simulation
+The :class:`~isaaclab.scene_data.SceneDataProvider` bridges physics simulation
 backends and the visualizers/renderers that consume scene data. It exposes a single Warp-native
 read path for body transforms regardless of which physics backend (PhysX or Newton) is active,
 so renderers and visualizers can stay backend-agnostic.
@@ -12,7 +12,7 @@ Overview
 Isaac Lab supports multiple physics backends (PhysX and Newton) and multiple visualizers
 (Omniverse Kit, Newton, Rerun, Viser). Each combination needs scene data to flow from the
 physics engine into the renderer or visualizer. The :class:`SceneDataProvider` owns this flow:
-the physics manager provides a :class:`~isaaclab.physics.SceneDataBackend` that wraps its
+the physics manager provides a :class:`~isaaclab.scene_data.SceneDataBackend` that wraps its
 native tensor views, and the provider handles format conversion and re-mapping on top of it.
 
 .. code-block:: python
@@ -28,9 +28,9 @@ Architecture
 
 The system has three layers:
 
-1. :class:`~isaaclab.physics.SceneDataBackend` — small interface implemented by each physics
+1. :class:`~isaaclab.scene_data.SceneDataBackend` — small interface implemented by each physics
    manager. It exposes the backend's transform array directly as one of the
-   :class:`~isaaclab.physics.SceneDataFormat` Warp structs, plus the per-transform prim paths
+   :class:`~isaaclab.scene_data.SceneDataFormat` Warp structs, plus the per-transform prim paths
    and total count. There is no per-frame "update" call — the property accessors return live
    views into the underlying tensor each time they're read.
 
@@ -40,7 +40,7 @@ The system has three layers:
    - :attr:`SceneDataBackend.transform_count` — number of transforms.
    - :attr:`SceneDataBackend.transform_paths` — list of USD prim paths, one per transform.
 
-2. :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` — wraps a backend and offers
+2. :class:`~isaaclab.scene_data.SceneDataProvider` — wraps a backend and offers
    format conversion plus index re-mapping:
 
    - :meth:`SceneDataProvider.get_transforms` — write the backend's transforms into a
