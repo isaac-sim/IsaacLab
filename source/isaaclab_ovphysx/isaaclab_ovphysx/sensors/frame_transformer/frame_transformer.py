@@ -25,7 +25,7 @@ import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .frame_transformer_data import FrameTransformerData
-from .kernels import frame_transformer_update_kernel  # noqa: F401
+from .kernels import frame_transformer_update_kernel, gather_body_pose_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer import FrameTransformerCfg
@@ -399,7 +399,44 @@ class FrameTransformer(BaseFrameTransformer):
         )
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
-        raise NotImplementedError("FrameTransformer._update_buffers_impl lands in the next commit.")
+        """Fills the buffers of the sensor data."""
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
+
+        # Step 1: refresh each per-body RIGID_BODY_POSE binding and gather rows into _raw_transforms.
+        for binding, read_buf, dst_indices in zip(
+            self._body_bindings, self._body_read_bufs, self._body_dst_flat_indices
+        ):
+            binding.read(read_buf)
+            pose_buf_tf = read_buf.view(wp.transformf)  # (num_envs, 7) float32 -> (num_envs,) transformf
+            wp.launch(
+                gather_body_pose_kernel,
+                dim=self._num_envs,
+                inputs=[env_mask, pose_buf_tf, dst_indices, self._raw_transforms],
+                device=self._device,
+            )
+
+        # Step 2: compute source/target world poses (with offsets) and target poses relative to source.
+        wp.launch(
+            frame_transformer_update_kernel,
+            dim=(self._num_envs, self._num_target_frames),
+            inputs=[
+                env_mask,
+                self._raw_transforms,
+                self._source_raw_indices,
+                self._target_raw_indices,
+                self._source_offset_pos_wp,
+                self._source_offset_quat_wp,
+                self._target_offset_pos_wp,
+                self._target_offset_quat_wp,
+                self._data._source_pos_w,
+                self._data._source_quat_w,
+                self._data._target_pos_w,
+                self._data._target_quat_w,
+                self._data._target_pos_source,
+                self._data._target_quat_source,
+            ],
+            device=self._device,
+        )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
