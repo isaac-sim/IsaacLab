@@ -24,13 +24,18 @@ _IMPORTER_CLASSES = {
     "mjcf": ("MJCFImporter", "MJCFImporterConfig"),
     "urdf": ("URDFImporter", "URDFImporterConfig"),
 }
+_IMPORTER_PROVIDER_MODULE_PREFIXES = (
+    "isaacsim.asset.importer",
+    "isaacsim.asset.transformer",
+)
 
 
 def load_importer_api(importer_kind: ImporterKind) -> tuple[type, type]:
-    """Load importer classes from the standalone distribution or Isaac Sim extension.
+    """Load importer classes from Isaac Sim extension or the standalone distribution.
 
     The standalone distribution is named ``isaacsim-asset-isolated`` but exposes the same
-    ``isaacsim.asset.importer.*`` Python modules as the Isaac Sim extensions.
+    ``isaacsim.asset.importer.*`` Python modules as the Isaac Sim extensions. When Isaac
+    Sim is available, the extension-backed modules are always used.
 
     Args:
         importer_kind: The importer API to load.
@@ -45,6 +50,17 @@ def load_importer_api(importer_kind: ImporterKind) -> tuple[type, type]:
     extension_name = module_name
     package_error: Exception | None = None
 
+    if _is_isaacsim_available():
+        try:
+            _enable_isaacsim_extension(extension_name)
+            _clear_importer_provider_modules()
+            return _get_importer_classes(importlib.import_module(module_name), importer_kind)
+        except (AttributeError, ImportError, RuntimeError) as exc:
+            raise ImportError(
+                f"Failed to load {module_name} from the Isaac Sim extension {extension_name!r}. Isaac Sim is "
+                f"available, so the standalone {_STANDALONE_IMPORTER_DISTRIBUTION!r} package will not be used."
+            ) from exc
+
     standalone_distribution_path = _get_standalone_importer_distribution_path()
     if standalone_distribution_path is not None:
         try:
@@ -53,22 +69,27 @@ def load_importer_api(importer_kind: ImporterKind) -> tuple[type, type]:
         except (AttributeError, ImportError) as exc:
             package_error = exc
 
-    try:
-        _enable_isaacsim_extension(extension_name)
-        return _get_importer_classes(importlib.import_module(module_name), importer_kind)
-    except (AttributeError, ImportError, RuntimeError) as exc:
-        message = (
-            f"Failed to load {module_name}. Install the standalone {_STANDALONE_IMPORTER_DISTRIBUTION!r} package "
-            f"or run with the Isaac Sim extension {extension_name!r} available."
-        )
-        if package_error is not None:
-            message += f" Standalone package error: {package_error}"
-        raise ImportError(message) from exc
+    message = (
+        f"Failed to load {module_name}. Run with the Isaac Sim extension {extension_name!r} available or install "
+        f"the standalone {_STANDALONE_IMPORTER_DISTRIBUTION!r} package."
+    )
+    if package_error is not None:
+        message += f" Standalone package error: {package_error}"
+    raise ImportError(message) from package_error
 
 
 def _is_standalone_importer_package_available() -> bool:
     """Return True when the standalone asset importer distribution is installed."""
     return _get_standalone_importer_distribution_path() is not None
+
+
+def _is_isaacsim_available() -> bool:
+    """Return True when the full Isaac Sim Python runtime is available."""
+    try:
+        from isaacsim import SimulationApp  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 def _get_standalone_importer_distribution_path() -> str | None:
@@ -93,10 +114,7 @@ def _import_standalone_importer_module(module_name: str, distribution_path: str)
     sys.path.insert(0, str(distribution_root))
     importlib.invalidate_caches()
 
-    for loaded_module_name in list(sys.modules):
-        if loaded_module_name == module_name or loaded_module_name.startswith(f"{module_name}."):
-            del sys.modules[loaded_module_name]
-
+    _clear_importer_provider_modules()
     module = importlib.import_module(module_name)
     module_file = getattr(module, "__file__", None)
     if module_file is not None and not Path(module_file).resolve().is_relative_to(distribution_root):
@@ -105,6 +123,15 @@ def _import_standalone_importer_module(module_name: str, distribution_path: str)
             f"{distribution_root}, but resolved {module_file}."
         )
     return module
+
+
+def _clear_importer_provider_modules() -> None:
+    """Clear loaded importer provider modules before switching providers."""
+    for loaded_module_name in list(sys.modules):
+        for module_prefix in _IMPORTER_PROVIDER_MODULE_PREFIXES:
+            if loaded_module_name == module_prefix or loaded_module_name.startswith(f"{module_prefix}."):
+                del sys.modules[loaded_module_name]
+                break
 
 
 def _enable_isaacsim_extension(extension_name: str) -> None:
@@ -117,9 +144,8 @@ def _enable_isaacsim_extension(extension_name: str) -> None:
             manager.set_extension_enabled_immediate(extension_name, True)
     except (AttributeError, ImportError, RuntimeError) as exc:
         raise ImportError(
-            f"The standalone {_STANDALONE_IMPORTER_DISTRIBUTION!r} package is not installed and the Isaac Sim extension "
-            f"{extension_name!r} could not be enabled. Install the standalone package for kitless conversion or "
-            "launch Isaac Sim before using the extension-backed importer."
+            f"The Isaac Sim extension {extension_name!r} could not be enabled. Launch Isaac Sim before using the "
+            "extension-backed importer."
         ) from exc
 
 

@@ -58,26 +58,38 @@ def parse_converter_cli_args(parser: argparse.ArgumentParser) -> tuple[argparse.
         Parsed CLI arguments and an optional launched ``SimulationApp``.
     """
     standalone_importer_available = _is_standalone_importer_package_available()
-    launch_kit = not standalone_importer_available or _should_launch_kit(_preparse_app_args())
+    app_launcher_cls = None if _is_help_requested() else _try_import_app_launcher()
+    launch_kit = (
+        app_launcher_cls is not None or not standalone_importer_available or _should_launch_kit(_preparse_app_args())
+    )
 
     if launch_kit and _is_help_requested() and not standalone_importer_available:
         _add_kitless_app_launcher_args(parser)
         return parser.parse_args(), None
 
     if launch_kit:
-        try:
-            from isaaclab.app import AppLauncher
-        except ImportError as exc:
+        if app_launcher_cls is None:
+            app_launcher_cls = _try_import_app_launcher()
+        if app_launcher_cls is None:
             raise ImportError(
                 "Launching Omniverse Kit requires the full Isaac Sim package. Omit '--viz kit' for kitless "
                 "conversion with the 'isaacsim-asset-isolated' package."
-            ) from exc
-        AppLauncher.add_app_launcher_args(parser)
+            )
+        app_launcher_cls.add_app_launcher_args(parser)
         args_cli = parser.parse_args()
-        return args_cli, AppLauncher(args_cli).app
+        return args_cli, app_launcher_cls(args_cli).app
 
     _add_kitless_app_launcher_args(parser)
     return parser.parse_args(), None
+
+
+def _try_import_app_launcher():
+    """Return :class:`AppLauncher` when Isaac Sim is importable, otherwise ``None``."""
+    try:
+        from isaaclab.app import AppLauncher
+    except ImportError:
+        return None
+    return AppLauncher
 
 
 def ensure_standalone_importer_runtime(importer_kind: str) -> None:

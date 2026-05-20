@@ -2,8 +2,7 @@ Added
 ^^^^^
 
 * Added support for loading URDF and MJCF importer APIs from the standalone
-  ``isaacsim-asset-isolated`` package before falling back to the Isaac Sim
-  importer extensions.
+  ``isaacsim-asset-isolated`` package when Isaac Sim is unavailable.
 
 Changed
 ^^^^^^^

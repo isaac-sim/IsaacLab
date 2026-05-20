@@ -24,11 +24,17 @@ def _make_importer_module(importer_kind: importer_api.ImporterKind) -> types.Sim
     return types.SimpleNamespace(URDFImporter=_Importer, URDFImporterConfig=_ImporterConfig)
 
 
-def test_load_importer_api_prefers_standalone_package(monkeypatch):
-    """The standalone package path should not touch the Isaac Sim extension manager."""
+def test_load_importer_api_prefers_isaac_sim_extension(monkeypatch):
+    """The Isaac Sim extension path should win when both providers are available."""
     calls = []
 
+    monkeypatch.setattr(importer_api, "_is_isaacsim_available", lambda: True)
     monkeypatch.setattr(importer_api, "_get_standalone_importer_distribution_path", lambda: "/standalone/site-packages")
+    monkeypatch.setattr(
+        importer_api,
+        "_enable_isaacsim_extension",
+        lambda extension_name: calls.append(("enable", extension_name)),
+    )
     monkeypatch.setattr(
         importer_api.importlib,
         "import_module",
@@ -36,21 +42,25 @@ def test_load_importer_api_prefers_standalone_package(monkeypatch):
     )
     monkeypatch.setattr(
         importer_api,
-        "_enable_isaacsim_extension",
-        lambda extension_name: pytest.fail(f"Unexpected extension enable: {extension_name}"),
+        "_import_standalone_importer_module",
+        lambda module_name, distribution_path: pytest.fail("Unexpected standalone importer load"),
     )
 
     importer_cls, config_cls = importer_api.load_importer_api("urdf")
 
     assert importer_cls is _Importer
     assert config_cls is _ImporterConfig
-    assert calls == [("import", "isaacsim.asset.importer.urdf")]
+    assert calls == [
+        ("enable", "isaacsim.asset.importer.urdf"),
+        ("import", "isaacsim.asset.importer.urdf"),
+    ]
 
 
-def test_load_importer_api_falls_back_to_isaac_sim_extension(monkeypatch):
-    """Missing standalone package should preserve the extension-backed import path."""
+def test_load_importer_api_uses_isaac_sim_extension_without_standalone(monkeypatch):
+    """Missing standalone package should use the extension-backed import path."""
     calls = []
 
+    monkeypatch.setattr(importer_api, "_is_isaacsim_available", lambda: True)
     monkeypatch.setattr(importer_api, "_get_standalone_importer_distribution_path", lambda: None)
     monkeypatch.setattr(
         importer_api,
@@ -73,22 +83,22 @@ def test_load_importer_api_falls_back_to_isaac_sim_extension(monkeypatch):
     ]
 
 
-def test_load_importer_api_falls_back_when_standalone_import_fails(monkeypatch):
-    """A broken standalone import should still allow the existing extension path to work."""
+def test_load_importer_api_falls_back_to_standalone_package(monkeypatch):
+    """A missing Isaac Sim runtime should fall back to the standalone package."""
     calls = []
 
-    def _import_module(module_name):
-        calls.append(("import", module_name))
-        if len(calls) == 1:
-            raise ImportError("standalone package import failed")
-        return _make_importer_module("urdf")
-
+    monkeypatch.setattr(importer_api, "_is_isaacsim_available", lambda: False)
     monkeypatch.setattr(importer_api, "_get_standalone_importer_distribution_path", lambda: "/standalone/site-packages")
-    monkeypatch.setattr(importer_api.importlib, "import_module", _import_module)
     monkeypatch.setattr(
         importer_api,
         "_enable_isaacsim_extension",
-        lambda extension_name: calls.append(("enable", extension_name)),
+        lambda extension_name: pytest.fail("Unexpected Isaac Sim extension load"),
+    )
+    monkeypatch.setattr(
+        importer_api,
+        "_import_standalone_importer_module",
+        lambda module_name, distribution_path: calls.append(("standalone", module_name, distribution_path))
+        or _make_importer_module("urdf"),
     )
 
     importer_cls, config_cls = importer_api.load_importer_api("urdf")
@@ -96,7 +106,33 @@ def test_load_importer_api_falls_back_when_standalone_import_fails(monkeypatch):
     assert importer_cls is _Importer
     assert config_cls is _ImporterConfig
     assert calls == [
-        ("import", "isaacsim.asset.importer.urdf"),
-        ("enable", "isaacsim.asset.importer.urdf"),
-        ("import", "isaacsim.asset.importer.urdf"),
+        ("standalone", "isaacsim.asset.importer.urdf", "/standalone/site-packages"),
     ]
+
+
+def test_load_importer_api_does_not_fallback_when_isaac_sim_extension_fails(monkeypatch):
+    """An available Isaac Sim runtime should not fall back to the standalone package."""
+    calls = []
+
+    monkeypatch.setattr(importer_api, "_is_isaacsim_available", lambda: True)
+    monkeypatch.setattr(importer_api, "_get_standalone_importer_distribution_path", lambda: "/standalone/site-packages")
+    monkeypatch.setattr(
+        importer_api,
+        "_enable_isaacsim_extension",
+        lambda extension_name: calls.append(("enable", extension_name)),
+    )
+    monkeypatch.setattr(
+        importer_api.importlib,
+        "import_module",
+        lambda module_name: (_ for _ in ()).throw(ImportError(f"failed to import {module_name}")),
+    )
+    monkeypatch.setattr(
+        importer_api,
+        "_import_standalone_importer_module",
+        lambda module_name, distribution_path: pytest.fail("Unexpected standalone importer load"),
+    )
+
+    with pytest.raises(ImportError, match="standalone .* package will not be used"):
+        importer_api.load_importer_api("mjcf")
+
+    assert calls == [("enable", "isaacsim.asset.importer.mjcf")]
