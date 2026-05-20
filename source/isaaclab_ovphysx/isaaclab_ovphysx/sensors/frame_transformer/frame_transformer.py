@@ -9,23 +9,16 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
-from pxr import UsdPhysics
-
-import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.utils.math import is_identity_pose
-
-import isaaclab_ovphysx.tensor_types as TT
-from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab.utils.math import normalize, quat_from_angle_axis
 
 from .frame_transformer_data import FrameTransformerData
-from .kernels import frame_transformer_update_kernel, gather_body_pose_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer import FrameTransformerCfg
@@ -120,6 +113,117 @@ class FrameTransformer(BaseFrameTransformer):
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         raise NotImplementedError("FrameTransformer._update_buffers_impl lands in the next commit.")
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            if not hasattr(self, "frame_visualizer"):
+                self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+
+            # set their visibility to true
+            self.frame_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "frame_visualizer"):
+                self.frame_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        # Convert warp -> torch at the boundary for visualization
+        source_pos_w = wp.to_torch(self._data._source_pos_w)
+        source_quat_w = wp.to_torch(self._data._source_quat_w)
+        target_pos_w = wp.to_torch(self._data._target_pos_w)
+        target_quat_w = wp.to_torch(self._data._target_quat_w)
+
+        # Get the all frames pose
+        frames_pos = torch.cat([source_pos_w, target_pos_w.view(-1, 3)], dim=0)
+        frames_quat = torch.cat([source_quat_w, target_quat_w.view(-1, 4)], dim=0)
+
+        # Get the all connecting lines between frames pose
+        lines_pos, lines_quat, lines_length = self._get_connecting_lines(
+            start_pos=source_pos_w.repeat_interleave(target_pos_w.size(1), dim=0),
+            end_pos=target_pos_w.view(-1, 3),
+        )
+
+        # Initialize default (identity) scales and marker indices for all markers (frames + lines)
+        marker_scales = torch.ones(frames_pos.size(0) + lines_pos.size(0), 3)
+        marker_indices = torch.zeros(marker_scales.size(0))
+
+        # Set the z-scale of line markers to represent their actual length
+        marker_scales[-lines_length.size(0) :, -1] = lines_length
+
+        # Assign marker config index 1 to line markers
+        marker_indices[-lines_length.size(0) :] = 1
+
+        # Update the frame and the connecting line visualizer
+        self.frame_visualizer.visualize(
+            translations=torch.cat((frames_pos, lines_pos), dim=0),
+            orientations=torch.cat((frames_quat, lines_quat), dim=0),
+            scales=marker_scales,
+            marker_indices=marker_indices,
+        )
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._frame_physx_view = None
+
+    """
+    Internal helpers.
+    """
+
+    def _get_connecting_lines(
+        self, start_pos: torch.Tensor, end_pos: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Draws connecting lines between frames.
+
+        Given start and end points, this function computes the positions (mid-point), orientations,
+        and lengths of the connecting lines.
+
+        Args:
+            start_pos: The start positions of the connecting lines. Shape is (N, 3).
+            end_pos: The end positions of the connecting lines. Shape is (N, 3).
+
+        Returns:
+            A tuple containing:
+            - The positions of each connecting line. Shape is (N, 3).
+            - The orientations of each connecting line in quaternion. Shape is (N, 4).
+            - The lengths of each connecting line. Shape is (N,).
+        """
+        direction = end_pos - start_pos
+        lengths = torch.linalg.norm(direction, dim=-1)
+        positions = (start_pos + end_pos) / 2
+
+        # Get default direction (along z-axis)
+        default_direction = torch.tensor([0.0, 0.0, 1.0], device=self.device).expand(start_pos.size(0), -1)
+
+        # Normalize direction vector
+        direction_norm = normalize(direction)
+
+        # Calculate rotation from default direction to target direction
+        rotation_axis = torch.linalg.cross(default_direction, direction_norm)
+        rotation_axis_norm = torch.linalg.norm(rotation_axis, dim=-1)
+
+        # Handle case where vectors are parallel
+        mask = rotation_axis_norm > 1e-6
+        rotation_axis = torch.where(
+            mask.unsqueeze(-1),
+            normalize(rotation_axis),
+            torch.tensor([1.0, 0.0, 0.0], device=self.device).expand(start_pos.size(0), -1),
+        )
+
+        # Calculate rotation angle
+        cos_angle = torch.sum(default_direction * direction_norm, dim=-1)
+        cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
+        angle = torch.acos(cos_angle)
+        orientations = quat_from_angle_axis(angle, rotation_axis)
+
+        return positions, orientations, lengths
 
     @staticmethod
     def _get_relative_body_path(prim_path: str) -> str:
