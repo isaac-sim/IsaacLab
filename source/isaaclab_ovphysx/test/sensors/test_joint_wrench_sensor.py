@@ -195,10 +195,22 @@ def _ovphysx_incoming_joint_wrench(sensor: JointWrenchSensor) -> torch.Tensor:
     """Read the raw OVPhysX incoming joint wrench tensor.
 
     OVPhysX reports spatial vectors as force followed by torque. Shape is
-    ``(num_envs, num_bodies, 6)`` after viewing the wrench buffer.
+    ``(num_envs, num_bodies, 6)``. The read targets an independent scratch
+    buffer so a subsequent ``sensor.data`` access (which re-reads into the
+    sensor's own ``_wrench_buf``) cannot retroactively change the returned
+    snapshot — mirrors how the PhysX helper returns an independent array from
+    :meth:`ArticulationView.get_link_incoming_joint_force`.
     """
-    sensor._wrench_binding.read(sensor._wrench_read_view)
-    return wp.to_torch(sensor._wrench_buf)
+    scratch_buf = wp.zeros((sensor._num_envs, sensor._num_bodies), dtype=wp.spatial_vectorf, device=sensor._device)
+    scratch_view = wp.array(
+        ptr=scratch_buf.ptr,
+        shape=sensor._wrench_binding.shape,
+        dtype=wp.float32,
+        device=str(scratch_buf.device),
+        copy=False,
+    )
+    sensor._wrench_binding.read(scratch_view)
+    return wp.to_torch(scratch_buf)
 
 
 def _assert_sensor_matches_ovphysx_tensor(sensor: JointWrenchSensor) -> None:
