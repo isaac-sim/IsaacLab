@@ -3539,7 +3539,6 @@ class Articulation(BaseArticulation):
             TT.LINK_POSE,
             TT.LINK_VELOCITY,
             TT.LINK_ACCELERATION,
-            TT.LINK_INCOMING_JOINT_FORCE,
             TT.DOF_POSITION,
             TT.DOF_VELOCITY,
             TT.DOF_STIFFNESS,
