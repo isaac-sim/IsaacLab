@@ -394,13 +394,15 @@ class OvPhysxManager(PhysicsManager):
     def get_gravity(cls) -> tuple[float, float, float]:
         """Return the world-frame gravity vector [m/s^2] from the active simulation cfg.
 
-        Mirrors :meth:`isaaclab_physx.physics.PhysxManager.get_physics_sim_view().get_gravity`
-        so backend-agnostic sensor code can read gravity through one classmethod.
-        Falls back to the IsaacLab default ``(0, 0, -9.81)`` when no simulation is active.
+        Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
+        can read gravity through one classmethod.
+
+        Raises:
+            RuntimeError: If no simulation is active. Call :meth:`initialize` first.
         """
-        if cls._sim is not None and hasattr(cls._sim, "cfg"):
-            return cls._sim.cfg.gravity
-        return (0.0, 0.0, -9.81)
+        if cls._sim is None or not hasattr(cls._sim, "cfg"):
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+        return cls._sim.cfg.gravity
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:

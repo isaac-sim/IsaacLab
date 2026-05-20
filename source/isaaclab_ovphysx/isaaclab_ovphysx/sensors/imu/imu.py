@@ -36,8 +36,8 @@ class Imu(BaseImu):
     projected gravity.
 
     Like a real accelerometer, the linear acceleration readings always include the
-    contribution of gravity. The gravity vector is read from the simulation
-    configuration at initialization.
+    contribution of gravity. The gravity vector is queried from the simulation at
+    initialization.
 
     The sensor can be attached to any prim path with a rigid ancestor in its tree.
     If the provided path is not a rigid body, the closest rigid-body ancestor is

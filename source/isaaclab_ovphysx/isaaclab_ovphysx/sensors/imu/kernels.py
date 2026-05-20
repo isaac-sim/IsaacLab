@@ -10,7 +10,7 @@ import warp as wp
 def imu_update_kernel(
     # indexing
     env_mask: wp.array(dtype=wp.bool),
-    # PhysX view data
+    # rigid-body view data
     transforms: wp.array(dtype=wp.transformf),
     velocities: wp.array(dtype=wp.spatial_vectorf),
     coms: wp.array(dtype=wp.transformf),
