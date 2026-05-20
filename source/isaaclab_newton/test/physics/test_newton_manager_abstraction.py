@@ -26,21 +26,24 @@ Covers:
 from __future__ import annotations
 
 import pytest
+import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
     MJWarpSolverCfg,
+    MPMSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonFeatherstoneManager,
     NewtonKaminoManager,
     NewtonManager,
     NewtonMJWarpManager,
+    NewtonMPMManager,
     NewtonSolverCfg,
     NewtonXPBDManager,
     XPBDSolverCfg,
 )
-from newton.solvers import SolverFeatherstone, SolverKamino, SolverMuJoCo, SolverXPBD
+from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
@@ -99,6 +102,14 @@ SOLVER_MATRIX = [
         True,
         id="kamino_newton_pipeline",
     ),
+    pytest.param(
+        lambda: MPMSolverCfg(max_iterations=2, voxel_size=0.05),
+        NewtonMPMManager,
+        SolverImplicitMPM,
+        True,
+        False,
+        id="implicit_mpm",
+    ),
 ]
 
 
@@ -140,7 +151,8 @@ def test_newton_cfg_post_init_propagates_class_type(
 
 
 @pytest.mark.parametrize(
-    "manager", [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager]
+    "manager",
+    [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager, NewtonMPMManager],
 )
 def test_subclass_of_newton_manager(manager):
     """All concrete managers inherit from :class:`NewtonManager`."""
@@ -156,7 +168,8 @@ def test_abstract_build_solver_raises():
 
 
 @pytest.mark.parametrize(
-    "manager", [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager]
+    "manager",
+    [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager, NewtonMPMManager],
 )
 def test_manager_name_starts_with_newton(manager):
     """The ``"newton"`` prefix is required by :class:`InteractiveScene` and the
@@ -192,12 +205,15 @@ def test_initialize_solver_populates_canonical_state(
     working regardless of which leaf is active.  This test is the regression
     guard for that contract.
 
-    The builder is pre-populated with a minimal one-body / one-joint scene
-    (instead of relying on a USD stage) for two reasons:
+    The builder is pre-populated directly (instead of relying on a USD stage)
+    with either a minimal particle grid for MPM or a one-body / one-joint scene
+    for rigid/articulation solvers:
 
-    1. :class:`SolverMuJoCo` requires at least one joint to convert the model
+    1. :class:`SolverImplicitMPM` requires particles and MPM custom attributes
+       registered on the builder before particle creation.
+    2. :class:`SolverMuJoCo` requires at least one joint to convert the model
        to MJCF; a ground-plane-only scene fails MJCF conversion.
-    2. Pre-populating ``NewtonManager._builder`` causes
+    3. Pre-populating ``NewtonManager._builder`` causes
        :meth:`NewtonManager.start_simulation` to skip
        :meth:`instantiate_builder_from_stage`, so the test does not depend on
        USD asset packages.
@@ -217,11 +233,28 @@ def test_initialize_solver_populates_canonical_state(
         assert resolved_manager.__name__ == expected_manager.__name__
         assert resolved_manager.__name__.lower().startswith("newton")
 
-        # Pre-populate the builder with a minimal scene so MJCF conversion has
-        # something to work with.
         builder = NewtonManager.create_builder()
-        body = builder.add_body(mass=1.0)
-        builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        if expected_solver_cls is SolverImplicitMPM:
+            assert builder.has_custom_attribute("mpm:young_modulus")
+            builder.add_particle_grid(
+                pos=wp.vec3(-0.05, -0.05, 0.10),
+                rot=wp.quat_identity(),
+                vel=wp.vec3(0.0),
+                dim_x=2,
+                dim_y=2,
+                dim_z=2,
+                cell_x=0.05,
+                cell_y=0.05,
+                cell_z=0.05,
+                mass=0.01,
+                jitter=0.0,
+                radius_mean=0.02,
+            )
+        else:
+            # Pre-populate the builder with a minimal scene so MJCF conversion has
+            # something to work with.
+            body = builder.add_body(mass=1.0)
+            builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
 
         # Force resolution and bring up the solver.
@@ -235,8 +268,8 @@ def test_initialize_solver_populates_canonical_state(
 
         # ``_contacts`` is allocated whichever way contacts are handled
         # (MuJoCo internal buffer or Newton pipeline output).
-        # Kamino with internal contacts does not currently set NewtonManager._contacts.
-        if expected_solver_cls is not SolverKamino:
+        # Kamino with internal contacts and MPM do not currently set NewtonManager._contacts.
+        if expected_solver_cls not in (SolverKamino, SolverImplicitMPM):
             assert NewtonManager._contacts is not None
 
         # One step should not raise — proves the dispatch wiring lines up
