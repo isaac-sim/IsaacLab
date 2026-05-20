@@ -53,8 +53,8 @@ def test_add_registered_cables_iterates_registry(monkeypatch):
 
     calls = []
 
-    def _fake_entry_hook(builder, entry, env_idx, env_pos, env_rot):
-        calls.append((entry.prim_path, env_idx))
+    def _fake_entry_hook(builder, entry, env_idx, env_pos, env_rot, cable_idx=0):
+        calls.append((entry.prim_path, env_idx, cable_idx))
 
     monkeypatch.setattr(
         "isaaclab_contrib.cable.cable_object.add_cable_entry_to_builder",
@@ -78,7 +78,7 @@ def test_add_registered_cables_iterates_registry(monkeypatch):
 
     add_registered_cables_to_builder(builder=None, world_idx=3, env_position=[0, 0, 0], env_rotation=[0, 0, 0, 1])
 
-    assert calls == [("/World/cable_a", 3), ("/World/cable_b", 3)]
+    assert calls == [("/World/cable_a", 3, 0), ("/World/cable_b", 3, 1)]
 
 
 class _FakeBuilder:

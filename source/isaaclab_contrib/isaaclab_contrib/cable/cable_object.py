@@ -267,6 +267,13 @@ class CableObject(Articulation):
                 " manager init, mirroring the deformable contrib pattern)."
             )
 
+        if self.cfg.spawn is None:
+            raise ValueError(
+                f"CableObjectCfg(prim_path='{self.cfg.prim_path}') has no `spawn` configuration."
+                " CableObject requires a `CableCfg` (or compatible USD-loading cfg) to register"
+                " cable geometry; pass one via `CableObjectCfg.spawn`."
+            )
+
         # Resolve the spawned template prim. ``spawn_path`` is set by InteractiveScene's
         # template-based cloning flow; falls back to ``prim_path`` for direct envs that
         # spawn straight at the cloned regex.
