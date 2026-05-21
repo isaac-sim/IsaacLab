@@ -1,0 +1,3 @@
+Test-only: use ``torch.ones`` instead of ``torch.rand`` for ``op="scale"`` in
+``test_noise.py`` to avoid 0/0=NaN when ``torch.rand`` on CUDA returns exact 0
+(per its documented ``[0, 1)`` contract). Fixes OMPE-94619.
