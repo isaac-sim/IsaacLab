@@ -16,91 +16,42 @@ from isaaclab.utils.configclass import configclass
 
 @configclass
 class CableAttachmentCfg:
-    """Weld a cable endpoint to a body on another spawned asset.
-
-    The attachment creates a Newton fixed joint between one of the cable's end
-    rod-segment bodies and a body on a separately spawned rigid asset. The joint
-    is realized at Newton model-build time, after both assets are registered
-    with the builder. Newton's rigid solver then enforces the constraint
-    natively each step; no per-step Python synchronization is required.
+    """Weld a cable endpoint to a body on another spawned asset via a Newton fixed joint.
 
     Note:
-        The constraint is realized as a Newton fixed joint that bridges the
-        cable's VBD articulation and the target's rigid articulation. The
-        constraint is enforced by solvers that honor cross-articulation fixed
-        joints (VBD, XPBD); solvers that iterate per-articulation only
-        (e.g., MuJoCo, Featherstone) may silently drop it. The default
-        IsaacLab Newton solver in this contrib (VBD) honors it.
+        Only solvers that honor cross-articulation fixed joints (VBD, XPBD) enforce
+        this constraint; per-articulation solvers (e.g. MuJoCo, Featherstone) may
+        silently drop it. The default VBD solver in this contrib honors it.
     """
 
     target_prim_path: str = MISSING
-    """Prim path of the rigid body to weld the cable endpoint to.
+    """Prim path of the target rigid body.
 
-    Must resolve to a prim that has been registered with Newton as a rigid body
-    (e.g., spawned via :class:`~isaaclab.assets.RigidObject`) prior to the cable
-    being realized.
-
-    Note:
-        The match is exact-string, not pattern matching. Two forms are accepted
-        and tried in order against the builder's ``body_label`` (filtered by
-        ``body_world``):
-
-        1. The path as written. Use this for direct (non-cloned) spawns, or
-           when targeting a USD-imported asset under :class:`InteractiveScene`
-           cloning — pass the same regex template as
-           :attr:`RigidObjectCfg.prim_path` (e.g. ``/World/envs/env_.*/Plug``).
-           USD-imported bodies carry the unexpanded template at attachment-hook
-           time because the cloner's label rewrite runs *after* all worlds are
-           built.
-        2. The same path with ``env_.*`` substituted by ``env_{world_idx}``.
-           This handles builder-hook targets (e.g. another :class:`CableObject`)
-           whose body labels are pre-expanded per env.
+    Matched exactly (not by pattern) against the builder's ``body_label`` filtered
+    by ``body_world``. Two forms are tried: the path as written (handles
+    USD-imported targets carrying the unexpanded ``env_.*`` template at hook
+    time), and the same path with ``env_.*`` replaced by ``env_{world_idx}``
+    (handles builder-hook targets that are pre-expanded per env).
     """
 
     cable_anchor: int = -1
-    """Index of the rod-segment body to anchor (one body per cable edge).
+    """Rod-segment body index to anchor, Python-style (``0`` = head, ``-1`` = tail).
 
-    Python-style: ``0`` is the first segment (head), ``-1`` is the last (tail).
-    Negative values count from the end. Out-of-range indices raise at
+    The cable has ``len(edges)`` segment bodies; out-of-range values raise at
     attachment-hook time.
-
-    The cable has ``len(edges)`` segment bodies, one per edge of the
-    ``UsdGeomBasisCurves`` connectivity. For a simple chain authored by
-    :func:`~isaaclab.sim.spawners.shapes.spawn_cable` with ``N`` control points,
-    that's ``N - 1`` segments indexable as ``0..N-2`` or ``-1..-(N-1)``.
     """
 
     cable_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Joint anchor position [m] in the cable end-segment's local frame.
-
-    Becomes the ``parent_xform`` translation passed to
-    :meth:`newton.ModelBuilder.add_joint_fixed`.
-    """
+    """Joint anchor position [m] in the cable end-segment's local frame."""
 
     cable_local_quat: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-    """Joint anchor orientation as quaternion ``(x, y, z, w)`` in the cable
-    end-segment's local frame.
-
-    Becomes the ``parent_xform`` rotation passed to
-    :meth:`newton.ModelBuilder.add_joint_fixed`.
-    """
+    """Joint anchor orientation ``(x, y, z, w)`` in the cable end-segment's local frame."""
 
     target_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Joint anchor position [m] in the target body's local frame.
-
-    Becomes the ``child_xform`` translation passed to
-    :meth:`newton.ModelBuilder.add_joint_fixed`. Use this to encode an offset
-    baked on the target asset (e.g., the cable attachment point on a plug
-    relative to the plug's rigid-body origin).
-    """
+    """Joint anchor position [m] in the target body's local frame."""
 
     target_local_quat: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-    """Joint anchor orientation as quaternion ``(x, y, z, w)`` in the target
-    body's local frame.
-
-    Becomes the ``child_xform`` rotation passed to
-    :meth:`newton.ModelBuilder.add_joint_fixed`.
-    """
+    """Joint anchor orientation ``(x, y, z, w)`` in the target body's local frame."""
 
 
 @configclass

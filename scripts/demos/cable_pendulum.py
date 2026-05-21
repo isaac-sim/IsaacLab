@@ -45,12 +45,12 @@ from isaaclab_contrib.cable import CableAttachmentCfg, CableObject, CableObjectC
 
 
 def y_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
-    """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +Y."""
+    """Quaternion (x, y, z, w) for a rotation about +Y."""
     return (0.0, math.sin(0.5 * angle_rad), 0.0, math.cos(0.5 * angle_rad))
 
 
 def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
-    """Spawn ground, dome light, and N cable-plug pairs welded together."""
+    """Spawn ground, light, and N cable-plug pairs."""
     ground_cfg = sim_utils.GroundPlaneCfg()
     ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
@@ -71,6 +71,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
         cy = (idx // num_rows) * 0.5
         cz = z_base
         plug_mass = random.uniform(plug_mass_min, plug_mass_max)
+        # Color encodes mass: red = heavy, green = light.
         mass_t = (plug_mass - plug_mass_min) / (plug_mass_max - plug_mass_min)
         plug_color = (mass_t, 1.0 - mass_t, 0.0)
 
@@ -139,7 +140,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
 
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObject | RigidObject]):
-    """Step the sim and periodically snap cables back to their initial state."""
+    """Step the sim, soft-resetting every 2s."""
     sim_dt = sim.get_physics_dt()
     reset_steps = int(2.0 / sim_dt)
     count = 0
@@ -156,7 +157,6 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
 
 
 def main():
-    """Main entry point."""
     from isaaclab_newton.physics import NewtonCfg, NewtonCollisionPipelineCfg
 
     from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg

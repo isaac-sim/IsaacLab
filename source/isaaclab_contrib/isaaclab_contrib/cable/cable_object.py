@@ -3,17 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cable / 1D-rod asset class, registry entry, and replicate-hook plumbing.
-
-The structure mirrors :mod:`isaaclab_contrib.deformable.deformable_object`. Cables
-differ from deformables in two respects only:
-
-1. They subclass :class:`Articulation` (not :class:`BaseDeformableObject`) because
-   ``newton.ModelBuilder.add_rod_graph`` produces a Newton articulation, and
-   ``ArticulationView`` already covers state read/write.
-2. Their material is consumed in-memory by the cable replicate hook (no USD
-   read-back), since :class:`CableObject` always holds the source cfg.
-"""
+"""Cable / 1D-rod asset class, registry entry, and replicate-hook plumbing."""
 
 from __future__ import annotations
 
@@ -33,13 +23,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CableRegistryEntry:
-    """Mutable bridge between :class:`CableObject` and the replicate hook.
-
-    Populated by :meth:`CableObject._register_cable` (reads the spawned
-    ``UsdGeomBasisCurves`` and its Newton physics material) and consumed by
-    :func:`add_cable_entry_to_builder`. Material-field semantics and defaults
-    mirror :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`.
-    """
+    """Mutable bridge between :class:`CableObject` and the per-world replicate hook."""
 
     prim_path: str
     node_positions: list[wp.vec3]
@@ -56,13 +40,10 @@ class CableRegistryEntry:
     bend_damping: float = 0.0
     density: float = 1500.0
 
-    # Filled by :func:`add_cable_entry_to_builder`.
     body_offsets: list[int] = field(default_factory=list)
     last_edge_length: float = 0.0
-    # Per-env Newton body indices of every cable segment, in edge order.
-    # Outer list is indexed by ``world_idx``; inner list has one entry per
-    # cable edge (``len(entry.edges)``) and is what the attachment hook
-    # indexes with ``CableAttachmentCfg.cable_anchor``.
+    # Per-env Newton body indices of each cable segment in edge order; outer list
+    # indexed by ``world_idx``, inner indexed by ``CableAttachmentCfg.cable_anchor``.
     segment_body_indices: list[list[int]] = field(default_factory=list)
 
 
@@ -76,33 +57,13 @@ def add_cable_entry_to_builder(
 ) -> None:
     """Add one cable to a Newton ``ModelBuilder`` for one environment.
 
-    Composes the env transform with the cable's init transform and applies it to
-    each control point, then calls :meth:`newton.ModelBuilder.add_rod_graph` with
-    the explicit stiffness / damping / density fields stored on the entry.
-    Density flows through :class:`newton.ModelBuilder.ShapeConfig` so Newton
-    computes per-segment mass from ``density * pi * r^2 * segment_length``.
-
-    The articulation label is ``"{entry.prim_path}/cable"`` with any ``env_.*``
-    token in ``entry.prim_path`` pre-expanded to ``env_{env_idx}``. Builder-hook
-    bodies are not visited by the cloner's ``_rename_builder_labels`` pass, so
-    the per-env expansion has to happen here for the label to match the
-    ``env_<N>`` form of USD-imported bodies in the same world.
-
-    All capsules of this cable share a unique negative ``collision_group``
-    (``-(1 + cable_idx)``), which disables segment-vs-segment self-collision while
-    still letting them collide with the ground and other cables (Newton's group
-    rule: same negative group = filtered, negative-vs-positive = collides).
-
     Args:
         builder: The Newton ``ModelBuilder``.
         entry: Registry entry describing the cable's geometry and material.
         env_idx: Zero-based environment (world) index.
         env_position: World translation ``[x, y, z]`` [m] for this environment.
-        env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this environment.
-        cable_idx: Zero-based index of this cable within
-            :attr:`SimulationManager._cable_registry`. Used to assign a unique
-            negative ``shape_collision_group`` per cable so segments don't
-            self-collide.
+        env_rotation: World orientation quaternion ``(x, y, z, w)`` for this environment.
+        cable_idx: Zero-based cable index within :attr:`SimulationManager._cable_registry`.
     """
     if env_idx == 0:
         entry.body_offsets.clear()
@@ -124,7 +85,6 @@ def add_cable_entry_to_builder(
         float(entry.init_rot[3]),
     )
 
-    # Compose: world = env_T ∘ init_T ∘ local
     composed_pos = env_pos + wp.quat_rotate(env_rot, init_pos)
     composed_rot = env_rot * init_rot
 
@@ -135,13 +95,12 @@ def add_cable_entry_to_builder(
 
     shape_cfg = newton.ModelBuilder.ShapeConfig()
     shape_cfg.density = float(entry.density)
-    # Unique negative collision group → cable's own capsules don't collide with
-    # each other (Newton: same negative group is filtered), while still colliding
-    # with the ground and other cables (negative-vs-positive collides).
+    # Unique negative group disables segment-vs-segment self-collision (Newton
+    # filters same-negative pairs) while keeping negative-vs-positive collisions.
     shape_cfg.collision_group = -(1 + cable_idx)
 
-    # Pre-expand ``env_.*`` so cable body labels look like USD-imported ones
-    # (``/World/envs/env_<N>/.../cable``); ``ArticulationView`` finds them per env.
+    # Pre-expand ``env_.*`` here: the cloner's ``_rename_builder_labels`` does
+    # not visit builder-hook bodies, so we must produce the per-env label ourselves.
     expanded_prim_path = entry.prim_path.replace("env_.*", f"env_{env_idx}")
     entry.body_offsets.append(builder.body_count)
     rod_body_indices, _rod_joint_indices = builder.add_rod_graph(
@@ -156,9 +115,6 @@ def add_cable_entry_to_builder(
         label=f"{expanded_prim_path}/cable",
         wrap_in_articulation=True,
     )
-    # Record per-world segment body indices so the attachment hook can
-    # resolve ``CableAttachmentCfg.cable_anchor`` (an int) to a concrete
-    # Newton body index for the env currently being built.
     entry.segment_body_indices.append(list(rod_body_indices))
     if env_idx == 0:
         u, v = entry.edges[-1]
@@ -171,12 +127,7 @@ def add_registered_cables_to_builder(
     env_position: list[float],
     env_rotation: list[float] | tuple[float, float, float, float],
 ) -> None:
-    """Loop function for ``_per_world_builder_hooks``.
-
-    Iterates :attr:`SimulationManager._cable_registry` and calls
-    :func:`add_cable_entry_to_builder` for each registered cable.
-    Mirrors :func:`isaaclab_contrib.deformable.deformable_object.add_registered_deformables_to_builder`.
-    """
+    """Per-world hook that registers all cables in :attr:`SimulationManager._cable_registry`."""
     for cable_idx, entry in enumerate(SimulationManager._cable_registry):
         add_cable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation, cable_idx=cable_idx)
 
@@ -189,45 +140,16 @@ def apply_cable_attachments_to_builder(
 ) -> None:
     """Per-world hook that realizes pending cable attachments as Newton fixed joints.
 
-    Runs after :func:`add_registered_cables_to_builder` for the same world, so
-    every cable's per-segment body indices are already recorded on its registry
-    entry and the target rigid bodies have been added to the builder by USD
-    ingestion.
-
-    For each ``(cable_idx, attachment)`` in
-    :attr:`SimulationManager._pending_cable_attachments`:
-
-    1. Resolve the cable's anchor body for this world by indexing
-       ``entry.segment_body_indices[world_idx]`` with
-       ``attachment.cable_anchor`` (Python-style int, negatives count from
-       the end). Out-of-range indices raise :class:`ValueError`.
-    2. Resolve the target rigid body by looking up
-       ``attachment.target_prim_path`` in ``builder.body_label`` (the live label
-       column at hook time). If no match is found, raise :class:`ValueError`
-       with the searched path and the available body labels for that world.
-    3. Build the parent-frame transform from
-       ``(attachment.cable_local_pos, attachment.cable_local_quat)`` and the
-       child-frame transform from
-       ``(attachment.target_local_pos, attachment.target_local_quat)``. The
-       cfg quaternions are already in the ``(x, y, z, w)`` form Newton's
-       ``wp.transform`` expects and are passed through unchanged.
-    4. Call :meth:`newton.ModelBuilder.add_joint_fixed` with the resolved
-       indices and transforms.
-
     Args:
         builder: The Newton ``ModelBuilder`` for the current scene.
-        world_idx: Zero-based environment (world) index for this hook
-            invocation. The same value used by :func:`add_cable_entry_to_builder`
-            in the same iteration of the per-world loop.
+        world_idx: Zero-based environment (world) index for this invocation.
         env_position: World translation ``[x, y, z]`` [m] for this environment.
-        env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this
-            environment.
+        env_rotation: World orientation quaternion ``(x, y, z, w)`` for this environment.
     """
     pending = getattr(SimulationManager, "_pending_cable_attachments", None)
     if not pending:
         return
 
-    # configclass quat and wp.transform both use (x, y, z, w); pass through.
     def _to_wp_xform(pos, quat_xyzw):
         return wp.transform(
             (float(pos[0]), float(pos[1]), float(pos[2])),
@@ -247,24 +169,12 @@ def apply_cable_attachments_to_builder(
             )
         cable_body_idx = segments_in_world[anchor_idx]
 
-        # Resolve the target body in THIS world: filter body_label by body_world so
-        # that under multi-env cloning we don't accidentally bind to env-0's copy of
-        # the rigid asset. Newton's `body_world` parallels `body_label`.
-        #
-        # We accept ``target_prim_path`` either as the user's regex template
-        # (e.g. ``/World/envs/env_.*/Plug``) or as a concrete path. USD-imported
-        # targets still carry the unexpanded template at hook time (the cloner's
-        # ``_rename_builder_labels`` runs after all worlds are built), while
-        # builder-hook targets like another cable carry the per-env-expanded
-        # form. Matching either keeps both classes of target reachable.
-        #
-        # Bodies tagged with the sentinel ``-1`` belong to no particular world
-        # (Newton's "global" scope — e.g. when ``add_usd`` is called outside any
-        # ``begin_world``/``end_world`` block, as in the single-world flat path).
-        # Accepting ``world_idx`` OR ``-1`` keeps the single-env flat-loading
-        # scenario working without re-introducing the multi-env binding bug:
-        # under cloning every clone of the target body is tagged with its env's
-        # world index, so the world-specific match wins before the global one.
+        # Try both the unexpanded regex template and the per-env-expanded form:
+        # USD-imported targets keep the template until the cloner's post-build
+        # rewrite, while builder-hook targets are already per-env expanded.
+        # Filter by ``body_world``: ``-1`` is Newton's "global" sentinel for
+        # bodies added outside any ``begin_world``/``end_world`` block (e.g.
+        # single-env flat path); world-specific matches win over global ones.
         target_path = attachment.target_prim_path
         expanded_target_path = target_path.replace("env_.*", f"env_{world_idx}")
         body_label = builder.body_label
@@ -303,16 +213,7 @@ def apply_cable_attachments_to_builder(
 
 
 def install_cable_builder_hooks() -> None:
-    """Set up the cable registry and per-world hooks on ``SimulationManager``.
-
-    Resets ``_cable_registry`` and ``_pending_cable_attachments`` to empty lists
-    on each call -- install is intended to be called once per scene setup, not
-    per asset. Two per-world hooks are installed: one to register the cables
-    themselves, one to realize their attachment fixed joints after both the
-    cables and the target rigid bodies are present in the per-world builder.
-
-    Mirrors :func:`isaaclab_contrib.deformable.deformable_object.install_deformable_builder_hooks`.
-    """
+    """Reset the cable registry and install the per-world cable + attachment hooks."""
     SimulationManager._cable_registry = []
     SimulationManager._pending_cable_attachments = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
@@ -324,23 +225,7 @@ def install_cable_builder_hooks() -> None:
 
 
 class CableObject(Articulation):
-    """Cable / 1D-rod asset (Newton backend).
-
-    Subclasses :class:`Articulation` so the cable's per-segment poses and
-    per-cable-joint state are exposed via :class:`ArticulationData` with no
-    parallel data class.
-
-    Override surface beyond the base:
-
-    - :meth:`__init__` defers to the base ``__init__`` and then calls
-      :meth:`_register_cable` (mirroring :meth:`DeformableObject._register_deformable`),
-      which builds a :class:`CableRegistryEntry` from cfg and appends it to the
-      cable registry. Caller must have called :func:`install_cable_builder_hooks`
-      before constructing any :class:`CableObject` (typical: from a solver manager
-      init, mirroring how the deformable contrib package wires things up).
-    - :meth:`reset` snaps each environment's cable bodies back to the
-      rest pose stored in ``model.body_q``.
-    """
+    """Cable / 1D-rod asset (Newton backend)."""
 
     cfg: CableObjectCfg
 
@@ -352,44 +237,19 @@ class CableObject(Articulation):
         """
         super().__init__(cfg)
 
-        # Read the cable's centerline / material from cfg and register in the
-        # cable registry. Mirrors :meth:`DeformableObject._register_deformable`.
         self._registry_entry = self._register_cable()
 
-        # Forward any declared attachments to the simulation manager so the
-        # per-world attachment hook can realize them at builder time. Capture
-        # the entry's index by identity (via ``list.index``) rather than
-        # ``len(registry) - 1``, which would be fragile to any future
-        # base-class init mutating the registry concurrently. Each
-        # :class:`CableRegistryEntry` is uniquely constructed per cable, so
-        # the structural ``==`` lookup used by ``list.index`` resolves to
-        # exactly this entry.
+        # Look up by identity via ``list.index`` rather than ``len(registry) - 1``
+        # to stay robust if the base init ever mutates the registry concurrently.
         cable_idx = SimulationManager._cable_registry.index(self._registry_entry)
         for attachment in self.cfg.attachments:
             SimulationManager._pending_cable_attachments.append((cable_idx, attachment))
 
     def _register_cable(self) -> CableRegistryEntry:
-        """Read cable geometry + material from the spawned USD prim and register on
-        :attr:`SimulationManager._cable_registry`.
-
-        Mirrors :meth:`DeformableObject._register_deformable`:
-
-        1. Locate the spawned template prim (via ``cfg.spawn.spawn_path`` or
-           ``cfg.prim_path``).
-        2. Walk the template prim's descendants and find the single
-           ``UsdGeomBasisCurves`` prim, then read its ``points`` and ``widths``
-           attributes. This works for both :func:`spawn_cable` (which authors
-           the curve at ``{prim_path}/geometry/mesh``) and arbitrary curve
-           USDs loaded via :class:`~isaaclab.sim.spawners.UsdFileCfg`.
-        3. Bake the template prim's xform into the per-node positions so the
-           replicate hook only needs to apply the env transform.
-        4. Look up the bound Newton cable physics material on the curve prim
-           and read each ``newton:*`` attribute into the entry. If no Newton
-           material is bound, fall back to :class:`CableRegistryEntry`
-           defaults.
+        """Read cable geometry + material from the spawned USD prim and append to the registry.
 
         Returns:
-            The registry entry (also appended to ``SimulationManager._cable_registry``).
+            The registry entry (also appended to :attr:`SimulationManager._cable_registry`).
 
         Raises:
             ValueError: If the template prim has no ``UsdGeomBasisCurves``
@@ -407,6 +267,8 @@ class CableObject(Articulation):
             that ``resolve_task_config`` can import the env-cfg module before
             Kit starts without polluting the ``pxr`` module cache.
         """
+        # ``pxr`` import is deferred so ``resolve_task_config`` can import the
+        # env-cfg module before Kit starts without polluting ``pxr`` caches.
         from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade
 
         if not hasattr(SimulationManager, "_cable_registry"):
@@ -427,18 +289,12 @@ class CableObject(Articulation):
                 " cable geometry; pass one via `CableObjectCfg.spawn`."
             )
 
-        # Resolve the spawned template prim. ``spawn_path`` is set by InteractiveScene's
-        # template-based cloning flow; falls back to ``prim_path`` for direct envs that
-        # spawn straight at the cloned regex.
         lookup_path = self.cfg.spawn.spawn_path if self.cfg.spawn.spawn_path is not None else self.cfg.prim_path
         template_prim = sim_utils.find_first_matching_prim(lookup_path)
         if template_prim is None:
             raise RuntimeError(f"Failed to find cable template prim for expression: '{lookup_path}'.")
         template_prim_path = template_prim.GetPrimPath()
 
-        # Discover the cable's BasisCurves by descendant traversal so this works
-        # for both :func:`spawn_cable` (single curve at ``{prim_path}/geometry/mesh``)
-        # and arbitrary USDs loaded via :class:`UsdFileCfg`.
         stage = template_prim.GetStage()
         curve_prims = [
             descendant for descendant in Usd.PrimRange(template_prim) if descendant.GetTypeName() == "BasisCurves"
@@ -454,8 +310,8 @@ class CableObject(Articulation):
         curve_prim = curve_prims[0]
         curves = UsdGeom.BasisCurves(curve_prim)
 
-        # Bake the curve prim's xform into the per-node positions so the replicate
-        # hook only needs to apply the env transform.
+        # Bake the curve prim's xform into node positions so the replicate hook
+        # only needs to apply the env transform.
         xform_cache = UsdGeom.XformCache()
         curve_to_parent_frame = (
             xform_cache.GetLocalToWorldTransform(curve_prim)
@@ -467,7 +323,6 @@ class CableObject(Articulation):
             q = curve_to_parent_frame.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))
             node_positions.append(wp.vec3(float(q[0]), float(q[1]), float(q[2])))
 
-        # Read the capsule width (per-control-point but broadcast equal by spawn_cable).
         raw_widths = curves.GetWidthsAttr().Get()
         if raw_widths is None or len(raw_widths) == 0:
             raise ValueError(f"UsdGeomBasisCurves at '{curve_prim.GetPrimPath()}' is missing the `widths` attribute.")
@@ -480,10 +335,6 @@ class CableObject(Articulation):
             )
         radius = widths_list[0] / 2.0
 
-        # Read the edge topology from the curve prim's ``int2[] connections``
-        # attribute. :func:`~isaaclab.sim.spawners.shapes.spawn_cable` authors a
-        # linear chain; user-provided USDs (loaded via :class:`UsdFileCfg`) must
-        # also author this attribute.
         connections_attr = curve_prim.GetAttribute("connections")
         if not connections_attr.IsValid() or connections_attr.Get() is None:
             raise ValueError(
@@ -494,12 +345,8 @@ class CableObject(Articulation):
             )
         edges = [(int(e[0]), int(e[1])) for e in connections_attr.Get()]
 
-        # Look up the bound Newton cable physics material via the standard
-        # MaterialBindingAPI on the curve prim. The material binding requires
-        # :class:`UsdPhysics.CollisionAPI` on the curve prim (see
-        # :func:`bind_physics_material`); the most common reason no material is
-        # found is that the user omitted ``CableCfg.collision_props`` so the
-        # spawner's bind silently no-op'd.
+        # Material binding requires ``UsdPhysics.CollisionAPI`` on the curve;
+        # without it the spawner's bind silently no-ops.
         material_targets = (
             UsdShade.MaterialBindingAPI(curve_prim).GetDirectBindingRel("physics").GetTargets()
             if curve_prim.HasAPI(UsdShade.MaterialBindingAPI)
@@ -537,9 +384,8 @@ class CableObject(Articulation):
         bend_damping = _get_material_attr("newton:bendDamping", CableRegistryEntry.bend_damping)
         density = _get_material_attr("newton:density", CableRegistryEntry.density)
 
-        # init_pos/init_rot default to identity — the template xform is already baked
-        # into ``node_positions`` above, so the replicate hook only applies the env
-        # transform. Matches DeformableObject._register_deformable.
+        # init_pos/init_rot stay identity: the template xform is already baked
+        # into ``node_positions``; the replicate hook only adds the env transform.
         entry = CableRegistryEntry(
             prim_path=self.cfg.prim_path,
             curve_prim_path=str(curve_prim.GetPrimPath()),

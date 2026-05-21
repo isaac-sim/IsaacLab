@@ -70,10 +70,7 @@ class NewtonVBDManager(NewtonManager):
     _curves_dirty: bool = False
     _cable_body_q_cpu = None
     _fk_mask: wp.array | None = None
-    """(articulation_count,) wp.bool — False for articulations VBD owns directly
-    in ``body_q`` (CABLE or FREE joints), True elsewhere. Used by :meth:`forward`
-    to skip those articulations in ``eval_fk``.
-    """
+    """``False`` for articulations VBD owns directly in ``body_q`` (CABLE or FREE joints), ``True`` elsewhere."""
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -110,21 +107,9 @@ class NewtonVBDManager(NewtonManager):
     def reset(cls, soft: bool = False) -> None:
         """Reset the VBD physics simulation.
 
-        For ``soft=False`` (full reset) defers to :meth:`NewtonManager.reset`,
-        which rebuilds the model and solver from USD. For ``soft=True`` snaps
-        every body — cable segments and rigid bodies alike — back to its
-        rest-pose transform without rebuilding, by restoring
-        :attr:`State.body_q` and :attr:`SolverVBD.body_q_prev` from
-        :attr:`Model.body_q` and zeroing :attr:`State.body_qd` and
-        :attr:`SolverVBD.body_inertia_q`.
-
-        ``body_q_prev`` is load-bearing — AVBD computes implicit velocity as
-        ``(body_q - body_q_prev) / dt``, so without restoring it the snap-back
-        produces large spurious velocities. Joint state and AVBD penalty/Dahl
-        buffers are intentionally not touched: they are global to the world
-        (penalty ``k``) or would need joint offsets per-asset (Dahl,
-        ``joint_q``); in practice the body-side reset is sufficient to keep
-        post-reset dynamics bounded.
+        ``soft=True`` snaps bodies back to their rest pose without rebuilding.
+        :attr:`SolverVBD.body_q_prev` must also be restored, since AVBD derives
+        velocity as ``(body_q - body_q_prev) / dt``.
 
         NOTE: This is a temporary workaround, can be patched once Newton supports maximal coordinates in VBD with FK.
 
@@ -275,7 +260,9 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _build_fk_mask(cls) -> None:
         """Build :attr:`_fk_mask` excluding articulations with CABLE or FREE joints.
-        NOTE: This can be removed once Newton fixes body_q/joint_q solver ownership for CABLE/FREE joints in VBD."""
+
+        Newton's ``eval_fk`` overwrites ``body_q`` for these joints, but VBD owns it directly.
+        """
         model = cls._model
         if model is None or model.joint_type is None or model.joint_articulation is None:
             return
