@@ -116,6 +116,15 @@ to combine them into a single actuator model.
          ),
       },
 
+.. note::
+   If your asset's USD authored drives ship with zero stiffness *and* zero damping
+   — a common pattern for assets that expect ``ImplicitActuatorCfg`` to supply the
+   gains at runtime — the joints will actuate under PhysX but appear unactuated
+   under Newton-based backends (MuJoCo Warp, XPBD, Featherstone, Semi-implicit).
+   Set :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+   to ``True`` on the spawn config to keep both backends in sync. See
+   :ref:`import-new-asset-ensure-drives-exist` for the full explanation.
+
 
 ActuatorCfg velocity/effort limits considerations
 -------------------------------------------------

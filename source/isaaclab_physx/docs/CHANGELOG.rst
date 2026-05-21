@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+1.1.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`, sourced from the Replicator ``HdrColor`` annotator.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch buffer and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+* Added a :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` override on :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` that authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each camera prim so RTX-side tonemapping does not double-process the ISP output.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sim.views.FabricFrameView` falling back to
+  the slow USD path on every CUDA device other than ``cuda:0``.  USDRT
+  ``SelectPrims`` now accepts any CUDA device index, so Fabric acceleration
+  runs on the simulation device the view was constructed with (e.g.
+  ``cuda:1``).  This unblocks distributed training where each rank is
+  pinned to a non-primary GPU.
+
+
 1.0.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 
