@@ -730,12 +730,10 @@ class stacked_image(ManagerTermBase):
 
         self._buffer.append(single_frame)
 
-        # CircularBuffer.buffer is (B, K, H, W, C) in oldest->newest order along dim 1.
-        # Channel-stack: move K next to C, then flatten so the last dim reads
-        # oldest_C, ..., newest_C.
+        # CircularBuffer.buffer is (B, K, H, W, C); flatten K next to C for oldest->newest channels.
         stacked = self._buffer.buffer
         b, k, h, w, c = stacked.shape
-        return stacked.permute(0, 2, 3, 1, 4).reshape(b, h, w, k * c).clone()
+        return stacked.permute(0, 2, 3, 1, 4).reshape(b, h, w, k * c)
 
 
 """

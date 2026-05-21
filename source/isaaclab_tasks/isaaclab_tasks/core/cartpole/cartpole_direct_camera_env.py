@@ -119,7 +119,7 @@ class CartpoleCameraEnv(CartpoleEnv):
             # reads oldest_C, ..., newest_C.
             stacked = self._stack.buffer
             b, k, c, h, w = stacked.shape
-            obs = stacked.reshape(b, k * c, h, w).clone()
+            obs = stacked.reshape(b, k * c, h, w)
 
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")

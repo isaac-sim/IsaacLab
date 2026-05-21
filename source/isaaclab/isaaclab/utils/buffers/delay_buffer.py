@@ -171,8 +171,5 @@ class DelayBuffer:
         Returns:
             The delayed version of the data from the stored buffer. Shape is (batch_size, ...).
         """
-        # add the new data to the last layer
         self._circular_buffer.append(data)
-        # return output
-        delayed_data = self._circular_buffer[self._time_lags]
-        return delayed_data.clone()
+        return self._circular_buffer[self._time_lags]
