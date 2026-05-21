@@ -9,7 +9,7 @@
 
     # Usage
     ./isaaclab.sh -p scripts/demos/cables.py
-    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40
+    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40 --num_segments 15
 
 """
 
@@ -22,6 +22,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description="Spawn a pile of cables at varied z-axis rotations.")
 parser.add_argument("--num_cables", type=int, default=25, help="Number of cables to spawn.")
+parser.add_argument("--num_segments", type=int, default=20, help="Number of segments per cable.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -55,10 +56,9 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     light_cfg.func("/World/light", light_cfg)
 
-    # Cable centerline: 20 control points along local +X, length ~0.9 m.
-    num_points = 20
-    segment_length = 0.015
-    cable_length = (num_points - 1) * segment_length
+    num_points = args_cli.num_segments
+    cable_length = 0.5
+    segment_length = cable_length / (num_points - 1)
     width = 0.01
 
     # Pile footprint: small XY box, stacked Z so cables fall and intersect.
