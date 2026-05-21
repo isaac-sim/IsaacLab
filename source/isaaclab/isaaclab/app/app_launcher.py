@@ -1126,21 +1126,25 @@ class AppLauncher:
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
-        # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pyproject.toml
-        indexes_to_remove = []
-        for idx, arg in enumerate(sys.argv[:-1]):
-            if arg == "-m":
-                value_for_dash_m = sys.argv[idx + 1]
-                if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
-                    indexes_to_remove.append(idx)
-                    indexes_to_remove.append(idx + 1)
-            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
-                indexes_to_remove.append(idx)
-            if arg == "--capture=no":
-                indexes_to_remove.append(idx)
-        for idx in sorted(indexes_to_remove, reverse=True):
-            sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
+        # Kit reads sys.argv during startup and segfaults on unrecognized flags
+        # (e.g. pytest's -m, -k, --co).  Rebuild sys.argv keeping only argv[0]
+        # plus the arguments AppLauncher itself appended for Kit/SimulationApp.
+        _kit_argv = sys.argv[:1]
+        if hasattr(self, "_livestream_args") and self._livestream_args:
+            _kit_argv += self._livestream_args
+        if hasattr(self, "_kit_args") and self._kit_args:
+            _kit_argv += self._kit_args
+        for arg in sys.argv[1:]:
+            # Keep --verbose, --info (SimulationApp reads these)
+            if arg in ("--verbose", "--info"):
+                _kit_argv.append(arg)
+            # Keep Carbonite plugin overrides (e.g. threadCount)
+            elif arg.startswith("--/"):
+                _kit_argv.append(arg)
+            # Keep --enable and its value (e.g. omni.physx.pvd)
+            elif arg == "--enable" or arg.startswith("omni."):
+                _kit_argv.append(arg)
+        sys.argv = _kit_argv
 
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
 

@@ -47,9 +47,13 @@ class FabricFrameView(BaseFrameView):
 
     World-pose, local-pose, and scale operations run on the GPU via Warp
     kernels that read and write ``omni:fabric:worldMatrix`` and
-    ``omni:fabric:localMatrix`` directly.  Typical speedup vs. the
-    :class:`~isaaclab.sim.views.UsdFrameView` baseline at 1024 prims is
-    150-260× per call (see ``scripts/benchmarks/benchmark_view_comparison.py``).
+    ``omni:fabric:localMatrix`` directly.  Fabric acceleration runs on
+    the same CUDA device the view was constructed with — ``cuda:0``,
+    ``cuda:1``, or any other available CUDA index — so this view is safe
+    to use from distributed-training workers pinned to non-primary GPUs.
+    Typical speedup vs. the :class:`~isaaclab.sim.views.UsdFrameView`
+    baseline at 1024 prims is 150-260× per call
+    (see ``scripts/benchmarks/benchmark_view_comparison.py``).
 
     The ``count``, ``prims``, ``prim_paths`` properties and the
     ``get_visibility`` / ``set_visibility`` methods delegate to an internal
@@ -91,7 +95,9 @@ class FabricFrameView(BaseFrameView):
 
         Args:
             prim_path: USD prim-path pattern to match.
-            device: Device for Warp arrays (``"cpu"`` or ``"cuda:0"``).
+            device: Device for Warp arrays. Either ``"cpu"`` or any CUDA
+                device string (``"cuda:0"``, ``"cuda:1"``, …); Fabric
+                acceleration is supported on every CUDA index.
             validate_xform_ops: Whether to validate prim xform-ops.
             stage: USD stage; defaults to the current sim context's stage.
             **kwargs: Additional keyword arguments (ignored). Matches the signature of
