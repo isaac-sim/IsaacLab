@@ -110,9 +110,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             spawn=sim_utils.CableCfg(
                 positions=[(i * segment_length, 0.0, 0.0) for i in range(num_points)],
                 width=width,
-                visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(plug_color)
-                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(plug_color)),
                 physics_material=NewtonCableMaterialCfg(
                     stretch_stiffness=1e3,
                     bend_stiffness=1e-4,
@@ -132,7 +130,6 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 CableAttachmentCfg(
                     target_prim_path=f"/World/Origin/Anchor{idx:03d}",
                     cable_anchor="tail",
-                    cable_local_pos=(0.0, 0.0, 0.0),
                 ),
             ],
         )

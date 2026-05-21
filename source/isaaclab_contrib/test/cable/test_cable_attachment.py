@@ -323,6 +323,140 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
         assert builder.joint_parent[new_joint_idx] == entry.tail_segment_body_indices[world_idx]
 
 
+def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
+    """Under multi-env cloning, the ``env_.*`` token in cable/target prim paths
+    must be pre-expanded per-world so:
+
+    1. The cable's own rod-segment bodies carry concrete ``env_<N>`` labels at
+       hook time (builder-hook bodies aren't reached by the cloner's label
+       rewrite pass).
+    2. ``target_prim_path`` resolves correctly against bodies whose labels are
+       still the unexpanded regex template (USD-imported targets, since the
+       cloner's label rewrite runs after all worlds are built).
+    3. ``target_prim_path`` also resolves against bodies whose labels are
+       already env-expanded (builder-hook-added targets in the same world).
+    """
+    import newton
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+    from isaaclab_contrib.cable import CableAttachmentCfg
+    from isaaclab_contrib.cable.cable_object import (
+        CableRegistryEntry,
+        add_cable_entry_to_builder,
+        apply_cable_attachments_to_builder,
+    )
+
+    SimulationManager._cable_registry = []
+    SimulationManager._pending_cable_attachments = []
+
+    builder = newton.ModelBuilder()
+
+    # Two cables, each with a regex prim path that needs per-env expansion.
+    # - cable_a anchors to a USD-imported plug (label kept as the unexpanded
+    #   regex template — mirrors the cloner state at hook time).
+    # - cable_b anchors to a non-cable builder-hook body whose label is
+    #   already env-expanded by the time the hook runs (mirrors any future
+    #   per-world hook that pre-expands its own labels).
+    cable_a = CableRegistryEntry(
+        prim_path="/World/envs/env_.*/CableA",
+        node_positions=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.05, 0.0, 0.0), wp.vec3(0.1, 0.0, 0.0)],
+        edges=[(0, 1), (1, 2)],
+        radius=0.005,
+    )
+    cable_b = CableRegistryEntry(
+        prim_path="/World/envs/env_.*/CableB",
+        node_positions=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.05, 0.0, 0.0)],
+        edges=[(0, 1)],
+        radius=0.005,
+    )
+    SimulationManager._cable_registry.append(cable_a)
+    SimulationManager._cable_registry.append(cable_b)
+
+    plug_regex_path = "/World/envs/env_.*/Plug"
+    anchor_regex_path = "/World/envs/env_.*/Anchor"
+    SimulationManager._pending_cable_attachments.append(
+        (0, CableAttachmentCfg(target_prim_path=plug_regex_path, cable_anchor="tail"))
+    )
+    SimulationManager._pending_cable_attachments.append(
+        (1, CableAttachmentCfg(target_prim_path=anchor_regex_path, cable_anchor="head"))
+    )
+
+    plug_indices_by_world: list[int] = []
+    anchor_indices_by_world: list[int] = []
+    for world_idx in range(2):
+        builder.begin_world()
+
+        # (a) USD-imported plug — label is the unexpanded regex template
+        # (matches what the cloner produces before ``_rename_builder_labels``).
+        plug_idx = builder.add_body(xform=wp.transform_identity(), label=plug_regex_path)
+        builder.add_joint_free(child=plug_idx)
+        plug_indices_by_world.append(plug_idx)
+
+        # (b) Builder-hook-style anchor — label is pre-expanded to env_<N>,
+        # so it must match via the env-expanded form of ``target_prim_path``.
+        anchor_label = anchor_regex_path.replace("env_.*", f"env_{world_idx}")
+        anchor_idx = builder.add_body(xform=wp.transform_identity(), label=anchor_label)
+        builder.add_joint_free(child=anchor_idx)
+        anchor_indices_by_world.append(anchor_idx)
+
+        add_cable_entry_to_builder(
+            builder,
+            cable_a,
+            env_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0],
+            env_rotation=[0.0, 0.0, 0.0, 1.0],
+            cable_idx=0,
+        )
+        add_cable_entry_to_builder(
+            builder,
+            cable_b,
+            env_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0],
+            env_rotation=[0.0, 0.0, 0.0, 1.0],
+            cable_idx=1,
+        )
+        joints_before = builder.joint_count
+        apply_cable_attachments_to_builder(
+            builder,
+            world_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0],
+            env_rotation=[0.0, 0.0, 0.0, 1.0],
+        )
+        joints_after = builder.joint_count
+        builder.end_world()
+
+        assert joints_after - joints_before == 2, (
+            f"world {world_idx}: expected 2 new attachment joints, got {joints_after - joints_before}"
+        )
+
+        # 1. Cable rod bodies carry concrete env_<N> labels (cloner does not
+        #    rewrite builder-hook bodies). ``add_rod_graph`` suffixes each
+        #    edge body with ``_edge_body_<N>`` under the label we pass.
+        cable_a_tail_idx = cable_a.tail_segment_body_indices[world_idx]
+        expected_a_label = f"/World/envs/env_{world_idx}/CableA/cable_edge_body_{len(cable_a.edges) - 1}"
+        assert builder.body_label[cable_a_tail_idx] == expected_a_label, (
+            f"world {world_idx}: cable_a tail label not env-expanded: {builder.body_label[cable_a_tail_idx]!r}"
+        )
+        assert builder.body_world[cable_a_tail_idx] == world_idx
+
+        # 2. cable_a → plug (unexpanded-template match): child is this world's plug.
+        attach_a_idx = joints_after - 2
+        assert builder.joint_child[attach_a_idx] == plug_indices_by_world[world_idx], (
+            f"world {world_idx}: cable_a attached to wrong plug; "
+            f"child {builder.joint_child[attach_a_idx]} != {plug_indices_by_world[world_idx]}"
+        )
+        assert builder.joint_parent[attach_a_idx] == cable_a.tail_segment_body_indices[world_idx]
+
+        # 3. cable_b → anchor (env-expanded-form match): child is this world's anchor.
+        attach_b_idx = joints_after - 1
+        assert builder.joint_child[attach_b_idx] == anchor_indices_by_world[world_idx], (
+            f"world {world_idx}: cable_b attached to wrong anchor; "
+            f"child {builder.joint_child[attach_b_idx]} != {anchor_indices_by_world[world_idx]}"
+        )
+        assert builder.joint_parent[attach_b_idx] == cable_b.head_segment_body_indices[world_idx]
+
+
 def _build_cable_plug_scene(
     plug_kinematic: bool,
     sim_dt: float = 0.01,

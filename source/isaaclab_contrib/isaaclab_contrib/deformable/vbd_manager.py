@@ -274,7 +274,8 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def _build_fk_mask(cls) -> None:
-        """Build :attr:`_fk_mask` excluding articulations with CABLE or FREE joints. NOTE: This can be removed once Newton fixes body_q/joint_q solver ownership for CABLE/FREE joints in VBD."""
+        """Build :attr:`_fk_mask` excluding articulations with CABLE or FREE joints.
+        NOTE: This can be removed once Newton fixes body_q/joint_q solver ownership for CABLE/FREE joints in VBD."""
         model = cls._model
         if model is None or model.joint_type is None or model.joint_articulation is None:
             return

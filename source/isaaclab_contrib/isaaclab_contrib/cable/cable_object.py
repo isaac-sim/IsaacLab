@@ -80,10 +80,13 @@ def add_cable_entry_to_builder(
     each control point, then calls :meth:`newton.ModelBuilder.add_rod_graph` with
     the explicit stiffness / damping / density fields stored on the entry.
     Density flows through :class:`newton.ModelBuilder.ShapeConfig` so Newton
-    computes per-segment mass from ``density * pi * r^2 * segment_length``. The
-    articulation is labelled ``"{entry.prim_path}/cable"`` so the cloner's
-    ``_rename_builder_labels`` rewrites the source prefix to each env's
-    destination prefix during replication.
+    computes per-segment mass from ``density * pi * r^2 * segment_length``.
+
+    The articulation label is ``"{entry.prim_path}/cable"`` with any ``env_.*``
+    token in ``entry.prim_path`` pre-expanded to ``env_{env_idx}``. Builder-hook
+    bodies are not visited by the cloner's ``_rename_builder_labels`` pass, so
+    the per-env expansion has to happen here for the label to match the
+    ``env_<N>`` form of USD-imported bodies in the same world.
 
     All capsules of this cable share a unique negative ``collision_group``
     (``-(1 + cable_idx)``), which disables segment-vs-segment self-collision while
@@ -138,9 +141,9 @@ def add_cable_entry_to_builder(
     # with the ground and other cables (negative-vs-positive collides).
     shape_cfg.collision_group = -(1 + cable_idx)
 
-    # ``label`` is load-bearing: Newton suffixes ``_articulation`` to produce
-    # ``{prim_path}/cable_articulation``, which is the path :class:`ArticulationView`
-    # searches for per env after the cloner rewrites the source prefix.
+    # Pre-expand ``env_.*`` so cable body labels look like USD-imported ones
+    # (``/World/envs/env_<N>/.../cable``); ``ArticulationView`` finds them per env.
+    expanded_prim_path = entry.prim_path.replace("env_.*", f"env_{env_idx}")
     entry.body_offsets.append(builder.body_count)
     rod_body_indices, _rod_joint_indices = builder.add_rod_graph(
         node_positions=world_nodes,
@@ -151,7 +154,7 @@ def add_cable_entry_to_builder(
         stretch_damping=entry.stretch_damping,
         bend_stiffness=entry.bend_stiffness,
         bend_damping=entry.bend_damping,
-        label=f"{entry.prim_path}/cable",
+        label=f"{expanded_prim_path}/cable",
         wrap_in_articulation=True,
     )
     # Record per-world head/tail body indices so the attachment hook can
@@ -247,6 +250,13 @@ def apply_cable_attachments_to_builder(
         # that under multi-env cloning we don't accidentally bind to env-0's copy of
         # the rigid asset. Newton's `body_world` parallels `body_label`.
         #
+        # We accept ``target_prim_path`` either as the user's regex template
+        # (e.g. ``/World/envs/env_.*/Plug``) or as a concrete path. USD-imported
+        # targets still carry the unexpanded template at hook time (the cloner's
+        # ``_rename_builder_labels`` runs after all worlds are built), while
+        # builder-hook targets like another cable carry the per-env-expanded
+        # form. Matching either keeps both classes of target reachable.
+        #
         # Bodies tagged with the sentinel ``-1`` belong to no particular world
         # (Newton's "global" scope — e.g. when ``add_usd`` is called outside any
         # ``begin_world``/``end_world`` block, as in the single-world flat path).
@@ -254,20 +264,28 @@ def apply_cable_attachments_to_builder(
         # scenario working without re-introducing the multi-env binding bug:
         # under cloning every clone of the target body is tagged with its env's
         # world index, so the world-specific match wins before the global one.
+        target_path = attachment.target_prim_path
+        expanded_target_path = target_path.replace("env_.*", f"env_{world_idx}")
         body_label = builder.body_label
         body_world = builder.body_world
         target_body_idx = -1
         for body_idx in range(len(body_label)):
-            if body_label[body_idx] != attachment.target_prim_path:
+            label = body_label[body_idx]
+            if label != target_path and label != expanded_target_path:
                 continue
             if body_world[body_idx] == world_idx or body_world[body_idx] == -1:
                 target_body_idx = body_idx
                 break
         if target_body_idx < 0:
             available_in_world = [body_label[i] for i in range(len(body_label)) if body_world[i] in (world_idx, -1)]
+            searched = (
+                target_path
+                if target_path == expanded_target_path
+                else f"{target_path!r} (also tried {expanded_target_path!r})"
+            )
             raise ValueError(
-                f"CableAttachmentCfg.target_prim_path '{attachment.target_prim_path}' did not match "
-                f"any body in world {world_idx}. Available body labels in this world: {available_in_world}."
+                f"CableAttachmentCfg.target_prim_path {searched} did not match any body in world {world_idx}."
+                f" Available body labels in this world: {available_in_world}."
             )
 
         parent_xform = _to_wp_xform(attachment.cable_local_pos, attachment.cable_local_quat)

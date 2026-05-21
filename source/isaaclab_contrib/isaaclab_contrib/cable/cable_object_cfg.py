@@ -42,13 +42,20 @@ class CableAttachmentCfg:
     being realized.
 
     Note:
-        Regex patterns are not supported here -- the path must be the concrete
-        per-world prim path of the target body. Under :class:`InteractiveScene`
-        cloning, where the user's :attr:`RigidObjectCfg.prim_path` is a regex
-        template like ``"/World/envs/env_.*/Plug"``, callers should pass the
-        same string here; the per-world attachment hook resolves it against
-        the cloned model's ``body_label`` filtered by world index. Direct
-        (non-cloned) spawns must pass the concrete path used at spawn time.
+        The match is exact-string, not pattern matching. Two forms are accepted
+        and tried in order against the builder's ``body_label`` (filtered by
+        ``body_world``):
+
+        1. The path as written. Use this for direct (non-cloned) spawns, or
+           when targeting a USD-imported asset under :class:`InteractiveScene`
+           cloning — pass the same regex template as
+           :attr:`RigidObjectCfg.prim_path` (e.g. ``/World/envs/env_.*/Plug``).
+           USD-imported bodies carry the unexpanded template at attachment-hook
+           time because the cloner's label rewrite runs *after* all worlds are
+           built.
+        2. The same path with ``env_.*`` substituted by ``env_{world_idx}``.
+           This handles builder-hook targets (e.g. another :class:`CableObject`)
+           whose body labels are pre-expanded per env.
     """
 
     cable_anchor: Literal["head", "tail"] = "tail"
