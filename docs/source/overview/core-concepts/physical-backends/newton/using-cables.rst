@@ -25,7 +25,7 @@ active development.
 Quick Start: The Cable Demo
 ---------------------------
 
-Before adding cables to a task, run the standalone demo to confirm that the
+Before adding cables to a task, it is a good sanity check to run the standalone demo to confirm that the
 spawner, the cable replicate hook, the VBD solver, and the Kit / Fabric
 viewport sync are all working in your environment:
 
