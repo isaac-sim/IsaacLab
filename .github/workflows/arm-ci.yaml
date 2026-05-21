@@ -167,60 +167,32 @@ jobs:
           cache-tag: cache-base-arm64
           platform: linux/arm64
 
-      - name: Run tier 1/2 tests
+      # tools/conftest.py's subprocess-per-file orchestrator picks up
+      # CI_MARKER=arm_ci and spawns one python subprocess per test file
+      # tagged `pytest.mark.arm_ci`. Each Kit launch is isolated, so the
+      # AppLauncher-at-module-level pattern cannot SIGSEGV across files.
+      - name: Run arm_ci marker tests
+        uses: ./.github/actions/run-tests
+        with:
+          test-path: "tools"
+          result-file: "arm-ci-report.xml"
+          container-name: "isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}"
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          pytest-options: ""
+          ci-marker: "arm_ci"
+          volume-mount-source: ${{ github.workspace }}
+
+      - name: Check Test Results
+        if: always()
         shell: bash
-        timeout-minutes: 90
         run: |
-          set -euo pipefail
-          mkdir -p reports
-          # Dockerfile.base already installs isaaclab via ./isaaclab.sh --install
-          # and symlinks _isaac_sim → /isaac-sim, so the container is ready to
-          # run pytest immediately. We bind-mount the workspace so the test
-          # files reflect this PR's checkout (not the image's frozen copy).
-          docker run --rm --user root \
-            -v "${{ github.workspace }}":/workspace/isaaclab \
-            -w /workspace/isaaclab \
-            --gpus all \
-            -e ACCEPT_EULA=Y \
-            -e OMNI_KIT_ACCEPT_EULA=yes \
-            -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
-            --entrypoint bash \
-            "${{ env.CI_IMAGE_TAG }}" -lc '
-              # Dockerfile.base bakes _isaac_sim → /isaac-sim into the image, but
-              # the workspace bind-mount overlays it on the host checkout, so
-              # ./isaaclab.sh -p cannot find Sim'"'"'s python.sh. Re-create the
-              # symlink on the bind-mounted tree; actions/checkout clean:true
-              # default wipes it before the next run.
-              ln -sf /isaac-sim _isaac_sim
-
-              set +e  # individual tier failures do not abort the script
-
-              echo "::group::Tier 1 — general-arm smoke (torch + scipy)"
-              ./isaaclab.sh -p -m pytest \
-                source/isaaclab/test/deps \
-                --ignore=tools/conftest.py \
-                -m arm_ci \
-                --continue-on-collection-errors \
-                --timeout=60 \
-                --timeout-method=signal \
-                -v \
-                --junitxml=reports/general-arm.xml
-              echo "::endgroup::"
-
-              echo "::group::Tier 1 — kit-launch-arm (boot Kit headless)"
-              timeout 120 ./isaaclab.sh -p -c "from isaaclab.app import AppLauncher; sim = AppLauncher(headless=True).app; assert sim is not None, \"AppLauncher did not return a SimulationApp\"; sim.close()"
-              echo "::endgroup::"
-
-              # Tier 2 uses tools/conftest.py subprocess-per-file orchestrator
-              # (CI_MARKER=arm_ci) so aarch64 Kit re-init across multiple
-              # AppLauncher-at-module-level test files cannot SIGSEGV — each
-              # test file gets its own python process.
-              echo "::group::Tier 2 — arm_ci marker discovery (subprocess-per-file)"
-              CI_MARKER=arm_ci ./isaaclab.sh -p -m pytest tools -v --junitxml=reports/tier2-arm.xml
-              echo "::endgroup::"
-              true
-            '
+          if [ -f "reports/arm-ci-report.xml" ]; then
+            if grep -qE 'failures="[1-9][0-9]*"' reports/arm-ci-report.xml || grep -qE 'errors="[1-9][0-9]*"' reports/arm-ci-report.xml; then
+              echo "::warning::ARM CI tests reported failures/errors (see job summary)."
+              # Don't fail the job while arm_ci is opt-in — surfaces a warning
+              # but lets known aarch64 gaps land alongside the green tiers.
+            fi
+          fi
 
       - name: Upload test reports
         if: always()
