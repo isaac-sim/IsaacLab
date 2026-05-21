@@ -42,10 +42,49 @@ Authoring a Cable
 -----------------
 
 A cable is configured as a :class:`~isaaclab.sim.spawners.shapes.CableCfg`
-plus a Newton-specific physics material. The cfg's ``positions`` field is a
-list of at least two control points in the cable's local frame; adjacent pairs
-become individual rod segments, each materialized as a capsule body of
-diameter ``width`` and joined to its neighbour by a Newton cable joint.
+plus a Newton-specific physics material. Adjacent pairs in ``positions`` become
+individual rod segments, each materialized as a capsule body of diameter
+``width`` and joined to its neighbour by a Newton cable joint.
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Parameter
+      - Description
+    * - ``positions``
+      - Control points in cable-local frame [m]. Must contain at least two
+        points; ``N`` points produce ``N-1`` rod segments and ``N-2`` cable
+        joints plus one root joint anchoring the rod.
+    * - ``width``
+      - Capsule diameter for every segment [m]. Also written to the
+        ``UsdGeomBasisCurves`` ``widths`` attribute so the visual thickness
+        matches the physics.
+    * - ``physics_material``
+      - Required :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`;
+        see `Cable Material Parameters`_ below.
+    * - ``collision_props``
+      - Required :class:`~isaaclab.sim.schemas.CollisionPropertiesCfg`. Applies
+        :class:`UsdPhysics.CollisionAPI` to the curve prim so the physics
+        material binding is valid. (Has no PhysX runtime effect since cables
+        are Newton-only.)
+    * - ``visual_material``
+      - Optional :class:`~isaaclab.sim.spawners.materials.VisualMaterialCfg` for
+        the curve's appearance.
+    * - ``visual_material_path``
+      - Default: ``"visual_material"``. Sub-path under ``{prim_path}/geometry``.
+        Overrides :attr:`ShapeCfg.visual_material_path` so visual and physics
+        materials don't collide at the same sub-path.
+    * - ``physics_material_path``
+      - Default: ``"physics_material"``. Same as above for the Newton physics
+        material.
+
+``rigid_props`` and ``mass_props`` are inherited from
+:class:`~isaaclab.sim.spawners.shapes.ShapeCfg` but must remain ``None``:
+:func:`~isaaclab.sim.spawners.shapes.spawn_cable` raises ``ValueError`` if
+either is set, because cable mass and rigid-body properties come from the
+material density and the rod-graph topology — not from per-prim USD physics
+attributes.
 
 .. code-block:: python
 
@@ -137,7 +176,7 @@ normalized internally by Newton by the segment length.
       - Default: ``1.0e9`` [N]. Axial stiffness EA. Higher values reduce
         cable elongation but require more solver iterations or substeps.
     * - ``bend_stiffness``
-      - Default: ``0.0`` [N·m^2]. Bending and twisting stiffness EI. ``0.0``
+      - Default: ``0.0`` [N·m²]. Bending and twisting stiffness EI. ``0.0``
         produces a fully limp rope; increase for stiffer hoses or wires.
     * - ``stretch_damping``
       - Default: ``0.0`` [N·s/m]. Per-joint axial damping. Increase to remove
@@ -145,50 +184,11 @@ normalized internally by Newton by the segment length.
     * - ``bend_damping``
       - Default: ``0.0`` [N·m·s/rad]. Per-joint bend / twist damping.
     * - ``density``
-      - Default: ``1500.0`` [kg/m^3]. Material density. The cable replicate
+      - Default: ``1500.0`` [kg/m³]. Material density. The cable replicate
         hook converts this to per-segment mass via the capsule volume
-        ``pi * radius^2 * segment_length * density`` and passes it through
+        ``pi * radius² * segment_length * density`` and passes it through
         :class:`newton.ModelBuilder.ShapeConfig` to
         :meth:`newton.ModelBuilder.add_rod_graph`.
-
-
-Spawner Parameters
-------------------
-
-:class:`~isaaclab.sim.spawners.shapes.CableCfg` fields specific to cables
-(beyond the inherited :class:`~isaaclab.sim.spawners.shapes.ShapeCfg` slots):
-
-.. list-table::
-    :header-rows: 1
-    :widths: 30 70
-
-    * - Parameter
-      - Description
-    * - ``positions``
-      - List of control points in cable-local frame [m]. Must contain at least
-        two points. Adjacent pairs define one cable segment each, so a list of
-        ``N`` points produces ``N-1`` rod segments and ``N-2`` cable joints
-        plus one root joint anchoring the rod.
-    * - ``width``
-      - Capsule diameter for every segment [m]. The same value is also written
-        to the ``UsdGeomBasisCurves`` ``widths`` attribute so the visual
-        thickness matches the physics.
-    * - ``visual_material_path``
-      - Default: ``"visual_material"``. Sub-path under ``{prim_path}/geometry``.
-        Overrides :attr:`ShapeCfg.visual_material_path` so visual and physics
-        materials don't collide at the same sub-path.
-    * - ``physics_material_path``
-      - Default: ``"physics_material"``. Same as above for the Newton physics
-        material.
-
-``rigid_props`` and ``mass_props`` are inherited from
-:class:`~isaaclab.sim.spawners.shapes.ShapeCfg` but must remain ``None``:
-:func:`~isaaclab.sim.spawners.shapes.spawn_cable` raises ``ValueError`` if
-either is set, because cable mass and rigid-body properties come from the
-material density and the rod-graph topology — not from per-prim USD physics
-attributes. ``collision_props`` is required so that
-:class:`UsdPhysics.CollisionAPI` can author a valid binding for the physics
-material.
 
 
 Kit / Fabric Visualization
