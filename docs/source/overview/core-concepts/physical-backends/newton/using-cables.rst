@@ -208,25 +208,10 @@ normalized internally by Newton by the segment length.
 Kit / Fabric Visualization
 --------------------------
 
-The cable replicate hook places one ``UsdGeomBasisCurves`` prim per cable per
-environment. The Newton VBD manager keeps these curves in sync with the
-simulated body transforms by reconstructing the control points from
-``newton.State.body_q`` every render frame. This sync runs on the **CPU Fabric
-device** because Kit / Hydra reads curve points from the CPU Fabric bucket for
-runtime-spawned ``UsdGeomBasisCurves``. If your visualizer skips curves at
-runtime, prefer the default ``--visualizer kit`` flag used by the demo.
-
-A ``reset()`` call on a :class:`~isaaclab_contrib.cable.CableObject` snaps
-each environment's cable bodies back to the spawn pose stored in
-``newton.Model.body_q`` and zeroes both ``state.body_qd`` and the AVBD
-``solver.body_inertia_q`` buffer. The implicit-velocity buffer
-``solver.body_q_prev`` is also restored to the rest pose — without this,
-AVBD's ``(body_q - body_q_prev) / dt`` velocity estimate would emit ~700 m/s
-spurious velocities the step after a snap-back. Joint state and AVBD
-penalty / Dahl buffers are intentionally left alone: they are either global
-to the world or would require joint offsets in the registry to slice
-per-env, and the body-side reset is sufficient to keep post-reset dynamics
-bounded in practice.
+Cables render correctly in the Kit viewport with no extra setup as ``UsdGeomBasisCurves`` — each cable's
+curve geometry is updated every frame so the rendered shape always matches
+the simulation. Use the default ``--visualizer kit`` flag (as in the demo);
+some other visualizers may not display the runtime-spawned curves.
 
 
 Loading Cables from USD
