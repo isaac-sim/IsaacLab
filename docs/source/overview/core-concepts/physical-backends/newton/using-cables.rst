@@ -105,6 +105,15 @@ attributes.
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
 
+This produces a straight 1.0 m red cable along the cable's local x-axis: 9
+capsule rod segments (0.1 m long, 0.03 m diameter) joined by 8 cable joints
+plus 1 root joint. The visual layer is a ``UsdGeomBasisCurves`` prim; the
+physics rod graph is materialized at replicate time via
+:meth:`newton.ModelBuilder.add_rod_graph`. Per-segment mass is derived from
+``density`` and the capsule volume (~0.071 kg per segment here). The low
+``bend_stiffness`` (1e-4 N·m²) gives a limp rope; raise it for a stiff hose
+or wire.
+
 Wrap the spawner in a :class:`~isaaclab_contrib.cable.CableObjectCfg` to get a
 runtime asset that can be reset and inspected through
 :class:`~isaaclab_newton.assets.articulation.Articulation` state:
