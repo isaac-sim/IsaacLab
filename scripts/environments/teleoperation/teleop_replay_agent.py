@@ -93,7 +93,14 @@ Stats output:
 
     A one-line-per-run stdout summary is always printed at the end of
     the batch. Pass ``--stats_output_file <path>`` to additionally
-    persist the report as JSON. Schema (schema_version 1)::
+    persist the report as JSON. The report also embeds the
+    performance- / frame-timing-relevant fields from the env config
+    under ``env_cfg`` (sim.dt, sim.render_interval, decimation, ...)
+    plus precomputed ``policy_dt_s`` / ``render_dt_s`` /
+    ``renders_per_step`` / ``target_policy_hz`` / ``target_render_hz``
+    rates so the measured ``cpu_frame_time_ms`` / ``fps`` numbers are
+    self-interpreting across machines and configs without
+    cross-referencing the env definition. Schema (schema_version 1)::
 
         {
           "schema_version": 1,
@@ -102,6 +109,23 @@ Stats output:
           "num_replays": 5,
           "outcomes": {"success": 4, "failure": 1, "incomplete": 0, "timeout": 0},
           "success_rate": 0.8,
+          "env_cfg": {
+            "num_envs": 1,
+            "decimation": 2,
+            "episode_length_s": 20.0,
+            "sim": {
+              "dt": 0.016666...,
+              "render_interval": 2,
+              "device": "cuda:0",
+              "use_fabric": true,
+              "antialiasing_mode": "DLSS"
+            },
+            "derived": {
+              "policy_dt_s": 0.0333..., "render_dt_s": 0.0333...,
+              "renders_per_step": 1.0,
+              "target_policy_hz": 30.0, "target_render_hz": 30.0
+            }
+          },
           "runs": [
             {
               "run_index": 0,
@@ -614,7 +638,76 @@ class NvmlGpuStatsProvider:
         }
 
 
-def _build_report(args, all_runs: list[_RunStats]) -> dict:
+def _extract_env_perf_cfg(env_cfg) -> dict:
+    """Extract the env-config fields that govern replay performance and frame timing.
+
+    Captures the inputs that determine ``env.step`` cadence and Kit's render
+    cadence so the JSON report is self-contained for cross-machine /
+    cross-config perf comparisons -- without these the
+    ``cpu_frame_time_ms`` / ``fps`` numbers cannot be interpreted, because
+    the same recording at ``sim.dt=1/60`` vs ``sim.dt=1/120`` reports the
+    same FPS for very different real-time workloads.
+
+    The ``derived`` block precomputes the rates the module docstring
+    otherwise asks the reader to derive manually (e.g.
+    ``renders_per_step = decimation / render_interval`` is the HUD
+    multiplier called out in :func:`_compute_fps_stats`).
+
+    All field accesses are defensive (``_safe`` returns ``None`` when the
+    parent object or attribute is missing) so non-standard env_cfg
+    subclasses degrade to ``None`` for missing fields instead of crashing
+    the whole report.
+    """
+
+    def _safe(obj, attr, cast=None):
+        """Return ``cast(obj.attr)`` or ``None`` when ``obj`` / the attr is missing."""
+        if obj is None:
+            return None
+        value = getattr(obj, attr, None)
+        if value is None:
+            return None
+        return cast(value) if cast is not None else value
+
+    sim = getattr(env_cfg, "sim", None)
+    scene = getattr(env_cfg, "scene", None)
+    render = getattr(sim, "render", None) if sim is not None else None
+
+    sim_dt = _safe(sim, "dt", float)
+    render_interval = _safe(sim, "render_interval", int)
+    decimation = _safe(env_cfg, "decimation", int)
+    episode_length_s = _safe(env_cfg, "episode_length_s", float)
+    num_envs = _safe(scene, "num_envs", int)
+
+    policy_dt_s = sim_dt * decimation if sim_dt is not None and decimation is not None else None
+    render_dt_s = sim_dt * render_interval if sim_dt is not None and render_interval is not None else None
+    renders_per_step = (
+        decimation / render_interval if decimation is not None and render_interval not in (None, 0) else None
+    )
+    target_policy_hz = 1.0 / policy_dt_s if policy_dt_s not in (None, 0) else None
+    target_render_hz = 1.0 / render_dt_s if render_dt_s not in (None, 0) else None
+
+    return {
+        "num_envs": num_envs,
+        "decimation": decimation,
+        "episode_length_s": episode_length_s,
+        "sim": {
+            "dt": sim_dt,
+            "render_interval": render_interval,
+            "device": _safe(sim, "device", str),
+            "use_fabric": _safe(sim, "use_fabric", bool),
+            "antialiasing_mode": _safe(render, "antialiasing_mode"),
+        },
+        "derived": {
+            "policy_dt_s": policy_dt_s,
+            "render_dt_s": render_dt_s,
+            "renders_per_step": renders_per_step,
+            "target_policy_hz": target_policy_hz,
+            "target_render_hz": target_render_hz,
+        },
+    }
+
+
+def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
     """Build the structured JSON report dict from a list of completed runs."""
     outcomes_count = {"success": 0, "failure": 0, "incomplete": 0, "timeout": 0}
     for r in all_runs:
@@ -632,6 +725,7 @@ def _build_report(args, all_runs: list[_RunStats]) -> dict:
         "num_replays": len(all_runs),
         "outcomes": outcomes_count,
         "success_rate": success_rate,
+        "env_cfg": _extract_env_perf_cfg(env_cfg) if env_cfg is not None else None,
         "runs": run_dicts,
         "aggregate": _aggregate_runs(run_dicts),
     }
@@ -711,6 +805,24 @@ def _print_stdout_summary(report: dict) -> None:
         return f" | gpu={_fmt(util.get('mean'), '%')} mem={_fmt(mem.get('max'), 'MB')}"
 
     print("--- Replay stats ---")
+    # Echo the perf-relevant env-config inputs (sim.dt, render_interval,
+    # decimation, target rates) before the per-run lines so CI log readers
+    # can interpret the measured FPS / frame times without opening the
+    # JSON report. Mirrors the ``env_cfg`` block emitted in the report.
+    env_cfg_info = report.get("env_cfg")
+    if isinstance(env_cfg_info, dict):
+        sim_info = env_cfg_info.get("sim") or {}
+        derived_info = env_cfg_info.get("derived") or {}
+        sim_dt_str = f"{sim_info['dt']:.4f}s" if isinstance(sim_info.get("dt"), (int, float)) else "n/a"
+        print(
+            f"Env timing: num_envs={env_cfg_info.get('num_envs')}"
+            f" decimation={env_cfg_info.get('decimation')}"
+            f" sim.dt={sim_dt_str}"
+            f" render_interval={sim_info.get('render_interval')}"
+            f" | target_policy_hz={_fmt(derived_info.get('target_policy_hz'))}"
+            f" target_render_hz={_fmt(derived_info.get('target_render_hz'))}"
+            f" renders/step={_fmt(derived_info.get('renders_per_step'))}"
+        )
     for run in runs:
         idx = run["run_index"] + 1
         cpu = run["cpu_frame_time_ms"]
@@ -1336,6 +1448,10 @@ def main() -> int:
     env: gym.Env | None = None
     cloudxr_launcher = None
     all_runs: list[_RunStats] = []
+    # Captured outside the try block so the finally-side report includes the
+    # env-perf metadata even when a run raises mid-batch; left as None until
+    # ``_prepare_env_cfg`` returns so an early failure produces ``env_cfg=None``.
+    env_cfg = None
 
     if args_cli.num_replays < 1:
         raise ValueError(f"--num_replays must be >= 1; got {args_cli.num_replays}")
@@ -1387,7 +1503,7 @@ def main() -> int:
             except Exception:
                 logger.exception("Failed to stop CloudXR launcher cleanly")
 
-    report = _build_report(args_cli, all_runs)
+    report = _build_report(args_cli, env_cfg, all_runs)
     _print_stdout_summary(report)
     if args_cli.stats_output_file is not None:
         _write_json_report(args_cli.stats_output_file, report)
