@@ -14,19 +14,12 @@
 
 name: FabricFrameView Multi-GPU Tests
 
-# DISABLED: No self-hosted runner with the 'multi-gpu' label is currently
-# registered.  All runs queue indefinitely.  Re-enable once infra provisions
-# a multi-GPU runner (see also .github/workflows/test-multi-gpu.yaml which
-# has the same issue).
-#
-# on:
-#   pull_request:
-#     paths:
-#       - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
-#       - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
-#       - ".github/workflows/test-fabric-multi-gpu.yaml"
-#   workflow_dispatch:
 on:
+  pull_request:
+    paths:
+      - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
+      - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
+      - ".github/workflows/test-fabric-multi-gpu.yaml"
   workflow_dispatch:
 
 concurrency:
