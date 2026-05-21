@@ -10,7 +10,9 @@ from __future__ import annotations
 import inspect
 import logging
 
+import mujoco_warp
 import numpy as np
+import warp as wp
 from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
@@ -78,6 +80,34 @@ class NewtonMJWarpManager(NewtonManager):
                 device=PhysicsManager._device,
                 requested_attributes=cls._model.get_requested_contact_attributes(),
             )
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array) -> None:
+        """Clear MuJoCo Warp solver-internal state for flagged worlds.
+
+        Calls :func:`mujoco_warp.reset_data` with the accumulated per-world
+        reset bitmask to zero ``qacc_warmstart``, ``qfrc_applied``,
+        ``xfrc_applied``, ``qacc``, contact arrays, energy, and solver
+        counters for worlds that an env reset flagged since the previous
+        step.  Without this, a NaN produced in one solve persists across
+        :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next solver
+        substep warm-starts from the NaN — the world is then permanently
+        dead.  See https://github.com/newton-physics/newton/issues/1266 and
+        https://github.com/google-deepmind/mujoco_warp/discussions/1112.
+
+        ``reset_data`` also overwrites ``mjw_data.qpos``/``qvel`` with the
+        model defaults, but :class:`SolverMuJoCo` re-syncs them from
+        ``state.joint_q``/``joint_qd`` on the very next step (its
+        ``update_data_interval`` defaults to ``1``), so IsaacLab's reset
+        pose still wins.  Until ``SolverMuJoCo.reset()`` lands upstream
+        (newton#2657), reaching into ``solver.mjw_model``/``solver.mjw_data``
+        directly is the documented workaround.
+
+        Args:
+            world_mask: Per-world bool mask of shape ``(world_count,)``;
+                ``True`` for worlds that need their MJWarp internals cleared.
+        """
+        mujoco_warp.reset_data(cls._solver.mjw_model, cls._solver.mjw_data, reset=world_mask)
 
     @classmethod
     def _log_solver_debug(cls) -> None:
