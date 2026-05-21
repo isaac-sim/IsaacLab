@@ -21,7 +21,7 @@ import argparse
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description="Spawn cables welded to rigid plugs.")
-parser.add_argument("--num_cables", type=int, default=10, help="Number of cable+plug pairs to spawn.")
+parser.add_argument("--num_cables", type=int, default=4, help="Number of cable+plug pairs to spawn.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -78,7 +78,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 radius=0.01,
                 height=0.04,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.005),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
             ),
@@ -111,6 +111,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 CableAttachmentCfg(
                     target_prim_path=f"/World/Origin/Plug{idx:03d}",
                     cable_anchor="tail",
+                    cable_local_pos=(0.0, 0.0, 2*segment_length),
                 ),
             ],
         )
