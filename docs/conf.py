@@ -24,10 +24,16 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental/isaaclab_tasks_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx/isaaclab_physx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx/isaaclab_ovphysx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
@@ -170,6 +176,7 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "ovphysx",
     "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
@@ -217,6 +224,7 @@ autodoc_mock_imports = [
     "hydra.core",
     "hydra.core.config_store",
     "omegaconf",
+    "newton",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,

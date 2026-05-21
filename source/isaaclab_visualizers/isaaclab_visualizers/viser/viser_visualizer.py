@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import logging
+import math
 import os
 import webbrowser
 from pathlib import Path
@@ -27,7 +28,7 @@ from .viser_visualizer_cfg import ViserVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.scene.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 
 def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
@@ -46,26 +47,8 @@ def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
     client_autobuild.ensure_client_is_built = lambda: None
 
 
-@contextlib.contextmanager
-def _suppress_viser_startup_logs(enabled: bool):
-    """Temporarily quiet noisy viser/websockets startup output."""
-    if not enabled:
-        yield
-        return
-
-    websockets_logger = logging.getLogger("websockets.server")
-    previous_level = websockets_logger.level
-    websockets_logger.setLevel(logging.WARNING)
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            yield
-    finally:
-        websockets_logger.setLevel(previous_level)
-
-
-def _open_viser_web_viewer(port: int) -> None:
-    """Open the local viser web UI in a browser."""
-    url = _viser_web_viewer_url(port)
+def _open_viser_web_viewer(url: str) -> None:
+    """Open the Viser web UI in a browser."""
     try:
         if not webbrowser.open_new_tab(url):
             logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
@@ -73,9 +56,9 @@ def _open_viser_web_viewer(port: int) -> None:
         logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
 
 
-def _viser_web_viewer_url(port: int) -> str:
-    """Return local viser web UI URL."""
-    return f"http://localhost:{int(port)}"
+def _viser_web_viewer_url(port: int, display_address: str) -> str:
+    """Return Viser web UI URL for display to users."""
+    return f"http://{display_address}:{int(port)}"
 
 
 class NewtonViewerViser(ViewerViser):
@@ -84,6 +67,7 @@ class NewtonViewerViser(ViewerViser):
     def __init__(
         self,
         port: int = 8080,
+        bind_address: str = "0.0.0.0",
         label: str | None = None,
         verbose: bool = True,
         share: bool = False,
@@ -94,6 +78,7 @@ class NewtonViewerViser(ViewerViser):
 
         Args:
             port: HTTP port for viser server.
+            bind_address: Host/interface for the Viser server to bind.
             label: Optional viewer label.
             verbose: Whether to keep verbose startup output enabled.
             share: Whether to enable sharing/tunneling.
@@ -101,14 +86,33 @@ class NewtonViewerViser(ViewerViser):
             metadata: Optional metadata attached to the viewer.
         """
         _disable_viser_runtime_client_rebuild_if_bundled()
-        super().__init__(
-            port=port,
-            label=label,
-            verbose=verbose,
-            share=share,
-            record_to_viser=record_to_viser,
-        )
+        viser = self._get_viser()
+        original_viser_server = viser.ViserServer
+
+        def _viser_server_with_bind_address(*args, **kwargs):
+            kwargs["host"] = bind_address
+            kwargs["verbose"] = verbose
+            return original_viser_server(*args, **kwargs)
+
+        with contextlib.ExitStack() as stack:
+            viser.ViserServer = _viser_server_with_bind_address
+            stack.callback(setattr, viser, "ViserServer", original_viser_server)
+            if not verbose:
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            super().__init__(
+                port=port,
+                label=label,
+                verbose=verbose,
+                share=share,
+                record_to_viser=record_to_viser,
+            )
         self._metadata = metadata or {}
+
+    @property
+    def share_url(self) -> str | None:
+        """Return the public share URL created by Viser, if any."""
+        return self._share_url
 
 
 class ViserVisualizer(BaseVisualizer):
@@ -126,7 +130,6 @@ class ViserVisualizer(BaseVisualizer):
         self._model: Any | None = None
         self._state = None
         self._sim_time = 0.0
-        self._scene_data_provider = None
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -144,15 +147,13 @@ class ViserVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Viser visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
@@ -160,17 +161,17 @@ class ViserVisualizer(BaseVisualizer):
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
-        viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
-                ("cam_source", self.cfg.cam_source),
+                ("focal_length", self.cfg.focal_length),
                 ("num_visualized_envs", num_visualized_envs),
+                ("bind_address", self.cfg.bind_address),
+                ("display_address", self.cfg.display_address),
                 ("port", self.cfg.port),
-                ("viewer_url", viewer_url),
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
@@ -187,11 +188,9 @@ class ViserVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
-        if self.cfg.cam_source == "prim_path":
-            self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
-        self._state = NewtonManager.get_state()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
         num_envs = NewtonManager.get_num_envs()
 
         self._sim_time += dt
@@ -266,14 +265,21 @@ class ViserVisualizer(BaseVisualizer):
         if self._model is None:
             raise RuntimeError("Viser visualizer requires a Newton model.")
 
-        with _suppress_viser_startup_logs(enabled=not self.cfg.verbose):
-            self._viewer = NewtonViewerViser(
-                port=self.cfg.port,
-                label=self.cfg.label,
-                verbose=self.cfg.verbose,
-                share=self.cfg.share,
-                record_to_viser=record_to_viser,
-                metadata=metadata or {},
+        self._viewer = NewtonViewerViser(
+            port=self.cfg.port,
+            bind_address=self.cfg.bind_address,
+            label=self.cfg.label,
+            verbose=False,
+            share=self.cfg.share,
+            record_to_viser=record_to_viser,
+            metadata=metadata or {},
+        )
+        viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
+        if self.cfg.verbose:
+            print()
+            self._log_viewer_url(
+                "ViserVisualizer",
+                viewer_url,
             )
         num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self._model)
@@ -286,7 +292,7 @@ class ViserVisualizer(BaseVisualizer):
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
-            _open_viser_web_viewer(self.cfg.port)
+            _open_viser_web_viewer(viewer_url)
         initial_pose = self._resolve_initial_camera_pose()
         self._set_viser_camera_view(initial_pose)
         self._sim_time = 0.0
@@ -305,15 +311,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = None
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.cam_source == "prim_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-            if pose is not None:
-                return pose
-            raise RuntimeError(
-                "[ViserVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
-                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
-            )
+        """Resolve initial camera pose from config."""
         return self._resolve_cfg_camera_pose("ViserVisualizer")
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
@@ -336,12 +334,16 @@ class ViserVisualizer(BaseVisualizer):
 
         client_iterable = clients.values() if isinstance(clients, dict) else clients
         cam_pos, cam_target = pose
+        fov_radians = math.radians(self._focal_length_to_vertical_fov_degrees())
         applied = False
         for client in client_iterable:
             camera = getattr(client, "camera", None)
             if camera is None:
                 continue
             try:
+                if hasattr(camera, "fov"):
+                    camera.fov = fov_radians
+                    applied = True
                 if hasattr(camera, "position"):
                     camera.position = cam_pos
                     applied = True
@@ -367,12 +369,3 @@ class ViserVisualizer(BaseVisualizer):
         if self._try_apply_viser_camera_view(self._pending_camera_pose):
             self._last_camera_pose = self._pending_camera_pose
             self._pending_camera_pose = None
-
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-        if pose is None:
-            return
-        if self._last_camera_pose == pose or self._pending_camera_pose == pose:
-            return
-        self._set_viser_camera_view(pose)

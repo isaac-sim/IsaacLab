@@ -19,7 +19,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
@@ -87,6 +87,9 @@ def image(
         dir_path, _ = os.path.split(image_path)
         if dir_path:
             os.makedirs(dir_path, exist_ok=True)
+        # output may be a ProxyArray (Warp-backed); extract torch.Tensor before dtype check
+        if not isinstance(images, torch.Tensor):
+            images = images.torch
         if images.dtype == torch.uint8:
             images = images.float() / 255.0
         # Get total successful episodes

@@ -21,4 +21,3 @@ The following pages describe the available sensors in more detail:
     pva
     joint_wrench_sensor
     ray_caster
-    visuo_tactile_sensor

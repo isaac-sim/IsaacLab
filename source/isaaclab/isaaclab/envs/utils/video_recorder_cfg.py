@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .video_recorder import VideoRecorder
 

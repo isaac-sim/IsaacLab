@@ -5,7 +5,7 @@
 
 """Base configuration for renderers."""
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

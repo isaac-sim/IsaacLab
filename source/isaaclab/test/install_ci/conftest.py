@@ -85,6 +85,8 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "native: tests that only run natively (not in Docker)")
     config.addinivalue_line("markers", "slow: tests that take a long time")
     config.addinivalue_line("markers", "uv: tests that require the uv package manager")
+    config.addinivalue_line("markers", "conda: tests that require the conda package manager")
+    config.addinivalue_line("markers", "timeout: per-test timeout in seconds")
 
     try:
         config.stash[_EXECUTION_ENVIRONMENT_KEY] = _utils.detect_execution_environment()

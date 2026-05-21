@@ -43,6 +43,10 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab.assets.RigidObject`
      - :class:`~isaaclab_physx.assets.RigidObject`
      - :class:`~isaaclab_newton.assets.RigidObject`
+   * - Deformable Object
+     - :class:`~isaaclab.assets.DeformableObject`
+     - :class:`~isaaclab_physx.assets.DeformableObject`
+     - :class:`~isaaclab_newton.assets.DeformableObject`
    * - Contact Sensor
      - :class:`~isaaclab.sensors.ContactSensor`
      - :class:`~isaaclab_physx.sensors.ContactSensor`
@@ -52,7 +56,7 @@ This pattern applies to all simulation components:
      - :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`
      - :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`
    * - Scene Data Backend
-     - :class:`~isaaclab.physics.SceneDataBackend`
+     - :class:`~isaaclab.scene_data.SceneDataBackend`
      - ``PhysxSceneDataBackend`` (in :mod:`isaaclab_physx.physics`)
      - ``NewtonSceneDataBackend`` (in :mod:`isaaclab_newton.physics`)
    * - Cloner
@@ -139,7 +143,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
 
 .. code-block:: python
 
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
     from isaaclab_tasks.utils import PresetCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_newton.physics import NewtonCfg, MJWarpSolverCfg
@@ -254,6 +258,8 @@ the established conventions:
         │   │   └── articulation_data.py
         │   ├── rigid_object/
         │   │   └── ...
+        │   ├── deformable_object/
+        │   │   └── ...
         │   └── rigid_object_collection/
         │       └── ...
         ├── sensors/
@@ -266,14 +272,15 @@ the established conventions:
 
 **2. Implement the physics manager:**
 
-The manager must expose a :class:`~isaaclab.physics.SceneDataBackend` so that
-:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` can read your backend's body
+The manager must expose a :class:`~isaaclab.scene_data.SceneDataBackend` so that
+:class:`~isaaclab.scene_data.SceneDataProvider` can read your backend's body
 transforms in a Warp-native format that renderers and visualizers consume directly.
 
 .. code-block:: python
 
     # isaaclab_mybackend/physics/mybackend_manager.py
-    from isaaclab.physics import PhysicsManager, SceneDataBackend, SceneDataFormat
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
 
     class MyBackendSceneDataBackend(SceneDataBackend):
@@ -334,7 +341,7 @@ transforms in a Warp-native format that renderers and visualizers consume direct
 
     # isaaclab_mybackend/physics/mybackend_manager_cfg.py
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     @configclass
     class MyBackendCfg(PhysicsCfg):
@@ -382,6 +389,8 @@ See Also
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide from Isaac Lab 2.x to the
   multi-backend architecture
 - :doc:`/source/features/hydra` — preset system for multi-backend environment configurations
-- :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration
-  guide
+- :doc:`physical-backends/index` — feature matrix and per-backend guides (PhysX, Newton, OvPhysX)
+- :doc:`physical-backends/newton/index` — Newton backend guide
+- :doc:`physical-backends/newton/newton-manager-abstraction` — adding Newton solver managers and
+  coupled solvers
 - :doc:`renderers` — renderer backend architecture

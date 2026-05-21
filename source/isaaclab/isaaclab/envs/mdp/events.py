@@ -385,12 +385,37 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
-        # detect physics backend and instantiate the appropriate implementation
+        # detect physics backend and instantiate the appropriate implementation.
+        # Check ``ovphysxmanager`` first: it contains the substring ``physx`` so
+        # would otherwise be caught by the ``"physx" in ...`` branch below and
+        # routed to the PhysX impl, which assumes a ``root_view`` with
+        # ``.link_paths`` — OVPhysX's per-tensor-type bindings dict does not
+        # satisfy that contract.  Newton's subclasses (``NewtonMJWarpManager``,
+        # ``NewtonKaminoManager``, ...) are caught by the substring branch.
         manager_name = env.sim.physics_manager.__name__.lower()
-        if "newton" in manager_name:
+        if manager_name == "ovphysxmanager":
+            # No OVPhysX implementation yet — wheel-side
+            # ``RIGID_BODY_MATERIAL`` tensor binding is missing; randomization
+            # would require per-body view creation that ovphysx does not yet
+            # expose.  Run with material randomization disabled (warns once).
+            import logging  # noqa: PLC0415
+
+            logging.getLogger(__name__).warning(
+                "randomize_rigid_body_material is a no-op on the OVPhysX backend "
+                "(wheel-side gap — see docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md)."
+            )
+
+            class _Noop:
+                def __call__(self, *args, **kwargs):
+                    pass
+
+            self._impl = _Noop()
+        elif "newton" in manager_name:
             self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
-        else:
+        elif "physx" in manager_name:
             self._impl = _RandomizeRigidBodyMaterialPhysx(cfg, env, self.asset, self.asset_cfg)
+        else:
+            raise ValueError(f"Unsupported physics manager for randomize_rigid_body_material: {manager_name!r}")
 
     def __call__(
         self,
@@ -1135,13 +1160,22 @@ class randomize_actuator_gains(ManagerTermBase):
         self.default_joint_stiffness = self.asset.data.joint_stiffness.torch.clone()
         self.default_joint_damping = self.asset.data.joint_damping.torch.clone()
 
-        # For explicit actuators the sim-level stiffness/damping is zeroed out, so patch
-        # the defaults with the actual actuator PD gains.
+        # For explicit Lab actuators the sim-level stiffness/damping is zeroed out,
+        # so patch the defaults with the actual actuator PD gains.
         for actuator in self.asset.actuators.values():
             if not isinstance(actuator, ImplicitActuator):
                 joint_ids = actuator.joint_indices
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
                 self.default_joint_damping[:, joint_ids] = actuator.damping
+        # Same for explicit Newton actuators on either backend — their kp/kd
+        # live on the per-actuator controller arrays (not on a Lab Actuator
+        # object), so the asset exposes a per-articulation snapshot taken
+        # at articulation init time.
+        newton_default_stiffness = getattr(self.asset, "newton_default_stiffness", None)
+        if newton_default_stiffness is not None:
+            joint_ids = self.asset.newton_managed_local_joints
+            self.default_joint_stiffness[:, joint_ids] = newton_default_stiffness[:, joint_ids]
+            self.default_joint_damping[:, joint_ids] = self.asset.newton_default_damping[:, joint_ids]
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -1220,6 +1254,50 @@ class randomize_actuator_gains(ManagerTermBase):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping, joint_ids=actuator.joint_indices, env_ids=env_ids
                     )
+
+        # Push DR updates to explicit Newton-actuator controllers via the asset's
+        # own write methods. Each backend's articulation iterates the adapter's
+        # actuators and propagates per actuator, using the appropriate backend
+        # mechanism (Newton ``ArticulationView`` on the Newton backend, an
+        # in-place scatter kernel on PhysX).
+        if not hasattr(self.asset, "write_actuator_stiffness_to_sim"):
+            return
+
+        if isinstance(self.asset_cfg.joint_ids, slice):
+            joint_ids = torch.arange(self.asset.num_joints, device=self.asset.device, dtype=torch.long)
+        else:
+            joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device, dtype=torch.long)
+
+        if stiffness_distribution_params is not None:
+            new_stiffness = self.default_joint_stiffness[env_ids][:, joint_ids].clone()
+            _randomize_prop_by_op(
+                new_stiffness,
+                stiffness_distribution_params,
+                dim_0_ids=None,
+                dim_1_ids=slice(None),
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.write_actuator_stiffness_to_sim(
+                stiffness=new_stiffness,
+                env_ids=env_ids,
+                joint_ids=joint_ids,
+            )
+        if damping_distribution_params is not None:
+            new_damping = self.default_joint_damping[env_ids][:, joint_ids].clone()
+            _randomize_prop_by_op(
+                new_damping,
+                damping_distribution_params,
+                dim_0_ids=None,
+                dim_1_ids=slice(None),
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.write_actuator_damping_to_sim(
+                damping=new_damping,
+                env_ids=env_ids,
+                joint_ids=joint_ids,
+            )
 
 
 class randomize_joint_parameters(ManagerTermBase):
@@ -1630,6 +1708,10 @@ def apply_external_force_torque(
         env_ids = env_ids.to(dtype=torch.int32)
     # resolve number of bodies
     num_bodies = len(asset_cfg.body_ids) if isinstance(asset_cfg.body_ids, list) else asset.num_bodies
+
+    # Skip force application if the wrench ranges are zero
+    if force_range[0] == 0.0 and force_range[1] == 0.0 and torque_range[0] == 0.0 and torque_range[1] == 0.0:
+        return
 
     # sample random forces and torques
     size = (len(env_ids), num_bodies, 3)

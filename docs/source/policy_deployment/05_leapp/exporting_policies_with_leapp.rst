@@ -24,9 +24,22 @@ Prerequisites
 
 LEAPP requires Python >= 3.8 and PyTorch >= 2.6. Install it with:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p -m pip install leapp
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p -m pip install leapp
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p -m pip install leapp
 
 Ensure you have a trained RSL-RL checkpoint before proceeding. The standard Isaac Lab
 training workflow produces checkpoints under ``logs/rsl_rl/<experiment_name>/``.

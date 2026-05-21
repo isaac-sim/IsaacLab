@@ -22,10 +22,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Key Features
    * - **Omniverse**
      - High-fidelity, Isaac Sim integration
-     - USD, visualization markers, live plots
+     - USD, visualization markers, live plots, tiled camera panel
    * - **Newton**
      - Fast iteration
-     - Low overhead, visualization markers
+     - Low overhead, visualization markers, tiled camera panel
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export, visualization markers
@@ -121,6 +121,8 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
             ),
             ViserVisualizerCfg(
                 port=8080,
+                bind_address="0.0.0.0",
+                display_address="localhost",
                 share=False,
             ),
         ]
@@ -184,6 +186,35 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
    * - ``--headless --viz <names>``
      - any
      - Run headless; ``--headless`` takes precedence.
+
+Camera Modes
+~~~~~~~~~~~~
+
+The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
+Kit and Newton visualizers can also run additional tiled camera image panels.
+If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
+a non-interactive tiled camera image view.
+
+Kit and Newton cap tiled camera views at 100 tiles.
+
+Note, Kit tiled camera views require launching with ``--enable_cameras``.
+
+.. list-table:: Camera configuration modes
+   :header-rows: 1
+   :widths: 24 30 46
+
+   * - Mode
+     - Key fields
+     - Behavior
+   * - **Default interactive**
+     - ``tiled_cam_view=False``, ``eye=(4, -4, 3)``, ``lookat=(0, 0, 0)``
+     - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
+   * - Generated tiled camera
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot/base"``
+     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
+   * - Existing tiled camera sensors
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
+     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
 
 Video Recording
 ---------------
@@ -287,6 +318,7 @@ Omniverse Visualizer
 - Live plots for monitoring training metrics
 - Full Isaac Sim rendering capabilities and tooling
 - Visualization markers for debugging (arrows, frames, object targets, etc.)
+- Tiled camera views which can track multiple robots
 
 **Core Configuration:**
 
@@ -309,7 +341,6 @@ Omniverse Visualizer
         enable_live_plots=True,
     )
 
-
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~
 
@@ -320,6 +351,7 @@ Newton Visualizer
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
+- Tiled camera views which can track multiple robots
 
 
 **Interactive Controls:**
@@ -357,6 +389,17 @@ Newton Visualizer
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
         lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+        focal_length=12.0,                        # Camera focal length in millimeters
+
+        # Tiled camera view settings
+        tiled_cam_view=True,                      # Enable non-interactive tiled camera image view
+        tiled_cam_num=16,                         # Number of generated camera tiles to display
+        tiled_cam_env_indices=None,               # Optional explicit env ids to show in the tiled view
+        tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
+        tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
+        tiled_cam_target_prim_path=(              # Prim that generated cameras follow/look at
+            "/World/envs/*/Robot/base"
+        ),
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -390,6 +433,22 @@ Rerun Visualizer
 - Timeline scrubbing and playback controls of recordings
 - Visualization debug markers
 
+.. important::
+
+   A highlighted Rerun browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead.
+
+   Example:
+
+   .. code-block:: text
+
+      ╭─────────────────────────── rerun (listening *:9090) ───────────────────────────╮
+      │             ╷                                                                  │
+      │   URL       │ http://127.0.0.1:9090/?url=rerun%2Bhttp://127.0.0.1:9876/proxy   │
+      │             ╵                                                                  │
+      ╰────────────────────────────────────────────────────────────────────────────────╯
+
 **Core Configuration:**
 
 .. code-block:: python
@@ -400,8 +459,9 @@ Rerun Visualizer
         # Server settings
         app_id="isaaclab-simulation",             # Application identifier for viewer
         grpc_port=9876,                           # gRPC endpoint for logging SDK connection
-        web_port=9090,                            # Port for local web viewer (launched in browser)
+        web_port=9090,                            # Port for local web viewer URL printed in logs
         bind_address="0.0.0.0",                  # Endpoint host formatting/reuse checks
+        open_browser=False,                       # Set True to auto-launch the browser
 
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
@@ -427,7 +487,7 @@ The `Viser <https://viser.studio/>`_ visualizer provides a **web-based** 3D view
 simulations powered by the Newton Warp renderer. It streams the simulation state to a local web
 server, allowing you to view and interact with the scene from any browser.
 
-**Key features:**
+**Main Features:**
 
 - Browser-based visualization accessible at ``http://localhost:8080`` by default
 - Optional public share URL for remote viewing
@@ -435,34 +495,55 @@ server, allowing you to view and interact with the scene from any browser.
 - Environment filtering to control which environments are rendered
 - Visualization debug markers
 
-**Launch with Viser:**
+.. important::
 
-.. code-block:: bash
+   A highlighted Viser browser URL is printed in the logs before the main simulation or training loop begins.
+   Ctrl-click the printed URL in supported terminals/IDEs to open it. Set ``open_browser=True`` to automatically
+   open the browser tab instead. For remote access, keep ``bind_address="0.0.0.0"`` and set
+   ``display_address`` to the hostname or IP address reachable from your browser.
 
-    ./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py --viz viser
+   Example:
 
-**Configuration example:**
+   .. code-block:: text
+
+      ╭────── viser (listening *:8080) ───────╮
+      │             ╷                         │
+      │   URL       │ http://localhost:8080   │
+      │             ╵                         │
+      ╰───────────────────────────────────────╯
+
+**Core Configuration:**
 
 .. code-block:: python
 
     from isaaclab_visualizers.viser import ViserVisualizerCfg
 
     visualizer_cfg = ViserVisualizerCfg(
-        port=8080,
-        open_browser=True,
-        label="Isaac Lab Simulation",
-        share=False,
-        max_visible_envs=16,
+        # Server settings
+        port=8080,                                # Port for local Viser web server
+        bind_address="0.0.0.0",                  # Interface to listen on; use 0.0.0.0 for remote access
+        display_address="localhost",             # Host/IP shown in the printed browser URL
+        open_browser=False,                       # Set True to auto-launch the browser
+        label="Isaac Lab Simulation",             # Page title shown in the viewer
+        share=False,                              # Request a public share URL for remote viewing
+        verbose=True,                             # Print viewer server startup information
+
+        # Camera settings
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+
+        # Environment filtering
+        max_visible_envs=16,                      # Maximum number of environments to visualize
+
+        # Recording
+        record_to_viser="recording.viser",        # Path to save .viser file (None = no recording)
     )
 
-**Configuration options:**
-
-- ``port`` (int, default ``8080``): Port of the local Viser web server.
-- ``open_browser`` (bool, default ``True``): Automatically open the viewer URL in a browser.
-- ``label`` (str or None, default ``"Isaac Lab Simulation"``): Page title shown in the viewer.
-- ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
-- ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
-- ``verbose`` (bool, default ``True``): Print viewer server startup information.
+Viser uses an in-process ``viser.ViserServer`` through ``newton.viewer.ViewerViser``. ``bind_address``
+controls the network interface that the server listens on, while ``display_address`` controls only the
+URL printed by Isaac Lab. On a remote machine, set ``display_address`` to the machine hostname/IP and
+ensure the configured ``port`` is reachable from your browser. Set ``share=True`` to request Viser's
+public share/tunnel URL when that service is available.
 
 .. note::
 
@@ -507,7 +588,7 @@ Currently, live plots are only available in the Kit Visualizer.
 **Viser Visualizer Renderer Requirement**
 
 The Viser visualizer requires a Newton model, which is provided automatically by
-:class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` regardless of the active physics
+:class:`~isaaclab.scene_data.SceneDataProvider` regardless of the active physics
 backend or renderer. It is compatible with all rendering backends (RTX, Newton Warp, OVRTX).
 
 
@@ -549,5 +630,5 @@ See Also
 
 - :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
-- :doc:`/source/experimental-features/newton-physics-integration/index` — Newton physics integration guide
+- :doc:`/source/overview/core-concepts/physical-backends/newton/index` — Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details

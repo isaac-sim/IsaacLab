@@ -20,8 +20,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
@@ -476,7 +476,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
             cam = getattr(self.scene, cam_attr, None)
             if cam is None:
                 continue
-            renderer_type = getattr(cam.renderer_cfg, "renderer_type", None)
+            renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
             if renderer_type == "newton_warp":
                 unsupported = set(cam.data_types) - warp_supported
                 if unsupported:

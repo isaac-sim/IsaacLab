@@ -246,7 +246,7 @@ paths:
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
     from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 
