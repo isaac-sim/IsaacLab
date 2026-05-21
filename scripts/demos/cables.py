@@ -43,23 +43,10 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 
 from isaaclab_contrib.cable import CableAttachmentCfg, CableObject, CableObjectCfg
 
-PLUG_USDA = "/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/plug_mesh001.usda"
-CABLE_USDA = "/home/mmichelis/Documents/IsaacLab-Origin/scripts/demos/cable001.usda"
-
-
-def z_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
-    """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +Z."""
-    return (0.0, 0.0, math.sin(0.5 * angle_rad), math.cos(0.5 * angle_rad))
-
 
 def y_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
     """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +Y."""
     return (0.0, math.sin(0.5 * angle_rad), 0.0, math.cos(0.5 * angle_rad))
-
-
-def x_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
-    """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +X."""
-    return (math.sin(0.5 * angle_rad), 0.0, 0.0, math.cos(0.5 * angle_rad))
 
 
 def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
@@ -81,32 +68,26 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
     entities: dict[str, CableObject | RigidObject] = {}
     for idx in tqdm.tqdm(range(num_cables)):
         angle = random.uniform(0.0, 2.0 * math.pi)
-        # cx = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.cos(angle)
-        # cy = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle)
-        cx = 0.0
-        cy = 0.0
+        cx = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.cos(angle)
+        cy = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle)
         cz = z_base + idx * z_spacing
 
-        # Tail-body world position (the last edge body sits one segment back from the tail node).
-        tail_body_offset = (num_points - 2) * segment_length
-        tail_body_x = cx + tail_body_offset * math.cos(angle)
-        tail_body_y = cy + tail_body_offset * math.sin(angle)
         plug_cfg = RigidObjectCfg(
             prim_path=f"/World/Origin/Plug{idx:03d}",
             spawn=sim_utils.CylinderCfg(
-                radius=0.02,
+                radius=0.01,
                 height=0.04,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
-                pos=(-0.38398558, 0.34585292, 0.5 - 0.36874688),
-                rot=(0.0, -0.57096256, 0.0, 0.8209761),
+                pos=(cx, cy, cz),
+                rot=y_axis_quat(math.pi / 2.0),
             ),
         )
-        entities[f"Plug1{idx:03d}"] = RigidObject(cfg=plug_cfg)
+        entities[f"Plug{idx:03d}"] = RigidObject(cfg=plug_cfg)
 
         cable_cfg = CableObjectCfg(
             prim_path=f"/World/Origin/Cable{idx:03d}",
@@ -126,12 +107,12 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
             init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz)),
-            # attachments=[
-            #     CableAttachmentCfg(
-            #         target_prim_path=plug_prim_path,
-            #         cable_anchor="tail",
-            #     ),
-            # ],
+            attachments=[
+                CableAttachmentCfg(
+                    target_prim_path=f"/World/Origin/Plug{idx:03d}",
+                    cable_anchor="tail",
+                ),
+            ],
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cable_cfg)
 
