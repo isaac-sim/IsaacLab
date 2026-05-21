@@ -102,13 +102,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _resolve_out_dir(base_out_dir: str, mode: str) -> Path:
-    """Return the timestamped run directory. Orchestrator creates it; subprocesses reuse it."""
+    """Return the directory to write outputs to.
+
+    - ``--mode both`` (orchestrator): creates a fresh timestamped subdir under
+      ``base_out_dir`` (unless an ``args.json`` already exists there, in which case
+      the existing dir is reused — supports re-runs against the same path).
+    - Single-mode runs (``--mode base | wrist | summarize``): use ``base_out_dir``
+      as-is. The orchestrator passes the already-resolved timestamped path to its
+      subprocesses; users running torchrun directly are responsible for picking a
+      unique path. Sharing one path across base + wrist + summarize is the
+      intended pattern for multi-GPU local runs.
+    """
     base = Path(base_out_dir)
-    # In subprocess mode the orchestrator already passed a fully-resolved timestamped path.
-    # We detect that by the presence of args.json inside.
-    if (base / "args.json").exists():
-        return base
-    run_dir = base / datetime.now().strftime("%Y%m%d-%H%M%S")
+    if mode == "both" and not (base / "args.json").exists():
+        run_dir = base / datetime.now().strftime("%Y%m%d-%H%M%S")
+    else:
+        run_dir = base
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "videos").mkdir(exist_ok=True)
     return run_dir
