@@ -199,6 +199,7 @@ class NewtonManager(PhysicsManager):
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
     _decimation: int = 1
+    _collision_decimation: int = 0
     _num_envs: int | None = None
 
     # Newton model and state
@@ -1218,6 +1219,7 @@ class NewtonManager(PhysicsManager):
 
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:"):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
+            NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps
             NewtonManager._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 
@@ -1439,10 +1441,17 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
         """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
+        collide_every = cls._collision_decimation
+        # Last substep is skipped: its contact set would only feed the next tick's
+        # top-of-loop collide(), not this one.
+        collide_mid_loop = collide_every > 0 and cls._needs_collision_pipeline and contacts is not None
+
         if cls._use_single_state:
-            for _ in range(cls._num_substeps):
+            for i in range(cls._num_substeps):
                 cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
                 cls._state_0.clear_forces()
+                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
+                    cls._collision_pipeline.collide(cls._state_0, contacts)
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
@@ -1453,6 +1462,8 @@ class NewtonManager(PhysicsManager):
                 else:
                     NewtonManager._state_0, NewtonManager._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
+                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
+                    cls._collision_pipeline.collide(cls._state_0, contacts)
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
