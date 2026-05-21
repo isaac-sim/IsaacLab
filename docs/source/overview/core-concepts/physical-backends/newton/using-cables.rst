@@ -4,7 +4,7 @@ Using Cables
 ============
 
 Isaac Lab exposes 1D rod / cable assets through Newton's
-:meth:`newton.ModelBuilder.add_rod_graph`. A cable is spawned as a continuous USD curve prim, and is simulated in Newton as a passive articulated rigid body chain with per-segment capsules,
+:meth:`newton.ModelBuilder.add_rod_graph`. A cable is spawned as a continuous USD curve prim, and is simulated in Newton's VBD solver as a passive articulated rigid body chain with per-segment capsules,
 inter-segment cable joints, stretch / bend stiffness, damping, and density.
 
 Cable support is experimental. The spawner cfg, contrib asset class, registry
