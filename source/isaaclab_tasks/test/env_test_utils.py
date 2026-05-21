@@ -259,7 +259,7 @@ def _run_environments(
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
     physics_preset_name: str | None = None,
-    force_interval_events: bool = False,
+    force_interval_events: bool = True,
 ):
     """Run all environments and check environments return valid signals.
 
@@ -351,7 +351,7 @@ def _check_random_actions(
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
     physics_preset_name: str | None = None,
-    force_interval_events: bool = False,
+    force_interval_events: bool = True,
 ):
     """Run random actions and check environments return valid signals.
 

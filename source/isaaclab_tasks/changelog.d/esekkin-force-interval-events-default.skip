@@ -1,0 +1,4 @@
+Test-only change.
+
+* Flipped the default of ``force_interval_events`` from ``False`` to ``True`` in
+  ``_run_environments`` and ``_check_random_actions`` (``env_test_utils.py``).
