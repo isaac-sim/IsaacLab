@@ -56,7 +56,7 @@ hydra_task_config = None
 
 def create_arg_parser() -> argparse.ArgumentParser:
     """Create the command-line parser for RSL-RL policy export."""
-    parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
+    parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -225,7 +225,7 @@ def export_rsl_rl_agent(
     _load_runtime_dependencies()
 
     task_name = args_cli.task.split(":")[-1]
-    train_task_name = task_name.replace("-Play", "")
+    checkpoint_task_name = task_name.replace("-Play", "")
 
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
@@ -238,9 +238,9 @@ def export_rsl_rl_agent(
 
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
-    print(f"[INFO] Loading experiment from directory: {log_root_path}")
+    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
     if args_cli.use_pretrained_checkpoint:
-        resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
+        resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False
@@ -249,12 +249,17 @@ def export_rsl_rl_agent(
     else:
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
+    if not resume_path:
+        print(f"[INFO] No checkpoint found for task: {checkpoint_task_name} in directory: {log_root_path}")
+        return False
+
     log_dir = os.path.dirname(resume_path)
 
     env_cfg.log_dir = log_dir
 
     env = None
     leapp_started = False
+
     try:
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
         policy_node_name = ensure_env_spec_id(env)
@@ -293,7 +298,7 @@ def export_rsl_rl_agent(
             save_path = args_cli.export_save_path
         elif args_cli.use_pretrained_checkpoint:
             # Use a predictable path independent of the Nucleus mirror directory structure.
-            save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
+            save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", checkpoint_task_name)
         else:
             save_path = log_dir
         leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
