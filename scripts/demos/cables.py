@@ -72,6 +72,22 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
         cy = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle)
         cz = z_base + idx * z_spacing
 
+        static_cfg = RigidObjectCfg(
+            prim_path=f"/World/Origin/Static{idx:03d}",
+            spawn=sim_utils.SphereCfg(
+                radius=0.01,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(
+                pos=(cx+num_points*segment_length, cy, cz+0.1),
+                rot=y_axis_quat(math.pi / 2.0),
+            ),
+        )
+        entities[f"Static{idx:03d}"] = RigidObject(cfg=static_cfg)
+
         plug_cfg = RigidObjectCfg(
             prim_path=f"/World/Origin/Plug{idx:03d}",
             spawn=sim_utils.CylinderCfg(
@@ -112,6 +128,11 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                     target_prim_path=f"/World/Origin/Plug{idx:03d}",
                     cable_anchor="tail",
                     cable_local_pos=(0.0, 0.0, 2*segment_length),
+                ),
+                CableAttachmentCfg(
+                    target_prim_path=f"/World/Origin/Static{idx:03d}",
+                    cable_anchor="head",
+                    cable_local_pos=(0.0, 0.0, 0.0),
                 ),
             ],
         )
