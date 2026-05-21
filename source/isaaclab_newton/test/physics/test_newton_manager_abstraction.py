@@ -145,6 +145,50 @@ def test_newton_cfg_post_init_propagates_class_type(
     assert cfg.class_type.__name__ == expected_manager.__name__
 
 
+def test_mpm_solver_cfg_maps_only_newton_solver_fields():
+    """MPM config forwarding ignores Isaac Lab metadata fields explicitly."""
+
+    solver_cfg = MPMSolverCfg(
+        max_iterations=7,
+        voxel_size=0.04,
+        solver_type="isaaclab_metadata_should_not_forward",
+    )
+
+    newton_cfg = solver_cfg.to_solver_config()
+
+    assert newton_cfg.max_iterations == 7
+    assert newton_cfg.voxel_size == 0.04
+    assert not hasattr(newton_cfg, "class_type")
+    assert not hasattr(newton_cfg, "solver_type")
+
+
+def test_mpm_custom_attribute_registration_is_idempotent(monkeypatch):
+    """MPM custom attributes are registered once per builder."""
+
+    original_register = SolverImplicitMPM.register_custom_attributes
+    register_call_count = 0
+
+    def counted_register(builder):
+        nonlocal register_call_count
+        register_call_count += 1
+        original_register(builder)
+
+    monkeypatch.setattr(SolverImplicitMPM, "register_custom_attributes", counted_register)
+
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05), use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg):
+        builder = NewtonManager.create_builder()
+        NewtonManager._register_solver_custom_attributes(builder)
+
+    assert register_call_count == 1
+
+
 # ---------------------------------------------------------------------------
 # Manager class hierarchy and factory contracts
 # ---------------------------------------------------------------------------

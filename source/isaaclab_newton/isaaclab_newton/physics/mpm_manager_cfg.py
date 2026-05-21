@@ -19,6 +19,27 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
 
+_SOLVER_CONFIG_FIELDS = (
+    "max_iterations",
+    "tolerance",
+    "solver",
+    "warmstart_mode",
+    "collider_velocity_mode",
+    "voxel_size",
+    "grid_type",
+    "grid_padding",
+    "max_active_cell_count",
+    "transfer_scheme",
+    "integration_scheme",
+    "critical_fraction",
+    "air_drag",
+    "collider_normal_from_sdf_gradient",
+    "collider_basis",
+    "strain_basis",
+    "velocity_basis",
+)
+
+
 @configclass
 class MPMSolverCfg(NewtonSolverCfg):
     """Configuration for Newton's implicit Material Point Method (MPM) solver.
@@ -102,7 +123,7 @@ class MPMSolverCfg(NewtonSolverCfg):
         from newton.solvers import SolverImplicitMPM
 
         cfg = SolverImplicitMPM.Config()
-        for key, value in self.to_dict().items():
+        for key in _SOLVER_CONFIG_FIELDS:
             if hasattr(cfg, key):
-                setattr(cfg, key, value)
+                setattr(cfg, key, getattr(self, key))
         return cfg

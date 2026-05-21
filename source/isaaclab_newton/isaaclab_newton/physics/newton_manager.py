@@ -736,10 +736,11 @@ class NewtonManager(PhysicsManager):
         solver_cfgs.extend(getattr(entry, "solver_cfg", entry) for entry in getattr(solver_cfg, "entries", ()) or ())
         from .mpm_manager_cfg import MPMSolverCfg
 
-        if any(isinstance(solver_cfg, MPMSolverCfg) for solver_cfg in solver_cfgs):
+        if any(isinstance(solver_cfg_item, MPMSolverCfg) for solver_cfg_item in solver_cfgs):
             from newton.solvers import SolverImplicitMPM
 
-            SolverImplicitMPM.register_custom_attributes(builder)
+            if not builder.has_custom_attribute("mpm:young_modulus"):
+                SolverImplicitMPM.register_custom_attributes(builder)
 
     @classmethod
     def cl_register_site(cls, body_pattern: str | None, xform: wp.transform) -> str:
