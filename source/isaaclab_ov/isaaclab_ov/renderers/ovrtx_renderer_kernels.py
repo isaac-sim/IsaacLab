@@ -108,6 +108,44 @@ def extract_all_rgba_tiles_kernel(
 
 
 @wp.kernel
+def extract_all_rgb_float_tiles_kernel(
+    tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
+    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 3)
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+):
+    """Extract ALL RGB float tiles from a tiled buffer in a single kernel launch."""
+    env_idx, y, x = wp.tid()
+    tile_x = env_idx % num_cols
+    tile_y = env_idx // num_cols
+    src_x = tile_x * tile_width + x
+    src_y = tile_y * tile_height + y
+    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
+    output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
+    output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
+
+
+@wp.kernel
+def extract_all_rgb_half_tiles_kernel(
+    tiled_buffer: wp.array(dtype=wp.float16, ndim=3),  # type: ignore
+    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 3)
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+):
+    """Extract ALL RGB half tiles into float32 output in a single kernel launch."""
+    env_idx, y, x = wp.tid()
+    tile_x = env_idx % num_cols
+    tile_y = env_idx // num_cols
+    src_x = tile_x * tile_width + x
+    src_y = tile_y * tile_height + y
+    output_buffer[env_idx, y, x, 0] = wp.float32(tiled_buffer[src_y, src_x, 0])
+    output_buffer[env_idx, y, x, 1] = wp.float32(tiled_buffer[src_y, src_x, 1])
+    output_buffer[env_idx, y, x, 2] = wp.float32(tiled_buffer[src_y, src_x, 2])
+
+
+@wp.kernel
 def extract_all_depth_tiles_kernel_legacy(
     tiled_buffer: wp.array(dtype=wp.float32, ndim=2),  # type: ignore
     output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore

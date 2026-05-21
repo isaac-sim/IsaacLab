@@ -4,7 +4,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonDeformableBodyPropertiesCfg",
+    "NewtonDeformableBodyMaterialCfg",
+    "NewtonDeformableMaterialCfg",
+    "NewtonSurfaceDeformableBodyMaterialCfg",
+    "schemas",
+    "spawners",
     "views",
 ]
 
-from . import views
+from . import schemas, spawners, views
+from .schemas import NewtonDeformableBodyPropertiesCfg
+from .spawners.materials import (
+    NewtonDeformableBodyMaterialCfg,
+    NewtonDeformableMaterialCfg,
+    NewtonSurfaceDeformableBodyMaterialCfg,
+)

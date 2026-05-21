@@ -28,9 +28,6 @@ from isaaclab_physx.sim.schemas import (
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
-from isaaclab_physx.sim.schemas import (
-    PhysXCollisionPropertiesCfg as PhysxDeformableCollisionAliasCfg,
-)
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
 
 from pxr import UsdPhysics
@@ -416,19 +413,6 @@ def test_collision_deprecation_alias(setup_simulation):
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
     assert "5.0" in str(deprecations[0].message)
-
-
-@pytest.mark.isaacsim_ci
-def test_physx_capitalx_collision_deprecation_alias(setup_simulation):
-    """Instantiating the legacy ``PhysXCollisionPropertiesCfg`` (capital X, deformable)
-    name emits exactly one ``DeprecationWarning`` pointing to
-    ``PhysxDeformableCollisionPropertiesCfg``."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        PhysxDeformableCollisionAliasCfg()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "PhysxDeformableCollisionPropertiesCfg" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci

@@ -40,8 +40,9 @@ _PHYSX_FORWARDS_SCHEMAS = frozenset({
     "PhysxJointDrivePropertiesCfg",
     "CollisionPropertiesCfg",
     "PhysxCollisionPropertiesCfg",
-    "PhysXCollisionPropertiesCfg",
+    "DeformableBodyPropertiesCfg",
     "PhysxDeformableCollisionPropertiesCfg",
+    "PhysxDeformableBodyPropertiesCfg",
     "ArticulationRootPropertiesCfg",
     "PhysxArticulationRootPropertiesCfg",
     "MeshCollisionPropertiesCfg",
@@ -63,8 +64,12 @@ _PHYSX_FORWARDS_SCHEMAS = frozenset({
 
 # Names that moved out of this package into ``isaaclab_physx.sim.spawners.materials``.
 _PHYSX_FORWARDS_MATERIALS = frozenset({
+    "DeformableBodyMaterialCfg",
     "RigidBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
     "PhysxRigidBodyMaterialCfg",
+    "PhysxDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableBodyMaterialCfg",
 })
 
 _PHYSX_FORWARDS = _PHYSX_FORWARDS_SCHEMAS | _PHYSX_FORWARDS_MATERIALS

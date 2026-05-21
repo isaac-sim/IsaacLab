@@ -33,7 +33,7 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = ["isaaclab_ppisp"]
 
 EXTRAS_REQUIRE = {
     "all": [
