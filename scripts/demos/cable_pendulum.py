@@ -124,12 +124,12 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             attachments=[
                 CableAttachmentCfg(
                     target_prim_path=f"/World/Origin/Plug{idx:03d}",
-                    cable_anchor="head",
+                    cable_anchor=0,
                     cable_local_pos=(0.0, 0.0, -segment_length),
                 ),
                 CableAttachmentCfg(
                     target_prim_path=f"/World/Origin/Anchor{idx:03d}",
-                    cable_anchor="tail",
+                    cable_anchor=-1,
                 ),
             ],
         )

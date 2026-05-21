@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Literal
 
 from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -58,13 +57,17 @@ class CableAttachmentCfg:
            whose body labels are pre-expanded per env.
     """
 
-    cable_anchor: Literal["head", "tail"] = "tail"
-    """Which end of the cable to anchor.
+    cable_anchor: int = -1
+    """Index of the rod-segment body to anchor (one body per cable edge).
 
-    ``"head"`` is the first rod-segment body (corresponding to the BasisCurves
-    point at index 0). ``"tail"`` is the last rod-segment body. The internal
-    resolver maps this symbolic name to the Newton body index recorded on the
-    cable's registry entry at :meth:`newton.ModelBuilder.add_rod_graph` time.
+    Python-style: ``0`` is the first segment (head), ``-1`` is the last (tail).
+    Negative values count from the end. Out-of-range indices raise at
+    attachment-hook time.
+
+    The cable has ``len(edges)`` segment bodies, one per edge of the
+    ``UsdGeomBasisCurves`` connectivity. For a simple chain authored by
+    :func:`~isaaclab.sim.spawners.shapes.spawn_cable` with ``N`` control points,
+    that's ``N - 1`` segments indexable as ``0..N-2`` or ``-1..-(N-1)``.
     """
 
     cable_local_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)

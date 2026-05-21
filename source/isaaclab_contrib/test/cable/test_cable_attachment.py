@@ -16,8 +16,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-from typing import Literal
-
 import pytest
 
 
@@ -25,9 +23,9 @@ def test_cable_attachment_cfg_defaults_and_types():
     """CableAttachmentCfg accepts head/tail anchors and exposes the documented defaults."""
     from isaaclab_contrib.cable import CableAttachmentCfg
 
-    cfg = CableAttachmentCfg(target_prim_path="/World/Plug001", cable_anchor="tail")
+    cfg = CableAttachmentCfg(target_prim_path="/World/Plug001", cable_anchor=-1)
     assert cfg.target_prim_path == "/World/Plug001"
-    assert cfg.cable_anchor == "tail"
+    assert cfg.cable_anchor == -1
     assert cfg.cable_local_pos == (0.0, 0.0, 0.0)
     assert cfg.cable_local_quat == (0.0, 0.0, 0.0, 1.0)
     assert cfg.target_local_pos == (0.0, 0.0, 0.0)
@@ -35,13 +33,13 @@ def test_cable_attachment_cfg_defaults_and_types():
 
     cfg2 = CableAttachmentCfg(
         target_prim_path="/Foo",
-        cable_anchor="head",
+        cable_anchor=0,
         cable_local_pos=(1.0, 2.0, 3.0),
         cable_local_quat=(0.5, 0.5, 0.5, 0.5),
         target_local_pos=(4.0, 5.0, 6.0),
         target_local_quat=(0.7071, 0.7071, 0.0, 0.0),
     )
-    assert cfg2.cable_anchor == "head"
+    assert cfg2.cable_anchor == 0
     assert cfg2.cable_local_pos == (1.0, 2.0, 3.0)
     assert cfg2.cable_local_quat == (0.5, 0.5, 0.5, 0.5)
     assert cfg2.target_local_pos == (4.0, 5.0, 6.0)
@@ -59,11 +57,11 @@ def test_cable_object_cfg_attachments_field_default_empty():
 
     cfg2 = CableObjectCfg(
         prim_path="/World/Cable001",
-        attachments=[CableAttachmentCfg(target_prim_path="/World/Plug001", cable_anchor="tail")],
+        attachments=[CableAttachmentCfg(target_prim_path="/World/Plug001", cable_anchor=-1)],
     )
     assert len(cfg2.attachments) == 1
     assert cfg2.attachments[0].target_prim_path == "/World/Plug001"
-    assert cfg2.attachments[0].cable_anchor == "tail"
+    assert cfg2.attachments[0].cable_anchor == -1
 
 
 def test_cable_registry_records_head_tail_body_indices():
@@ -90,12 +88,13 @@ def test_cable_registry_records_head_tail_body_indices():
         cable_idx=0,
     )
 
-    assert len(entry.head_segment_body_indices) == 1
-    assert len(entry.tail_segment_body_indices) == 1
+    # One per-world entry, with one body index per cable edge.
+    assert len(entry.segment_body_indices) == 1
+    assert len(entry.segment_body_indices[0]) == len(entry.edges)
     # First edge body comes before last edge body in builder body order.
-    assert entry.head_segment_body_indices[0] < entry.tail_segment_body_indices[0]
+    assert entry.segment_body_indices[0][0] < entry.segment_body_indices[0][-1]
     # tail = head + (num_edges - 1) since add_rod_graph allocates one body per edge.
-    assert entry.tail_segment_body_indices[0] - entry.head_segment_body_indices[0] == len(entry.edges) - 1
+    assert entry.segment_body_indices[0][-1] - entry.segment_body_indices[0][0] == len(entry.edges) - 1
 
 
 def test_pending_cable_attachments_is_initialized_by_install_hooks():
@@ -154,7 +153,7 @@ def test_apply_cable_attachments_adds_fixed_joint():
     )
     SimulationManager._cable_registry.append(entry)
     SimulationManager._pending_cable_attachments.append(
-        (0, CableAttachmentCfg(target_prim_path=plug_path, cable_anchor="tail"))
+        (0, CableAttachmentCfg(target_prim_path=plug_path, cable_anchor=-1))
     )
 
     add_cable_entry_to_builder(
@@ -187,7 +186,7 @@ def test_apply_cable_attachments_adds_fixed_joint():
     # cable anchor as the ``parent`` argument and the target rigid body as the
     # ``child`` argument, so plug_idx lands on the ``joint_child`` column.
     new_joint_idx = joints_after_attachment - 1
-    assert builder.joint_parent[new_joint_idx] == entry.tail_segment_body_indices[0]
+    assert builder.joint_parent[new_joint_idx] == entry.segment_body_indices[0][-1]
     assert builder.joint_child[new_joint_idx] == plug_idx
 
 
@@ -220,7 +219,7 @@ def test_apply_cable_attachments_missing_target_raises():
     )
     SimulationManager._cable_registry.append(entry)
     SimulationManager._pending_cable_attachments.append(
-        (0, CableAttachmentCfg(target_prim_path="/World/DoesNotExist", cable_anchor="tail"))
+        (0, CableAttachmentCfg(target_prim_path="/World/DoesNotExist", cable_anchor=-1))
     )
 
     add_cable_entry_to_builder(
@@ -275,7 +274,7 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
     )
     SimulationManager._cable_registry.append(entry)
     SimulationManager._pending_cable_attachments.append(
-        (0, CableAttachmentCfg(target_prim_path=plug_path, cable_anchor="tail"))
+        (0, CableAttachmentCfg(target_prim_path=plug_path, cable_anchor=-1))
     )
 
     # Mirror the real cloner: per-world ``begin_world``/``end_world`` block adds
@@ -320,7 +319,7 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
             f"!= this-world plug {plug_indices_by_world[world_idx]} "
             f"(env-0 plug was {plug_indices_by_world[0]})"
         )
-        assert builder.joint_parent[new_joint_idx] == entry.tail_segment_body_indices[world_idx]
+        assert builder.joint_parent[new_joint_idx] == entry.segment_body_indices[world_idx][-1]
 
 
 def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
@@ -376,10 +375,10 @@ def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
     plug_regex_path = "/World/envs/env_.*/Plug"
     anchor_regex_path = "/World/envs/env_.*/Anchor"
     SimulationManager._pending_cable_attachments.append(
-        (0, CableAttachmentCfg(target_prim_path=plug_regex_path, cable_anchor="tail"))
+        (0, CableAttachmentCfg(target_prim_path=plug_regex_path, cable_anchor=-1))
     )
     SimulationManager._pending_cable_attachments.append(
-        (1, CableAttachmentCfg(target_prim_path=anchor_regex_path, cable_anchor="head"))
+        (1, CableAttachmentCfg(target_prim_path=anchor_regex_path, cable_anchor=0))
     )
 
     plug_indices_by_world: list[int] = []
@@ -433,7 +432,7 @@ def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
         # 1. Cable rod bodies carry concrete env_<N> labels (cloner does not
         #    rewrite builder-hook bodies). ``add_rod_graph`` suffixes each
         #    edge body with ``_edge_body_<N>`` under the label we pass.
-        cable_a_tail_idx = cable_a.tail_segment_body_indices[world_idx]
+        cable_a_tail_idx = cable_a.segment_body_indices[world_idx][-1]
         expected_a_label = f"/World/envs/env_{world_idx}/CableA/cable_edge_body_{len(cable_a.edges) - 1}"
         assert builder.body_label[cable_a_tail_idx] == expected_a_label, (
             f"world {world_idx}: cable_a tail label not env-expanded: {builder.body_label[cable_a_tail_idx]!r}"
@@ -446,7 +445,7 @@ def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
             f"world {world_idx}: cable_a attached to wrong plug; "
             f"child {builder.joint_child[attach_a_idx]} != {plug_indices_by_world[world_idx]}"
         )
-        assert builder.joint_parent[attach_a_idx] == cable_a.tail_segment_body_indices[world_idx]
+        assert builder.joint_parent[attach_a_idx] == cable_a.segment_body_indices[world_idx][-1]
 
         # 3. cable_b → anchor (env-expanded-form match): child is this world's anchor.
         attach_b_idx = joints_after - 1
@@ -454,7 +453,7 @@ def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
             f"world {world_idx}: cable_b attached to wrong anchor; "
             f"child {builder.joint_child[attach_b_idx]} != {anchor_indices_by_world[world_idx]}"
         )
-        assert builder.joint_parent[attach_b_idx] == cable_b.head_segment_body_indices[world_idx]
+        assert builder.joint_parent[attach_b_idx] == cable_b.segment_body_indices[world_idx][0]
 
 
 def _build_cable_plug_scene(
@@ -468,10 +467,12 @@ def _build_cable_plug_scene(
     shape_material_ke: float | None = None,
     shape_material_kd: float | None = None,
     shape_material_mu: float | None = None,
-    cable_anchor: Literal["head", "tail"] = "tail",
+    cable_anchor: int = -1,
 ):
     """Shared scaffolding: spawn a ground, a cable, a plug, and weld the cable's
-    selected anchor (head or tail) to the plug.
+    selected segment body to the plug. ``cable_anchor`` is the integer segment
+    index passed to :class:`CableAttachmentCfg`; this helper covers the two
+    cases it's used in: ``-1`` (tail) and ``0`` (head).
 
     Returns (sim, cable, plug, plug_world_pos_initial)."""
     from isaaclab_newton.physics import NewtonCfg
@@ -518,7 +519,7 @@ def _build_cable_plug_scene(
 
     num_points = 10
     seg_len = 0.02
-    if cable_anchor == "tail":
+    if cable_anchor == -1:
         # Place cable so its *tail body* (one segment back from the last node)
         # co-locates with the plug at spawn. The last edge body sits at the
         # midpoint of segment (num_points - 2, num_points - 1) along local +X,
@@ -530,12 +531,12 @@ def _build_cable_plug_scene(
             plug_world_pos[1],
             plug_world_pos[2],
         )
-    elif cable_anchor == "head":
-        # For "head" anchoring the cable's first edge body sits at node 0 =
+    elif cable_anchor == 0:
+        # For head anchoring the cable's first edge body sits at node 0 =
         # ``init_state.pos``, so co-locate the cable origin with the plug.
         cable_init_pos = plug_world_pos
     else:
-        raise ValueError(f"cable_anchor must be 'head' or 'tail', got {cable_anchor!r}")
+        raise ValueError(f"_build_cable_plug_scene only supports cable_anchor in {{-1, 0}}, got {cable_anchor!r}")
     cable_cfg = CableObjectCfg(
         prim_path="/World/Cable",
         spawn=sim_utils.CableCfg(
@@ -594,7 +595,7 @@ def test_cable_tail_tracks_kinematic_plug():
     from isaaclab_newton.physics import NewtonManager as SimulationManager
 
     body_q = SimulationManager._state_0.body_q.numpy()
-    tail_body_idx = cable._registry_entry.tail_segment_body_indices[0]
+    tail_body_idx = cable._registry_entry.segment_body_indices[0][-1]
     tail_pos = body_q[tail_body_idx, 0:3]
     assert (
         (tail_pos[0] - plug_pos_now[0]) ** 2
@@ -648,7 +649,7 @@ def test_cable_tail_tracks_falling_plug():
 
         body_q = SimulationManager._state_0.body_q.numpy()
         plug_pos_now = body_q[plug_body_idx, 0:3]
-        tail_body_idx = cable._registry_entry.tail_segment_body_indices[0]
+        tail_body_idx = cable._registry_entry.segment_body_indices[0][-1]
         tail_pos = body_q[tail_body_idx, 0:3]
         err = (
             (tail_pos[0] - plug_pos_now[0]) ** 2
@@ -668,11 +669,11 @@ def test_cable_tail_tracks_falling_plug():
 
 
 def test_cable_head_anchor_welds_first_segment():
-    """cable_anchor="head" must weld the cable's first rod-segment body to the
-    plug, not the last one. Tail should hang free under gravity."""
+    """cable_anchor=0 (head) must weld the cable's first rod-segment body to
+    the plug, not the last one. Tail should hang free under gravity."""
     sim, cable, plug, plug_pos0 = _build_cable_plug_scene(
         plug_kinematic=True,
-        cable_anchor="head",
+        cable_anchor=0,
     )
 
     from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -684,8 +685,8 @@ def test_cable_head_anchor_welds_first_segment():
         plug.update(sim_dt)
 
     body_q = SimulationManager._state_0.body_q.numpy()
-    head_body_idx = cable._registry_entry.head_segment_body_indices[0]
-    tail_body_idx = cable._registry_entry.tail_segment_body_indices[0]
+    head_body_idx = cable._registry_entry.segment_body_indices[0][0]
+    tail_body_idx = cable._registry_entry.segment_body_indices[0][-1]
     head_pos = body_q[head_body_idx, 0:3]
     tail_pos = body_q[tail_body_idx, 0:3]
     plug_pos_now = body_q[0, 0:3]  # plug is the first body added to the builder
@@ -781,8 +782,8 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
             ),
             init_state=CableObjectCfg.InitialStateCfg(pos=plug_a_pos, rot=(0.0, 0.0, 0.0, 1.0)),
             attachments=[
-                CableAttachmentCfg(target_prim_path="/World/PlugA", cable_anchor="head"),
-                CableAttachmentCfg(target_prim_path="/World/PlugB", cable_anchor="tail"),
+                CableAttachmentCfg(target_prim_path="/World/PlugA", cable_anchor=0),
+                CableAttachmentCfg(target_prim_path="/World/PlugB", cable_anchor=-1),
             ],
         )
     )
@@ -797,8 +798,8 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
         plug_b.update(sim_dt)
 
     body_q = SimulationManager._state_0.body_q.numpy()
-    head_body_idx = cable._registry_entry.head_segment_body_indices[0]
-    tail_body_idx = cable._registry_entry.tail_segment_body_indices[0]
+    head_body_idx = cable._registry_entry.segment_body_indices[0][0]
+    tail_body_idx = cable._registry_entry.segment_body_indices[0][-1]
     # Resolve plug body indices by label so the test isn't fragile to
     # insertion-order changes. Newton stores the per-body label as
     # ``body_label`` on the live ``Model`` (and on the ``ModelBuilder``).

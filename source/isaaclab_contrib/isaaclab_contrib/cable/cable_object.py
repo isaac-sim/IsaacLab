@@ -59,11 +59,11 @@ class CableRegistryEntry:
     # Filled by :func:`add_cable_entry_to_builder`.
     body_offsets: list[int] = field(default_factory=list)
     last_edge_length: float = 0.0
-    # Per-env Newton body index of the cable's head segment (edges[0]'s body).
-    # One entry appended per world processed; index by world_idx.
-    head_segment_body_indices: list[int] = field(default_factory=list)
-    # Per-env Newton body index of the cable's tail segment (edges[-1]'s body).
-    tail_segment_body_indices: list[int] = field(default_factory=list)
+    # Per-env Newton body indices of every cable segment, in edge order.
+    # Outer list is indexed by ``world_idx``; inner list has one entry per
+    # cable edge (``len(entry.edges)``) and is what the attachment hook
+    # indexes with ``CableAttachmentCfg.cable_anchor``.
+    segment_body_indices: list[list[int]] = field(default_factory=list)
 
 
 def add_cable_entry_to_builder(
@@ -106,8 +106,7 @@ def add_cable_entry_to_builder(
     """
     if env_idx == 0:
         entry.body_offsets.clear()
-        entry.head_segment_body_indices.clear()
-        entry.tail_segment_body_indices.clear()
+        entry.segment_body_indices.clear()
         entry.last_edge_length = 0.0
 
     env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
@@ -157,11 +156,10 @@ def add_cable_entry_to_builder(
         label=f"{expanded_prim_path}/cable",
         wrap_in_articulation=True,
     )
-    # Record per-world head/tail body indices so the attachment hook can
-    # resolve cable_anchor="head"|"tail" to a concrete Newton body index
-    # for the env currently being built.
-    entry.head_segment_body_indices.append(rod_body_indices[0])
-    entry.tail_segment_body_indices.append(rod_body_indices[-1])
+    # Record per-world segment body indices so the attachment hook can
+    # resolve ``CableAttachmentCfg.cable_anchor`` (an int) to a concrete
+    # Newton body index for the env currently being built.
+    entry.segment_body_indices.append(list(rod_body_indices))
     if env_idx == 0:
         u, v = entry.edges[-1]
         entry.last_edge_length = float(wp.length(entry.node_positions[v] - entry.node_positions[u]))
@@ -192,15 +190,17 @@ def apply_cable_attachments_to_builder(
     """Per-world hook that realizes pending cable attachments as Newton fixed joints.
 
     Runs after :func:`add_registered_cables_to_builder` for the same world, so
-    every cable's head/tail body index is already recorded on its registry entry
-    and the target rigid bodies have been added to the builder by USD ingestion.
+    every cable's per-segment body indices are already recorded on its registry
+    entry and the target rigid bodies have been added to the builder by USD
+    ingestion.
 
     For each ``(cable_idx, attachment)`` in
     :attr:`SimulationManager._pending_cable_attachments`:
 
-    1. Resolve the cable's anchor body for this world via
-       ``entry.head_segment_body_indices[world_idx]`` or
-       ``entry.tail_segment_body_indices[world_idx]``.
+    1. Resolve the cable's anchor body for this world by indexing
+       ``entry.segment_body_indices[world_idx]`` with
+       ``attachment.cable_anchor`` (Python-style int, negatives count from
+       the end). Out-of-range indices raise :class:`ValueError`.
     2. Resolve the target rigid body by looking up
        ``attachment.target_prim_path`` in ``builder.body_label`` (the live label
        column at hook time). If no match is found, raise :class:`ValueError`
@@ -236,15 +236,16 @@ def apply_cable_attachments_to_builder(
 
     for cable_idx, attachment in pending:
         entry = SimulationManager._cable_registry[cable_idx]
-        if attachment.cable_anchor == "head":
-            cable_body_idx = entry.head_segment_body_indices[world_idx]
-        elif attachment.cable_anchor == "tail":
-            cable_body_idx = entry.tail_segment_body_indices[world_idx]
-        else:
-            # configclass Literal already enforces this; keep an explicit guard.
+        segments_in_world = entry.segment_body_indices[world_idx]
+        num_segments = len(segments_in_world)
+        anchor_idx = attachment.cable_anchor
+        if not -num_segments <= anchor_idx < num_segments:
             raise ValueError(
-                f"CableAttachmentCfg.cable_anchor must be 'head' or 'tail', got {attachment.cable_anchor!r}."
+                f"CableAttachmentCfg.cable_anchor={anchor_idx} is out of range for cable"
+                f" '{entry.prim_path}' with {num_segments} segments;"
+                f" valid range is [-{num_segments}, {num_segments - 1}]."
             )
+        cable_body_idx = segments_in_world[anchor_idx]
 
         # Resolve the target body in THIS world: filter body_label by body_world so
         # that under multi-env cloning we don't accidentally bind to env-0's copy of
@@ -296,7 +297,7 @@ def apply_cable_attachments_to_builder(
             child=target_body_idx,
             parent_xform=parent_xform,
             child_xform=child_xform,
-            label=f"{entry.prim_path}/attachment_{attachment.cable_anchor}_{world_idx}",
+            label=f"{entry.prim_path}/attachment_seg{anchor_idx}_w{world_idx}",
             collision_filter_parent=True,
         )
 
