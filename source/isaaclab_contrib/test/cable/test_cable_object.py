@@ -545,3 +545,117 @@ def test_cable_object_reset_restores_body_state():
         sim.step()
         max_speed = float(np.abs(NewtonVBDManager._state_0.body_qd.numpy()[body_indices]).max())
         assert max_speed < 1.0, f"body_qd exploded after first post-reset step: |body_qd|_max={max_speed}"
+
+
+def test_cable_object_reset_partial_envs_and_body_q_prev():
+    """``CableObject.reset(env_ids=...)`` restores only the requested envs and
+    refreshes ``solver.body_q_prev`` (not just ``state.body_q``).
+
+    Sets up 4 envs, then writes a known non-rest perturbation into
+    ``state.body_q`` *and* ``solver.body_q_prev`` for every cable body across
+    all envs. Calls ``reset(env_ids=[0, 2])`` and asserts:
+
+    - Envs 0 and 2: both buffers restored bit-for-bit to ``model.body_q``.
+    - Envs 1 and 3: both buffers retain the perturbed values.
+
+    This catches three regressions the existing
+    :func:`test_cable_object_reset_restores_body_state` would miss:
+
+    1. Off-by-one indexing into ``body_offsets`` when ``env_ids`` selects a
+       subset of envs — exercising only ``num_envs=1`` cannot detect this.
+    2. A reset that ignores ``env_ids`` and snaps all envs — exposed by the
+       envs 1/3 retention assertions.
+    3. Dropping the ``wp.copy(dest=solver.body_q_prev, ...)`` line — exposed
+       by tight equality against a known perturbation, with no dependency on
+       sim drift dynamics. Verified by commenting out that line and observing
+       the envs 0/2 ``body_q_prev`` assertion fail.
+    """
+    import numpy as np
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.utils import configclass
+
+    from isaaclab_contrib.cable import CableObjectCfg
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
+
+    cable_spawn = sim_utils.CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.05, 0.0, 0.0), (0.1, 0.0, 0.0)],
+        width=0.01,
+        physics_material=_NewtonCableMaterialCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+
+    @configclass
+    class _SceneCfg(InteractiveSceneCfg):
+        num_envs: int = 4
+        env_spacing: float = 1.0
+        cable: CableObjectCfg = CableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cable",
+            spawn=cable_spawn,
+            init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+        )
+
+    newton_sim_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=VBDSolverCfg()), dt=0.01)
+
+    with build_simulation_context(device="cuda:0", sim_cfg=newton_sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_SceneCfg())
+        sim.reset()
+
+        cable = scene["cable"]
+        entry = cable._registry_entry
+        n = len(entry.edges)
+        body_offsets = list(entry.body_offsets)
+        assert len(body_offsets) == 4, f"expected 4 envs, got {len(body_offsets)}"
+
+        state = NewtonVBDManager._state_0
+        solver = NewtonVBDManager._solver
+
+        # Perturb every cable body's z position by a value far outside any
+        # plausible solver noise floor, so tight equality is unambiguous.
+        all_cable_indices = [offset + i for offset in body_offsets for i in range(n)]
+        perturbed_q = state.body_q.numpy().copy()
+        perturbed_q[all_cable_indices, 2] += 17.0
+        perturbed_src = wp.array(perturbed_q, dtype=state.body_q.dtype, device=state.body_q.device)
+        wp.copy(dest=state.body_q, src=perturbed_src)
+        wp.copy(dest=solver.body_q_prev, src=perturbed_src)
+
+        cable.reset(env_ids=[0, 2])
+
+        body_q_after = state.body_q.numpy()
+        body_q_prev_after = solver.body_q_prev.numpy()
+        body_q_model = NewtonVBDManager._model.body_q.numpy()
+
+        for env_idx in (0, 2):
+            slc = list(range(body_offsets[env_idx], body_offsets[env_idx] + n))
+            np.testing.assert_array_equal(
+                body_q_after[slc],
+                body_q_model[slc],
+                err_msg=f"env {env_idx}: state.body_q not restored to model.body_q after reset.",
+            )
+            np.testing.assert_array_equal(
+                body_q_prev_after[slc],
+                body_q_model[slc],
+                err_msg=(
+                    f"env {env_idx}: solver.body_q_prev not restored after reset."
+                    " AVBD implicit velocity (body_q - body_q_prev)/dt blows up on the next step."
+                ),
+            )
+
+        for env_idx in (1, 3):
+            slc = list(range(body_offsets[env_idx], body_offsets[env_idx] + n))
+            np.testing.assert_array_equal(
+                body_q_after[slc],
+                perturbed_q[slc],
+                err_msg=f"env {env_idx}: state.body_q reset despite env not being in env_ids.",
+            )
+            np.testing.assert_array_equal(
+                body_q_prev_after[slc],
+                perturbed_q[slc],
+                err_msg=f"env {env_idx}: solver.body_q_prev reset despite env not being in env_ids.",
+            )
