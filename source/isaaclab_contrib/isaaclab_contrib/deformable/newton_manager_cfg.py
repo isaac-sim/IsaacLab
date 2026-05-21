@@ -101,7 +101,7 @@ class VBDSolverCfg(NewtonSolverCfg):
     Each iteration grows every constraint's penalty ``k`` by ``beta * |C|`` (with ``|C|`` the current constraint
     violation), clamped to the slot's stiffness ceiling. Starting from a soft ``k_start`` and ramping toward the
     ceiling improves Hessian conditioning and avoids overshoot when the iteration budget is small, while still
-    enforcing the constraint by the end of the step. Set to ``0`` (default) to disable ramping and pin ``k`` at
+    enforcing the constraint by the end of the step. Set to ``0`` to disable ramping and pin ``k`` at
     the ceiling for the entire step.
     """
 
