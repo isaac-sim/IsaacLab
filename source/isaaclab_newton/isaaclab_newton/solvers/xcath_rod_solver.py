@@ -340,6 +340,45 @@ def _clear_vec3_kernel(values: wp.array(dtype=wp.vec3)):
 
 
 @wp.kernel
+def _set_root_position_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    predicted_positions: wp.array(dtype=wp.vec3),
+    velocities: wp.array(dtype=wp.vec3),
+    new_pos: wp.vec3,
+):
+    """Kinematically write the root particle to both position buffers and zero its velocity.
+
+    Zeroing velocities[0] prevents any residual angular-momentum ghost from
+    persisting when the root is stationary between W presses.
+    """
+    tid = wp.tid()
+    if tid != 0:
+        return
+    positions[0] = new_pos
+    predicted_positions[0] = new_pos
+    velocities[0] = wp.vec3(0.0, 0.0, 0.0)
+
+
+@wp.kernel
+def _update_tip_rest_darboux_kernel(
+    rest_darboux: wp.array(dtype=wp.vec3),
+    num_edges: int,
+    tip_num_edges: int,
+    bend_angle: float,
+):
+    """Encode a steerable pre-bend into the bend constraint's REST shape."""
+    e = wp.tid()
+    if e >= num_edges:
+        return
+    tip_start = num_edges - tip_num_edges
+    if e >= tip_start:
+        per_edge = bend_angle / float(tip_num_edges)
+        rest_darboux[e] = wp.vec3(per_edge, 0.0, 0.0)
+    else:
+        rest_darboux[e] = wp.vec3(0.0, 0.0, 0.0)
+
+
+@wp.kernel
 def _project_vessel_containment_kernel(
     current_positions: wp.array(dtype=wp.vec3),
     predicted_positions: wp.array(dtype=wp.vec3),
@@ -403,6 +442,71 @@ def _project_vessel_containment_kernel(
     if outward_disp > 0.0:
         projected = projected - grad * outward_disp
     predicted_positions[i] = projected
+
+
+@wp.kernel
+def _apply_wall_contact_friction_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    velocities: wp.array(dtype=wp.vec3),
+    mesh_id: wp.uint64,
+    smooth_normals: wp.array(dtype=wp.vec3),
+    inv_masses: wp.array(dtype=wp.float32),
+    sign_scale: float,
+    use_smooth_normals: bool,
+    target_phi: float,
+    max_dist: float,
+    friction_coeff: float,
+    contact_band: float,
+):
+    """Damp tangential velocity at wall contacts (proximal push transmission, stuck tip)."""
+    i = wp.tid()
+    if inv_masses[i] <= 0.0 or friction_coeff <= 0.0:
+        return
+
+    pos = positions[i]
+    face_index = int(0)
+    face_u = float(0.0)
+    face_v = float(0.0)
+    sign = float(0.0)
+
+    if not wp.mesh_query_point_sign_normal(mesh_id, pos, max_dist, sign, face_index, face_u, face_v):
+        return
+
+    closest = wp.mesh_eval_position(mesh_id, face_index, face_u, face_v)
+    diff = pos - closest
+    dist = wp.length(diff)
+
+    side = sign * sign_scale
+    if wp.abs(side) < 1.0e-6:
+        side = sign_scale
+
+    grad = wp.vec3(0.0, 0.0, 0.0)
+    if use_smooth_normals:
+        weights = wp.vec3(1.0 - face_u - face_v, face_u, face_v)
+        face_normal = _mesh_face_normal(mesh_id, face_index)
+        grad = _mesh_barycentric_normal(mesh_id, smooth_normals, face_index, weights, face_normal) * sign_scale
+        if dist > 1.0e-8 and wp.dot(grad, diff) * side < 0.0:
+            grad = -grad
+    elif dist > 1.0e-8:
+        grad = (diff / dist) * side
+    else:
+        grad = _mesh_face_normal(mesh_id, face_index) * side
+
+    grad_len = wp.length(grad)
+    if grad_len < 1.0e-8:
+        return
+    n = grad / grad_len
+
+    phi = side * dist
+    gap = phi - target_phi
+    band = wp.max(contact_band, 1.0e-6)
+    if gap > band:
+        return
+    w = 1.0 - wp.clamp(gap / band, 0.0, 1.0)
+
+    v = velocities[i]
+    v_t = v - n * wp.dot(v, n)
+    velocities[i] = v - friction_coeff * w * v_t
 
 
 @wp.kernel
@@ -987,6 +1091,11 @@ class XCathRodSolver(XPBDRodSolver):
         # Per-device dummy normals array for when smooth normals are disabled.
         self._dummy_collision_mesh_normals: dict[str, "wp.array"] = {}
 
+        # Tangential damping at wall contacts (fluoro-nav realism).
+        self.collision_friction_enabled = False
+        self.collision_friction_coeff = 0.0
+        self.collision_friction_contact_band = 0.004
+
     # ──────────────────────────────────────────────────────────────────────
     # Public API
     # ──────────────────────────────────────────────────────────────────────
@@ -1015,6 +1124,48 @@ class XCathRodSolver(XPBDRodSolver):
         normalized = _normalize_collision_projection_stage(stage)
         self.collision_pre_constraints_enabled = normalized == COLLISION_PROJECTION_STAGE_PRE
         self.collision_post_constraints_enabled = normalized == COLLISION_PROJECTION_STAGE_POST
+
+    def set_root_position(self, world_pos) -> None:
+        """Kinematically write the root particle position (fixed-rail advance)."""
+        if self._bws is not None:
+            raise NotImplementedError(
+                "set_root_position currently supports the single-rod path only."
+            )
+        ws = self._ws
+        if ws is None:
+            return
+        p = np.asarray(world_pos, dtype=np.float32).reshape(-1)
+        if p.size != 3:
+            raise ValueError(f"world_pos must be (3,), got shape {p.shape}")
+        wp.launch(
+            _set_root_position_kernel,
+            dim=1,
+            inputs=[
+                ws.positions,
+                ws.predicted_positions,
+                ws.velocities,
+                wp.vec3(float(p[0]), float(p[1]), float(p[2])),
+            ],
+            device=self._device,
+        )
+
+    def set_tip_bend(self, bend_angle: float, tip_num_edges: int | None = None) -> None:
+        """Update the tip-edge rest Darboux vector (fixed device pre-bend at startup)."""
+        ws = self._ws
+        n_tip = int(tip_num_edges if tip_num_edges is not None else self.tip_num_edges)
+        if ws is None or ws.num_edges <= 0 or n_tip <= 0:
+            return
+        wp.launch(
+            _update_tip_rest_darboux_kernel,
+            dim=ws.num_edges,
+            inputs=[
+                ws.rest_darboux,
+                int(ws.num_edges),
+                n_tip,
+                float(bend_angle),
+            ],
+            device=self._device,
+        )
 
     # ──────────────────────────────────────────────────────────────────────
     # Internal helpers
@@ -1131,6 +1282,39 @@ class XCathRodSolver(XPBDRodSolver):
                     device=dev,
                 )
 
+        if getattr(self, "_apply_friction_after_containment", True):
+            self._apply_collision_friction(ws, dev)
+
+    def _apply_collision_friction(self, ws: _Workspace, dev: str) -> None:
+        """Damp tangential velocity where the rod contacts the vessel wall."""
+        if (
+            not self.collision_friction_enabled
+            or self.collision_friction_coeff <= 0.0
+            or not self.collision_enabled
+            or self.collision_mesh is None
+        ):
+            return
+
+        smooth_normals, use_smooth = self._collision_normals_for_device(dev)
+        wp.launch(
+            _apply_wall_contact_friction_kernel,
+            dim=ws.num_points,
+            inputs=[
+                ws.positions,
+                ws.velocities,
+                self.collision_mesh.id,
+                smooth_normals,
+                ws.inv_masses,
+                float(self.sign_scale),
+                bool(use_smooth),
+                float(self.target_phi),
+                float(self.max_dist),
+                float(self.collision_friction_coeff),
+                float(self.collision_friction_contact_band),
+            ],
+            device=dev,
+        )
+
     # ──────────────────────────────────────────────────────────────────────
     # Hooks wired into XPBDRodSolver._substep
     # ──────────────────────────────────────────────────────────────────────
@@ -1162,4 +1346,7 @@ __all__ = [
     "_project_mesh_vertex_collision_kernel_averaged",
     "_project_vessel_containment_kernel",
     "_sample_signed_distance_kernel",
+    "_set_root_position_kernel",
+    "_update_tip_rest_darboux_kernel",
+    "_apply_wall_contact_friction_kernel",
 ]

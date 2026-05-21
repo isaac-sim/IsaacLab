@@ -95,6 +95,9 @@ _parser.add_argument(
 _parser.add_argument(
     '--port', type=int, default=7860,
     help='Gradio server port (default: 7860)')
+_parser.add_argument(
+    '--share', action='store_true', default=False,
+    help='Create a public Gradio tunnel link (gradio.live)')
 _args, _ = _parser.parse_known_args()
 
 CT_DIR = _args.ct_dir
@@ -133,6 +136,7 @@ _CUDA_AVAILABLE: bool = torch.cuda.is_available()
 # DSA panel header bars: allocated once, reused on every do_dsa() call.
 _DSA_BAR    = np.zeros((14, DET_SIZE, 3), dtype=np.uint8); _DSA_BAR[:, :, 1]    = 140
 _FLUORO_BAR = np.zeros((14, DET_SIZE, 3), dtype=np.uint8); _FLUORO_BAR[:, :, 2] = 180
+_CL_BAR     = np.zeros((14, DET_SIZE, 3), dtype=np.uint8); _CL_BAR[:, :, 0]     = 0; _CL_BAR[:, :, 1] = 200; _CL_BAR[:, :, 2] = 160
 
 # ── global simulation state (initialised once at startup) ─────────────────────
 _sim = {}
@@ -290,6 +294,84 @@ def _render_dsa(proj_name: str) -> Image.Image:
     )
 
 
+# ── centerline projection helpers ────────────────────────────────────────────
+
+def _euler_zxy_to_matrix(rx: float, ry: float, rz: float) -> np.ndarray:
+    """Python port of the Slang ZXY euler convention: R = Rz @ Rx @ Ry."""
+    cx, sx = math.cos(rx), math.sin(rx)
+    cy, sy = math.cos(ry), math.sin(ry)
+    cz, sz = math.cos(rz), math.sin(rz)
+    return np.array([
+        [cz * cy - sz * sx * sy, -sz * cx, cz * sy + sz * sx * cy],
+        [sz * cy + cz * sx * sy,  cz * cx, sz * sy - cz * sx * cy],
+        [-cx * sy,                sx,      cx * cy                ],
+    ], dtype=np.float64)
+
+
+def _project_rod_to_pixels(proj_name: str) -> np.ndarray:
+    """Project rod particle positions (vol_mm) to 2D pixel coordinates.
+
+    Replicates the Slang shader geometry exactly:
+      source_local  = (0, 0, -SID)
+      detector_z    = SDD - SID
+      pixel (u, v)  = (det_x / ps + W/2,  det_y / ps + H/2)
+
+    Returns (N, 2) float32 array of (u, v) pixel coordinates.
+    """
+    euler = PROJECTIONS[proj_name][0]
+    R = _euler_zxy_to_matrix(float(euler[0]), float(euler[1]), float(euler[2]))
+
+    SID = 510.0    # source-to-isocenter mm  (SlangDiffDRRConfig default)
+    SDD = 1020.0   # source-to-detector mm   (SlangDiffDRRConfig default)
+    ps  = 0.5      # pixel spacing mm/px     (SlangDiffDRRConfig default)
+    W = H = float(DET_SIZE)
+
+    nx, ny, nz = _sim['vol_shape_xyz']
+    sx, sy, sz = _sim['spacing_xyz_mm']
+    iso = np.array([nx * sx * 0.5, ny * sy * 0.5, nz * sz * 0.5], dtype=np.float64)
+
+    pos_vol_mm, _ = _pos_to_vol_mm(_sim['solver'].positions.cpu().numpy())
+    pts = pos_vol_mm.astype(np.float64)
+
+    # Transform to C-arm local frame: P_local = R^T @ (P - iso)
+    pts_local = (pts - iso) @ R   # (N, 3), row-vector convention
+
+    denom = pts_local[:, 2] + SID
+    det_x = SDD * pts_local[:, 0] / denom
+    det_y = SDD * pts_local[:, 1] / denom
+
+    u = det_x / ps + W * 0.5
+    v = det_y / ps + H * 0.5
+    return np.stack([u, v], axis=-1).astype(np.float32)
+
+
+def _draw_centerline_overlay(base_img: Image.Image, uv: np.ndarray) -> Image.Image:
+    """Draw projected rod centerline on *base_img* as a cyan polyline + dots."""
+    from PIL import ImageDraw
+    img = base_img.copy()
+    draw = ImageDraw.Draw(img)
+    W, H = img.size
+    r = 3
+    pts = [(int(round(float(u))), int(round(float(v)))) for u, v in uv
+           if 0 <= float(u) < W and 0 <= float(v) < H]
+    if len(pts) >= 2:
+        draw.line(pts, fill=(0, 255, 180), width=2)
+    for (u, v) in pts:
+        draw.ellipse([u - r, v - r, u + r, v + r], fill=(0, 255, 180))
+    return img
+
+
+def _render_side_by_side_centerline(proj_name: str) -> Image.Image:
+    """Left panel: standard fluoro. Right panel: fluoro + projected centerline."""
+    base   = _render(proj_name)
+    uv     = _project_rod_to_pixels(proj_name)
+    overlay = _draw_centerline_overlay(base, uv)
+
+    arr_left  = np.vstack([_FLUORO_BAR, np.array(base)])
+    arr_right = np.vstack([_CL_BAR,     np.array(overlay)])
+    return Image.fromarray(np.hstack([arr_left, arr_right]), mode='RGB')
+
+
 # ── simulation initialisation ─────────────────────────────────────────────────
 
 def init_simulation():
@@ -322,10 +404,13 @@ def init_simulation():
     rod_cfg.geometry.segment_length   = seg_len
     rod_cfg.solver.num_substeps       = 8
 
+    # track_start must be in solver-space (rod lives at x=0..rod_len_m, y=0, z=initial_height)
+    track_start_solver = np.array([0.0, 0.0, float(track_start_m[2])], dtype=np.float32)
+
     solver = XCathRodSolver(
         rod_cfg,
         collision_mesh=mesh,
-        track_start=track_start_m,
+        track_start=track_start_solver,
         track_dir=np.array([1., 0., 0.], dtype=np.float32),
         track_length=rod_len_m,
         tip_num_edges=6,
@@ -351,6 +436,8 @@ def init_simulation():
     _sim['local_z0_m']   = np.array([0., 0., float(track_start_m[2])],
                                      dtype=np.float32)
     _sim['ct_origin_mm'] = np.array([ox, oy, oz], dtype=np.float32)
+    _sim['vol_shape_xyz']  = (int(nx), int(ny), int(nz))
+    _sim['spacing_xyz_mm'] = (float(sx_mm), float(sy_mm), float(sz_mm))
     # Store as NumPy — solver.positions/.orientations are properties returning
     # wp.to_torch(...).clone(), so reset must write via the underlying Warp buffer.
     _sim['initial_pos']  = solver.positions.cpu().numpy().copy()
@@ -366,8 +453,15 @@ def init_simulation():
 
 # ── Gradio action callbacks ───────────────────────────────────────────────────
 
+def _pick_render(proj_name: str, show_cl: bool) -> Image.Image:
+    """Return the appropriate image based on the centerline toggle."""
+    if show_cl:
+        return _render_side_by_side_centerline(proj_name)
+    return _render(proj_name)
+
+
 def _step_and_render(velocity: float, torque: float,
-                     proj_name: str, steps: int = 1) -> tuple:
+                     proj_name: str, show_cl: bool, steps: int = 1) -> tuple:
     solver = _sim['solver']
 
     t_phys = time.perf_counter()
@@ -378,13 +472,12 @@ def _step_and_render(velocity: float, torque: float,
         torch.cuda.synchronize()
     t_phys_ms = (time.perf_counter() - t_phys) * 1000.0
 
-    img         = _render(proj_name)
+    img         = _pick_render(proj_name, show_cl)
     t_render_ms = _sim['t_render_ms']
     t_loop_ms   = t_phys_ms + t_render_ms
     _sim['render_count'] += 1
     tip  = _sim['tip_ct_mm']
 
-    # Compute bend from the last known vol-mm positions (already computed in _render).
     pos_vol_mm, _ = _pos_to_vol_mm(solver.positions.cpu().numpy())
     bend_mm = _catheter_bend_mm(pos_vol_mm)
     bend_flag = '  ← vessel wall deflecting rod' if bend_mm > 2.0 else '  (straight / unconstrained)'
@@ -399,22 +492,22 @@ def _step_and_render(velocity: float, torque: float,
     return img, info
 
 
-def do_advance(proj, speed):
-    return _step_and_render(float(speed) / 1000, 0.0, proj, steps=3)
+def do_advance(proj, speed, show_cl):
+    return _step_and_render(float(speed) / 1000, 0.0, proj, show_cl, steps=3)
 
-def do_retract(proj, speed):
-    return _step_and_render(-float(speed) / 1000, 0.0, proj, steps=3)
+def do_retract(proj, speed, show_cl):
+    return _step_and_render(-float(speed) / 1000, 0.0, proj, show_cl, steps=3)
 
-def do_rotate_cw(proj, speed):
-    return _step_and_render(0.0,  0.015, proj, steps=2)
+def do_rotate_cw(proj, speed, show_cl):
+    return _step_and_render(0.0,  0.015, proj, show_cl, steps=2)
 
-def do_rotate_ccw(proj, speed):
-    return _step_and_render(0.0, -0.015, proj, steps=2)
+def do_rotate_ccw(proj, speed, show_cl):
+    return _step_and_render(0.0, -0.015, proj, show_cl, steps=2)
 
-def do_idle(proj, speed):
-    return _step_and_render(0.0, 0.0, proj, steps=1)
+def do_idle(proj, speed, show_cl):
+    return _step_and_render(0.0, 0.0, proj, show_cl, steps=1)
 
-def do_reset(proj, speed):
+def do_reset(proj, speed, show_cl):
     solver = _sim['solver']
     ws     = solver._ws
 
@@ -443,15 +536,15 @@ def do_reset(proj, speed):
     torch.cuda.synchronize()
 
     _sim['render_count'] = 0
-    return _render(proj), "Reset to initial position."
+    return _pick_render(proj, show_cl), "Reset to initial position."
 
-def do_change_view(proj, speed):
-    img = _render(proj)
+def do_change_view(proj, speed, show_cl):
+    img = _pick_render(proj, show_cl)
     tip = _sim['tip_ct_mm']
     return img, (f"Projection : {proj}\n"
                  f"Tip (CT mm): X={tip[0]:.1f}  Y={tip[1]:.1f}  Z={tip[2]:.1f}")
 
-def do_dsa(proj, speed, bolus_t):
+def do_dsa(proj, speed, bolus_t, show_cl):
     t0        = time.perf_counter()
     composite = _render_dsa(proj)
     elapsed   = (time.perf_counter() - t0) * 1000.0
@@ -465,14 +558,14 @@ def do_dsa(proj, speed, bolus_t):
     return composite, info
 
 
+
 # ── Gradio UI layout ──────────────────────────────────────────────────────────
 
 def build_ui():
     init_simulation()
     initial_img = _render('LAO-45')
 
-    with gr.Blocks(title='XCath Fluoroscopy Simulator',
-                   theme=gr.themes.Base()) as demo:
+    with gr.Blocks(title='XCath Fluoroscopy Simulator') as demo:
 
         gr.Markdown(
             "## XCath Fluoroscopy Simulator\n"
@@ -495,6 +588,9 @@ def build_ui():
                 gr.Markdown("---")
                 btn_idle  = gr.Button("⏸  Idle step (gravity)", variant='secondary')
                 btn_reset = gr.Button("⟳  Reset",               variant='stop')
+                gr.Markdown("---\n**Display**")
+                cl_toggle = gr.Checkbox(value=False,
+                                        label="Show centerline overlay  (fluoro | fluoro+CL)")
                 gr.Markdown("---\n**DSA / Contrast Injection**")
                 bolus_sl = gr.Slider(minimum=0.0, maximum=12.0, value=3.0, step=0.5,
                                      label='Bolus time (s)  — 0=injection, peak ≈3–4s')
@@ -507,16 +603,17 @@ def build_ui():
                                         interactive=False, value='Ready.')
 
         outputs = [fluoro_img, info_box]
-        inputs  = [proj_dd, speed_sl]
+        inputs  = [proj_dd, speed_sl, cl_toggle]
 
-        btn_adv.click(do_advance,    inputs=inputs,                    outputs=outputs)
-        btn_ret.click(do_retract,    inputs=inputs,                    outputs=outputs)
-        btn_rcw.click(do_rotate_cw,  inputs=inputs,                    outputs=outputs)
-        btn_rccw.click(do_rotate_ccw, inputs=inputs,                   outputs=outputs)
-        btn_idle.click(do_idle,      inputs=inputs,                    outputs=outputs)
-        btn_reset.click(do_reset,    inputs=inputs,                    outputs=outputs)
-        proj_dd.change(do_change_view, inputs=inputs,                  outputs=outputs)
-        btn_dsa.click(do_dsa, inputs=[proj_dd, speed_sl, bolus_sl],    outputs=outputs)
+        btn_adv.click(do_advance,     inputs=inputs,                           outputs=outputs)
+        btn_ret.click(do_retract,     inputs=inputs,                           outputs=outputs)
+        btn_rcw.click(do_rotate_cw,   inputs=inputs,                           outputs=outputs)
+        btn_rccw.click(do_rotate_ccw, inputs=inputs,                           outputs=outputs)
+        btn_idle.click(do_idle,       inputs=inputs,                           outputs=outputs)
+        btn_reset.click(do_reset,     inputs=inputs,                           outputs=outputs)
+        proj_dd.change(do_change_view, inputs=inputs,                          outputs=outputs)
+        cl_toggle.change(do_change_view, inputs=inputs,                        outputs=outputs)
+        btn_dsa.click(do_dsa, inputs=[proj_dd, speed_sl, bolus_sl, cl_toggle], outputs=outputs)
 
     return demo
 
@@ -524,7 +621,8 @@ def build_ui():
 def main():
     """Entry point — registered as the ``xcath-fluoro`` console script."""
     demo = build_ui()
-    demo.launch(server_name='0.0.0.0', server_port=_args.port, share=False)
+    demo.launch(server_name='0.0.0.0', server_port=_args.port,
+                share=_args.share, theme=gr.themes.Base())
 
 
 if __name__ == '__main__':
