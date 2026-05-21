@@ -289,6 +289,16 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def reset(cls, soft: bool = False) -> None:
         """Reset the physics simulation."""
+        # Pin torch to the sim device before callbacks fire. PhysX GPU work in warmup
+        # and the PHYSICS_READY dispatch can leave the calling thread on a different
+        # active CUDA device, so the first torch CUDA allocation inside an asset
+        # ``_initialize_impl`` callback would otherwise hit a CudaContextManager that
+        # PhysX has not rebuilt and surface as ``CUDA error: an illegal memory access
+        # was encountered``.
+        device = PhysicsManager._device
+        if "cuda" in device:
+            torch.cuda.set_device(device)
+
         if not soft:
             # Ensure views are created (warmup only happens once per stage)
             if cls._view is None:
@@ -299,7 +309,6 @@ class PhysxManager(PhysicsManager):
             # Legacy IsaacEvents dispatch for callbacks registered directly on IsaacEvents.
             cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
 
-        device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
 
@@ -735,7 +744,16 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
-        is_gpu = "cuda" in PhysicsManager.get_device()
+        device = PhysicsManager.get_device()
+        is_gpu = "cuda" in device
+
+        # Pin torch to the sim device before PhysX brings up its CUDA context. Otherwise
+        # PhysX picks whichever device is currently active on this thread, which may
+        # disagree with ``PhysicsManager._device`` and leave subsequent torch CUDA
+        # allocations targeting a different primary context than PhysX's
+        # CudaContextManager.
+        if is_gpu:
+            torch.cuda.set_device(device)
 
         # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
         # For CPU, the old SimulationManager never called attach_stage() explicitly.
@@ -769,6 +787,12 @@ class PhysxManager(PhysicsManager):
         cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
         cls._scene_data_backend.simulation_view = cls._view
+
+        # PhysX warmup above can leave the calling thread on a different active CUDA
+        # device than ``device``. Restore it before firing PHYSICS_READY so callback
+        # torch allocations hit the same primary context that PhysX is using.
+        if is_gpu:
+            torch.cuda.set_device(device)
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})

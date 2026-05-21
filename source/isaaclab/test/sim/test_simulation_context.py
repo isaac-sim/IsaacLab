@@ -1119,3 +1119,58 @@ def test_exception_in_callback_on_step():
         if handle is not None:
             PhysxManager.deregister_callback(handle)
         SimulationContext.clear_instance()
+
+
+"""
+CUDA device pinning during PHYSICS_READY dispatch.
+"""
+
+
+@pytest.mark.isaacsim_ci
+def test_torch_cuda_device_pinned_during_physics_ready():
+    """``torch.cuda.current_device()`` must match the sim device inside PHYSICS_READY callbacks.
+
+    Regression for an aarch64 / CUDA 13 failure where a PHYSICS_READY callback (e.g.
+    ``ArticulationData.__init__``) hit ``CUDA error: an illegal memory access was
+    encountered`` at ``torch.tensor((gravity[0], gravity[1], gravity[2]),
+    device=self.device)`` alongside ``Failed to create Cuda Context Manager`` from
+    PhysX. PhysX warmup had left the calling thread on a different active CUDA device
+    than ``PhysicsManager._device``, so the first torch CUDA allocation inside the
+    callback tried to switch back and surfaced as the illegal-memory-access error.
+    """
+    import torch
+
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    sim_device = "cuda:0"
+    cfg = SimulationCfg(device=sim_device, dt=0.01)
+    sim = SimulationContext(cfg)
+
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    observed_device: list[int] = []
+
+    def capture_callback(event):
+        observed_device.append(torch.cuda.current_device())
+
+    handle = PhysxManager.register_callback(capture_callback, event=IsaacEvents.PHYSICS_READY)
+
+    # Perturb the active device prior to reset. On multi-GPU hosts this simulates
+    # the bug; on single-GPU hosts the assertion still pins the contract.
+    other_device = 1 if torch.cuda.device_count() > 1 else 0
+    torch.cuda.set_device(other_device)
+
+    try:
+        sim.reset()
+        assert observed_device, "PHYSICS_READY callback did not fire"
+        expected = int(sim_device.split(":")[1])
+        assert observed_device[0] == expected, (
+            f"torch.cuda.current_device() inside PHYSICS_READY was {observed_device[0]},"
+            f" expected sim device {expected}."
+        )
+    finally:
+        if handle is not None:
+            PhysxManager.deregister_callback(handle)
+        SimulationContext.clear_instance()
