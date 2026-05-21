@@ -17,11 +17,15 @@ import warp as wp
 
 wp.init()
 
-from isaaclab.utils.warp.fabric import _decompose_transformation_matrix  # noqa: E402
+from isaaclab.utils.warp.fabric import (  # noqa: E402
+    _decompose_transformation_matrix,
+    _local_from_world,
+    _world_from_local,
+)
 
 
 # ------------------------------------------------------------------
-# Test kernels (wp.array wrappers around the same math as production)
+# Test kernels — thin wp.array wrappers that delegate to production @wp.func
 # ------------------------------------------------------------------
 
 
@@ -61,14 +65,9 @@ def _test_local_from_world_kernel(
     parent_world: wp.array(dtype=wp.mat44d),
     out_local: wp.array(dtype=wp.mat44d),
 ):
-    """Same math as update_indexed_local_matrix_from_world: local^T = world^T * inv(parent^T).
-
-    Casts to mat44f for compute (matching production precision), writes back as mat44d.
-    """
+    """wp.array adapter for _local_from_world — same func as production fabric kernel."""
     i = wp.tid()
-    cw = wp.mat44f(child_world[i])
-    pw = wp.mat44f(parent_world[i])
-    out_local[i] = wp.mat44d(cw * wp.inverse(pw))
+    out_local[i] = wp.mat44d(_local_from_world(wp.mat44f(child_world[i]), wp.mat44f(parent_world[i])))
 
 
 @wp.kernel(enable_backward=False)
@@ -77,11 +76,9 @@ def _test_world_from_local_kernel(
     parent_world: wp.array(dtype=wp.mat44d),
     out_world: wp.array(dtype=wp.mat44d),
 ):
-    """Same math as update_indexed_world_matrix_from_local: world^T = local^T * parent^T."""
+    """wp.array adapter for _world_from_local — same func as production fabric kernel."""
     i = wp.tid()
-    cl = wp.mat44f(child_local[i])
-    pw = wp.mat44f(parent_world[i])
-    out_world[i] = wp.mat44d(cl * pw)
+    out_world[i] = wp.mat44d(_world_from_local(wp.mat44f(child_local[i]), wp.mat44f(parent_world[i])))
 
 
 # ------------------------------------------------------------------
