@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Build & deploy docs
+name: Docs
 
 on:
   push:
     branches:
       - main
-      - devel
+      - develop
       - 'release/**'
+      - 'feature/isaacsim-6-0'
   pull_request:
+    # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
+    # additionally, we have a check that determines what version of docs will be built
     types: [opened, synchronize, reopened]
 
 concurrency:
@@ -19,50 +22,91 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-secrets:
-    name: Check secrets
+  doc-build-type:
+    name: Detect Doc Build Type
     runs-on: ubuntu-latest
     outputs:
       trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
     steps:
+    - id: info
+      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}"
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devel' || startsWith(github.ref, 'refs/heads/release/')) }}"
-      run: echo "defined=true" >> "$GITHUB_OUTPUT"
+      # develop, main, release/ trigger multi-version build, then deployment to gh-pages
+      # all others - just the current docs without deployment
+      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
+      run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
-  build-docs:
-    name: Build Docs
+  build-latest-docs:
+    name: Build Latest Docs
     runs-on: ubuntu-latest
-    needs: [check-secrets]
+    needs: [doc-build-type]
+    # run on non-deploy branches to build current version docs only
+    if: needs.doc-build-type.outputs.trigger-deploy != 'true'
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v6
 
     - name: Setup python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: "3.12"
         architecture: x64
 
     - name: Install dev requirements
       working-directory: ./docs
       run: pip install -r requirements.txt
 
-    - name: Check branch docs building
+    - name: Build current version docs
       working-directory: ./docs
-      if: needs.check-secrets.outputs.trigger-deploy != 'true'
       run: make current-docs
+
+    - name: Upload docs artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: docs-html
+        path: ./docs/_build
+
+  build-multi-docs:
+    name: Build Multi-Version Docs
+    runs-on: ubuntu-latest
+    needs: [doc-build-type]
+    # run on deploy branches to create multi-version docs
+    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        architecture: x64
+
+    - name: Install dev requirements
+      working-directory: ./docs
+      run: pip install -r requirements.txt
 
     - name: Generate multi-version docs
       working-directory: ./docs
+      env:
+        # "deploy" branches build the full set of versions so every page
+        # has a complete version dropdown: main, develop, tags >= v2.0.0
+        # (including pre-release suffixes like -beta or -rc1). v1.x tags and
+        # release/ branches are excluded.
+        SMV_BRANCH_WHITELIST: '^(main|develop)$'
+        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags
+        git checkout --detach HEAD
+        git for-each-ref --format="%(refname:short)" refs/heads/ | xargs -r git branch -D
         make multi-docs
 
     - name: Upload docs artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: docs-html
         path: ./docs/_build
@@ -70,18 +114,21 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     runs-on: ubuntu-latest
-    needs: [check-secrets, build-docs]
-    if: needs.check-secrets.outputs.trigger-deploy == 'true'
+    needs: [doc-build-type, build-multi-docs]
+    # deploy only on "deploy" branches
+    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
     steps:
     - name: Download docs artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: docs-html
         path: ./docs/_build
 
     - name: Deploy to gh-pages
-      uses: peaceiris/actions-gh-pages@v3
+      uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs/_build
+        keep_files: false
+        force_orphan: true

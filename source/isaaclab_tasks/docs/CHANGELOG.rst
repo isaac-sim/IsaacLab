@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.11.16 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated some agents' configuration files for the skrl library to support the new version of skrl 2.0.
+
 0.11.15 (2026-03-07)
 ~~~~~~~~~~~~~~~~~~~~
 
