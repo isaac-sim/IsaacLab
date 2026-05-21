@@ -388,6 +388,7 @@ def image(
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
     permute: bool = False,
+    clone: bool = True,
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -406,6 +407,11 @@ def image(
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
         permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
+        clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
+            against downstream in-place mutation of the camera buffer). Callers that immediately
+            copy the result into their own storage (e.g. a frame-stack buffer) can pass ``False``
+            to skip the redundant allocation.
+
     Returns:
         The images produced at the last time-step
     """
@@ -433,7 +439,7 @@ def image(
     if permute:
         images = images.permute(0, 3, 1, 2)
 
-    return images.clone()
+    return images.clone() if clone else images
 
 
 class image_features(ManagerTermBase):
@@ -716,24 +722,35 @@ class stacked_image(ManagerTermBase):
         convert_perspective_to_orthogonal: bool = False,
         normalize: bool = True,
     ) -> torch.Tensor:
+        # K=1 passthrough: no buffer allocated; rely on image()'s defensive clone.
+        if self._buffer is None:
+            return image(
+                env=env,
+                sensor_cfg=sensor_cfg,
+                data_type=data_type,
+                convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+                normalize=normalize,
+            )
+
+        # Stacked path: skip image()'s defensive clone — append() copies into the buffer below.
         single_frame = image(
             env=env,
             sensor_cfg=sensor_cfg,
             data_type=data_type,
             convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
             normalize=normalize,
+            clone=False,
         )
-
-        # K=1 passthrough: no buffer allocated. ``image()`` already clones.
-        if self._buffer is None:
-            return single_frame
-
         self._buffer.append(single_frame)
 
-        # CircularBuffer.buffer is (B, K, H, W, C); flatten K next to C for oldest->newest channels.
-        stacked = self._buffer.buffer
-        b, k, h, w, c = stacked.shape
-        return stacked.permute(0, 2, 3, 1, 4).reshape(b, h, w, k * c)
+        b, *spatial, c = single_frame.shape
+        out = torch.empty(
+            (b, *spatial, c * self._buffer.max_length),
+            dtype=single_frame.dtype,
+            device=single_frame.device,
+        )
+        self._buffer.copy_to_stacked(out)
+        return out
 
 
 """

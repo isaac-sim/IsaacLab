@@ -136,6 +136,28 @@ class CircularBuffer:
             self._need_reset = False
         self._num_pushes += 1
 
+    def copy_to_stacked(self, out: torch.Tensor) -> None:
+        """Fill a pre-allocated tensor with the buffer contents in oldest-to-newest channel order.
+
+        The output's last dimension is partitioned into ``max_length`` equal-sized channel slots.
+        Slot 0 receives the oldest stored frame's channels; slot ``max_length - 1`` receives the
+        newest. This avoids the ``permute().reshape()`` non-contiguous allocation that the
+        :attr:`buffer` getter requires for the same effect.
+
+        Args:
+            out: Pre-allocated tensor of shape ``(batch_size, *frame_shape[:-1], max_length * C)``,
+                where ``frame_shape`` is the per-frame shape of appended data and ``C`` is the
+                last-dim size of an appended frame. Will be written into in-place.
+
+        Raises:
+            RuntimeError: If no data has been appended yet.
+        """
+        if self._buffer is None:
+            raise RuntimeError("The buffer is empty. Please append data before retrieving.")
+        c = self._buffer.shape[-1]
+        for k in range(self._max_len_int):
+            out[..., k * c : (k + 1) * c].copy_(self._buffer[k])
+
     def __getitem__(self, key: torch.Tensor) -> torch.Tensor:
         """Retrieve the data from the circular buffer in last-in-first-out (LIFO) fashion.
 
