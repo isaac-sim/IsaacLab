@@ -162,17 +162,10 @@ jobs:
         timeout-minutes: 90
         run: |
           set -euo pipefail
-          # Single docker run because uv-managed Python lives in
-          # $HOME/.cache/uv/python inside the container and is discarded on
-          # container exit, leaving env_isaaclab_uv/bin/python as a dangling
-          # symlink in subsequent containers.
-          #
-          # Install via ./isaaclab.sh -i (the canonical user-facing install
-          # entry point) instead of hand-rolled uv pip install lines. This
-          # picks up _ensure_cuda_torch (re-installs cu130 torch on aarch64
-          # after isaacsim downgrades it to a CPU wheel), nlopt arm prep,
-          # pin-pink dependency probe, etc. — same install path real users
-          # hit on `./isaaclab.sh -i`, so CI failures here are real user bugs.
+          # Mirrors Dockerfile.base's pattern: symlink _isaac_sim → /isaac-sim
+          # so ./isaaclab.sh finds the bundled Isaac Sim Python (no uv venv,
+          # no separate isaacsim pip install — the docker image already
+          # ships Sim).
           mkdir -p reports
           docker run --rm --user root \
             -v "${{ github.workspace }}":/workspace/isaaclab \
@@ -180,21 +173,16 @@ jobs:
             --gpus all \
             isaac-lab-arm-ci:${{ github.sha }} "
               set -e
-              if ! command -v uv >/dev/null 2>&1; then
-                curl -LsSf https://astral.sh/uv/install.sh | sh
-                export PATH=\$HOME/.local/bin:\$PATH
-              fi
+              ln -sf /isaac-sim _isaac_sim
 
-              uv venv --python 3.12 env_isaaclab_uv
-              source env_isaaclab_uv/bin/activate
-              uv pip install pytest pytest-timeout
-
-              # Use ./isaaclab.sh -i (mirrors user install path).
-              # Tokens: isaacsim (Tier 1 kit-launch + controllers need it),
-              #         ov[ovrtx] (Tier 2 newton-ovrtx kitless rendering needs ovrtx).
-              # _ensure_cuda_torch fires automatically after isaacsim install.
-              ./isaaclab.sh -i isaacsim,'ov[ovrtx]'
-              python -c 'import isaaclab, isaaclab_assets, isaaclab_physx, isaaclab_tasks; print(\"editable imports ok\")'
+              # ./isaaclab.sh detects _isaac_sim and uses its bundled python.sh.
+              # -i 'ov[ovrtx]' installs ov submodule + ovrtx selector on top of
+              # the bundled Sim; isaacsim itself stays the bundled version.
+              # _ensure_cuda_torch fires after install and restores cu130 torch
+              # if anything pulls a CPU wheel.
+              ./isaaclab.sh -i 'ov[ovrtx]'
+              ./isaaclab.sh -p -m pip install pytest pytest-timeout
+              ./isaaclab.sh -p -c \"import isaaclab, isaaclab_assets, isaaclab_physx, isaaclab_tasks; print('editable imports ok')\"
 
               set +e  # individual tier failures do not abort the script
 
