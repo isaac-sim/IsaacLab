@@ -55,7 +55,7 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     light_cfg.func("/World/light", light_cfg)
 
-    # Cable centerline: 10 control points along local +X, length ~0.9 m.
+    # Cable centerline: 20 control points along local +X, length ~0.9 m.
     num_points = 20
     segment_length = 0.015
     cable_length = (num_points - 1) * segment_length
