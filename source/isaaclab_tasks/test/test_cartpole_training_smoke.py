@@ -22,7 +22,7 @@ import pytest
 
 pytestmark = pytest.mark.arm_ci
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _TRAIN_SCRIPT = "scripts/reinforcement_learning/rsl_rl/train.py"
 
 
