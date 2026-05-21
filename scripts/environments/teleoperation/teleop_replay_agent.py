@@ -9,7 +9,7 @@ This is the non-interactive counterpart to ``teleop_se3_agent.py``. It builds
 a teleop environment, attaches an :class:`~isaaclab_teleop.IsaacTeleopDevice`
 configured in :class:`isacteleop.teleop_session_manager.SessionMode.REPLAY`,
 and pumps the simulation loop until the recorded operator presses STOP (or
-``--max_replay_duration_s`` elapses, or Kit is closed). The user-journey
+``--max_replay_duration_s`` elapses, or the simulator is closed). The user-journey
 teleop script remains ``teleop_se3_agent.py``.
 
 Inputs:
@@ -70,13 +70,19 @@ Stats output:
     steady-state replay workload rather than agent bookkeeping
     overhead. Per-run samples are summarised into mean / p50 / p90 /
     p95 / p99 / min / max / stddev (under ``cpu_frame_time_ms``) plus
-    derived FPS metrics (under ``fps``). The two blocks measure the
-    same ``env.step`` event and stay self-consistent: ``fps.mean``
+    derived FPS metrics (under ``fps``). Both blocks are reported on
+    a **per-render** basis: each env.step CPU sample is divided by
+    ``decimation / render_interval`` (the number of renders per
+    ``env.step``) before stats are computed, so ``cpu_frame_time_ms``
+    reads as the average wall time between rendered frames and ``fps``
+    reads as the render rate -- the same number the simulator's HUD
+    shows, which is what the headset wearer / spectator actually
+    perceives during real-time teleop. The two blocks remain self-consistent: ``fps.mean``
     equals ``1000 / cpu_frame_time_ms.mean`` (harmonic mean of FPS
-    = total frames / total step time). Kit's HUD displays the render
-    rate, which is this FPS multiplied by ``decimation /
-    render_interval`` (Kit pumps multiple frames per ``env.step``);
-    derive that from the env config if you need it.
+    = total frames / total step time). When either ``decimation`` or
+    ``render_interval`` is unavailable from the env config, the samples
+    fall back to the raw per-env.step units rather than dropping the
+    report.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
     call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
@@ -84,7 +90,7 @@ Stats output:
     under ``gpu_stats`` with the same percentile shape as
     ``cpu_frame_time_ms``. It soft-fails when ``nvidia-ml-py`` is
     missing or the driver is unreachable (``gpu_stats.available =
-    false`` + reason). Renderer-specific providers (Kit viewport
+    false`` + reason). Renderer-specific providers (viewport
     telemetry, Newton, ...) can be slotted in by implementing the
     :class:`GpuStatsProvider` Protocol.
 
@@ -133,11 +139,13 @@ Stats output:
               "active_iterations": 322,
               "active_duration_s": 21.503,
               "success_step_count": 1,
-              "cpu_frame_time_ms": {
+              "cpu_frame_time_ms": {  # per-render ms (env.step * render_interval / decimation)
                 "mean": ..., "p50": ..., "p90": ..., "p95": ..., "p99": ...,
                 "min": ..., "max": ..., "stddev": ..., "n": ...
               },
-              "fps": {"mean": ..., "min_instantaneous": ..., "max_instantaneous": ...},
+              "fps": {  # per-render rate (env.step rate * decimation / render_interval; simulator HUD)
+                "mean": ..., "min_instantaneous": ..., "max_instantaneous": ...
+              },
               "gpu_stats": {
                 "backend": "nvml", "available": True,
                 "device_index": 0, "device_name": ..., "memory_total_mb": ...,
@@ -166,8 +174,8 @@ Exit codes:
     * ``2`` -- one or more runs hit ``--max_replay_duration_s``.
 
 Warmup:
-    Before stepping the env, the agent waits deterministically for Kit
-    to finish loading the USD stage by polling
+    Before stepping the env, the agent waits deterministically for the
+    simulator to finish loading the USD stage by polling
     ``omni.usd.UsdContext.get_stage_loading_status()`` until no assets
     are pending (bounded by ``--max_stage_load_wait_s`` as a safety net).
     It then pumps a fixed number of additional renderer-settle frames so
@@ -181,18 +189,18 @@ Warmup:
 XR-active replay:
     Pass ``--cloudxr_env <shorthand-or-path>`` (and optionally
     ``--no-auto_launch_cloudxr``) to auto-spawn the CloudXR runtime and
-    engage Kit's XR pipeline during replay. ``--cloudxr_env`` mirrors
+    engage the simulator's XR pipeline during replay. ``--cloudxr_env`` mirrors
     the flag on ``record_demos.py`` and accepts the same ``cloudxrjs``
     / ``avp`` shorthands. This is required (not optional) for two
     distinct reasons:
 
     A. **Performance parity with live teleop.** A pure-replay run (no
-       XR, no CloudXR) skips the entire Kit XR rendering pipeline,
+       XR, no CloudXR) skips the entire simulator XR rendering pipeline,
        so frame timings, render load, GPU/CPU contention, and any
        XR-side bottlenecks do not appear -- a captured trajectory
        that replayed at 90Hz under those conditions could easily run
        at 30Hz once XR is actually active. For perf regression or
-       benchmarking the replay loop must reproduce the same Kit
+       benchmarking the replay loop must reproduce the same simulator
        configuration the original recording ran under.
 
     B. **Correct ``world_T_anchor`` for playback.** The recorded
@@ -209,8 +217,8 @@ XR-active replay:
        the anchor never moved.
 
     The full incantation also needs ``AppLauncher``'s ``--xr`` flag
-    plus a few Kit-side carb settings to flip the AR profile and load
-    the teleop XR bridge (the replay path skips both for the
+    plus a few simulator-side carb settings to flip the AR profile and
+    load the teleop XR bridge (the replay path skips both for the
     headless-CI default; we have not yet promoted them to a single
     ``--xr_active`` knob)::
 
@@ -232,7 +240,7 @@ XR-active replay:
     per-run :class:`~isaaclab_teleop.IsaacTeleopDevice` is constructed
     with ``auto_launch_cloudxr=False`` so the per-run lifecycle does
     not stop the runtime on teardown. Only the per-run
-    ``TeleopSession`` is torn down between replays; Kit's OpenXR
+    ``TeleopSession`` is torn down between replays; the OpenXR
     instance/session stay alive.
 """
 
@@ -283,8 +291,8 @@ parser.add_argument(
     default=1,
     help=(
         "Number of times to replay the MCAP back-to-back. Each replay rebuilds the IsaacTeleopDevice"
-        " (re-opens the MCAP at frame 0) and resets the env in place without reloading Kit; the"
-        " CloudXR runtime and Kit's OpenXR session stay alive across runs so subsequent replays"
+        " (re-opens the MCAP at frame 0) and resets the env in place without reloading the simulator;"
+        " the CloudXR runtime and the OpenXR session stay alive across runs so subsequent replays"
         " start ~instantly. Per-run and aggregated success/failure rates are reported in the stats"
         " summary; the exit code reflects the worst outcome across runs. Default 1."
     ),
@@ -329,7 +337,7 @@ parser.add_argument(
     help=(
         "Path to a CloudXR ``.env`` file, or a shorthand: 'cloudxrjs' (Quest/Pico) or 'avp'"
         " (Apple Vision Pro). Default is None -- CloudXR is not launched. Pair with"
-        " AppLauncher's ``--xr`` and Kit-side AR-profile settings for spectate-on-headset"
+        " AppLauncher's ``--xr`` and simulator-side AR-profile settings for spectate-on-headset"
         " replay; see the script docstring for the full command."
     ),
 )
@@ -408,9 +416,35 @@ class _RunStats:
     # produces a missing-but-not-None ``"gpu_stats"`` slot.
     gpu_stats: dict = field(default_factory=dict)
 
-    def to_dict(self, run_index: int) -> dict:
-        cpu_stats = _compute_frame_stats(self.active_frame_times_ms)
-        fps_stats = _compute_fps_stats(self.active_frame_times_ms)
+    def to_dict(
+        self,
+        run_index: int,
+        decimation: int | None = None,
+        render_interval: int | None = None,
+    ) -> dict:
+        # Project the per-env.step CPU samples onto a per-render basis by
+        # uniform averaging. Each env.step internally runs ``decimation``
+        # physics ticks of ``sim.dt`` and (interleaved) one render every
+        # ``render_interval`` ticks, so there are ``decimation /
+        # render_interval`` renders per env.step. Per-render ms is therefore
+        # ``env.step ms / (decimation / render_interval) = env.step ms *
+        # render_interval / decimation``, and per-render FPS is ``env.step
+        # FPS * decimation / render_interval`` -- which matches the
+        # simulator's HUD.
+        # Per-render units track the rate the headset wearer / spectator
+        # actually feels, which is what real-time teleop perf cares about.
+        # When either ``decimation`` or ``render_interval`` is unavailable,
+        # fall back to the raw env.step samples -- coarser units, but
+        # better than dropping the report. Future: replace this
+        # derived-by-averaging path with samples taken directly around each
+        # render once the agent collects them (the schema is already
+        # aligned to per-render semantics).
+        samples_ms = self.active_frame_times_ms
+        if decimation is not None and decimation > 0 and render_interval is not None and render_interval > 0:
+            renders_per_env_step = decimation / render_interval
+            samples_ms = [t / renders_per_env_step for t in samples_ms]
+        cpu_stats = _compute_frame_stats(samples_ms)
+        fps_stats = _compute_fps_stats(samples_ms)
         return {
             "run_index": run_index,
             "outcome": self.outcome,
@@ -478,7 +512,7 @@ def _compute_frame_stats(samples_ms: list[float]) -> dict:
 
 
 def _compute_fps_stats(samples_ms: list[float]) -> dict:
-    """Compute env.step-throughput FPS stats from per-step CPU times.
+    """Compute FPS stats from per-step CPU times.
 
     All three fields are derived from the same ``samples_ms`` series
     that feeds ``cpu_frame_time_ms`` and stay self-consistent with it:
@@ -491,12 +525,13 @@ def _compute_fps_stats(samples_ms: list[float]) -> dict:
     ``n / active_duration_s`` (dragged down by inter-step
     bookkeeping).
 
-    Note that this is the ``env.step`` rate, not Kit's render rate:
-    Kit pumps ``cfg.decimation / cfg.sim.render_interval`` frames per
-    ``env.step`` call, so the HUD shows a higher number than what is
-    reported here. Compute the render rate as
-    ``fps.mean * decimation / render_interval`` from the env config
-    if needed.
+    The basis of ``samples_ms`` (per-render vs per-env.step etc.) is
+    set by the caller, so the units of this function's output match
+    whatever the caller passed in. :meth:`_RunStats.to_dict` passes
+    samples that have already been divided by ``decimation /
+    render_interval``, so the reported FPS reads as the per-render
+    rate -- matching the simulator's HUD and the rate the headset
+    wearer perceives.
 
     ``min_instantaneous`` and ``max_instantaneous`` are derived from
     the slowest / fastest individual step respectively.
@@ -525,11 +560,11 @@ def _compute_fps_stats(samples_ms: list[float]) -> dict:
 #
 # ``NvmlGpuStatsProvider`` (default) is renderer-agnostic: it queries
 # NVML directly via ``pynvml`` and works wherever an NVIDIA driver is
-# installed -- no Kit dependency, no CUDA context needed. If you swap
-# the renderer out (e.g. move to a non-Kit visualization), this
-# provider still works.
+# installed -- no simulator dependency, no CUDA context needed. If you
+# swap the renderer out (e.g. move to a non-simulator visualization),
+# this provider still works.
 #
-# To add a renderer-specific provider in the future (Kit viewport
+# To add a renderer-specific provider in the future (viewport
 # telemetry, Newton, etc.), define a class with the same
 # ``sample`` / ``summary`` signature and instantiate it inside
 # ``_run_single_replay`` in place of ``NvmlGpuStatsProvider``.
@@ -641,8 +676,8 @@ class NvmlGpuStatsProvider:
 def _extract_env_perf_cfg(env_cfg) -> dict:
     """Extract the env-config fields that govern replay performance and frame timing.
 
-    Captures the inputs that determine ``env.step`` cadence and Kit's render
-    cadence so the JSON report is self-contained for cross-machine /
+    Captures the inputs that determine ``env.step`` cadence and the
+    simulator's render cadence so the JSON report is self-contained for cross-machine /
     cross-config perf comparisons -- without these the
     ``cpu_frame_time_ms`` / ``fps`` numbers cannot be interpreted, because
     the same recording at ``sim.dt=1/60`` vs ``sim.dt=1/120`` reports the
@@ -716,7 +751,16 @@ def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
     total = max(len(all_runs), 1)
     success_rate = outcomes_count.get("success", 0) / total
 
-    run_dicts = [r.to_dict(i) for i, r in enumerate(all_runs)]
+    # Pull ``decimation`` and ``render_interval`` once so every per-run dict
+    # projects the per-env.step CPU samples onto per-render ms (and the
+    # corresponding FPS) using the same factor. Either value being ``None``
+    # leaves the samples unscaled (coarser env.step units) rather than
+    # substituting a default that could silently misreport the rate.
+    env_perf_cfg = _extract_env_perf_cfg(env_cfg) if env_cfg is not None else None
+    decimation = env_perf_cfg.get("decimation") if env_perf_cfg else None
+    render_interval = env_perf_cfg["sim"].get("render_interval") if env_perf_cfg else None
+
+    run_dicts = [r.to_dict(i, decimation=decimation, render_interval=render_interval) for i, r in enumerate(all_runs)]
 
     return {
         "schema_version": _STATS_SCHEMA_VERSION,
@@ -725,7 +769,7 @@ def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
         "num_replays": len(all_runs),
         "outcomes": outcomes_count,
         "success_rate": success_rate,
-        "env_cfg": _extract_env_perf_cfg(env_cfg) if env_cfg is not None else None,
+        "env_cfg": env_perf_cfg,
         "runs": run_dicts,
         "aggregate": _aggregate_runs(run_dicts),
     }
@@ -813,12 +857,21 @@ def _print_stdout_summary(report: dict) -> None:
     if isinstance(env_cfg_info, dict):
         sim_info = env_cfg_info.get("sim") or {}
         derived_info = env_cfg_info.get("derived") or {}
+
+        # Render ``None`` as ``"n/a"`` for fields we don't run through ``_fmt``
+        # (which already does this for floats) so the Env timing line is
+        # consistent end-to-end. Integers like ``decimation`` /
+        # ``render_interval`` need their own helper because ``_fmt`` would
+        # format them as floats (``2.00``), which is ugly.
+        def _or_na(value: object) -> str:
+            return "n/a" if value is None else str(value)
+
         sim_dt_str = f"{sim_info['dt']:.4f}s" if isinstance(sim_info.get("dt"), (int, float)) else "n/a"
         print(
-            f"Env timing: num_envs={env_cfg_info.get('num_envs')}"
-            f" decimation={env_cfg_info.get('decimation')}"
+            f"Env timing: num_envs={_or_na(env_cfg_info.get('num_envs'))}"
+            f" decimation={_or_na(env_cfg_info.get('decimation'))}"
             f" sim.dt={sim_dt_str}"
-            f" render_interval={sim_info.get('render_interval')}"
+            f" render_interval={_or_na(sim_info.get('render_interval'))}"
             f" | target_policy_hz={_fmt(derived_info.get('target_policy_hz'))}"
             f" target_render_hz={_fmt(derived_info.get('target_render_hz'))}"
             f" renders/step={_fmt(derived_info.get('renders_per_step'))}"
@@ -899,7 +952,7 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     """Launch a CloudXR runtime owned at the agent (batch) scope.
 
     The CloudXR runtime is process-scoped, not session-scoped: tearing it
-    down between teleop sessions in the same Kit process severs Kit's
+    down between teleop sessions in the same simulator process severs the
     OpenXR runtime IPC, so the next session's ``xrCreateInstance`` fails
     with ``XR_ERROR_RUNTIME_UNAVAILABLE`` and the XR pipeline hangs. To
     support multi-run XR replay we hoist CloudXR ownership out of the
@@ -1049,10 +1102,10 @@ def _process_success_condition(
 _RENDERER_SETTLE_FRAMES: int = 30
 """Number of additional render frames pumped after the USD stage finishes loading.
 
-Kit's stage-load status flips to ``count_loading == 0`` as soon as every referenced asset
+The stage-load status flips to ``count_loading == 0`` as soon as every referenced asset
 has been resolved, but the renderer pipeline (shader compilation, articulation-view
 binding, material warm-up) typically needs a few more event-loop ticks to converge. Thirty
-frames at the default Kit render cadence is ~0.5 s on most machines and is deterministic
+frames at the default render cadence is ~0.5 s on most machines and is deterministic
 per-machine -- unlike a wall-clock delay it does not have to be tuned for hardware.
 """
 
@@ -1061,7 +1114,7 @@ def _wait_for_stage_load(simulation_app, max_wait_s: float) -> None:
     """Block until the USD stage finishes resolving every referenced asset.
 
     Polls :meth:`omni.usd.UsdContext.get_stage_loading_status`. The third element of
-    the returned tuple is the count of assets Kit still has pending; when it reaches
+    the returned tuple is the count of assets still pending; when it reaches
     zero the stage is fully streamed in and the renderer pipeline is ready to draw
     against it. After the count reaches zero this function pumps an additional
     :data:`_RENDERER_SETTLE_FRAMES` ``simulation_app.update()`` calls so shaders,
@@ -1077,7 +1130,7 @@ def _wait_for_stage_load(simulation_app, max_wait_s: float) -> None:
             completes well within this bound.
 
     The function is best-effort: when ``omni.usd`` is unavailable (e.g. when
-    running outside a Kit context) it returns immediately so callers do not
+    running outside a simulator context) it returns immediately so callers do not
     need a separate code path.
     """
     try:
@@ -1158,7 +1211,7 @@ def _run_single_replay(
     # soft-fails (the summary dict carries ``available: False`` and a
     # reason) when ``nvidia-ml-py`` is missing or the driver is
     # unreachable, so a missing GPU never blocks the replay. To swap
-    # in a renderer-specific provider (Kit viewport telemetry, Newton,
+    # in a renderer-specific provider (viewport telemetry, Newton,
     # ...) implement the :class:`GpuStatsProvider` Protocol and
     # construct it here in place of :class:`NvmlGpuStatsProvider`.
     gpu_stats_provider: GpuStatsProvider = NvmlGpuStatsProvider()
@@ -1169,7 +1222,7 @@ def _run_single_replay(
     # ``main``), so the per-run lifecycle must not try to launch -- or
     # stop -- it. ``cloudxr_env_file=None`` + ``auto_launch_cloudxr=False``
     # short-circuits ``TeleopSessionLifecycle._ensure_cloudxr_runtime`` so
-    # the runtime survives across replays and Kit's OpenXR session keeps
+    # the runtime survives across replays and the OpenXR session keeps
     # its IPC connection.
     teleop_interface = create_isaac_teleop_device(
         isaac_teleop_cfg,
@@ -1384,8 +1437,8 @@ def main() -> int:
 
     Per-replay control flow (see :func:`_run_single_replay` for details):
         * Pre-loop warmup: ``_wait_for_stage_load`` polls
-          ``omni.usd.UsdContext.get_stage_loading_status`` until Kit
-          reports zero pending assets, then renders a fixed number of
+          ``omni.usd.UsdContext.get_stage_loading_status`` until the
+          simulator reports zero pending assets, then renders a fixed number of
           settle frames (only on ``run_index == 0``). An optional
           ``--replay_start_delay_s`` buffer can be appended for hardware
           that needs more grace. ``advance()`` is not called during
@@ -1419,7 +1472,7 @@ def main() -> int:
             4. Wall-clock ``--max_replay_duration_s`` safety cap. Sets
                outcome ``"timeout"``.
 
-        Kit itself is left running between replays so a fresh
+        The simulator is left running between replays so a fresh
         :class:`IsaacTeleopDevice` can be constructed without reloading
         the USD stage; ``__main__`` calls ``simulation_app.close()``
         after the whole batch finishes.
@@ -1448,10 +1501,6 @@ def main() -> int:
     env: gym.Env | None = None
     cloudxr_launcher = None
     all_runs: list[_RunStats] = []
-    # Captured outside the try block so the finally-side report includes the
-    # env-perf metadata even when a run raises mid-batch; left as None until
-    # ``_prepare_env_cfg`` returns so an early failure produces ``env_cfg=None``.
-    env_cfg = None
 
     if args_cli.num_replays < 1:
         raise ValueError(f"--num_replays must be >= 1; got {args_cli.num_replays}")
@@ -1462,7 +1511,7 @@ def main() -> int:
         # are explicitly told not to launch / stop it (see the
         # ``cloudxr_env_file=None, auto_launch_cloudxr=False`` call in
         # ``_run_single_replay``). This is what lets ``--num_replays > 1``
-        # work in XR-active mode without losing Kit's OpenXR runtime
+        # work in XR-active mode without losing the OpenXR runtime
         # IPC between runs.
         cloudxr_launcher = _maybe_launch_cloudxr(
             _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
@@ -1489,8 +1538,9 @@ def main() -> int:
             all_runs.append(run_stats)
             print(f"Replay {run_idx + 1}/{args_cli.num_replays} outcome: {run_stats.outcome}")
             if not simulation_app.is_running():
-                # Kit was closed externally mid-batch; stop the outer loop
-                # rather than spawning a fresh device against a dead app.
+                # The simulator was closed externally mid-batch; stop the
+                # outer loop rather than spawning a fresh device against
+                # a dead app.
                 break
     finally:
         if env is not None:
