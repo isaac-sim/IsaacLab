@@ -22,10 +22,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Key Features
    * - **Omniverse**
      - High-fidelity, Isaac Sim integration
-     - USD, visualization markers, live plots
+     - USD, visualization markers, live plots, tiled camera panel
    * - **Newton**
      - Fast iteration
-     - Low overhead, visualization markers
+     - Low overhead, visualization markers, tiled camera panel
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export, visualization markers
@@ -187,6 +187,35 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
      - any
      - Run headless; ``--headless`` takes precedence.
 
+Camera Modes
+~~~~~~~~~~~~
+
+The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
+Kit and Newton visualizers can also run additional tiled camera image panels.
+If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
+a non-interactive tiled camera image view.
+
+Kit and Newton cap tiled camera views at 100 tiles.
+
+Note, Kit tiled camera views require launching with ``--enable_cameras``.
+
+.. list-table:: Camera configuration modes
+   :header-rows: 1
+   :widths: 24 30 46
+
+   * - Mode
+     - Key fields
+     - Behavior
+   * - **Default interactive**
+     - ``tiled_cam_view=False``, ``eye=(4, -4, 3)``, ``lookat=(0, 0, 0)``
+     - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
+   * - Generated tiled camera
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot/base"``
+     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
+   * - Existing tiled camera sensors
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
+     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
+
 Video Recording
 ---------------
 
@@ -289,6 +318,7 @@ Omniverse Visualizer
 - Live plots for monitoring training metrics
 - Full Isaac Sim rendering capabilities and tooling
 - Visualization markers for debugging (arrows, frames, object targets, etc.)
+- Tiled camera views which can track multiple robots
 
 **Core Configuration:**
 
@@ -311,7 +341,6 @@ Omniverse Visualizer
         enable_live_plots=True,
     )
 
-
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~
 
@@ -322,6 +351,7 @@ Newton Visualizer
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
+- Tiled camera views which can track multiple robots
 
 
 **Interactive Controls:**
@@ -359,6 +389,17 @@ Newton Visualizer
         # Camera settings
         eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
         lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+        focal_length=12.0,                        # Camera focal length in millimeters
+
+        # Tiled camera view settings
+        tiled_cam_view=True,                      # Enable non-interactive tiled camera image view
+        tiled_cam_num=16,                         # Number of generated camera tiles to display
+        tiled_cam_env_indices=None,               # Optional explicit env ids to show in the tiled view
+        tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
+        tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
+        tiled_cam_target_prim_path=(              # Prim that generated cameras follow/look at
+            "/World/envs/*/Robot/base"
+        ),
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)

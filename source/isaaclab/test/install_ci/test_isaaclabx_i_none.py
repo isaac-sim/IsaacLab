@@ -22,6 +22,7 @@ from utils import UV_Mixin, find_isaaclab_root
 # Core packages that must be importable after ``-i none``.
 _CORE_PACKAGES = [
     "isaaclab",
+    "isaaclab_ppisp",
     "isaaclab_assets",
     "isaaclab_contrib",
     "isaaclab_experimental",

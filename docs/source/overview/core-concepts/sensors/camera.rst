@@ -214,6 +214,133 @@ RGB and RGBA
 
 To convert to ``torch.float32``, divide by 255.0.
 
+``rgb_hdr`` returns a 3-channel scene-linear HDR image of type ``torch.float32``, shape ``(B, H, W, 3)``.
+
+Post-render Camera ISP
+~~~~~~~~~~~~~~~~~~~~~~
+
+A camera Image Signal Processing (ISP) pipeline models the chain that maps
+the scene-linear radiance captured by a sensor to the LDR pixel values a
+downstream consumer sees.
+The camera ISP pipeline is usually part of the renderer.
+In Isaac Lab we expose a post-render camera ISP pipeline which is applied on top of the renderer's HDR scene-linear AOV.
+This makes it possible to implement additional post-render processing not currently supported by the renderer backends.
+The pass is configured via :attr:`~sensors.CameraCfg.isp_cfg`
+on every camera and runs once per render tick.
+
+PPISP
+^^^^^
+
+The shipped ISP implementation is **PPISP** (Physically Plausible Image
+Signal Processing), an NVIDIA Spatial Intelligence Lab pipeline designed
+to bring synthetic imagery — most notably 3D Gaussian splat reconstructions
+— closer to real-camera output without re-training the upstream model. See
+the project page: https://research.nvidia.com/labs/sil/projects/ppisp .
+
+PPISP is typically authored alongside a `ParticleField3DGaussianSplat
+<https://openusd.org/release/user_guides/schemas/usdVol/ParticleField3DGaussianSplat.html>`__
+USD asset: it carries a `RenderProduct
+<https://openusd.org/release/user_guides/schemas/usdRender/RenderProduct.html>`__
+whose target camera and PPISP `UsdShade.Shader
+<https://openusd.org/release/api/class_usd_shade_shader.html>`__
+(a shader prim named ``PPISP`` whose inputs follow the PPISP naming
+convention) were calibrated against the real capture rig that produced
+the splats. Configuring the camera with the matching PPISP coefficients
+makes the rendered tile match the calibration target.
+
+The pipeline applies, in order: responsivity → exposure → vignetting →
+color homography → camera response function → uint8 clamp. It runs as a
+single Warp kernel.
+
+Configuration
+^^^^^^^^^^^^^
+
+:attr:`~sensors.CameraCfg.isp_cfg` accepts three forms:
+
+* ``None`` (default) — ISP disabled.
+* :class:`~isaaclab_ppisp.PpispCfg` — explicit PPISP coefficients
+  (:attr:`~isaaclab_ppisp.PpispCfg.inputs`), or
+  :attr:`~isaaclab_ppisp.PpispCfg.shader_prim_path` to import them from a
+  PPISP ``UsdShade.Shader`` already on the stage.
+* :class:`~sensors.CameraISPMode` — auto-discover an ISP shader on the
+  stage (see below).
+
+The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
+scalar coefficients, so every cloned view in a tiled batch shares the same
+ISP configuration — there is no per-view ISP today.
+
+.. code-block:: python
+
+   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
+   from isaaclab_ppisp import PpispCfg
+
+   # default — ISP disabled
+   cfg = CameraCfg(...)
+
+   # explicit coefficients
+   cfg = CameraCfg(..., isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+
+   # import coefficients from a USD shader path
+   cfg = CameraCfg(..., isp_cfg=PpispCfg(shader_prim_path="/World/Render/PPISP"))
+
+   # auto-discover from the stage
+   cfg = CameraCfg(..., isp_cfg=CameraISPMode.AUTO_ANY)
+
+Auto-discovery
+^^^^^^^^^^^^^^
+
+Auto-discovery is opt-in via :class:`~sensors.CameraISPMode`. Discovery runs
+once at camera construction using the first matched camera prim in the Camera
+sensor batch:
+
+1. Walk the stage for a USD ``RenderProduct`` whose ``camera`` relationship
+   targets the first matched camera prim **and** that has a child
+   ``UsdShade.Shader`` prim named ``PPISP``. If found, import its inputs as a
+   :class:`~isaaclab_ppisp.PpispCfg`.
+2. ``AUTO_ANY`` only: if step 1 finds nothing, fall back to the first
+   ``UsdShade.Shader`` prim named ``PPISP`` anywhere on the stage.
+3. Otherwise the ISP stays disabled for the whole Camera sensor batch.
+
+In practice this means: if the stage carries a ``ParticleField3DGaussianSplat``
+together with a ``RenderProduct`` that binds a ``PPISP`` shader child to the
+batch's first matched camera prim, the Camera sensor picks up the matching ISP
+automatically and no Python-side coefficient authoring is required.
+
+``AUTO_CAMERA`` runs step 1 only — useful when the stage carries multiple
+PPISP shaders and you want the Camera sensor batch to use exactly the one bound
+to its first matched camera prim.
+
+Renderer support
+^^^^^^^^^^^^^^^^
+
+All three shipped backends advertise the HDR AOV
+(:attr:`~renderers.RenderBufferKind.RGB_HDR`) and compose the ISP pipeline
+internally: the Isaac RTX renderer sources HDR from the Replicator
+``HdrColor`` annotator, the OVRTX renderer from its HDR render var, the
+Newton Warp renderer from its native scene-linear color buffer. Each
+backend allocates its own HDR scratch buffer when the user did not request
+``"rgb_hdr"`` in :attr:`~sensors.CameraCfg.data_types`, and dispatches the
+PPISP kernel into ``rgb`` / ``rgba`` after every render tick.
+
+Known limitations
+^^^^^^^^^^^^^^^^^
+
+* The ISP writes back into the ``rgb`` / ``rgba`` buffers. If neither is
+  requested, configuring ``isp_cfg`` raises at camera init.
+* PPISP inputs are static for the lifetime of the camera. Animated USD
+  shader inputs are collapsed to their first authored time sample.
+* Coefficients are global per camera — no per-pixel or per-region
+  authoring beyond the radial vignetting term.
+* PPISP is the only ISP implementation today. Other ISP families would
+  need a new config type and discoverer entry.
+* On the Isaac RTX and OVRTX backends, enabling ``isp_cfg`` forces RTX-side
+  tonemapping off (``/rtx/rtpt/gaussian/skipTonemapping/enabled=False``)
+  and authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each
+  camera prim so the post-render ISP is the only path that processes
+  color. Mixing this with RTX-side exposure authoring is not supported.
+* Auto-discovery resolves at camera construction; later authoring of a
+  ``RenderProduct`` or shader on the stage is not picked up.
+
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~
 
@@ -281,7 +408,7 @@ An ``info`` dictionary is available via ``tiled_camera.data.info['instance_id_se
   The ``idToLabels`` dict maps instance ID to USD prim path.
 
 Instance Segmentation
-"""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~
 
 .. figure:: ../../../_static/overview/sensors/camera_instance.jpg
     :align: center

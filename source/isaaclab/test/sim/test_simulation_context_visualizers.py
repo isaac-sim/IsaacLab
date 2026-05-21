@@ -15,10 +15,12 @@ import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 
 def test_web_visualizer_cfgs_do_not_open_browser_by_default():
@@ -503,7 +505,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
 
     visualizer._setup_viewport()
 
-    assert cfg.cam_source == "cfg"
+    assert not cfg.tiled_cam_view
     assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
     assert viewport_window.viewport_api.set_active_camera_calls == []
     assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
@@ -627,6 +629,7 @@ class _FailingInitVisualizer(_FakeVisualizer):
 def _make_context_with_settings(
     settings: dict,
     visualizer_cfgs=None,
+    default_visualizer_cfg=None,
     *,
     has_gui: bool = False,
     has_offscreen_render: bool = False,
@@ -642,6 +645,7 @@ def _make_context_with_settings(
         (),
         {
             "visualizer_cfgs": visualizer_cfgs,
+            "default_visualizer_cfg": default_visualizer_cfg,
             "physics": type("PhysicsCfg", (), {"dt": 0.01})(),
             "dt": 0.01,
             "render_interval": 1,
@@ -661,6 +665,27 @@ def _make_context_with_settings(
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
     return ctx
+
+
+def test_default_visualizer_cfg_applies_to_cli_created_configs():
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    default_cfg = VisualizerCfg(
+        tiled_cam_target_prim_path="/World/envs/*/Object",
+        tiled_cam_eye=(1.0, -1.0, 0.5),
+    )
+    ctx = _make_context_with_settings(settings, default_visualizer_cfg=default_cfg)
+
+    cfgs = ctx._resolve_visualizer_cfgs()
+
+    assert len(cfgs) == 1
+    assert isinstance(cfgs[0], NewtonVisualizerCfg)
+    assert cfgs[0].tiled_cam_target_prim_path == "/World/envs/*/Object"
+    assert cfgs[0].tiled_cam_eye == (1.0, -1.0, 0.5)
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():

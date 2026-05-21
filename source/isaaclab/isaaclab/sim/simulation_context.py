@@ -11,6 +11,7 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import toml
@@ -444,7 +445,9 @@ class SimulationContext:
                     continue
                 mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
-                default_configs.append(cfg_cls())
+                cfg = cfg_cls()
+                self._apply_default_visualizer_cfg(cfg)
+                default_configs.append(cfg)
             except (ImportError, ModuleNotFoundError) as exc:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
@@ -463,6 +466,16 @@ class SimulationContext:
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
         return default_configs
+
+    def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
+        """Apply shared default visualizer settings to a backend-specific config."""
+        default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
+        if default_cfg is None:
+            return
+        for field in fields(default_cfg):
+            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+                continue
+            setattr(cfg, field.name, getattr(default_cfg, field.name))
 
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
@@ -635,8 +648,20 @@ class SimulationContext:
                 viz.set_camera_view(eye, target)
             self._pending_camera_view = None
 
+        if not self._visualizers and self._scene_data_provider is not None:
+            close_provider = getattr(self._scene_data_provider, "close", None)
+            if callable(close_provider):
+                close_provider()
+            self._scene_data_provider = None
+
     def get_scene_data_provider(self) -> SceneDataProvider:
         return self._scene_data_provider
+
+    def register_interactive_scene(self, scene) -> None:
+        """Register the active scene so scene data providers can expose scene-owned sensors."""
+        self._interactive_scene = scene
+        if self._scene_data_provider is not None:
+            self._scene_data_provider.set_interactive_scene(scene)
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
         """Return scene-data requirements resolved from visualizers/renderers."""

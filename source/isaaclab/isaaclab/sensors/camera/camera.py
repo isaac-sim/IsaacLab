@@ -17,7 +17,6 @@ from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -148,16 +147,7 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
-            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
-
-        # Compute camera orientation (convention conversion) and spawn
+        # Compute camera orientation (convention conversion) and spawn.
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
         rot_offset = convert_camera_frame_orientation_convention(
             rot, origin=self.cfg.offset.convention, target="opengl"
@@ -166,6 +156,34 @@ class Camera(SensorBase):
         if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
             self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
         self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
+
+        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
+        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
+        # HDR-routing flag flipped on the RTX-bearing backends.
+        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
+
+        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
+        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
+        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
+        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
+        # and several env classes read it before the renderer's __init__ runs.
+        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
+        if renderer_type == "isaac_rtx":
+            from isaaclab.app.settings_manager import get_settings_manager
+
+            settings = get_settings_manager()
+            settings.set_bool("/isaaclab/render/rtx_sensors", True)
+            if require_hdr_output:
+                settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+        elif renderer_type == "ovrtx" and require_hdr_output:
+            from isaaclab.app.settings_manager import get_settings_manager
+
+            get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+            # FIXME: settings set_bool is a no-op for ovrtx
+            # warning only since it affects only ParticleField3DGaussianSplat scene
+            logger.warning(
+                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
+            )
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
@@ -330,7 +348,7 @@ class Camera(SensorBase):
             elif not isinstance(positions, torch.Tensor):
                 positions = torch.tensor(positions, device=self._device)
             positions = positions.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
-            pos_wp = wp.from_torch(positions.contiguous())
+            pos_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3f)
         ori_wp = None
         if orientations is not None:
             if isinstance(orientations, np.ndarray):
@@ -339,7 +357,7 @@ class Camera(SensorBase):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
-            ori_wp = wp.from_torch(orientations.contiguous())
+            ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f)
         idx_wp = self._resolve_env_ids_wp(env_ids)
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
@@ -400,8 +418,8 @@ class Camera(SensorBase):
         orientations = quat_from_matrix(rotation_matrix)
         idx_wp = wp.from_torch(env_ids_torch.contiguous(), dtype=wp.int32)
         self._view.set_world_poses(
-            wp.from_torch(eyes.contiguous()),
-            wp.from_torch(orientations.contiguous()),
+            wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
+            wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
             idx_wp,
         )
 
@@ -453,6 +471,30 @@ class Camera(SensorBase):
         self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self._renderer).__name__)
 
+        # Build the render spec early — both the wrapper ISP (which delegates
+        # any renderer-side per-camera setup) and ``create_render_data`` consume
+        # it, and the prims are already authored at this point.
+        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        env_0_prefix = "/World/envs/env_0/"
+        rel_under_env0 = (
+            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
+        )
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
+        render_spec = CameraRenderSpec(
+            cfg=self.cfg,
+            device=device_str,
+            num_instances=len(cam_paths),
+            camera_prim_paths=cam_paths,
+            view_count=len(cam_paths),
+            camera_path_relative_to_env_0=rel_under_env0,
+        )
+
+        # Delegate per-camera USD setup to the renderer — must run **before**
+        # ``ensure_prepare_stage`` so renderers that snapshot the stage
+        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
+        # exported USD.
+        self._renderer.prepare_cameras(self.stage, render_spec)
+
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
         sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
@@ -480,21 +522,6 @@ class Camera(SensorBase):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        # View needs to exist before creating render data
-        cam_paths = tuple(cam_prim.GetPath().pathString for cam_prim in self._view.prims)
-        env_0_prefix = "/World/envs/env_0/"
-        rel_under_env0 = (
-            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
-        )
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
-        render_spec = CameraRenderSpec(
-            cfg=self.cfg,
-            device=device_str,
-            num_instances=self.num_instances,
-            camera_prim_paths=cam_paths,
-            view_count=self._view.count,
-            camera_path_relative_to_env_0=rel_under_env0,
-        )
         self._render_data = self._renderer.create_render_data(render_spec)
 
         # Create internal buffers (includes intrinsic matrix and pose init)

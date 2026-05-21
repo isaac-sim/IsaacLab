@@ -13,6 +13,7 @@ keywords = ["robotics", "simulation", "physx"]
 
 [dependencies]
 "isaaclab" = {}
+"isaaclab_ppisp" = {}
 
 [core]
 reloadable = false

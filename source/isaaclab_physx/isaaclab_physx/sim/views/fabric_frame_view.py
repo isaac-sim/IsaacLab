@@ -23,12 +23,6 @@ from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 
-# TODO: extend this to ``cuda:N`` once we wire up multi-GPU support for the view.
-# Recent Kit / USDRT releases do support multi-GPU ``SelectPrims``, but the
-# rest of the FabricFrameView wiring (selections, indexed arrays, etc.) still
-# assumes a single device — to be tackled in a follow-up.
-_fabric_supported_devices = ("cpu", "cuda", "cuda:0")
-
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
     """Ensure array is compatible with Fabric kernels (2-D float32).
@@ -54,8 +48,11 @@ class FabricFrameView(BaseFrameView):
     when Fabric is disabled).
 
     When Fabric is enabled, world-pose and scale operations use Warp kernels
-    operating on ``omni:fabric:worldMatrix``.  All other operations delegate
-    to the internal USD view.
+    operating on ``omni:fabric:worldMatrix``.  Fabric acceleration runs on
+    the same CUDA device the view was constructed with — ``cuda:0``,
+    ``cuda:1``, or any other available CUDA index — so this view is safe
+    to use from distributed-training workers pinned to non-primary GPUs.
+    All other operations delegate to the internal USD view.
 
     After every Fabric write (``set_world_poses``, ``set_scales``),
     :meth:`PrepareForReuse` is called on the ``PrimSelection`` to notify
@@ -78,7 +75,9 @@ class FabricFrameView(BaseFrameView):
 
         Args:
             prim_path: USD prim-path pattern to match.
-            device: Device for Warp arrays (``"cpu"`` or ``"cuda:0"``).
+            device: Device for Warp arrays. Either ``"cpu"`` or any CUDA
+                device string (``"cuda:0"``, ``"cuda:1"``, …); Fabric
+                acceleration is supported on every CUDA index.
             validate_xform_ops: Whether to validate prim xform-ops.
             stage: USD stage; defaults to the current sim context's stage.
             **kwargs: Additional keyword arguments (ignored). Matches the signature of
@@ -91,15 +90,9 @@ class FabricFrameView(BaseFrameView):
 
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
-
-        if self._use_fabric and self._device not in _fabric_supported_devices:
-            logger.warning(
-                f"Fabric mode is not supported on device '{self._device}'. "
-                "USDRT SelectPrims and Warp fabric arrays are currently "
-                f"only supported on {', '.join(_fabric_supported_devices)}. "
-                "Falling back to standard USD operations. This may impact performance."
-            )
-            self._use_fabric = False
+        # TODO(pv): Misleading abstraction — FabricFrameView can fall back to USD internally;
+        # the concrete class should be determined by the factory instead. (PR #5673 pv/fabric-view-no-fallback)
+        # TODO(pv): Fuse set_world_poses/set_scales into single kernel launch (PR #5674 pv/fabric-fused-compose)
 
         self._fabric_initialized = False
         self._fabric_usd_sync_done = False
@@ -403,9 +396,6 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.arange_k, dim=self.count, inputs=[self._default_view_indices], device=self._device
         )
         wp.synchronize()
-
-        # The constructor should have taken care of this, but double check here to avoid regressions
-        assert self._device in _fabric_supported_devices
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
