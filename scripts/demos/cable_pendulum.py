@@ -58,20 +58,21 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
 
     num_points = 20
     segment_length = 0.015
-    cable_length = (num_points - 1) * segment_length
     width = 0.01
-    xy_jitter = 0.5
     z_base = 0.4
-    z_spacing = 1.5 * width
+    plug_mass_min = 0.005
+    plug_mass_max = 0.05
 
     print(f"[INFO]: Spawning {num_cables} cable+plug pairs...")
     entities: dict[str, CableObject | RigidObject] = {}
+    num_rows = math.ceil(math.sqrt(num_cables))
     for idx in tqdm.tqdm(range(num_cables)):
-        angle = random.uniform(0.0, 2.0 * math.pi)
-        cx = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.cos(angle)
-        cy = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle)
-        cz = z_base + idx * z_spacing
-        plug_mass = random.uniform(0.005, 0.05)
+        cx = (idx % num_rows) * 0.5
+        cy = (idx // num_rows) * 0.5
+        cz = z_base
+        plug_mass = random.uniform(plug_mass_min, plug_mass_max)
+        mass_t = (plug_mass - plug_mass_min) / (plug_mass_max - plug_mass_min)
+        plug_color = (mass_t, 1.0 - mass_t, 0.0)
 
         anchor_cfg = RigidObjectCfg(
             prim_path=f"/World/Origin/Anchor{idx:03d}",
@@ -82,7 +83,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
-                pos=(cx+(num_points-1)*segment_length, cy, cz),
+                pos=(cx + (num_points - 1) * segment_length, cy, cz),
             ),
         )
         entities[f"Anchor{idx:03d}"] = RigidObject(cfg=anchor_cfg)
@@ -90,12 +91,12 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
         plug_cfg = RigidObjectCfg(
             prim_path=f"/World/Origin/Plug{idx:03d}",
             spawn=sim_utils.CylinderCfg(
-                radius=0.01,
+                radius=0.04,
                 height=0.04,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
                 mass_props=sim_utils.MassPropertiesCfg(mass=plug_mass),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=plug_color),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
                 pos=(cx, cy, cz),
@@ -110,7 +111,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                 positions=[(i * segment_length, 0.0, 0.0) for i in range(num_points)],
                 width=width,
                 visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(random.random(), random.random(), random.random())
+                    diffuse_color=(plug_color)
                 ),
                 physics_material=NewtonCableMaterialCfg(
                     stretch_stiffness=1e3,
