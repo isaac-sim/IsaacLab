@@ -9,6 +9,10 @@ FROM isaac-lab-base${DOCKER_NAME_SUFFIX} AS ros2
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE
 
+# The base Isaac Lab image ends as the non-root runtime user. Switch to root
+# for ROS apt setup, then restore the non-root user at the end.
+USER root
+
 # ROS2 Humble Apt installations
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -32,8 +36,10 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     # Add sourcing of setup.bash to .bashrc
-    echo "source /opt/ros/humble/setup.bash" >> ${HOME}/.bashrc
+    echo "source /opt/ros/humble/setup.bash" >> ${DOCKER_USER_HOME}/.bashrc
 
 # Copy the RMW specifications for ROS2
 # https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html
-COPY docker/.ros/ ${DOCKER_USER_HOME}/.ros/
+COPY --chown=isaaclab:isaaclab docker/.ros/ ${DOCKER_USER_HOME}/.ros/
+
+USER isaaclab

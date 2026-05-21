@@ -15,6 +15,11 @@
     RigidObjectCollection
     RigidObjectCollectionData
     RigidObjectCollectionCfg
+    BaseDeformableObject
+    BaseDeformableObjectData
+    DeformableObject
+    DeformableObjectData
+    DeformableObjectCfg
     Articulation
     ArticulationData
     ArticulationCfg
@@ -70,6 +75,37 @@ Rigid Object Collection
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+Deformable Object
+-----------------
+
+.. autoclass:: DeformableObject
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: BaseDeformableObject
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: DeformableObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: BaseDeformableObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: DeformableObjectCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type, InitialStateCfg
 
 Articulation
 ------------

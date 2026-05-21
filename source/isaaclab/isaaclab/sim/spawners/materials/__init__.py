@@ -60,8 +60,12 @@ _stub_getattr, _stub_dir, __all__ = lazy_export()
 # Resolved lazily on first access so importing ``isaaclab.sim.spawners.materials`` does
 # not require ``isaaclab_physx`` to be installed.
 _PHYSX_FORWARDS = frozenset({
+    "DeformableBodyMaterialCfg",
     "RigidBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
     "PhysxRigidBodyMaterialCfg",
+    "PhysxDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableBodyMaterialCfg",
 })
 
 

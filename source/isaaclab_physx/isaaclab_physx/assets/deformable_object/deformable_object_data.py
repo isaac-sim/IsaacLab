@@ -156,7 +156,7 @@ class DeformableObjectData:
             wp.launch(
                 compute_nodal_state_w,
                 dim=(self._num_instances, self._max_sim_vertices),
-                inputs=[self.nodal_pos_w, self.nodal_vel_w],
+                inputs=[self.nodal_pos_w.warp, self.nodal_vel_w.warp],
                 outputs=[self._nodal_state_w.data],
                 device=self.device,
             )
@@ -180,7 +180,7 @@ class DeformableObjectData:
             wp.launch(
                 compute_mean_vec3f_over_vertices,
                 dim=(self._num_instances,),
-                inputs=[self.nodal_pos_w, self._max_sim_vertices],
+                inputs=[self.nodal_pos_w.warp, self._max_sim_vertices],
                 outputs=[self._root_pos_w.data],
                 device=self.device,
             )
@@ -200,7 +200,7 @@ class DeformableObjectData:
             wp.launch(
                 compute_mean_vec3f_over_vertices,
                 dim=(self._num_instances,),
-                inputs=[self.nodal_vel_w, self._max_sim_vertices],
+                inputs=[self.nodal_vel_w.warp, self._max_sim_vertices],
                 outputs=[self._root_vel_w.data],
                 device=self.device,
             )

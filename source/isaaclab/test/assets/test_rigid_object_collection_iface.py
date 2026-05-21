@@ -14,16 +14,42 @@ collection interfaces need to comply with the same interface contract.
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Launch Isaac Sim Simulator first (when available)."""
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
+import os
+import sys
 from unittest.mock import MagicMock
+
+# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
+# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
+# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
+# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
+# set (bare Python, no Kit at all).
+_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
+    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+)
+
+if not _kitless:
+    from isaaclab.app import AppLauncher
+
+    simulation_app = AppLauncher(headless=True).app
+else:
+    simulation_app = None
+    # Stub out the Kit/Omniverse modules that are not present under
+    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
+    # ``omni`` is a real namespace package, so missing submodules also need
+    # to be installed as attributes on it -- ``sys.modules`` alone is not
+    # enough because attribute access on the real ``omni`` won't fall
+    # through to ``sys.modules``.
+    import omni as _omni
+
+    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
+        _stub = MagicMock()
+        sys.modules[f"omni.{_mod}"] = _stub
+        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
+        setattr(_omni, _mod.split(".", 1)[0], _stub)
+    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
+        sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
 import pytest
@@ -73,6 +99,23 @@ try:
 
     BACKENDS.append("newton")
 except ImportError:
+    pass
+
+try:
+    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection import (
+        RigidObjectCollection as OvPhysxRigidObjectCollection,
+    )
+    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection_data import (
+        RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
+    )
+    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+
+    # Guard against stub implementations (not yet functional).
+    if not hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
+        raise AttributeError("OvPhysxRigidObjectCollection is a stub; skipping ovphysx backend")
+
+    BACKENDS.append("ovphysx")
+except (ImportError, AttributeError):
     pass
 
 
@@ -209,6 +252,61 @@ def create_newton_rigid_object_collection(
     return collection, mock_view
 
 
+def create_ovphysx_rigid_object_collection(
+    num_instances: int = 2,
+    num_bodies: int = 3,
+    device: str = "cuda:0",
+):
+    """Create a test OVPhysX RigidObjectCollection instance with mocked tensor bindings."""
+    body_names = [f"object_{i}" for i in range(num_bodies)]
+
+    collection = object.__new__(OvPhysxRigidObjectCollection)
+
+    rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
+    collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
+
+    # Use articulation-mode bindings with num_joints=0 to get (N, B, ...) shaped tensors.
+    mock_bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=0,
+        num_bodies=num_bodies,
+        body_names=body_names,
+        asset_kind="articulation",
+    )
+    mock_bindings.set_random_data()
+
+    object.__setattr__(collection, "_device", device)
+    object.__setattr__(collection, "_ovphysx", MagicMock())
+    object.__setattr__(collection, "_bindings", mock_bindings.bindings)
+    object.__setattr__(collection, "_num_instances", num_instances)
+    object.__setattr__(collection, "_num_bodies", num_bodies)
+    object.__setattr__(collection, "_body_names_list", body_names)
+
+    # Create RigidObjectCollectionData
+    data = OvPhysxRigidObjectCollectionData(mock_bindings.bindings, num_bodies, device)
+    data.num_instances = num_instances
+    data.num_bodies = num_bodies
+    data._is_primed = True
+    object.__setattr__(collection, "_data", data)
+
+    # Allocate the buffers that RigidObjectCollection normally allocates in _initialize_impl.
+    collection._create_buffers()
+
+    # Replace the real wrench composers with mocks for iface coverage.
+    mock_inst_wrench = MockWrenchComposer(collection)
+    mock_perm_wrench = MockWrenchComposer(collection)
+    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising
+    object.__setattr__(collection, "_initialize_handle", None)
+    object.__setattr__(collection, "_invalidate_initialize_handle", None)
+    object.__setattr__(collection, "_prim_deletion_handle", None)
+    object.__setattr__(collection, "_debug_vis_handle", None)
+
+    return collection, mock_bindings
+
+
 def create_mock_rigid_object_collection(
     num_instances: int = 2,
     num_bodies: int = 3,
@@ -232,6 +330,8 @@ def get_rigid_object_collection(
 ):
     if backend == "physx":
         return create_physx_rigid_object_collection(num_instances, num_bodies, device)
+    elif backend == "ovphysx":
+        return create_ovphysx_rigid_object_collection(num_instances, num_bodies, device)
     elif backend == "newton":
         return create_newton_rigid_object_collection(num_instances, num_bodies, device)
     elif backend.lower() == "mock":

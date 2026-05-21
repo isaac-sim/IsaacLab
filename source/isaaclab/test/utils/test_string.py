@@ -3,17 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# NOTE: While we don't actually use the simulation app in this test, we still need to launch it
-#       because warp is only available in the context of a running simulation
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import random
 
 import pytest
@@ -132,7 +121,8 @@ def test_resolve_matching_names_with_joint_name_strings():
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
     # test matching names with regex but shuffled
     # randomize order of previous query list
-    random.shuffle(query_list)
+    rng = random.Random(0)
+    rng.shuffle(query_list)
     index_list, names_list = string_utils.resolve_matching_names(query_list, robot_joint_names)
     ground_truth_index_list = [0, 1, 4, 5, 8, 9]
     assert names_list != query_list

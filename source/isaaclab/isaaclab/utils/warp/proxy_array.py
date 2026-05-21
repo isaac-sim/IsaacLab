@@ -203,6 +203,24 @@ class ProxyArray:
         return self._warp.__array_interface__
 
     # ------------------------------------------------------------------
+    # Attribute forwarding (deprecation bridge — delegates to .torch)
+    # ------------------------------------------------------------------
+
+    def __getattr__(self, name: str):
+        """Forward unknown attribute access to the torch view (deprecation bridge).
+
+        Called only when normal attribute lookup fails (i.e. the attribute is not
+        defined on :class:`ProxyArray` itself), so explicit properties such as
+        ``shape``, ``dtype``, ``device``, ``warp``, and ``torch`` are unaffected.
+
+        This allows tensor instance methods (``float()``, ``clone()``, ``cpu()``,
+        ``permute()``, etc.) to be called on a :class:`ProxyArray` without an
+        explicit ``.torch`` accessor, emitting a one-time :class:`DeprecationWarning`.
+        """
+        self._warn_implicit()
+        return getattr(self.torch, name)
+
+    # ------------------------------------------------------------------
     # Indexing (deprecation bridge — delegates to .torch)
     # ------------------------------------------------------------------
 

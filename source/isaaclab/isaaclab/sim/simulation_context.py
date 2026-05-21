@@ -11,6 +11,7 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import toml
@@ -29,7 +30,8 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene.scene_data_provider import SceneDataProvider
+from isaaclab.scene_data import SceneDataProvider
+from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -213,6 +215,8 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+
+        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -441,7 +445,9 @@ class SimulationContext:
                     continue
                 mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
-                default_configs.append(cfg_cls())
+                cfg = cfg_cls()
+                self._apply_default_visualizer_cfg(cfg)
+                default_configs.append(cfg)
             except (ImportError, ModuleNotFoundError) as exc:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
@@ -460,6 +466,16 @@ class SimulationContext:
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
         return default_configs
+
+    def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
+        """Apply shared default visualizer settings to a backend-specific config."""
+        default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
+        if default_cfg is None:
+            return
+        for field in fields(default_cfg):
+            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+                continue
+            setattr(cfg, field.name, getattr(default_cfg, field.name))
 
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
@@ -632,8 +648,20 @@ class SimulationContext:
                 viz.set_camera_view(eye, target)
             self._pending_camera_view = None
 
+        if not self._visualizers and self._scene_data_provider is not None:
+            close_provider = getattr(self._scene_data_provider, "close", None)
+            if callable(close_provider):
+                close_provider()
+            self._scene_data_provider = None
+
     def get_scene_data_provider(self) -> SceneDataProvider:
         return self._scene_data_provider
+
+    def register_interactive_scene(self, scene) -> None:
+        """Register the active scene so scene data providers can expose scene-owned sensors."""
+        self._interactive_scene = scene
+        if self._scene_data_provider is not None:
+            self._scene_data_provider.set_interactive_scene(scene)
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
         """Return scene-data requirements resolved from visualizers/renderers."""
@@ -761,13 +789,11 @@ class SimulationContext:
         if not self._visualizers:
             return
 
+        for viz in self._visualizers:
+            viz.flush_startup_messages()
+
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
-
-        # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
-            self.vis_marker_registry.dispatch_callbacks()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
         # consumes that state later in this method.
@@ -852,6 +878,22 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
+    # ------------------------------------------------------------------
+    # Service locator
+    # ------------------------------------------------------------------
+
+    @property
+    def services(self) -> ServiceLocator:
+        """Typed service registry for backend-specific singletons.
+
+        Usage::
+
+            sim_context.services[FabricStageCache] = cache
+            cache = sim_context.services[FabricStageCache]
+            del sim_context.services[FabricStageCache]  # closes and removes
+        """
+        return self._services
+
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
@@ -865,6 +907,10 @@ class SimulationContext:
                 viz.close()
             cls._instance._visualizers.clear()
 
+            # Close and drop all registered singleton services
+            service_errors: list[Exception] = []
+            cls._instance._services.close_all(caught_exceptions=service_errors)
+
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
@@ -877,6 +923,11 @@ class SimulationContext:
 
             gc.collect()
             logger.info("SimulationContext cleared")
+
+            if service_errors:
+                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
+                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+                raise RuntimeError(msg) from service_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:

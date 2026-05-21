@@ -30,6 +30,8 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
+    # tetrahedralization for deformable bodies (pinned: >=0.3 unconditionally imports pyvista at package import time)
+    "pytetwild==0.2.3",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -71,7 +73,7 @@ INSTALL_REQUIRES += [
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    f"usd-core==25.8.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-core==25.11.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 
@@ -87,32 +89,24 @@ INSTALL_REQUIRES += [
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
-# Isaac Lab subpackages + Isaac Sim
+# Optional extras for pip/uv installs.
+# Use ``pip install isaaclab[isaacsim]`` to add Isaac Sim, or
+# ``pip install isaaclab[all]`` to pull in all sub-packages and extras.
 EXTRAS_REQUIRE = {
     "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
-    # Individual Isaac Lab sub-packages
-    "assets": ["isaaclab_assets"],
-    "physx": ["isaaclab_physx"],
-    "contrib": ["isaaclab_contrib"],
-    "mimic": ["isaaclab_mimic"],
-    "newton": ["isaaclab_newton"],
-    "rl": ["isaaclab_rl"],
-    "tasks": ["isaaclab_tasks"],
-    "teleop": ["isaaclab_teleop"],
-    "visualizers": ["isaaclab_visualizers[all]"],
-    "visualizers-kit": ["isaaclab_visualizers[kit]"],
-    "visualizers-newton": ["isaaclab_visualizers[newton]"],
-    "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
-    "visualizers-viser": ["isaaclab_visualizers[viser]"],
-    # Convenience: all sub-packages (does not include isaacsim)
     "all": [
+        "isaacsim[all,extscache]==5.1.0",
         "isaaclab_assets",
-        "isaaclab_physx",
         "isaaclab_contrib",
+        "isaaclab_experimental",
         "isaaclab_mimic",
-        "isaaclab_newton",
-        "isaaclab_rl",
+        "isaaclab_newton[all]",
+        "isaaclab_ov",
+        "isaaclab_ovphysx",
+        "isaaclab_physx[newton]",
+        "isaaclab_rl[all]",
         "isaaclab_tasks",
+        "isaaclab_tasks_experimental",
         "isaaclab_teleop",
         "isaaclab_visualizers[all]",
     ],
@@ -133,6 +127,13 @@ setup(
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
+    entry_points={
+        "console_scripts": [
+            "isaaclab=isaaclab.cli:cli",
+            "play=isaaclab.cli:play",
+            "train=isaaclab.cli:train",
+        ],
+    },
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[

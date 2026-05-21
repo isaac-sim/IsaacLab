@@ -80,6 +80,7 @@ Guidelines for modifications:
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fatima Anes
 * Felipe Mohr
 * Felix Yu
 * Frank Lai
@@ -137,6 +138,7 @@ Guidelines for modifications:
 * Neel Anand Jawale
 * Nicola Loi
 * Nicholas Blauch
+* Nicolas Moenne-Loccoz
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
@@ -188,6 +190,7 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xu Li
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
