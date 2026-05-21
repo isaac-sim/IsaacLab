@@ -190,8 +190,10 @@ jobs:
               uv pip install pytest pytest-timeout
 
               # Use ./isaaclab.sh -i (mirrors user install path).
-              # -i none installs core submodules + isaacsim + restores cu130 torch on aarch64.
-              ./isaaclab.sh -i none
+              # Tokens: isaacsim (Tier 1 kit-launch + controllers need it),
+              #         ov[ovrtx] (Tier 2 newton-ovrtx kitless rendering needs ovrtx).
+              # _ensure_cuda_torch fires automatically after isaacsim install.
+              ./isaaclab.sh -i isaacsim,'ov[ovrtx]'
               python -c 'import isaaclab, isaaclab_assets, isaaclab_physx, isaaclab_tasks; print(\"editable imports ok\")'
 
               set +e  # individual tier failures do not abort the script
