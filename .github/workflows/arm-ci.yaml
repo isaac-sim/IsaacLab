@@ -4,16 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # ARM/Spark CI — exercises Isaac Lab on aarch64 Linux self-hosted runners
-# (NVIDIA DGX Spark). Mirrors the spirit of build.yaml but stays lean by
-# running tests inside the multi-arch nvcr.io/nvidian/isaac-sim image
-# instead of building a full isaac-lab-ci image. (Once the apt deps and
-# editable-install scope stabilize, we can promote to a Dockerfile.base
-# build that mirrors build.yaml's structure end-to-end.)
+# (NVIDIA DGX Spark). Mirrors build.yaml's structure: one job builds
+# Dockerfile.base for linux/arm64 via the shared ecr-build-push-pull action
+# (with ECR-backed deps caching), downstream jobs pull the same image and
+# `docker run` pytest inside it.
 #
-# Single job, multiple steps. Each test step sets `continue-on-error: true`
-# so a failure in one tier does not abort the others. Each pytest invocation
-# passes `--timeout=N --timeout-method=signal --continue-on-collection-errors`
-# so a hung or import-broken test cannot consume the whole job slot.
+# Each test step is wrapped with `continue-on-error: true` so a failure in
+# one tier does not abort the others. Each pytest invocation passes
+# `--timeout=N --timeout-method=signal --continue-on-collection-errors` so a
+# hung or import-broken test cannot consume the whole job slot.
 #
 # Marker-driven discovery: `pytest <path> -m arm_ci`. Adding a new aarch64-safe
 # test = tag it with arm_ci, no yaml edit.
@@ -45,6 +44,9 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  # Arch-suffixed tag so the per-commit ECR lookup, layer cache, and local
+  # docker tag never collide with the linux/amd64 image built by build.yaml.
+  CI_IMAGE_TAG: isaac-lab-ci-arm64:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
   changes:
@@ -120,73 +122,74 @@ jobs:
           echo "isaacsim_image_name=$name" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$tag" >> "$GITHUB_OUTPUT"
 
-  arm-ci:
-    name: arm-ci
+  build-arm:
+    name: Build Base Docker Image (arm64)
     runs-on: [self-hosted, arm64]
     needs: [changes, config]
     if: needs.changes.outputs.run_arm_ci == 'true'
-    timeout-minutes: 120
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
           lfs: false
 
-      - name: Login to nvcr.io
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${NGC_API_KEY:-}" ]; then
-            echo "${NGC_API_KEY}" | docker login nvcr.io --username '$oauthtoken' --password-stdin
-          fi
+      - name: Build and push to ECR
+        uses: ./.github/actions/ecr-build-push-pull
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base-arm64
+          platform: linux/arm64
 
-      - name: Build arm-ci docker image
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Build the lightweight arm-ci image from docker/Dockerfile.arm-ci.
-          # That Dockerfile layers cmake/build-essential/git plus EULA env vars
-          # and a bash entrypoint onto the multi-arch Isaac Sim base image
-          # (auto-resolves to the arm64 manifest on aarch64 hosts).
-          docker build \
-            --platform linux/arm64 \
-            --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }}" \
-            --build-arg "ISAACSIM_VERSION_ARG=${{ needs.config.outputs.isaacsim_image_tag }}" \
-            -f docker/Dockerfile.arm-ci \
-            -t isaac-lab-arm-ci:${{ github.sha }} \
-            docker
+  arm-ci:
+    name: arm-ci
+    runs-on: [self-hosted, arm64]
+    needs: [build-arm, config]
+    if: needs.build-arm.result == 'success'
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
 
-      - name: Install isaaclab via ./isaaclab.sh -i + run all tier 1/2 tests
+      - name: Pull Base Docker image
+        uses: ./.github/actions/ecr-build-push-pull
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base-arm64
+          platform: linux/arm64
+
+      - name: Run tier 1/2 tests
         shell: bash
         timeout-minutes: 90
         run: |
           set -euo pipefail
-          # Mirrors Dockerfile.base's pattern: symlink _isaac_sim → /isaac-sim
-          # so ./isaaclab.sh finds the bundled Isaac Sim Python (no uv venv,
-          # no separate isaacsim pip install — the docker image already
-          # ships Sim).
           mkdir -p reports
+          # Dockerfile.base already installs isaaclab via ./isaaclab.sh --install
+          # and symlinks _isaac_sim → /isaac-sim, so the container is ready to
+          # run pytest immediately. We bind-mount the workspace so the test
+          # files reflect this PR's checkout (not the image's frozen copy).
           docker run --rm --user root \
             -v "${{ github.workspace }}":/workspace/isaaclab \
             -w /workspace/isaaclab \
             --gpus all \
-            isaac-lab-arm-ci:${{ github.sha }} "
-              set -e
-              ln -sf /isaac-sim _isaac_sim
-
-              # ./isaaclab.sh detects _isaac_sim and uses its bundled python.sh.
-              # -i 'ov[ovrtx]' installs ov submodule + ovrtx selector on top of
-              # the bundled Sim; isaacsim itself stays the bundled version.
-              # _ensure_cuda_torch fires after install and restores cu130 torch
-              # if anything pulls a CPU wheel.
-              ./isaaclab.sh -i 'ov[ovrtx]'
-              ./isaaclab.sh -p -m pip install pytest pytest-timeout
-              ./isaaclab.sh -p -c \"import isaaclab, isaaclab_assets, isaaclab_physx, isaaclab_tasks; print('editable imports ok')\"
-
+            -e ACCEPT_EULA=Y \
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e PRIVACY_CONSENT=Y \
+            --entrypoint bash \
+            "${{ env.CI_IMAGE_TAG }}" -lc '
               set +e  # individual tier failures do not abort the script
 
-              echo '::group::Tier 1 — general-arm smoke (torch + scipy)'
+              echo "::group::Tier 1 — general-arm smoke (torch + scipy)"
               ./isaaclab.sh -p -m pytest \
                 source/isaaclab/test/deps \
                 --ignore=tools/conftest.py \
@@ -196,25 +199,21 @@ jobs:
                 --timeout-method=signal \
                 -v \
                 --junitxml=reports/general-arm.xml
-              echo '::endgroup::'
+              echo "::endgroup::"
 
-              echo '::group::Tier 1 — kit-launch-arm (boot Kit headless)'
-              timeout 120 ./isaaclab.sh -p -c \"from isaaclab.app import AppLauncher; sim = AppLauncher(headless=True).app; assert sim is not None, 'AppLauncher did not return a SimulationApp'; sim.close()\"
-              echo '::endgroup::'
+              echo "::group::Tier 1 — kit-launch-arm (boot Kit headless)"
+              timeout 120 ./isaaclab.sh -p -c "from isaaclab.app import AppLauncher; sim = AppLauncher(headless=True).app; assert sim is not None, \"AppLauncher did not return a SimulationApp\"; sim.close()"
+              echo "::endgroup::"
 
-              # Tier 2 uses tools/conftest.py's subprocess-per-file orchestrator
+              # Tier 2 uses tools/conftest.py subprocess-per-file orchestrator
               # (CI_MARKER=arm_ci) so aarch64 Kit re-init across multiple
-              # AppLauncher-at-module-level test files doesn't SIGSEGV — each
-              # test file gets its own Python process.
-              echo '::group::Tier 2 — arm_ci marker discovery (subprocess-per-file)'
-              # ./isaaclab.sh -p wrapper invokes the bundled Sim's python.sh
-              # (no uv venv in this approach; bare `python` is not on PATH).
-              # CI_MARKER env var propagates through exec to the pytest subprocess
-              # → tools/conftest.py picks it up.
+              # AppLauncher-at-module-level test files cannot SIGSEGV — each
+              # test file gets its own python process.
+              echo "::group::Tier 2 — arm_ci marker discovery (subprocess-per-file)"
               CI_MARKER=arm_ci ./isaaclab.sh -p -m pytest tools -v --junitxml=reports/tier2-arm.xml
-              echo '::endgroup::'
+              echo "::endgroup::"
               true
-            "
+            '
 
       - name: Upload test reports
         if: always()
@@ -223,9 +222,3 @@ jobs:
           name: arm-ci-reports
           path: reports/
           retention-days: 7
-
-      - name: Clean up per-run image
-        if: always()
-        shell: bash
-        run: |
-          docker rmi -f isaac-lab-arm-ci:${{ github.sha }} || true
