@@ -299,13 +299,27 @@ Limitations
   so Kit-triggered pre-render FK passes don't collapse rod segments onto their
   parent anchors. Once Newton patches cable joints in ``eval_fk``, that mask
   and override can be removed.
-* Self-contact between cable segments uses the rigid contact pipeline
-  (``shape_material_ke`` / ``kd`` / ``mu`` on
-  :class:`~isaaclab_contrib.deformable.NewtonModelCfg`), not VBD particle
-  self-contact. For dense cable piles, lower ``shape_material_ke``, raise
-  ``shape_material_kd``, and increase
-  :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.rigid_body_contact_buffer_size`
-  before raising iterations.
+* No intra-cable self-collision. All capsule segments of a single cable share a
+  unique negative ``shape_collision_group`` (``-(1 + cable_idx)``), and Newton's
+  filtering rule treats two shapes in the *same negative* group as non-colliding.
+  This is intentional: adjacent segments share a joint anchor and would
+  otherwise overlap there every step, producing jittery contact forces.
+  Consequences:
+
+  * A cable can pass through itself (e.g. a tight loop will not self-arrest).
+  * Cable-vs-ground and cable-vs-cable collisions still work
+    (negative-vs-positive and different-negative groups both collide).
+  * There is currently no public knob to opt back into self-collision; users
+    who need it must edit ``shape_cfg.collision_group`` in
+    :func:`~isaaclab_contrib.cable.cable_object._add_cable_to_builder` and
+    accept the resulting contact noise at segment joints.
+
+  In the future we would like to filter only *directly neighboring* segments
+  (which share a joint anchor and produce the jitter) and let non-adjacent
+  segments of the same cable collide normally, so a cable can self-arrest when
+  it loops back on itself. This requires per-pair collision filtering rather
+  than a single shared group, which Newton does not currently expose for rod
+  graphs.
 
 For implementation details of the cable registry, replicate hook, and Fabric
 curve sync, see :class:`~isaaclab_contrib.cable.CableObject` and the
