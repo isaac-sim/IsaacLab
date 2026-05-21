@@ -63,20 +63,55 @@ make install PREFIX=/usr/local   # -> /usr/local/lib/libenvguard.so
 
 ## Activation
 
-Set `LD_PRELOAD` to the absolute path of the shim before invoking any
-process whose env-function callers are not thread-safe:
+There are two activation mechanisms; **use `/etc/ld.so.preload` in CI**.
+
+### `/etc/ld.so.preload` (recommended in CI)
+
+Write the absolute path of the shim into the system-wide preload file:
 
 ```bash
-export LD_PRELOAD=/usr/local/lib/libenvguard.so
+echo /usr/local/lib/libenvguard.so | sudo tee /etc/ld.so.preload
 ```
 
-In our CI Docker images we set this as a container-level `ENV` so it is
-inherited by every test process automatically. See
-`docker/Dockerfile.base` and `source/isaaclab/test/install_ci/Dockerfile.installci`
-for the integration points.
+The dynamic linker reads this file at every process start and loads its
+libraries unconditionally — **a child cannot turn it off by setting
+`LD_PRELOAD` to something else**. This is what we need because Isaac Sim's
+`_isaac_sim/python.sh` does exactly that, on its line 66:
 
-If you need to disable the shim for a specific process (e.g. for debugging)
-just unset `LD_PRELOAD` for that command:
+```bash
+# WAR for missing libcarb.so
+export LD_PRELOAD=$SCRIPT_DIR/kit/libcarb.so
+```
+
+Any wrapper that relied on env-var-only `LD_PRELOAD` would be stripped at
+that point, and the crash returns. We confirmed this empirically by
+running `test_envguard` from a shell that overwrites `LD_PRELOAD` between
+parent and child — the test SIGSEGVs again (exit 139), reproducing the
+original CI signature.
+
+Our `docker/Dockerfile.base` and
+`source/isaaclab/test/install_ci/Dockerfile.installci` both write this file
+at image-build time, so every test process inside the container
+automatically inherits the shim regardless of what `LD_PRELOAD` is later
+set to.
+
+To remove the shim:
+
+```bash
+sudo rm /etc/ld.so.preload
+```
+
+### `LD_PRELOAD` (single-process activation, e.g. local debugging)
+
+For a one-off invocation outside Docker — for example reproducing the bug
+on a workstation — `LD_PRELOAD` is enough as long as the target process
+does not exec a wrapper that overrides it:
+
+```bash
+LD_PRELOAD=/path/to/libenvguard.so my-test-command
+```
+
+Disable for a specific command:
 
 ```bash
 LD_PRELOAD= some-command
@@ -88,8 +123,19 @@ LD_PRELOAD= some-command
   that reads `__environ` (or `environ`) directly is **not** protected.
   In practice the crashes we see are inside `getenv`, so wrapping the
   public API is sufficient.
-* `LD_PRELOAD` is ignored for setuid / setgid binaries. None of our test
-  processes are setuid, so this does not matter for us.
+* `LD_PRELOAD` is ignored for setuid / setgid binaries; `/etc/ld.so.preload`
+  is honored for both (subject to the linker's path restrictions, which
+  `/usr/local/lib/libenvguard.so` satisfies). None of our test processes
+  are setuid, so this is mostly academic.
 * The shim is glibc-targeted but builds and runs unchanged on musl; the
   `secure_getenv` resolution is best-effort and falls back to `getenv`
   when the symbol is absent.
+
+## Updating an existing container image
+
+If the image was built before this change, you must rebuild it -
+`/etc/ld.so.preload` is baked in at image-build time. On self-hosted CI
+runners that cache previously-built images (see
+`.github/actions/docker-build/action.yml`, which skips the build when a
+matching tag exists locally), a fresh commit SHA forces a rebuild. You
+can also force-rebuild manually with `docker build --no-cache`.

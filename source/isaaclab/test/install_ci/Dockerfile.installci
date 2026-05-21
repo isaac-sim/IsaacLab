@@ -81,13 +81,19 @@ ARG ISAACLAB_PATH=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH}
 COPY . ${ISAACLAB_PATH}
 
-# Build and install the envguard LD_PRELOAD shim that serializes glibc's
+# Build and install the envguard preload shim that serializes glibc's
 # environment functions (getenv/setenv/putenv/unsetenv/secure_getenv/clearenv)
 # behind an rwlock. Carb/Kit/Omni plugins call these from worker threads
 # while other threads mutate the environment, which intermittently crashes
 # CI with `libc.so.6!getenv+0x56` SIGSEGVs. See docker/envguard/README.md.
-RUN make -C ${ISAACLAB_PATH}/docker/envguard install PREFIX=/usr/local
-ENV LD_PRELOAD=/usr/local/lib/libenvguard.so
+#
+# Activation uses /etc/ld.so.preload (not ENV LD_PRELOAD) because Isaac Sim's
+# `_isaac_sim/python.sh` unconditionally overwrites LD_PRELOAD with
+# `kit/libcarb.so` before exec'ing the interpreter, which would strip our
+# shim. /etc/ld.so.preload is read by the dynamic linker for every process
+# and cannot be turned off by env-var manipulation.
+RUN make -C ${ISAACLAB_PATH}/docker/envguard install PREFIX=/usr/local && \
+    echo /usr/local/lib/libenvguard.so > /etc/ld.so.preload
 
 # Fix line endings in .sh files (Win git may add \r)
 RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +

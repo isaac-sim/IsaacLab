@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 //
-// envguard: LD_PRELOAD shim that makes glibc's environment functions
+// envguard: preload shim that makes glibc's environment functions
 // thread-safe relative to each other.
 //
 // POSIX explicitly does NOT guarantee that getenv() is safe to call
@@ -26,8 +26,12 @@
 //   * readers: getenv, secure_getenv
 //   * writers: setenv, unsetenv, putenv, clearenv
 //
-// Activated by setting LD_PRELOAD=/path/to/libenvguard.so before
-// launching any process whose env-function callers are not thread-safe.
+// Activation:
+//   * In CI Docker images: written to /etc/ld.so.preload at image-build
+//     time. The dynamic linker honors that file unconditionally for every
+//     process, which is required because Isaac Sim's _isaac_sim/python.sh
+//     overwrites LD_PRELOAD with kit/libcarb.so before exec'ing python.
+//   * For local one-off use: LD_PRELOAD=/path/to/libenvguard.so cmd.
 //
 // The shim is intentionally tiny and has zero deps beyond libc + pthread
 // + libdl so it can be built early in a Docker stage with nothing more
