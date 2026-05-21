@@ -61,7 +61,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
     cable_length = (num_points - 1) * segment_length
     width = 0.01
     xy_jitter = 0.3
-    z_base = 0.8
+    z_base = 0.4
     z_spacing = 1.5 * width
 
     print(f"[INFO]: Spawning {num_cables} cable+plug pairs...")
@@ -72,21 +72,21 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
         cy = random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle)
         cz = z_base + idx * z_spacing
 
-        static_cfg = RigidObjectCfg(
-            prim_path=f"/World/Origin/Static{idx:03d}",
+        anchor_cfg = RigidObjectCfg(
+            prim_path=f"/World/Origin/Anchor{idx:03d}",
             spawn=sim_utils.SphereCfg(
-                radius=0.01,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                radius=0.02,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
-                pos=(cx+num_points*segment_length, cy, cz+0.1),
+                pos=(cx+(num_points-1)*segment_length, cy, cz),
                 rot=y_axis_quat(math.pi / 2.0),
             ),
         )
-        entities[f"Static{idx:03d}"] = RigidObject(cfg=static_cfg)
+        entities[f"Anchor{idx:03d}"] = RigidObject(cfg=anchor_cfg)
 
         plug_cfg = RigidObjectCfg(
             prim_path=f"/World/Origin/Plug{idx:03d}",
@@ -100,7 +100,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
                 pos=(cx, cy, cz),
-                rot=y_axis_quat(math.pi / 2.0),
+                rot=y_axis_quat(-math.pi / 2.0),
             ),
         )
         entities[f"Plug{idx:03d}"] = RigidObject(cfg=plug_cfg)
@@ -126,12 +126,12 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             attachments=[
                 CableAttachmentCfg(
                     target_prim_path=f"/World/Origin/Plug{idx:03d}",
-                    cable_anchor="tail",
-                    cable_local_pos=(0.0, 0.0, 2*segment_length),
+                    cable_anchor="head",
+                    cable_local_pos=(0.0, 0.0, -segment_length),
                 ),
                 CableAttachmentCfg(
-                    target_prim_path=f"/World/Origin/Static{idx:03d}",
-                    cable_anchor="head",
+                    target_prim_path=f"/World/Origin/Anchor{idx:03d}",
+                    cable_anchor="tail",
                     cable_local_pos=(0.0, 0.0, 0.0),
                 ),
             ],
