@@ -201,7 +201,10 @@ def main():
         dt=0.01,
         device=args_cli.device,
         physics=physics_cfg,
-        visualizer_cfgs=[NewtonVisualizerCfg(eye=(0.5, 1.5, 0.5), lookat=(0.0, 0.0, 0.05))],
+        visualizer_cfgs=[
+            NewtonVisualizerCfg(eye=(0.5, 1.5, 0.5), lookat=(0.0, 0.0, 0.05)),
+            KitVisualizerCfg(eye=(0.5, 1.5, 0.5), lookat=(0.0, 0.0, 0.05)),
+        ],
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
