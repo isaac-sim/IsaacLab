@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import JointType, Model, ModelBuilder, eval_fk
+from newton import Contacts, Control, JointType, Model, ModelBuilder, State, eval_fk, eval_ik
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -69,12 +69,10 @@ class NewtonVBDManager(NewtonManager):
     _newton_cable_last_edge_length_attr = "newton:cableLastEdgeLength"
     _curves_dirty: bool = False
     _cable_body_q_cpu = None
-    _non_cable_articulation_mask: wp.array | None = None
-    """(articulation_count,) wp.bool — False for articulations containing
-    :attr:`newton.JointType.CABLE` joints, True elsewhere. Used to skip cable
-    articulations in :meth:`forward` because Newton's ``eval_fk`` does not
-    handle cable joints (their relative transform falls through to identity,
-    collapsing rod segments onto their parent anchors).
+    _fk_mask: wp.array | None = None
+    """(articulation_count,) wp.bool — False for articulations VBD owns directly
+    in ``body_q`` (CABLE or FREE joints), True elsewhere. Used by :meth:`forward`
+    to skip those articulations in ``eval_fk``.
     """
 
     @classmethod
@@ -102,7 +100,7 @@ class NewtonVBDManager(NewtonManager):
         """Clear VBD-specific Fabric sync state and shared builder hooks."""
         cls._curves_dirty = False
         cls._cable_body_q_cpu = None
-        cls._non_cable_articulation_mask = None
+        cls._fk_mask = None
         NewtonManager._cable_registry = []
         NewtonManager._pending_cable_attachments = []
         NewtonManager._deformable_registry = []
@@ -232,77 +230,36 @@ class NewtonVBDManager(NewtonManager):
                 cls._mark_curves_dirty()
 
     @classmethod
-    def _build_non_cable_articulation_mask(cls) -> None:
-        """Build :attr:`_non_cable_articulation_mask` from finalized joint topology.
-        NOTE: Can be removed once Newton patches cable joints in eval_fk.
-
-        Walks :attr:`newton.Model.joint_type` and :attr:`newton.Model.joint_articulation`
-        to find articulations that contain at least one :attr:`newton.JointType.CABLE`
-        joint, then allocates a device-resident boolean mask that is ``False`` for
-        those articulations and ``True`` elsewhere. Leaves the mask as ``None``
-        when there are no cables registered so :meth:`forward` can take the
-        unmasked fast path via ``super().forward()``.
-
-        Raises:
-            RuntimeError: If cables are registered but the finalized model is
-                missing the joint topology needed to build the mask, or contains
-                no :attr:`newton.JointType.CABLE` joints. Falling through to
-                ``super().forward()`` in those cases would corrupt cable
-                ``body_q`` silently each render.
-        """
-        if not cls._cable_registry:
-            return
-
+    def _build_fk_mask(cls) -> None:
+        """Build :attr:`_fk_mask` excluding articulations with CABLE or FREE joints. NOTE: This can be removed once Newton fixes body_q/joint_q solver ownership for CABLE/FREE joints in VBD."""
         model = cls._model
         if model is None or model.joint_type is None or model.joint_articulation is None:
-            raise RuntimeError(
-                "Cannot build non-cable articulation mask: cables are registered but Newton model"
-                " state is incomplete (missing model/joint_type/joint_articulation). Without the"
-                " mask, `forward()` calls eval_fk on cable joints and silently collapses rod"
-                " segments onto their parent anchors."
-            )
+            return
         if model.articulation_count == 0:
-            raise RuntimeError(
-                "Cannot build non-cable articulation mask: cables are registered but the finalized"
-                " model has zero articulations."
-            )
+            return
 
         joint_type_np = model.joint_type.numpy()
         joint_articulation_np = model.joint_articulation.numpy()
-        cable_art_ids = {
+        excluded_types = (int(JointType.CABLE), int(JointType.FREE))
+        excluded_art_ids = {
             int(joint_articulation_np[j])
             for j in range(len(joint_type_np))
-            if int(joint_type_np[j]) == int(JointType.CABLE) and int(joint_articulation_np[j]) >= 0
+            if int(joint_type_np[j]) in excluded_types and int(joint_articulation_np[j]) >= 0
         }
-        if not cable_art_ids:
-            raise RuntimeError(
-                "Cannot build non-cable articulation mask: cables are registered but the finalized"
-                " model has no JointType.CABLE joints. The cable replicate hook likely did not run."
-            )
+        if not excluded_art_ids:
+            return
 
         mask_np = np.ones(model.articulation_count, dtype=np.bool_)
-        for art_id in cable_art_ids:
+        for art_id in excluded_art_ids:
             mask_np[art_id] = False
-        cls._non_cable_articulation_mask = wp.array(mask_np, dtype=wp.bool, device=PhysicsManager._device)
+        cls._fk_mask = wp.array(mask_np, dtype=wp.bool, device=PhysicsManager._device)
 
     @classmethod
     def forward(cls) -> None:
-        """Update articulation kinematics, skipping cable articulations.
-        NOTE: Can be removed once Newton patches cable joints in eval_fk.
-
-        Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so a
-        cable joint's relative transform falls through to the identity, snapping
-        each child segment onto its parent's joint anchor and destroying the
-        rod state that VBD integrated directly into ``body_q``. This override
-        passes :attr:`_non_cable_articulation_mask` so cable articulations are
-        excluded from the FK pass triggered by Kit-style visualizers (which set
-        :meth:`~isaaclab.visualizers.BaseVisualizer.requires_forward_before_step`
-        to ``True``).
-        """
-        if cls._non_cable_articulation_mask is None:
-            if cls._cable_registry:
-                cls._build_non_cable_articulation_mask()
-            else:
+        """Update articulation kinematics, skipping articulations VBD owns directly."""
+        if cls._fk_mask is None:
+            cls._build_fk_mask()
+            if cls._fk_mask is None:
                 super().forward()
                 return
         eval_fk(
@@ -310,7 +267,7 @@ class NewtonVBDManager(NewtonManager):
             cls._state_0.joint_q,
             cls._state_0.joint_qd,
             cls._state_0,
-            cls._non_cable_articulation_mask,
+            cls._fk_mask,
         )
 
     @classmethod
