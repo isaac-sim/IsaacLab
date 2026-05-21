@@ -13,6 +13,8 @@ import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     extract_all_depth_tiles_kernel,
     extract_all_depth_tiles_kernel_legacy,
+    extract_all_rgb_float_tiles_kernel,
+    extract_all_rgb_half_tiles_kernel,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     generate_random_colors_from_ids_kernel_legacy,
@@ -127,6 +129,28 @@ def _reference_extract_all_rgba_tiles(
                 out[env_idx, y, x, 2] = tiled_np[src_y, src_x, 2]
                 if num_channels == 4:
                     out[env_idx, y, x, 3] = tiled_np[src_y, src_x, 3]
+    return out
+
+
+def _reference_extract_all_rgb_float_tiles(
+    tiled_np: np.ndarray,
+    num_envs: int,
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+) -> np.ndarray:
+    """NumPy reference for ``extract_all_rgb_float_tiles_kernel``."""
+    out = np.zeros((num_envs, tile_height, tile_width, 3), dtype=np.float32)
+    for env_idx in range(num_envs):
+        tile_x = env_idx % num_cols
+        tile_y = env_idx // num_cols
+        for y in range(tile_height):
+            for x in range(tile_width):
+                src_y = tile_y * tile_height + y
+                src_x = tile_x * tile_width + x
+                out[env_idx, y, x, 0] = tiled_np[src_y, src_x, 0]
+                out[env_idx, y, x, 1] = tiled_np[src_y, src_x, 1]
+                out[env_idx, y, x, 2] = tiled_np[src_y, src_x, 2]
     return out
 
 
@@ -413,6 +437,68 @@ class TestExtractAllRgbaTilesKernel:
             tiled_np, num_envs, num_cols, tile_width, tile_height, num_channels
         )
         np.testing.assert_array_equal(output_wp.numpy(), expected)
+
+
+class TestExtractAllRgbFloatTilesKernel:
+    """Tests for ``extract_all_rgb_float_tiles_kernel`` used by OVRTX HdrColor."""
+
+    def test_two_by_two_tile_grid(self):
+        num_cols = 2
+        num_envs = 4
+        tile_width = 2
+        tile_height = 3
+        tiled_h = (num_envs // num_cols) * tile_height
+        tiled_w = num_cols * tile_width
+        tiled_np = np.zeros((tiled_h, tiled_w, 3), dtype=np.float32)
+        for h in range(tiled_h):
+            for w in range(tiled_w):
+                tiled_np[h, w, 0] = float(h * 1000 + w)
+                tiled_np[h, w, 1] = float(h * 1000 + w + 100)
+                tiled_np[h, w, 2] = float(h * 1000 + w + 200)
+
+        tiled_wp = wp.array(tiled_np, dtype=wp.float32, ndim=3, device=DEVICE)
+        output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 3), dtype=wp.float32, device=DEVICE)
+
+        wp.launch(
+            kernel=extract_all_rgb_float_tiles_kernel,
+            dim=(num_envs, tile_height, tile_width),
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        expected = _reference_extract_all_rgb_float_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
+        np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
+
+    def test_half_input_writes_float_output(self):
+        num_cols = 2
+        num_envs = 4
+        tile_width = 2
+        tile_height = 3
+        tiled_h = (num_envs // num_cols) * tile_height
+        tiled_w = num_cols * tile_width
+        tiled_np = np.zeros((tiled_h, tiled_w, 3), dtype=np.float16)
+        for h in range(tiled_h):
+            for w in range(tiled_w):
+                tiled_np[h, w, 0] = np.float16(h * 10 + w)
+                tiled_np[h, w, 1] = np.float16(h * 10 + w + 0.25)
+                tiled_np[h, w, 2] = np.float16(h * 10 + w + 0.5)
+
+        tiled_wp = wp.array(tiled_np, dtype=wp.float16, ndim=3, device=DEVICE)
+        output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 3), dtype=wp.float32, device=DEVICE)
+
+        wp.launch(
+            kernel=extract_all_rgb_half_tiles_kernel,
+            dim=(num_envs, tile_height, tile_width),
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        expected = _reference_extract_all_rgb_float_tiles(
+            tiled_np.astype(np.float32), num_envs, num_cols, tile_width, tile_height
+        )
+        np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
 
 
 class TestRandomColorsFromIdsKernel:

@@ -587,7 +587,7 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     if fabric_notices_mod.get_bindings() is None:
         pytest.skip("omni::fabric::IFabricUsd unavailable")

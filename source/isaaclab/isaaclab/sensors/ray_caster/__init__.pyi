@@ -4,6 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "BaseMultiMeshRayCaster",
+    "BaseMultiMeshRayCasterCamera",
+    "BaseRayCaster",
+    "BaseRayCasterCamera",
     "MultiMeshRayCaster",
     "MultiMeshRayCasterCamera",
     "MultiMeshRayCasterCameraCfg",
@@ -18,6 +22,10 @@ __all__ = [
     "patterns",
 ]
 
+from .base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
+from .base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
+from .base_ray_caster import BaseRayCaster
+from .base_ray_caster_camera import BaseRayCasterCamera
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
 from .multi_mesh_ray_caster_camera_cfg import MultiMeshRayCasterCameraCfg

@@ -19,6 +19,9 @@ isaaclab.sim.schemas
     JointDriveBaseCfg
     MeshCollisionBaseCfg
     MassPropertiesCfg
+    JointDrivePropertiesCfg
+    FixedTendonPropertiesCfg
+    DeformableBodyPropertiesBaseCfg
 
   .. rubric:: Mesh collision approximations (USD-only, no PhysX schema)
 
@@ -44,9 +47,8 @@ isaaclab.sim.schemas
     define_mesh_collision_properties
     modify_mesh_collision_properties
     modify_fixed_tendon_properties
-    modify_spatial_tendon_properties
-
-.. currentmodule:: isaaclab.sim.schemas
+    define_deformable_body_properties
+    modify_deformable_body_properties
 
 Articulation Root
 -----------------
@@ -158,11 +160,10 @@ Tendon cfg classes are PhysX-only and live in
 Deformable Body
 ---------------
 
-.. note::
+.. autoclass:: DeformableBodyPropertiesBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
 
-   Deformable body schemas have moved to the PhysX backend extension. See
-   :class:`isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg`,
-   :func:`isaaclab_physx.sim.schemas.define_deformable_body_properties`, and
-   :func:`isaaclab_physx.sim.schemas.modify_deformable_body_properties`.
-
-   For migration details, see :ref:`migrating-deformables`.
+.. autofunction:: define_deformable_body_properties
+.. autofunction:: modify_deformable_body_properties

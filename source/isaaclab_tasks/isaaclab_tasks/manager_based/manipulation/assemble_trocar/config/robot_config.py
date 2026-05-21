@@ -16,7 +16,7 @@ The only public entry point expected by the task is
 import math
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.unitree import G129_CFG_WITH_DEX3_BASE_FIX
 

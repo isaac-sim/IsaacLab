@@ -115,6 +115,8 @@ class TeleopSessionLifecycle:
         cfg: IsaacTeleopCfg,
         cloudxr_env_file: str | None = None,
         auto_launch_cloudxr: bool = True,
+        mcap_record_path: str | None = None,
+        mcap_replay_path: str | None = None,
     ):
         """Initialize the session lifecycle manager.
 
@@ -127,11 +129,35 @@ class TeleopSessionLifecycle:
             auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
                 when *cloudxr_env_file* is set.  Ignored when
                 *cloudxr_env_file* is ``None``.
+            mcap_record_path: Optional path to an MCAP file the live teleop
+                session should be recorded into.  Mutually exclusive with
+                *mcap_replay_path*.  Debug-grade only -- see the Isaac Lab
+                teleop migration doc for the limitations of the produced
+                file (no per-episode segmentation, no world-frame anchor,
+                etc.).
+            mcap_replay_path: Optional path to an MCAP file to replay.  When
+                set, the session runs in :class:`SessionMode.REPLAY` with no
+                OpenXR connection and feeds the recorded tracker stream
+                through the pipeline.  Mutually exclusive with
+                *mcap_record_path*.
+
+        Raises:
+            ValueError: If both *mcap_record_path* and *mcap_replay_path*
+                are provided.
         """
+        if mcap_record_path is not None and mcap_replay_path is not None:
+            raise ValueError(
+                "mcap_record_path and mcap_replay_path are mutually exclusive; "
+                "set at most one to switch the session between LIVE recording and REPLAY playback."
+            )
+
         self._cfg = cfg
         self._device = torch.device(cfg.sim_device)
         self._cloudxr_env_file = cloudxr_env_file
         self._auto_launch_cloudxr = auto_launch_cloudxr
+        self._mcap_record_path = mcap_record_path
+        self._mcap_replay_path = mcap_replay_path
+        self._is_replay = mcap_replay_path is not None
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
@@ -150,34 +176,42 @@ class TeleopSessionLifecycle:
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
 
-        try:
-            # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
-            import isaacsim.kit.xr.teleop.bridge as bridge
+        # Replay sessions never talk to Kit's XR system, so skip all XR
+        # extension subscriptions; they would only generate noise and could
+        # mis-fire if a parallel live session ever toggled /xr/enabled.
+        if not self._is_replay:
+            try:
+                # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
+                import isaacsim.kit.xr.teleop.bridge as bridge
 
-            subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
-            if callable(subscribe_required_extensions):
-                self._required_extensions_subscription = subscribe_required_extensions(
-                    self._on_request_required_extensions
-                )
-            else:
+                subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
+                if callable(subscribe_required_extensions):
+                    self._required_extensions_subscription = subscribe_required_extensions(
+                        self._on_request_required_extensions
+                    )
+                else:
+                    logger.info(
+                        "isaacsim.kit.xr.teleop.bridge.subscribe_required_extensions not available; "
+                        "skipping required extensions subscription"
+                    )
+            except (ImportError, ModuleNotFoundError):
                 logger.info(
-                    "isaacsim.kit.xr.teleop.bridge.subscribe_required_extensions not available; "
-                    "skipping required extensions subscription"
+                    "isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session"
                 )
-        except (ImportError, ModuleNotFoundError):
-            logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
 
-        try:
-            import carb.settings
+            try:
+                import carb.settings
 
-            # Subscribe to the setting (may not fire when Kit closes; see pre-shutdown below)
-            self._xr_enabled_subscription = carb.settings.get_settings().subscribe_to_node_change_events(
-                "/xr/enabled",
-                self._on_xr_enabled_changed,
-            )
-        except (ImportError, ModuleNotFoundError):
-            logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
+                # Subscribe to the setting (may not fire when Kit closes; see pre-shutdown below)
+                self._xr_enabled_subscription = carb.settings.get_settings().subscribe_to_node_change_events(
+                    "/xr/enabled",
+                    self._on_xr_enabled_changed,
+                )
+            except (ImportError, ModuleNotFoundError):
+                logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
 
+        # Pre-shutdown is still wanted in replay mode so the MCAP writer/reader
+        # gets a chance to flush before Kit tears down its event loop.
         try:
             import omni.kit.app
             from carb.eventdispatcher import get_eventdispatcher
@@ -276,6 +310,12 @@ class TeleopSessionLifecycle:
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
+        # CloudXR is per-run, not per-mode: when the caller passes a profile
+        # we spawn the runtime so a real client has something to attach to.
+        # This is true for live recording (operator wears the headset) and
+        # for spectate-on-replay (operator wears the headset to view a
+        # captured trajectory). Pure CI replay leaves cloudxr_env_file at
+        # None and gets the previous no-launcher behavior.
         if self._cloudxr_env_file is not None:
             self._ensure_cloudxr_runtime()
 
@@ -293,7 +333,12 @@ class TeleopSessionLifecycle:
         }
         self._pipeline = OutputCombiner(pipeline_outputs)
 
-        # Build optional teleop_control_pipeline for message-channel control
+        # Build the optional teleop_control_pipeline for message-channel control.
+        # Live and replay both build it: in replay mode the underlying
+        # MessageChannelTracker is fed by TeleopCore's
+        # ReplayMessageChannelTrackerImpl from the recorded
+        # ``_teleop_control_source`` channel, so START / STOP / RESET edges
+        # surface through ``poll_control_events`` the same way they do live.
         self._teleop_control_pipeline = None
         self._message_processor = None
         if self._cfg.control_channel_uuid is not None:
@@ -460,12 +505,16 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        Tries to acquire OpenXR handles from Kit's XR bridge.  If the
-        handles are available, creates and enters the ``TeleopSession``.
-        If the handles are not yet complete — either because the XR session
-        has not started or because the bridge component has not finished
-        registering — session creation is deferred and will be retried on
-        the next :meth:`step` call.
+        In live mode, tries to acquire OpenXR handles from Kit's XR bridge.
+        If the handles are available, creates and enters the
+        :class:`TeleopSession`.  If the handles are not yet complete — either
+        because the XR session has not started or because the bridge
+        component has not finished registering — session creation is deferred
+        and will be retried on the next :meth:`step` call.
+
+        In replay mode, starts a :class:`SessionMode.REPLAY` session backed
+        by the MCAP file passed via ``mcap_replay_path``; no Kit XR handles
+        are needed.
 
         Returns:
             ``True`` if the session was successfully started (or was already
@@ -473,6 +522,9 @@ class TeleopSessionLifecycle:
         """
         if self._session is not None:
             return True
+
+        if self._is_replay:
+            return self._start_replay_session()
 
         self._ensure_xr_ar_profile_enabled()
 
@@ -495,6 +547,15 @@ class TeleopSessionLifecycle:
                 self._session_start_deferred_logged = True
             return False
 
+        mcap_config = None
+        if self._mcap_record_path is not None:
+            from isaacteleop.deviceio_session import McapRecordingConfig
+
+            mcap_config = McapRecordingConfig(self._mcap_record_path)
+
+        # Pipeline is built by start() before any _try_start_session call.
+        assert self._pipeline is not None, "pipeline must be built before starting the session"
+
         session_config = TeleopSessionConfig(
             app_name=self._cfg.app_name,
             trackers=[],
@@ -503,13 +564,62 @@ class TeleopSessionLifecycle:
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
             retargeting_execution=self._cfg.retargeting_execution,
+            mcap_config=mcap_config,
         )
 
         # Create and enter the TeleopSession
         self._session = TeleopSession(session_config)
         self._session.__enter__()
 
-        logger.info(f"IsaacTeleop session started: {self._cfg.app_name}")
+        if self._mcap_record_path is not None:
+            logger.info(f"IsaacTeleop session started: {self._cfg.app_name} (recording to {self._mcap_record_path})")
+        else:
+            logger.info(f"IsaacTeleop session started: {self._cfg.app_name}")
+        return True
+
+    def _start_replay_session(self) -> bool:
+        """Start an MCAP-backed :class:`SessionMode.REPLAY` session.
+
+        Unlike the live path, replay never waits for Kit XR handles or
+        pumps the OpenXR runtime: ``TeleopSession`` builds a
+        :class:`isacteleop.deviceio_session.ReplaySession` that feeds the
+        pipeline directly from the captured tracker stream.
+
+        Returns:
+            Always ``True`` -- replay sessions start synchronously.
+        """
+        from isaacteleop.deviceio_session import McapReplayConfig
+        from isaacteleop.teleop_session_manager import SessionMode, TeleopSession, TeleopSessionConfig
+
+        # Narrow Optional types for the type checker; both fields are
+        # guaranteed non-None by start() / __init__ when this branch runs.
+        assert self._mcap_replay_path is not None, "replay path missing in replay mode"
+        assert self._pipeline is not None, "pipeline must be built before starting the session"
+
+        # Fail fast on a missing MCAP file
+        if not os.path.exists(self._mcap_replay_path):
+            raise FileNotFoundError(
+                f"MCAP replay file not found: '{self._mcap_replay_path}'. "
+                "Check the ``mcap_replay_path`` passed to ``create_isaac_teleop_device`` "
+                "(or the ``--replay_file`` CLI arg on the replay agent)."
+            )
+
+        mcap_config = McapReplayConfig(self._mcap_replay_path)
+        session_config = TeleopSessionConfig(
+            app_name=self._cfg.app_name,
+            trackers=[],
+            pipeline=self._pipeline,
+            teleop_control_pipeline=self._teleop_control_pipeline,
+            plugins=self._cfg.plugins,
+            retargeting_execution=self._cfg.retargeting_execution,
+            mode=SessionMode.REPLAY,
+            mcap_config=mcap_config,
+        )
+
+        self._session = TeleopSession(session_config)
+        self._session.__enter__()
+
+        logger.info(f"IsaacTeleop replay session started: {self._cfg.app_name} (replaying {self._mcap_replay_path})")
         return True
 
     # ------------------------------------------------------------------

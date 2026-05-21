@@ -24,8 +24,8 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollecti
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 
 @configclass

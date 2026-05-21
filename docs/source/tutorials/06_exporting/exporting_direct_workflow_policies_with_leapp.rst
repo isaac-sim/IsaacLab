@@ -25,9 +25,22 @@ annotation pattern to your own Direct RL environment.
 
 Before exporting, install LEAPP into the Isaac Lab Python environment:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p -m pip install leapp
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p -m pip install leapp
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p -m pip install leapp
 
 If you want to run the exported example with the existing
 ``Isaac-Velocity-Rough-Anymal-C-Direct-v0`` task registration, copy the annotated
