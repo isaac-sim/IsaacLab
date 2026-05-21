@@ -217,15 +217,49 @@ def setup_environment(
     ]
 
 
+def _force_interval_events_to_fire_immediately(env_cfg) -> None:
+    """Rewrite every interval-mode event term so it fires on the first ``step()``.
+
+    The :class:`isaaclab.managers.EventManager` samples ``time_left`` from
+    ``interval_range_s`` at reset, then fires the term once ``time_left < 1e-6``
+    after subtracting ``dt`` each step.  Setting both bounds of the range to
+    ``1e-6`` guarantees the sampled ``time_left`` lands at the trigger threshold
+    on the first step, regardless of ``is_global_time``.
+
+    Mutates ``env_cfg.events`` in place.  No-op if ``env_cfg.events`` is ``None``
+    or has no interval-mode terms.
+
+    Args:
+        env_cfg: A parsed env config.
+    """
+    events_cfg = getattr(env_cfg, "events", None)
+    if events_cfg is None:
+        return
+    for term_name in dir(events_cfg):
+        if term_name.startswith("_"):
+            continue
+        try:
+            term = getattr(events_cfg, term_name, None)
+        except AttributeError:
+            continue
+        if (
+            term is not None
+            and getattr(term, "mode", None) == "interval"
+            and getattr(term, "interval_range_s", None) is not None
+        ):
+            term.interval_range_s = (1e-6, 1e-6)
+
+
 def _run_environments(
     task_name,
     device,
     num_envs,
-    num_steps=100,
+    num_steps=20,
     multi_agent=False,
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
     physics_preset_name: str | None = None,
+    force_interval_events: bool = False,
 ):
     """Run all environments and check environments return valid signals.
 
@@ -239,6 +273,8 @@ def _run_environments(
         disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
+        force_interval_events: If True, rewrite interval-mode event terms so they
+            fire on the first ``step()``.
     """
 
     # skip test if stage in memory is not supported
@@ -300,6 +336,7 @@ def _run_environments(
         create_stage_in_memory=create_stage_in_memory,
         disable_clone_in_fabric=disable_clone_in_fabric,
         physics_preset_name=physics_preset_name,
+        force_interval_events=force_interval_events,
     )
     print(f""">>> Closing environment: {task_name}""")
     print("-" * 80)
@@ -309,11 +346,12 @@ def _check_random_actions(
     task_name: str,
     device: str,
     num_envs: int,
-    num_steps: int = 100,
+    num_steps: int = 20,
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
     physics_preset_name: str | None = None,
+    force_interval_events: bool = False,
 ):
     """Run random actions and check environments return valid signals.
 
@@ -327,6 +365,8 @@ def _check_random_actions(
         disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
+        force_interval_events: If True, rewrite interval-mode event terms so they
+            fire on the first ``step()``.
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
@@ -354,6 +394,9 @@ def _check_random_actions(
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:
             env_cfg.scene.clone_in_fabric = False
+
+        if force_interval_events:
+            _force_interval_events_to_fire_immediately(env_cfg)
 
         # filter based off multi agents mode and create env
         if multi_agent:

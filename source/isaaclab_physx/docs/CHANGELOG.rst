@@ -1,6 +1,55 @@
 Changelog
 ---------
 
+1.0.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX-specific deformable property and material cfgs.
+
+Changed
+^^^^^^^
+
+* Reworded the FF-routing comments in
+  :class:`~isaaclab_physx.assets.Articulation` to refer to "actuated DOFs"
+  rather than splitting on implicit vs explicit, since the
+  ``synch_torque_and_apply_implicit_feedforwards`` kernel operates on the full
+  actuated DOF set.
+* **Breaking:** Moved deformable body schema and material APIs from
+  :mod:`isaaclab_physx.sim` to :mod:`isaaclab.sim`, and moved deformable object
+  configuration from :mod:`isaaclab_physx.assets` to :mod:`isaaclab.assets`.
+  Import :class:`~isaaclab.sim.DeformableBodyPropertiesCfg`,
+  :func:`~isaaclab.sim.define_deformable_body_properties`,
+  :func:`~isaaclab.sim.modify_deformable_body_properties`,
+  :class:`~isaaclab.sim.DeformableObjectSpawnerCfg`,
+  :class:`~isaaclab.sim.DeformableBodyMaterialCfg`,
+  :class:`~isaaclab.sim.SurfaceDeformableBodyMaterialCfg`, and
+  :func:`~isaaclab.sim.spawn_deformable_body_material` from :mod:`isaaclab.sim`
+  instead of :mod:`isaaclab_physx.sim`; import
+  :class:`~isaaclab.assets.DeformableObjectCfg` from :mod:`isaaclab.assets`
+  instead of :mod:`isaaclab_physx.assets`.
+* Changed PhysX deformable API documentation to direct users to the
+  backend-neutral :mod:`isaaclab.assets` and :mod:`isaaclab.sim` imports.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated generic PhysX deformable cfg aliases in favor of
+  ``PhysxDeformableBodyPropertiesCfg``, ``PhysxDeformableBodyMaterialCfg``,
+  and ``PhysxSurfaceDeformableBodyMaterialCfg``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.DeformableObject` state writer methods
+  to accept ``ProxyArray`` inputs without requiring manual conversion.
+
+
 0.9.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~
 

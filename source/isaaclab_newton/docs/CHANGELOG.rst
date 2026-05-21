@@ -1,6 +1,61 @@
 Changelog
 ---------
 
+0.12.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton-specific deformable property and material cfgs.
+* Added Newton deformable asset exports under
+  :mod:`isaaclab_newton.assets.deformable_object`.
+* Added deformable registration hooks to Newton cloning so deformable assets can
+  be added per replicated world while their USD proxy meshes are skipped by the
+  Newton USD importer.
+* Added Newton manager abstraction documentation for adding solver managers and
+  custom coupled solvers.
+
+Changed
+^^^^^^^
+
+* Moved Newton-native actuator USD authoring out of
+  ``isaaclab_newton.actuators.authoring`` (now deleted) into
+  :func:`~isaaclab.sim.schemas.define_actuator_properties`. The authoring step
+  is now invoked via the schema-side ``_post_spawn`` hook on
+  :class:`~isaaclab.assets.AssetBaseCfg`.
+* Grouped :attr:`~isaaclab_newton.physics.NewtonManager._decimation` next to
+  :attr:`~isaaclab_newton.physics.NewtonManager._num_substeps` for consistency
+  with related solver-stepping configuration.
+* Changed Newton solver configuration exports so
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg`,
+  :class:`~isaaclab_newton.physics.XPBDSolverCfg`,
+  :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`, and
+  :class:`~isaaclab_newton.physics.KaminoSolverCfg` are provided from
+  :mod:`isaaclab_newton.physics.newton_manager_cfg`.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` to use
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` as its explicit default
+  solver configuration.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` validation to reject
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` configurations that combine
+  ``use_mujoco_contacts=True`` with ``collision_cfg``. Remove ``collision_cfg``
+  or set ``use_mujoco_contacts=False``.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Fixed
+^^^^^
+
+* Fixed Newton visualization state updates for PhysX-backed simulations.
+* Fixed Newton Fabric synchronization for deformable particle meshes and
+  particle-only scenes.
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  retrieving the wrong simulation context. It now uses
+  :meth:`~isaaclab.sim.SimulationContext.instance` instead of the stale
+  ``PhysicsManager._sim`` reference.
+
+
 0.11.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~~
 

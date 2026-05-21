@@ -432,9 +432,12 @@ def _install_isaacsim() -> None:
 
 
 # Source directories installed on every ./isaaclab.sh -i invocation (even "none").
-# Order matters: isaaclab must be first so dependents resolve against the local copy.
+# Order matters: isaaclab must be first so dependents resolve against the local copy,
+# and isaaclab_ppisp must precede the renderer backends (newton/ov/physx) that
+# declare it as an INSTALL_REQUIRES bare-name dep.
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
+    "isaaclab_ppisp",
     "isaaclab_assets",
     "isaaclab_contrib",
     "isaaclab_experimental",
