@@ -207,7 +207,11 @@ jobs:
               # AppLauncher-at-module-level test files doesn't SIGSEGV — each
               # test file gets its own Python process.
               echo '::group::Tier 2 — arm_ci marker discovery (subprocess-per-file)'
-              CI_MARKER=arm_ci python -m pytest tools -v --junitxml=reports/tier2-arm.xml
+              # ./isaaclab.sh -p wrapper invokes the bundled Sim's python.sh
+              # (no uv venv in this approach; bare `python` is not on PATH).
+              # CI_MARKER env var propagates through exec to the pytest subprocess
+              # → tools/conftest.py picks it up.
+              CI_MARKER=arm_ci ./isaaclab.sh -p -m pytest tools -v --junitxml=reports/tier2-arm.xml
               echo '::endgroup::'
               true
             "
