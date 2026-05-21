@@ -275,8 +275,6 @@ def spawn_cable(
 
     Raises:
         ValueError: If ``cfg.rigid_props`` or ``cfg.mass_props`` is non-None.
-            The Newton-specific physics material is validated downstream by
-            :meth:`~isaaclab_contrib.cable.CableObject._register_cable`.
     """
     if cfg.rigid_props is not None:
         raise ValueError("CableCfg does not support `rigid_props`.")
