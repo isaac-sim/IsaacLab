@@ -134,6 +134,29 @@ def test_newton_cfg_post_init_propagates_class_type(
     assert cfg.class_type.__name__ == expected_manager.__name__
 
 
+@pytest.mark.parametrize(
+    "num_substeps, collision_decimation, should_warn",
+    [
+        (8, 0, False),  # Default: feature disabled, no warning.
+        (8, 1, False),  # Valid: re-collide every substep.
+        (8, 2, False),  # Valid: re-collide every 2 substeps.
+        (8, 7, False),  # Valid edge: one mid-loop re-collide at i=6.
+        (8, 8, True),  # Equal to num_substeps: gate never fires.
+        (8, 16, True),  # Larger than num_substeps: gate never fires.
+    ],
+)
+def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimation, should_warn, caplog):
+    """``NewtonCfg.__post_init__`` warns when ``collision_decimation >= num_substeps``."""
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager_cfg"):
+        cfg = NewtonCfg(num_substeps=num_substeps, collision_decimation=collision_decimation)
+    warned = any("collision_decimation" in rec.getMessage() for rec in caplog.records)
+    assert warned is should_warn
+    # Cfg field round-trips regardless of warning.
+    assert cfg.collision_decimation == collision_decimation
+
+
 # ---------------------------------------------------------------------------
 # Manager class hierarchy and factory contracts
 # ---------------------------------------------------------------------------
@@ -272,3 +295,68 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
 
         with pytest.raises(ValueError, match="collision_cfg cannot be set"):
             sim.reset()
+
+
+@pytest.mark.parametrize(
+    "num_substeps, collision_decimation, expected_mid_loop_collides",
+    [
+        (8, 0, 0),  # Feature disabled.
+        (8, 2, 3),  # Re-collide after substeps 2, 4, 6 (skip last).
+        (8, 4, 1),  # Re-collide after substep 4 only.
+        (8, 7, 1),  # Re-collide after substep 7 only.
+        (8, 8, 0),  # Gated off (>= num_substeps).
+    ],
+)
+def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_decimation, expected_mid_loop_collides):
+    """``_run_solver_substeps`` re-invokes ``collide`` at the expected substeps.
+
+    Wraps :attr:`NewtonManager._collision_pipeline.collide` with a counter and
+    runs one physics tick. The collide-call count is ``1`` (top-of-tick) plus
+    one per matching mid-loop substep, excluding the last substep.
+
+    The scene has a free-joint sphere falling onto a ground plane so the
+    broadphase actually generates pairs — guards against a future change
+    that skips ``collide()`` when there are no collidable shapes.
+    """
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            num_substeps=num_substeps,
+            collision_decimation=collision_decimation,
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = NewtonManager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.add_shape_sphere(body=body, radius=0.05)
+        builder.add_ground_plane()
+        # Lift the sphere to 0.5 m above the plane so the scene is non-degenerate.
+        # joint_q for a free joint is [tx, ty, tz, qx, qy, qz, qw].
+        builder.joint_q[-7:] = [0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0]
+        NewtonManager.set_builder(builder)
+        sim.reset()
+
+        # Wrap collide() with a counter — must run after sim.reset() so the
+        # pipeline is allocated, and use_cuda_graph=False so the wrapped
+        # Python callable isn't bypassed by a captured graph.
+        calls = {"n": 0}
+        original_collide = NewtonManager._collision_pipeline.collide
+
+        def counting_collide(state, contacts):
+            calls["n"] += 1
+            return original_collide(state, contacts)
+
+        NewtonManager._collision_pipeline.collide = counting_collide
+        try:
+            sim.step(render=False)
+        finally:
+            NewtonManager._collision_pipeline.collide = original_collide
+
+        # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
+        assert calls["n"] == 1 + expected_mid_loop_collides
