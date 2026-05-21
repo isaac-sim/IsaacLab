@@ -30,8 +30,12 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # tetrahedralization for deformable bodies (pinned: >=0.3 unconditionally imports pyvista at package import time)
-    "pytetwild==0.2.3",
+    # tetrahedralization for deformable bodies (pinned: >=0.3 unconditionally imports pyvista at package import time).
+    # Skip on aarch64: pytetwild has no aarch64 wheel on PyPI and its source build fails because the geogram CMake
+    # dep hardcodes -m64 (x86_64-only). The single call site (sim/schemas/schemas.py) already raises a clear
+    # "install pytetwild manually" error if the lazy import fails, so aarch64 users keep everything except
+    # automatic volume-deformable tetrahedralization.
+    "pytetwild==0.2.3 ; platform_machine != 'aarch64'",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install

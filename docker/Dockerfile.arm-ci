@@ -1,0 +1,48 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Lightweight base image for ARM/Spark CI (arm-ci.yaml).
+#
+# Layers on top of the multi-arch nvcr.io/nvidian/isaac-sim image (arm64
+# manifest on aarch64 hosts) and adds:
+#   - cmake / build-essential / git: source-build infra for aarch64 Python
+#     packages that have no prebuilt aarch64 wheel (pin-pink, daqp, etc.).
+#   - EULA env vars + bash entrypoint so the workflow can run plain shell
+#     commands without re-specifying flags per `docker run`.
+#
+# This is intentionally NOT Dockerfile.base — that one builds a full
+# isaac-lab-ci image with isaaclab pre-installed. arm-ci.yaml instead
+# mounts source/ at test time and does a uv editable install, so we only
+# need the apt layer here.
+
+ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidian/isaac-sim
+ARG ISAACSIM_VERSION_ARG=latest-develop
+
+FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG}
+
+USER root
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        cmake build-essential git \
+        # imgui-bundle has no aarch64 wheel and source-builds need GL/X11 headers.
+        # swig is needed for the nlopt aarch64 source build.
+        libgl1-mesa-dev libopengl-dev libglx-dev \
+        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
+        swig && \
+    apt-get -y autoremove && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV ACCEPT_EULA=Y \
+    OMNI_KIT_ACCEPT_EULA=yes \
+    ISAAC_SIM_HEADLESS=1 \
+    PRIVACY_CONSENT=Y \
+    # aarch64 scipy/numpy have a known OpenMP thread-safety issue that
+    # requires libgomp.so.1 to be LD_PRELOAD-ed before scipy imports. Without
+    # it, pytest collection trips an InitError. The scipy error message
+    # spells out this exact fix.
+    LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
+
+ENTRYPOINT ["/bin/bash", "-c"]

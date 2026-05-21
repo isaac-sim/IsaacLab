@@ -141,93 +141,63 @@ jobs:
             echo "${NGC_API_KEY}" | docker login nvcr.io --username '$oauthtoken' --password-stdin
           fi
 
-      - name: Pull arm64 Isaac Sim image
+      - name: Build arm-ci docker image
         shell: bash
         run: |
           set -euo pipefail
-          # Multi-arch manifest at this tag has both linux/arm64 and linux/amd64.
-          # Docker on an aarch64 host auto-resolves to the arm64 variant.
-          docker pull --platform linux/arm64 \
-            "${{ needs.config.outputs.isaacsim_image_name }}:${{ needs.config.outputs.isaacsim_image_tag }}"
+          # Build the lightweight arm-ci image from docker/Dockerfile.arm-ci.
+          # That Dockerfile layers cmake/build-essential/git plus EULA env vars
+          # and a bash entrypoint onto the multi-arch Isaac Sim base image
+          # (auto-resolves to the arm64 manifest on aarch64 hosts).
+          docker build \
+            --platform linux/arm64 \
+            --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }}" \
+            --build-arg "ISAACSIM_VERSION_ARG=${{ needs.config.outputs.isaacsim_image_tag }}" \
+            -f docker/Dockerfile.arm-ci \
+            -t isaac-lab-arm-ci:${{ github.sha }} \
+            docker
 
-      - name: Install system build deps inside the container
+      - name: Install isaaclab via ./isaaclab.sh -i + run all tier 1/2 tests
         shell: bash
+        timeout-minutes: 90
         run: |
           set -euo pipefail
-          # pytetwild's fTetWild source build needs libgmp / libmpfr / libeigen3 /
-          # libcgal / libboost; isaaclab's editable install pulls pytetwild as a
-          # hard dep (added in PR isaac-sim/IsaacLab#5710 on 2026-05-20).
-          # We install into a fresh container layer per run so the apt cost (~1-2
-          # min) shows up only when this workflow runs, not on the Sim image.
-          # Persist by committing into a per-run image tagged isaac-lab-arm-ci.
-          # Build a tagged image with deps baked in so subsequent test runs are fast.
-          # Override the Sim image's entrypoint (Kit launcher) with bash so we can
-          # run plain shell commands. EULA env vars set per build.yaml conventions.
-          docker run --name arm-deps-prep --user root \
-            --entrypoint bash \
-            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
-            "${{ needs.config.outputs.isaacsim_image_name }}:${{ needs.config.outputs.isaacsim_image_tag }}" \
-            -c "
-              set -euo pipefail
-              apt-get update
-              apt-get install -y --no-install-recommends \
-                libgmp-dev libmpfr-dev libeigen3-dev libcgal-dev libboost-all-dev \
-                cmake build-essential git
-              rm -rf /var/lib/apt/lists/*
-            "
-          docker commit arm-deps-prep isaac-lab-arm-ci:${{ github.sha }}
-          docker rm arm-deps-prep
-
-      - name: Editable install of isaaclab + isaaclab_tasks in a uv venv
-        shell: bash
-        timeout-minutes: 25
-        run: |
-          set -euo pipefail
-          # All Tier 2 jobs need both packages installed once. We do the install
-          # inside a uv venv mounted under /workspace/isaaclab so subsequent
-          # docker run invocations see the same env_isaaclab_uv directory.
+          # Single docker run because uv-managed Python lives in
+          # $HOME/.cache/uv/python inside the container and is discarded on
+          # container exit, leaving env_isaaclab_uv/bin/python as a dangling
+          # symlink in subsequent containers.
+          #
+          # Install via ./isaaclab.sh -i (the canonical user-facing install
+          # entry point) instead of hand-rolled uv pip install lines. This
+          # picks up _ensure_cuda_torch (re-installs cu130 torch on aarch64
+          # after isaacsim downgrades it to a CPU wheel), nlopt arm prep,
+          # pin-pink dependency probe, etc. — same install path real users
+          # hit on `./isaaclab.sh -i`, so CI failures here are real user bugs.
+          mkdir -p reports
           docker run --rm --user root \
-            --entrypoint bash \
-            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
             -v "${{ github.workspace }}":/workspace/isaaclab \
             -w /workspace/isaaclab \
             --gpus all \
-            isaac-lab-arm-ci:${{ github.sha }} \
-            -c "
+            isaac-lab-arm-ci:${{ github.sha }} "
               set -e
               if ! command -v uv >/dev/null 2>&1; then
                 curl -LsSf https://astral.sh/uv/install.sh | sh
                 export PATH=\$HOME/.local/bin:\$PATH
               fi
+
               uv venv --python 3.12 env_isaaclab_uv
               source env_isaaclab_uv/bin/activate
-              uv pip install -e source/isaaclab
-              uv pip install -e source/isaaclab_assets
-              uv pip install -e source/isaaclab_tasks
               uv pip install pytest pytest-timeout
-              python -c 'import isaaclab, isaaclab_assets, isaaclab_tasks; print(\"editable imports ok\")'
-            "
 
-      - name: Tier 1 — general-arm smoke (torch + scipy)
-        shell: bash
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          set -e
-          mkdir -p reports
-          docker run --rm --user root \
-            --entrypoint bash \
-            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
-            -v "${{ github.workspace }}":/workspace/isaaclab \
-            -w /workspace/isaaclab \
-            --gpus all \
-            isaac-lab-arm-ci:${{ github.sha }} \
-            -c "
-              source env_isaaclab_uv/bin/activate
-              python -m pytest \
+              # Use ./isaaclab.sh -i (mirrors user install path).
+              # -i none installs core submodules + isaacsim + restores cu130 torch on aarch64.
+              ./isaaclab.sh -i none
+              python -c 'import isaaclab, isaaclab_assets, isaaclab_physx, isaaclab_tasks; print(\"editable imports ok\")'
+
+              set +e  # individual tier failures do not abort the script
+
+              echo '::group::Tier 1 — general-arm smoke (torch + scipy)'
+              ./isaaclab.sh -p -m pytest \
                 source/isaaclab/test/deps \
                 --ignore=tools/conftest.py \
                 -m arm_ci \
@@ -236,88 +206,20 @@ jobs:
                 --timeout-method=signal \
                 -v \
                 --junitxml=reports/general-arm.xml
-            "
+              echo '::endgroup::'
 
-      - name: Tier 1 — kit-launch-arm (boot Kit headless)
-        shell: bash
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          set -e
-          docker run --rm --user root \
-            --entrypoint bash \
-            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
-            -v "${{ github.workspace }}":/workspace/isaaclab \
-            -w /workspace/isaaclab \
-            --gpus all \
-            isaac-lab-arm-ci:${{ github.sha }} \
-            -c "
-              source env_isaaclab_uv/bin/activate
-              uv pip install --extra-index-url https://pypi.nvidia.com 'isaacsim[all]'
-              timeout 120 python - <<'EOF'
-              import sys
-              from isaaclab.app import AppLauncher
-              sim = AppLauncher(headless=True).app
-              assert sim is not None, 'AppLauncher did not return a SimulationApp'
-              sim.close()
-              sys.exit(0)
-              EOF
-            "
+              echo '::group::Tier 1 — kit-launch-arm (boot Kit headless)'
+              timeout 120 ./isaaclab.sh -p -c \"from isaaclab.app import AppLauncher; sim = AppLauncher(headless=True).app; assert sim is not None, 'AppLauncher did not return a SimulationApp'; sim.close()\"
+              echo '::endgroup::'
 
-      - name: Tier 2 — kitless-arm (Warp + OvRTX rendering on aarch64)
-        shell: bash
-        continue-on-error: true
-        timeout-minutes: 30
-        run: |
-          set -e
-          docker run --rm --user root \
-            --entrypoint bash \
-            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
-            -v "${{ github.workspace }}":/workspace/isaaclab \
-            -w /workspace/isaaclab \
-            --gpus all \
-            isaac-lab-arm-ci:${{ github.sha }} \
-            -c "
-              source env_isaaclab_uv/bin/activate
-              python -m pytest \
-                source/isaaclab_tasks/test \
-                --ignore=tools/conftest.py \
-                -m arm_ci \
-                --continue-on-collection-errors \
-                --timeout=300 \
-                --timeout-method=signal \
-                -v \
-                --junitxml=reports/kitless-arm.xml
-            "
-
-      - name: Tier 2 — determinism-arm (controllers / math)
-        shell: bash
-        continue-on-error: true
-        timeout-minutes: 20
-        run: |
-          set -e
-          docker run --rm --user root \
-            --entrypoint bash \
-            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-            -e PRIVACY_CONSENT=Y \
-            -v "${{ github.workspace }}":/workspace/isaaclab \
-            -w /workspace/isaaclab \
-            --gpus all \
-            isaac-lab-arm-ci:${{ github.sha }} \
-            -c "
-              source env_isaaclab_uv/bin/activate
-              python -m pytest \
-                source/isaaclab/test \
-                --ignore=tools/conftest.py \
-                --ignore=source/isaaclab/test/deps \
-                -m arm_ci \
-                --continue-on-collection-errors \
-                --timeout=180 \
-                --timeout-method=signal \
-                -v \
-                --junitxml=reports/determinism-arm.xml
+              # Tier 2 uses tools/conftest.py's subprocess-per-file orchestrator
+              # (CI_MARKER=arm_ci) so aarch64 Kit re-init across multiple
+              # AppLauncher-at-module-level test files doesn't SIGSEGV — each
+              # test file gets its own Python process.
+              echo '::group::Tier 2 — arm_ci marker discovery (subprocess-per-file)'
+              CI_MARKER=arm_ci python -m pytest tools -v --junitxml=reports/tier2-arm.xml
+              echo '::endgroup::'
+              true
             "
 
       - name: Upload test reports

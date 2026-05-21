@@ -304,7 +304,7 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
-def run_individual_tests(test_files, workspace_root, isaacsim_ci):
+def run_individual_tests(test_files, workspace_root, ci_marker):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
@@ -348,9 +348,9 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "--tb=short",
         ]
 
-        if isaacsim_ci:
+        if ci_marker:
             cmd.append("-m")
-            cmd.append("isaacsim_ci")
+            cmd.append(ci_marker)
 
         cmd.append(str(test_file))
 
@@ -649,7 +649,13 @@ def pytest_sessionstart(session):
     quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
 
-    isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
+    # CI_MARKER env var generalizes the previous ISAACSIM_CI_SHORT=true gate so
+    # cross-platform jobs (ARM, Windows) can reuse this orchestrator with their
+    # own markers (arm_ci, windows_ci, ...). ISAACSIM_CI_SHORT=true stays
+    # supported as a back-compat shorthand for CI_MARKER=isaacsim_ci.
+    ci_marker = os.environ.get("CI_MARKER", "")
+    if not ci_marker and os.environ.get("ISAACSIM_CI_SHORT", "false") == "true":
+        ci_marker = "isaacsim_ci"
 
     # Parse include files list (comma-separated paths)
     include_files = set()
@@ -680,6 +686,29 @@ def pytest_sessionstart(session):
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
+    # When a CI_MARKER is set, the marker tag is treated as explicit opt-in for
+    # this CI scope (the same way TEST_INCLUDE_FILES works). Pre-scan the tree
+    # for files containing the marker token and pass them as include_files so
+    # `_collect_test_files` does not silently drop them via TESTS_TO_SKIP.
+    if ci_marker:
+        marker_token = f"pytest.mark.{ci_marker}"
+        marker_include_files = set()
+        for source_dir in source_dirs:
+            for root, _, files in os.walk(source_dir):
+                for file in files:
+                    if not (file.startswith("test_") and file.endswith(".py")):
+                        continue
+                    try:
+                        with open(os.path.join(root, file)) as f:
+                            if marker_token in f.read():
+                                marker_include_files.add(file)
+                    except OSError:
+                        continue
+        if marker_include_files:
+            print(f"CI_MARKER={ci_marker}: marker-tagged files: {sorted(marker_include_files)}")
+            # Union with any explicit TEST_INCLUDE_FILES the caller passed.
+            include_files = include_files | marker_include_files
+
     # Get all test files in the source directories
     test_files = _collect_test_files(
         source_dirs,
@@ -690,11 +719,15 @@ def pytest_sessionstart(session):
         curobo_only,
     )
 
-    if isaacsim_ci:
+    if ci_marker:
+        # Match both `@pytest.mark.<marker>` (per-function) and
+        # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
+        # (module-level) by looking for the common `pytest.mark.<marker>` substring.
+        marker_token = f"pytest.mark.{ci_marker}"
         new_test_files = []
         for test_file in test_files:
             with open(test_file) as f:
-                if "@pytest.mark.isaacsim_ci" in f.read():
+                if marker_token in f.read():
                     new_test_files.append(test_file)
         test_files = new_test_files
 
@@ -715,7 +748,7 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, ci_marker)
 
     print("failed tests:", failed_tests)
 
