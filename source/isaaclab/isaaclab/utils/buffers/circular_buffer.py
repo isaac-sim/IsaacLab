@@ -43,7 +43,6 @@ class CircularBuffer:
         self._max_len_int: int = max_len
         self._max_len = torch.full((batch_size,), max_len, dtype=torch.int, device=device)
         self._num_pushes = torch.zeros(batch_size, dtype=torch.long, device=device)
-        self._pointer: int = -1
         # CPU gate; lets ``append`` skip a ``torch.any`` GPU sync on the steady-state path.
         self._need_reset: bool = True
         # Lazily allocated on the first ``append``.
@@ -85,12 +84,8 @@ class CircularBuffer:
             Complete circular buffer with most recent entry at the end and oldest entry at the beginning of
             dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
         """
-        # Storage is in physical write order; rotate on read to honor the docstring layout.
-        if self._pointer == self._max_len_int - 1:
-            rolled = self._buffer
-        else:
-            rolled = torch.roll(self._buffer, shifts=self._max_len_int - 1 - self._pointer, dims=0)
-        return torch.transpose(rolled, dim0=0, dim1=1)
+        # Storage invariant: oldest at slot 0, newest at slot K-1. Read is a free view.
+        return torch.transpose(self._buffer, dim0=0, dim1=1)
 
     """
     Operations.
@@ -129,8 +124,11 @@ class CircularBuffer:
         data = data.to(self._device)
         if self._buffer is None:
             self._buffer = torch.empty((self._max_len_int, *data.shape), dtype=data.dtype, device=self._device)
-        self._pointer = (self._pointer + 1) % self._max_len_int
-        self._buffer[self._pointer] = data
+        # Shift older slots up so the newest write always lands at slot K-1.
+        # Iterating front-to-back keeps adjacent-slot copies non-overlapping.
+        for i in range(self._max_len_int - 1):
+            self._buffer[i].copy_(self._buffer[i + 1])
+        self._buffer[-1] = data
         if self._need_reset:
             is_first_push = self._num_pushes == 0
             if torch.any(is_first_push):
@@ -163,5 +161,5 @@ class CircularBuffer:
 
         # Clamp to [0, ..] so batches with _num_pushes == 0 return the zeroed slot.
         valid_keys = torch.clamp(torch.minimum(key, self._num_pushes - 1), min=0)
-        index_in_buffer = ((self._pointer - valid_keys) % self._max_len_int).to(dtype=torch.long)
+        index_in_buffer = (self._max_len_int - 1 - valid_keys).to(dtype=torch.long)
         return self._buffer[index_in_buffer, self._ALL_INDICES]
