@@ -59,7 +59,7 @@ combined: ``--visualizer newton,rerun``.
 .. seealso::
 
    - :doc:`/source/features/hydra` — Hydra presets and configuration overrides
-   - :doc:`/source/features/visualization` — Visualizer backends and configuration
+   - :doc:`/source/overview/core-concepts/visualization` — Visualizer backends and configuration
    - :doc:`/source/how-to/configure_rendering` — Rendering mode presets and settings
    - :ref:`isaaclab-installation-root` — Full installation guide with all methods
 
