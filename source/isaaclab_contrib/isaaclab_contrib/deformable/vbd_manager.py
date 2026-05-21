@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Contacts, Control, JointType, Model, ModelBuilder, State, eval_fk, eval_ik
+from newton import JointType, Model, ModelBuilder, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -105,6 +105,49 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._pending_cable_attachments = []
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
+
+    @classmethod
+    def reset(cls, soft: bool = False) -> None:
+        """Reset the VBD physics simulation.
+
+        For ``soft=False`` (full reset) defers to :meth:`NewtonManager.reset`,
+        which rebuilds the model and solver from USD. For ``soft=True`` snaps
+        every body — cable segments and rigid bodies alike — back to its
+        rest-pose transform without rebuilding, by restoring
+        :attr:`State.body_q` and :attr:`SolverVBD.body_q_prev` from
+        :attr:`Model.body_q` and zeroing :attr:`State.body_qd` and
+        :attr:`SolverVBD.body_inertia_q`.
+
+        ``body_q_prev`` is load-bearing — AVBD computes implicit velocity as
+        ``(body_q - body_q_prev) / dt``, so without restoring it the snap-back
+        produces large spurious velocities. Joint state and AVBD penalty/Dahl
+        buffers are intentionally not touched: they are global to the world
+        (penalty ``k``) or would need joint offsets per-asset (Dahl,
+        ``joint_q``); in practice the body-side reset is sufficient to keep
+        post-reset dynamics bounded.
+
+        NOTE: This is a temporary workaround, can be patched once Newton supports maximal coordinates in VBD with FK.
+
+        Args:
+            soft: If True, snap state in place; otherwise reinitialize fully.
+        """
+        super().reset(soft)
+        if not soft:
+            return
+        model = cls._model
+        state = cls._state_0
+        solver = cls._solver
+        if model is None or state is None or solver is None or model.body_count == 0:
+            return
+        wp.copy(state.body_q, model.body_q)
+        wp.copy(solver.body_q_prev, model.body_q)
+        zero_qd = wp.zeros(model.body_count, dtype=state.body_qd.dtype, device=state.body_qd.device)
+        zero_inertia_q = wp.zeros(
+            model.body_count, dtype=solver.body_inertia_q.dtype, device=solver.body_inertia_q.device
+        )
+        wp.copy(state.body_qd, zero_qd)
+        wp.copy(solver.body_inertia_q, zero_inertia_q)
+        cls._mark_state_dirty()
 
     @classmethod
     def _mark_curves_dirty(cls) -> None:

@@ -17,7 +17,6 @@ differ from deformables in two respects only:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -265,9 +264,7 @@ def apply_cable_attachments_to_builder(
                 target_body_idx = body_idx
                 break
         if target_body_idx < 0:
-            available_in_world = [
-                body_label[i] for i in range(len(body_label)) if body_world[i] in (world_idx, -1)
-            ]
+            available_in_world = [body_label[i] for i in range(len(body_label)) if body_world[i] in (world_idx, -1)]
             raise ValueError(
                 f"CableAttachmentCfg.target_prim_path '{attachment.target_prim_path}' did not match "
                 f"any body in world {world_idx}. Available body labels in this world: {available_in_world}."
@@ -538,46 +535,3 @@ class CableObject(Articulation):
         )
         SimulationManager._cable_registry.append(entry)
         return entry
-
-    def reset(
-        self,
-        env_ids: Sequence[int] | slice | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Snap each env's cable bodies back to the spawn pose.
-
-        Restores four arrays per-env body slice. ``state.body_q`` and
-        ``solver.body_q_prev`` come from :attr:`Model.body_q` (the rest-pose
-        template that :class:`SolverVBD` itself reads at init);
-        ``state.body_qd`` and ``solver.body_inertia_q`` are zeroed.
-        ``body_q_prev`` is load-bearing — AVBD computes implicit velocity as
-        ``(body_q - body_q_prev) / dt``, so without this the snap-back
-        produces ~700 m/s spurious velocities.
-
-        Joint state and AVBD penalty/Dahl buffers are intentionally not
-        touched: they are global to the world (penalty ``k``) or would need
-        joint offsets in the registry (Dahl, ``joint_q``); in practice the
-        body-side reset is sufficient to keep post-reset dynamics bounded.
-
-        Args:
-            env_ids: Environment indices to reset. ``None`` means all.
-            env_mask: Parent-class compatibility; unused.
-        """
-        super().reset(env_ids=env_ids, env_mask=env_mask)
-        if not getattr(self, "_is_initialized", False) or SimulationManager._solver is None:
-            return
-        model = SimulationManager.get_model()
-        state = SimulationManager.get_state_0()
-        solver = SimulationManager._solver
-        body_offsets = self._registry_entry.body_offsets
-        n = len(self._registry_entry.edges)
-        # Per-call zero buffer for velocity slices (one segment chain wide).
-        zero_qd = wp.zeros(n, dtype=state.body_qd.dtype, device=state.body_qd.device)
-        zero_q = wp.zeros(n, dtype=solver.body_inertia_q.dtype, device=solver.body_inertia_q.device)
-        env_iter = range(len(body_offsets)) if env_ids is None or env_ids == slice(None) else list(env_ids)
-        for env_idx in env_iter:
-            offset = int(body_offsets[env_idx])
-            wp.copy(dest=state.body_q, src=model.body_q, dest_offset=offset, src_offset=offset, count=n)
-            wp.copy(dest=solver.body_q_prev, src=model.body_q, dest_offset=offset, src_offset=offset, count=n)
-            wp.copy(dest=state.body_qd, src=zero_qd, dest_offset=offset, count=n)
-            wp.copy(dest=solver.body_inertia_q, src=zero_q, dest_offset=offset, count=n)

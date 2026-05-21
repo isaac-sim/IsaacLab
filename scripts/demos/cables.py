@@ -91,10 +91,16 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
         tail_body_offset = (num_points - 2) * segment_length
         tail_body_x = cx + tail_body_offset * math.cos(angle)
         tail_body_y = cy + tail_body_offset * math.sin(angle)
-        plug_prim_path = f"/World/Origin/Plug{idx:03d}"
         plug_cfg = RigidObjectCfg(
-            prim_path=plug_prim_path,
-            spawn=sim_utils.UsdFileCfg(usd_path=PLUG_USDA),
+            prim_path=f"/World/Origin/Plug{idx:03d}",
+            spawn=sim_utils.CylinderCfg(
+                radius=0.02,
+                height=0.04,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
+            ),
             init_state=RigidObjectCfg.InitialStateCfg(
                 pos=(-0.38398558, 0.34585292, 0.5 - 0.36874688),
                 rot=(0.0, -0.57096256, 0.0, 0.8209761),
@@ -103,9 +109,13 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
         entities[f"Plug1{idx:03d}"] = RigidObject(cfg=plug_cfg)
 
         cable_cfg = CableObjectCfg(
-            prim_path=f"/World/Origin/Cable1{idx:03d}",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=CABLE_USDA,
+            prim_path=f"/World/Origin/Cable{idx:03d}",
+            spawn=sim_utils.CableCfg(
+                positions=[(i * segment_length, 0.0, 0.0) for i in range(num_points)],
+                width=width,
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(random.random(), random.random(), random.random())
+                ),
                 physics_material=NewtonCableMaterialCfg(
                     stretch_stiffness=1e3,
                     bend_stiffness=1e-4,
@@ -113,46 +123,17 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
                     bend_damping=1e-4,
                     density=100.0,
                 ),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
-            init_state=CableObjectCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.5),
-            ),
-            attachments=[
-                CableAttachmentCfg(
-                    target_prim_path=plug_prim_path,
-                    cable_anchor="head",
-                    cable_local_pos=(0.0, 0.0, 0.022), # the head node is 22mm along +Z from the head body center
-                ),
-            ],
+            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz)),
+            # attachments=[
+            #     CableAttachmentCfg(
+            #         target_prim_path=plug_prim_path,
+            #         cable_anchor="tail",
+            #     ),
+            # ],
         )
-        entities[f"Cable1{idx:03d}"] = CableObject(cfg=cable_cfg)
-
-        # cable_cfg = CableObjectCfg(
-        #     prim_path=f"/World/Origin/Cable{idx:03d}",
-        #     spawn=sim_utils.CableCfg(
-        #         positions=[(i * segment_length, 0.0, 0.0) for i in range(num_points)],
-        #         width=width,
-        #         visual_material=sim_utils.PreviewSurfaceCfg(
-        #             diffuse_color=(random.random(), random.random(), random.random())
-        #         ),
-        #         physics_material=NewtonCableMaterialCfg(
-        #             stretch_stiffness=1e3,
-        #             bend_stiffness=1e-4,
-        #             stretch_damping=1e-1,
-        #             bend_damping=1e-4,
-        #             density=100.0,
-        #         ),
-        #         collision_props=sim_utils.CollisionPropertiesCfg(),
-        #     ),
-        #     init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz)),
-        #     attachments=[
-        #         CableAttachmentCfg(
-        #             target_prim_path=plug_prim_path,
-        #             cable_anchor="tail",
-        #         ),
-        #     ],
-        # )
-        # entities[f"Cable{idx:03d}"] = CableObject(cfg=cable_cfg)
+        entities[f"Cable{idx:03d}"] = CableObject(cfg=cable_cfg)
 
     return entities
 
@@ -166,9 +147,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
     while simulation_app.is_running():
         if count % reset_steps == 0:
             count = 0
-            for entity in entities.values():
-                if isinstance(entity, CableObject):
-                    entity.reset()
+            sim.reset(soft=True)
             print("[INFO]: Resetting cable state...")
         sim.step()
         count += 1

@@ -248,6 +248,7 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
     body_label.index() bug that ignored body_world."""
     import newton
     import warp as wp
+    from isaaclab_newton.physics import NewtonManager as SimulationManager
 
     from isaaclab_contrib.cable import CableAttachmentCfg
     from isaaclab_contrib.cable.cable_object import (
@@ -255,7 +256,6 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
         add_cable_entry_to_builder,
         apply_cable_attachments_to_builder,
     )
-    from isaaclab_newton.physics import NewtonManager as SimulationManager
 
     # Fresh registries.
     SimulationManager._cable_registry = []
@@ -291,14 +291,19 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
         plug_indices_by_world.append(plug_idx)
 
         add_cable_entry_to_builder(
-            builder, entry, env_idx=world_idx,
-            env_position=[0.0, 0.0, 0.0], env_rotation=[0.0, 0.0, 0.0, 1.0],
+            builder,
+            entry,
+            env_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0],
+            env_rotation=[0.0, 0.0, 0.0, 1.0],
             cable_idx=0,
         )
         joints_before = builder.joint_count
         apply_cable_attachments_to_builder(
-            builder, world_idx=world_idx,
-            env_position=[0.0, 0.0, 0.0], env_rotation=[0.0, 0.0, 0.0, 1.0],
+            builder,
+            world_idx=world_idx,
+            env_position=[0.0, 0.0, 0.0],
+            env_rotation=[0.0, 0.0, 0.0, 1.0],
         )
         joints_after = builder.joint_count
         builder.end_world()
@@ -689,9 +694,7 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
     # an inextensible 0.48 m cable across 0.30 m. The band is set tight
     # enough to catch a regression to "no sag" while tolerating solver noise.
     sag = min(pa[2], pb[2]) - mid[2]
-    assert 0.015 < sag < 0.20, (
-        f"middle did not sag in expected range: mid {mid}, plugA {pa}, plugB {pb}, sag {sag}"
-    )
+    assert 0.015 < sag < 0.20, f"middle did not sag in expected range: mid {mid}, plugA {pa}, plugB {pb}, sag {sag}"
     # The catenary middle (chosen as the geometric middle edge body) should
     # land between the two plugs in X. The cable stretches non-uniformly
     # under the soft stretch stiffness, so we allow generous slack while
