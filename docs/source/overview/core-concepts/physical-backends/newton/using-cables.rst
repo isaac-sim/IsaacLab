@@ -244,6 +244,13 @@ under a single :class:`CableObject` are not supported yet).
         )
     )
 
+Here, ``cable.usda`` provides the curve geometry (control points, widths, edge
+topology) while ``physics_material`` overrides the cable's material with a
+lighter density of 100 kg/m³ — useful for fabric-like cables. The cable is
+placed 0.5 m above the origin in each environment via ``init_state``. The
+:class:`CableObject` reads the curve attributes once at registration and uses
+the bound (or supplied) Newton cable material for stiffness and damping.
+
 The curve prim must author three attributes:
 
 .. list-table::
