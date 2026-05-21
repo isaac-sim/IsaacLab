@@ -248,9 +248,10 @@ class CableObject(Articulation):
             NotImplementedError: If more than one ``UsdGeomBasisCurves``
                 descendant is found under the template prim — multi-curve
                 cables under a single :class:`CableObject` are not supported.
-            RuntimeError: If the template prim cannot be located, or
-                :func:`install_cable_builder_hooks` has not been called before
-                constructing the :class:`CableObject`.
+            RuntimeError: If the template prim cannot be located, or the active
+                Newton solver is not a VBD variant (only :class:`VBDSolverCfg`
+                and its coupled variants register the cable builder hooks; no
+                other Newton solver steps :attr:`newton.JointType.CABLE`).
 
         Note:
             ``pxr`` imports are deferred to this method (not module level) so
@@ -261,9 +262,13 @@ class CableObject(Articulation):
 
         if not hasattr(SimulationManager, "_cable_registry"):
             raise RuntimeError(
-                "CableObject requires `install_cable_builder_hooks()` to have been called"
-                " before constructing any CableObject instance (typically from the solver"
-                " manager init, mirroring the deformable contrib pattern)."
+                "CableObject can only be simulated under the Newton VBD solver"
+                " (`VBDSolverCfg` or one of its coupled variants:"
+                " `CoupledMJWarpVBDSolverCfg`, `CoupledFeatherstoneVBDSolverCfg`)."
+                " The cable registry is installed by the VBD manager's `initialize()`"
+                " hook via `install_cable_builder_hooks()`, and `JointType.CABLE`"
+                " is not stepped by any other Newton solver. Switch the solver cfg"
+                " or remove the CableObject from the scene."
             )
 
         if self.cfg.spawn is None:

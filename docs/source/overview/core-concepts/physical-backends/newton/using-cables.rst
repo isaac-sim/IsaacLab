@@ -142,10 +142,15 @@ pattern that the deformable contrib package also follows.
 Picking a Solver
 ----------------
 
-Cables are integrated as Newton articulations, but they currently must be
-simulated under a solver that knows how to step
-:attr:`newton.JointType.CABLE` joints. The VBD manager in
-:mod:`isaaclab_contrib.deformable` ships with that support:
+Cables are integrated as Newton articulations, but they can **only** be
+simulated under Newton's VBD solver: VBD is the only Newton solver that steps
+:attr:`newton.JointType.CABLE` joints, and only the VBD manager in
+:mod:`isaaclab_contrib.deformable` installs the cable builder hooks that
+:class:`~isaaclab_contrib.cable.CableObject` depends on. Constructing a
+:class:`~isaaclab_contrib.cable.CableObject` under any other solver
+(``MJWarpSolverCfg``, ``KaminoSolverCfg``, ``XPBDSolverCfg``,
+``FeatherstoneSolverCfg``) raises :class:`RuntimeError` at scene setup so the
+misconfiguration fails fast rather than producing a silently inert cable.
 
 .. code-block:: python
 

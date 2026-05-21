@@ -210,8 +210,8 @@ def test_cable_object_cfg_defaults():
     [
         # spawn=None → ValueError mentioning "CableCfg"
         (True, None, ValueError, "CableCfg"),
-        # registry not installed → RuntimeError mentioning "install_cable_builder_hooks"
-        (False, "valid", RuntimeError, "install_cable_builder_hooks"),
+        # registry not installed → RuntimeError mentioning the VBD solver requirement
+        (False, "valid", RuntimeError, "VBD"),
     ],
     ids=["spawn_none", "hooks_not_installed"],
 )
