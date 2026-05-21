@@ -65,7 +65,13 @@ Prerequisites
 
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format
+- A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
+  ``assemble_trocar`` is available and can be downloaded via:
+
+  .. code-block:: bash
+
+     hf download --repo-type model nvidia/orca-dev-test \
+         --include "rlinf/assemble_trocar/" --local-dir /path/to/local/models
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
 
 Installation
