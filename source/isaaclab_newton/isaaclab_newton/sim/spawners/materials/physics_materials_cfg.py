@@ -100,15 +100,15 @@ class NewtonCableMaterialCfg(PhysicsMaterialCfg):
     """Material-like axial stiffness EA [N]; normalized internally by segment length."""
 
     bend_stiffness: float = 0.0
-    """Material-like bend/twist stiffness EI [N*m^2]; normalized internally by segment length."""
+    """Material-like bend/twist stiffness EI [N·m²]; normalized internally by segment length."""
 
     stretch_damping: float = 0.0
-    """Per-joint stretch damping [N*s/m]."""
+    """Per-joint stretch damping [N·s/m]."""
 
     bend_damping: float = 0.0
-    """Per-joint bend/twist damping [N*m*s/rad]."""
+    """Per-joint bend/twist damping [N·m·s/rad]."""
 
     density: float = 1500.0
-    """Material density [kg/m^3]. Converted to per-segment mass via the capsule
-    shape's volume (``pi * radius^2 * segment_length * density``) by the cable
+    """Material density [kg/m³]. Converted to per-segment mass via the capsule
+    shape's volume (``pi * radius² * segment_length * density``) by the cable
     replicate hook before calling :meth:`newton.ModelBuilder.add_rod_graph`."""

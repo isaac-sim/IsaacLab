@@ -263,7 +263,7 @@ def spawn_cable(
 
     Args:
         prim_path: The prim path or regex pattern to spawn at.
-        cfg: Cable configuration. ``positions``, ``radius`` and ``physics_material``
+        cfg: Cable configuration. ``positions``, ``width`` and ``physics_material``
             (a :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`)
             are required.
         translation: World-space translation of the parent ``Xform``.
@@ -274,12 +274,18 @@ def spawn_cable(
         The spawned cable ``Xform`` prim.
 
     Raises:
-        ValueError: If ``cfg.rigid_props`` or ``cfg.mass_props`` is non-None.
+        ValueError: If ``cfg.rigid_props`` or ``cfg.mass_props`` is non-None, if
+            ``cfg.positions`` has fewer than 2 control points, or if ``cfg.width``
+            is not positive.
     """
     if cfg.rigid_props is not None:
         raise ValueError("CableCfg does not support `rigid_props`.")
     if cfg.mass_props is not None:
         raise ValueError("CableCfg does not support `mass_props`.")
+    if len(cfg.positions) < 2:
+        raise ValueError(f"CableCfg.positions must contain at least 2 control points (got {len(cfg.positions)}).")
+    if cfg.width <= 0.0:
+        raise ValueError(f"CableCfg.width must be positive (got {cfg.width}).")
 
     n_points = len(cfg.positions)
     attributes = {

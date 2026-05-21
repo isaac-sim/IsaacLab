@@ -32,6 +32,6 @@ class CableObjectCfg(ArticulationCfg):
       — expected and not suppressed in Phase 1.
     """
 
-    class_type: type = "{DIR}.cable_object:CableObject"
+    class_type: type | str = "{DIR}.cable_object:CableObject"
     articulation_root_prim_path: str | None = "/cable_articulation"
     actuators: dict[str, ActuatorBaseCfg] = {}

@@ -177,8 +177,7 @@ def install_cable_builder_hooks() -> None:
     Resets ``_cable_registry`` to an empty list on each call — install is intended
     to be called once per scene setup, not per asset.
 
-    Mirrors :func:`isaaclab_contrib.deformable.deformable_object.install_deformable_builder_hooks`
-    (see ``deformable_object.py:190-201``).
+    Mirrors :func:`isaaclab_contrib.deformable.deformable_object.install_deformable_builder_hooks`.
     """
     SimulationManager._cable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
@@ -318,7 +317,14 @@ class CableObject(Articulation):
         raw_widths = curves.GetWidthsAttr().Get()
         if raw_widths is None or len(raw_widths) == 0:
             raise ValueError(f"UsdGeomBasisCurves at '{curve_prim.GetPrimPath()}' is missing the `widths` attribute.")
-        radius = float(raw_widths[0]) / 2.0
+        widths_list = [float(w) for w in raw_widths]
+        if max(widths_list) - min(widths_list) > 1e-9:
+            raise ValueError(
+                f"UsdGeomBasisCurves at '{curve_prim.GetPrimPath()}' has non-uniform `widths`"
+                f" (min={min(widths_list)}, max={max(widths_list)}); tapered cables are not supported."
+                " Author a constant width across all control points."
+            )
+        radius = widths_list[0] / 2.0
 
         # Read the edge topology from the curve prim's ``int2[] connections``
         # attribute. :func:`~isaaclab.sim.spawners.shapes.spawn_cable` authors a
@@ -359,8 +365,8 @@ class CableObject(Articulation):
                 else (
                     " Hint: the curve has no `UsdPhysics.CollisionAPI`, which `bind_physics_material`"
                     " requires; set `CableCfg.collision_props = sim_utils.CollisionPropertiesCfg()` so"
-                    " `spawn_cable` applies the API (cables are currently Newton-only, and the API has"
-                    " no PhysX runtime effect since the cable is in the cloner's `_cable_ignore_paths`)."
+                    " `spawn_cable` applies the API (cables are currently Newton-only and the API has"
+                    " no PhysX runtime effect)."
                 )
             )
             raise ValueError(
