@@ -187,6 +187,13 @@ jobs:
             -e PRIVACY_CONSENT=Y \
             --entrypoint bash \
             "${{ env.CI_IMAGE_TAG }}" -lc '
+              # Dockerfile.base bakes _isaac_sim → /isaac-sim into the image, but
+              # the workspace bind-mount overlays it on the host checkout, so
+              # ./isaaclab.sh -p cannot find Sim'"'"'s python.sh. Re-create the
+              # symlink on the bind-mounted tree; actions/checkout clean:true
+              # default wipes it before the next run.
+              ln -sf /isaac-sim _isaac_sim
+
               set +e  # individual tier failures do not abort the script
 
               echo "::group::Tier 1 — general-arm smoke (torch + scipy)"
