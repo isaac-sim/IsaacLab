@@ -83,17 +83,17 @@ From the Isaac Lab root directory:
    uv pip install -e "source/isaaclab_contrib[rlinf]"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install rlinf==0.2.0 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps --ignore-requires-python
 
    # Step 3: Install Isaac-GR00T (pinned version)
    git clone https://github.com/NVIDIA/Isaac-GR00T.git
    cd Isaac-GR00T
-   git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-   uv pip install -e ".[base]" --no-deps
+   git checkout 3df8b3825d67f755e69141446f4315f281b9b7e6
+   uv pip install -e ".[base]" --no-deps --ignore-requires-python
    cd ../
 
    # Step 4: Install flash-attn (must be built against the installed PyTorch)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+   uv pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
 Quick Start
 ~~~~~~~~~~~
