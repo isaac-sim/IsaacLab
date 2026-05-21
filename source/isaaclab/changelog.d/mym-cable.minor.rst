@@ -5,4 +5,6 @@ Added
   :func:`~isaaclab.sim.spawners.shapes.spawn_cable` for authoring 1D cable / rod
   prims as ``UsdGeomBasisCurves``. Physics is materialized by the Newton
   replicate hook in the contrib package; see
-  :class:`~isaaclab_contrib.cable.CableObject`.
+  :class:`~isaaclab_contrib.cable.CableObject`. The spawner raises
+  :class:`RuntimeError` when invoked under a non-Newton physics backend, so a
+  misconfigured scene fails fast instead of loading the curve as inert geometry.

@@ -250,11 +250,10 @@ def spawn_cable(
     ``mass_props`` are rejected up front because they don't apply to cables.
 
     .. warning::
-        Cables are currently **only supported on the Newton physics backend**. The
-        spawner itself only authors USD (which works on any backend), but the
-        resulting cable will not be simulated under PhysX —
-        :class:`~isaaclab_contrib.cable.CableObject` will refuse to register if
-        the active backend is not Newton.
+        Cables are **only supported on the Newton physics backend**. The spawner
+        raises :class:`RuntimeError` when invoked under any other backend (e.g.
+        PhysX), because the resulting curve prim cannot be registered as a
+        Newton articulation and would load as inert geometry.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -274,10 +273,26 @@ def spawn_cable(
         The spawned cable ``Xform`` prim.
 
     Raises:
+        RuntimeError: If the active physics backend is not Newton.
         ValueError: If ``cfg.rigid_props`` or ``cfg.mass_props`` is non-None, if
             ``cfg.positions`` has fewer than 2 control points, or if ``cfg.width``
             is not positive.
     """
+    # Import lazily to avoid a circular import: this module is imported during
+    # ``isaaclab.sim`` package init, which also exports ``SimulationContext``.
+    from isaaclab.sim.simulation_context import SimulationContext
+
+    sim_ctx = SimulationContext.instance()
+    if sim_ctx is None:
+        raise RuntimeError(
+            "CableCfg can only be spawned after a SimulationContext is initialized with the Newton physics backend."
+        )
+    manager_name = sim_ctx.physics_manager.__name__.lower()
+    if not manager_name.startswith("newton"):
+        raise RuntimeError(
+            f"CableCfg can only be spawned under the Newton physics backend (active backend: {manager_name!r}). "
+            "Cables rely on Newton's rod-graph articulation; other backends would load the curve as inert geometry."
+        )
     if cfg.rigid_props is not None:
         raise ValueError("CableCfg does not support `rigid_props`.")
     if cfg.mass_props is not None:

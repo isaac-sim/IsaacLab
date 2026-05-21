@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 
 from pxr import UsdGeom
@@ -25,8 +26,9 @@ pytestmark = pytest.mark.isaacsim_ci
 
 @pytest.fixture
 def sim():
+    """Create a SimulationContext bound to the Newton physics backend, as required by ``spawn_cable``."""
     sim_utils.create_new_stage()
-    sim = SimulationContext(SimulationCfg(dt=0.1))
+    sim = SimulationContext(SimulationCfg(dt=0.1, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)))
     sim_utils.update_stage()
     yield sim
     sim._disable_app_control_on_stop_handle = True
@@ -67,6 +69,27 @@ def test_spawn_cable(sim):
     assert connections_attr.IsValid()
     connections = [(int(e[0]), int(e[1])) for e in connections_attr.Get()]
     assert connections == [(0, 1), (1, 2)]
+
+
+def test_spawn_cable_rejects_non_newton_backend(sim, monkeypatch):
+    """``spawn_cable`` must refuse to author USD when the active backend is not Newton."""
+
+    # Replace the active physics manager *class* on the SimulationContext with a stub
+    # whose ``__name__`` matches PhysX's, since :func:`spawn_cable` dispatches on that
+    # exact attribute. ``monkeypatch`` reverts it after the test.
+    class PhysxPhysicsManager:
+        pass
+
+    monkeypatch.setattr(sim, "physics_manager", PhysxPhysicsManager)
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+        width=0.01,
+        physics_material=_basic_material(),
+    )
+    with pytest.raises(RuntimeError, match="Newton physics backend"):
+        cfg.func("/World/Cable", cfg)
+    # Curve prim must not have been authored.
+    assert not sim.stage.GetPrimAtPath("/World/Cable").IsValid()
 
 
 def test_spawn_cable_validation_rigid_props_rejected(sim):

@@ -12,11 +12,12 @@ entry, and material defaults may change while Newton cable support is under
 active development.
 
 .. note::
-    Cables are currently **only supported on the Newton physics backend**.
-    The spawner authors valid USD on any backend (so the scene loads in PhysX
-    or PhysX-Fabric viewports), but the resulting cable is not registered with
-    a PhysX articulation. :class:`~isaaclab.sim.spawners.shapes.CableCfg`
-    requires ``physics_material`` to be a
+    Cables are **only supported on the Newton physics backend**.
+    :func:`~isaaclab.sim.spawners.shapes.spawn_cable` raises :class:`RuntimeError`
+    when invoked under any other backend (e.g. PhysX), so a misconfigured scene
+    fails fast instead of loading the curve as inert geometry.
+    :class:`~isaaclab.sim.spawners.shapes.CableCfg` also requires
+    ``physics_material`` to be a
     :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`
     and rejects ``rigid_props`` / ``mass_props`` up front.
 
@@ -275,8 +276,9 @@ binding on the curve prim. If no Newton cable material is bound, the
 Limitations
 -----------
 
-* Newton-only. PhysX has no cable joint, so the cable will load as inert
-  geometry under a PhysX backend.
+* Newton-only. PhysX has no cable joint, so
+  :func:`~isaaclab.sim.spawners.shapes.spawn_cable` raises :class:`RuntimeError`
+  under a non-Newton backend rather than authoring inert geometry.
 * No actuators. :class:`~isaaclab_contrib.cable.CableObjectCfg` overrides
   ``actuators`` to ``{}``; per-cable stiffness is treated as material, not as
   a controllable joint. The inherited
