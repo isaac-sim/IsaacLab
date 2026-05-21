@@ -83,7 +83,7 @@ From the Isaac Lab root directory:
    uv pip install -e "source/isaaclab_contrib[rlinf]"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps --ignore-requires-python
+   uv pip install rlinf==0.2.0 easypytorch3d transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps --ignore-requires-python
 
    # Step 3: Install Isaac-GR00T (pinned version)
    git clone https://github.com/NVIDIA/Isaac-GR00T.git
