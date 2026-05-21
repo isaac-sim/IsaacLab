@@ -35,6 +35,7 @@ import random
 
 import tqdm
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
@@ -143,7 +144,10 @@ def main():
         dt=0.01,
         device=args_cli.device,
         physics=physics_cfg,
-        visualizer_cfgs=[NewtonVisualizerCfg(eye=(2.0, 2.0, 1.0), lookat=(0.0, 0.0, 0.25))],
+        visualizer_cfgs=[
+            NewtonVisualizerCfg(eye=(2.0, 2.0, 1.0), lookat=(0.0, 0.0, 0.25)),
+            KitVisualizerCfg(eye=(2.0, 2.0, 1.0), lookat=(0.0, 0.0, 0.25)),
+        ],
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
