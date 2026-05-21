@@ -24,7 +24,22 @@ from .usd_frame_view import UsdFrameView
 logger = logging.getLogger(__name__)
 
 # Devices supported by Fabric GPU acceleration (USDRT SelectPrims + Warp).
-_FABRIC_SUPPORTED_DEVICES = ("cpu", "cuda", "cuda:0")
+# Any CUDA device is supported — multi-GPU setups use cuda:1, cuda:2, etc.
+_FABRIC_SUPPORTED_DEVICES: tuple[str, ...] | None = None  # None = compute dynamically
+
+
+def _is_fabric_supported_device(device: str) -> bool:
+    """Return True if *device* can use the Fabric-accelerated path."""
+    if device in ("cpu", "cuda"):
+        return True
+    # Accept any cuda:N index.
+    if device.startswith("cuda:"):
+        try:
+            int(device.split(":", 1)[1])
+            return True
+        except (ValueError, IndexError):
+            pass
+    return False
 
 
 class FrameView(FactoryBase, BaseFrameView):
@@ -74,14 +89,14 @@ class FrameView(FactoryBase, BaseFrameView):
         if len(args) >= 2:
             device = args[1]
 
-        if fabric_enabled and device in _FABRIC_SUPPORTED_DEVICES:
+        if fabric_enabled and _is_fabric_supported_device(device):
             return "physx"
 
-        if fabric_enabled and device not in _FABRIC_SUPPORTED_DEVICES:
+        if fabric_enabled and not _is_fabric_supported_device(device):
             logger.warning(
                 f"Fabric mode is not supported on device '{device}'. "
                 "USDRT SelectPrims and Warp fabric arrays are currently "
-                f"only supported on {', '.join(_FABRIC_SUPPORTED_DEVICES)}. "
+                "only supported on cpu and cuda:<N> devices. "
                 "Falling back to UsdFrameView."
             )
 
