@@ -13,7 +13,7 @@ Added
   and :func:`~isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`
   Warp kernels that propagate ``local = world * inv(parent)`` and
   ``world = local * parent`` directly on Fabric storage matrices (no
-  explicit transposes).  Will be used by
+  explicit transposes).  Used by
   :class:`~isaaclab_physx.sim.views.FabricFrameView` to keep child world and
   local matrices consistent across writes without round-tripping through USD.
 
