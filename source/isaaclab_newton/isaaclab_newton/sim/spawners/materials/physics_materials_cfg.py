@@ -85,9 +85,18 @@ class NewtonCableMaterialCfg(PhysicsMaterialCfg):
     """Newton-specific physics material for cable rods.
 
     Authored as a ``UsdShade.Material`` prim with ``newton:*`` attributes via the
-    generic :func:`spawn_deformable_body_material` helper. :class:`CableObject`
-    reads these fields directly from ``cfg.physics_material`` when constructing
-    the registry entry.
+    generic :func:`spawn_deformable_body_material` helper, and read back from
+    that prim by :class:`CableObject` at registration time
+    (see :meth:`CableObject._register_cable`); the cfg defaults below serve as
+    the fallback when an attribute is missing on the prim.
+
+    Note:
+        This `newton:*` attribute convention is provisional — there is no
+        official UsdNewton applied schema yet (:attr:`_usd_applied_schema` is
+        ``None``), so the fields are stored as plain attributes in the
+        ``newton:`` namespace on a :class:`UsdShade.Material` prim rather than
+        through a typed schema. The naming and storage may change once an
+        official schema lands.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
