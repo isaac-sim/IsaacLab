@@ -117,10 +117,11 @@ class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     the VBD view so VBD detects contacts against them and returns feedback
     wrenches to MuJoCo via lagged impulses.
 
-    Body selection uses :class:`~isaaclab.managers.SceneEntityCfg` entries: each
-    names a scene-registered asset and optional body-name regexes
-    (``re.fullmatch``, same convention as
-    :class:`~isaaclab.envs.mdp.BinaryJointPositionActionCfg.joint_names`).
+    Body selectors are either :class:`~isaaclab.managers.SceneEntityCfg`
+    (scoped by the asset's ``prim_path``, optionally narrowed by ``body_names``
+    full-matched against body short names) or raw prim-path regex strings
+    (e.g. ``"/World/envs/env_.*/MyCube"``) matched against ``model.body_label``
+    via ``^<string>(/|$)``.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.proxy_coupled_mjwarp_vbd_manager:NewtonProxyCoupledMJWarpVBDManager"
@@ -135,27 +136,23 @@ class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """VBD sub-solver configuration; defaults to external rigid integration since
     rigid bodies live in the MuJoCo entry."""
 
-    mjwarp_bodies: list[SceneEntityCfg] = []
-    """Scene-entity specs whose bodies/joints/shapes go to the MuJoCo entry.
+    mjwarp_bodies: list[SceneEntityCfg | str] = []
+    """Selectors whose bodies/joints/shapes go to the MuJoCo entry.
 
-    ``body_names`` (optional) narrows the match to a list of body-short-name
-    regexes; leave unset to claim every body under the asset's prim_path.
-    Joints inherit their child body's owner; shapes inherit their body's owner;
-    static shapes (``body == -1``) always go to the VBD entry.
+    Joints inherit their child body's owner; shapes inherit their body's
+    owner; static shapes (``body == -1``) always go to the VBD entry.
     """
 
-    vbd_bodies: list[SceneEntityCfg] = []
-    """Scene-entity specs whose bodies/joints/shapes/particles go to the VBD
-    entry. Same conventions as :attr:`mjwarp_bodies`."""
+    vbd_bodies: list[SceneEntityCfg | str] = []
+    """Selectors routed to the VBD entry (see :attr:`mjwarp_bodies`)."""
 
-    proxy_bodies: list[SceneEntityCfg] = []
-    """Scene-entity specs naming bodies to expose as proxies in the VBD view.
+    proxy_bodies: list[SceneEntityCfg | str] = []
+    """Selectors naming MuJoCo bodies to expose as proxies in the VBD view.
 
-    Same shape as :attr:`mjwarp_bodies` / :attr:`vbd_bodies`, but ``body_names``
-    is **required** — proxies are a subset, not "every body under the asset".
-    Matched bodies that also own at least one shape flagged
-    ``newton.ShapeFlags.COLLIDE_SHAPES`` are promoted to proxies. Empty list
-    means no proxies (rigid bodies are invisible to VBD).
+    For :class:`SceneEntityCfg` entries, ``body_names`` is **required**
+    (proxies are a subset, not the whole asset); raw strings are accepted
+    as-is. Matched bodies are filtered to those owning at least one
+    ``newton.ShapeFlags.COLLIDE_SHAPES`` shape. Empty list = no proxies.
     """
 
     proxy_mode: str = "lagged"

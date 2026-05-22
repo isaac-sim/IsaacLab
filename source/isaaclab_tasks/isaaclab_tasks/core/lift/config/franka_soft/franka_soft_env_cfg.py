@@ -152,9 +152,10 @@ class PhysicsCfg(PresetCfg):
             vbd_cfg=VBDSolverCfg(
                 iterations=10,
             ),
-            mjwarp_bodies=[SceneEntityCfg("robot")],
+            mjwarp_bodies=["/World/envs/env_.*/Robot"],
             proxy_bodies=[
-                SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
+                "/World/envs/env_.*/Robot/panda_hand",
+                "/World/envs/env_.*/Robot/panda_(left|right)finger",
             ],
             proxy_collide_interval=5,
         ),
@@ -455,22 +456,6 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
         self.sim.physics = PhysicsCfg()
-        # Set scene for proxy coupled solver
-        self.sim.physics.newton_mjwarp_vbd_proxy.scene_cfg = self.scene
-        self.sim.physics.default.scene_cfg = self.scene
 
-        # viewer settings
-        self.sim.visualizer_cfgs = [
-            KitVisualizerCfg(
-                eye=(1.25, -1.5, 0.75),
-                lookat=(0.0, 0.0, 0.0),
-                window_width=1920,
-                window_height=1080,
-            ),
-            NewtonVisualizerCfg(
-                eye=(1.25, -1.5, 0.75),
-                lookat=(0.0, 0.0, 0.0),
-                window_width=1920,
-                window_height=1080,
-            ),
-        ]
+        view = dict(eye=(1.25, -1.5, 0.75), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
+        self.sim.visualizer_cfgs = [KitVisualizerCfg(**view), NewtonVisualizerCfg(**view)]
