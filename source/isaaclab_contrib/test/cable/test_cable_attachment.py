@@ -280,7 +280,10 @@ def test_apply_cable_attachments_per_world_resolves_correct_plug():
 
 
 def test_cable_labels_and_attachments_expand_env_regex_under_cloning():
-    """env_.* tokens in cable/target prim paths are pre-expanded per-world; matches both unexpanded (USD) and expanded (builder-hook) labels."""
+    """env_.* tokens in cable/target prim paths are pre-expanded per-world.
+
+    Matches both unexpanded (USD) and expanded (builder-hook) labels.
+    """
     import newton
     import warp as wp
     from isaaclab_newton.physics import NewtonManager as SimulationManager
