@@ -130,6 +130,11 @@ class CableCfg(ShapeCfg):
     explicit list of control points. Physics is materialized at model-build time
     by the Newton replicate hook calling :meth:`newton.ModelBuilder.add_rod_graph`.
 
+    The curve is always authored with ``type = "linear"``; cubic bases
+    (``bezier``, ``bspline``, ``catmullRom``) are not supported because the
+    rod-graph builder consumes :attr:`positions` directly as node positions and
+    has no way to interpret tangent handles or non-interpolating control points.
+
     .. note::
         Cables are currently **only supported on the Newton physics backend**.
         ``physics_material`` must be a
