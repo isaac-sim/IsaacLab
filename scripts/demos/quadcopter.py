@@ -11,22 +11,29 @@ This script demonstrates how to simulate a quadcopter.
     # Usage
     ./isaaclab.sh -p scripts/demos/quadcopter.py
 
+    # Run with the Newton backend
+    ./isaaclab.sh -p scripts/demos/quadcopter.py physics=newton_mjwarp -visualizer=newton
+
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse command line arguments."""
 
 import argparse
-
+import sys
 from isaaclab.app import AppLauncher
+
+from isaaclab_tasks.utils import add_launcher_args,fold_preset_tokens,launch_simulation,setup_preset_cli
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a quadcopter.")
 # append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])
 # parse the arguments
-args_cli = parser.parse_args()
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -39,6 +46,8 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
+from isaaclab_tasks.utils.hydra import collect_presets, parse_overrides, resolve_presets
+from default_physics_cfg import DefaultPhysicsCfgs   
 
 ##
 # Pre-defined configs
@@ -46,11 +55,15 @@ from isaaclab.sim import SimulationContext
 from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
 
 
-def main():
-    """Main function."""
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+def main() -> None:
+    """Run the quadcopter demo."""
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=DefaultPhysicsCfgs())
+    global_presets, preset_sel, *_ = parse_overrides(sys.argv[1:], {"env": collect_presets(sim_cfg)})
+    sim_cfg = resolve_presets(sim_cfg, {*global_presets, *(name for _, _, name in preset_sel)})
+
     sim = SimulationContext(sim_cfg)
+    # launch_simulation(sim, args_cli)
+
     # Set main camera
     sim.set_camera_view(eye=[0.5, 0.5, 1.0], target=[0.0, 0.0, 0.5])
 
@@ -74,7 +87,7 @@ def main():
 
     # Fetch relevant parameters to make the quadcopter hover in place
     prop_body_ids = robot.find_bodies("m.*_prop")[0]
-    robot_mass = robot.root_view.get_masses().sum()
+    robot_mass = robot.data.body_mass.torch[0].sum()
     gravity = torch.tensor(sim.cfg.gravity, device=sim.device).norm()
 
     # Now we are ready!
@@ -85,7 +98,7 @@ def main():
     sim_time = 0.0
     count = 0
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.has_alive_visualizers():
         # reset
         if count % 2000 == 0:
             # reset counters

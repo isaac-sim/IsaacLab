@@ -898,6 +898,9 @@ class SimulationContext:
 
         sim_utils.clear_stage(predicate=_predicate)
 
+    def has_alive_visualizers(self) -> bool:
+        """Return True if there are any alive visualizers."""
+        return any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
 
 @contextmanager
 def build_simulation_context(
