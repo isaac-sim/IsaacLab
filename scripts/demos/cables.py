@@ -34,19 +34,16 @@ simulation_app = app_launcher.app
 import math
 import random
 
+import torch
 import tqdm
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.math import quat_from_angle_axis
 
 from isaaclab_contrib.cable import CableObject, CableObjectCfg
-
-
-def z_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
-    """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +Z."""
-    return (0.0, 0.0, math.sin(0.5 * angle_rad), math.cos(0.5 * angle_rad))
 
 
 def design_scene(num_cables: int) -> dict[str, CableObject]:
@@ -94,7 +91,10 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
         cfg = CableObjectCfg(
             prim_path=f"/World/Origin/Cable{idx:03d}",
             spawn=spawn_cfg,
-            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+            init_state=CableObjectCfg.InitialStateCfg(
+                pos=(cx, cy, cz), 
+                rot=quat_from_angle_axis(torch.tensor(angle), torch.tensor([0.0, 0.0, 1.0]))
+            ),
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
 
