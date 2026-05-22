@@ -10,6 +10,7 @@ isaaclab_contrib.cable
     cable_object.CableObject
     cable_object.CableRegistryEntry
     cable_object_cfg.CableObjectCfg
+    cable_object_cfg.CableAttachmentCfg
 
   .. rubric:: Replicate-hook plumbing
 
@@ -17,6 +18,7 @@ isaaclab_contrib.cable
 
     cable_object.add_cable_entry_to_builder
     cable_object.add_registered_cables_to_builder
+    cable_object.apply_cable_attachments_to_builder
     cable_object.install_cable_builder_hooks
 
 Cable Object
@@ -32,6 +34,14 @@ Cable Object
   :show-inheritance:
   :exclude-members: __init__
 
+Cable Attachments
+-----------------
+
+.. autoclass:: isaaclab_contrib.cable.cable_object_cfg.CableAttachmentCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
 Replicate-Hook Plumbing
 -----------------------
 
@@ -40,7 +50,9 @@ pattern: :class:`CableObject` constructor appends a
 :class:`CableRegistryEntry` to ``SimulationManager._cable_registry``, and the
 hook installed by :func:`install_cable_builder_hooks` walks that registry once
 per world during ``add_to_builder`` to call
-:meth:`newton.ModelBuilder.add_rod_graph`.
+:meth:`newton.ModelBuilder.add_rod_graph`. A second hook walks any pending
+:class:`CableAttachmentCfg` entries and emits the corresponding Newton fixed
+joints.
 
 .. autoclass:: isaaclab_contrib.cable.cable_object.CableRegistryEntry
   :members:
@@ -50,5 +62,7 @@ per world during ``add_to_builder`` to call
 .. autofunction:: isaaclab_contrib.cable.cable_object.add_cable_entry_to_builder
 
 .. autofunction:: isaaclab_contrib.cable.cable_object.add_registered_cables_to_builder
+
+.. autofunction:: isaaclab_contrib.cable.cable_object.apply_cable_attachments_to_builder
 
 .. autofunction:: isaaclab_contrib.cable.cable_object.install_cable_builder_hooks

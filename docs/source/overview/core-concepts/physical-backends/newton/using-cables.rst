@@ -22,20 +22,28 @@ active development.
     and rejects ``rigid_props`` / ``mass_props`` up front.
 
 
-Quick Start: The Cable Demo
----------------------------
+Quick Start: The Cable Demos
+----------------------------
 
-Before adding cables to a task, it is a good sanity check to run the standalone demo to confirm that the
+Before adding cables to a task, it is a good sanity check to run the standalone demos to confirm that the
 spawner, the cable replicate hook, the VBD solver, and the Kit / Fabric
 viewport sync are all working in your environment:
 
 .. code-block:: bash
 
+    # Pile of free cables falling onto a ground plane (cable-only scene).
     ./isaaclab.sh -p scripts/demos/cables.py
     ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40
 
-The demo spawns a pile of randomly oriented cables onto a ground plane under
-the Newton VBD solver. Source: ``scripts/demos/cables.py``.
+    # Cables welded to rigid plug + kinematic anchor bodies (mixed scene).
+    ./isaaclab.sh -p scripts/demos/cable_pendulum.py
+    ./isaaclab.sh -p scripts/demos/cable_pendulum.py --num_cables 10
+
+Both demos run under the Newton VBD solver and reset every two seconds to
+exercise the snap-back-to-rest path. ``cables.py`` covers free-cable
+authoring; ``cable_pendulum.py`` covers the
+:class:`~isaaclab_contrib.cable.CableAttachmentCfg` workflow described below.
+Sources: ``scripts/demos/cables.py``, ``scripts/demos/cable_pendulum.py``.
 
 
 Authoring a Cable
@@ -173,6 +181,81 @@ A cable-only scene can use a bare
 :doc:`using-vbd-solver`.
 
 
+Attaching Cables to Rigid Bodies
+--------------------------------
+
+A cable endpoint (or any intermediate segment) can be welded to a rigid body
+on another spawned asset via
+:class:`~isaaclab_contrib.cable.CableAttachmentCfg`. Attachments are declared
+at scene-config time on
+:attr:`~isaaclab_contrib.cable.CableObjectCfg.attachments` and realized as
+Newton fixed joints by a per-world builder hook, so they survive cloning
+across environments without per-env Python code.
+
+.. code-block:: python
+
+    from isaaclab.assets import RigidObject, RigidObjectCfg
+    from isaaclab_contrib.cable import CableAttachmentCfg, CableObject, CableObjectCfg
+
+    plug = RigidObject(cfg=RigidObjectCfg(
+        prim_path="/World/Origin/Plug",
+        spawn=sim_utils.CylinderCfg(
+            radius=0.04, height=0.04,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.02),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.4)),
+    ))
+
+    cable = CableObject(cfg=CableObjectCfg(
+        prim_path="/World/Origin/Cable",
+        spawn=cable_spawn,
+        init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.4)),
+        attachments=[
+            CableAttachmentCfg(
+                target_prim_path="/World/Origin/Plug",
+                cable_anchor=0,                     # head segment
+                cable_local_pos=(0.0, 0.0, -0.015), # offset along cable's local frame
+            ),
+        ],
+    ))
+
+The attachment fields:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Parameter
+      - Description
+    * - ``target_prim_path``
+      - Prim path of the target rigid body. Required. Matched exactly against
+        the builder's body labels. Both the unexpanded ``env_.*`` template and
+        the per-env-expanded form are tried, so the same cfg works for both
+        cloned USD-imported targets and bodies added by builder hooks.
+    * - ``cable_anchor``
+      - Rod-segment body index to anchor, Python-style: ``0`` is the head
+        segment, ``-1`` (default) is the tail, ``1`` is the second segment, and
+        so on. Out-of-range values raise at attachment-hook time. The
+        underlying body count is ``len(positions) - 1``.
+    * - ``cable_local_pos`` / ``cable_local_quat``
+      - Joint anchor pose ``[m]`` and orientation ``(x, y, z, w)`` in the
+        anchored cable segment's local frame. Use this to express the
+        half-segment offset between the segment body centre and the cable's
+        end node (see the pendulum demo for an example).
+    * - ``target_local_pos`` / ``target_local_quat``
+      - Joint anchor pose ``[m]`` and orientation ``(x, y, z, w)`` in the
+        target body's local frame. Lets a baked geometric offset on the
+        target asset (e.g. a connector tip) be expressed as a body-local weld
+        offset.
+
+The pendulum demo ``scripts/demos/cable_pendulum.py`` exercises a full
+"plug ↔ cable ↔ kinematic anchor" setup with both endpoints attached, mass-
+varied plugs, and the soft-reset path. Treat it as the reference for
+authoring connector-style cable assets.
+
+
 Cable Material Parameters
 -------------------------
 
@@ -279,6 +362,29 @@ binding on the curve prim. If no Newton cable material is bound, the
 :class:`~isaaclab_contrib.cable.CableRegistryEntry` defaults are used.
 
 
+Provisional / Experimental
+--------------------------
+
+Cable support is under active development. The following surfaces are
+expected to keep working but may change shape:
+
+* :class:`~isaaclab.sim.spawners.shapes.CableCfg`,
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonCableMaterialCfg`,
+  :class:`~isaaclab_contrib.cable.CableObjectCfg`, and
+  :class:`~isaaclab_contrib.cable.CableAttachmentCfg` field names and
+  defaults may still shift as the Newton cable API stabilizes.
+* The cable replicate hook, registry entry, and attachment hook
+  (:mod:`isaaclab_contrib.cable.cable_object`) are internal plumbing for now.
+  They live in ``contrib`` because the abstraction is still settling — code
+  that wires them from a custom solver manager should expect light
+  refactoring.
+* Reset semantics for cables coupled to rigid bodies are intentionally
+  conservative: ``CableObject.reset()`` snaps the cable's bodies (and the
+  AVBD implicit-velocity buffer) back to rest, but joint state and AVBD
+  penalty / Dahl buffers stay live. This is enough to keep post-reset
+  dynamics bounded in the demos, and may be tightened up later.
+
+
 Limitations
 -----------
 
@@ -320,7 +426,18 @@ Limitations
   it loops back on itself. This requires per-pair collision filtering rather
   than a single shared group, which Newton does not currently expose for rod
   graphs.
+* Attachment constraints are only enforced under solvers that honor
+  cross-articulation fixed joints. The VBD solver shipped in
+  :mod:`isaaclab_contrib.deformable` honors them; per-articulation solvers
+  (e.g. MuJoCo, Featherstone) may silently drop the constraint.
+* Attachments must point at bodies that already exist by the time the
+  attachment hook fires. The matcher walks ``builder.body_label`` for the
+  current world and raises ``ValueError`` if the target path is missing —
+  there is no deferred / dynamic attachment yet.
+* Cables cannot themselves be attachment targets. The matcher resolves
+  ``target_prim_path`` against rigid-body labels in the builder; welding two
+  cables together segment-to-segment is not yet supported.
 
-For implementation details of the cable registry, replicate hook, and Fabric
-curve sync, see :class:`~isaaclab_contrib.cable.CableObject` and the
-deformable contrib :doc:`newton-manager-abstraction` guide.
+For implementation details of the cable registry, replicate hook, attachment
+hook, and Fabric curve sync, see :class:`~isaaclab_contrib.cable.CableObject`
+and the deformable contrib :doc:`newton-manager-abstraction` guide.
