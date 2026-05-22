@@ -17,10 +17,19 @@ before it works well with VBD.
 VBD is usually exposed through a task-specific physics preset rather than a
 general ``newton_vbd`` preset. Deformable-only scenes can use
 :class:`~isaaclab_contrib.deformable.VBDSolverCfg` directly. Robot or
-rigid-body scenes usually use
-:class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` or
-:class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` so one
-solver advances rigid bodies and VBD advances deformable particles.
+rigid-body scenes usually use one of the coupled configs so one solver advances
+rigid bodies and VBD advances deformable particles:
+
+* :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` — alternates
+  the rigid (MJWarp) and VBD substeps. Use it when the same robot should both
+  contact and feel the deformable.
+* :class:`~isaaclab_contrib.deformable.ProxyCoupledMJWarpVBDSolverCfg` —
+  partitions the model between an MJWarp entry and a VBD entry, exposing
+  selected rigid bodies as *proxies* in the VBD view via lagged impulses (see
+  :ref:`newton-vbd-proxy-coupling` below). Use it when only a few rigid bodies
+  (e.g. a gripper) need to interact with the deformable.
+* :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` —
+  alternates Featherstone and VBD; supports kinematic one-way coupling.
 
 Start from a Supported Deformable Task
 --------------------------------------
@@ -205,6 +214,101 @@ The rigid solver parameters still matter. For example, MJWarp's ``nconmax`` and
 ``njmax`` must be large enough for the rigid contacts in the scene, and
 ``ccd_iterations`` can affect fast rigid contacts near deformables. See
 :doc:`mjwarp-solver` for the MJWarp-side parameters.
+
+
+.. _newton-vbd-proxy-coupling:
+
+Proxy-Coupled MJWarp + VBD
+--------------------------
+
+:class:`~isaaclab_contrib.deformable.ProxyCoupledMJWarpVBDSolverCfg` is an
+alternative MJWarp + VBD coupling that wraps Newton's
+:class:`newton.solvers.SolverCoupledProxy`. Instead of alternating two
+full-model substeps, the model is **partitioned** between an MJWarp entry and a
+VBD entry, and selected rigid bodies are exposed to VBD as *proxies* — virtual
+copies that VBD collides against. Contact feedback is returned to MJWarp as
+lagged impulses. This typically scales better than the alternating coupling
+when only a small set of rigid bodies (e.g. the fingers of a gripper) actually
+needs to touch the deformable, since the bulk of the articulation is solved
+purely by MJWarp without seeing the particle contacts.
+
+The Franka soft-body task ships a ``newton_mjwarp_vbd_proxy`` preset (the new
+default for ``Isaac-Lift-Soft-Franka-v0``) that demonstrates the typical
+configuration:
+
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift_franka_soft/franka_soft_env_cfg.py
+    :language: python
+    :start-at: newton_mjwarp_vbd_proxy: CoupledNewtonCfg
+    :end-before: physx: PhysxCfg = PhysxCfg()
+    :dedent: 4
+
+What the selectors do:
+
+* ``mjwarp_bodies`` and ``vbd_bodies`` partition every body in the model. Each
+  entry is either a :class:`~isaaclab.managers.SceneEntityCfg` (resolved
+  against the scene's ``prim_path``, optionally narrowed by ``body_names``) or
+  a raw prim-path regex string matched against ``model.body_label`` (e.g.
+  ``"/World/envs/env_.*/Robot"``). Joints inherit their child body's owner;
+  shapes inherit their body's owner. Static shapes (world geometry) always go
+  to VBD so the proxy collision pipeline can test against the ground. A body
+  matching both partitions, or matching neither, is an error.
+* ``proxy_bodies`` selects the (rigid) MJWarp bodies that VBD should collide
+  against. Only bodies that own at least one
+  ``newton.ShapeFlags.COLLIDE_SHAPES`` shape are kept. For
+  :class:`~isaaclab.managers.SceneEntityCfg` entries, ``body_names`` is
+  **required** here since proxies must be a strict subset of the asset.
+* In the snippet above, the entire Franka articulation is routed to MJWarp,
+  the deformable particles are owned by VBD, and only the ``panda_hand`` and
+  the two fingers are exposed as proxies — so VBD only ever sees three rigid
+  proxies regardless of how many links the arm has.
+
+Key proxy-specific parameters:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Parameter
+      - Description
+    * - ``proxy_mode``
+      - Default: ``"lagged"``. ``"lagged"`` syncs source begin poses and end
+        velocities, then rewinds lagged feedback before the destination solve.
+        ``"staggered"`` syncs source end poses and end velocities directly.
+        Lagged is the safer default; staggered can be tighter but is more
+        sensitive to timestep.
+    * - ``proxy_iterations``
+      - Default: ``1``. Number of relaxation iterations per coupled substep.
+        Increase it when proxy contact feedback needs more accuracy.
+    * - ``proxy_collide_interval``
+      - Default: ``1``. How often (in proxy passes) the proxy collision
+        pipeline rebuilds candidate pairs. Increase it for cheaper but
+        slightly staler proxy contacts.
+    * - ``proxy_mass_scale``
+      - Default: ``1.0``. Multiplier for the virtual inertia of proxy bodies
+        in the VBD view. Increase it to make proxies behave more like fixed
+        obstacles to VBD.
+
+Because the proxy solver resolves
+:class:`~isaaclab.managers.SceneEntityCfg` selectors against the scene at
+solver-build time, the coupled preset must be wrapped in a
+:class:`~isaaclab_contrib.deformable.CoupledNewtonCfg` (a thin
+:class:`~isaaclab_newton.physics.NewtonCfg` subclass with a ``scene_cfg`` and a
+``model_cfg`` field). The env's ``__post_init__`` is responsible for setting
+``self.sim.physics.scene_cfg = self.scene`` — the Franka soft env does this
+automatically via the :class:`~isaaclab_tasks.utils.PresetCfg` plumbing.
+
+Try the demo:
+
+.. code-block:: bash
+
+    # zero-agent visual smoke test (default preset is now the proxy-coupled one)
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka-v0 --num_envs 1 --visualizer kit
+
+    # scripted pick-and-lift via state machine
+    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+
+    # explicitly select the alternating-substep preset instead
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka-v0 --num_envs 1 presets=newton_mjwarp_vbd
 
 
 Contact and Material Parameters
