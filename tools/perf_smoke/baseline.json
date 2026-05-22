@@ -1,0 +1,27 @@
+{
+    "_schema_version": 1,
+    "_notes": [
+        "Phase 1 perf smoke gate baselines.",
+        "Source: OmniPerf historical data, 90-day window analysis (~5,000 runs).",
+        "Per-GPU keys are matched against the 'name' field of hardware_info.gpu_devices.",
+        "Substring matching is allowed: a baseline key 'L40' matches a device named 'NVIDIA L40'.",
+        "max_regression_pct is the symmetric tolerance below baseline_fps before REGRESSION fires.",
+        "Initial threshold is intentionally loose (10%) for warning-only Phase 1; tighten once we",
+        "characterize cross-runner variance from our own jobs."
+    ],
+    "Isaac-Cartpole-Direct-v0": {
+        "preset": "default",
+        "num_envs": 4096,
+        "num_frames": 100,
+        "per_gpu": {
+            "NVIDIA L40": {
+                "baseline_fps": 626772,
+                "max_regression_pct": 10.0,
+                "n": 509,
+                "window_days": 77,
+                "source": "OmniPerf L40 Ada (EPYC_9124P_1XL40_ADA), P25 of WARM Mean Environment step effective FPS",
+                "notes": "Pooled CV 2.62%; conservative P25 baseline picked over median to absorb sporadic 12-17% contention drops observed roughly 1-in-30 runs."
+            }
+        }
+    }
+}
