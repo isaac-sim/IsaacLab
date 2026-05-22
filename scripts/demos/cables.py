@@ -9,7 +9,7 @@
 
     # Usage
     ./isaaclab.sh -p scripts/demos/cables.py
-    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40
+    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40 --num_segments 15
 
 """
 
@@ -22,6 +22,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description="Spawn a pile of cables at varied z-axis rotations.")
 parser.add_argument("--num_cables", type=int, default=25, help="Number of cables to spawn.")
+parser.add_argument("--num_segments", type=int, default=20, help="Number of segments per cable.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -33,19 +34,16 @@ simulation_app = app_launcher.app
 import math
 import random
 
+import torch
 import tqdm
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.math import quat_from_angle_axis
 
 from isaaclab_contrib.cable import CableObject, CableObjectCfg
-
-
-def z_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
-    """Quaternion (x, y, z, w) for a rotation of ``angle_rad`` about +Z."""
-    return (0.0, 0.0, math.sin(0.5 * angle_rad), math.cos(0.5 * angle_rad))
 
 
 def design_scene(num_cables: int) -> dict[str, CableObject]:
@@ -55,10 +53,9 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     light_cfg.func("/World/light", light_cfg)
 
-    # Cable centerline: 20 control points along local +X, length ~0.9 m.
-    num_points = 20
-    segment_length = 0.015
-    cable_length = (num_points - 1) * segment_length
+    num_points = args_cli.num_segments
+    cable_length = 0.5
+    segment_length = cable_length / (num_points - 1)
     width = 0.01
 
     # Pile footprint: small XY box, stacked Z so cables fall and intersect.
@@ -94,7 +91,9 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
         cfg = CableObjectCfg(
             prim_path=f"/World/Origin/Cable{idx:03d}",
             spawn=spawn_cfg,
-            init_state=CableObjectCfg.InitialStateCfg(pos=(cx, cy, cz), rot=z_axis_quat(angle)),
+            init_state=CableObjectCfg.InitialStateCfg(
+                pos=(cx, cy, cz), rot=quat_from_angle_axis(torch.tensor(angle), torch.tensor([0.0, 0.0, 1.0]))
+            ),
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
 
