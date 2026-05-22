@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -34,7 +34,12 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import CoupledMJWarpVBDSolverCfg, NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import (
+    CoupledMJWarpVBDSolverCfg,
+    CoupledNewtonCfg,
+    NewtonModelCfg,
+    VBDSolverCfg,
+)
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -54,41 +59,6 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 # Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 8e4
 POISSONS_RATIO = 0.25
-
-
-def coupled_mjwarp_vbd_solver_cfg() -> CoupledMJWarpVBDSolverCfg:
-    """MJWarp-rigid + VBD-soft, two-way coupled solver shared by the soft and cloth lift tasks."""
-    return CoupledMJWarpVBDSolverCfg(
-        rigid_solver_cfg=MJWarpSolverCfg(
-            njmax=40,
-            nconmax=20,
-            ls_iterations=20,
-            cone="pyramidal",
-            impratio=1,
-            integrator="implicitfast",
-            ccd_iterations=100,
-        ),
-        soft_solver_cfg=VBDSolverCfg(
-            iterations=10,
-            integrate_with_external_rigid_solver=True,
-            particle_enable_self_contact=False,
-            particle_collision_detection_interval=-1,
-        ),
-        coupling_mode="two_way",
-    )
-
-
-@configclass
-class DeformableNewtonCfg(NewtonCfg):
-    """NewtonCfg extended with model-level contact parameters for deformable objects.
-
-    Uses a distinct class name so that it is not treated as a kitless backend
-    (its name is not in ``_KITLESS_PHYSICS_CFGS``), ensuring Kit is launched for
-    USD deformable spawning.
-    """
-
-    model_cfg: NewtonModelCfg | None = None
-    """Global Newton model parameters applied after builder finalization."""
 
 
 @configclass
@@ -134,8 +104,27 @@ class DeformableCfg(PresetCfg):
 @configclass
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, two-way coupled
-    newton_mjwarp_vbd: DeformableNewtonCfg = DeformableNewtonCfg(
-        solver_cfg=coupled_mjwarp_vbd_solver_cfg(),
+    # (matches newton/examples/softbody/example_softbody_franka.py)
+    newton_mjwarp_vbd: CoupledNewtonCfg = CoupledNewtonCfg(
+        solver_cfg=CoupledMJWarpVBDSolverCfg(
+            rigid_solver_cfg=MJWarpSolverCfg(
+                njmax=40,
+                nconmax=20,
+                ls_iterations=20,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=False,
+                integrator="implicitfast",
+                ccd_iterations=100,
+            ),
+            soft_solver_cfg=VBDSolverCfg(
+                iterations=10,
+                integrate_with_external_rigid_solver=True,
+                particle_enable_self_contact=False,
+                particle_collision_detection_interval=-1,
+            ),
+            coupling_mode="two_way",
+        ),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e4,
             soft_contact_kd=1e-5,

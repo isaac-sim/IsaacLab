@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
@@ -17,18 +18,18 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import (
+    CoupledMJWarpVBDSolverCfg,
+    CoupledNewtonCfg,
+    NewtonModelCfg,
+    VBDSolverCfg,
+)
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from .franka_soft_env_cfg import (
-    DeformableNewtonCfg,
-    FrankaSoftEnvCfg,
-    _FrankaSoftSceneCfg,
-    coupled_mjwarp_vbd_solver_cfg,
-)
 from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
+from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 
 ##
 # Scene definition
@@ -45,8 +46,26 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: DeformableNewtonCfg = DeformableNewtonCfg(
-        solver_cfg=coupled_mjwarp_vbd_solver_cfg(),
+    newton_mjwarp_vbd: CoupledNewtonCfg = CoupledNewtonCfg(
+        solver_cfg=CoupledMJWarpVBDSolverCfg(
+            rigid_solver_cfg=MJWarpSolverCfg(
+                njmax=40,
+                nconmax=20,
+                ls_iterations=20,
+                cone="pyramidal",
+                impratio=1,
+                ls_parallel=False,
+                integrator="implicitfast",
+                ccd_iterations=100,
+            ),
+            soft_solver_cfg=VBDSolverCfg(
+                iterations=10,
+                integrate_with_external_rigid_solver=True,
+                particle_enable_self_contact=False,
+                particle_collision_detection_interval=-1,
+            ),
+            coupling_mode="two_way",
+        ),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e3,
             soft_contact_kd=1e-5,
