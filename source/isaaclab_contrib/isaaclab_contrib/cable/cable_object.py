@@ -23,6 +23,13 @@ from typing import TYPE_CHECKING
 
 import newton
 import warp as wp
+from isaaclab_newton.assets.articulation.articulation import Articulation
+from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+import isaaclab.sim as sim_utils
+
+if TYPE_CHECKING:
+    from .cable_object_cfg import CableObjectCfg
 
 
 @dataclass
@@ -53,15 +60,6 @@ class CableRegistryEntry:
     # Filled by :func:`add_cable_entry_to_builder`.
     body_offsets: list[int] = field(default_factory=list)
     last_edge_length: float = 0.0
-
-
-from isaaclab_newton.assets.articulation.articulation import Articulation  # noqa: E402
-from isaaclab_newton.physics import NewtonManager as SimulationManager  # noqa: E402
-
-import isaaclab.sim as sim_utils  # noqa: E402
-
-if TYPE_CHECKING:
-    from .cable_object_cfg import CableObjectCfg
 
 
 def add_cable_entry_to_builder(
