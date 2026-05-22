@@ -108,13 +108,6 @@ parser.add_argument(
     default=None,
     help="Override the local hollow teapot USD asset path.",
 )
-parser.add_argument("--teapot-scale", type=float, default=0.005, help="Uniform scale for the hollow teapot USD asset.")
-parser.add_argument(
-    "--teapot-roll-correction-deg",
-    type=float,
-    default=+90.0,
-    help="Local X-axis roll correction applied to the teapot mesh before physics import.",
-)
 parser.add_argument("--table-visual-z", type=float, default=0.68, help="Z translation for the table USD visual.")
 parser.add_argument("--asset-scale", type=float, default=1.0, help="Uniform scale applied to tableware visual assets.")
 add_launcher_args(parser)
@@ -383,68 +376,16 @@ def _set_mesh_extent(mesh, points: np.ndarray) -> None:
     )
 
 
-def _bake_mesh_roll_correction(mesh_prim) -> bool:
-    """Bake the configured roll correction into mesh points and normals."""
-
-    from pxr import Gf, UsdGeom  # noqa: PLC0415
-
-    angle = math.radians(args_cli.teapot_roll_correction_deg)
-    if abs(angle) < 1.0e-8:
-        return False
-
-    mesh = UsdGeom.Mesh(mesh_prim)
-    points_value = mesh.GetPointsAttr().Get()
-    if points_value is None or len(points_value) == 0:
-        return False
-
-    cos_angle = math.cos(angle)
-    sin_angle = math.sin(angle)
-    rotation = np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.0, cos_angle, -sin_angle],
-            [0.0, sin_angle, cos_angle],
-        ],
-        dtype=np.float64,
-    )
-
-    points = np.asarray(points_value, dtype=np.float64)
-    rotated_points = points @ rotation.T
-    mesh.GetPointsAttr().Set([Gf.Vec3f(float(point[0]), float(point[1]), float(point[2])) for point in rotated_points])
-    _set_mesh_extent(mesh, rotated_points)
-
-    normals_attr = mesh.GetNormalsAttr()
-    normals_value = normals_attr.Get() if normals_attr.IsValid() else None
-    if normals_value is not None and len(normals_value) > 0:
-        normals = np.asarray(normals_value, dtype=np.float64)
-        rotated_normals = normals @ rotation.T
-        normals_attr.Set([Gf.Vec3f(float(normal[0]), float(normal[1]), float(normal[2])) for normal in rotated_normals])
-    return True
-
-
 def _prepare_teapot_stage(stage, root_prim) -> int:
     """Remove asset extras and prune disconnected lid components."""
 
-    from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
 
     for prim in list(Usd.PrimRange(root_prim)):
         if prim == root_prim or not prim.IsValid():
             continue
         if prim.GetTypeName() in {"Camera", "SphereLight", "DomeLight"}:
             prim.SetActive(False)
-
-    baked_attr = root_prim.GetAttribute("demo:rollCorrectionBakedDeg")
-    already_baked = baked_attr.IsValid() and baked_attr.HasAuthoredValueOpinion()
-    if not baked_attr.IsValid():
-        baked_attr = root_prim.CreateAttribute("demo:rollCorrectionBakedDeg", Sdf.ValueTypeNames.Double)
-    baked_count = 0
-    if not already_baked:
-        for prim in list(Usd.PrimRange(root_prim)):
-            if prim.IsA(UsdGeom.Mesh) and _bake_mesh_roll_correction(prim):
-                baked_count += 1
-        baked_attr.Set(float(args_cli.teapot_roll_correction_deg))
-        if baked_count:
-            print(f"[INFO]: Baked {args_cli.teapot_roll_correction_deg:g} deg teapot roll into {baked_count} mesh(es).")
 
     pruned_count = 0
     for prim in list(Usd.PrimRange(root_prim)):
@@ -456,7 +397,7 @@ def _prepare_teapot_stage(stage, root_prim) -> int:
 def open_teapot_stage():
     """Open the hollow teapot USD and add minimal physics schemas in the session layer."""
 
-    from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
+    from pxr import Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
     stage = Usd.Stage.Open(get_teapot_usd_path(), Usd.Stage.LoadAll)
     if stage is None:
@@ -471,10 +412,6 @@ def open_teapot_stage():
         root_prim = root_children[0]
 
     _prepare_teapot_stage(stage, root_prim)
-
-    xformable = UsdGeom.Xformable(root_prim)
-    scale_op = xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble, "demo_asset_scale")
-    scale_op.Set(Gf.Vec3d(args_cli.teapot_scale, args_cli.teapot_scale, args_cli.teapot_scale))
 
     rigid_api = UsdPhysics.RigidBodyAPI.Apply(root_prim)
     rigid_api.CreateRigidBodyEnabledAttr(True)
@@ -835,7 +772,7 @@ def setup_kit_scene(sim: sim_utils.SimulationContext) -> None:
         get_teapot_usd_path(),
         translation=(0.0, 0.0, 0.0),
         orientation=(0.0, 0.0, 0.0, 1.0),
-        scale=(args_cli.teapot_scale, args_cli.teapot_scale, args_cli.teapot_scale),
+        scale=(1.0, 1.0, 1.0),
         fallback=teapot_fallback,
     )
     teapot_asset_prim = stage.GetPrimAtPath(CUP_ASSET_PATH)
