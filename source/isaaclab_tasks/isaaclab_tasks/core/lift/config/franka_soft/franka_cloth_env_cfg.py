@@ -10,6 +10,8 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -184,11 +186,20 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.render_interval = self.decimation
 
         # viewer settings
-        self.viewer.origin_type = "asset_root"
-        self.viewer.asset_name = "robot"
-        self.viewer.env_index = 0
-        self.viewer.eye = (1.25, -1.5, 0.6)
-        self.viewer.resolution = (1920, 1080)
+        self.sim.visualizer_cfgs = [
+            KitVisualizerCfg(
+                eye=(1.25, -1.5, 0.6),
+                lookat=(0.0, 0.0, 0.0),
+                window_width=1920,
+                window_height=1080,
+            ),
+            NewtonVisualizerCfg(
+                eye=(1.25, -1.5, 0.6),
+                lookat=(0.0, 0.0, 0.0),
+                window_width=1920,
+                window_height=1080,
+            ),
+        ]
         self.sim.physics = PhysicsCfg()
 
         # increase franka gripper stiffness
