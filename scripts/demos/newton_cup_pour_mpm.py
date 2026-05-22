@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-"""Newton MPM teapot-pouring demo with Isaac Sim tableware assets.
+"""Newton MPM teapot-pouring demo with a hollow teapot asset.
 
-This demo places a table, bowl, and hollow teapot asset in Isaac Lab, fills the
-teapot mesh with small MPM particles, and kinematically tilts it so the material
-pours into the bowl.
+This demo builds Newton table and bowl collision geometry, imports a hollow
+teapot asset, fills the teapot mesh with small MPM particles, and kinematically
+tilts it so the material pours into the bowl.
 
 .. code-block:: bash
 
@@ -98,8 +98,6 @@ parser.add_argument("--grains-per-particle", type=int, default=5, help="Newton v
 parser.add_argument("--grain-radius-scale", type=float, default=1.0, help="Scale factor for Newton viewer grain radii.")
 parser.add_argument("--newton-usd-output", type=str, default=None, help="Optional path for Newton ViewerUSD export.")
 parser.add_argument("--newton-usd-max-frames", type=int, default=None, help="Maximum frames to write to Newton USD.")
-parser.add_argument("--table-usd", type=str, default=None, help="Override the table USD asset path.")
-parser.add_argument("--bowl-usd", type=str, default=None, help="Override the bowl USD asset path.")
 parser.add_argument(
     "--teapot-usd",
     "--teapot-usdz",
@@ -108,8 +106,6 @@ parser.add_argument(
     default=None,
     help="Override the local hollow teapot USD asset path.",
 )
-parser.add_argument("--table-visual-z", type=float, default=0.68, help="Z translation for the table USD visual.")
-parser.add_argument("--asset-scale", type=float, default=1.0, help="Uniform scale applied to tableware visual assets.")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -125,7 +121,7 @@ CUP_BODY_PATH = "/World/Teapot"
 CUP_ASSET_PATH = f"{CUP_BODY_PATH}/Asset"
 GROUND_PATH = "/World/Ground"
 VISUALS_PATH = "/World/Visuals"
-TEAPOT_USD_REL_PATH = "Mimic/nut_pour_task/nut_pour_assets/teapot_hollow_separate_lid.usdc"
+TEAPOT_USD_REL_PATH = "Mimic/nut_pour_task/nut_pour_assets/teapot.usdc"
 
 TABLE_TOP_Z = 0.85
 TABLE_HALF_EXTENTS = (0.85, 0.55, 0.03)
@@ -139,14 +135,6 @@ CUP_HEIGHT = 0.205
 CUP_BOTTOM_THICKNESS = 0.024
 CAMERA_TARGET = (0.0, 0.0, 1.26)
 CAMERA_EYE = (0.0, -2.0, 1.86)
-
-
-class AssetPaths:
-    """Resolved USD asset paths for the Kit-only visual scene."""
-
-    def __init__(self, table: str, bowl: str):
-        self.table = table
-        self.bowl = bowl
 
 
 def import_runtime_dependencies() -> None:
@@ -175,17 +163,6 @@ def import_runtime_dependencies() -> None:
     MPMSolverCfg = MPMSolverCfgClass
     NewtonCfg = NewtonCfgClass
     NewtonManager = NewtonManagerClass
-
-
-def resolve_asset_paths() -> AssetPaths:
-    """Resolve default IsaacLab/Isaac Sim USD assets, honoring CLI overrides."""
-
-    from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-
-    return AssetPaths(
-        table=args_cli.table_usd or f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-        bowl=args_cli.bowl_usd or f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bowl_yellow.usd",
-    )
 
 
 def quat_y(angle_rad: float) -> tuple[float, float, float, float]:
@@ -248,7 +225,7 @@ def get_teapot_usd_path() -> str:
         return retrieve_file_path(usd_path)
     except FileNotFoundError as exc:
         raise FileNotFoundError(
-            f"Teapot USD not found: {usd_path}. Upload the hollow teapot asset to the IsaacLab Nucleus path "
+            f"Teapot USD not found: {usd_path}. Upload the baked hollow teapot asset to the IsaacLab Nucleus path "
             "or pass --teapot-usd with a local/Nucleus asset path."
         ) from exc
 
@@ -725,39 +702,52 @@ def _spawn_usd_visual(
             fallback.func(prim_path, fallback, translation=translation, orientation=orientation)
 
 
+def _spawn_collision_shape_visuals() -> None:
+    """Create Kit visuals that match the Newton table and bowl collision geometry."""
+
+    stage = sim_utils.get_current_stage()
+    if not stage.GetPrimAtPath(TABLE_PATH).IsValid():
+        table_cfg = sim_utils.CuboidCfg(
+            size=(2.0 * TABLE_HALF_EXTENTS[0], 2.0 * TABLE_HALF_EXTENTS[1], 2.0 * TABLE_HALF_EXTENTS[2]),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.48, 0.38, 0.26)),
+        )
+        table_cfg.func(TABLE_PATH, table_cfg, translation=(0.0, 0.0, TABLE_TOP_Z - TABLE_HALF_EXTENTS[2]))
+
+    if stage.GetPrimAtPath(BOWL_PATH).IsValid():
+        return
+
+    bowl_vertices, bowl_indices = create_open_bowl_mesh(
+        inner_bottom_radius=0.045,
+        inner_top_radius=0.19,
+        wall_thickness=0.025,
+        height=BOWL_HEIGHT,
+        bottom_thickness=0.025,
+    )
+    sim_utils.create_prim(BOWL_PATH, "Xform", translation=BOWL_BASE_POS)
+    bowl_mesh_path = f"{BOWL_PATH}/Mesh"
+    sim_utils.create_prim(
+        bowl_mesh_path,
+        "Mesh",
+        attributes={
+            "points": bowl_vertices,
+            "faceVertexIndices": bowl_indices,
+            "faceVertexCounts": np.full(bowl_indices.shape[0] // 3, 3, dtype=np.int32),
+            "subdivisionScheme": "bilinear",
+        },
+    )
+    material_path = f"{BOWL_PATH}/VisualMaterial"
+    material_cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.82, 0.16))
+    material_cfg.func(material_path, material_cfg)
+    sim_utils.bind_visual_material(bowl_mesh_path, material_path, stage=stage)
+
+
 def setup_kit_scene(sim: sim_utils.SimulationContext) -> None:
-    """Create Kit USD visuals for tableware and lighting."""
+    """Create Kit USD visuals for the moving teapot, particles, and lighting."""
 
     if "kit" not in sim.resolve_visualizer_types():
         return
 
-    assets = resolve_asset_paths()
-
-    table_fallback = sim_utils.CuboidCfg(
-        size=(2.0 * TABLE_HALF_EXTENTS[0], 2.0 * TABLE_HALF_EXTENTS[1], 2.0 * TABLE_HALF_EXTENTS[2]),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.48, 0.38, 0.26)),
-    )
-    _spawn_usd_visual(
-        TABLE_PATH,
-        assets.table,
-        translation=(0.0, 0.0, args_cli.table_visual_z),
-        scale=(1.0, 1.0, 0.75),
-        fallback=table_fallback,
-    )
-
-    bowl_scale = (args_cli.asset_scale, args_cli.asset_scale, args_cli.asset_scale)
-    bowl_fallback = sim_utils.CylinderCfg(
-        radius=0.19,
-        height=0.12,
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.82, 0.16)),
-    )
-    _spawn_usd_visual(
-        BOWL_PATH,
-        assets.bowl,
-        translation=BOWL_BASE_POS,
-        scale=bowl_scale,
-        fallback=bowl_fallback,
-    )
+    _spawn_collision_shape_visuals()
 
     teapot_fallback = sim_utils.CylinderCfg(
         radius=CUP_INNER_RADIUS + CUP_WALL_THICKNESS,
