@@ -99,7 +99,9 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
-    default = newton_mjwarp_vbd
+    newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
+
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -135,7 +137,6 @@ class PhysicsCfg(PresetCfg):
             shape_material_mu=5.0,
         ),
         num_substeps=10,
-        use_cuda_graph=True,
     )
 
     newton_mjwarp_vbd_proxy: CoupledNewtonCfg = CoupledNewtonCfg(
@@ -147,21 +148,23 @@ class PhysicsCfg(PresetCfg):
                 integrator="implicitfast",
             ),
             vbd_cfg=VBDSolverCfg(
-                iterations=20,
+                iterations=10,
             ),
             mjwarp_bodies=[SceneEntityCfg("robot")],
-            vbd_bodies=[SceneEntityCfg("object")],
             proxy_bodies=[
                 SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
             ],
             proxy_collide_interval=5,
         ),
         model_cfg=NewtonModelCfg(
-            shape_material_ke=1e4,
+            soft_contact_ke=1e4,
+            soft_contact_kd=1e-5,
+            soft_contact_mu=5.0,
+            shape_material_ke=4e4,
             shape_material_kd=1e-5,
-            shape_material_mu=1.0,
+            shape_material_mu=5.0,
         ),
-        num_substeps=5,
+        num_substeps=10,
     )
 
     physx: PhysxCfg = PhysxCfg()

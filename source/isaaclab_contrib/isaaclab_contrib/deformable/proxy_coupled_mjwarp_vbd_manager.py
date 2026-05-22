@@ -37,7 +37,8 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
 
     Extends :class:`NewtonVBDManager` and partitions bodies/joints/shapes
     between an ``"mjc"`` MuJoCo entry and a ``"vbd"`` VBD entry, wrapped in
-    :class:`newton.solvers.SolverProxyCoupled`. Proxy bodies are resolved from
+    :class:`newton.solvers.SolverProxyCoupled`. By default, all particles are
+    assigned to VBD to solve. Proxy bodies are resolved from
     :class:`~isaaclab.managers.SceneEntityCfg` specs in
     :attr:`ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies`.
     """
