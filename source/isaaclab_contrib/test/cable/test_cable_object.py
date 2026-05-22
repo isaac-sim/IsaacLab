@@ -7,42 +7,47 @@
 
 import math
 
+import numpy as np
 import pytest
 import warp as wp
+from isaaclab_newton.assets.articulation.articulation import Articulation
+from isaaclab_newton.physics import FeatherstoneSolverCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 
-from isaaclab_contrib.cable.cable_object import CableRegistryEntry
+import isaaclab.sim as sim_utils
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.utils.configclass import configclass
+
+from isaaclab_contrib.cable import CableObject, CableObjectCfg
+from isaaclab_contrib.cable.cable_object import (
+    CableRegistryEntry,
+    add_cable_entry_to_builder,
+    add_registered_cables_to_builder,
+    install_cable_builder_hooks,
+)
+from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 def test_install_cable_builder_hooks_is_idempotent(monkeypatch):
     """Repeated install must not duplicate registrations on _per_world_builder_hooks."""
-    from isaaclab_newton.physics import NewtonManager as SimulationManager
-
-    from isaaclab_contrib.cable.cable_object import (
-        add_registered_cables_to_builder,
-        install_cable_builder_hooks,
-    )
-
     # Reset state so the test is self-contained.
-    monkeypatch.setattr(SimulationManager, "_per_world_builder_hooks", [], raising=False)
-    monkeypatch.delattr(SimulationManager, "_cable_registry", raising=False)
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [], raising=False)
+    monkeypatch.delattr(NewtonManager, "_cable_registry", raising=False)
 
     install_cable_builder_hooks()
     install_cable_builder_hooks()
     install_cable_builder_hooks()
 
-    assert SimulationManager._cable_registry == []
-    matches = [h for h in SimulationManager._per_world_builder_hooks if h is add_registered_cables_to_builder]
+    assert NewtonManager._cable_registry == []
+    matches = [h for h in NewtonManager._per_world_builder_hooks if h is add_registered_cables_to_builder]
     assert len(matches) == 1, "install_cable_builder_hooks must be idempotent"
 
 
 def test_add_registered_cables_iterates_registry(monkeypatch):
     """The loop function dispatches to add_cable_entry_to_builder per registry entry."""
-    from isaaclab_newton.physics import NewtonManager as SimulationManager
-
-    from isaaclab_contrib.cable.cable_object import add_registered_cables_to_builder
-
-    monkeypatch.setattr(SimulationManager, "_per_world_builder_hooks", [], raising=False)
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [], raising=False)
 
     calls = []
 
@@ -67,7 +72,7 @@ def test_add_registered_cables_iterates_registry(monkeypatch):
             radius=0.005,
         ),
     ]
-    monkeypatch.setattr(SimulationManager, "_cable_registry", entries, raising=False)
+    monkeypatch.setattr(NewtonManager, "_cable_registry", entries, raising=False)
 
     add_registered_cables_to_builder(builder=None, world_idx=3, env_position=[0, 0, 0], env_rotation=[0, 0, 0, 1])
 
@@ -113,8 +118,6 @@ class _FakeBuilder:
 def test_add_cable_entry_to_builder(env_rotation, env_position, init_pos, init_rot, expected_np0, expected_np1):
     """add_cable_entry_to_builder transforms positions correctly and forwards
     all material/geometry params to add_rod_graph."""
-    from isaaclab_contrib.cable.cable_object import add_cable_entry_to_builder
-
     entry = CableRegistryEntry(
         prim_path="/World/Cable",
         node_positions=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.1, 0.0, 0.0)],
@@ -155,7 +158,6 @@ def test_add_cable_entry_to_builder(env_rotation, env_position, init_pos, init_r
 
 def test_add_cable_entry_populates_body_offsets_and_last_edge_length():
     """``add_cable_entry_to_builder`` records per-env body offsets and the last edge length."""
-    from isaaclab_contrib.cable.cable_object import add_cable_entry_to_builder
 
     class _BodyCountingBuilder:
         def __init__(self):
@@ -182,10 +184,6 @@ def test_add_cable_entry_populates_body_offsets_and_last_edge_length():
 
 def test_cable_object_cfg_defaults():
     """CableObjectCfg overrides actuators and articulation_root_prim_path."""
-    import isaaclab.sim as sim_utils
-
-    from isaaclab_contrib.cable import CableObjectCfg
-
     cfg = CableObjectCfg(
         prim_path="/World/Cable",
         spawn=sim_utils.CableCfg(
@@ -210,17 +208,10 @@ def test_cable_object_cfg_defaults():
 )
 def test_cable_object_init_failure_paths(monkeypatch, setup_registry, spawn, expected_exc, expected_match):
     """CableObject.__init__ raises clear errors on invalid cfg or missing setup."""
-    from isaaclab_newton.assets.articulation.articulation import Articulation
-    from isaaclab_newton.physics import NewtonManager as SimulationManager
-
-    import isaaclab.sim as sim_utils
-
-    from isaaclab_contrib.cable import CableObject, CableObjectCfg
-
     if setup_registry:
-        monkeypatch.setattr(SimulationManager, "_cable_registry", [], raising=False)
+        monkeypatch.setattr(NewtonManager, "_cable_registry", [], raising=False)
     else:
-        monkeypatch.delattr(SimulationManager, "_cable_registry", raising=False)
+        monkeypatch.delattr(NewtonManager, "_cable_registry", raising=False)
     monkeypatch.setattr(Articulation, "__init__", lambda self, cfg: setattr(self, "cfg", cfg))
 
     # "valid" sentinel → construct a real CableCfg
@@ -244,21 +235,10 @@ def test_cable_replicate_body_count():
     Each cable has 3 control points → 2 segments per cable.
     Total cable bodies in builder = 4 envs × 2 cables × 2 segments = 16.
     """
-    from isaaclab_newton.physics import FeatherstoneSolverCfg, NewtonCfg
-    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_contrib.cable import CableObjectCfg
-    from isaaclab_contrib.cable.cable_object import install_cable_builder_hooks
-
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)],
         width=0.01,
-        physics_material=_NewtonCableMaterialCfg(),
+        physics_material=NewtonCableMaterialCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
 
@@ -283,8 +263,6 @@ def test_cable_replicate_body_count():
         InteractiveScene(_SceneCfg())
         sim.reset()  # triggers newton_physics_replicate, materializing cable bodies
 
-        from isaaclab_newton.physics import NewtonManager
-
         model = NewtonManager.get_model()
 
         # Newton labels each cable body as "{prim_path}_cable_edge_body_{i}" before
@@ -307,23 +285,10 @@ def test_forward_preserves_cable_body_q():
     :meth:`forward` raises ``RuntimeError``; previously, the unmasked
     ``eval_fk`` call would silently mutate ``body_q``.
     """
-    import numpy as np
-    from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_contrib.cable import CableObjectCfg
-    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
-
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)],
         width=0.01,
-        physics_material=_NewtonCableMaterialCfg(),
+        physics_material=NewtonCableMaterialCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
 
@@ -377,19 +342,6 @@ def test_start_simulation_preserves_curved_cable_body_q():
     by copying ``model.body_q`` (untouched by ``eval_fk``) back into ``state_0.body_q`` for
     cable bodies.
     """
-    import numpy as np
-    from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_contrib.cable import CableObjectCfg
-    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
-
     # Curved cable: three nodes whose edges (0->1 along +x, 1->2 along +y) point in
     # different directions, so adjacent capsule orientations differ. eval_fk's identity
     # output would collapse body[1] onto body[0]'s +Z axis (still pointing +x), but the
@@ -397,7 +349,7 @@ def test_start_simulation_preserves_curved_cable_body_q():
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.1, 0.1, 0.0)],
         width=0.01,
-        physics_material=_NewtonCableMaterialCfg(),
+        physics_material=NewtonCableMaterialCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
 
@@ -454,23 +406,10 @@ def test_cable_object_reset_restores_body_state():
     5. One more ``sim.step()`` keeps ``|body_qd|`` bounded (regression for the
        ~700 m/s spurious-velocity bug).
     """
-    import numpy as np
-    from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_contrib.cable import CableObjectCfg
-    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
-
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.05, 0.0, 0.0), (0.1, 0.0, 0.0)],
         width=0.01,
-        physics_material=_NewtonCableMaterialCfg(),
+        physics_material=NewtonCableMaterialCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
 
@@ -563,23 +502,10 @@ def test_cable_object_reset_partial_envs_and_body_q_prev():
        sim drift dynamics. Verified by commenting out that line and observing
        the envs 0/2 ``body_q_prev`` assertion fail.
     """
-    import numpy as np
-    from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg as _NewtonCableMaterialCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_contrib.cable import CableObjectCfg
-    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-    from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
-
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.05, 0.0, 0.0), (0.1, 0.0, 0.0)],
         width=0.01,
-        physics_material=_NewtonCableMaterialCfg(),
+        physics_material=NewtonCableMaterialCfg(),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
 

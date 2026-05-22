@@ -92,8 +92,7 @@ def design_scene(num_cables: int) -> dict[str, CableObject]:
             prim_path=f"/World/Origin/Cable{idx:03d}",
             spawn=spawn_cfg,
             init_state=CableObjectCfg.InitialStateCfg(
-                pos=(cx, cy, cz), 
-                rot=quat_from_angle_axis(torch.tensor(angle), torch.tensor([0.0, 0.0, 1.0]))
+                pos=(cx, cy, cz), rot=quat_from_angle_axis(torch.tensor(angle), torch.tensor([0.0, 0.0, 1.0]))
             ),
         )
         entities[f"Cable{idx:03d}"] = CableObject(cfg=cfg)
