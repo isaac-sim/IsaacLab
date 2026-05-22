@@ -281,6 +281,36 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
+def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
+    """Point OVRTX renderer logs at process stdout for kitless rendering tests.
+
+    Walks camera cfgs (``env_cfg.tiled_camera`` for direct envs, ``env_cfg.scene.base_camera`` / ``wrist_camera`` for
+    manager-based envs) and sets :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_file_path` on each camera whose
+    resolved ``renderer_cfg.renderer_type`` is ``"ovrtx"``. Uses ``/dev/stdout`` on Linux and ``CON`` on Windows so
+    pytest captures OVRTX renderer log.
+    """
+    camera_cfgs: list[Any] = []
+
+    # direct envs
+    tiled_camera = getattr(env_cfg, "tiled_camera", None)
+    if tiled_camera is not None:
+        camera_cfgs.append(tiled_camera)
+
+    # manager-based envs
+    scene = getattr(env_cfg, "scene", None)
+    if scene is not None:
+        for camera_name in ("base_camera", "wrist_camera"):
+            camera_cfg = getattr(scene, camera_name, None)
+            if camera_cfg is not None:
+                camera_cfgs.append(camera_cfg)
+
+    # redirect OVRTX renderer log to stdout
+    for camera_cfg in camera_cfgs:
+        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
+        if renderer_cfg is not None and getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
+            renderer_cfg.log_file_path = "CON" if os.name == "nt" else "/dev/stdout"
+
+
 def _physics_preset_name(physics_backend: str) -> str:
     """Translate the historical ``"newton"`` backend label (still used by golden-image
     filenames and ``pytest.param`` IDs) to the renamed Hydra preset
@@ -691,6 +721,9 @@ def rendering_test_shadow_hand(
 
     env_cfg.scene.num_envs = 4
 
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
         env_cfg.feature_extractor.enabled = False
@@ -734,6 +767,9 @@ def rendering_test_cartpole(
 
     env_cfg.scene.num_envs = 4
 
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
     env = None
 
     try:
@@ -774,6 +810,9 @@ def rendering_test_dexsuite_kuka(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
     # The underlying point sampling uses the global numpy/torch RNG, so marker positions shift
