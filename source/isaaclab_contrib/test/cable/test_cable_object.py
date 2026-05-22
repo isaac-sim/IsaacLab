@@ -3,13 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 """Tests for the cable asset, registry, and replicate-hook plumbing."""
 
 import math
@@ -257,7 +250,7 @@ def test_cable_replicate_body_count():
     import isaaclab.sim as sim_utils
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     from isaaclab_contrib.cable import CableObjectCfg
     from isaaclab_contrib.cable.cable_object import install_cable_builder_hooks
@@ -321,7 +314,7 @@ def test_forward_preserves_cable_body_q():
     import isaaclab.sim as sim_utils
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     from isaaclab_contrib.cable import CableObjectCfg
     from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
@@ -391,7 +384,7 @@ def test_start_simulation_preserves_curved_cable_body_q():
     import isaaclab.sim as sim_utils
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     from isaaclab_contrib.cable import CableObjectCfg
     from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
@@ -468,7 +461,7 @@ def test_cable_object_reset_restores_body_state():
     import isaaclab.sim as sim_utils
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     from isaaclab_contrib.cable import CableObjectCfg
     from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
@@ -577,7 +570,7 @@ def test_cable_object_reset_partial_envs_and_body_q_prev():
     import isaaclab.sim as sim_utils
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.utils.configclass import configclass
 
     from isaaclab_contrib.cable import CableObjectCfg
     from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
