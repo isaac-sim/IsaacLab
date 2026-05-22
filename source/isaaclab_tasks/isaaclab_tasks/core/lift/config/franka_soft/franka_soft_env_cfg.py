@@ -103,7 +103,7 @@ class DeformableCfg(PresetCfg):
 
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
-    default = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -171,7 +171,7 @@ class PhysicsCfg(PresetCfg):
 
     physx: PhysxCfg = PhysxCfg()
 
-    default = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
 
 
 ##
@@ -425,7 +425,9 @@ class FrankaSoftSceneCfg(PresetCfg):
     # PhysX does not support replicating physics for deformable objects
     physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
 
-    default = newton_mjwarp_vbd
+    newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
+
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -455,6 +457,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics = PhysicsCfg()
         # Set scene for proxy coupled solver
         self.sim.physics.newton_mjwarp_vbd_proxy.scene_cfg = self.scene
+        self.sim.physics.default.scene_cfg = self.scene
 
         # viewer settings
         self.sim.visualizer_cfgs = [
