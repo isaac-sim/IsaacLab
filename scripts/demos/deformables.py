@@ -5,6 +5,11 @@
 
 """This script demonstrates how to spawn deformable prims into the scene.
 
+The set of deformable objects spawned differs between physics backends: with
+``--backend physx`` only volumetric deformables and cloth are spawned, while
+``--backend newton`` additionally spawns cables (1D deformables), which are
+only supported by Newton.
+
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
