@@ -34,6 +34,8 @@ import math
 import random
 
 import tqdm
+import torch
+from isaaclab.utils.math import quat_from_angle_axis
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
@@ -42,11 +44,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 
 from isaaclab_contrib.cable import CableAttachmentCfg, CableObject, CableObjectCfg
-
-
-def y_axis_quat(angle_rad: float) -> tuple[float, float, float, float]:
-    """Quaternion (x, y, z, w) for a rotation about +Y."""
-    return (0.0, math.sin(0.5 * angle_rad), 0.0, math.cos(0.5 * angle_rad))
 
 
 def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
@@ -101,7 +98,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
                 pos=(cx, cy, cz),
-                rot=y_axis_quat(-math.pi / 2.0),
+                rot=quat_from_angle_axis(torch.tensor(torch.pi/2), torch.tensor([0.0, 1.0, 0.0])),
             ),
         )
         entities[f"Plug{idx:03d}"] = RigidObject(cfg=plug_cfg)
