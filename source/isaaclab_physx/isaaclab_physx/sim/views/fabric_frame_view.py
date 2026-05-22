@@ -116,6 +116,8 @@ class FabricFrameView(BaseFrameView):
         # Per-view (not per-stage) so concurrent views on the same stage don't clear
         # each other's flag.
         self._world_dirty: bool = False
+        # Set by ``set_world_poses`` / ``set_scales``; cleared by ``_sync_local_from_world_if_dirty``.
+        self._local_dirty: bool = False
 
         # Selections.
         self._trans_sel_ro = None
@@ -210,9 +212,9 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
-        # World was just written — recompute child localMatrix from parent worldMatrix
-        # so the next get_local_poses returns consistent values.
-        self._sync_local_from_world(indices_wp)
+        # World was just written — mark local poses as stale so the next
+        # get_local_poses recomputes them lazily.
+        self._local_dirty = True
 
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._fabric_initialized:
@@ -281,10 +283,15 @@ class FabricFrameView(BaseFrameView):
 
         # Mark this view's worlds stale so the next world read recomputes them.
         self._world_dirty = True
+        # Local was just written directly — clear any stale-local flag.
+        self._local_dirty = False
 
     def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._fabric_initialized:
             self._initialize_fabric()
+
+        # If a prior set_world_poses/set_scales left localMatrix stale, recompute.
+        self._sync_local_from_world_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -346,9 +353,8 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
-        # World was just written — recompute child localMatrix from parent worldMatrix
-        # so the next get_local_poses returns the new scale rather than the stale one.
-        self._sync_local_from_world(indices_wp)
+        # World was just written — mark local poses as stale.
+        self._local_dirty = True
 
     def get_scales(self, indices=None):
         if not self._fabric_initialized:
@@ -422,10 +428,10 @@ class FabricFrameView(BaseFrameView):
     def _sync_local_from_world(self, indices_wp: wp.array) -> None:
         """Recompute child ``localMatrix`` from (parent worldMatrix, child worldMatrix).
 
-        Called after ``set_world_poses`` so that subsequent ``get_local_poses`` returns
-        values consistent with the just-written world poses.  Fabric Hierarchy does
-        not provide a built-in world → local sync, so we do it via a Warp kernel
-        using the parent indexed fabric array.
+        Called lazily by ``_sync_local_from_world_if_dirty`` when ``get_local_poses``
+        is invoked after a prior ``set_world_poses`` or ``set_scales``.
+        Fabric Hierarchy does not provide a built-in world → local sync, so we do
+        it via a Warp kernel using the parent indexed fabric array.
         """
         # Refresh trans_sel_ro once; _world_ifa_ro and _parent_world_ifa_ro share it.
         if self._trans_sel_ro.PrepareForReuse() or self._parent_world_ifa_ro is None:
@@ -442,6 +448,13 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
         wp.synchronize()
+
+    def _sync_local_from_world_if_dirty(self) -> None:
+        """If a prior world write left local matrices stale, recompute them lazily."""
+        if not self._local_dirty:
+            return
+        self._sync_local_from_world(self._view_indices)
+        self._local_dirty = False
 
     # ------------------------------------------------------------------
     # Internal — selection accessors with on-demand index rebuild
