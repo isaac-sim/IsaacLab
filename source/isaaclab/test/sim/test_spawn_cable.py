@@ -103,6 +103,38 @@ def test_spawn_cable_validation_rigid_props_rejected(sim):
         cfg.func("/World/Cable", cfg)
 
 
+def test_spawn_cable_validation_mass_props_rejected(sim):
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+        width=0.01,
+        physics_material=_basic_material(),
+        mass_props=sim_utils.MassPropertiesCfg(),
+    )
+    with pytest.raises(ValueError, match="mass_props"):
+        cfg.func("/World/Cable", cfg)
+
+
+def test_spawn_cable_validation_positions_too_short(sim):
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0)],
+        width=0.01,
+        physics_material=_basic_material(),
+    )
+    with pytest.raises(ValueError, match="at least 2"):
+        cfg.func("/World/Cable", cfg)
+
+
+@pytest.mark.parametrize("width", [0.0, -0.01])
+def test_spawn_cable_validation_non_positive_width(sim, width):
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
+        width=width,
+        physics_material=_basic_material(),
+    )
+    with pytest.raises(ValueError, match="must be positive"):
+        cfg.func("/World/Cable", cfg)
+
+
 def test_spawn_cable_authors_newton_material_attrs(sim):
     cfg = CableCfg(
         positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)],
