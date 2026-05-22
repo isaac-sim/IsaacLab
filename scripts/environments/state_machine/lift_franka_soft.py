@@ -353,12 +353,12 @@ def main():
             )
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
             # -- object frame
-            object_data: DeformableObjectData = env.unwrapped.scene["deformable"].data
+            object_data: DeformableObjectData = env.unwrapped.scene["object"].data
             object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
             object_position += object_local_grasp_position
 
             # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
+            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
 
             # advance state machine
             actions = pick_sm.compute(
