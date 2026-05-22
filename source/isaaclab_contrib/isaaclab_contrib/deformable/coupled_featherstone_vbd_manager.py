@@ -302,8 +302,12 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
             cls._step_kinematic(state_in, state_out, control, substep_dt)
         elif cls._coupling_mode == "one_way":
             cls._step_one_way(state_in, state_out, control, substep_dt)
-        else:
+        elif cls._coupling_mode == "two_way":
             cls._step_two_way(state_in, state_out, control, substep_dt)
+        else:
+            raise ValueError(
+                f"Unknown coupling_mode={cls._coupling_mode!r}; expected one of {{'kinematic', 'one_way', 'two_way'}}."
+            )
 
     @classmethod
     def _simulate_physics_only(cls) -> None:

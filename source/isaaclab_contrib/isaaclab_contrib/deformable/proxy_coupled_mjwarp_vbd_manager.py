@@ -12,7 +12,6 @@ proxies in the VBD view.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -29,8 +28,6 @@ from .vbd_manager import NewtonVBDManager
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveSceneCfg
-
-logger = logging.getLogger(__name__)
 
 
 class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
@@ -58,10 +55,10 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
 
         proxy_body_ids = cls._select_proxy_bodies(model, solver_cfg.proxy_bodies, scene_cfg)
         if solver_cfg.proxy_bodies and not proxy_body_ids:
-            logger.warning(
-                "ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies=%s matched no bodies with COLLIDE_SHAPES. "
-                "Rigid bodies will not be visible to VBD.",
-                solver_cfg.proxy_bodies,
+            raise ValueError(
+                f"ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies={solver_cfg.proxy_bodies!r} resolved to "
+                "zero bodies after filtering for `ShapeFlags.COLLIDE_SHAPES`. Rigid bodies would not be "
+                "visible to VBD; check that the selected bodies own at least one collidable shape."
             )
 
         entries = [

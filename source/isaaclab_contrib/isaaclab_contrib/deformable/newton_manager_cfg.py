@@ -111,8 +111,8 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
 class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the proxy-coupled MJWarp + VBD solver.
 
-    Wraps Newton's :class:`newton.solvers.SolverProxyCoupled` (lagged-impulse
-    virtual-proxy coupling) with MuJoCo Warp as the rigid sub-solver and VBD as
+    Wraps Newton's :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`
+    (lagged-impulse virtual-proxy coupling) with MuJoCo Warp as the rigid sub-solver and VBD as
     the soft sub-solver. Selected MuJoCo bodies are exposed as proxy bodies in
     the VBD view so VBD detects contacts against them and returns feedback
     wrenches to MuJoCo via lagged impulses.
@@ -156,7 +156,7 @@ class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """
 
     proxy_mode: str = "lagged"
-    """Proxy transfer mode passed to :class:`newton.solvers.SolverProxyCoupled.Proxy`.
+    """Proxy transfer mode passed to :class:`newton.solvers.experimental.coupled.SolverCoupledProxy.Proxy`.
 
     - ``"lagged"``: syncs source begin poses and end velocities, then rewinds
       lagged feedback before the destination solve.
