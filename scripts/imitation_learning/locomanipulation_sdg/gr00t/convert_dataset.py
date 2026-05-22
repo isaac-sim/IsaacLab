@@ -25,13 +25,14 @@ def pose_to_transform(pose: np.ndarray) -> RigidTransform:
 
     Args:
         pose: Pose array with shape (..., 7). First 3 elements are translation (x, y, z),
-            last 4 are quaternion in scalar-first (w, x, y, z) order.
+            last 4 are quaternion in scalar-last (x, y, z, w) order, matching Isaac Lab's
+            current convention (see :attr:`isaaclab.assets.ArticulationData.body_link_pose_w`).
 
     Returns:
         RigidTransform representing the pose.
     """
     translation = pose[..., :3]
-    rotation = Rotation.from_quat(pose[..., 3:], scalar_first=True)
+    rotation = Rotation.from_quat(pose[..., 3:])
     return RigidTransform.from_components(translation, rotation)
 
 
@@ -42,10 +43,11 @@ def pose_from_transform(transform: RigidTransform) -> np.ndarray:
         transform: The rigid transform to convert.
 
     Returns:
-        Pose array with shape (..., 7): translation (3) and quaternion (4) in scalar-first order.
+        Pose array with shape (..., 7): translation (3) and quaternion (4) in scalar-last
+        (x, y, z, w) order, matching Isaac Lab's current convention.
     """
     translation, rotation = transform.as_components()
-    quat = rotation.as_quat(scalar_first=True)
+    quat = rotation.as_quat()
     return np.concatenate([translation, quat], axis=-1)
 
 
