@@ -35,6 +35,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import (
+    ProxyCoupledMJWarpVBDSolverCfg,
     CoupledMJWarpVBDSolverCfg,
     CoupledNewtonCfg,
     NewtonModelCfg,
@@ -137,9 +138,35 @@ class PhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
 
+    newton_mjwarp_vbd_proxy: CoupledNewtonCfg = CoupledNewtonCfg(
+        solver_cfg=ProxyCoupledMJWarpVBDSolverCfg(
+            mjwarp_cfg=MJWarpSolverCfg(
+                cone="elliptic",
+                ls_parallel=True,
+                ls_iterations=20,
+                integrator="implicitfast",
+            ),
+            vbd_cfg=VBDSolverCfg(
+                iterations=20,
+            ),
+            mjwarp_bodies=[SceneEntityCfg("robot")],
+            vbd_bodies=[SceneEntityCfg("object")],
+            proxy_bodies=[
+                SceneEntityCfg("robot", body_names=["panda_hand", "panda_(left|right)finger"]),
+            ],
+            proxy_collide_interval=5,
+        ),
+        model_cfg=NewtonModelCfg(
+            shape_material_ke=1e4,
+            shape_material_kd=1e-5,
+            shape_material_mu=1.0,
+        ),
+        num_substeps=5,
+    )
+
     physx: PhysxCfg = PhysxCfg()
 
-    default = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
 
 
 ##
@@ -421,6 +448,9 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
         self.sim.physics = PhysicsCfg()
+        # Set scene for proxy coupled solver
+        self.sim.physics.newton_mjwarp_vbd_proxy.scene_cfg = self.scene
+        self.sim.physics.default.scene_cfg = self.scene
 
         # viewer settings
         self.viewer.origin_type = "asset_root"
