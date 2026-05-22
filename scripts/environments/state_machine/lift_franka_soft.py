@@ -284,26 +284,14 @@ class PickAndLiftSm:
 def main():
     # create environment
     render_mode = "rgb_array" if args_cli.video else None
-    if args_cli.task == "Isaac-Lift-Soft-Franka-v0":
-        # parse configuration
-        env_cfg: FrankaSoftEnvCfg = parse_env_cfg(
-            "Isaac-Lift-Soft-Franka-v0",
-            device=args_cli.device,
-            num_envs=args_cli.num_envs,
-        )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
-        env = gym.make("Isaac-Lift-Soft-Franka-v0", cfg=env_cfg, render_mode=render_mode)
-    elif args_cli.task == "Isaac-Lift-Soft-Franka-Cloth-v0":
-        # parse configuration
-        env_cfg: FrankaClothEnvCfg = parse_env_cfg(
-            "Isaac-Lift-Cloth-Franka-v0",
-            device=args_cli.device,
-            num_envs=args_cli.num_envs,
-        )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
-        env = gym.make("Isaac-Lift-Cloth-Franka-v0", cfg=FrankaClothEnvCfg(), render_mode=render_mode)
-    else:
-        raise ValueError(f"Unknown task: {args_cli.task}")
+    # parse configuration
+    env_cfg = parse_env_cfg(
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+    )
+    env_cfg.viewer.eye = (2.1, 1.0, 1.3)
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
 
     # wrap for video recording
     if args_cli.video:

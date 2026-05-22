@@ -5,7 +5,7 @@
 
 """Proxy-coupled MJWarp + VBD Newton manager.
 
-Wraps :class:`newton.solvers.SolverProxyCoupled` with MuJoCo Warp as the rigid
+Wraps :class:`newton.solvers.SolverCoupledProxy` with MuJoCo Warp as the rigid
 sub-solver and VBD as the soft sub-solver, exposing selected MuJoCo bodies as
 proxies in the VBD view.
 """
@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import CollisionPipeline, Model, ShapeFlags
-from newton.solvers import SolverMuJoCo, SolverProxyCoupled, SolverVBD
+from newton.solvers import SolverMuJoCo, SolverVBD
+from newton.solvers.experimental.coupled import SolverCoupledProxy
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsManager
@@ -37,7 +38,7 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
 
     Extends :class:`NewtonVBDManager` and partitions bodies/joints/shapes
     between an ``"mjc"`` MuJoCo entry and a ``"vbd"`` VBD entry, wrapped in
-    :class:`newton.solvers.SolverProxyCoupled`. By default, all particles are
+    :class:`newton.solvers.SolverCoupledProxy`. By default, all particles are
     assigned to VBD to solve. Proxy bodies are resolved from
     :class:`~isaaclab.managers.SceneEntityCfg` specs in
     :attr:`ProxyCoupledMJWarpVBDSolverCfg.proxy_bodies`.
@@ -45,7 +46,7 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: ProxyCoupledMJWarpVBDSolverCfg) -> None:
-        """Construct :class:`SolverProxyCoupled` and populate base-class slots.
+        """Construct :class:`SolverCoupledProxy` and populate base-class slots.
 
         Partitions the model via :meth:`_partition_model_by_entities` using
         :attr:`solver_cfg.mjwarp_bodies` and :attr:`solver_cfg.vbd_bodies`, and
@@ -81,14 +82,14 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
             )
 
         entries = [
-            SolverProxyCoupled.Entry(
+            SolverCoupledProxy.Entry(
                 name="mjc",
                 solver=lambda v, _kw=mjc_kw: SolverMuJoCo(model=v, **_kw),
                 bodies=mjc_bodies,
                 joints=mjc_joints,
                 shapes=mjc_shapes,
             ),
-            SolverProxyCoupled.Entry(
+            SolverCoupledProxy.Entry(
                 name="vbd",
                 solver=lambda v, _kw=vbd_kw: SolverVBD(model=v, **_kw),
                 bodies=vbd_bodies,
@@ -98,10 +99,10 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
             ),
         ]
 
-        proxies: list[SolverProxyCoupled.Proxy] = []
+        proxies: list[SolverCoupledProxy.Proxy] = []
         if proxy_body_ids:
             proxies.append(
-                SolverProxyCoupled.Proxy(
+                SolverCoupledProxy.Proxy(
                     source="mjc",
                     destination="vbd",
                     bodies=proxy_body_ids,
@@ -115,10 +116,10 @@ class NewtonProxyCoupledMJWarpVBDManager(NewtonVBDManager):
                 )
             )
 
-        NewtonManager._solver = SolverProxyCoupled(
+        NewtonManager._solver = SolverCoupledProxy(
             model=model,
             entries=entries,
-            coupling=SolverProxyCoupled.Config(
+            coupling=SolverCoupledProxy.Config(
                 proxies=proxies,
                 iterations=int(solver_cfg.proxy_iterations),
             ),
