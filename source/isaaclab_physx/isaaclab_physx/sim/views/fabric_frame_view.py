@@ -62,19 +62,42 @@ class FabricFrameView(BaseFrameView):
 
     Behavior:
 
+    * **Leaf-prim assumption.**  This view manages a flat set of sibling prims
+      (e.g. all cameras under ``/World/Env_*/Camera``).  It does NOT propagate
+      transforms to child prims.  If a managed prim has children whose world
+      matrices depend on the parent, those children must be updated via a
+      separate view, a physics step, or ``IFabricHierarchy.update_world_xforms``.
     * **No write-back to USD.**  Fabric writes update only
       ``omni:fabric:worldMatrix`` / ``omni:fabric:localMatrix``; the prim's
       USD ``xformOp:*`` attributes are unchanged.  Downstream consumers that
       read the prim's USD attributes after a Fabric write will see stale
       values until the next USD-side sync.
-    * **World ↔ local consistency.**  After ``set_world_poses`` (or
-      ``set_scales``) the local matrix is updated so that subsequent
-      ``get_local_poses`` is consistent; after ``set_local_poses`` the world
-      matrix is recomputed on the next world read.  Both directions stay in
-      sync without round-tripping through USD.
+    * **World ↔ local consistency (lazy).**  Getters are lazy: after
+      ``set_world_poses`` (or ``set_scales``), local matrices are only
+      recomputed when ``get_local_poses`` is called; after ``set_local_poses``,
+      world matrices are only recomputed when ``get_world_poses`` is called.
+      Both directions stay in sync without round-tripping through USD.
+    * **Dirty-flag invariant.**  At most one of ``_world_dirty`` /
+      ``_local_dirty`` may be ``True`` at any time.  A ``set_world_poses``
+      call marks locals dirty; a ``set_local_poses`` call marks worlds dirty.
+      If the user interleaves both setters on the same view within a single
+      frame, the second setter flushes the first's stale data before writing.
+      This is correct but incurs an extra kernel launch — a one-time warning
+      is logged when this happens.
     * **Topology-adaptive.**  Fabric topology changes are detected on each
       access; the view rebuilds its internal mapping automatically and no
       manual refresh is required.  Steady-state overhead is negligible.
+
+    Performance note:
+        The fast path assumes the user calls **either** ``set_world_poses``
+        **or** ``set_local_poses`` exclusively within a frame (not both).
+        In that case, setters are O(1) kernel launches with no synchronization
+        overhead beyond the single ``wp.synchronize()``; getters lazily flush
+        the opposite direction only when actually needed.
+
+        Interleaving both setters on different index subsets within the same
+        frame is supported and correct, but triggers an extra flush kernel
+        per transition.  A warning is emitted once per view instance.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; setters
     accept :class:`wp.array`.
@@ -118,6 +141,9 @@ class FabricFrameView(BaseFrameView):
         self._world_dirty: bool = False
         # Set by ``set_world_poses`` / ``set_scales``; cleared by ``_sync_local_from_world_if_dirty``.
         self._local_dirty: bool = False
+        self._warned_interleaved_set: bool = False
+        # Tracks whether any user setter has been called (to distinguish init-dirty from interleave-dirty).
+        self._had_user_set: bool = False
 
         # Selections.
         self._trans_sel_ro = None
@@ -188,8 +214,19 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # If a prior set_local_poses left worldMatrix stale, propagate local → world first.
+        # Invariant: at most one of _world_dirty / _local_dirty may be True.
+        # If a prior set_local_poses left worlds stale, flush them now.
+        if self._world_dirty and self._had_user_set:
+            if not self._warned_interleaved_set:
+                self._warned_interleaved_set = True
+                logger.warning(
+                    "FabricFrameView: set_world_poses called while world matrices are stale from a "
+                    "prior set_local_poses.  Flushing stale worlds first.  "
+                    "For best performance, avoid interleaving set_world_poses and set_local_poses "
+                    "on the same view within a single frame \u2014 use one or the other exclusively."
+                )
         self._sync_world_from_local_if_dirty()
+        self._had_user_set = True
 
         indices_wp = self._resolve_indices_wp(indices)
         positions_wp = self._to_float32_2d_or_empty(positions)
@@ -260,6 +297,25 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
+        # Invariant: at most one of _world_dirty / _local_dirty may be True.
+        # If a prior set_world_poses left locals stale, flush them now before we
+        # overwrite a (possibly different) subset of local matrices.  Without this,
+        # prims whose world was set but whose local was never flushed would silently
+        # hold stale local data.
+        #
+        # In the common fast path (user calls only set_local_poses repeatedly) the
+        # flag is False and this is a single branch — zero cost.
+        if self._local_dirty:
+            if not self._warned_interleaved_set:
+                self._warned_interleaved_set = True
+                logger.warning(
+                    "FabricFrameView: set_local_poses called while local matrices are stale from a "
+                    "prior set_world_poses/set_scales.  Flushing stale locals first.  "
+                    "For best performance, avoid interleaving set_world_poses and set_local_poses "
+                    "on the same view within a single frame — use one or the other exclusively."
+                )
+            self._sync_local_from_world_if_dirty()
+
         indices_wp = self._resolve_indices_wp(indices)
         translations_wp = self._to_float32_2d_or_empty(translations)
         orientations_wp = self._to_float32_2d_or_empty(orientations)
@@ -283,8 +339,6 @@ class FabricFrameView(BaseFrameView):
 
         # Mark this view's worlds stale so the next world read recomputes them.
         self._world_dirty = True
-        # Local was just written directly — clear any stale-local flag.
-        self._local_dirty = False
 
     def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._fabric_initialized:
