@@ -3,27 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate the camera ISP wrapper applied to a 3D Gaussian (NuRec /
+"""Validate the camera PPISP wrapper applied to a 3D Gaussian (NuRec /
 ParticleField) scene through the ``ovrtx`` renderer.
 
 The asset is synthesised at test time by :mod:`generate_synthetic_gaussian_asset`
 and rendered via :func:`generate_synthetic_gaussian_asset.render_synthetic_gaussian_scene`.
-The aggressive wrapper ISP cfg
+The aggressive wrapper PPISP cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) intentionally
 engages every feature past its subtle-correction defaults so each can be
 asserted independently:
 
-* **Exposure** offset of +2 stops (input ×4).
-* **Vignetting** with ``alpha1 = -1.5`` per channel — corners attenuate to
-  ~25-40% of center.
+* **Exposure/responsivity** tuned so each renderer's HDR scale maps into a
+  non-degenerate, non-saturated LDR center patch.
+* **Vignetting** with ``alpha1 = -1.8`` per channel plus per-channel higher
+  order coefficients — corners are much darker than the center.
 * **Color homography** that shifts red and green chromaticity anchors.
-* **CRF** with stronger shoulder than default — saturated input compresses
-  rather than clips.
+* **CRF** with stronger shoulder than default — bright input compresses before
+  the final [0, 1] kernel clamp.
 
-The integration test checks *semantic invariants* of the ISP pipeline
-(vignetting darkens corners, exposure increases mean, no overflow above 255)
-instead of a fidelity-against-baked comparison, which would have to absorb
-renderer-internal HDR-magnitude calibration drift between renderers.
+The integration test checks *semantic invariants* of the PPISP pipeline
+(OVRTX produces HDR, PPISP maps it to useful LDR, vignetting darkens corners,
+and output stays in [0, 255]) instead of a fidelity-against-baked comparison,
+which would have to absorb renderer-internal HDR-magnitude calibration drift
+between renderers.
 
 Notes:
   * Runs **kit-less**: this test does not call
@@ -35,10 +37,10 @@ Notes:
     documented incompatibility.
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
-  * Requests ``"rgb_hdr"`` in ``data_types`` because
-    ``isaaclab_ov.get_render_var_configs`` only authors ``HdrColor`` when
-    ``"rgb_hdr"`` is in ``data_types``; in kit-less mode there is no
-    Replicator AnnotatorRegistry to auto-add it.
+  * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
+    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP render path
+    itself also allocates an internal HDR buffer when ``isp_cfg`` is set, so
+    ``"rgb_hdr"`` is not required just to enable PPISP.
 """
 
 import importlib.util
@@ -103,17 +105,17 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
-    """Wrapper ISP via ``ovrtx`` must show every ISP-feature signature.
+    """Wrapper PPISP via ``ovrtx`` must show every PPISP-feature signature.
 
     Renders a synthetic RGBW gaussian grid through ``ovrtx`` plus the
-    aggressive wrapper ISP cfg and asserts (via :func:`assert_ppisp_invariants`):
+    aggressive wrapper PPISP cfg and asserts:
 
     1. **Non-degenerate frame** — content is rendered (not pure black / pure white).
-    2. **Vignetting** — each corner patch mean is meaningfully below the center patch mean.
-    3. **Exposure** — center patch is bright (the +2 stop boost lifts the
-       gaussian colors well into the upper half of the 0-255 range).
-    4. **CRF clamping** — no value exceeds 255 (kernel ``wp.clamp`` plus CRF
-       compression keeps the output bounded).
+    2. **HDR source** — ``rgb_hdr`` is present and bright enough for PPISP.
+    3. **PPISP LDR mapping** — the center patch lands in a useful, non-saturated
+       LDR range after the calibrated responsivity/exposure pair.
+    4. **Vignetting** — each corner patch mean is meaningfully below the center patch mean.
+    5. **CRF/clamping** — no value exceeds 255.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
@@ -133,13 +135,14 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
-    """Multi-tile wrapper ISP via ``ovrtx`` must hold the same invariants
+    """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants
     independently for every tile.
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so
-    the camera regex resolves to one camera per env;
-    :attr:`Camera.data.output["rgb"]` then carries one frame per matched
-    camera and each is asserted independently.
+    the camera regex resolves to one camera per env. Both ``rgb`` and
+    ``rgb_hdr`` are batched over the matched cameras, and each tile is checked
+    independently for HDR presence, useful PPISP LDR mapping, vignetting, and
+    bounded output.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
