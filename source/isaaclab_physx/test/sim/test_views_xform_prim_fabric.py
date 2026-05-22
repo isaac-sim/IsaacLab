@@ -593,3 +593,179 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     scales_torch = torch.as_tensor(ret_scales, device=device)
     expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
     assert torch.allclose(scales_torch, expected, atol=1e-7), f"Scales roundtrip failed on {device}: {scales_torch}"
+
+
+# ------------------------------------------------------------------
+# Interleaved set_world_poses / set_local_poses tests
+# ------------------------------------------------------------------
+
+
+def _build_two_child_view(device: str) -> "FrameView":
+    """Build a 2-env FabricFrameView with rotated parent for interleave tests.
+
+    Parent at (0, 0, 1) rotated 90° around Z.  Two child prims at identity local.
+    """
+    _skip_if_unavailable(device)
+    stage = sim_utils.get_current_stage()
+    for i in range(2):
+        sim_utils.create_prim(
+            f"/World/Parent_{i}",
+            "Xform",
+            translation=_ROTATED_PARENT_POS,
+            orientation=_ROTATED_PARENT_QUAT_XYZW,
+            stage=stage,
+        )
+        sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/Parent_.*/Child", device=device)
+    view.get_world_poses()  # force init
+    return view
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_interleaved_set_world_then_set_local_partial_indices(device):
+    """set_world_poses on index 0, then set_local_poses on index 1 — both must be correct.
+
+    This exercises the dirty-flag flush: after set_world_poses marks _local_dirty,
+    set_local_poses must flush stale locals before writing index 1, ensuring index 0's
+    local is correctly derived from its new world pose.
+    """
+    view = _build_two_child_view(device)
+
+    # Step 1: set world pose on index 0 only
+    new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 5.0, 0.0, 2.0], device=device)
+    idx0 = wp.from_torch(torch.tensor([0], dtype=torch.int32, device=device))
+    view.set_world_poses(positions=new_world_pos, indices=idx0)
+
+    # Step 2: set local pose on index 1 only
+    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 0.0, 0.0], device=device)
+    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
+    idx1 = wp.from_torch(torch.tensor([1], dtype=torch.int32, device=device))
+    view.set_local_poses(translations=new_local_pos, orientations=identity_quat, indices=idx1)
+
+    # Verify index 0's world pose is still (5, 0, 2)
+    world_pos, _ = view.get_world_poses(indices=idx0)
+    torch.testing.assert_close(
+        world_pos.torch,
+        torch.tensor([[5.0, 0.0, 2.0]], dtype=torch.float32, device=device),
+        atol=1e-5, rtol=0,
+    )
+
+    # Verify index 0's local pose (derived from world):
+    # local = Rᵀ · (child_world_pos - parent_pos) = Rz(-90)·(5, 0, 1) = (0, -5, 1)
+    local_pos_0, _ = view.get_local_poses(indices=idx0)
+    torch.testing.assert_close(
+        local_pos_0.torch,
+        torch.tensor([[0.0, -5.0, 1.0]], dtype=torch.float32, device=device),
+        atol=1e-5, rtol=0,
+    )
+
+    # Verify index 1's world pose (derived from local):
+    # world = parent_world * local = Rz(90)·(1, 0, 0) + parent_pos = (0, 1, 0) + (0, 0, 1) = (0, 1, 1)
+    world_pos_1, _ = view.get_world_poses(indices=idx1)
+    torch.testing.assert_close(
+        world_pos_1.torch,
+        torch.tensor([[0.0, 1.0, 1.0]], dtype=torch.float32, device=device),
+        atol=1e-5, rtol=0,
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_interleaved_set_local_then_set_world_partial_indices(device):
+    """set_local_poses on index 0, then set_world_poses on index 1 — both must be correct.
+
+    The reverse direction of the above: after set_local_poses marks _world_dirty,
+    set_world_poses must flush stale worlds before writing index 1.
+    """
+    view = _build_two_child_view(device)
+
+    # Step 1: set local pose on index 0 only
+    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 2.0, 3.0, 0.0], device=device)
+    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
+    idx0 = wp.from_torch(torch.tensor([0], dtype=torch.int32, device=device))
+    view.set_local_poses(translations=new_local_pos, orientations=identity_quat, indices=idx0)
+
+    # Step 2: set world pose on index 1 only
+    new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 10.0, 20.0, 30.0], device=device)
+    idx1 = wp.from_torch(torch.tensor([1], dtype=torch.int32, device=device))
+    view.set_world_poses(positions=new_world_pos, indices=idx1)
+
+    # Verify index 0's world pose (derived from local):
+    # world = Rz(90)·(2, 3, 0) + (0, 0, 1) = (-3, 2, 0) + (0, 0, 1) = (-3, 2, 1)
+    world_pos_0, _ = view.get_world_poses(indices=idx0)
+    torch.testing.assert_close(
+        world_pos_0.torch,
+        torch.tensor([[-3.0, 2.0, 1.0]], dtype=torch.float32, device=device),
+        atol=1e-5, rtol=0,
+    )
+
+    # Verify index 1's world pose is still (10, 20, 30)
+    world_pos_1, _ = view.get_world_poses(indices=idx1)
+    torch.testing.assert_close(
+        world_pos_1.torch,
+        torch.tensor([[10.0, 20.0, 30.0]], dtype=torch.float32, device=device),
+        atol=1e-5, rtol=0,
+    )
+
+    # Verify index 1's local (derived from world):
+    # local = Rᵀ·(world - parent) = Rz(-90)·(10, 20, 29) = (20, -10, 29)
+    local_pos_1, _ = view.get_local_poses(indices=idx1)
+    torch.testing.assert_close(
+        local_pos_1.torch,
+        torch.tensor([[20.0, -10.0, 29.0]], dtype=torch.float32, device=device),
+        atol=1e-5, rtol=0,
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_interleaved_set_emits_warning(device, caplog):
+    """Interleaving set_world_poses and set_local_poses logs a one-time warning."""
+    view = _build_two_child_view(device)
+
+    # First set_world_poses — no warning (first user setter)
+    new_world = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_world, 1.0, 2.0, 3.0], device=device)
+    view.set_world_poses(positions=new_world)
+
+    # Now set_local_poses — should trigger warning about interleaving
+    new_local = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_local, 0.0, 0.0, 0.0], device=device)
+    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=torch.float32, device=device))
+
+    with caplog.at_level("WARNING", logger="isaaclab_physx.sim.views.fabric_frame_view"):
+        caplog.clear()
+        view.set_local_poses(translations=new_local, orientations=identity_quat)
+
+    assert any("interleaving" in r.message.lower() for r in caplog.records), (
+        f"Expected interleave warning, got: {[r.message for r in caplog.records]}"
+    )
+
+    # Second interleave — warning should NOT repeat (one-time only)
+    caplog.clear()
+    view.set_world_poses(positions=new_world)
+    assert not any("interleaving" in r.message.lower() for r in caplog.records), (
+        "Warning should only fire once per view instance"
+    )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_no_warning_when_using_single_setter(device, caplog):
+    """Calling only set_world_poses (or only set_local_poses) should never warn."""
+    view = _build_two_child_view(device)
+
+    new_world = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_world, 1.0, 2.0, 3.0], device=device)
+
+    with caplog.at_level("WARNING", logger="isaaclab_physx.sim.views.fabric_frame_view"):
+        caplog.clear()
+        view.set_world_poses(positions=new_world)
+        view.set_world_poses(positions=new_world)
+        view.set_world_poses(positions=new_world)
+
+    assert not any("interleaving" in r.message.lower() for r in caplog.records), (
+        f"Unexpected interleave warning with single setter: {[r.message for r in caplog.records]}"
+    )
