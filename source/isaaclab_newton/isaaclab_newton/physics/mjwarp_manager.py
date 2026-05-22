@@ -103,10 +103,21 @@ class NewtonMJWarpManager(NewtonManager):
         (newton#2657), reaching into ``solver.mjw_model``/``solver.mjw_data``
         directly is the documented workaround.
 
+        No-ops when ``world_mask`` is ``None``: :func:`mujoco_warp.reset_data`
+        with ``reset=None`` short-circuits its per-world guard
+        (``wp.static(reset is not None)``) and resets **every** world to
+        model defaults, which would silently nuke all sims after any
+        unusual call sequence (e.g. invocation between
+        :meth:`~isaaclab_newton.physics.NewtonManager.clear` and the next
+        :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`).
+
         Args:
             world_mask: Per-world bool mask of shape ``(world_count,)``;
                 ``True`` for worlds that need their MJWarp internals cleared.
+                ``None`` is treated as a no-op.
         """
+        if world_mask is None:
+            return
         mujoco_warp.reset_data(cls._solver.mjw_model, cls._solver.mjw_data, reset=world_mask)
 
     @classmethod
