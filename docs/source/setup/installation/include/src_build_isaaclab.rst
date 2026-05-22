@@ -34,7 +34,8 @@ Installation
 
          .. code:: batch
 
-            isaaclab.bat --install :: or "isaaclab.bat -i"
+            isaaclab.bat --install
+            isaaclab.bat -i
 
 
    All core submodules are **always** installed regardless of what is passed to ``-i``.
