@@ -10,7 +10,6 @@ from __future__ import annotations
 import inspect
 import logging
 
-import mujoco_warp
 import numpy as np
 import warp as wp
 from newton import Contacts, Model
@@ -32,6 +31,16 @@ class NewtonMJWarpManager(NewtonManager):
     convergence logging emitted from :meth:`_log_solver_debug` when
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
+
+    # Persistent bool mask co-located with :attr:`mjw_data`, populated from
+    # :attr:`NewtonManager._world_reset_mask` when the two arrays live on
+    # different devices.  ``mujoco_warp.put_data`` always lands on Warp's
+    # default device (typically ``cuda:0``) regardless of the Newton model's
+    # device, so on a CPU-pinned sim the base mask is on ``cpu`` while the
+    # ``reset_data`` kernels launch on ``cuda:0``; this mirror bridges that
+    # gap.  Lazily allocated in :meth:`_reset_solver_internals` and released
+    # via :meth:`_solver_specific_clear`.
+    _mjwarp_reset_mask: wp.array | None = None
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
@@ -111,6 +120,12 @@ class NewtonMJWarpManager(NewtonManager):
         :meth:`~isaaclab_newton.physics.NewtonManager.clear` and the next
         :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`).
 
+        When :attr:`NewtonManager._world_reset_mask` and ``mjw_data`` live on
+        different devices (typical on CPU-pinned sims, since
+        :func:`mujoco_warp.put_data` always lands on Warp's default device),
+        the mask is copied into :attr:`_mjwarp_reset_mask` co-located with
+        ``mjw_data`` before launching ``reset_data``.
+
         Args:
             world_mask: Per-world bool mask of shape ``(world_count,)``;
                 ``True`` for worlds that need their MJWarp internals cleared.
@@ -118,7 +133,24 @@ class NewtonMJWarpManager(NewtonManager):
         """
         if world_mask is None:
             return
+        # Deferred so the docs build, which does not install ``mujoco_warp``,
+        # can still autodoc :class:`NewtonMJWarpManager` from this module.
+        import mujoco_warp
+
+        target_device = cls._solver.mjw_data.qpos.device
+        if world_mask.device != target_device:
+            mirror = cls._mjwarp_reset_mask
+            if mirror is None or mirror.shape != world_mask.shape or mirror.device != target_device:
+                cls._mjwarp_reset_mask = wp.zeros(world_mask.shape[0], dtype=wp.bool, device=target_device)
+                mirror = cls._mjwarp_reset_mask
+            wp.copy(mirror, world_mask)
+            world_mask = mirror
         mujoco_warp.reset_data(cls._solver.mjw_model, cls._solver.mjw_data, reset=world_mask)
+
+    @classmethod
+    def _solver_specific_clear(cls) -> None:
+        """Release the on-mjw-device reset-mask mirror."""
+        cls._mjwarp_reset_mask = None
 
     @classmethod
     def _log_solver_debug(cls) -> None:
