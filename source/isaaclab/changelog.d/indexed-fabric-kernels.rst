@@ -16,9 +16,3 @@ Added
   explicit transposes).  Will be used by
   :class:`~isaaclab_physx.sim.views.FabricFrameView` to keep child world and
   local matrices consistent across writes without round-tripping through USD.
-
-Changed
-^^^^^^^
-
-* Replaced ``if/else`` branching with ``wp.where`` in existing Fabric
-  compose/decompose kernels for branchless GPU execution.
