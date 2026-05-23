@@ -405,6 +405,15 @@ runs:
         if-no-files-found: ignore
         retention-days: 7
 
+    - name: Upload JUnit XML report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: junit-${{ inputs.container-name }}
+        path: ${{ inputs.reports-dir }}/${{ inputs.result-file }}
+        if-no-files-found: ignore
+        retention-days: 7
+
     - name: Clean up Docker container
       if: always() && !cancelled()
       shell: bash
