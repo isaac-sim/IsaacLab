@@ -132,20 +132,29 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
     position, rotation, scale = _decompose_transformation_matrix(wp.mat44f(fabric_matrices[fabric_index]))
     # update position (check if array has elements, not just if it exists)
     if array_positions.shape[0] > 0:
-        index = wp.where(broadcast_positions, 0, i)
+        if broadcast_positions:
+            index = 0
+        else:
+            index = i
         position[0] = array_positions[index, 0]
         position[1] = array_positions[index, 1]
         position[2] = array_positions[index, 2]
     # update orientation (convert from wxyz to xyzw for Warp)
     if array_orientations.shape[0] > 0:
-        index = wp.where(broadcast_orientations, 0, i)
+        if broadcast_orientations:
+            index = 0
+        else:
+            index = i
         rotation[0] = array_orientations[index, 0]  # x
         rotation[1] = array_orientations[index, 1]  # y
         rotation[2] = array_orientations[index, 2]  # z
         rotation[3] = array_orientations[index, 3]  # w
     # update scale
     if array_scales.shape[0] > 0:
-        index = wp.where(broadcast_scales, 0, i)
+        if broadcast_scales:
+            index = 0
+        else:
+            index = i
         scale[0] = array_scales[index, 0]
         scale[1] = array_scales[index, 1]
         scale[2] = array_scales[index, 2]
@@ -229,18 +238,27 @@ def compose_indexed_fabric_transforms(
     position, rotation, scale = _decompose_transformation_matrix(wp.mat44f(fabric_matrices[view_index]))
 
     if array_positions.shape[0] > 0:
-        index = wp.where(broadcast_positions, 0, i)
+        if broadcast_positions:
+            index = 0
+        else:
+            index = i
         position[0] = array_positions[index, 0]
         position[1] = array_positions[index, 1]
         position[2] = array_positions[index, 2]
     if array_orientations.shape[0] > 0:
-        index = wp.where(broadcast_orientations, 0, i)
+        if broadcast_orientations:
+            index = 0
+        else:
+            index = i
         rotation[0] = array_orientations[index, 0]
         rotation[1] = array_orientations[index, 1]
         rotation[2] = array_orientations[index, 2]
         rotation[3] = array_orientations[index, 3]
     if array_scales.shape[0] > 0:
-        index = wp.where(broadcast_scales, 0, i)
+        if broadcast_scales:
+            index = 0
+        else:
+            index = i
         scale[0] = array_scales[index, 0]
         scale[1] = array_scales[index, 1]
         scale[2] = array_scales[index, 2]
