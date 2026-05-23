@@ -16,6 +16,10 @@
 #
 # Marker-driven discovery: `pytest <path> -m arm_ci`. Adding a new aarch64-safe
 # test = tag it with arm_ci, no yaml edit.
+#
+# Local deps-cache: the ecr-build-push-pull action checks both the local
+# docker store and ECR for a deps-<hash> image before doing a full build.
+# Same-dependency PRs reuse a prior build via metadata-only retag.
 
 name: ARM CI
 
