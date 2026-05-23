@@ -40,6 +40,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install cmake via pip (avoid sudo apt path)
+        # install.py skips its sudo apt-get block when ``cmake`` is already on
+        # PATH (source/isaaclab/isaaclab/cli/commands/install.py:35).  The
+        # pip wheel provides a cmake shim under the setup-python venv's bin/,
+        # which is on PATH, so installing it here bypasses the apt branch.
+        run: pip install cmake
+
       - name: Install Isaac Lab
         run: ./isaaclab.sh --install
 
