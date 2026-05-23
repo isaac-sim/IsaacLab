@@ -105,6 +105,16 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
                :: Activate environment
                conda activate env_isaaclab  :: or "conda activate my_env"
 
+            .. note::
+
+               On Windows, ``isaaclab.bat`` sources ``_isaac_sim\setup_conda_env.bat`` to
+               export the Isaac Sim environment variables. Some Isaac Sim binary zips do
+               not ship this file; in that case, ``isaaclab.bat`` prints a non-fatal warning
+               and Isaac Sim env vars are not exported, which later surfaces as an
+               ``Isaac Sim is not installed or not found on PYTHONPATH`` error at script
+               launch. Re-extract a build that includes ``setup_conda_env.bat``, or set
+               the Isaac Sim environment variables yourself before running ``isaaclab.bat``.
+
 Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` or
 ``isaaclab.bat -p`` to run python scripts. You can use the default python executable in your
 environment by running ``python`` or ``python3``. However, for the rest of the documentation,
