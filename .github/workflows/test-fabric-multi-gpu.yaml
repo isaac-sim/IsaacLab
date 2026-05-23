@@ -50,10 +50,19 @@ jobs:
       - name: Install Isaac Lab
         # ``--install none`` = core submodules only (no mimic, no teleop, no
         # auto-extra features).  The FabricFrameView cuda:1 tests only need
-        # isaaclab core + isaaclab_physx + Isaac Sim, all of which are core.
-        # This avoids building robomimic's egl_probe wheel, which requires
-        # libEGL/X11 headers that the multi-GPU runner image lacks.
+        # isaaclab core + isaaclab_physx + Isaac Sim.  Avoids building
+        # robomimic's egl_probe wheel, which requires libEGL/X11 headers
+        # that the multi-GPU runner image lacks.
         run: ./isaaclab.sh --install none
+
+      - name: Install Isaac Sim
+        # Isaac Sim is an optional extra in source/isaaclab/setup.py
+        # (``isaacsim[all,extscache]==5.1.0``) — not pulled by ``--install none``.
+        # AppLauncher's ``import isaacsim`` is wrapped in
+        # ``contextlib.suppress(ModuleNotFoundError)``, so a missing isaacsim
+        # silently leaves ``EXP_PATH`` unset and the next read crashes with
+        # ``KeyError: 'EXP_PATH'`` at test collection time.
+        run: pip install 'isaacsim[all,extscache]==5.1.0'
 
       - name: Verify multi-GPU availability
         # Fail loud if the runner regressed to a single GPU.  Without this, the
