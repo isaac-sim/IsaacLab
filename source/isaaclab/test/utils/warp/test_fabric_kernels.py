@@ -23,7 +23,6 @@ from isaaclab.utils.warp.fabric import (  # noqa: E402
     _world_from_local_transposed,
 )
 
-
 # ------------------------------------------------------------------
 # Test kernels — thin wp.array wrappers that delegate to production @wp.func
 # ------------------------------------------------------------------
@@ -80,15 +79,11 @@ def _make_transform_matrix(pos, rot_quat_xyzw, scale):
     Raises:
         AssertionError: If the resulting matrix is singular (e.g. zero scale component).
     """
-    from scipy.spatial.transform import Rotation
-
-    r = Rotation.from_quat(rot_quat_xyzw).as_matrix().astype(np.float64)
-    rs = r * np.array(scale, dtype=np.float64)
-    m = np.eye(4, dtype=np.float64)
-    m[:3, :3] = rs
-    m[:3, 3] = pos
-    # Transpose for Fabric storage convention
-    result = m.T
+    p = wp.vec3f(*pos)
+    q = wp.quatf(*rot_quat_xyzw)
+    s = wp.vec3f(*scale)
+    m = wp.transpose(wp.transform_compose(p, q, s))
+    result = np.array(m).reshape(4, 4).astype(np.float64)
     det = np.linalg.det(result)
     assert abs(det) > 1e-6, f"Singular matrix: det={det:.2e}, scale={scale}"
     return result
@@ -167,4 +162,3 @@ def test_world_from_local_transposed():
     wp.synchronize()
 
     np.testing.assert_allclose(out.numpy()[0], _CHILD_WORLD_T, atol=1e-5)
-
