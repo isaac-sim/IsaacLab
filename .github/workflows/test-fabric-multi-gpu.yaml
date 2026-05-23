@@ -87,6 +87,13 @@ jobs:
       - name: Run FabricFrameView multi-GPU unit tests
         env:
           ISAACLAB_TEST_MULTI_GPU: "1"
+          # Bypass Kit's interactive EULA prompt on first launch.  Without
+          # these, isaacsim.bootstrap_kernel reads stdin during test
+          # collection and pytest aborts with
+          # ``pytest: reading from stdin while output is captured``.
+          OMNI_KIT_ACCEPT_EULA: "yes"
+          ACCEPT_EULA: "Y"
+          ISAAC_SIM_HEADLESS: "1"
         run: |
           ./isaaclab.sh -p -m pytest \
             source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v
