@@ -92,6 +92,58 @@ runs:
           echo "🔵 Image not present locally, will try ECR / build paths"
         fi
 
+    ##### 1.6: Local deps-cache short-circuit #####
+
+    # Equivalent of step 5 (ECR deps-cache), but checked against the local
+    # docker store. When ECR is unreachable (today's arm64 path), this is the
+    # only way to reuse work across different commit SHAs of the same PR when
+    # dependencies haven't changed.
+    #
+    # Hash inputs match step 5 exactly. If the deps-<hash> tag exists locally,
+    # retag it as the requested commit-tag (metadata-only operation) so the
+    # rest of the action treats it as a cache hit. Otherwise, export
+    # LOCAL_DEPS_TAG so step 6.5 can populate the cache after a full build.
+
+    - name: Check deps-tag locally
+      id: local-deps
+      if: steps.local.outputs.hit != 'true'
+      shell: bash
+      run: |
+        DEPS_FILES=(
+          "${{ inputs.dockerfile-path }}"
+          isaaclab.sh
+          environment.yml
+          source/isaaclab/isaaclab/cli
+        )
+        DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
+
+        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
+        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
+          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
+        else
+          echo "🟠 Could not resolve base image digest, falling back to tag string"
+          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+        fi
+
+        MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
+        FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
+          | sha256sum | cut -c1-16)
+        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
+        LOCAL_DEPS_TAG="$(echo "${{ inputs.image-tag }}" | cut -d: -f1):deps-${DEPS_HASH}"
+
+        echo "🔵 Local deps tag: ${LOCAL_DEPS_TAG}"
+        echo "LOCAL_DEPS_TAG=${LOCAL_DEPS_TAG}" >> "$GITHUB_ENV"
+
+        if docker image inspect "${LOCAL_DEPS_TAG}" >/dev/null 2>&1; then
+          echo "🟢 Local deps-cache HIT! Retagging as ${{ inputs.image-tag }}"
+          docker tag "${LOCAL_DEPS_TAG}" "${{ inputs.image-tag }}"
+          echo "hit=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "🟠 Local deps-cache MISS (will build then tag for future hits)"
+        fi
+
     ##### 2: Resolve ECR URL #####
 
     # Tries: explicit input >> ECR_CACHE_URL env var >> SSM parameter on EC2.
@@ -99,7 +151,9 @@ runs:
 
     - name: Resolve ECR URL
       id: resolve-ecr
-      if: steps.local.outputs.hit != 'true'
+      if: >
+        steps.local.outputs.hit != 'true' &&
+        steps.local-deps.outputs.hit != 'true'
       shell: bash
       env:
         INPUT_ECR_URL: ${{ inputs.ecr-url }}
@@ -278,6 +332,7 @@ runs:
     - name: Full build
       if: >
         steps.local.outputs.hit != 'true' &&
+        steps.local-deps.outputs.hit != 'true' &&
         steps.pull-exact.outputs.hit != 'true' &&
         steps.deps-cache.outputs.deps-cache-hit != 'true'
       shell: bash
@@ -308,6 +363,28 @@ runs:
 
         echo "🔵 Building ${{ inputs.image-tag }}..."
         docker buildx build --load "${BUILD_ARGS[@]}" .
+
+    ##### 6.5: Tag built image with local deps-tag #####
+
+    # Local mirror of step 8 (Push deps tag). After a successful full build,
+    # tag the resulting image as deps-<hash> in the local docker store so the
+    # next build on this host with identical deps short-circuits via step 1.6,
+    # regardless of whether ECR is reachable.
+
+    - name: Tag built image with local deps-tag
+      if: >
+        steps.local.outputs.hit != 'true' &&
+        steps.local-deps.outputs.hit != 'true' &&
+        steps.pull-exact.outputs.hit != 'true' &&
+        steps.deps-cache.outputs.deps-cache-hit != 'true'
+      shell: bash
+      run: |
+        if [ -n "${LOCAL_DEPS_TAG:-}" ]; then
+          docker tag "${{ inputs.image-tag }}" "${LOCAL_DEPS_TAG}"
+          echo "🟢 Tagged local deps-cache: ${LOCAL_DEPS_TAG}"
+        else
+          echo "🟠 LOCAL_DEPS_TAG not set, skipping local deps-cache tag"
+        fi
 
     ##### 7: Push to ECR #####
 
