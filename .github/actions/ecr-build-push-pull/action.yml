@@ -72,6 +72,26 @@ runs:
           echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
 
+    ##### 1.5: Local-image short-circuit #####
+
+    # Fast path: if the exact image-tag is already in the local docker store
+    # (built by an earlier job on this same self-hosted runner), skip ECR
+    # resolution, manifest checks, deps-cache lookup, build, and push entirely.
+    # Image tags are commit-pinned (CI_IMAGE_TAG in build.yaml / arm-ci.yaml),
+    # so a local hit is safe: every code, Dockerfile, dep, or config.yaml
+    # change produces a new SHA and a new tag.
+
+    - name: Check image locally
+      id: local
+      shell: bash
+      run: |
+        if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
+          echo "🟢 Image already in local docker store: ${{ inputs.image-tag }}"
+          echo "hit=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "🔵 Image not present locally, will try ECR / build paths"
+        fi
+
     ##### 2: Resolve ECR URL #####
 
     # Tries: explicit input >> ECR_CACHE_URL env var >> SSM parameter on EC2.
@@ -79,6 +99,7 @@ runs:
 
     - name: Resolve ECR URL
       id: resolve-ecr
+      if: steps.local.outputs.hit != 'true'
       shell: bash
       env:
         INPUT_ECR_URL: ${{ inputs.ecr-url }}
@@ -255,7 +276,10 @@ runs:
     # Uses ECR layer cache (--cache-from/--cache-to) when ECR is available.
 
     - name: Full build
-      if: steps.pull-exact.outputs.hit != 'true' && steps.deps-cache.outputs.deps-cache-hit != 'true'
+      if: >
+        steps.local.outputs.hit != 'true' &&
+        steps.pull-exact.outputs.hit != 'true' &&
+        steps.deps-cache.outputs.deps-cache-hit != 'true'
       shell: bash
       run: |
         BUILD_ARGS=(
