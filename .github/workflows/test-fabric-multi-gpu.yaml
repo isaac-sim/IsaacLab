@@ -56,13 +56,17 @@ jobs:
         run: ./isaaclab.sh --install none
 
       - name: Install Isaac Sim
-        # Isaac Sim is an optional extra in source/isaaclab/setup.py
-        # (``isaacsim[all,extscache]==5.1.0``) — not pulled by ``--install none``.
-        # AppLauncher's ``import isaacsim`` is wrapped in
-        # ``contextlib.suppress(ModuleNotFoundError)``, so a missing isaacsim
-        # silently leaves ``EXP_PATH`` unset and the next read crashes with
-        # ``KeyError: 'EXP_PATH'`` at test collection time.
-        run: pip install 'isaacsim[all,extscache]==5.1.0'
+        # Isaac Sim is an optional extra in source/isaaclab/setup.py and is
+        # not pulled by ``--install none``.  Without it, AppLauncher's
+        # ``import isaacsim`` is silently caught by
+        # ``contextlib.suppress(ModuleNotFoundError)``, ``EXP_PATH`` stays
+        # unset, and test collection crashes with ``KeyError: 'EXP_PATH'``.
+        #
+        # Pinned to 6.0.0.0 because that is the only release line with a
+        # Python 3.12 wheel.  The 5.x line on PyPI requires Python 3.11
+        # (and source/isaaclab/setup.py's ``isaacsim==5.1.0`` pin is stale
+        # relative to the 3.12 baseline declared in pyproject.toml).
+        run: pip install 'isaacsim[all,extscache]==6.0.0.0'
 
       - name: Verify multi-GPU availability
         # Fail loud if the runner regressed to a single GPU.  Without this, the
