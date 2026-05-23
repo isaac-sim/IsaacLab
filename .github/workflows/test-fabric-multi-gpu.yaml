@@ -48,7 +48,12 @@ jobs:
         run: pip install cmake
 
       - name: Install Isaac Lab
-        run: ./isaaclab.sh --install
+        # ``--install none`` = core submodules only (no mimic, no teleop, no
+        # auto-extra features).  The FabricFrameView cuda:1 tests only need
+        # isaaclab core + isaaclab_physx + Isaac Sim, all of which are core.
+        # This avoids building robomimic's egl_probe wheel, which requires
+        # libEGL/X11 headers that the multi-GPU runner image lacks.
+        run: ./isaaclab.sh --install none
 
       - name: Verify multi-GPU availability
         # Fail loud if the runner regressed to a single GPU.  Without this, the
