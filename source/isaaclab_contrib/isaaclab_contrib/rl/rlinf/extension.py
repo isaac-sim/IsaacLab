@@ -50,7 +50,20 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import yaml
+# GR00T16_RLINF_COMPAT: RLinf ships TWO independent embodiment_tags
+# modules now — one for GR00T 1.7 (rlinf/models/embodiment/gr00t/) and
+# one for GR00T 1.6 (rlinf/models/embodiment/gr00t_1_6/, introduced by
+# PR #1079). When the workshop runs in Path B.3 (GR00T 1.6), the patcher
+# below must update the 1.6 enum/mapping; for Path B.4 (1.7) it must
+# update the 1.7 one. We import what's available and let
+# `_patch_embodiment_tags` iterate over the collected modules.
 from rlinf.models.embodiment.gr00t import embodiment_tags
+
+try:
+    from rlinf.models.embodiment.gr00t_1_6 import embodiment_tags as embodiment_tags_16  # noqa: WPS433
+    _EMBODIMENT_TAG_MODULES = [embodiment_tags, embodiment_tags_16]
+except Exception:  # pragma: no cover - 1.6 only present on B.3 installs
+    _EMBODIMENT_TAG_MODULES = [embodiment_tags]
 
 if TYPE_CHECKING:
     import torch
@@ -143,23 +156,31 @@ def _patch_embodiment_tags(cfg: dict) -> None:
     embodiment_tag = cfg.get("embodiment_tag", "new_embodiment")
     tag_id = cfg.get("embodiment_tag_id", 31)
 
-    # If tag is already in registry (native or previously added), skip
-    if embodiment_tag in embodiment_tags.EMBODIMENT_TAG_MAPPING:
-        logger.info(f"embodiment_tag '{embodiment_tag}' already registered")
-        return
-    # Add to enum
-    tag_upper = embodiment_tag.upper().replace("-", "_")
-    if not hasattr(embodiment_tags.EmbodimentTag, tag_upper):
-        existing_members = {e.name: e.value for e in embodiment_tags.EmbodimentTag}
-        existing_members[tag_upper] = embodiment_tag
-        NewEmbodimentTag = Enum("EmbodimentTag", existing_members)
-
-        embodiment_tags.EmbodimentTag = NewEmbodimentTag
-        logger.info(f"Added EmbodimentTag.{tag_upper} = '{embodiment_tag}'")
-
-    # Add to mapping
-    embodiment_tags.EMBODIMENT_TAG_MAPPING[embodiment_tag] = tag_id
-    logger.info(f"Added EMBODIMENT_TAG_MAPPING['{embodiment_tag}'] = {tag_id}")
+    # Apply the same patch to every embodiment_tags module that's importable
+    # (GR00T 1.7 + 1.6). The YAML's `embodiment_tag` / `embodiment_tag_id`
+    # is the source of truth on both branches.
+    for et_mod in _EMBODIMENT_TAG_MODULES:
+        if embodiment_tag in et_mod.EMBODIMENT_TAG_MAPPING:
+            logger.info(
+                f"embodiment_tag '{embodiment_tag}' already registered on "
+                f"{et_mod.__name__}"
+            )
+            continue
+        tag_upper = embodiment_tag.upper().replace("-", "_")
+        if not hasattr(et_mod.EmbodimentTag, tag_upper):
+            existing_members = {e.name: e.value for e in et_mod.EmbodimentTag}
+            existing_members[tag_upper] = embodiment_tag
+            NewEmbodimentTag = Enum("EmbodimentTag", existing_members)
+            et_mod.EmbodimentTag = NewEmbodimentTag
+            logger.info(
+                f"Added EmbodimentTag.{tag_upper} = '{embodiment_tag}' on "
+                f"{et_mod.__name__}"
+            )
+        et_mod.EMBODIMENT_TAG_MAPPING[embodiment_tag] = tag_id
+        logger.info(
+            f"Added EMBODIMENT_TAG_MAPPING['{embodiment_tag}'] = {tag_id} on "
+            f"{et_mod.__name__}"
+        )
 
 
 def _patch_gr00t_get_model(cfg: dict) -> None:
@@ -261,17 +282,38 @@ def _register_gr00t_converters(cfg: dict) -> None:
     Args:
         cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
-    from rlinf.models.embodiment.gr00t import simulation_io
+    # GR00T16_RLINF_COMPAT: GR00T N1.6 (RLinf PR #1079) ships its own
+    # ``simulation_io`` module separate from the N1.7 one. We register the
+    # workshop's IsaacLab obs/action converters on *both* modules so the
+    # same YAML works whether the user picks ``model_type: gr00t`` (N1.7)
+    # or ``model_type: gr00t_1_6`` (N1.6).
+    _simulation_io_modules = []
+    try:
+        from rlinf.models.embodiment.gr00t import simulation_io as _gr00t17_simio  # noqa: WPS433
+        _simulation_io_modules.append(_gr00t17_simio)
+    except Exception as _e:  # pragma: no cover
+        logger.info(f"GR00T 1.7 simulation_io not present (skipping): {_e}")
+    try:
+        from rlinf.models.embodiment.gr00t_1_6 import simulation_io as _gr00t16_simio  # noqa: WPS433
+        _simulation_io_modules.append(_gr00t16_simio)
+    except Exception as _e:  # pragma: no cover
+        logger.info(f"GR00T 1.6 simulation_io not present (skipping): {_e}")
 
     obs_converter_type = cfg.get("obs_converter_type", "dex3")
 
-    if obs_converter_type not in simulation_io.OBS_CONVERSION:
-        simulation_io.OBS_CONVERSION[obs_converter_type] = _convert_isaaclab_obs_to_gr00t
-        logger.info(f"Registered obs converter: {obs_converter_type}")
-
-    if obs_converter_type not in simulation_io.ACTION_CONVERSION:
-        simulation_io.ACTION_CONVERSION[obs_converter_type] = _convert_gr00t_to_isaaclab_action
-        logger.info(f"Registered action converter: {obs_converter_type}")
+    for simulation_io in _simulation_io_modules:
+        if obs_converter_type not in simulation_io.OBS_CONVERSION:
+            simulation_io.OBS_CONVERSION[obs_converter_type] = _convert_isaaclab_obs_to_gr00t
+            logger.info(
+                f"Registered obs converter '{obs_converter_type}' on "
+                f"{simulation_io.__name__}"
+            )
+        if obs_converter_type not in simulation_io.ACTION_CONVERSION:
+            simulation_io.ACTION_CONVERSION[obs_converter_type] = _convert_gr00t_to_isaaclab_action
+            logger.info(
+                f"Registered action converter '{obs_converter_type}' on "
+                f"{simulation_io.__name__}"
+            )
 
 
 def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
@@ -325,8 +367,18 @@ def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
                 if gr00t_key:
                     groot_obs[gr00t_key] = states_np[:, :, slice_range[0] : slice_range[1]]
 
-    # Pass through task descriptions
-    groot_obs["annotation.human.action.task_description"] = env_obs.get("task_descriptions", [])
+    # Pass through task descriptions. The exact GR00T language key depends on
+    # the model's modality config (LIBERO uses ``annotation.human.action.task_description``;
+    # the workshop SO-101 N1.6 checkpoints use ``annotation.human.task_description``).
+    # Allow YAML override via ``gr00t_mapping.language_key`` and additionally publish
+    # the description under any extra keys listed in ``gr00t_mapping.language_keys``.
+    language_key = gr00t_mapping.get(
+        "language_key", "annotation.human.action.task_description"
+    )
+    task_descriptions = env_obs.get("task_descriptions", [])
+    groot_obs[language_key] = task_descriptions
+    for extra_lang_key in gr00t_mapping.get("language_keys", []) or []:
+        groot_obs[extra_lang_key] = task_descriptions
 
     return groot_obs
 
@@ -352,8 +404,35 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
     prefix_pad = action_mapping.get("prefix_pad", 0)
     suffix_pad = action_mapping.get("suffix_pad", 0)
 
-    # Concatenate all action parts
-    action_parts = [v[:, :chunk_size, :] for v in action_chunk.values()]
+    # Honor explicit key ordering when the YAML provides it (the SO-101 SFT
+    # checkpoint emits {action.single_arm, action.gripper} and the order
+    # matters because the env concatenates them into a single 7-dim vector).
+    explicit_keys = action_mapping.get("gr00t_action_keys") or []
+    if explicit_keys:
+        resolved_keys = []
+        missing = []
+        for key in explicit_keys:
+            if key in action_chunk:
+                resolved_keys.append(key)
+                continue
+            # GR00T16_RLINF_COMPAT: GR00T N1.6 decode_action() returns bare
+            # joint-group keys (e.g. ``single_arm``/``gripper``) whereas older
+            # SO-101 YAMLs and SFT wrappers used ``action.<group>``. Accept the
+            # bare fallback while keeping the explicit YAML order.
+            bare_key = key.split(".", 1)[1] if key.startswith("action.") else key
+            if bare_key in action_chunk:
+                resolved_keys.append(bare_key)
+                continue
+            missing.append(key)
+        if missing:
+            raise KeyError(
+                f"action_mapping.gr00t_action_keys references keys not present "
+                f"in the GR00T action chunk: {missing}. Available keys: "
+                f"{sorted(action_chunk.keys())}"
+            )
+        action_parts = [action_chunk[k][:, :chunk_size, :] for k in resolved_keys]
+    else:
+        action_parts = [v[:, :chunk_size, :] for v in action_chunk.values()]
     action_concat = np.concatenate(action_parts, axis=-1)
 
     # Apply padding
@@ -476,8 +555,121 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 import gymnasium as gym
 
                 from isaaclab_tasks.utils import load_cfg_from_registry
+                from isaaclab_tasks.utils.hydra import (
+                    apply_overrides,
+                    collect_presets,
+                    parse_overrides,
+                    resolve_presets,
+                )
+
+                # GR00T16_RLINF_COMPAT: workshop extensions register their
+                # gym envs via ``gym.register()`` in their own
+                # ``<pkg>.tasks`` module, but ``isaaclab_tasks`` only
+                # auto-imports its own sub-packages. When the env worker
+                # is spawned in a fresh Ray subprocess the workshop
+                # module is not yet imported, so ``gym.spec`` doesn't
+                # know about the workshop's task IDs. We do a best-
+                # effort pre-import here so any installed task pack is
+                # registered before the lookup. Failure is non-fatal.
+                import os
+                _extra_pkgs = os.environ.get(
+                    "ISAACLAB_TASK_PACKAGES",
+                    "sim_to_real_so101.tasks",
+                )
+                import importlib
+                for _pkg in (p.strip() for p in _extra_pkgs.split(",") if p.strip()):
+                    try:
+                        importlib.import_module(_pkg)
+                    except Exception as _e:  # pragma: no cover
+                        print(
+                            f"[GR00T16_RLINF_COMPAT] could not pre-import "
+                            f"task package '{_pkg}': {_e}"
+                        )
+
+                # GR00T16_RLINF_COMPAT: Isaac Sim 6.0's default
+                # ``GroundPlaneCfg`` resolves to a USD hosted on the AWS
+                # staging bucket
+                # (omniverse-content-staging.s3-us-west-2.amazonaws.com).
+                # On boxes that block that bucket (corporate proxies,
+                # Cursor sandbox, etc.) every EnvWorker spawn fails with
+                # ``FileNotFoundError: Unable to open the usd file at
+                # path: https://omniverse-content-staging...``. We honour
+                # a pre-downloaded local copy via the
+                # ``ISAACLAB_GROUND_PLANE_USD`` env var, or auto-discover
+                # one under ``<workshop>/source/sim_to_real_so101/assets/
+                # isaac_cache/Environments/Grid/default_environment.usd``
+                # (created by the workshop installer).
+                try:
+                    from isaaclab.sim.spawners.from_files import from_files_cfg as _gp_cfg_mod
+                    _gp_local = os.environ.get("ISAACLAB_GROUND_PLANE_USD", "")
+                    if not _gp_local:
+                        # Walk up from this file looking for the workshop
+                        # cache directory.
+                        _here = os.path.abspath(__file__)
+                        for _ in range(8):
+                            _here = os.path.dirname(_here)
+                            _cand = os.path.join(
+                                _here,
+                                "sim_to_real_so101",
+                                "assets",
+                                "isaac_cache",
+                                "Environments",
+                                "Grid",
+                                "default_environment.usd",
+                            )
+                            if os.path.isfile(_cand):
+                                _gp_local = _cand
+                                break
+                            _cand2 = os.path.join(
+                                _here,
+                                "source",
+                                "sim_to_real_so101",
+                                "assets",
+                                "isaac_cache",
+                                "Environments",
+                                "Grid",
+                                "default_environment.usd",
+                            )
+                            if os.path.isfile(_cand2):
+                                _gp_local = _cand2
+                                break
+                    if _gp_local and os.path.isfile(_gp_local):
+                        _orig_gp = _gp_cfg_mod.GroundPlaneCfg
+                        _orig_default = _orig_gp.usd_path
+
+                        class _LocalGroundPlaneCfg(_orig_gp):  # type: ignore[misc]
+                            usd_path: str = _gp_local  # type: ignore[assignment]
+
+                        _gp_cfg_mod.GroundPlaneCfg = _LocalGroundPlaneCfg
+                        logger.info(
+                            f"[GR00T16_RLINF_COMPAT] GroundPlaneCfg.usd_path -> {_gp_local} "
+                            f"(was {_orig_default})"
+                        )
+                except Exception as _e:  # pragma: no cover
+                    logger.info(
+                        f"[GR00T16_RLINF_COMPAT] could not patch GroundPlaneCfg: {_e}"
+                    )
 
                 isaac_env_cfg = load_cfg_from_registry(self.isaaclab_env_id, "env_cfg_entry_point")
+                init_params = getattr(self.cfg, "init_params", {})
+                init_presets = getattr(init_params, "presets", None)
+                if init_presets:
+                    preset_value = ",".join(init_presets) if isinstance(init_presets, list | tuple) else str(init_presets)
+                    presets = {"env": collect_presets(isaac_env_cfg)}
+                    global_presets, preset_sel, preset_scalar, _ = parse_overrides(
+                        [f"presets={preset_value}"], presets
+                    )
+                    hydra_cfg = {"env": isaac_env_cfg.to_dict()}
+                    isaac_env_cfg, _ = apply_overrides(
+                        isaac_env_cfg,
+                        None,
+                        hydra_cfg,
+                        global_presets,
+                        preset_sel,
+                        preset_scalar,
+                        presets,
+                    )
+                isaac_env_cfg = resolve_presets(isaac_env_cfg)
                 isaac_env_cfg.scene.num_envs = self.cfg.init_params.num_envs
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
