@@ -31,6 +31,13 @@ inputs:
     description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
     default: ''
     required: false
+  exclude-pattern:
+    description: >-
+      Comma-separated substrings; test files whose path contains any entry are
+      skipped. Combines with filter-pattern (include + exclude). Also supports
+      the legacy pd filter-pattern: "not <pattern>" form for exclude-only jobs.
+    default: ''
+    required: false
   shard-index:
     description: 'Zero-based shard index'
     default: ''
@@ -132,6 +139,7 @@ runs:
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
         filter-pattern: ${{ inputs.filter-pattern }}
+        exclude-pattern: ${{ inputs.exclude-pattern }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}
