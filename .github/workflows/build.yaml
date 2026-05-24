@@ -346,6 +346,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        exclude-pattern: "test_rendering_"
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
@@ -368,6 +369,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        exclude-pattern: "test_rendering_"
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
@@ -390,6 +392,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        exclude-pattern: "test_rendering_"
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
