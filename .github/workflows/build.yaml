@@ -101,7 +101,7 @@ jobs:
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
         )
-        triggered_jobs="Docker build + non-root verify jobs + all test-* matrix jobs"
+        triggered_jobs="Docker build jobs + all test-* matrix jobs (non-root verify is folded into test-isaaclab-ov and test-curobo)"
 
         render_table() {
           local files="$1" entry regex desc count sample
@@ -215,51 +215,6 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-  verify-base-non-root:
-    name: verify-base-non-root
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 30
-    needs: [build, config]
-    if: needs.build.result == 'success'
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull Base Docker image
-      uses: ./.github/actions/ecr-build-push-pull
-      with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    - name: Run Dockerfile non-root regression test
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker run --rm \
-          -v "$PWD":/workspace/isaaclab \
-          --entrypoint bash \
-          "${{ env.CI_IMAGE_TAG }}" \
-          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
-
-    - name: Verify Base runtime user is non-root
-      shell: bash
-      run: |
-        set -euo pipefail
-        runtime_identity="$(docker run --rm --entrypoint bash "${{ env.CI_IMAGE_TAG }}" \
-          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
-        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
-        echo "Base runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
-        if [ "${runtime_uid}" = "0" ]; then
-          echo "::error::Base Docker image must not run as root by default."
-          exit 1
-        fi
-
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
@@ -281,50 +236,6 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
 
-  verify-curobo-non-root:
-    name: verify-curobo-non-root
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 30
-    needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    - name: Pull cuRobo Docker image
-      uses: ./.github/actions/ecr-build-push-pull
-      with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        dockerfile-path: docker/Dockerfile.curobo
-        cache-tag: cache-curobo
-
-    - name: Run Dockerfile non-root regression test
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker run --rm \
-          -v "$PWD":/workspace/isaaclab \
-          --entrypoint bash \
-          "${{ env.CI_IMAGE_TAG }}-curobo" \
-          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
-
-    - name: Verify cuRobo runtime user is non-root
-      shell: bash
-      run: |
-        set -euo pipefail
-        runtime_identity="$(docker run --rm --entrypoint bash "${{ env.CI_IMAGE_TAG }}-curobo" \
-          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
-        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
-        echo "cuRobo runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
-        if [ "${runtime_uid}" = "0" ]; then
-          echo "::error::cuRobo Docker image must not run as root by default."
-          exit 1
-        fi
   #endregion
 
   #region test jobs
@@ -629,6 +540,32 @@ jobs:
         filter-pattern: "isaaclab_ov"
         container-name: isaac-lab-ov-test
 
+    # Folded from the former standalone verify-base-non-root job: reuses the
+    # base image already pulled by run-package-tests to keep the regression
+    # check without burning a separate runner.
+    - name: Run Dockerfile non-root regression test
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker run --rm \
+          -v "$PWD":/workspace/isaaclab \
+          --entrypoint bash \
+          "${{ env.CI_IMAGE_TAG }}" \
+          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
+
+    - name: Verify Base runtime user is non-root
+      shell: bash
+      run: |
+        set -euo pipefail
+        runtime_identity="$(docker run --rm --entrypoint bash "${{ env.CI_IMAGE_TAG }}" \
+          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
+        echo "Base runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
+        if [ "${runtime_uid}" = "0" ]; then
+          echo "::error::Base Docker image must not run as root by default."
+          exit 1
+        fi
+
   test-curobo:
     name: test-curobo
     runs-on: [self-hosted, gpu]
@@ -650,6 +587,32 @@ jobs:
         cache-tag: cache-curobo
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
+
+    # Folded from the former standalone verify-curobo-non-root job: reuses
+    # the curobo image already pulled by run-package-tests to keep the
+    # regression check without burning a separate runner.
+    - name: Run Dockerfile non-root regression test
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker run --rm \
+          -v "$PWD":/workspace/isaaclab \
+          --entrypoint bash \
+          "${{ env.CI_IMAGE_TAG }}-curobo" \
+          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
+
+    - name: Verify cuRobo runtime user is non-root
+      shell: bash
+      run: |
+        set -euo pipefail
+        runtime_identity="$(docker run --rm --entrypoint bash "${{ env.CI_IMAGE_TAG }}-curobo" \
+          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
+        echo "cuRobo runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
+        if [ "${runtime_uid}" = "0" ]; then
+          echo "::error::cuRobo Docker image must not run as root by default."
+          exit 1
+        fi
 
   test-skillgen:
     name: test-skillgen
