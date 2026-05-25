@@ -28,13 +28,17 @@ inputs:
     default: ''
     required: false
   filter-pattern:
-    description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
+    description: >-
+      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
+      contains this pattern are included. Only one pattern can be used at a time,
+      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
+      form for exclude-only jobs.
     default: ''
     required: false
   exclude-pattern:
     description: >-
-      Comma-separated substrings passed as TEST_EXCLUDE_PATTERN; test files
-      whose path contains any entry are skipped. Combines with filter-pattern.
+      Comma-separated substrings; test files whose path contains any entry are
+      excluded. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
   curobo-only:
