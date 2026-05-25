@@ -52,11 +52,13 @@ RUN apt-get update && \
 # arm64-only build deps:
 # - imgui-bundle has no prebuilt arm64 wheel; needs GL/X11 dev headers.
 # - swig is required for the nlopt source build (see arm64 nlopt step below).
+# - libgmp-dev is required by pytetwild's fTetWild source build (no aarch64 wheel for 0.2.3).
 RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         apt-get update && \
         apt-get install -y --no-install-recommends \
         libgl1-mesa-dev libopengl-dev libglx-dev \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
+        libgmp-dev \
         swig; \
     fi
 
