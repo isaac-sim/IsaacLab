@@ -103,7 +103,7 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
-# Cache-bust marker (PR #5655 validation: force fresh pip resolve to pick up cmeel-boost 1.90.0).
+# Cache-bust marker (PR #5655 validation: force fresh pip resolve after upstream prebundle bump 2026-05-25).
 # On arm64, pre-install nlopt 2.6.2 (transitively pinned by isaacteleop[retargeters]).
 # There is no aarch64 wheel for this version, and pip's isolated build env hides the
 # system numpy from nlopt's cmake-based build, so we install it manually with
