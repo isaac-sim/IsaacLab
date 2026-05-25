@@ -139,7 +139,11 @@ def benchmark_frame_view(  # noqa: C901
     is_newton = api == "isaaclab-newton-site"
 
     def to_torch(a):
-        return wp.to_torch(a) if isinstance(a, wp.array) else a
+        if isinstance(a, wp.array):
+            return wp.to_torch(a)
+        if hasattr(a, "torch"):
+            return a.torch
+        return a
 
     try:
         # -- Warmup --------------------------------------------------------
@@ -162,7 +166,7 @@ def benchmark_frame_view(  # noqa: C901
 
         # -- set_world_poses -----------------------------------------------
         if is_newton:
-            new_positions = wp.clone(positions)
+            new_positions = wp.clone(positions.warp)
             wp.to_torch(new_positions)[:, 2] += 0.1
         else:
             new_positions = positions_t.clone()
@@ -198,7 +202,7 @@ def benchmark_frame_view(  # noqa: C901
 
         # -- set_local_poses -----------------------------------------------
         if is_newton:
-            new_translations = wp.clone(translations)
+            new_translations = wp.clone(translations.warp)
             wp.to_torch(new_translations)[:, 2] += 0.1
         else:
             new_translations = translations_t.clone()
