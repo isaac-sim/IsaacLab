@@ -49,6 +49,7 @@ Keep this skill synchronized with installation docs under `docs/source/setup/ins
 ## References
 
 - [Evaluations](evaluations.md)
+- [Reference](reference.md)
 - [Quick installation](../../../docs/source/setup/quick_installation.rst)
 - [Source installation](../../../docs/source/setup/installation/source_installation.rst)
 - [Pip installation](../../../docs/source/setup/installation/pip_installation.rst)

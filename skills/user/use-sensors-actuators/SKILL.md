@@ -51,6 +51,7 @@ Keep this skill synchronized with sensor and actuator docs under `docs/source/ov
 ## References
 
 - [Evaluations](evaluations.md)
+- [Examples](examples.md)
 - [Add sensors on robot tutorial](../../../docs/source/tutorials/04_sensors/add_sensors_on_robot.rst)
 - [Contact sensor docs](../../../docs/source/overview/core-concepts/sensors/contact_sensor.rst)
 - [Joint wrench sensor docs](../../../docs/source/overview/core-concepts/sensors/joint_wrench_sensor.rst)

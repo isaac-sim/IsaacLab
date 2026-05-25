@@ -50,6 +50,7 @@ Keep this skill synchronized with `docs/source/overview/reinforcement-learning/t
 ## References
 
 - [Evaluations](evaluations.md)
+- [Examples](examples.md)
 - [RL training guide](../../../docs/source/overview/reinforcement-learning/training_guide.rst)
 - [Configure RL training tutorial](../../../docs/source/tutorials/03_envs/configuring_rl_training.rst)
 - [Run RL training tutorial](../../../docs/source/tutorials/03_envs/run_rl_training.rst)

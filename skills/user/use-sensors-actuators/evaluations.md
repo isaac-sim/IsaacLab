@@ -44,3 +44,20 @@ Known failure modes:
 
 - Changes actuator type without checking joint names and limits.
 - Treats actuator behavior as independent of physics backend.
+
+## Scenario 4: Camera Observation
+
+Query: "Add image observations to Cartpole training."
+
+Expected behavior:
+
+- Points to camera-enabled Cartpole examples and sensor docs.
+- Checks renderer requirements, data types, image size, and memory cost.
+- Recommends a small environment count before training.
+- Verifies the observation shape and framework support before changing agent configs.
+
+Known failure modes:
+
+- Adds camera tensors to observations without enabling a compatible renderer.
+- Starts with thousands of environments before validating memory usage.
+- Ignores whether the selected RL framework can consume the observation space.

@@ -57,6 +57,16 @@ Skill files
      - Optional
      - Deterministic helpers with explicit run-or-read instructions.
 
+Discovery
+---------
+
+Agents should use ``skills/README.md`` as the catalog for repo-owned skills.
+Select a skill by matching the user's request against the ``description`` field
+in each ``SKILL.md`` frontmatter, then read only that skill and its directly
+linked files. Directory slugs are file locations for humans and reviewers; the
+frontmatter ``name`` is the stable identifier to use when one skill routes to
+another.
+
 Skill contract
 --------------
 

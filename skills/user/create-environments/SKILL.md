@@ -51,6 +51,7 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/task_workf
 ## References
 
 - [Evaluations](evaluations.md)
+- [Examples](examples.md)
 - [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
 - [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
 - [Modify direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/modify_direct_rl_env.rst)

@@ -50,6 +50,7 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/multi_back
 ## References
 
 - [Evaluations](evaluations.md)
+- [Examples](examples.md)
 - [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)
 - [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
 - [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)

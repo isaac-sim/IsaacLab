@@ -44,3 +44,20 @@ Known failure modes:
 
 - Treats camera observations like low-dimensional state without checking rendering requirements.
 - Ignores GPU memory and renderer constraints.
+
+## Scenario 4: Concrete RSL-RL Command
+
+Query: "How do I train Cartpole with RSL-RL?"
+
+Expected behavior:
+
+- Gives the RSL-RL command from `examples.md`.
+- Mentions the matching Cartpole agent config location.
+- Suggests a random-agent smoke test before training if the environment was just modified.
+- Explains where logs/checkpoints are written instead of sending the user hunting through docs.
+
+Known failure modes:
+
+- Answers only with a link to the training guide.
+- Uses the SB3 command for an RSL-RL request.
+- Omits `./isaaclab.sh -p`.

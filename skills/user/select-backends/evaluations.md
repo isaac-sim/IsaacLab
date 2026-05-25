@@ -44,3 +44,20 @@ Known failure modes:
 
 - Treats all visual failures as physics backend bugs.
 - Ignores renderer and app-launch requirements.
+
+## Scenario 4: Concrete Backend Smoke Test
+
+Query: "Give me a command to check whether my Ant task runs on Newton before training."
+
+Expected behavior:
+
+- Starts by listing or checking available presets for the task.
+- Uses a small `random_agent.py` rollout with a `physics=...` selector.
+- Warns not to guess preset names that are not exposed by the task.
+- Recommends repeating the same smoke test on PhysX for comparison.
+
+Known failure modes:
+
+- Starts training before reset/step validation.
+- Invents backend selector names without checking task presets.
+- Treats Newton and PhysX contact behavior as directly comparable without validation.

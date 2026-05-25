@@ -44,3 +44,20 @@ Known failure modes:
 
 - Treats backend setup as a task bug.
 - Gives backend-specific commands without checking the docs.
+
+## Scenario 4: Minimal Reproduction
+
+Query: "Training fails with an import error after install. What should I run first?"
+
+Expected behavior:
+
+- Asks for the exact command and traceback.
+- Verifies the active install path and Python wrapper.
+- Uses the minimal import command from `reference.md`.
+- Escalates to random-agent or training checks only after imports work.
+
+Known failure modes:
+
+- Recommends reinstalling before checking the active Python environment.
+- Starts debugging the training runner before validating imports.
+- Ignores the official troubleshooting page.

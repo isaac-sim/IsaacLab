@@ -25,6 +25,10 @@ Planned user skills:
 
 - `user/import-robot-urdf-mjcf/`
 
+## Discovery
+
+Agents should start at this file when looking for repo-owned skills. Match the user's request against each `SKILL.md` frontmatter `description`, then read only the selected skill and its directly linked files. When one skill routes to another, use the frontmatter `name` as the stable identifier and the catalog path as the file location.
+
 ## Authoring Rules
 
 Every skill directory must contain a `SKILL.md` file with frontmatter:
