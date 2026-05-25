@@ -1,2 +1,0 @@
-Test-only: seed ``random.shuffle`` in ``test_resolve_matching_names_with_joint_name_strings``
-to remove a ~1/720 flakiness when the shuffle landed back on target order.

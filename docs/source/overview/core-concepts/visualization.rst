@@ -36,19 +36,19 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
 
-.. figure:: ../_static/visualizers/ov_viz.jpg
+.. figure:: ../../_static/visualizers/ov_viz.jpg
    :width: 100%
    :alt: Omniverse Visualizer
 
    Omniverse Visualizer
 
-.. figure:: ../_static/visualizers/newton_viz.jpg
+.. figure:: ../../_static/visualizers/newton_viz.jpg
    :width: 100%
    :alt: Newton Visualizer
 
    Newton Visualizer
 
-.. figure:: ../_static/visualizers/rerun_viz.jpg
+.. figure:: ../../_static/visualizers/rerun_viz.jpg
    :width: 100%
    :alt: Rerun Visualizer
 

@@ -1,5 +1,0 @@
-Test-only change.
-
-* Reduced the default ``num_steps`` from 100 to 20 in ``_run_environments``.
-* Tuned ``test_environments`` to pass ``force_interval_events=True`` so ``EventManager`` interval handlers
-  (e.g. locomotion ``push_robot``) run on step 1 instead of never firing within the legacy step budget.
