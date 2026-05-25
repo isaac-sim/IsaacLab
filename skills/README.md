@@ -19,6 +19,7 @@ User skills:
 - `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
 - `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
 - `user/select-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.
+- `user/use-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
 - `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
 Planned user skills:
@@ -28,6 +29,26 @@ Planned user skills:
 ## Discovery
 
 Agents should start at this file when looking for repo-owned skills. Match the user's request against each `SKILL.md` frontmatter `description`, then read only the selected skill and its directly linked files. When one skill routes to another, use the frontmatter `name` as the stable identifier and the catalog path as the file location.
+
+## Common Import Paths
+
+Use these current import paths before searching for alternatives:
+
+| Concept | Import path |
+| --- | --- |
+| Direct RL environment config | `from isaaclab.envs import DirectRLEnvCfg` |
+| Direct multi-agent environment config | `from isaaclab.envs import DirectMARLEnvCfg` |
+| Manager-based RL environment config | `from isaaclab.envs import ManagerBasedRLEnvCfg` |
+| Event term config | `from isaaclab.managers import EventTermCfg as EventTerm` |
+| Scene entity config | `from isaaclab.managers import SceneEntityCfg` |
+| Preset config | `from isaaclab_tasks.utils import PresetCfg` |
+| Simulation config | `from isaaclab.sim import SimulationCfg` |
+| PhysX physics config | `from isaaclab_physx.physics import PhysxCfg` |
+| Newton physics config | `from isaaclab_newton.physics import NewtonCfg` |
+| Contact sensor config | `from isaaclab.sensors import ContactSensorCfg` |
+| Ray caster config | `from isaaclab.sensors import RayCasterCfg` |
+| Tiled camera config | `from isaaclab.sensors import TiledCameraCfg` |
+| Implicit actuator config | `from isaaclab.actuators import ImplicitActuatorCfg` |
 
 ## Authoring Rules
 

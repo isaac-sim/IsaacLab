@@ -47,6 +47,7 @@ For training entry points:
 | Symptom | First check |
 | --- | --- |
 | Import fails | Active Python environment and wrapper usage |
+| `isaaclab_tasks` import fails | Run through `./isaaclab.sh -p`, then re-run `./isaaclab.sh -i` if needed |
 | App launch fails | Isaac Sim, display, driver, and launcher docs |
 | Task registration fails | Gym registration and task package import |
 | Backend preset fails | `scripts/environments/list_envs.py --show_presets` |

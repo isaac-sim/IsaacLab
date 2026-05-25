@@ -41,6 +41,33 @@ packages.
 Include ``assets`` in your install command, or use ``./isaaclab.sh -i`` to install
 everything.
 
+``ModuleNotFoundError: No module named 'isaaclab_tasks'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``isaaclab_tasks`` package contains the registered task environments. This
+error usually means the command is not running in the Isaac Lab Python
+environment or the repository packages were not installed in editable mode.
+
+Try the following checks:
+
+1. Run from the Isaac Lab repository root using the wrapper:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -p -c "import isaaclab_tasks; print('ok')"
+
+2. If the import still fails, install the repository packages:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i
+
+3. Re-run the task command through the wrapper instead of a system Python:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 4
+
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

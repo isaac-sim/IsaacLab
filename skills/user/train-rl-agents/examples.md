@@ -49,7 +49,13 @@ TensorBoard example:
 Play example:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-v0 --use_last_checkpoint --viz kit
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-v0 --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
+```
+
+Resume example:
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
 
 ## Config Lookup

@@ -71,3 +71,52 @@ Expected setup:
 - Use PhysX buckets and static/dynamic friction ranges for the PhysX preset.
 - Use Newton's single friction coefficient behavior for the Newton preset.
 - Do not assume `dynamic_friction_range`, `num_buckets`, or CPU/GPU behavior are identical across backends.
+
+Pattern:
+
+```python
+import isaaclab.envs.mdp as mdp
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.configclass import configclass
+from isaaclab_tasks.utils import PresetCfg
+
+
+@configclass
+class PhysxEventCfg:
+    physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.6, 1.2),
+            "dynamic_friction_range": (0.5, 1.0),
+            "restitution_range": (0.0, 0.1),
+            "num_buckets": 64,
+        },
+    )
+
+
+@configclass
+class NewtonEventCfg:
+    physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.6, 1.2),
+            "dynamic_friction_range": (0.6, 1.2),
+            "restitution_range": (0.0, 0.1),
+            "num_buckets": 1,
+        },
+    )
+
+
+@configclass
+class EventCfg(PresetCfg):
+    default = PhysxEventCfg()
+    physx = PhysxEventCfg()
+    newton_mjwarp = NewtonEventCfg()
+```
+
+Then assign `events: EventCfg = EventCfg()` on the environment config. Verify the exact event parameters against `source/isaaclab/isaaclab/envs/mdp/events.py` before using this pattern.
