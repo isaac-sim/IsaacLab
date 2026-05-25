@@ -189,6 +189,56 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
+    # ovphysx + ovrtx_renderer
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "rgb",
+        id="ovphysx-ovrtx-rgb",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "albedo",
+        id="ovphysx-ovrtx-albedo",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "depth",
+        id="ovphysx-ovrtx-depth",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "simple_shading_constant_diffuse",
+        id="ovphysx-ovrtx-simple_shading_constant_diffuse",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "simple_shading_diffuse_mdl",
+        id="ovphysx-ovrtx-simple_shading_diffuse_mdl",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "simple_shading_full_mdl",
+        id="ovphysx-ovrtx-simple_shading_full_mdl",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "ovphysx",
+        "ovrtx_renderer",
+        "semantic_segmentation",
+        id="ovphysx-ovrtx-semantic_segmentation",
+        marks=_FLAKY_MARK,
+    ),
     # newton + ovrtx_renderer
     pytest.param(
         "newton",
