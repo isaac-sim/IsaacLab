@@ -73,6 +73,10 @@ Every skill must include a ``SKILL.md`` file with frontmatter:
 
 The required frontmatter fields are:
 
+Frontmatter intentionally uses a small YAML subset: single-line scalar fields and the
+``owners`` list. Do not use block scalars such as ``|`` or ``>`` in ``SKILL.md``
+frontmatter; keep long details in the markdown body or a linked reference file.
+
 ``name``
   Unique lowercase identifier using letters, numbers, and hyphens. Prefer an ``isaaclab-`` prefix and avoid generic names such as ``helper``, ``utils``, or ``tools``.
 

@@ -96,6 +96,17 @@ def test_validate_rejects_user_skill_without_three_evaluations(tmp_path):
     assert any("at least three evaluation scenarios" in error for error in errors)
 
 
+def test_validate_rejects_user_skill_without_evaluations_link(tmp_path):
+    skill = _write_skill(tmp_path)
+    text = skill.read_text(encoding="utf-8").replace(
+        "- [Evaluations](evaluations.md)\n",
+        "Mention evaluations.md in prose without linking it.\n",
+    )
+    skill.write_text(text, encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert any("must link to evaluations.md" in error for error in errors)
+
+
 def test_validate_rejects_user_skill_without_evaluation_details(tmp_path):
     skill = _write_skill(tmp_path)
     (skill.parent / "evaluations.md").write_text(
@@ -127,6 +138,20 @@ def test_validate_rejects_scenario_without_evaluation_details(tmp_path):
     assert any("Scenario 2" in error and "sample query" in error for error in errors)
     assert any("Scenario 2" in error and "expected behavior" in error for error in errors)
     assert any("Scenario 2" in error and "known failure modes" in error for error in errors)
+
+
+def test_validate_rejects_frontmatter_block_scalars(tmp_path):
+    skill = _write_skill(tmp_path)
+    text = skill.read_text(encoding="utf-8").replace(
+        "description: Tests Isaac Lab skill validation behavior. "
+        "Use when validating skill fixtures or testing skill rules.\n",
+        "description: |\n"
+        "  Tests Isaac Lab skill validation behavior. "
+        "Use when validating skill fixtures or testing skill rules.\n",
+    )
+    skill.write_text(text, encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert any("unsupported block scalar" in error for error in errors)
 
 
 def test_validate_rejects_first_person_description(tmp_path):

@@ -13,7 +13,7 @@ owners:
 
 Use this skill when a user wants to train, resume, evaluate, or configure reinforcement learning for an Isaac Lab task.
 
-Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/build-environments/`) for environment construction first.
+Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/create-environments/`) for environment construction first.
 
 ## Workflow
 

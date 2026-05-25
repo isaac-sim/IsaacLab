@@ -36,5 +36,11 @@ jobs:
       - name: Verify skills
         run: python3 tools/skills/cli.py check
 
+      - name: Install test dependencies
+        run: python3 -m pip install pytest
+
+      - name: Test skills validator
+        run: python3 -m pytest tools/skills/
+
       - name: Compile skills validator
         run: python3 -m py_compile tools/skills/cli.py tools/skills/test/test_validate.py

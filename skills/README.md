@@ -15,7 +15,7 @@ User skills:
 - `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
 - `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
 - `user/domain-randomization-events/`: implement domain randomization through Isaac Lab event terms.
-- `user/build-environments/`: create direct and manager-based Isaac Lab environments from task requirements.
+- `user/create-environments/`: create direct and manager-based Isaac Lab environments from task requirements.
 - `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
 - `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
 - `user/select-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.

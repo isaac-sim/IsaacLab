@@ -32,7 +32,7 @@ LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\((?P<target>[^)]+)\)")
 BACKTICK_PATH_RE = re.compile(r"`(?P<path>(?:docs|source|scripts|skills|tools|\.github)/[^`\s]+)`")
 XML_TAG_RE = re.compile(r"<[^>]+>")
 WINDOWS_PATH_RE = re.compile(r"(?<!`)[A-Za-z0-9_.-]+\\[A-Za-z0-9_.-]+")
-SCENARIO_RE = re.compile(r"^#{2,3} Scenario\b", re.MULTILINE)
+SCENARIO_RE = re.compile(r"^#{2,3} (?P<title>Scenario\b.*)$", re.MULTILINE)
 GENERIC_NAME_PARTS = {"helper", "helpers", "utils", "tools"}
 
 
@@ -86,6 +86,8 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str 
         value = value.strip()
         if not key:
             return data, "\n".join(lines[end + 1 :]), "empty frontmatter key"
+        if value in {"|", ">"}:
+            return data, "\n".join(lines[end + 1 :]), f"unsupported block scalar for {key!r}"
         if value:
             data[key] = value.strip("\"'")
         else:
@@ -249,7 +251,11 @@ class Skill:
         if not evaluations.exists():
             errors.append(f"{_display_path(self.path)}: user-facing skills must include evaluations.md")
             return errors
-        if "evaluations.md" not in body:
+        has_evaluations_link = any(
+            unquote(match.group("target").strip().split("#", 1)[0]) == "evaluations.md"
+            for match in LINK_RE.finditer(body)
+        )
+        if not has_evaluations_link:
             errors.append(f"{_display_path(self.path)}: user-facing skills must link to evaluations.md from SKILL.md")
         text = evaluations.read_text(encoding="utf-8")
         scenario_matches = list(SCENARIO_RE.finditer(text))
@@ -258,7 +264,7 @@ class Skill:
         for index, match in enumerate(scenario_matches, start=1):
             next_match = scenario_matches[index] if index < len(scenario_matches) else None
             scenario_text = text[match.start() : next_match.start() if next_match else len(text)]
-            scenario_name = match.group(0).strip("# ")
+            scenario_name = match.group("title").strip()
             if "Query:" not in scenario_text:
                 errors.append(f"{_display_path(evaluations)}: {scenario_name} must include a sample query")
             if "Expected behavior:" not in scenario_text:
