@@ -1,0 +1,46 @@
+# Setup Troubleshooting Evaluations
+
+## Scenario 1: Fresh Install
+
+Query: "Help me install Isaac Lab from source on my machine."
+
+Expected behavior:
+
+- Asks for OS, Python environment, Isaac Sim source, GPU/driver context, and desired backend.
+- Points to the official source installation guide.
+- Uses documented wrapper commands for verification.
+
+Known failure modes:
+
+- Copies an installation recipe into the skill response without checking the current docs.
+- Mixes pip, source, and binary installation steps.
+
+## Scenario 2: Import Failure
+
+Query: "Isaac Lab installed, but imports fail when I run my script."
+
+Expected behavior:
+
+- Checks whether the user is running through the Isaac Lab wrapper or correct environment.
+- Points to troubleshooting docs for the observed error.
+- Requests the smallest relevant traceback if the failure is ambiguous.
+
+Known failure modes:
+
+- Suggests reinstalling before checking the active environment.
+- Diagnoses from a partial error message without asking for the missing context.
+
+## Scenario 3: Backend Setup
+
+Query: "I want to run this task with Newton but setup fails."
+
+Expected behavior:
+
+- Routes to backend-specific installation docs.
+- Separates backend installation issues from task implementation issues.
+- Verifies setup with a minimal command before running training.
+
+Known failure modes:
+
+- Treats backend setup as a task bug.
+- Gives backend-specific commands without checking the docs.

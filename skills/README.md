@@ -1,0 +1,63 @@
+# Isaac Lab Agent Skills
+
+Isaac Lab skills are repo-owned instructions that help agents follow project workflows and user-facing Isaac Lab patterns. They are guidance assets, not runtime Python packages.
+
+## Catalog
+
+Developer skills:
+
+- `developer/pr-workflow/`: prepare changes for review using Isaac Lab's PR, commit, changelog, and validation conventions.
+- `developer/changelog-fragments/`: add and validate package changelog fragments.
+- `developer/coding-style/`: apply Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions.
+
+User skills:
+
+- `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
+- `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
+- `user/domain-randomization-events/`: implement domain randomization through Isaac Lab event terms.
+- `user/build-environments/`: create direct and manager-based Isaac Lab environments from task requirements.
+- `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
+- `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
+- `user/select-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.
+- `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
+
+Planned user skills:
+
+- `user/import-robot-urdf-mjcf/`
+
+## Authoring Rules
+
+Every skill directory must contain a `SKILL.md` file with frontmatter:
+
+```yaml
+name: isaaclab-example-skill
+description: Does a specific Isaac Lab task. Use when the user mentions the task or related trigger terms.
+audience: user
+status: stable
+owners:
+  - isaaclab-maintainers
+```
+
+Directory slugs are stable file paths for humans and reviewers. The frontmatter `name` is the agent discovery identifier and should be used when one skill routes to another.
+
+Required `SKILL.md` sections:
+
+- `When To Use`
+- `Workflow`
+- `Validation`
+- `Maintenance`
+- `References`
+
+User-facing skills must also link to `evaluations.md` with at least three representative scenarios. Each scenario must include a sample query, expected behavior, and known failure modes or pass/fail criteria.
+
+Keep skills concise. Use `SKILL.md` for the main workflow and link directly to one-level files such as `reference.md`, `examples.md`, or `evaluations.md` for details. Use forward-slash paths, avoid time-sensitive wording, and provide one recommended default before listing alternatives.
+
+Keep skills synchronized by making official docs and source code the source of truth. If a skill needs documentation-level details, update `docs/source/` or a maintained source example first, then link to it from the skill. The `Maintenance` section must name the authoritative files that should be reviewed when code changes.
+
+Skills should add agent-specific routing, sequencing, validation checks, and decision points. They should not vendor installation guides, API catalogs, generated logs, hardware benchmark reports, or large tutorial copies.
+
+Run the validator before submitting skill changes:
+
+```bash
+./isaaclab.sh -p tools/skills/cli.py check
+```

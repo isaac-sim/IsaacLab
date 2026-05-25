@@ -1,0 +1,61 @@
+---
+name: isaaclab-setup-troubleshooting
+description: Routes Isaac Lab installation, verification, and common troubleshooting issues to official docs and canonical commands. Use when installing Isaac Lab, verifying setup, debugging launch failures, or diagnosing environment problems.
+audience: user
+status: experimental
+owners:
+  - isaaclab-maintainers
+---
+
+# Setup Troubleshooting
+
+## When To Use
+
+Use this skill when a user asks for help installing Isaac Lab, verifying a local setup, or diagnosing common setup and launch failures.
+
+Do not duplicate installation or troubleshooting docs in this skill. The official docs are the source of truth.
+
+## Workflow
+
+1. Identify the install mode: pip, source, binary, cloud, kitless, or backend-specific setup.
+2. Identify OS, Python environment, GPU/driver context, Isaac Sim source, and target backend.
+3. Read the matching installation guide and troubleshooting reference before prescribing commands.
+4. Use documented Isaac Lab wrapper commands such as `./isaaclab.sh -p` for Python and tests.
+5. Ask for the smallest relevant error output when the failure mode is unclear.
+6. Prefer a minimal verification command before running examples, training, or rendering workflows.
+7. Route backend-specific setup to the relevant PhysX or Newton docs.
+8. If the docs are incomplete or stale, update the docs rather than expanding this skill.
+
+## Validation
+
+Use this checklist:
+
+1. Confirm the user is following one supported install path.
+2. Confirm Python and package commands use the Isaac Lab wrapper when applicable.
+3. Run a minimal import or verification command before larger tests.
+4. Check troubleshooting docs for the observed error class.
+5. Escalate to environment-specific debugging only after the documented checks are exhausted.
+
+For skill changes, run:
+
+```bash
+./isaaclab.sh -p tools/skills/cli.py check
+```
+
+## Maintenance
+
+Keep this skill synchronized with installation docs under `docs/source/setup/installation/`, quick installation docs, backend installation docs, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
+
+## References
+
+- [Evaluations](evaluations.md)
+- [Quick installation](../../../docs/source/setup/quick_installation.rst)
+- [Source installation](../../../docs/source/setup/installation/source_installation.rst)
+- [Pip installation](../../../docs/source/setup/installation/pip_installation.rst)
+- [Isaac Lab pip installation](../../../docs/source/setup/installation/isaaclab_pip_installation.rst)
+- [Binary installation](../../../docs/source/setup/installation/binaries_installation.rst)
+- [Cloud installation](../../../docs/source/setup/installation/cloud_installation.rst)
+- [Kitless installation](../../../docs/source/setup/installation/kitless_installation.rst)
+- [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)
+- [Newton installation](../../../docs/source/overview/core-concepts/physical-backends/newton/installation.rst)
+- [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)
