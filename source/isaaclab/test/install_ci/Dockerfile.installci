@@ -36,18 +36,12 @@ RUN apt-get update && \
     libglib2.0-0 \
     python3-venv \
     build-essential \
-    swig \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# arm64-only build deps: imgui-bundle has no aarch64 wheel and its sdist build
-# requires GL/X11 dev headers (mirrors docker/Dockerfile.base).
-RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-        apt-get update && \
-        apt-get install -y --no-install-recommends \
-        libgl1-mesa-dev libopengl-dev libglx-dev \
-        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev && \
-        rm -rf /var/lib/apt/lists/*; \
-    fi
+# ARM-specific build deps (swig, GL/X11 dev headers) are intentionally NOT
+# pre-installed here.  ``./isaaclab.sh -i`` auto-installs them via apt when
+# missing, so install_ci exercises the real user-visible install path on ARM.
 
 # Make python3 the default python
 RUN ln -sf /usr/bin/python3 /usr/bin/python
@@ -75,6 +69,11 @@ RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 RUN groupadd --non-unique --gid 1000 isaaclab \
  && useradd --non-unique --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
+
+# Passwordless sudo for the runtime user so ``./isaaclab.sh -i`` can apt-get
+# install missing build deps (swig, GL/X11) without prompting at test time.
+RUN echo "isaaclab ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/isaaclab \
+ && chmod 0440 /etc/sudoers.d/isaaclab
 
 # Install Miniconda into the isaaclab user's home directory so the runtime user
 # has full write access for creating environments and caching packages.
