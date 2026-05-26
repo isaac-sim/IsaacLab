@@ -90,8 +90,8 @@ RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 # The default ``ubuntu`` user (uid 1000) on Ubuntu 24.04 base images is
 # removed first so uid 1000 unambiguously resolves to ``isaaclab`` and our
 # NOPASSWD sudoers entry applies.
-RUN deluser --remove-home ubuntu 2>/dev/null || true \
- && delgroup ubuntu 2>/dev/null || true \
+RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
+ && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
  && useradd --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
