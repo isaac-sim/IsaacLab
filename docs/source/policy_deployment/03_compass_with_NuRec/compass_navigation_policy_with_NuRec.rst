@@ -206,18 +206,13 @@ Download the pre-packaged COMPASS USD assets using the Hugging Face CLI:
 Alternatively, you can download it manually from:
 https://huggingface.co/nvidia/COMPASS/blob/main/compass_usds.zip
 
-Extract the downloaded ``compass_usds.zip`` file. Then move/copy the ``usd`` folder from the extracted location:
+Extract the downloaded ``compass_usds.zip`` file and move the ``usd`` folder into the COMPASS extension directory:
 
 .. code-block:: bash
 
-    <download_path>/compass_usds/groot_mobility_rl_es_usds/usd
-
-into the COMPASS extension directory:
-
-.. code-block:: bash
-
-    # Ensure that you are in COMPASS root directory
-    compass/rl_env/exts/mobility_es/mobility_es/
+    cd <compass-nurec>/COMPASS
+    unzip compass_usds.zip
+    mv groot_mobility_rl_es_usds/usd compass/rl_env/exts/mobility_es/mobility_es/
 
 **3. NuRec Real2Sim Assets**
 
