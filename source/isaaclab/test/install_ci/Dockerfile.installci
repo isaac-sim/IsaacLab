@@ -3,11 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Minimal container for testing Isaac Lab installation scenarios.
+# Container for Isaac Lab installation CI tests.
+#
+# Ships both uv and conda so a single image can run every installation
+# scenario.  Image is large but build is cached across runs.
 #
 # Usage:
-#   docker build --build-arg BASE_IMAGE=ubuntu:24.04 -t isaaclab-install-ci .
-#   docker run --rm isaaclab-install-ci -v -k "test_pip"
+#   docker build --build-arg BASE_IMAGE=ubuntu:24.04 -t isaaclab-installci .
+#   docker run --rm isaaclab-installci -v -k "test_pip"
 
 ARG BASE_IMAGE=ubuntu:24.04
 FROM ${BASE_IMAGE}
@@ -62,9 +65,34 @@ RUN groupadd --non-unique --gid 1000 isaaclab \
  && useradd --non-unique --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
 
+# Install Miniconda into the isaaclab user's home directory so the runtime user
+# has full write access for creating environments and caching packages.
+ARG MINICONDA_VERSION=latest
+RUN curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh" \
+      -o /tmp/miniconda.sh \
+    && bash /tmp/miniconda.sh -b -p /home/isaaclab/miniconda3 \
+    && rm /tmp/miniconda.sh \
+    && chown -R isaaclab:isaaclab /home/isaaclab/miniconda3
+
+# Add the conda wrapper (condabin/) to PATH but NOT miniconda3/bin/, so the
+# system Python remains the default `python` and only `conda` itself becomes
+# globally available.  Tests that need conda's Python activate envs explicitly
+# via `conda run -n <env>`.
+ENV PATH="/home/isaaclab/miniconda3/condabin:${PATH}"
+
 WORKDIR ${ISAACLAB_PATH}
 
 USER isaaclab
+
+# Accept Miniconda default-channel Terms of Service non-interactively so that
+# `conda create` works without user prompts inside the container.
+# Runs as isaaclab so the acceptance is written to /home/isaaclab/.condarc.
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+# Smoke-test: conda CLI is reachable and system Python (with pytest) is still
+# the default `python` on PATH.
+RUN conda --version && python --version && python -m pytest --version
 
 # isaaclab.x debug mode
 ENV DEBUG=1
