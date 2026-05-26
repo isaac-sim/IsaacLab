@@ -268,18 +268,6 @@ def compose_indexed_fabric_transforms(
     )
 
 
-@wp.func
-def _local_from_world_transposed(child_world_T: wp.mat44f, parent_world_T: wp.mat44f) -> wp.mat44f:
-    """Compute local^T = world^T * inv(parent^T) on transposed storage matrices."""
-    return child_world_T * wp.inverse(parent_world_T)
-
-
-@wp.func
-def _world_from_local_transposed(child_local_T: wp.mat44f, parent_world_T: wp.mat44f) -> wp.mat44f:
-    """Compute world^T = local^T * parent^T on transposed storage matrices."""
-    return child_local_T * parent_world_T
-
-
 @wp.kernel(enable_backward=False)
 def update_indexed_local_matrix_from_world(
     child_world_matrices: IndexedFabricArrayMat44d,
@@ -314,7 +302,7 @@ def update_indexed_local_matrix_from_world(
     child_world = wp.mat44f(child_world_matrices[view_index])
     parent_world = wp.mat44f(parent_world_matrices[view_index])
     child_local_matrices[view_index] = wp.mat44d(  # type: ignore[arg-type]
-        _local_from_world_transposed(child_world, parent_world)
+        child_world * wp.inverse(parent_world)
     )
 
 
@@ -347,7 +335,7 @@ def update_indexed_world_matrix_from_local(
     child_local = wp.mat44f(child_local_matrices[view_index])
     parent_world = wp.mat44f(parent_world_matrices[view_index])
     child_world_matrices[view_index] = wp.mat44d(  # type: ignore[arg-type]
-        _world_from_local_transposed(child_local, parent_world)
+        child_local * parent_world
     )
 
 
