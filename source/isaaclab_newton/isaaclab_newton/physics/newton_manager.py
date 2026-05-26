@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import logging
+import re
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -890,6 +891,212 @@ class NewtonManager(PhysicsManager):
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
+
+    @staticmethod
+    def _build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, label: str) -> bool:
+        """Build SDF on a mesh, resolving per-pattern resolution overrides.
+
+        Args:
+            mesh: Newton mesh object to build SDF on.
+            sdf_cfg: The active :class:`SDFCfg` instance.
+            res_overrides: Compiled ``(pattern, resolution)`` pairs, or ``None``.
+            label: Shape label used for pattern resolution matching.
+
+        Returns:
+            ``True`` if SDF was built, ``False`` if skipped (no mesh source).
+        """
+        if mesh is None:
+            logger.warning(f"SDF: shape '{label}' matched but has no mesh source. Skipping SDF build.")
+            return False
+        if mesh.sdf is not None:
+            mesh.clear_sdf()
+        resolution = sdf_cfg.max_resolution
+        if res_overrides is not None:
+            for pat, res in res_overrides:
+                if pat.search(label):
+                    resolution = res
+                    break
+        sdf_kwargs: dict = dict(narrow_band_range=sdf_cfg.narrow_band_range)
+        if resolution is not None:
+            sdf_kwargs["max_resolution"] = resolution
+        if sdf_cfg.target_voxel_size is not None:
+            sdf_kwargs["target_voxel_size"] = sdf_cfg.target_voxel_size
+        mesh.build_sdf(**sdf_kwargs)
+        return True
+
+    @classmethod
+    def _create_sdf_collision_from_visual(
+        cls, builder: ModelBuilder, sdf_shape_indices: set[int], sdf_cfg, res_overrides, hydro_patterns=None
+    ):
+        """Create collision shapes from visual meshes for matched bodies lacking collision geometry.
+
+        Args:
+            builder: Newton model builder to modify.
+            sdf_shape_indices: Shape indices that matched SDF patterns.
+            sdf_cfg: The active :class:`SDFCfg` instance.
+            res_overrides: Compiled ``(pattern, resolution)`` pairs, or ``None``.
+            hydro_patterns: Compiled hydroelastic shape patterns, or ``None``
+                (meaning all shapes get hydroelastic if ``k_hydro`` is set).
+
+        Returns:
+            Tuple of ``(num_added, num_hydro)`` counts.
+        """
+        from newton import ShapeFlags
+
+        matched_bodies: set[int] = {builder.shape_body[si] for si in sdf_shape_indices}
+        bodies_with_collision: set[int] = set()
+        for si in range(builder.shape_count):
+            if builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES and builder.shape_body[si] in matched_bodies:
+                bodies_with_collision.add(builder.shape_body[si])
+
+        num_added = 0
+        num_hydro = 0
+        for body_idx in matched_bodies - bodies_with_collision:
+            visual_si = None
+            for si in sdf_shape_indices:
+                if builder.shape_body[si] == body_idx and builder.shape_source[si] is not None:
+                    visual_si = si
+                    break
+            if visual_si is None:
+                body_lbl = builder.body_label[body_idx]
+                logger.warning(f"SDF: body '{body_lbl}' matched but has no visual mesh to create collision from.")
+                continue
+
+            mesh = builder.shape_source[visual_si]
+            cls._build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, builder.shape_label[visual_si])
+
+            shape_lbl = builder.shape_label[visual_si]
+            enable_hydro = False
+            if sdf_cfg.k_hydro is not None:
+                enable_hydro = hydro_patterns is None or any(p.search(shape_lbl) for p in hydro_patterns)
+
+            shape_cfg_kwargs: dict = dict(
+                density=0.0,
+                has_shape_collision=True,
+                has_particle_collision=True,
+                is_visible=False,
+            )
+            if sdf_cfg.margin is not None:
+                shape_cfg_kwargs["margin"] = sdf_cfg.margin
+            if enable_hydro:
+                shape_cfg_kwargs["is_hydroelastic"] = True
+                shape_cfg_kwargs["kh"] = sdf_cfg.k_hydro
+
+            body_lbl = builder.body_label[body_idx]
+            builder.add_shape_mesh(
+                body=body_idx,
+                xform=builder.shape_transform[visual_si],
+                mesh=mesh,
+                scale=builder.shape_scale[visual_si],
+                cfg=ModelBuilder.ShapeConfig(**shape_cfg_kwargs),
+                label=f"{body_lbl}/sdf_collision",
+            )
+            num_added += 1
+            if enable_hydro:
+                num_hydro += 1
+
+        return num_added, num_hydro
+
+    @classmethod
+    def _apply_sdf_config(cls, builder: ModelBuilder):
+        """Apply SDF collision and optional hydroelastic flags to matching mesh shapes.
+
+        Reads :class:`SDFCfg` from the active physics config. Collects shapes
+        matching body/shape regex patterns, builds SDF on their meshes, and
+        optionally sets the ``HYDROELASTIC`` flag with :attr:`SDFCfg.k_hydro`.
+
+        Args:
+            builder: Newton model builder to modify (before finalization).
+        """
+        from newton import GeoType, ShapeFlags
+
+        cfg = PhysicsManager._cfg
+        if cfg is None:
+            return
+        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        if sdf_cfg is None:
+            return
+
+        if sdf_cfg.max_resolution is None and sdf_cfg.target_voxel_size is None:
+            logger.warning("SDFCfg provided but neither max_resolution nor target_voxel_size is set. SDF disabled.")
+            return
+
+        def _compile(patterns: list[str] | None, field: str) -> list[re.Pattern] | None:
+            if not patterns:
+                return None
+            compiled = []
+            for i, p in enumerate(patterns):
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    raise ValueError(f"Invalid regex in SDFCfg.{field}[{i}]: {p!r} — {e}") from e
+            return compiled
+
+        body_patterns = _compile(sdf_cfg.body_patterns, "body_patterns")
+        shape_patterns = _compile(sdf_cfg.shape_patterns, "shape_patterns")
+        res_overrides = None
+        if sdf_cfg.pattern_resolutions:
+            res_overrides = []
+            for p, r in sdf_cfg.pattern_resolutions.items():
+                try:
+                    res_overrides.append((re.compile(p), r))
+                except re.error as e:
+                    raise ValueError(f"Invalid regex in SDFCfg.pattern_resolutions key {p!r} — {e}") from e
+        hydro_patterns = None
+        if sdf_cfg.k_hydro is not None:
+            hydro_patterns = _compile(sdf_cfg.hydroelastic_shape_patterns, "hydroelastic_shape_patterns")
+
+        if body_patterns is None and shape_patterns is None:
+            logger.warning("SDFCfg has no body_patterns or shape_patterns set. No shapes will receive SDF.")
+            return
+
+        body_to_shapes: dict[int, list[int]] = {}
+        for si in range(builder.shape_count):
+            if builder.shape_type[si] == GeoType.MESH:
+                body_to_shapes.setdefault(builder.shape_body[si], []).append(si)
+
+        sdf_shape_indices: set[int] = set()
+
+        if body_patterns is not None:
+            for body_idx in range(len(builder.body_label)):
+                if any(p.search(builder.body_label[body_idx]) for p in body_patterns):
+                    sdf_shape_indices.update(body_to_shapes.get(body_idx, []))
+
+        if shape_patterns is not None:
+            for shape_indices in body_to_shapes.values():
+                for si in shape_indices:
+                    if any(p.search(builder.shape_label[si]) for p in shape_patterns):
+                        sdf_shape_indices.add(si)
+
+        num_patched = 0
+        num_hydro = 0
+        for si in sdf_shape_indices:
+            if not (builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES):
+                continue
+            if not cls._build_sdf_on_mesh(builder.shape_source[si], sdf_cfg, res_overrides, builder.shape_label[si]):
+                continue
+            if sdf_cfg.margin is not None:
+                builder.shape_margin[si] = sdf_cfg.margin
+            if sdf_cfg.k_hydro is not None:
+                apply_hydro = hydro_patterns is None or any(p.search(builder.shape_label[si]) for p in hydro_patterns)
+                if apply_hydro:
+                    builder.shape_flags[si] |= ShapeFlags.HYDROELASTIC
+                    builder.shape_material_kh[si] = sdf_cfg.k_hydro
+                    num_hydro += 1
+            num_patched += 1
+
+        num_added = 0
+        if sdf_cfg.use_visual_meshes:
+            num_added, hydro_from_visual = cls._create_sdf_collision_from_visual(
+                builder, sdf_shape_indices, sdf_cfg, res_overrides, hydro_patterns
+            )
+            num_hydro += hydro_from_visual
+
+        hydro_msg = f", {num_hydro} hydroelastic shape(s)" if sdf_cfg.k_hydro is not None else ""
+        logger.info(
+            f"SDF config: {num_added} collision shape(s) added, {num_patched} existing shape(s) patched{hydro_msg}. "
+            f"(max_resolution={sdf_cfg.max_resolution}, narrow_band={sdf_cfg.narrow_band_range})"
+        )
 
     @classmethod
     def invalidate_fk(
