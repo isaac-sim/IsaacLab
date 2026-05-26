@@ -18,6 +18,7 @@ This script demonstrates different legged robots.
     ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp --visualizer newton
 
     # Usage with the PhysX backend without Kit (launches Newton visualizer).
+    # TODO(yizew@nvidia.com): Not supported yet. Investigation needed.
     ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics physx --visualizer newton
 
 """

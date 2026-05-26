@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script resolves the physics + visualizer cfgs from ``--physics`` / ``--visualizer``.
+This script contains helper functions for the demos.
 """
 
 from contextlib import contextmanager
@@ -52,9 +52,8 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
         raise ValueError(f"Unsupported --visualizer value: {viz_type}")
 
     # Kit needs to be closed by explicitly calling AppLauncher.close()
-    needs_kit = (viz_type == "kit")
     close_fn = None
-    if needs_kit:
+    if viz_type == "kit":
         from isaaclab.app import AppLauncher
 
         args.visualizer = [viz_type]
@@ -63,10 +62,11 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
     try:
         yield physics_cfg, visualizer_cfg
     finally:
-        # No-op for the newton visualizer
+        # No-op for the newton visualizer; close Kit automatically upon exit
         if close_fn is not None:
             close_fn()
 
 
 def has_no_alive_visualizer_window(sim) -> bool:
+    """Check if there are no alive visualizer windows."""
     return bool(sim.visualizers and not any(v.is_running() and not v.is_closed for v in sim.visualizers))
