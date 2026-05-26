@@ -163,7 +163,7 @@ jobs:
     name: Installation Tests (ARM)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
-    runs-on: [self-hosted, gpu, arm64]
+    runs-on: [self-hosted, aarch64]
     timeout-minutes: 90
     steps:
       - name: Checkout
