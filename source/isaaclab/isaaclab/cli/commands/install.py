@@ -83,11 +83,17 @@ def _install_system_deps() -> None:
         # isaacteleop[retargeters], so pip falls back to a CMake source build
         # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
         if not shutil.which("swig"):
-            print_info("Installing swig (required for building nlopt on ARM)...")
-            cmd = ["apt-get", "update"]
-            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-            cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
-            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+            if os.geteuid() != 0 and not shutil.which("sudo"):
+                print_info(
+                    "swig is missing and sudo is unavailable; skipping swig install. "
+                    "Pre-install swig in your image if you need to build nlopt from source."
+                )
+            else:
+                print_info("Installing swig (required for building nlopt on ARM)...")
+                cmd = ["apt-get", "update"]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+                cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
 def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
