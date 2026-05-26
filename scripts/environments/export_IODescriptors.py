@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
 import os
 
 from isaaclab.app import AppLauncher
@@ -32,6 +33,9 @@ import gymnasium as gym
 import torch
 
 import isaaclab_tasks  # noqa: F401
+
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
 # PLACEHOLDER: Extension template (do not remove this comment)

@@ -16,6 +16,7 @@ with `Isaac` in their name.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
 
 from isaaclab.app import AppLauncher
 
@@ -46,6 +47,10 @@ import gymnasium as gym
 from prettytable import PrettyTable
 
 import isaaclab_tasks  # noqa: F401
+
+# PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 
 def _format_presets(preset_map: dict | None) -> str:
