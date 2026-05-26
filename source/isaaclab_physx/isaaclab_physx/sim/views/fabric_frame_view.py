@@ -793,7 +793,7 @@ class FabricFrameView(BaseFrameView):
         """
         # --- Children ---
         pos_ta, ori_ta = self._usd_view.get_world_poses()
-        scales_obj = self._usd_view.get_scales()
+        scales_obj = self._usd_view.get_local_scales()
         scales_wp = (
             scales_obj.warp
             if hasattr(scales_obj, "warp")

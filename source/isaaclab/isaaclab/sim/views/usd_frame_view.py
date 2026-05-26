@@ -248,18 +248,17 @@ class UsdFrameView(BaseFrameView):
                 parent = prim.GetParent()
                 if parent and parent.IsValid():
                     parent_world = xf_cache.GetLocalToWorldTransform(parent)
-                    parent_scale = Gf.Vec3d(*[parent_world.GetRow(i)[:3] for i in range(3)])
                     parent_scale = Gf.Vec3d(
-                        Gf.Vec3d(*parent_world.GetRow(0)[:3]).GetLength(),
-                        Gf.Vec3d(*parent_world.GetRow(1)[:3]).GetLength(),
-                        Gf.Vec3d(*parent_world.GetRow(2)[:3]).GetLength(),
+                        Gf.Vec3d(parent_world[0][0], parent_world[0][1], parent_world[0][2]).GetLength(),
+                        Gf.Vec3d(parent_world[1][0], parent_world[1][1], parent_world[1][2]).GetLength(),
+                        Gf.Vec3d(parent_world[2][0], parent_world[2][1], parent_world[2][2]).GetLength(),
                     )
                 else:
                     parent_scale = Gf.Vec3d(1.0, 1.0, 1.0)
                 local_scale = Gf.Vec3d(
-                    scales_np[idx][0] / parent_scale[0],
-                    scales_np[idx][1] / parent_scale[1],
-                    scales_np[idx][2] / parent_scale[2],
+                    float(scales_np[idx][0] / parent_scale[0]),
+                    float(scales_np[idx][1] / parent_scale[1]),
+                    float(scales_np[idx][2] / parent_scale[2]),
                 )
                 prim.GetAttribute("xformOp:scale").Set(local_scale)
 
@@ -389,9 +388,9 @@ class UsdFrameView(BaseFrameView):
         for idx, prim_idx in enumerate(indices_list):
             prim = self._prims[prim_idx]
             world_mtx = xf_cache.GetLocalToWorldTransform(prim)
-            scales[idx, 0] = Gf.Vec3d(*world_mtx.GetRow(0)[:3]).GetLength()
-            scales[idx, 1] = Gf.Vec3d(*world_mtx.GetRow(1)[:3]).GetLength()
-            scales[idx, 2] = Gf.Vec3d(*world_mtx.GetRow(2)[:3]).GetLength()
+            scales[idx, 0] = Gf.Vec3d(world_mtx[0][0], world_mtx[0][1], world_mtx[0][2]).GetLength()
+            scales[idx, 1] = Gf.Vec3d(world_mtx[1][0], world_mtx[1][1], world_mtx[1][2]).GetLength()
+            scales[idx, 2] = Gf.Vec3d(world_mtx[2][0], world_mtx[2][1], world_mtx[2][2]).GetLength()
 
         return wp.array(scales, dtype=wp.float32, device=self._device)
 
