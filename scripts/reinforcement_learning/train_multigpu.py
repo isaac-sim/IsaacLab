@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import signal
 import subprocess
@@ -136,6 +137,45 @@ def _is_skrl_jax_launcher(args_cli: argparse.Namespace, train_args: list[str]) -
     return args_cli.rl_library == "skrl" and ml_framework == "jax"
 
 
+def _get_visible_cuda_device_count() -> int | None:
+    """Return the number of visible CUDA devices on this node, or ``None`` if undetermined."""
+    visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if visible_devices is not None:
+        entries = [entry for entry in visible_devices.split(",") if entry.strip()]
+        return len(entries)
+    try:
+        import torch
+    except ImportError:
+        return None
+    try:
+        if not torch.cuda.is_available():
+            return 0
+        return torch.cuda.device_count()
+    except Exception:
+        return None
+
+
+def _validate_num_gpus_against_visible_devices(parser: argparse.ArgumentParser, args_cli: argparse.Namespace) -> None:
+    """Error early when fewer CUDA devices are visible than --num_gpus requests."""
+    try:
+        requested = int(str(args_cli.nproc_per_node))
+    except (TypeError, ValueError):
+        return  # torchrun keywords like "gpu"/"cpu"/"auto" are resolved by the launcher itself.
+    visible = _get_visible_cuda_device_count()
+    if visible is None:
+        return
+    if visible == 0:
+        parser.error(
+            f"--num_gpus/--nproc_per_node={requested} was requested but no CUDA devices are visible. "
+            "Verify the CUDA installation and CUDA_VISIBLE_DEVICES."
+        )
+    if requested > visible:
+        parser.error(
+            f"--num_gpus/--nproc_per_node={requested} exceeds the {visible} CUDA device(s) visible to this "
+            "process. Lower --num_gpus or expose more devices via CUDA_VISIBLE_DEVICES."
+        )
+
+
 def _validate_launcher_args(
     parser: argparse.ArgumentParser, args_cli: argparse.Namespace, train_args: list[str]
 ) -> None:
@@ -158,6 +198,8 @@ def _validate_launcher_args(
             parser.error("skrl JAX multi-GPU training requires --num_gpus/--nproc_per_node to be at least 1.")
     elif args_cli.coordinator_address is not None:
         parser.error("--coordinator_address is only supported with --rl_library skrl --ml_framework jax.")
+
+    _validate_num_gpus_against_visible_devices(parser, args_cli)
 
 
 def _run_distributed_command(command: list[str]) -> int:
