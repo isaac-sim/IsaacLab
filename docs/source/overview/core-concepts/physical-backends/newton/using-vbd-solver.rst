@@ -1,7 +1,7 @@
 .. _newton-using-vbd:
 
-Using the VBD Solver
-====================
+VBD Solver
+==========
 
 Vertex Block Descent (VBD) is a Newton solver for cloth and soft-body
 simulation. In Isaac Lab, VBD is enabled by selecting a

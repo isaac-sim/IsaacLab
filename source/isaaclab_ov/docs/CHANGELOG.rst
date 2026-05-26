@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.1 (2026-05-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default OVRTX log file path by using the cross-platform temp directory instead of Linux-specific path ``/tmp``.
+
+
 0.4.0 (2026-05-21)
 ~~~~~~~~~~~~~~~~~~
 
