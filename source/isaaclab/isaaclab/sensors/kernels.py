@@ -56,11 +56,18 @@ def reset_envs_kernel(
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
 ):
-    """Resets the current and last update timestamps and marks environments as outdated for those being reset.
+    """Resets timestamps and clears the outdated flag for reset environments.
+
+    The outdated flag is cleared (not set) so that a sensor read immediately after
+    :meth:`SensorBase.reset` returns whatever the subclass wrote into ``_data`` during
+    reset (typically zero), rather than triggering a refetch from a physics buffer that
+    has not been stepped since the reset. The next call to :func:`update_timestamp_kernel`
+    (driven by :meth:`InteractiveScene.update` after the next physics step) re-arms the
+    outdated flag, at which point the sensor will pull fresh post-reset values.
 
     Args:
         reset_mask: Boolean array indicating which envs to reset.
-        is_outdated: Boolean array indicating which envs need update. Will be set to True for reset envs.
+        is_outdated: Boolean array indicating which envs need update. Will be cleared to False for reset envs.
         timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
         timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
     """
@@ -69,9 +76,6 @@ def reset_envs_kernel(
     if not reset_mask[env]:
         return
 
-    # Reset the timestamp for the sensors
     timestamp[env] = 0.0
-
     timestamp_last_update[env] = 0.0
-    # Set all reset sensors to outdated so that they are updated when data is called the next time.
-    is_outdated[env] = True
+    is_outdated[env] = False

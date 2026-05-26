@@ -424,3 +424,34 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim):
     torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
     torch.testing.assert_close(force_after[1], force_before[1])
     torch.testing.assert_close(force_after[3], force_before[3])
+
+
+def test_no_stale_data_after_scene_reset(sim):
+    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset wrenches.
+
+    Reproduces the manager-based RL flow where an environment terminates,
+    ``_reset_idx`` runs, and the next observation read happens before any further physics
+    step. The joint-wrench sensor's lazy refetch via :attr:`data` must not return PhysX's
+    stale post-step buffer for the reset env.
+    """
+    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
+    sim.reset()
+
+    sensor: JointWrenchSensor = scene["wrench"]
+    for _ in range(100):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    # Sanity: wrench is non-zero (joint resists gravity on the arm).
+    pre_reset_force = sensor.data.force.torch.clone()
+    pre_reset_torque = sensor.data.torque.torch.clone()
+    assert torch.any(pre_reset_force != 0) or torch.any(pre_reset_torque != 0), "Expected non-zero wrench before reset"
+
+    # Reset via the scene (mirrors what ``ManagerBasedRLEnv._reset_idx`` does).
+    scene.reset(env_ids=torch.tensor([0], device=sensor.device))
+
+    # The lazy public ``data`` accessor must not refetch a stale PhysX buffer here.
+    post_reset_force = sensor.data.force.torch
+    post_reset_torque = sensor.data.torque.torch
+    torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
+    torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
