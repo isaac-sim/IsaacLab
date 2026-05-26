@@ -213,7 +213,6 @@ Extract the downloaded ``compass_usds.zip`` file and move the ``usd`` folder int
     cd <compass-nurec>/COMPASS
     unzip compass_usds.zip
     mv groot_mobility_rl_es_usds/usd compass/rl_env/exts/mobility_es/mobility_es/
-    cd -
 
 **3. NuRec Real2Sim Assets**
 
