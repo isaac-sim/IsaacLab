@@ -45,7 +45,6 @@ dependencies = [
     "omniverseclient==2.71.1.7015",
     # cross-platform file locking
     "filelock",
-    "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",
     # IK controller (Linux x86_64 + ARM64)
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
@@ -68,9 +67,16 @@ play = "isaaclab.cli:play"
 train = "isaaclab.cli:train"
 
 [project.optional-dependencies]
-isaacsim = ["isaacsim[all,extscache]==5.1.0"]
+test = [
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flatdict>=4.1.0",
+    "flaky",
+]
+isaacsim = ["isaacsim[all,extscache]>=6.0.0"]
 all = [
-    "isaacsim[all,extscache]==5.1.0",
+    "isaacsim[all,extscache]>=6.0.0",
     "isaaclab_assets",
     "isaaclab_contrib",
     "isaaclab_experimental",
