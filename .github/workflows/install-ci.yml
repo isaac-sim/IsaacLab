@@ -152,7 +152,7 @@ jobs:
 
   install-tests-x86:
     name: Installation Tests (x86)
-    needs: [changes, collect-tests-x86]
+    needs: [collect-tests-x86]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
@@ -166,7 +166,7 @@ jobs:
 
   install-tests-arm:
     name: Installation Tests (ARM)
-    needs: [changes, collect-tests-arm]
+    needs: [collect-tests-arm]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, aarch64]
     timeout-minutes: 90
