@@ -55,6 +55,7 @@ jobs:
             $'^tools/\tBuild tooling'
             $'^source/\tLibrary source code'
             $'^\\.github/actions/run-package-tests/\tTest action'
+            $'^\\.github/actions/install-ci-(collect|run)/\tInstall-ci composite actions'
             $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
@@ -96,13 +97,7 @@ jobs:
             echo "Decision: run_install_tests=$decision ($reason)"
             echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
             {
-              if [ "$decision" = "true" ]; then
-                echo "Installation tests will ** will RUN**: $reason."
-              else
-                echo "Installation tests **will be SKIPPED**: $reason."
-              fi
               if [ -n "$files" ]; then
-                echo ""
                 render_table "$files"
               fi
             } >> "$GITHUB_STEP_SUMMARY"
@@ -128,100 +123,59 @@ jobs:
             decide false "no relevant paths changed" "$changed_files"
           fi
 
+  collect-tests-x86:
+    name: Collect Installation Tests (x86)
+    needs: [changes]
+    if: needs.changes.outputs.run_install_tests == 'true'
+    # cheap GitHub-hosted x86 runner; collection only needs python + pytest.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - uses: ./.github/actions/install-ci-collect
+        with:
+          test-filter: ${{ inputs.test_filter }}
+
+  collect-tests-arm:
+    name: Collect Installation Tests (ARM)
+    needs: [changes]
+    if: needs.changes.outputs.run_install_tests == 'true'
+    # uses the same self-hosted ARM runner as install-tests-arm so the
+    # collected list reflects what will actually run on that host.
+    runs-on: [self-hosted, aarch64]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - uses: ./.github/actions/install-ci-collect
+        with:
+          test-filter: ${{ inputs.test_filter }}
+
   install-tests-x86:
     name: Installation Tests (x86)
-    needs: [changes]
+    needs: [changes, collect-tests-x86]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Collect tests
-        env:
-          TEST_FILTER: ${{ inputs.test_filter }}
-        run: |
-          set -uo pipefail
-          venv="$RUNNER_TEMP/collect-venv"
-          collected="$RUNNER_TEMP/install-ci-collected.txt"
-          python3 -m venv "$venv"
-          "$venv/bin/pip" install --quiet pytest pytest-timeout
-          args=( --collect-only -q source/isaaclab/test/install_ci )
-          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
-          "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
-          rc=${PIPESTATUS[0]}
-          {
-            echo "## Collected installation tests (${{ runner.arch }})"
-            echo ''
-            echo '```'
-            cat "$collected"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit "$rc"
-      - name: Run Tests
-        env:
-          BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
-          TEST_FILTER: ${{ inputs.test_filter }}
-        run: |
-          args=(docker --gpu --base-image "$BASE_IMAGE"
-                --results-dir "${{ github.workspace }}/results"
-                -- --tb=short -sv)
-          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
-          tools/run_install_ci.py "${args[@]}"
-      - name: Upload JUnit XML report
-        if: always()
-        uses: actions/upload-artifact@v7
+      - uses: ./.github/actions/install-ci-run
         with:
-          name: junit-install-tests-x86
-          path: ${{ github.workspace }}/results/results.xml
-          if-no-files-found: ignore
-          retention-days: 7
+          base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          test-filter: ${{ inputs.test_filter }}
 
   install-tests-arm:
     name: Installation Tests (ARM)
-    needs: [changes]
+    needs: [changes, collect-tests-arm]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, aarch64]
     timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Collect tests
-        env:
-          TEST_FILTER: ${{ inputs.test_filter }}
-        run: |
-          set -uo pipefail
-          venv="$RUNNER_TEMP/collect-venv"
-          collected="$RUNNER_TEMP/install-ci-collected.txt"
-          python3 -m venv "$venv"
-          "$venv/bin/pip" install --quiet pytest pytest-timeout
-          args=( --collect-only -q source/isaaclab/test/install_ci )
-          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
-          "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
-          rc=${PIPESTATUS[0]}
-          {
-            echo "## Collected installation tests (${{ runner.arch }})"
-            echo ''
-            echo '```'
-            cat "$collected"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit "$rc"
-      - name: Run Tests
-        env:
-          BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
-          TEST_FILTER: ${{ inputs.test_filter }}
-        run: |
-          args=(docker --gpu --base-image "$BASE_IMAGE"
-                --results-dir "${{ github.workspace }}/results"
-                -- --tb=short -sv)
-          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
-          tools/run_install_ci.py "${args[@]}"
-      - name: Upload JUnit XML report
-        if: always()
-        uses: actions/upload-artifact@v7
+      - uses: ./.github/actions/install-ci-run
         with:
-          name: junit-install-tests-arm
-          path: ${{ github.workspace }}/results/results.xml
-          if-no-files-found: ignore
-          retention-days: 7
+          base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          test-filter: ${{ inputs.test_filter }}
