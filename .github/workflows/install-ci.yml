@@ -96,12 +96,10 @@ jobs:
             echo "Decision: run_install_tests=$decision ($reason)"
             echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
             {
-              echo "## Installation Test Gating"
-              echo ""
               if [ "$decision" = "true" ]; then
-                echo "Installation tests will **run**: $reason."
+                echo "Installation tests will ** will RUN**: $reason."
               else
-                echo "Installation tests will be **skipped**: $reason."
+                echo "Installation tests **will be SKIPPED**: $reason."
               fi
               if [ -n "$files" ]; then
                 echo ""
@@ -139,6 +137,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Collect tests
+        env:
+          TEST_FILTER: ${{ inputs.test_filter }}
+        run: |
+          set -uo pipefail
+          venv="$RUNNER_TEMP/collect-venv"
+          collected="$RUNNER_TEMP/install-ci-collected.txt"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --quiet pytest pytest-timeout
+          args=( --collect-only -q source/isaaclab/test/install_ci )
+          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+          "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
+          rc=${PIPESTATUS[0]}
+          {
+            echo "## Collected installation tests (${{ runner.arch }})"
+            echo ''
+            echo '```'
+            cat "$collected"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
       - name: Run Tests
         env:
           BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
@@ -167,6 +186,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Collect tests
+        env:
+          TEST_FILTER: ${{ inputs.test_filter }}
+        run: |
+          set -uo pipefail
+          venv="$RUNNER_TEMP/collect-venv"
+          collected="$RUNNER_TEMP/install-ci-collected.txt"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --quiet pytest pytest-timeout
+          args=( --collect-only -q source/isaaclab/test/install_ci )
+          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+          "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
+          rc=${PIPESTATUS[0]}
+          {
+            echo "## Collected installation tests (${{ runner.arch }})"
+            echo ''
+            echo '```'
+            cat "$collected"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
       - name: Run Tests
         env:
           BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
