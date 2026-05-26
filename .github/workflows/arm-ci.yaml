@@ -4,22 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # ARM/Spark CI — exercises Isaac Lab on aarch64 Linux self-hosted runners
-# (NVIDIA DGX Spark). Mirrors build.yaml's structure: one job builds
-# Dockerfile.base for linux/arm64 via the shared ecr-build-push-pull action
-# (with ECR-backed deps caching), downstream jobs pull the same image and
-# `docker run` pytest inside it.
-#
-# Each test step is wrapped with `continue-on-error: true` so a failure in
-# one tier does not abort the others. Each pytest invocation passes
-# `--timeout=N --timeout-method=signal --continue-on-collection-errors` so a
-# hung or import-broken test cannot consume the whole job slot.
+# (NVIDIA DGX Spark). Single job that builds Dockerfile.base for linux/arm64
+# and runs the `arm_ci`-marked pytest set against it. ECR is not wired for
+# arm64, so build output stays local to the runner; the action's local
+# exact-tag and deps-tag checks short-circuit rebuilds when the runner is
+# still warm from a prior run.
 #
 # Marker-driven discovery: `pytest <path> -m arm_ci`. Adding a new aarch64-safe
 # test = tag it with arm_ci, no yaml edit.
-#
-# Local deps-cache: the ecr-build-push-pull action checks both the local
-# docker store and ECR for a deps-<hash> image before doing a full build.
-# Same-dependency PRs reuse a prior build via metadata-only retag.
 
 name: ARM CI
 
@@ -126,33 +118,11 @@ jobs:
           echo "isaacsim_image_name=$name" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$tag" >> "$GITHUB_OUTPUT"
 
-  build-arm:
-    name: Build Base Docker Image (arm64)
-    runs-on: [self-hosted, arm64]
-    needs: [changes, config]
-    if: needs.changes.outputs.run_arm_ci == 'true'
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          lfs: true
-
-      - name: Build and push to ECR
-        uses: ./.github/actions/ecr-build-push-pull
-        with:
-          image-tag: ${{ env.CI_IMAGE_TAG }}
-          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-          dockerfile-path: docker/Dockerfile.base
-          cache-tag: cache-base-arm64
-          platform: linux/arm64
-
   arm-ci:
     name: arm-ci
     runs-on: [self-hosted, arm64]
-    needs: [build-arm, config]
-    if: needs.build-arm.result == 'success'
+    needs: [changes, config]
+    if: needs.changes.outputs.run_arm_ci == 'true'
     timeout-minutes: 120
     steps:
       - name: Checkout Code
@@ -161,7 +131,7 @@ jobs:
           fetch-depth: 1
           lfs: true
 
-      - name: Pull Base Docker image
+      - name: Build Base Docker image
         uses: ./.github/actions/ecr-build-push-pull
         with:
           image-tag: ${{ env.CI_IMAGE_TAG }}
