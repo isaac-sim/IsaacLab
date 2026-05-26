@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
 
@@ -34,17 +34,39 @@ class VisualizerCfg:
     enable_live_plots: bool = True
     """Enable live plotting of data."""
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
-    """Initial camera eye position (x, y, z) in world coordinates."""
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Interactive visualizer camera eye position in world coordinates."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera look-at point (x, y, z) in world coordinates."""
+    """Interactive visualizer camera look-at target in world coordinates."""
 
-    cam_source: Literal["cfg", "prim_path"] = "cfg"
-    """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim."""
+    focal_length: float = 12.0
+    """Camera focal length in millimeters for visualizer camera views."""
 
-    cam_prim_path: str = "/World/envs/env_0/Camera"
-    """Absolute USD path to a camera prim when cam_source='prim_path'."""
+    tiled_cam_view: bool = False
+    """Enable a non-interactive tiled camera image view."""
+
+    tiled_cam_num: int = 16
+    """Number of camera tiles to show when tiled_cam_env_indices is None, capped at 100."""
+
+    tiled_cam_env_indices: list[int] | None = None
+    """Env ids to show in tiled camera view; capped at 100 entries.
+
+    If ``None``, envs are randomly sampled from all visible envs.
+    """
+
+    tiled_cam_prim_path: str | None = None
+    """Existing Isaac Lab Camera sensor prim path to display.
+
+    If ``None``, the visualizer creates generated tiled cameras. If set, it should
+    point to an existing camera sensor, for example ``"/World/envs/*/Camera"``.
+    """
+
+    tiled_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye offset from tiled_cam_target_prim_path for generated tiled cameras."""
+
+    tiled_cam_target_prim_path: str = "/World/envs/*/Robot/base"
+    """Prim path that generated tiled cameras follow and look at."""
 
     max_visible_envs: int | None = None
     """Upper bound on how many envs are shown.

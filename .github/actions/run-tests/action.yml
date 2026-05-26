@@ -28,7 +28,17 @@ inputs:
     default: ''
     required: false
   filter-pattern:
-    description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
+    description: >-
+      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
+      contains this pattern are included. Only one pattern can be used at a time,
+      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
+      form for exclude-only jobs.
+    default: ''
+    required: false
+  exclude-pattern:
+    description: >-
+      Comma-separated substrings; test files whose path contains any entry are
+      excluded. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
   curobo-only:
@@ -75,13 +85,14 @@ runs:
           local reports_dir="$5"
           local pytest_options="$6"
           local filter_pattern="$7"
-          local curobo_only="$8"
-          local include_files="$9"
-          local quarantined_only="${10}"
-          local shard_index="${11}"
-          local shard_count="${12}"
-          local volume_mount_source="${13}"
-          local extra_pip_packages="${14}"
+          local exclude_pattern="$8"
+          local curobo_only="$9"
+          local include_files="${10}"
+          local quarantined_only="${11}"
+          local shard_index="${12}"
+          local shard_count="${13}"
+          local volume_mount_source="${14}"
+          local extra_pip_packages="${15}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -109,6 +120,9 @@ runs:
           fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
+          fi
+          if [ -n "$exclude_pattern" ]; then
+            echo "With exclude pattern: $exclude_pattern"
           fi
           if [ "$curobo_only" = "true" ]; then
             echo "cuRobo-only mode enabled: running only cuRobo and SkillGen tests"
@@ -165,9 +179,12 @@ runs:
             if [[ "$filter_pattern" == "not "* ]]; then
               # Handle "not <pattern>" case - note the trailing space to avoid
               # matching words that happen to start with "not".
-              exclude_pattern="${filter_pattern#not }"
-              docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
-              echo "Setting exclude pattern: $exclude_pattern"
+              filter_exclude_pattern="${filter_pattern#not }"
+              if [ -n "$exclude_pattern" ]; then
+                exclude_pattern="${exclude_pattern},${filter_exclude_pattern}"
+              else
+                exclude_pattern="$filter_exclude_pattern"
+              fi
             else
               # Handle positive pattern case
               docker_env_vars="$docker_env_vars -e TEST_FILTER_PATTERN=$filter_pattern"
@@ -175,6 +192,11 @@ runs:
             fi
           else
             echo "No filter pattern provided"
+          fi
+
+          if [ -n "$exclude_pattern" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
+            echo "Setting exclude pattern: $exclude_pattern"
           fi
 
           if [ -n "$extra_pip_packages" ]; then
@@ -369,7 +391,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
 
     - name: Kill container on cancellation
       if: cancelled()
@@ -402,6 +424,15 @@ runs:
       with:
         name: comparison-images-${{ inputs.container-name }}
         path: ${{ inputs.reports-dir }}/comparison-images/
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload JUnit XML report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: junit-${{ inputs.container-name }}
+        path: ${{ inputs.reports-dir }}/${{ inputs.result-file }}
         if-no-files-found: ignore
         retention-days: 7
 

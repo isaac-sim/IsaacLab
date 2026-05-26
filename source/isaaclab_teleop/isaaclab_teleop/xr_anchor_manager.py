@@ -29,6 +29,31 @@ from isaaclab.sim.utils.prims import create_prim as _create_prim
 logger = logging.getLogger(__name__)
 
 
+def _xr_anchor_prim_exists(prim_path: str) -> bool:
+    """Return True when ``prim_path`` is already a valid prim on the active stage.
+
+    Used to avoid re-creating the anchor prim on every
+    :class:`XrAnchorManager` construction in multi-replay batches (the
+    replay agent rebuilds the device per run, but the prim is
+    stage-scoped). Best-effort: returns ``False`` if the stage cannot
+    be inspected (e.g. unit tests without omni.usd) so the caller falls
+    through to the create-and-warn path used historically.
+    """
+    try:
+        import omni.usd
+
+        context = omni.usd.get_context()
+        if context is None:
+            return False
+        stage = context.get_stage()
+        if stage is None:
+            return False
+        return stage.GetPrimAtPath(prim_path).IsValid()
+    except Exception as exc:
+        logger.debug("_xr_anchor_prim_exists(%r) failed: %s", prim_path, exc)
+        return False
+
+
 class XrAnchorManager:
     """Manages XR anchor prim creation, synchronization, and world transform computation.
 
@@ -75,15 +100,20 @@ class XrAnchorManager:
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        # Create the XR anchor prim in USD.
-        # XrCfg.anchor_rot is xyzw; create_prim orientation expects xyzw.
-        x, y, z, w = self._xr_cfg.anchor_rot
-        try:
-            pos = np.asarray(self._xr_cfg.anchor_pos, dtype=np.float64)
-            quat_xyzw = np.asarray([x, y, z, w], dtype=np.float64)
-            _create_prim(self._xr_anchor_headset_path, prim_type="Xform", position=pos, orientation=quat_xyzw)
-        except Exception as e:
-            logger.warning(f"Failed to create XR anchor prim: {e}")
+        # Create the XR anchor prim in USD if it does not already exist.
+        # The check matters for multi-replay batches (the replay agent
+        # rebuilds ``IsaacTeleopDevice`` -- and therefore this manager --
+        # for each run, but the prim is stage-scoped and survives
+        # per-run device teardown). XrCfg.anchor_rot is xyzw; create_prim
+        # orientation expects xyzw.
+        if not _xr_anchor_prim_exists(self._xr_anchor_headset_path):
+            x, y, z, w = self._xr_cfg.anchor_rot
+            try:
+                pos = np.asarray(self._xr_cfg.anchor_pos, dtype=np.float64)
+                quat_xyzw = np.asarray([x, y, z, w], dtype=np.float64)
+                _create_prim(self._xr_anchor_headset_path, prim_type="Xform", position=pos, orientation=quat_xyzw)
+            except Exception as e:
+                logger.warning(f"Failed to create XR anchor prim: {e}")
 
         # Configure carb settings for XR rendering
         if hasattr(carb, "settings"):

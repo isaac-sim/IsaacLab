@@ -152,6 +152,7 @@ class DirectRLEnv(gym.Env):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 self.scene.initialize_renderers()
+            self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

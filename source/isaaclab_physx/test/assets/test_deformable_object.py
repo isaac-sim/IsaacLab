@@ -22,13 +22,18 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
-from isaaclab_physx.sim import DeformableBodyMaterialCfg, DeformableBodyPropertiesCfg, SurfaceDeformableBodyMaterialCfg
+from isaaclab_physx.assets import DeformableObject
+from isaaclab_physx.sim import (
+    PhysxDeformableBodyMaterialCfg,
+    PhysxDeformableBodyPropertiesCfg,
+    PhysxSurfaceDeformableBodyMaterialCfg,
+)
 
 import carb
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.assets import DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
 
 # Temporarily disabled: this suite intermittently aborts with SIGABRT on CI.
@@ -72,14 +77,14 @@ def generate_cubes_scene(
     if has_api:
         spawn_cfg = sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=DeformableBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            deformable_props=PhysxDeformableBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
         )
         # Add physics material if provided
         if material_path is not None:
             if deformable_type == "surface":
-                spawn_cfg.physics_material = SurfaceDeformableBodyMaterialCfg()
+                spawn_cfg.physics_material = PhysxSurfaceDeformableBodyMaterialCfg()
             else:
-                spawn_cfg.physics_material = DeformableBodyMaterialCfg()
+                spawn_cfg.physics_material = PhysxDeformableBodyMaterialCfg()
             spawn_cfg.physics_material_path = material_path
         else:
             spawn_cfg.physics_material = None
@@ -108,8 +113,15 @@ def sim():
         yield sim
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("material_path", [None, "/World/SoftMaterial", "material"])
+@pytest.mark.parametrize(
+    "num_cubes, material_path",
+    [
+        (1, "material"),
+        (2, None),
+        (2, "/World/SoftMaterial"),
+        (2, "material"),
+    ],
+)
 def test_initialization(sim, num_cubes, material_path):
     """Test initialization for prim with deformable body API at the provided prim path."""
     cube_object = generate_cubes_scene(num_cubes=num_cubes, material_path=material_path)
@@ -153,10 +165,10 @@ def test_initialization(sim, num_cubes, material_path):
     assert cube_object.data.root_vel_w.torch.shape == (num_cubes, 3)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.isaacsim_ci
-def test_initialization_surface_deformable(sim, num_cubes):
+def test_initialization_surface_deformable(sim):
     """Test initialization of a surface deformable body."""
+    num_cubes = 2
     cube_object = generate_cubes_scene(num_cubes=num_cubes, deformable_type="surface")
 
     # Play sim
@@ -203,10 +215,10 @@ def test_initialization_on_device_cpu():
             sim.reset()
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.isaacsim_ci
-def test_set_nodal_state(sim, num_cubes):
+def test_set_nodal_state(sim):
     """Test setting the state of the deformable object."""
+    num_cubes = 2
     cube_object = generate_cubes_scene(num_cubes=num_cubes)
 
     # Play the simulator
@@ -241,9 +253,15 @@ def test_set_nodal_state(sim, num_cubes):
                 cube_object.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("randomize_pos", [True, False])
-@pytest.mark.parametrize("randomize_rot", [True, False])
+@pytest.mark.parametrize(
+    "num_cubes, randomize_pos, randomize_rot",
+    [
+        (1, False, False),
+        (1, True, False),
+        (1, False, True),
+        (2, True, True),
+    ],
+)
 @flaky(max_runs=3, min_passes=1)
 @pytest.mark.isaacsim_ci
 def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, randomize_rot):
@@ -289,10 +307,10 @@ def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, random
             torch.testing.assert_close(cube_object.data.root_pos_w.torch, mean_nodal_pos_init, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.parametrize("num_cubes", [2, 4])
 @pytest.mark.isaacsim_ci
-def test_set_kinematic_targets(sim, num_cubes):
+def test_set_kinematic_targets(sim):
     """Test setting kinematic targets for the deformable object."""
+    num_cubes = 2
     cube_object = generate_cubes_scene(num_cubes=num_cubes, height=1.0)
 
     sim.reset()

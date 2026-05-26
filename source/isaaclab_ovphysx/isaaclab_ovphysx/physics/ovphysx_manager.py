@@ -24,7 +24,8 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -245,6 +246,36 @@ class OvPhysxManager(PhysicsManager):
         """
         cls._pending_clones.append((source, targets, parent_positions or []))
 
+    _physx_schemas_registered: ClassVar[bool] = False
+
+    @classmethod
+    def _ensure_physx_schemas_registered(cls) -> None:
+        """Register the ``PhysxSchema`` USD plugin shipped with the ovphysx wheel.
+
+        In Kit-based runs ``omni.physx`` registers the schema; in kitless
+        runs it must be registered manually before the wheel can match
+        ``PhysxContactReportAPI`` and friends on the stage.  The wheel
+        bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
+        method is idempotent — :meth:`pxr.Plug.Registry.RegisterPlugins`
+        is a no-op once the plugin is registered.
+        """
+        if cls._physx_schemas_registered:
+            return
+        try:
+            import os  # noqa: PLC0415
+
+            import ovphysx  # noqa: PLC0415
+
+            from pxr import Plug  # noqa: PLC0415
+        except Exception:
+            return
+        plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
+        for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
+            path = os.path.join(plugin_root, sub)
+            if os.path.isdir(path):
+                Plug.Registry().RegisterPlugins(path)
+        cls._physx_schemas_registered = True
+
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
@@ -262,6 +293,7 @@ class OvPhysxManager(PhysicsManager):
         instance is bound to.
         """
         super().initialize(sim_context)
+        cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
         cls._usd_handle = None
         cls._stage_path = None
@@ -374,6 +406,84 @@ class OvPhysxManager(PhysicsManager):
     # Internal helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _export_env0_only_stage(sim_stage: Any, target_file: str) -> None:
+        """Export the simulation stage to ``target_file`` with env_1..N stripped.
+
+        Writes a USD file containing every prim under the live stage **except**
+        ``/World/envs/env_<i>`` for ``i != 0``. Globals (``/physicsScene``,
+        ``/World/ground``, lights, materials, etc.) and ``/World/envs/env_0`` are
+        retained.  ``physx.clone()`` is then expected to repopulate env_1..N at
+        the physics layer with proper clone lineage so that subsequent
+        ``create_tensor_binding`` calls hit the wheel's fast path.
+
+        Implementation: export the full stage to disk, then re-open the result
+        as an :class:`Sdf.Layer` and delete env_1..N prim specs in place.  This
+        avoids mutating the live stage (which other consumers -- sensors,
+        visualizers -- still see in its full N-env form).
+
+        Limitations:
+            * **Homogeneous-env assumption.** Every env is treated as an
+              identical copy of env_0 from the physics runtime's point of view.
+              Anything authored *only* under ``/World/envs/env_<i>`` for
+              ``i != 0`` (per-env mass overrides, per-env friction, per-env
+              collision filters, etc.) is dropped from the file handed to
+              ``physx.add_usd`` and therefore not seen by PhysX. Sensors and
+              visualizers still see those overrides in USD (the live stage is
+              unmodified), so a divergence is possible.  Per-env physics state
+              must instead be written via the runtime APIs
+              (``RigidObject.write_root_state_to_sim_index``, etc.).
+            * **Global path convention.** Any physics-relevant prim that lives
+              under ``/World/envs/env_<i!=0>/`` (e.g. an asset-specific
+              ``PhysicsScene``, a per-env material) gets stripped. Globals must
+              live outside ``/World/envs`` (or under ``/World/envs/env_0``) to
+              survive the export.
+            * **Static topology.** Envs added or removed at runtime after
+              warmup are not supported by ``physx.clone()`` lineage and would
+              require a re-warmup with a re-exported stage.
+
+        Args:
+            sim_stage: Live USD stage held by ``SimulationContext``.
+            target_file: Output ``.usda`` file path.  Overwritten if it exists.
+        """
+        from pxr import Sdf  # noqa: PLC0415
+
+        # Step 1: full flatten-export of the live stage.  We pass the full file
+        # to ``Sdf.Layer.OpenAsAnonymous`` so the edits below don't write back
+        # to the source layer on disk.
+        sim_stage.Export(target_file)
+
+        # Step 2: open the exported file as an editable Sdf layer and delete
+        # ``/World/envs/env_<digits>`` children for digits != 0.  Walking the
+        # ``/World/envs`` ``PrimSpec``'s ``nameChildren`` keeps us scoped to
+        # the env-namespace and leaves the rest of the stage untouched.
+        layer = Sdf.Layer.FindOrOpen(target_file)
+        if layer is None:
+            raise RuntimeError(
+                f"OvPhysxManager: failed to re-open exported USD layer at {target_file!r} for env-scoping."
+            )
+        envs_spec = layer.GetPrimAtPath("/World/envs")
+        if envs_spec is None or not envs_spec:
+            # No /World/envs in the stage (single-env or non-IsaacLab scene); nothing to scope.
+            logger.debug("OvPhysxManager: no /World/envs prim — exported stage as-is.")
+            return
+
+        env_name_re = re.compile(r"^env_(\d+)$")
+        names_to_remove = [
+            child_name
+            for child_name in list(envs_spec.nameChildren.keys())
+            if (match := env_name_re.match(child_name)) and match.group(1) != "0"
+        ]
+        for child_name in names_to_remove:
+            del envs_spec.nameChildren[child_name]
+
+        if names_to_remove:
+            layer.Export(target_file)
+            logger.info(
+                "OvPhysxManager: stripped %d env_<i!=0> subtrees from exported USD (kept env_0 + globals)",
+                len(names_to_remove),
+            )
+
     @classmethod
     def _warmup_and_load(cls) -> None:
         """Export the USD stage and load it into the ovphysx runtime.
@@ -417,11 +527,27 @@ class OvPhysxManager(PhysicsManager):
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Export the current USD stage to a temporary file so ovphysx can load it.
+        #
+        # When ``InteractiveScene`` runs with ``clone_usd=True``, the live USD
+        # stage carries env_0..N's full asset subtrees as authored copies.
+        # Handing that stage to ``physx.add_usd`` would make the wheel ingest
+        # all 4096 envs as independent USD-defined bodies, defeating the
+        # ``physx.clone()`` fast path and turning every subsequent
+        # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
+        # hang you'd see at large env counts.
+        #
+        # The workaround: strip ``/World/envs/env_<i>`` for i != 0 from the
+        # exported file before handing it to the wheel.  Sensors that read
+        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
+        # the full N-env stage; only the wheel-side physics ingestion is
+        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
+        # the physics runtime with proper clone lineage (which is what the
+        # binding fast path expects).
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
         stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
-        sim.stage.Export(stage_file)
+        cls._export_env0_only_stage(sim.stage, stage_file)
         cls._stage_path = stage_file
-        logger.info("OvPhysxManager: exported USD stage to %s", stage_file)
+        logger.info("OvPhysxManager: exported env_0-scoped USD stage to %s", stage_file)
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
