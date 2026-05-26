@@ -101,7 +101,7 @@ jobs:
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
         )
-        triggered_jobs="Docker build jobs + all test-* matrix jobs (non-root verify is folded into test-isaaclab-ov and test-curobo)"
+        triggered_jobs="Docker build jobs + all test-* matrix jobs"
 
         render_table() {
           local files="$1" entry regex desc count sample
