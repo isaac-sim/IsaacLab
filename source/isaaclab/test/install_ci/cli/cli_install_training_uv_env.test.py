@@ -97,54 +97,6 @@ class TestUVWorkflow(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    # @pytest.mark.uv
-    # @pytest.mark.slow
-    # @pytest.mark.gpu
-    # @pytest.mark.timeout(1200)
-    # def test_install_newton_rsl_rl_trains_cartpole(self, isaaclab_root):
-    #     """``./isaaclab.sh -i newton,rl[rsl-rl]`` + training completes successfully."""
-    #     try:
-    #         self.create_uv_env(isaaclab_root)
-    #         result = self.run_in_uv_env(
-    #             [str(self.cli_script), "-i", "newton,rl[rsl-rl]"],
-    #             cwd=isaaclab_root,
-    #             timeout=900,
-    #         )
-    #         assert result.returncode == 0, f"isaaclab -i newton,rl[rsl-rl] failed:\n{result.stdout}\n{result.stderr}"
-    #         result = self.run_in_uv_env(
-    #             [str(self.cli_script)] + _TRAIN_CMD,
-    #             cwd=isaaclab_root,
-    #             timeout=600,
-    #         )
-    #         _assert_training_passed(result)
-    #     finally:
-    #         self.destroy_uv_env()
-
-    # @pytest.mark.uv
-    # @pytest.mark.slow
-    # @pytest.mark.gpu
-    # @pytest.mark.timeout(1800)
-    # def test_install_newton_ov_rsl_rl_trains_cartpole(self, isaaclab_root):
-    #     """``./isaaclab.sh -i newton,ov,rl[rsl-rl]`` + training completes successfully."""
-    #     try:
-    #         self.create_uv_env(isaaclab_root)
-    #         result = self.run_in_uv_env(
-    #             [str(self.cli_script), "-i", "newton,ov,rl[rsl-rl]"],
-    #             cwd=isaaclab_root,
-    #             timeout=1200,
-    #         )
-    #         assert result.returncode == 0, (
-    #             f"isaaclab -i newton,ov,rl[rsl-rl] failed:\n{result.stdout}\n{result.stderr}"
-    #         )
-    #         result = self.run_in_uv_env(
-    #             [str(self.cli_script)] + _TRAIN_CMD,
-    #             cwd=isaaclab_root,
-    #             timeout=600,
-    #         )
-    #         _assert_training_passed(result)
-    #     finally:
-    #         self.destroy_uv_env()
-
     @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
