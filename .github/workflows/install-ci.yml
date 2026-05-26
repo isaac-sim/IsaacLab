@@ -131,73 +131,58 @@ jobs:
             decide false "no relevant paths changed" "$changed_files"
           fi
 
-  install-tests:
-    name: Installation Tests (uv)
+  install-tests-x86:
+    name: Installation Tests (x86)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v6  # v6
-      - name: Run installation tests (uv)
+        uses: actions/checkout@v6
+      - name: Run Tests
         env:
-          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
-          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
+          BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          TEST_FILTER: ${{ inputs.test_filter }}
         run: |
-          RUNNER_ARGS="--base-image $BASE_IMAGE"
-          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
-          RUNNER_ARGS="$RUNNER_ARGS --gpu"
-          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
-
-          PYTEST_EXTRA_ARGS=(-sv -m uv)
-          if [ -n "$TEST_FILTER" ]; then
-            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
-          fi
-
-          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
-
+          args=(docker --gpu --no-cache --base-image "$BASE_IMAGE"
+                --results-dir "${{ github.workspace }}/results"
+                -- --tb=short -sv)
+          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+          tools/run_install_ci.py "${args[@]}"
       - name: Upload JUnit XML report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: junit-install-tests-uv
+          name: junit-install-tests-x86
           path: ${{ github.workspace }}/results/results.xml
           if-no-files-found: ignore
           retention-days: 7
 
-  install-tests-conda:
-    name: Installation Tests (conda)
+  install-tests-arm:
+    name: Installation Tests (ARM)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 150
+    runs-on: [self-hosted, gpu, arm64]
+    timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v6  # v6
-      - name: Run installation tests (conda)
+        uses: actions/checkout@v6
+      - name: Run Tests
         env:
-          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
-          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
+          BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          TEST_FILTER: ${{ inputs.test_filter }}
         run: |
-          RUNNER_ARGS="--base-image $BASE_IMAGE"
-          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results-conda"
-          RUNNER_ARGS="$RUNNER_ARGS --gpu"
-          RUNNER_ARGS="$RUNNER_ARGS --conda"
-          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
-
-          PYTEST_EXTRA_ARGS=(-sv -m conda)
-          if [ -n "$TEST_FILTER" ]; then
-            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
-          fi
-
-          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
-
+          args=(docker --gpu --no-cache --base-image "$BASE_IMAGE"
+                --results-dir "${{ github.workspace }}/results"
+                -- --tb=short -sv)
+          [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+          tools/run_install_ci.py "${args[@]}"
       - name: Upload JUnit XML report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: junit-install-tests-conda
-          path: ${{ github.workspace }}/results-conda/results.xml
+          name: junit-install-tests-arm
+          path: ${{ github.workspace }}/results/results.xml
           if-no-files-found: ignore
           retention-days: 7
