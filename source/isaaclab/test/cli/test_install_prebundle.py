@@ -17,12 +17,12 @@ from isaaclab.cli.commands.install import (
 )
 
 # ---------------------------------------------------------------------------
-# _split_install_items
+# split_install_items
 # ---------------------------------------------------------------------------
 
 
 class TestSplitInstallItems:
-    """Tests for :func:`_split_install_items`."""
+    """Tests for :func:`split_install_items`."""
 
     def test_single_item(self):
         assert split_install_items("assets") == ["assets"]

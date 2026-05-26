@@ -31,12 +31,12 @@ def _optional_submodule_packages() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# _split_install_items
+# split_install_items
 # ---------------------------------------------------------------------------
 
 
 class TestSplitInstallItems:
-    """Tests for _split_install_items()."""
+    """Tests for split_install_items()."""
 
     def test_single_token(self):
         assert split_install_items("newton") == ["newton"]
