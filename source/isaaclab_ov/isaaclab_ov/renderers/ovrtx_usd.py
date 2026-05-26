@@ -179,7 +179,6 @@ def create_scene_partition_attributes(
     stage,
     num_envs: int = 1,
     use_ovrtx_cloning: bool = True,
-    enable_scene_partition_workaround: bool = False,
 ) -> None:
     """Create scene partition attributes for env roots and cameras.
 
@@ -194,8 +193,6 @@ def create_scene_partition_attributes(
         stage: USD stage to modify.
         num_envs: Number of environments.
         use_ovrtx_cloning: Whether OVRTX cloning is enabled.
-        enable_scene_partition_workaround: Whether to enable the scene partition workaround for OVRTX 0.2.0 because it
-            doesn't support primvar inheritance.
     """
     env_indices = [0] if use_ovrtx_cloning else range(num_envs)
     for env_idx in env_indices:
@@ -212,12 +209,12 @@ def create_scene_partition_attributes(
         for prim in Usd.PrimRange(env_prim):
             if prim.GetPath() == env_prim.GetPath():
                 continue
-            if prim.IsA(UsdGeom.Camera):
-                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-                logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
-            elif enable_scene_partition_workaround:
-                prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-                logger.debug("Set scene partition '%s' on prim '%s'", scene_partition, prim.GetPath())
+
+            if not prim.IsA(UsdGeom.Camera):
+                continue
+
+            prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+            logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
 
 
 def export_stage_to_string(stage, num_envs: int, use_ovrtx_cloning: bool = True) -> str:
