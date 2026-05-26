@@ -7,7 +7,7 @@ name: 'Run Installation CI Tests'
 description: >
   Runs the install_ci suite inside the project's Docker harness via
   tools/run_install_ci.py and uploads the JUnit XML report as an artifact
-  named install-ci-junit-${{ runner.arch }}.
+  named install-ci-junit-<runner.arch>.
 
 inputs:
   base-image:
