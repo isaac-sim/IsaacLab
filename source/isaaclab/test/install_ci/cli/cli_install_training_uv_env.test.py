@@ -5,19 +5,9 @@
 
 """End-to-end installation and training workflow tests (uv).
 
-Covers uv-based installation paths:
-  - uv × kitless (core-only, ``-i none``)
-  - uv × newton training (``-i newton,rl[rsl-rl]``)
-  - uv × ov + newton training (``-i newton,ov,rl[rsl-rl]``)
-  - uv × full install (``-i all``)
-
-Tests in this file are intentionally slow and GPU-dependent.  They are
-gated behind pytest markers so they only run in the appropriate CI
-environment:
-
-  ``@pytest.mark.uv``    – routed to the uv-based Docker image
-  ``@pytest.mark.gpu``   – requires a GPU
-  ``@pytest.mark.slow``  – skipped in fast/smoke runs
+Covers uv-emnv-based installation paths:
+  - uv env + kitless (core-only, ``-i none``)
+  - uv env + full install (``-i all``)
 """
 
 from __future__ import annotations
