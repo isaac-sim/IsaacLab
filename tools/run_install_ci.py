@@ -271,9 +271,9 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     # The container runs as the non-root 'isaaclab' user (uid 1000), so caches
     # must live under /home/isaaclab rather than /root.
     if not args.no_pip_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/home/isaaclab/.cache/pip"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-pip-cache:/home/isaaclab/.cache/pip"])
     if not args.no_uv_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/home/isaaclab/.cache/uv"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-uv-cache:/home/isaaclab/.cache/uv"])
 
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
