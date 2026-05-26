@@ -34,9 +34,9 @@ libraries for ``--rl_library`` are: ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``,
 Multi-GPU Training
 ------------------
 
-Use ``train_multigpu`` for torch distributed training. It defaults to ``rsl_rl``, launches one
-process per visible GPU, adds ``--distributed`` automatically, and forwards the remaining
-arguments to the selected training library:
+Use ``train_multigpu`` for distributed training. It defaults to ``rsl_rl``, uses
+``torch.distributed.run`` for torch-based workflows, adds ``--distributed`` automatically, and
+forwards the remaining arguments to the selected training library:
 
 .. code-block:: bash
 
@@ -55,8 +55,18 @@ Override the GPU count or torch distributed settings when needed:
       --run_name gpu4_vis presets=newton
 
 Use ``--rl_library`` for other distributed-capable libraries: ``rsl_rl``, ``rl_games``, or ``skrl``.
-For multi-node jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,
-``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` before the training arguments.
+For skrl JAX training, pass an integer GPU count and use the skrl JAX launcher settings:
+
+.. code-block:: bash
+
+   uv run train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
+      --coordinator_address localhost:5000 \
+      --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+      --headless --num_envs 4096 --max_iterations 100
+
+For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,
+``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` before the training arguments. For
+skrl JAX multi-node jobs, pass ``--nnodes``, ``--node_rank``, and ``--coordinator_address``.
 
 Play / Evaluation
 -----------------
