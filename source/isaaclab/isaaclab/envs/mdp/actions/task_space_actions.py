@@ -95,6 +95,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self.raw_actions)
 
+        # owned buffer; _compute_frame_jacobian mutates this, not the data-layer view.
+        self._jacobian_b = torch.zeros(self.num_envs, 6, len(self._jacobi_joint_ids), device=self.device)
+
         # save the scale as tensors
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
         self._scale[:] = torch.tensor(self.cfg.scale, device=self.device)
@@ -241,8 +244,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         This function accounts for the target frame offset and applies the necessary transformations to obtain
         the right Jacobian from the parent body Jacobian.
         """
-        # read the parent jacobian
-        jacobian = self.jacobian_b
+        self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
             # Modify the jacobian to account for the offset
@@ -250,12 +252,16 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
             #        = (v_J_ee + w_J_ee x r_link_ee ) * q
             #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            jacobian[:, 0:3, :] += torch.bmm(-math_utils.skew_symmetric_matrix(self._offset_pos), jacobian[:, 3:, :])
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            )
             # -- rotational part
             # w_link = R_link_ee @ w_ee
-            jacobian[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), jacobian[:, 3:, :])
+            self._jacobian_b[:, 3:, :] = torch.bmm(
+                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            )
 
-        return jacobian
+        return self._jacobian_b
 
 
 class OperationalSpaceControllerAction(ActionTerm):
