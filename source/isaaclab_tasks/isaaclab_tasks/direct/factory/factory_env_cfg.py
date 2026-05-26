@@ -85,12 +85,30 @@ class CtrlCfg:
     disable_nullspace: bool = False
 
 
+_NEWTON_SOLVER_CFG = MJWarpSolverCfg(
+    solver="newton",
+    integrator="implicitfast",
+    njmax=4000,
+    nconmax=4000,
+    # Higher impratio over-constrains the gripper pad on the nut.
+    impratio=10.0,
+    cone="elliptic",
+    use_mujoco_contacts=False,
+    iterations=10,
+    ls_iterations=100,
+)
+
+
 @configclass
 class FactoryPhysicsCfg(PresetCfg):
-    """Per-backend physics cfg. Newton uses MuJoCo-Warp + SDF collisions.
+    """Per-backend physics cfg. Newton offers two SDF modes.
 
-    Set ``collision_cfg.sdf_hydroelastic_config=None`` for SDF-only
-    penalty-spring contacts (no hydroelastic dependency).
+    - ``newton``: SDF mesh contacts with hydroelastic distributed pressure.
+      ``num_substeps=8``, ``collision_decimation=2`` (re-collide 4x per tick).
+    - ``newton_sdf``: SDF mesh contacts with vanilla penalty-spring forces
+      (no hydroelastic). The stiffer normal response requires denser
+      substepping — ``num_substeps=10``, ``collision_decimation=1``
+      (re-collide every substep) — to keep contact normals fresh.
     """
 
     physx = PhysxCfg(
@@ -106,18 +124,7 @@ class FactoryPhysicsCfg(PresetCfg):
         gpu_max_num_partitions=1,  # Important for stable simulation.
     )
     newton = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            solver="newton",
-            integrator="implicitfast",
-            njmax=4000,
-            nconmax=4000,
-            # Higher impratio over-constrains the gripper pad on the nut.
-            impratio=10.0,
-            cone="elliptic",
-            use_mujoco_contacts=False,
-            iterations=10,
-            ls_iterations=100,
-        ),
+        solver_cfg=_NEWTON_SOLVER_CFG,
         collision_cfg=NewtonCollisionPipelineCfg(
             broad_phase="explicit",
             rigid_contact_max=32768,
@@ -131,6 +138,19 @@ class FactoryPhysicsCfg(PresetCfg):
         # 1.04 ms substep dt; re-collide every 2 substeps (4x per tick).
         num_substeps=8,
         collision_decimation=2,
+        use_cuda_graph=True,
+    )
+    newton_sdf = NewtonCfg(
+        solver_cfg=_NEWTON_SOLVER_CFG,
+        collision_cfg=NewtonCollisionPipelineCfg(
+            broad_phase="explicit",
+            rigid_contact_max=32768,
+            # No hydroelastic — fall back to penalty-spring contacts.
+            sdf_hydroelastic_config=None,
+        ),
+        # Vanilla SDF needs more substeps than hydroelastic.
+        num_substeps=10,
+        collision_decimation=1,
         use_cuda_graph=True,
     )
     default = physx
