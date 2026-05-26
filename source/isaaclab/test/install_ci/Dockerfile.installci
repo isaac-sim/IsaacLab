@@ -36,6 +36,7 @@ RUN apt-get update && \
     libglib2.0-0 \
     python3-venv \
     build-essential \
+    swig \
     && rm -rf /var/lib/apt/lists/*
 
 # Make python3 the default python
