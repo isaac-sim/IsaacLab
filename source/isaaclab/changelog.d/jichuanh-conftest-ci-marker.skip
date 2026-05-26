@@ -1,1 +1,0 @@
-Skip changelog: CI-infrastructure only. Generalizes tools/conftest.py to read a CI_MARKER env var (defaulting to ISAACSIM_CI_SHORT=true → "isaacsim_ci" for back-compat). Lets cross-platform CI workflows reuse the same subprocess-per-test orchestrator with their own markers (arm_ci for ARM/Spark, windows_ci for Windows) instead of forking conftest.py per platform.
