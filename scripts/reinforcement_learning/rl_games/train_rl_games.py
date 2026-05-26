@@ -15,7 +15,6 @@ import os
 import random
 import time
 from datetime import datetime
-from distutils.util import strtobool
 
 from common import (
     add_common_train_args,
@@ -29,6 +28,8 @@ from common import (
     validate_distributed_device,
     wrap_record_video,
 )
+
+from isaaclab.utils.string import strtobool
 
 import isaaclab_tasks  # noqa: F401
 

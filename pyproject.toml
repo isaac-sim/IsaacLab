@@ -60,7 +60,7 @@ all = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 # Exclude directories
 extend-exclude = [
@@ -98,6 +98,8 @@ ignore = [
     "SIM118", # Use {key} in {dict} instead of {key} in {dict}.keys()
     "UP006",  # Use 'dict' instead of 'Dict' type annotation
     "UP018",  # Unnecessary `float` call (rewrite as a literal)
+    "UP040",  # TypeAlias annotation → `type` keyword (PEP 695, migrate later)
+    "UP047",  # Generic function → type parameters (PEP 695, migrate later)
 ]
 
 [tool.ruff.lint.per-file-ignores]

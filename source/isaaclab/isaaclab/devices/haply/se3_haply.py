@@ -344,7 +344,7 @@ class HaplyDevice(DeviceBase):
 
                             await asyncio.sleep(1.0 / self.data_rate)
 
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             self.consecutive_timeouts += 1
 
                             # Check if timeout
