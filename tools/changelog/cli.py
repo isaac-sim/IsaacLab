@@ -533,12 +533,40 @@ class Package:
     def is_managed(self) -> bool:
         return self.toml_path.is_file() and self.changelog_path.is_file()
 
-    def current_version(self) -> Version:
+    def _extension_toml_version(self) -> Version:
         for line in self.toml_path.read_text(encoding="utf-8").splitlines():
             m = re.match(r'^version\s*=\s*"([^"]+)"', line)
             if m:
                 return Version(m.group(1))
         raise ValueError(f"No version field found in {self.toml_path}")
+
+    def _pyproject_version(self) -> Version | None:
+        """Read the ``[project]`` version from ``pyproject.toml``, or ``None`` if absent."""
+        pyproject_path = self.root / "pyproject.toml"
+        if not pyproject_path.is_file():
+            return None
+        in_project = False
+        for line in pyproject_path.read_text(encoding="utf-8").splitlines():
+            if re.match(r"^\[project\]", line):
+                in_project = True
+            elif re.match(r"^\[", line):
+                in_project = False
+            if in_project:
+                m = re.match(r'^version\s*=\s*"([^"]+)"', line)
+                if m:
+                    return Version(m.group(1))
+        return None
+
+    def current_version(self) -> Version:
+        ext_ver = self._extension_toml_version()
+        py_ver = self._pyproject_version()
+        if py_ver is not None and py_ver != ext_ver:
+            raise ValueError(
+                f"{self.name}: version mismatch — "
+                f"config/extension.toml={ext_ver}, pyproject.toml={py_ver}. "
+                f"Reconcile both files to the same value before running compile."
+            )
+        return ext_ver
 
     def write_changelog_entry(self, entry: str, *, dry_run: bool) -> None:
         text = self.changelog_path.read_text(encoding="utf-8")

@@ -26,10 +26,9 @@ def _rsl_rl_pin_from_pyproject() -> str:
     with pyproject_path.open("rb") as f:
         data = tomllib.load(f)
 
-    for extra_name in ("rsl-rl", "rsl_rl"):
-        for dependency in data.get("project", {}).get("optional-dependencies", {}).get(extra_name, []):
-            if dependency.startswith("rsl-rl-lib=="):
-                return dependency
+    for dependency in data.get("project", {}).get("optional-dependencies", {}).get("rsl-rl", []):
+        if dependency.startswith("rsl-rl-lib=="):
+            return dependency
 
     raise AssertionError("Could not find rsl-rl-lib pin in source/isaaclab_rl/pyproject.toml")
 
@@ -44,6 +43,6 @@ def test_wheel_builder_rsl_rl_pin_matches_source_package():
     optional_dependencies = packages["isaaclab"]["pyproject"]["optional-dependencies"]["all"]
     dependencies_by_extra = {name: deps for entry in optional_dependencies for name, deps in entry.items()}
 
-    for extra_name in ("rsl-rl", "rsl_rl", "all"):
+    for extra_name in ("rsl-rl", "all"):
         rsl_rl_pins = [dep for dep in dependencies_by_extra[extra_name] if dep.startswith("rsl-rl-lib==")]
         assert rsl_rl_pins == [expected_pin]

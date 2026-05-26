@@ -46,14 +46,7 @@ rl-games = [
     "gym",
     "standard-distutils",
 ]
-rl_games = [
-    "aiohttp==3.13.3",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-    "gym",
-    "standard-distutils",
-]
 rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
-rsl_rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
 all = [
     "stable-baselines3>=2.6", "tqdm", "rich",
     "skrl>=2.0.0",
