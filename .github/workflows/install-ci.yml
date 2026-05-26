@@ -147,7 +147,7 @@ jobs:
         run: |
           args=(docker --gpu --base-image "$BASE_IMAGE"
                 --results-dir "${{ github.workspace }}/results"
-                -- --tb=short)
+                -- --tb=short -sv)
           [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
           tools/run_install_ci.py "${args[@]}"
       - name: Upload JUnit XML report
@@ -175,7 +175,7 @@ jobs:
         run: |
           args=(docker --gpu --base-image "$BASE_IMAGE"
                 --results-dir "${{ github.workspace }}/results"
-                -- --tb=short)
+                -- --tb=short -sv)
           [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
           tools/run_install_ci.py "${args[@]}"
       - name: Upload JUnit XML report
