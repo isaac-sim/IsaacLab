@@ -68,7 +68,11 @@ RUN groupadd --non-unique --gid 1000 isaaclab \
 # Install Miniconda into the isaaclab user's home directory so the runtime user
 # has full write access for creating environments and caching packages.
 ARG MINICONDA_VERSION=latest
-RUN curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh" \
+RUN ARCH=$(case "$(uname -m)" in \
+      aarch64|arm64) echo "aarch64" ;; \
+      *) echo "x86_64" ;; \
+    esac) \
+    && curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-${ARCH}.sh" \
       -o /tmp/miniconda.sh \
     && bash /tmp/miniconda.sh -b -p /home/isaaclab/miniconda3 \
     && rm /tmp/miniconda.sh \
