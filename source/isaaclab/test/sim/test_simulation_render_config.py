@@ -18,7 +18,7 @@ import os
 
 import flatdict
 import pytest
-import toml
+import tomllib
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
@@ -153,8 +153,8 @@ def test_render_cfg_presets():
 
         # grab preset settings
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename) as file:
-            preset_dict = toml.load(file)
+        with open(preset_filename, "rb") as file:
+            preset_dict = tomllib.load(file)
         preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
 
         render_cfg = RenderCfg(

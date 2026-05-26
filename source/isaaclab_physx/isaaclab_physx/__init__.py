@@ -5,19 +5,13 @@
 
 """Package containing the PhysX simulation interfaces for IsaacLab core package."""
 
-import os
+import importlib.metadata
 import sys
-import toml
 
-# Conveniences to other module directories via relative paths
-ISAACLAB_PHYSX_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-"""Path to the extension source directory."""
-
-ISAACLAB_PHYSX_METADATA = toml.load(os.path.join(ISAACLAB_PHYSX_EXT_DIR, "config", "extension.toml"))
-"""Extension metadata dictionary parsed from the extension.toml file."""
-
-# Configure the module-level variables
-__version__ = ISAACLAB_PHYSX_METADATA["package"]["version"]
+try:
+    __version__ = importlib.metadata.version("isaaclab_physx")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 
 def _patch_isaacsim_simulation_manager():

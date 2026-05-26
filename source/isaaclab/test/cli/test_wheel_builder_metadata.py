@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 import tomllib
@@ -21,27 +20,23 @@ def _repo_root() -> Path:
     raise RuntimeError("Could not find Isaac Lab repository root.")
 
 
-def _rsl_rl_pin_from_setup() -> str:
-    """Return the ``rsl-rl-lib`` pin declared by ``source/isaaclab_rl/setup.py``."""
-    setup_path = _repo_root() / "source/isaaclab_rl/setup.py"
-    module = ast.parse(setup_path.read_text(encoding="utf-8"))
+def _rsl_rl_pin_from_pyproject() -> str:
+    """Return the ``rsl-rl-lib`` pin declared by ``source/isaaclab_rl/pyproject.toml``."""
+    pyproject_path = _repo_root() / "source/isaaclab_rl/pyproject.toml"
+    with pyproject_path.open("rb") as f:
+        data = tomllib.load(f)
 
-    for node in module.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if not any(isinstance(target, ast.Name) and target.id == "EXTRAS_REQUIRE" for target in node.targets):
-            continue
-        extras_require = ast.literal_eval(node.value)
-        for dependency in extras_require["rsl-rl"]:
+    for extra_name in ("rsl-rl", "rsl_rl"):
+        for dependency in data.get("project", {}).get("optional-dependencies", {}).get(extra_name, []):
             if dependency.startswith("rsl-rl-lib=="):
                 return dependency
 
-    raise AssertionError("Could not find rsl-rl-lib pin in source/isaaclab_rl/setup.py")
+    raise AssertionError("Could not find rsl-rl-lib pin in source/isaaclab_rl/pyproject.toml")
 
 
 def test_wheel_builder_rsl_rl_pin_matches_source_package():
     """The bundled wheel metadata must install the RSL-RL version required by training scripts."""
-    expected_pin = _rsl_rl_pin_from_setup()
+    expected_pin = _rsl_rl_pin_from_pyproject()
     packages_path = _repo_root() / "tools/wheel_builder/res/python_packages.toml"
     with packages_path.open("rb") as f:
         packages = tomllib.load(f)

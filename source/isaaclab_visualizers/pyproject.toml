@@ -8,16 +8,17 @@ requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "isaaclab_physx"
-version = "1.1.0"
-description = "Extension providing IsaacLab with PhysX specific abstractions."
+name = "isaaclab-visualizers"
+version = "0.1.0"
+description = "Visualizer backends for Isaac Lab (Kit, Newton, Rerun, Viser)."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
-keywords = ["robotics", "simulation", "physx"]
+keywords = ["robotics", "simulation", "visualization"]
 requires-python = ">=3.12"
 dependencies = [
-    "isaaclab_ppisp",
+    "isaaclab",
+    "numpy",
 ]
 
 [project.urls]
@@ -25,8 +26,28 @@ Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
 [project.optional-dependencies]
+kit = []
 newton = [
+    "warp-lang",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
+    "PyOpenGL-accelerate",
+    "imgui-bundle>=1.92.5",
+]
+rerun = [
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
+    "rerun-sdk>=0.29.0",
+]
+viser = [
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
+    "viser>=1.0.16",
+]
+all = [
+    "imgui-bundle>=1.92.5",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
+    "PyOpenGL-accelerate",
+    "rerun-sdk>=0.29.0",
+    "viser>=1.0.16",
+    "warp-lang",
 ]
 
 [tool.setuptools]
@@ -34,7 +55,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["isaaclab_physx", "isaaclab_physx.*"]
+include = ["isaaclab_visualizers", "isaaclab_visualizers.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]

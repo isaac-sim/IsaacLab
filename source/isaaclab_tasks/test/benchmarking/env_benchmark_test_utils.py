@@ -17,16 +17,16 @@ def _get_repo_path():
     """Get the repository root by searching for marker files.
 
     Searches upward from the current file for IsaacLab repository markers
-    (isaaclab.sh or setup.py) to robustly find the repo root.
+    (isaaclab.sh or pyproject.toml) to robustly find the repo root.
     """
     current = os.path.abspath(__file__)
-    # Look for isaaclab.sh or setup.py as markers (max 10 levels up)
+    # Look for isaaclab.sh or pyproject.toml as markers (max 10 levels up)
     for _ in range(10):
         current = os.path.dirname(current)
         if os.path.exists(os.path.join(current, "isaaclab.sh")):
             return current
         # Fallback marker
-        if os.path.exists(os.path.join(current, "setup.py")) and os.path.exists(os.path.join(current, "source")):
+        if os.path.exists(os.path.join(current, "pyproject.toml")) and os.path.exists(os.path.join(current, "source")):
             return current
     raise RuntimeError("Could not find IsaacLab repository root. Expected to find 'isaaclab.sh' in parent directories.")
 

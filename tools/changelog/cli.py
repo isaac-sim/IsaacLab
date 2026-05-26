@@ -562,6 +562,31 @@ class Package:
         else:
             self.toml_path.write_text(updated, encoding="utf-8")
 
+        # Also update [project] version in pyproject.toml if it exists.
+        pyproject_path = self.root / "pyproject.toml"
+        if pyproject_path.is_file():
+            py_text = pyproject_path.read_text(encoding="utf-8")
+            in_project = False
+            new_lines = []
+            changed = False
+            for line in py_text.splitlines(keepends=True):
+                if re.match(r"^\[project\]", line):
+                    in_project = True
+                elif re.match(r"^\[", line):
+                    in_project = False
+                if in_project and re.match(r'^version\s*=\s*"[^"]+"', line):
+                    new_line = re.sub(r'^(version\s*=\s*)"[^"]+"', f'\\1"{new_version}"', line)
+                    if new_line != line:
+                        changed = True
+                    new_lines.append(new_line)
+                else:
+                    new_lines.append(line)
+            if changed:
+                if dry_run:
+                    print(f'DRY RUN — would set version = "{new_version}" in {_display_path(pyproject_path)}')
+                else:
+                    pyproject_path.write_text("".join(new_lines), encoding="utf-8")
+
     @classmethod
     def from_name(cls, name: str, packages_root: Path = PACKAGES_ROOT) -> Package:
         return cls(packages_root / name)
