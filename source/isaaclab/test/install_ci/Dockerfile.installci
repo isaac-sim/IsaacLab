@@ -94,6 +94,7 @@ RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
  && useradd --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
+ && chown isaaclab:isaaclab /home/isaaclab \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
 
 # Passwordless sudo for the runtime user so ``./isaaclab.sh -i`` can apt-get
