@@ -10,8 +10,9 @@ complex data sets. While this format is widely used in the film and animation
 industry, it is less common in the robotics community.
 
 To this end, NVIDIA has developed various importers that allow you to import
-assets from other file formats into USD. These importers are available as
-extensions to Omniverse Kit:
+assets from other file formats into USD. These importers are available through
+Omniverse Kit workflows, and the URDF/MJCF Python importers can also be used
+from a standalone pip wheel:
 
 * **URDF Importer** - Import assets from URDF files.
 * **MJCF Importer** - Import assets from MJCF files.
@@ -22,6 +23,20 @@ The recommended workflow from NVIDIA is to use the above importers to convert
 the asset into its USD representation. Once the asset is in USD format, you can
 use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes
 these importers by default. They can also be enabled manually in Omniverse Kit.
+
+Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
+Isaac Sim when the full Isaac Sim runtime is installed. In kit-less environments
+without Isaac Sim, install the standalone importer wheel to use the same Python
+APIs for command-line conversion:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p -m pip install isaacsim-asset-isolated==1.0.0 \
+     --find-links <package-index-or-wheel-directory>
+
+The standalone wheel is enough for conversion-only workflows. Omit ``--viz kit``
+when running the converter in a kit-less environment; the Kit visualizer and GUI
+import dialogs still require an Omniverse Kit runtime.
 
 
 An important note to use assets for large-scale simulation is to ensure that they

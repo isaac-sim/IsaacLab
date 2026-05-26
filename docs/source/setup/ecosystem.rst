@@ -12,8 +12,9 @@ Isaac Lab supports two physics engines through multiple backend packages:
 
 * **PhysX** — the default backend through `Isaac Sim`_, with access to GPU-accelerated
   rigid-body simulation, deformable objects, Fabric views, tiled RTX rendering, ROS/ROS2,
-  URDF/MJCF importers, and the full Omniverse toolchain. PhysX can also be used through the
-  standalone ``ovphysx`` runtime for kit-less workflows that do not launch Isaac Sim.
+  Omniverse Kit GUI workflows, and the full Omniverse toolchain. PhysX can also be used
+  through the standalone ``ovphysx`` runtime for kit-less workflows that do not launch
+  Isaac Sim.
 * **Newton** — a Warp-native backend that can run in kit-less mode, enabling lightweight
   deployments and GPU-parallel simulation using `Warp`_.
 
@@ -183,7 +184,8 @@ Concretely, Isaac Lab offers:
 * **RL library integrations** — wrappers for RSL-RL, skrl, Stable Baselines 3, and RL Games
   ship in ``isaaclab_rl``.
 * **Kit-less deployment** — run policies and simulations using the Newton backend without a
-  full Isaac Sim installation.
+  full Isaac Sim installation. URDF and MJCF command-line conversion can also run kit-less
+  when the standalone ``isaacsim-asset-isolated`` importer wheel is installed.
 
 We are working with labs in universities and research institutions to integrate their work into
 Isaac Lab and hope that others in the community will join us. If you are interested in

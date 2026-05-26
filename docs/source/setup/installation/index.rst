@@ -36,9 +36,11 @@ installation methods.
    required for this mode. See :doc:`kitless_installation` for which features are available
    without Isaac Sim.
 
-   When you need full simulation features — including PhysX, ROS, URDF/MJCF
-   importers — install Isaac Sim via pip (see the
-   :doc:`pip_installation` guide).
+   When you need full simulation features — including PhysX, ROS, RTX rendering,
+   and Omniverse Kit GUI workflows — install Isaac Sim via pip (see the
+   :doc:`pip_installation` guide). URDF and MJCF command-line conversion can also
+   run without Isaac Sim by installing the standalone importer wheel described in
+   :doc:`kitless_installation`.
 
 .. caution::
 

@@ -60,6 +60,7 @@ with MJWarp physics and the Newton visualizer:
 - All manager-based and direct RL environments that support Newton
 - RL training with SKRL, RSL-RL, and other frameworks
 - Robot assets compatible with Newton
+- URDF and MJCF command-line conversion when the standalone importer wheel is installed
 
 **Features that require Isaac Sim:**
 
@@ -68,11 +69,37 @@ with MJWarp physics and the Newton visualizer:
 - Kit visualizer
 - Photorealistic rendering workflows
 - ROS / ROS2 integration
-- URDF and MJCF importers (GUI-based)
+- Omniverse Kit GUI workflows for inspecting, editing, or importing assets
 - Deformable objects and surface gripper (PhysX-only)
 - Teleoperation and imitation learning workflows
 
 To install Isaac Sim, use the pip method described in :doc:`pip_installation`.
+
+
+Standalone URDF/MJCF importers
+------------------------------
+
+The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
+``isaacsim-asset-isolated`` wheel is installed in the active environment:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p -m pip install isaacsim-asset-isolated==1.0.0 \
+     --find-links <package-index-or-wheel-directory>
+
+After installing the wheel, run conversion without requesting the Kit visualizer:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_urdf.py \
+     path/to/robot.urdf path/to/output_dir --merge-joints
+
+   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+     path/to/model.xml path/to/output.usd --merge-mesh
+
+If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim
+importer extensions first. The standalone wheel is used only when the full
+Isaac Sim runtime is not available.
 
 
 .. _installation-selective-install:
