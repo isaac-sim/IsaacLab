@@ -408,10 +408,10 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            if not (has_gui or offscreen_render):
+            # check that if any render could have happened — mirror stable
+            # (PR #4646 replaced /isaaclab/has_gui and /isaaclab/render/offscreen settings
+            # with cached SimulationContext properties).
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode does not support"
                     " rendering. Please set the simulation render mode to 'PARTIAL_RENDERING' or"
