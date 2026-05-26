@@ -32,7 +32,7 @@ permissions:
   pull-requests: read
 jobs:
   changes:
-    name: Detect Installation Test Changes
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
@@ -145,9 +145,9 @@ jobs:
           BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
           TEST_FILTER: ${{ inputs.test_filter }}
         run: |
-          args=(docker --gpu --no-cache --base-image "$BASE_IMAGE"
+          args=(docker --gpu --base-image "$BASE_IMAGE"
                 --results-dir "${{ github.workspace }}/results"
-                -- --tb=short -sv)
+                -- --tb=short)
           [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
           tools/run_install_ci.py "${args[@]}"
       - name: Upload JUnit XML report
@@ -173,9 +173,9 @@ jobs:
           BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
           TEST_FILTER: ${{ inputs.test_filter }}
         run: |
-          args=(docker --gpu --no-cache --base-image "$BASE_IMAGE"
+          args=(docker --gpu --base-image "$BASE_IMAGE"
                 --results-dir "${{ github.workspace }}/results"
-                -- --tb=short -sv)
+                -- --tb=short)
           [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
           tools/run_install_ci.py "${args[@]}"
       - name: Upload JUnit XML report
