@@ -141,9 +141,7 @@ jobs:
     name: Collect Installation Tests (ARM)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
-    # uses the same self-hosted ARM runner as install-tests-arm so the
-    # collected list reflects what will actually run on that host.
-    runs-on: [self-hosted, aarch64]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
