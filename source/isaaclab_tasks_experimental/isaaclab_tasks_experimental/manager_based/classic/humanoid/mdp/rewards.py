@@ -23,9 +23,8 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets import Articulation
 
 if TYPE_CHECKING:
-    from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg
-
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers.manager_term_cfg import RewardTermCfg
 
 
 # ---------------------------------------------------------------------------

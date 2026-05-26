@@ -10,12 +10,13 @@ Pure-Python unit tests; no app launch. Covers:
 * :class:`Frontend` / :class:`Workflow` enum surface.
 * :func:`SceneEntityCfg.from_stable` field copy.
 * :func:`_require_newton_physics` hard-check.
+* :func:`_walk_terms` recursive ManagerTermBaseCfg discovery.
 * :func:`_promote_scene_entity_cfgs` walks ``term.params`` dicts.
 * :func:`_swap_mdp` swaps ``func`` *and* ``class_type``; raises with a path
   list when twins are missing.
 * :func:`_resolve_warp_twin` rejects stable-origin re-exports.
-* :func:`_require_direct_is_warp_task` accepts warp-rooted entry points
-  and rejects stable ones.
+* :func:`_assert_direct_warp_registration` accepts warp-rooted entry
+  points and rejects stable ones.
 """
 
 from __future__ import annotations
@@ -29,20 +30,21 @@ from isaaclab_experimental.envs.frontend import (
     Frontend,
     FrontendIncompatibleError,
     Workflow,
+    _assert_direct_warp_registration,
     _is_swap_candidate,
-    _iter_term_attrs,
     _promote_scene_entity_cfgs,
-    _require_direct_is_warp_task,
     _require_newton_physics,
     _resolve_warp_twin,
     _swap_mdp,
-    _walk_attrs,
+    _walk_terms,
 )
 from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
+from isaaclab.utils.configclass import configclass
 
 # ======================================================================
 # Enums
@@ -139,91 +141,15 @@ class TestRequireNewtonPhysics(unittest.TestCase):
 
 
 # ======================================================================
-# _promote_scene_entity_cfgs
+# Configclass fixtures for the walker / swap tests.
 # ======================================================================
+#
+# These mirror the real cfg shape so :func:`_walk_terms` descends into them
+# (it only descends into objects with ``__dataclass_fields__``). Term cfgs
+# use the real :class:`EventTermCfg`/:class:`RewardTermCfg`/:class:`ObservationTermCfg`
+# so the walker's ``isinstance(ManagerTermBaseCfg)`` discriminator yields them.
 
 
-class _Term:
-    """Minimal stand-in for a manager term cfg."""
-
-    def __init__(self, params: dict | None = None, func=None, class_type=None):
-        self.params = params if params is not None else {}
-        if func is not None:
-            self.func = func
-        if class_type is not None:
-            self.class_type = class_type
-
-
-class _Group:
-    """Minimal stand-in for a manager-cfg group (e.g. RewardsCfg)."""
-
-    def __init__(self, **terms: Any):
-        for name, term in terms.items():
-            setattr(self, name, term)
-
-
-class _ObsCfg:
-    def __init__(self, policy: _Group):
-        self.policy = policy
-
-
-def _make_cfg(**groups: Any) -> Any:
-    cfg = types.SimpleNamespace()
-    for name, value in groups.items():
-        setattr(cfg, name, value)
-    return cfg
-
-
-class TestPromoteSceneEntityCfgs(unittest.TestCase):
-    def test_promotes_in_params(self):
-        stable = StableSceneEntityCfg(name="robot", joint_names=["lf_hip"])
-        term = _Term(params={"asset_cfg": stable, "scale": 1.0})
-        cfg = _make_cfg(rewards=_Group(track=term))
-        _promote_scene_entity_cfgs(cfg)
-        promoted = term.params["asset_cfg"]
-        self.assertIsInstance(promoted, WarpSceneEntityCfg)
-        self.assertEqual(promoted.name, "robot")
-        self.assertEqual(promoted.joint_names, ["lf_hip"])
-        # Non-SceneEntityCfg params are untouched.
-        self.assertEqual(term.params["scale"], 1.0)
-
-    def test_skips_already_warp(self):
-        warp = WarpSceneEntityCfg(name="robot")
-        term = _Term(params={"asset_cfg": warp})
-        cfg = _make_cfg(rewards=_Group(t=term))
-        _promote_scene_entity_cfgs(cfg)
-        self.assertIs(term.params["asset_cfg"], warp)  # unchanged identity
-
-    def test_walks_all_term_paths(self):
-        # Drop a stable cfg in every supported group; all should promote.
-        groups = {}
-        terms: list[_Term] = []
-        for group_name in ("rewards", "events", "terminations", "commands", "curriculum"):
-            t = _Term(params={"asset_cfg": StableSceneEntityCfg(name=group_name)})
-            terms.append(t)
-            groups[group_name] = _Group(t=t)
-        # observations is nested as observations.policy
-        obs_term = _Term(params={"asset_cfg": StableSceneEntityCfg(name="obs")})
-        terms.append(obs_term)
-        groups["observations"] = _ObsCfg(policy=_Group(t=obs_term))
-        # actions group also walked
-        act_term = _Term(params={"asset_cfg": StableSceneEntityCfg(name="act")})
-        terms.append(act_term)
-        groups["actions"] = _Group(t=act_term)
-
-        cfg = _make_cfg(**groups)
-        _promote_scene_entity_cfgs(cfg)
-        for t in terms:
-            self.assertIsInstance(t.params["asset_cfg"], WarpSceneEntityCfg)
-
-
-# ======================================================================
-# _swap_mdp
-# ======================================================================
-
-
-# A fake "stable" mdp module the test fixture stands in for
-# ``isaaclab_tasks.<task>.mdp`` — symbols here pretend to live there.
 def _stable_func(env, **params):
     return None
 
@@ -236,9 +162,6 @@ _stable_func.__module__ = "isaaclab_tasks.fake_task.mdp"
 _StableActionCls.__module__ = "isaaclab_tasks.fake_task.mdp"
 
 
-# And a fake warp twin module the test installs into sys.modules under the
-# expected name resolution path. Symbols here pretend to live under
-# ``isaaclab_experimental.envs.mdp`` (the fallback).
 def _warp_twin_func(env, out, **params):
     return None
 
@@ -249,6 +172,158 @@ class _WarpActionCls:
 
 _warp_twin_func.__module__ = "isaaclab_experimental.envs.mdp"
 _WarpActionCls.__module__ = "isaaclab_experimental.envs.mdp"
+
+
+@configclass
+class _PolicyObsGroup:
+    """Stand-in for a per-task ObservationsCfg sub-group (e.g. PolicyCfg)."""
+
+    o1: ObservationTermCfg | None = None
+    o2: ObservationTermCfg | None = None
+
+
+@configclass
+class _ExtraObsGroup:
+    """A second obs group (named arbitrarily) to exercise multi-group walks."""
+
+    o3: ObservationTermCfg | None = None
+
+
+@configclass
+class _ObservationsCfg:
+    policy: _PolicyObsGroup | None = None
+    perception: _ExtraObsGroup | None = None
+
+
+@configclass
+class _RewardsCfg:
+    r1: RewardTermCfg | None = None
+    r2: RewardTermCfg | None = None
+
+
+@configclass
+class _EventsCfg:
+    e1: EventTermCfg | None = None
+
+
+@configclass
+class _CfgFixture:
+    observations: _ObservationsCfg | None = None
+    rewards: _RewardsCfg | None = None
+    events: _EventsCfg | None = None
+
+
+def _term(func=None, params: dict | None = None) -> RewardTermCfg:
+    """Cheap RewardTermCfg builder for tests; the cfg class is irrelevant for swap/walk logic."""
+    return RewardTermCfg(func=func or _stable_func, weight=1.0, params=params or {})
+
+
+# ======================================================================
+# _walk_terms
+# ======================================================================
+
+
+class TestWalkTerms(unittest.TestCase):
+    def test_yields_each_term_with_its_path(self):
+        cfg = _CfgFixture(
+            rewards=_RewardsCfg(r1=_term(), r2=_term()),
+            events=_EventsCfg(e1=EventTermCfg(func=_stable_func, mode="reset")),
+        )
+        # Configclass instances aren't hashable, so collect paths only.
+        paths = {".".join(p) for p, _ in _walk_terms(cfg)}
+        self.assertEqual(paths, {"rewards.r1", "rewards.r2", "events.e1"})
+
+    def test_descends_into_obs_subgroups(self):
+        cfg = _CfgFixture(
+            observations=_ObservationsCfg(
+                policy=_PolicyObsGroup(o1=ObservationTermCfg(func=_stable_func)),
+                perception=_ExtraObsGroup(o3=ObservationTermCfg(func=_stable_func)),
+            ),
+        )
+        paths = {".".join(p) for p, _ in _walk_terms(cfg)}
+        # Discovery is purely type-driven; no obs group name is hardcoded.
+        self.assertEqual(paths, {"observations.policy.o1", "observations.perception.o3"})
+
+    def test_stops_at_terms(self):
+        # The walker must not descend into term.params / term.func — yields the term itself.
+        nested_se_cfg = StableSceneEntityCfg(name="robot")
+        cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(params={"asset_cfg": nested_se_cfg})))
+        terms = list(_walk_terms(cfg))
+        self.assertEqual(len(terms), 1)
+        _, term = terms[0]
+        self.assertIsInstance(term, RewardTermCfg)
+
+    def test_skips_non_configclass_attrs(self):
+        # A namespace without __dataclass_fields__ is not descended into.
+        cfg = types.SimpleNamespace(some_plain_attr="hello")
+        self.assertEqual(list(_walk_terms(cfg)), [])
+
+    def test_skips_none_subtrees(self):
+        cfg = _CfgFixture(rewards=None, events=None)
+        self.assertEqual(list(_walk_terms(cfg)), [])
+
+
+# ======================================================================
+# _promote_scene_entity_cfgs
+# ======================================================================
+
+
+class TestPromoteSceneEntityCfgs(unittest.TestCase):
+    def test_promotes_in_params(self):
+        cfg = _CfgFixture(
+            rewards=_RewardsCfg(
+                r1=_term(params={"asset_cfg": StableSceneEntityCfg(name="robot", joint_names=["lf_hip"]), "scale": 1.0})
+            )
+        )
+        _promote_scene_entity_cfgs(cfg)
+        promoted = cfg.rewards.r1.params["asset_cfg"]
+        self.assertIsInstance(promoted, WarpSceneEntityCfg)
+        self.assertEqual(promoted.name, "robot")
+        self.assertEqual(promoted.joint_names, ["lf_hip"])
+        # Non-SceneEntityCfg params are untouched.
+        self.assertEqual(cfg.rewards.r1.params["scale"], 1.0)
+
+    def test_skips_already_warp(self):
+        # configclass init deep-copies params, so identity won't hold across
+        # construction; what we actually want to assert is "no re-promotion":
+        # the asset_cfg remains a WarpSceneEntityCfg (i.e., wasn't passed
+        # back through `from_stable`).
+        warp = WarpSceneEntityCfg(name="robot", joint_names=["lf_hip"])
+        cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(params={"asset_cfg": warp})))
+        before = cfg.rewards.r1.params["asset_cfg"]
+        _promote_scene_entity_cfgs(cfg)
+        after = cfg.rewards.r1.params["asset_cfg"]
+        self.assertIsInstance(after, WarpSceneEntityCfg)
+        # The asset_cfg object was not replaced by another from_stable call.
+        self.assertIs(after, before)
+
+    def test_walks_all_term_groups(self):
+        cfg = _CfgFixture(
+            rewards=_RewardsCfg(r1=_term(params={"asset_cfg": StableSceneEntityCfg(name="r")})),
+            events=_EventsCfg(
+                e1=EventTermCfg(func=_stable_func, mode="reset", params={"asset_cfg": StableSceneEntityCfg(name="e")})
+            ),
+            observations=_ObservationsCfg(
+                policy=_PolicyObsGroup(
+                    o1=ObservationTermCfg(func=_stable_func, params={"asset_cfg": StableSceneEntityCfg(name="o-pol")})
+                ),
+                perception=_ExtraObsGroup(
+                    o3=ObservationTermCfg(func=_stable_func, params={"asset_cfg": StableSceneEntityCfg(name="o-per")})
+                ),
+            ),
+        )
+        _promote_scene_entity_cfgs(cfg)
+        self.assertIsInstance(cfg.rewards.r1.params["asset_cfg"], WarpSceneEntityCfg)
+        self.assertIsInstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
+        self.assertIsInstance(cfg.observations.policy.o1.params["asset_cfg"], WarpSceneEntityCfg)
+        # The perception sub-group is reached even though its attribute name is
+        # not hardcoded in the framework.
+        self.assertIsInstance(cfg.observations.perception.o3.params["asset_cfg"], WarpSceneEntityCfg)
+
+
+# ======================================================================
+# _swap_mdp
+# ======================================================================
 
 
 class _FakeMdpModule:
@@ -265,8 +340,6 @@ class TestSwapMdp(unittest.TestCase):
         return m
 
     def _patched_warp_mdp_modules(self, modules: list[Any]):
-        # Patch _warp_mdp_modules at the frontend module level so _swap_mdp
-        # uses our fake module list instead of doing real importlib lookups.
         import isaaclab_experimental.envs.frontend as fe
 
         self._orig = fe._warp_mdp_modules
@@ -284,34 +357,32 @@ class TestSwapMdp(unittest.TestCase):
     def test_swaps_func_and_class_type(self):
         fake = self._patch_modules({"_stable_func": _warp_twin_func, "_StableActionCls": _WarpActionCls})
         self._patched_warp_mdp_modules([fake])
-        term_reward = _Term(func=_stable_func)
-        term_action = _Term(class_type=_StableActionCls)
-        cfg = _make_cfg(rewards=_Group(r=term_reward), actions=_Group(a=term_action))
+        term_reward = _term(func=_stable_func)
+        term_action = _term()
+        term_action.class_type = _StableActionCls  # set attr to exercise class_type swap
+        cfg = _CfgFixture(rewards=_RewardsCfg(r1=term_reward, r2=term_action))
         _swap_mdp(cfg, "Isaac-Test-v0")
-        self.assertIs(term_reward.func, _warp_twin_func)
-        self.assertIs(term_action.class_type, _WarpActionCls)
+        self.assertIs(cfg.rewards.r1.func, _warp_twin_func)
+        self.assertIs(cfg.rewards.r2.class_type, _WarpActionCls)
 
     def test_missing_twin_raises_with_path_list(self):
-        # No twins available — every term should be reported as missing.
         fake = self._patch_modules({})
         self._patched_warp_mdp_modules([fake])
-        term = _Term(func=_stable_func)
-        cfg = _make_cfg(rewards=_Group(track=term))
+        cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(func=_stable_func)))
         with self.assertRaises(FrontendIncompatibleError) as exc:
             _swap_mdp(cfg, "Isaac-Test-v0")
         msg = str(exc.exception)
-        self.assertIn("rewards.track.func", msg)
+        self.assertIn("rewards.r1.func", msg)
         self.assertIn("_stable_func", msg)
-        # The cfg term wasn't mutated (we hard-failed before partial application).
-        self.assertIs(term.func, _stable_func)
+        # The cfg term wasn't mutated for the missing twin.
+        self.assertIs(cfg.rewards.r1.func, _stable_func)
 
     def test_skips_already_warp(self):
         fake = self._patch_modules({})
         self._patched_warp_mdp_modules([fake])
-        term = _Term(func=_warp_twin_func)  # already warp-origin
-        cfg = _make_cfg(rewards=_Group(r=term))
+        cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(func=_warp_twin_func)))
         _swap_mdp(cfg, "Isaac-Test-v0")  # no raise
-        self.assertIs(term.func, _warp_twin_func)
+        self.assertIs(cfg.rewards.r1.func, _warp_twin_func)
 
 
 # ======================================================================
@@ -364,7 +435,7 @@ _DIRECT_TEST_TASKS = {
 }
 
 
-class TestRequireDirectIsWarpTask(unittest.TestCase):
+class TestAssertDirectWarpRegistration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Register stub tasks so ``gym.spec`` resolves them. Entry-point strings
@@ -376,41 +447,19 @@ class TestRequireDirectIsWarpTask(unittest.TestCase):
                 gym.register(id=task_id, entry_point=ep, disable_env_checker=True)
                 cls._registered.append(task_id)
             except gym.error.Error:
-                # Already registered from a previous run — that's fine.
                 pass
 
     def test_accepts_warp_rooted(self):
-        _require_direct_is_warp_task("_Frontend-Test-Warp-Direct-v0")  # no raise
+        _assert_direct_warp_registration("_Frontend-Test-Warp-Direct-v0")  # no raise
 
     def test_rejects_stable_rooted(self):
         with self.assertRaises(FrontendIncompatibleError) as exc:
-            _require_direct_is_warp_task("_Frontend-Test-Stable-Direct-v0")
+            _assert_direct_warp_registration("_Frontend-Test-Stable-Direct-v0")
         self.assertIn("isaaclab_experimental", str(exc.exception))
 
     def test_rejects_unknown_task(self):
         with self.assertRaises(FrontendIncompatibleError):
-            _require_direct_is_warp_task("Frontend-Test-NotRegistered-v0")
-
-
-# ======================================================================
-# Walk helpers
-# ======================================================================
-
-
-class TestWalkHelpers(unittest.TestCase):
-    def test_walk_attrs_hit(self):
-        root = types.SimpleNamespace(a=types.SimpleNamespace(b=types.SimpleNamespace(c=42)))
-        self.assertEqual(_walk_attrs(root, ("a", "b", "c")), 42)
-
-    def test_walk_attrs_miss(self):
-        root = types.SimpleNamespace(a=types.SimpleNamespace())
-        self.assertIsNone(_walk_attrs(root, ("a", "missing")))
-        self.assertIsNone(_walk_attrs(root, ("missing", "b")))
-
-    def test_iter_term_attrs_skips_dunders_and_none(self):
-        g = types.SimpleNamespace(t1=_Term(), t2=None, _internal=_Term())
-        names = sorted(n for n, _ in _iter_term_attrs(g))
-        self.assertEqual(names, ["t1"])
+            _assert_direct_warp_registration("Frontend-Test-NotRegistered-v0")
 
 
 if __name__ == "__main__":

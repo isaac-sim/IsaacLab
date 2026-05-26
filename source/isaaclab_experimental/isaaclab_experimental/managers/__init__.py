@@ -17,7 +17,6 @@ from .event_manager import EventManager  # noqa: F401
 
 # Override the stable implementation with the experimental fork.
 from .manager_base import ManagerTermBase  # noqa: F401
-from .manager_term_cfg import ObservationTermCfg, RewardTermCfg, TerminationTermCfg  # noqa: F401
 from .observation_manager import ObservationManager  # noqa: F401
 from .reward_manager import RewardManager  # noqa: F401
 from .scene_entity_cfg import SceneEntityCfg  # noqa: F401

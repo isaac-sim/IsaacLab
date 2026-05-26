@@ -218,12 +218,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the log directory for the environment (works for all environment types)
         env_cfg.log_dir = log_dir
 
-        # Build the env via the selected frontend. The warp frontend mutates env_cfg
-        # in place (SceneEntityCfg promotion + MDP func/class_type swap) and then
-        # constructs ``ManagerBasedRLEnvWarp``; missing warp twins are a hard failure.
-        # When ``isaaclab_experimental`` isn't installed, the argparse step above
-        # has already constrained --frontend to ``torch``, so the plain ``gym.make``
-        # fallback is safe.
+        # Build the env via the selected frontend. Warp adapts env_cfg in place;
+        # missing warp twins are a hard failure.
         render_mode = "rgb_array" if args_cli.video else None
         if _frontend_build is not None:
             env = _frontend_build(args_cli.frontend, env_cfg, args_cli.task, render_mode=render_mode)

@@ -26,11 +26,11 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 import isaaclab.utils.string as string_utils
+from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
 
-from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 # import omni.timeline

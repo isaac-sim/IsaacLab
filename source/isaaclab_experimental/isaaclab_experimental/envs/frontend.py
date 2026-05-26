@@ -75,18 +75,6 @@ class FrontendIncompatibleError(RuntimeError):
 # the warp packages. Used by the direct-workflow guard.
 _WARP_ROOT_PREFIXES: tuple[str, ...] = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
-# Term containers walked by the cfg-adaptation step. Actions are included so
-# the swap logic handles ``class_type`` and ``func`` in one pass.
-_TERM_PATHS: tuple[tuple[str, ...], ...] = (
-    ("observations", "policy"),
-    ("events",),
-    ("rewards",),
-    ("terminations",),
-    ("commands",),
-    ("curriculum",),
-    ("actions",),
-)
-
 
 def build(
     frontend: Frontend | str,
@@ -119,7 +107,7 @@ def build(
     if workflow is Workflow.DIRECT:
         # Direct workflows aren't adapted — they must already be registered
         # under the warp packages (e.g. ``Isaac-Cartpole-Direct-Warp-v0``).
-        _require_direct_is_warp_task(task_id)
+        _assert_direct_warp_registration(task_id)
         return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
 
     _adapt_cfg_for_warp(env_cfg, task_id)
@@ -148,11 +136,12 @@ def _adapt_cfg_for_warp(cfg: Any, task_id: str) -> None:
        :class:`~isaaclab.managers.SceneEntityCfg` instances under each term's
        ``params`` with the warp variant (which adds warp-cached ``joint_mask``,
        ``joint_ids_wp``, ``body_ids_wp`` fields).
-    3. :func:`_swap_mdp` — for every MDP term in every group (observations,
-       events, rewards, terminations, commands, curriculum, actions), replace
-       any stable ``func`` *or* ``class_type`` with its same-named warp twin.
-       A missing twin raises :class:`FrontendIncompatibleError` — partial
-       coverage is unsafe under the warp managers' kernel-only signature.
+    3. :func:`_swap_mdp` — for every MDP term found anywhere in the cfg tree
+       (discovered by :func:`_walk_terms` via :class:`ManagerTermBaseCfg`
+       subclassing, not by hard-coded attribute names), replace any stable
+       ``func`` *or* ``class_type`` with its same-named warp twin. A missing
+       twin raises :class:`FrontendIncompatibleError` — partial coverage is
+       unsafe under the warp managers' kernel-only signature.
     """
     _require_newton_physics(cfg, task_id)
     _promote_scene_entity_cfgs(cfg)
@@ -183,8 +172,8 @@ def _require_newton_physics(cfg: Any, task_id: str) -> None:
 def _promote_scene_entity_cfgs(cfg: Any) -> None:
     """Replace stable :class:`SceneEntityCfg` instances with the warp variant.
 
-    Walks every ``term.params: dict`` under each term group and rebuilds any
-    stable :class:`SceneEntityCfg` value via
+    Iterates every term cfg in the tree (via :func:`_walk_terms`) and rebuilds
+    any stable :class:`SceneEntityCfg` value under ``term.params`` through
     :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable`. The
     warp variant subclasses the stable one, so type checks elsewhere stay
     valid; the new fields (``joint_mask`` / ``joint_ids_wp`` / ``body_ids_wp``)
@@ -192,35 +181,42 @@ def _promote_scene_entity_cfgs(cfg: Any) -> None:
     """
     from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as _WarpSceneEntityCfg
 
-    promoted = 0
-    for path in _TERM_PATHS:
-        group = _walk_attrs(cfg, path)
-        if group is None:
+    promoted: list[str] = []
+    for path, term in _walk_terms(cfg):
+        params = getattr(term, "params", None)
+        if not isinstance(params, dict):
             continue
-        for _name, term in _iter_term_attrs(group):
-            params = getattr(term, "params", None)
-            if not isinstance(params, dict):
+        for key, value in list(params.items()):
+            if isinstance(value, _WarpSceneEntityCfg) or not isinstance(value, _StableSceneEntityCfg):
                 continue
-            for key, value in list(params.items()):
-                if isinstance(value, _WarpSceneEntityCfg) or not isinstance(value, _StableSceneEntityCfg):
-                    continue
-                params[key] = _WarpSceneEntityCfg.from_stable(value)
-                promoted += 1
+            params[key] = _WarpSceneEntityCfg.from_stable(value)
+            promoted.append(f"{'.'.join(path)}.params[{key!r}] ({value.name!r})")
     if promoted:
-        logger.info("frontend.warp: promoted %d SceneEntityCfg instance(s) to warp variant", promoted)
+        logger.info(
+            "frontend.warp: promoted %d SceneEntityCfg instance(s) to warp variant:\n  %s",
+            len(promoted),
+            "\n  ".join(promoted),
+        )
 
 
 def _swap_mdp(cfg: Any, task_id: str) -> None:
     """Replace ``term.func`` and ``term.class_type`` with their warp twins.
 
-    Walks the same term paths used by :func:`_promote_scene_entity_cfgs` and
-    on each term swaps whichever of ``func`` / ``class_type`` is set to a
-    stable-origin symbol. Twin lookup is name-based against the task's
-    matching ``isaaclab_tasks_experimental.<...>.mdp`` module and, as a
-    fallback, :mod:`isaaclab_experimental.envs.mdp`. Any missing twin raises
+    Iterates every term cfg in the tree (via :func:`_walk_terms`) and on each
+    term swaps whichever of ``func`` / ``class_type`` is a stable-origin
+    callable. Twin lookup is name-based against the task's matching
+    ``isaaclab_tasks_experimental.<...>.mdp`` module and, as a fallback,
+    :mod:`isaaclab_experimental.envs.mdp`. Any missing twin raises
     :class:`FrontendIncompatibleError` listing every affected term — partial
     swaps would leave torch-style callables in the cfg and the warp managers
     would call them with the wrong signature.
+
+    The warp-side side declarations (``out_dim``, ``axes``, ``observation_type``)
+    that the warp managers need at init are *not* supplied by this swap; they
+    travel with the warp twin function itself via its own
+    ``@generic_io_descriptor_warp(out_dim=…)`` decorator. This function only
+    substitutes the callable; the manager reads the new func's annotations
+    when it parses the term cfg.
     """
     modules = _warp_mdp_modules(task_id)
     searched = tuple(m.__name__ for m in modules)
@@ -228,22 +224,18 @@ def _swap_mdp(cfg: Any, task_id: str) -> None:
 
     swapped = 0
     missing: list[tuple[str, str, str]] = []  # (location, attr, symbol)
-    for path in _TERM_PATHS:
-        group = _walk_attrs(cfg, path)
-        if group is None:
-            continue
-        location_prefix = ".".join(path)
-        for name, term in _iter_term_attrs(group):
-            for attr in ("func", "class_type"):
-                stable = getattr(term, attr, None)
-                if stable is None or not _is_swap_candidate(stable):
-                    continue
-                twin = _resolve_warp_twin(stable.__name__, modules)
-                if twin is None:
-                    missing.append((f"{location_prefix}.{name}", attr, stable.__name__))
-                    continue
-                setattr(term, attr, twin)
-                swapped += 1
+    for path, term in _walk_terms(cfg):
+        location = ".".join(path)
+        for attr in ("func", "class_type"):
+            stable = getattr(term, attr, None)
+            if stable is None or not _is_swap_candidate(stable):
+                continue
+            twin = _resolve_warp_twin(stable.__name__, modules)
+            if twin is None:
+                missing.append((location, attr, stable.__name__))
+                continue
+            setattr(term, attr, twin)
+            swapped += 1
 
     if missing:
         lines = "\n  ".join(f"{loc}.{attr}: no warp twin for {sym!r}" for loc, attr, sym in missing)
@@ -260,7 +252,13 @@ def _swap_mdp(cfg: Any, task_id: str) -> None:
 
 
 def _detect_workflow(cfg: Any) -> Workflow:
-    """Classify the env cfg into manager-based or direct (used to pick build path)."""
+    """Classify the env cfg into manager-based or direct (used to pick build path).
+
+    Note:
+        The four env cfg roots (ManagerBasedEnvCfg, ManagerBasedRLEnvCfg,
+        DirectRLEnvCfg, DirectMARLEnvCfg) do not share a common base class.
+        When a new cfg root is added, extend the isinstance tuples below.
+    """
     if isinstance(cfg, ManagerBasedRLEnvCfg):
         return Workflow.MANAGER_BASED
     if isinstance(cfg, (DirectRLEnvCfg, DirectMARLEnvCfg)):
@@ -271,7 +269,7 @@ def _detect_workflow(cfg: Any) -> Workflow:
     )
 
 
-def _require_direct_is_warp_task(task_id: str) -> None:
+def _assert_direct_warp_registration(task_id: str) -> None:
     """For direct workflows, the task must be pre-registered under the warp packages."""
     try:
         spec = gym.spec(task_id)
@@ -352,22 +350,38 @@ def _is_swap_candidate(value: Any) -> bool:
     return True
 
 
-def _walk_attrs(root: Any, path: tuple[str, ...]) -> Any:
-    """Walk ``root.<path[0]>.<path[1]>…``; return ``None`` on any miss."""
-    node = root
-    for attr in path:
-        node = getattr(node, attr, None)
-        if node is None:
-            return None
-    return node
+def _walk_terms(node: Any, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[str, ...], Any]]:
+    """Yield ``(path, term)`` for every :class:`ManagerTermBaseCfg` in the cfg tree.
 
+    Behavior at each node:
 
-def _iter_term_attrs(group: Any) -> Iterator[tuple[str, Any]]:
-    """Yield ``(name, term)`` pairs from a manager-cfg group, skipping dunders/Nones."""
-    if group is None:
+    * Match (:class:`ManagerTermBaseCfg` instance): yield ``(path, node)`` and stop —
+      do not descend into ``term.params`` / ``term.func``.
+    * Configclass: don't yield; recurse into every non-underscore attribute,
+      extending the path. ``observations``, ``rewards``, ``events``, sub-groups
+      like ``observations.policy`` / ``observations.perception``, and anything
+      nested deeper are reached transparently.
+    * Anything else (plain Python data, callables, non-configclass objects):
+      stop. No yield, no recursion.
+
+    Driven entirely by type — no attribute names are hardcoded — so future
+    cfg layouts (extra observation groups, new nesting, etc.) are picked up
+    automatically as long as their terms subclass :class:`ManagerTermBaseCfg`.
+    """
+    from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
+
+    if isinstance(node, ManagerTermBaseCfg):
+        yield path, node
         return
-    for name in [n for n in dir(group) if not n.startswith("_")]:
-        term = getattr(group, name, None)
-        if term is None:
+    if not hasattr(node, "__dataclass_fields__"):
+        return
+    for name in dir(node):
+        if name.startswith("_"):
             continue
-        yield name, term
+        try:
+            value = getattr(node, name, None)
+        except Exception:  # noqa: BLE001 — defensive; some descriptors can raise on attribute access
+            continue
+        if value is None:
+            continue
+        yield from _walk_terms(value, path + (name,))

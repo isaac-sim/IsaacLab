@@ -55,6 +55,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import class_to_dict
 
 from isaaclab_experimental.utils import modifiers, noise
@@ -62,7 +63,6 @@ from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
