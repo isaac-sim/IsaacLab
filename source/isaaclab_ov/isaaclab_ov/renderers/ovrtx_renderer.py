@@ -733,7 +733,11 @@ class OVRTXRenderer(BaseRenderer):
         self._object_binding = None
 
         if self._renderer:
-            self._renderer.reset_stage()
+            try:
+                self._renderer.reset_stage()
+            except Exception as e:
+                logger.warning("Error resetting stage: %s", e)
+
             self._renderer = None
 
         self._render_product_paths.clear()
