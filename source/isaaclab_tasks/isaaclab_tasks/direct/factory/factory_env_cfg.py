@@ -130,7 +130,7 @@ class FactoryPhysicsCfg(PresetCfg):
         ),
         # 1.04 ms substep dt; re-collide every 2 substeps (4x per tick).
         num_substeps=8,
-        collision_substeps=2,
+        collision_decimation=2,
         use_cuda_graph=True,
     )
     default = physx
