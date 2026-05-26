@@ -29,7 +29,7 @@ concurrency:
 jobs:
   test-fabric-multi-gpu:
     name: FabricFrameView multi-GPU unit tests
-    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 60
     steps:
       - name: Checkout repository
