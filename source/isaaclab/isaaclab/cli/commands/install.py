@@ -474,7 +474,7 @@ VALID_EXTRA_FEATURES: set[str] = {
 MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
 
 
-def _split_install_items(install_type: str) -> list[str]:
+def split_install_items(install_type: str) -> list[str]:
     """Split comma-separated install items, ignoring commas inside brackets."""
     parts: list[str] = []
     buf: list[str] = []
@@ -838,7 +838,7 @@ def command_install(install_type: str = "all") -> None:
         # Core only — no optional submodules, no extra features.
         pass
     else:
-        for token in _split_install_items(install_type):
+        for token in split_install_items(install_type):
             if "[" in token:
                 bracket_pos = token.index("[")
                 name = token[:bracket_pos].strip()
