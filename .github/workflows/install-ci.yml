@@ -132,10 +132,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - uses: ./.github/actions/install-ci-collect
+      - name: Show Collected Tests
+        uses: ./.github/actions/install-ci-collect
         with:
           test-filter: ${{ inputs.test_filter }}
-      - uses: ./.github/actions/install-ci-run
+      - name: Run Tests
+        uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
@@ -149,10 +151,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - uses: ./.github/actions/install-ci-collect
+      - name: Show Collected Tests
+        uses: ./.github/actions/install-ci-collect
         with:
           test-filter: ${{ inputs.test_filter }}
-      - uses: ./.github/actions/install-ci-run
+      - name: Run Tests
+        uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
