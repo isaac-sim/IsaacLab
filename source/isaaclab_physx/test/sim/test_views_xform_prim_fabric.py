@@ -266,18 +266,62 @@ def test_set_local_via_fabric_path(device, view_factory):
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_get_scales_fabric_path(device, view_factory):
-    """Exercise the Fabric-native get_scales path."""
+    """Exercise the Fabric-native get_world_scales path."""
     bundle = view_factory(num_envs=1, device=device)
     view = bundle.view
 
-    # Trigger lazy `_initialize_fabric()` so the get_scales call below uses Fabric.
+    # Trigger lazy `_initialize_fabric()` so the get_world_scales call below uses Fabric.
     view.get_world_poses()
 
-    scales = view.get_scales()
+    scales = view.get_world_scales()
     scales_t = torch.as_tensor(scales, device=device)
     # Default scale should be (1, 1, 1)
     expected = torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(scales_t, expected, atol=1e-4, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_local_scales_roundtrip(device, view_factory):
+    """set_local_scales -> get_local_scales roundtrip via localMatrix."""
+    bundle = view_factory(num_envs=2, device=device)
+    view = bundle.view
+
+    # Force Fabric init
+    view.get_world_poses()
+
+    new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
+    view.set_local_scales(new_scales)
+
+    # Should have dirtied world
+    assert view._dirty.name == "WORLD"
+
+    ret_scales = view.get_local_scales()
+    scales_torch = torch.as_tensor(ret_scales, device=device)
+    expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
+    torch.testing.assert_close(scales_torch, expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_world_scales_roundtrip(device, view_factory):
+    """set_world_scales -> get_world_scales roundtrip via worldMatrix."""
+    bundle = view_factory(num_envs=2, device=device)
+    view = bundle.view
+
+    # Force Fabric init
+    view.get_world_poses()
+
+    new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 5.0, 6.0, 7.0], device=device)
+    view.set_world_scales(new_scales)
+
+    # Should have dirtied local
+    assert view._dirty.name == "LOCAL"
+
+    ret_scales = view.get_world_scales()
+    scales_torch = torch.as_tensor(ret_scales, device=device)
+    expected = torch.tensor([[5.0, 6.0, 7.0], [5.0, 6.0, 7.0]], device=device)
+    torch.testing.assert_close(scales_torch, expected, atol=1e-5, rtol=0)
 
 
 # ------------------------------------------------------------------
@@ -397,7 +441,7 @@ def test_initial_seed_with_scaled_parent(device):
         rtol=0,
     )
 
-    scales = torch.as_tensor(view.get_scales(), device=device)
+    scales = torch.as_tensor(view.get_world_scales(), device=device)
     torch.testing.assert_close(
         scales,
         torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device),
@@ -570,9 +614,9 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
 )
 @pytest.mark.parametrize("device", ["cuda:1"])
 def test_fabric_cuda1_scales_roundtrip(device, view_factory):
-    """set_scales -> get_scales roundtrip works on cuda:1.
+    """set_world_scales -> get_world_scales roundtrip works on cuda:1.
 
-    Both write paths (``set_world_poses`` and ``set_scales``) call
+    Both write paths (``set_world_poses`` and ``set_world_scales``) call
     ``_prepare_for_reuse`` and launch on ``self._device``; this test covers
     the scales path on the non-primary CUDA device.
     """
@@ -581,9 +625,9 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-    view.set_scales(new_scales)
+    view.set_world_scales(new_scales)
 
-    ret_scales = view.get_scales()
+    ret_scales = view.get_world_scales()
     scales_torch = torch.as_tensor(ret_scales, device=device)
     expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
     assert torch.allclose(scales_torch, expected, atol=1e-7), f"Scales roundtrip failed on {device}: {scales_torch}"

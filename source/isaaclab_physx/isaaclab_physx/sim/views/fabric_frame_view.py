@@ -390,13 +390,10 @@ class FabricFrameView(BaseFrameView):
     # Scales
     # ------------------------------------------------------------------
 
-    def set_scales(self, scales, indices=None):
-        # TODO(pv): This decomposes/recomposes the *world* matrix, so the scale
-        #   value is the composed (parent × local) scale.  UsdFrameView.set_scales
-        #   writes xformOp:scale which is purely local.  The two diverge when the
-        #   parent has non-identity scale.  Fix: operate on localMatrix instead.
+    def set_world_scales(self, scales, indices=None):
+        """Set world-space (composed) scales by decomposing/recomposing worldMatrix."""
         if not self._use_fabric:
-            self._usd_view.set_scales(scales, indices)
+            self._usd_view.set_world_scales(scales, indices)
             return
 
         if not self._fabric_initialized:
@@ -428,7 +425,7 @@ class FabricFrameView(BaseFrameView):
         # World was just written -- mark local poses as stale.
         self._dirty = _DirtyFlag.LOCAL
 
-    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
+    def get_world_scales(self, indices=None):
         """Return per-prim (sx, sy, sz) scales extracted from world matrix.
 
         .. warning::
@@ -436,9 +433,8 @@ class FabricFrameView(BaseFrameView):
             pre-allocated buffer** that is overwritten on the next call.  Do not
             hold references across calls -- copy if persistence is needed.
         """
-        # TODO(pv): Same world-vs-local divergence as set_scales -- see note above.
         if not self._use_fabric:
-            return self._usd_view.get_scales(indices)
+            return self._usd_view.get_world_scales(indices)
 
         if not self._fabric_initialized:
             self._initialize_fabric()
@@ -471,6 +467,92 @@ class FabricFrameView(BaseFrameView):
         if use_cached:
             wp.synchronize()
         return ProxyArray(scales_wp)
+
+    def set_local_scales(self, scales, indices=None):
+        """Set local-space scales by decomposing/recomposing localMatrix."""
+        if not self._use_fabric:
+            self._usd_view.set_local_scales(scales, indices)
+            return
+
+        if not self._fabric_initialized:
+            self._initialize_fabric()
+
+        # Sync local matrices first if world writes are pending.
+        self._sync_local_from_world_if_dirty()
+
+        indices_wp = self._resolve_indices_wp(indices)
+        scales_wp = self._to_float32_2d_or_empty(scales)
+
+        wp.launch(
+            kernel=fabric_utils.compose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[
+                self._get_local_array(),
+                self._fabric_empty_2d_array_sentinel,
+                self._fabric_empty_2d_array_sentinel,
+                scales_wp,
+                False,
+                False,
+                False,
+                indices_wp,
+            ],
+            device=self._device,
+        )
+        wp.synchronize()
+
+        # Local was just written -- mark world poses as stale.
+        self._dirty = _DirtyFlag.WORLD
+
+    def get_local_scales(self, indices=None):
+        """Return per-prim (sx, sy, sz) scales extracted from local matrix.
+
+        .. warning::
+            When *indices* is None (all prims), the returned array is a **shared
+            pre-allocated buffer** that is overwritten on the next call.  Do not
+            hold references across calls -- copy if persistence is needed.
+        """
+        if not self._use_fabric:
+            return self._usd_view.get_local_scales(indices)
+
+        if not self._fabric_initialized:
+            self._initialize_fabric()
+
+        # Sync local matrices first if world writes are pending.
+        self._sync_local_from_world_if_dirty()
+
+        indices_wp = self._resolve_indices_wp(indices)
+        count = indices_wp.shape[0]
+
+        use_cached = indices is None or indices == slice(None)
+        if use_cached:
+            scales_wp = self._fabric_scales_buf
+        else:
+            scales_wp = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
+
+        wp.launch(
+            kernel=fabric_utils.decompose_indexed_fabric_transforms,
+            dim=count,
+            inputs=[
+                self._get_local_array(),
+                self._fabric_empty_2d_array_sentinel,
+                self._fabric_empty_2d_array_sentinel,
+                scales_wp,
+                indices_wp,
+            ],
+            device=self._device,
+        )
+
+        if use_cached:
+            wp.synchronize()
+        return scales_wp
+
+    def _get_scales_default(self, indices=None):
+        """Fabric default: get_scales returns world scales (backwards compat)."""
+        return self.get_world_scales(indices)
+
+    def _set_scales_default(self, scales, indices=None):
+        """Fabric default: set_scales writes world scales (backwards compat)."""
+        self.set_world_scales(scales, indices)
 
     # ------------------------------------------------------------------
     # Internal -- sync helpers

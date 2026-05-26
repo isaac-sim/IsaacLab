@@ -33,3 +33,14 @@ Added
 
 * Added topology-change recovery via automatic ``PrepareForReuse`` detection
   and per-selection index rebuild.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``get_scales`` / ``set_scales`` on all ``BaseFrameView`` subclasses.
+  Use the new explicit ``get_local_scales`` / ``set_local_scales`` (operates on
+  ``xformOp:scale`` / ``localMatrix``) or ``get_world_scales`` /
+  ``set_world_scales`` (operates on composed world-space scale) instead.
+  The deprecated methods still work but emit a ``DeprecationWarning``;
+  ``UsdFrameView`` defaults to local, ``FabricFrameView`` defaults to world
+  (preserving prior behavior).

@@ -837,6 +837,9 @@ class OvPhysxFrameView(BaseFrameView):
     def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get prim scales from the USD stage's ``xformOp:scale`` attribute.
 
+        .. deprecated::
+            Use :meth:`get_local_scales` or :meth:`get_world_scales` instead.
+
         .. note::
             This reads the *static* USD authored value, not a live physics-state
             value. OVPhysX does not maintain a per-shape ``shape_scale`` array
@@ -851,10 +854,33 @@ class OvPhysxFrameView(BaseFrameView):
         Returns:
             A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
         """
-        return self._ensure_usd_view().get_scales(indices)
+        return self.get_local_scales(indices)
+
+    def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
+        """Get world-space (composed) scales via the USD view."""
+        return self._ensure_usd_view().get_world_scales(indices)
+
+    def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set local-space scales via the USD view."""
+        self._ensure_usd_view().set_local_scales(scales, indices)
+
+    def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set world-space scales via the USD view."""
+        self._ensure_usd_view().set_world_scales(scales, indices)
+
+    def _get_scales_default(self, indices=None):
+        """OvPhysX default: get_scales returns local scales (same as USD)."""
+        return self.get_local_scales(indices)
+
+    def _set_scales_default(self, scales, indices=None):
+        """OvPhysX default: set_scales writes local scales (same as USD)."""
+        self.set_local_scales(scales, indices)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set prim scales by writing the USD ``xformOp:scale`` attribute.
+
+        .. deprecated::
+            Use :meth:`set_local_scales` or :meth:`set_world_scales` instead.
 
         .. note::
             The write lands in the USD stage but does *not* propagate to any
@@ -866,7 +892,7 @@ class OvPhysxFrameView(BaseFrameView):
             scales: Scales ``(M, 3)`` as ``wp.array``.
             indices: Subset of sites to update. ``None`` means all sites.
         """
-        self._ensure_usd_view().set_scales(scales, indices)
+        self.set_local_scales(scales, indices)
 
     def get_visibility(self, indices: wp.array | None = None):
         """Get visibility for prims in the view (USD-backed).

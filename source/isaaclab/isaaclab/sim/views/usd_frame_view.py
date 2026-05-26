@@ -213,8 +213,8 @@ class UsdFrameView(BaseFrameView):
                 if orientations_array is not None:
                     prim.GetAttribute("xformOp:orient").Set(orientations_array[idx])
 
-    def set_scales(self, scales: wp.array, indices: wp.array | None = None):
-        """Set scales for prims in the view.
+    def set_local_scales(self, scales: wp.array, indices: wp.array | None = None):
+        """Set local-space scales (xformOp:scale) for prims in the view.
 
         Args:
             scales: Scales of shape ``(M, 3)``.
@@ -227,6 +227,49 @@ class UsdFrameView(BaseFrameView):
             for idx, prim_idx in enumerate(indices_list):
                 prim = self._prims[prim_idx]
                 prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
+
+    def set_world_scales(self, scales: wp.array, indices: wp.array | None = None):
+        """Set world-space (composed) scales for prims in the view.
+
+        Computes ``local_scale = world_scale / parent_world_scale`` and writes
+        to ``xformOp:scale``.
+
+        Args:
+            scales: World-space scales of shape ``(M, 3)``.
+            indices: Indices of prims to set scales for. Defaults to None (all prims).
+        """
+        indices_list = self._resolve_indices(indices)
+        scales_np = self._to_numpy(scales)
+        xf_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+
+        with Sdf.ChangeBlock():
+            for idx, prim_idx in enumerate(indices_list):
+                prim = self._prims[prim_idx]
+                parent = prim.GetParent()
+                if parent and parent.IsValid():
+                    parent_world = xf_cache.GetLocalToWorldTransform(parent)
+                    parent_scale = Gf.Vec3d(*[parent_world.GetRow(i)[:3] for i in range(3)])
+                    parent_scale = Gf.Vec3d(
+                        Gf.Vec3d(*parent_world.GetRow(0)[:3]).GetLength(),
+                        Gf.Vec3d(*parent_world.GetRow(1)[:3]).GetLength(),
+                        Gf.Vec3d(*parent_world.GetRow(2)[:3]).GetLength(),
+                    )
+                else:
+                    parent_scale = Gf.Vec3d(1.0, 1.0, 1.0)
+                local_scale = Gf.Vec3d(
+                    scales_np[idx][0] / parent_scale[0],
+                    scales_np[idx][1] / parent_scale[1],
+                    scales_np[idx][2] / parent_scale[2],
+                )
+                prim.GetAttribute("xformOp:scale").Set(local_scale)
+
+    def _get_scales_default(self, indices: wp.array | None = None) -> wp.array:
+        """USD default: get_scales returns local scales."""
+        return self.get_local_scales(indices)
+
+    def _set_scales_default(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """USD default: set_scales writes local scales."""
+        self.set_local_scales(scales, indices)
 
     def set_visibility(self, visibility: torch.Tensor, indices: wp.array | None = None):
         """Set visibility for prims in the view.
@@ -308,8 +351,8 @@ class UsdFrameView(BaseFrameView):
         quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
         return ProxyArray(pos_wp), ProxyArray(quat_wp)
 
-    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
-        """Get scales for prims in the view.
+    def get_local_scales(self, indices: wp.array | None = None) -> wp.array:
+        """Get local-space scales (xformOp:scale) for prims in the view.
 
         Args:
             indices: Indices of prims to get scales for. Defaults to None (all prims).
@@ -326,6 +369,31 @@ class UsdFrameView(BaseFrameView):
 
         scales_wp = wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device)
         return ProxyArray(scales_wp)
+
+    def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
+        """Get world-space (composed) scales for prims in the view.
+
+        Computes the effective world-space scale by extracting column lengths
+        from the world transform matrix.
+
+        Args:
+            indices: Indices of prims to get scales for. Defaults to None (all prims).
+
+        Returns:
+            A ``wp.array`` of shape ``(M, 3)``.
+        """
+        indices_list = self._resolve_indices(indices)
+        xf_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+
+        scales = np.empty((len(indices_list), 3), dtype=np.float32)
+        for idx, prim_idx in enumerate(indices_list):
+            prim = self._prims[prim_idx]
+            world_mtx = xf_cache.GetLocalToWorldTransform(prim)
+            scales[idx, 0] = Gf.Vec3d(*world_mtx.GetRow(0)[:3]).GetLength()
+            scales[idx, 1] = Gf.Vec3d(*world_mtx.GetRow(1)[:3]).GetLength()
+            scales[idx, 2] = Gf.Vec3d(*world_mtx.GetRow(2)[:3]).GetLength()
+
+        return wp.array(scales, dtype=wp.float32, device=self._device)
 
     def get_visibility(self, indices: wp.array | None = None) -> torch.Tensor:
         """Get visibility for prims in the view.
