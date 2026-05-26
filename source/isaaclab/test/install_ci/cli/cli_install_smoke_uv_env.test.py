@@ -21,6 +21,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(10)
     def test_isaaclab_sh_uv_creates_env_with_python_312(self, isaaclab_root):
@@ -34,6 +35,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(200)
     def test_isaaclab_none_installs_core_including_assets(self, isaaclab_root):
@@ -59,6 +61,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(300)
     def test_isaaclab_newton_extra_installs_newton_sim(self, isaaclab_root):

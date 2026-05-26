@@ -33,9 +33,9 @@ class Test_Install_Mimic(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_mimic_importable_after_install(self, isaaclab_root):
         """isaaclab_mimic is importable after ./isaaclab.sh -i mimic."""
@@ -52,9 +52,9 @@ class Test_Install_Mimic(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_mimic_not_installed_by_none(self, isaaclab_root):
         """isaaclab_mimic is absent after ./isaaclab.sh -i none (core only)."""
@@ -71,9 +71,9 @@ class Test_Install_Mimic(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_core_still_present_after_mimic_install(self, isaaclab_root):
         """Core packages remain importable after ./isaaclab.sh -i mimic."""

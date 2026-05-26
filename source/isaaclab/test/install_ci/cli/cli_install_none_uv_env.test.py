@@ -51,9 +51,9 @@ class Test_Install_None(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_core_install_all_packages_importable(self, isaaclab_root):
         """All core packages are importable after ./isaaclab.sh -i none."""
@@ -71,9 +71,9 @@ class Test_Install_None(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_core_install_optional_submodules_not_installed(self, isaaclab_root):
         """Optional submodules (mimic, teleop) are absent after -i none."""
@@ -95,10 +95,10 @@ class Test_Install_None(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_core_install_physx_tests_pass(self, isaaclab_root):
         """isaaclab_physx tests pass after core install (physx is always in the core set)."""

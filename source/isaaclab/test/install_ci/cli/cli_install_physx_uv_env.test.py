@@ -33,10 +33,10 @@ class Test_Install_Physx(UV_Mixin):
             if not isaac_sim_link.exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_core_install_includes_physx_and_runs_tests(self, isaaclab_root):
         """./isaaclab.sh -i none installs the core set (including physx) and tests pass."""

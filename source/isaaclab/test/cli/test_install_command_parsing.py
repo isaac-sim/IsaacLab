@@ -13,25 +13,15 @@ without a GPU or Isaac Sim installation.
 from __future__ import annotations
 
 import os
-
-# ---------------------------------------------------------------------------
-# Helpers to import install.py symbols with the isaaclab source root on PATH
-# ---------------------------------------------------------------------------
-import sys
-from pathlib import Path
 from unittest.mock import patch
-
-_ISAACLAB_SRC = Path(__file__).resolve().parents[2]
-if str(_ISAACLAB_SRC) not in sys.path:
-    sys.path.insert(0, str(_ISAACLAB_SRC))
 
 from isaaclab.cli.commands.install import (
     CORE_ISAACLAB_SUBMODULES,
     MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,
     VALID_EXTRA_FEATURES,
-    _split_install_items,
     command_install,
+    split_install_items,
 )
 
 
@@ -49,49 +39,49 @@ class TestSplitInstallItems:
     """Tests for _split_install_items()."""
 
     def test_single_token(self):
-        assert _split_install_items("newton") == ["newton"]
+        assert split_install_items("newton") == ["newton"]
 
     def test_two_plain_tokens(self):
-        assert _split_install_items("newton,mimic") == ["newton", "mimic"]
+        assert split_install_items("newton,mimic") == ["newton", "mimic"]
 
     def test_token_with_selector(self):
-        assert _split_install_items("rl[rsl-rl]") == ["rl[rsl-rl]"]
+        assert split_install_items("rl[rsl-rl]") == ["rl[rsl-rl]"]
 
     def test_comma_inside_brackets_not_split(self):
-        assert _split_install_items("rl[rsl-rl,skrl]") == ["rl[rsl-rl,skrl]"]
+        assert split_install_items("rl[rsl-rl,skrl]") == ["rl[rsl-rl,skrl]"]
 
     def test_mixed_tokens(self):
-        result = _split_install_items("newton,rl[rsl-rl],mimic")
+        result = split_install_items("newton,rl[rsl-rl],mimic")
         assert result == ["newton", "rl[rsl-rl]", "mimic"]
 
     def test_whitespace_stripped(self):
-        assert _split_install_items("newton , mimic") == ["newton", "mimic"]
+        assert split_install_items("newton , mimic") == ["newton", "mimic"]
 
     def test_empty_string(self):
-        assert _split_install_items("") == []
+        assert split_install_items("") == []
 
     def test_all_special_value(self):
-        assert _split_install_items("all") == ["all"]
+        assert split_install_items("all") == ["all"]
 
     def test_none_special_value(self):
-        assert _split_install_items("none") == ["none"]
+        assert split_install_items("none") == ["none"]
 
     def test_visualizer_with_selector(self):
-        assert _split_install_items("visualizer[rerun]") == ["visualizer[rerun]"]
+        assert split_install_items("visualizer[rerun]") == ["visualizer[rerun]"]
 
     def test_multiple_selectors_mixed(self):
-        result = _split_install_items("mimic,visualizer[rerun],rl[rsl-rl]")
+        result = split_install_items("mimic,visualizer[rerun],rl[rsl-rl]")
         assert result == ["mimic", "visualizer[rerun]", "rl[rsl-rl]"]
 
     def test_nested_brackets_depth(self):
         # Depth > 1 should not split on commas.
-        result = _split_install_items("contrib[a[b,c]]")
+        result = split_install_items("contrib[a[b,c]]")
         assert result == ["contrib[a[b,c]]"]
 
     def test_missing_closing_bracket_not_split(self):
         # A malformed token with no closing ']' should come through as one item;
         # the install dispatcher is responsible for emitting the warning.
-        result = _split_install_items("rl[rsl-rl")
+        result = split_install_items("rl[rsl-rl")
         assert result == ["rl[rsl-rl"]
 
 
