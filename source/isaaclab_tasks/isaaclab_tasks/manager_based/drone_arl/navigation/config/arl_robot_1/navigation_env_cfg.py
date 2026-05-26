@@ -337,7 +337,11 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         )
-        self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=2**21)
+        self.sim.physics = PhysxCfg(
+            gpu_max_rigid_contact_count=2**25,
+            gpu_max_rigid_patch_count=2**23,
+            gpu_found_lost_pairs_capacity=2**23,
+        )
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.contact_forces is not None:
