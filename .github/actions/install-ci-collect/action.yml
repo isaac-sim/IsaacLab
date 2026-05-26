@@ -22,13 +22,18 @@ runs:
       shell: bash
       env:
         TEST_FILTER: ${{ inputs.test-filter }}
+        # mirror what the install-tests job sees so docker-only tests are not
+        # silently deselected from the collected list shown in the summary.
+        ISAACLAB_INSTALL_CI_ENV: docker
       run: |
         set -uo pipefail
         venv="$RUNNER_TEMP/collect-venv"
         collected="$RUNNER_TEMP/install-ci-collected.txt"
         python3 -m venv "$venv"
         "$venv/bin/pip" install --quiet pytest pytest-timeout
-        args=( --collect-only -q source/isaaclab/test/install_ci )
+        # -m "not skip" hides tests with @pytest.mark.skip; they would just
+        # report SKIPPED at run time and clutter the collected inventory.
+        args=( --collect-only -q -m "not skip" source/isaaclab/test/install_ci )
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
         rc=${PIPESTATUS[0]}
