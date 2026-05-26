@@ -703,10 +703,13 @@ class stacked_image(ManagerTermBase):
         # K=1 is a documented passthrough; no buffer needed.
         self._buffer: CircularBuffer | None = None
         if frame_stack > 1:
+            # Channel-stack mode: buffer storage is laid out so that .stacked is a free
+            # contiguous reshape into (B, H, W, K*C) -- no per-step permute/reshape alloc.
             self._buffer = CircularBuffer(
                 max_len=frame_stack,
                 batch_size=env.num_envs,
                 device=env.device,
+                stack_dim=-1,
             )
 
     def reset(self, env_ids: torch.Tensor | None = None):
@@ -742,15 +745,7 @@ class stacked_image(ManagerTermBase):
             clone=False,
         )
         self._buffer.append(single_frame)
-
-        b, *spatial, c = single_frame.shape
-        out = torch.empty(
-            (b, *spatial, c * self._buffer.max_length),
-            dtype=single_frame.dtype,
-            device=single_frame.device,
-        )
-        self._buffer.copy_to_stacked(out)
-        return out
+        return self._buffer.stacked
 
 
 """

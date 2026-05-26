@@ -19,22 +19,33 @@ class CircularBuffer:
 
     The shape of the appended data is expected to be (batch_size, ...), where the first dimension is the
     batch dimension. Correspondingly, the shape of the ring buffer is (max_len, batch_size, ...).
+
+    When :paramref:`stack_dim` is set, the internal layout is rearranged so that :attr:`stacked`
+    returns the K frames merged into the chosen dim as a free contiguous view; :meth:`__getitem__`
+    is disabled in this mode.
     """
 
-    def __init__(self, max_len: int, batch_size: int, device: str):
+    def __init__(self, max_len: int, batch_size: int, device: str, stack_dim: int | None = None):
         """Initialize the circular buffer.
 
         Args:
             max_len: The maximum length of the circular buffer. The minimum allowed value is 1.
             batch_size: The batch dimension of the data.
             device: The device used for processing.
+            stack_dim: If set, the buffer arranges its internal storage so :attr:`stacked` returns
+                the K stored frames merged into ``data.shape[stack_dim]`` of the appended data
+                as a free contiguous view. Negative indexing supported; ``0`` is invalid (batch
+                dim). Validation against the actual data rank is deferred to the first
+                :meth:`append`. Defaults to ``None`` (legacy layout).
 
         Raises:
-            ValueError: If the buffer size is less than one.
+            ValueError: If ``max_len < 1`` or ``stack_dim == 0``.
         """
         if max_len < 1:
             raise ValueError(f"The buffer size should be greater than zero. However, it is set to {max_len}!")
-        # set the parameters
+        if stack_dim is not None and stack_dim == 0:
+            raise ValueError("stack_dim must not be 0 (cannot stack along the batch dimension).")
+
         self._batch_size = batch_size
         self._device = device
         self._ALL_INDICES = torch.arange(batch_size, device=device)
@@ -47,6 +58,10 @@ class CircularBuffer:
         self._need_reset: bool = True
         # Lazily allocated on the first ``append``.
         self._buffer: torch.Tensor = None  # type: ignore
+
+        self._stack_dim_arg: int | None = stack_dim
+        # Normalized position of K in internal storage; set on first append. None == legacy mode.
+        self._stack_dim_internal: int | None = None
 
     """
     Properties.
@@ -84,8 +99,32 @@ class CircularBuffer:
             Complete circular buffer with most recent entry at the end and oldest entry at the beginning of
             dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
         """
-        # Storage invariant: oldest at slot 0, newest at slot K-1. Read is a free view.
-        return torch.transpose(self._buffer, dim0=0, dim1=1)
+        if self._stack_dim_internal is None:
+            return torch.transpose(self._buffer, dim0=0, dim1=1)
+        return torch.movedim(self._buffer, source=self._stack_dim_internal, destination=1)
+
+    @property
+    def stacked(self) -> torch.Tensor:
+        """Buffer contents with K frames merged along the configured ``stack_dim``.
+
+        Frames appear in oldest -> newest order along the merged dim. The result is a view of
+        the internal storage; callers must not mutate it.
+
+        Returns:
+            View of shape ``(batch_size, *frame_shape)`` with ``frame_shape[stack_dim]`` multiplied by ``max_length``.
+
+        Raises:
+            RuntimeError: If ``stack_dim`` was not set at construction or no data has been appended.
+        """
+        if self._stack_dim_internal is None:
+            raise RuntimeError(
+                "stacked is only available when CircularBuffer was created with stack_dim set."
+            )
+        if self._buffer is None:
+            raise RuntimeError("The buffer is empty. Please append data before retrieving.")
+        k_pos = self._stack_dim_internal
+        s = self._buffer.shape
+        return self._buffer.reshape(*s[:k_pos], s[k_pos] * s[k_pos + 1], *s[k_pos + 2:])
 
     """
     Operations.
@@ -105,7 +144,10 @@ class CircularBuffer:
         self._num_pushes[batch_ids_resolved] = 0
         self._need_reset = True
         if self._buffer is not None:
-            self._buffer[:, batch_ids_resolved].zero_()
+            if self._stack_dim_internal is None:
+                self._buffer[:, batch_ids_resolved].zero_()
+            else:
+                self._buffer[batch_ids_resolved].zero_()
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -116,47 +158,65 @@ class CircularBuffer:
 
         Raises:
             ValueError: If the input data has a different batch size than the buffer.
+            IndexError: On the first call, if the configured ``stack_dim`` is invalid for the
+                appended data's rank.
         """
         # check the batch size
         if data.shape[0] != self.batch_size:
             raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
 
         data = data.to(self._device)
+
         if self._buffer is None:
-            self._buffer = torch.empty((self._max_len_int, *data.shape), dtype=data.dtype, device=self._device)
-        # Shift older slots up so the newest write always lands at slot K-1.
-        # Iterating front-to-back keeps adjacent-slot copies non-overlapping.
-        for i in range(self._max_len_int - 1):
-            self._buffer[i].copy_(self._buffer[i + 1])
-        self._buffer[-1] = data
+            self._allocate_buffer(data)
+
+        # Shift slots so the newest write lands at the last K slot. Iterating front-to-back
+        # keeps adjacent-slot copies non-overlapping.
+        if self._stack_dim_internal is None:
+            for i in range(self._max_len_int - 1):
+                self._buffer[i].copy_(self._buffer[i + 1])
+            self._buffer[-1] = data
+        else:
+            k_pos = self._stack_dim_internal
+            k = self._max_len_int
+            for i in range(k - 1):
+                self._buffer.narrow(k_pos, i, 1).copy_(self._buffer.narrow(k_pos, i + 1, 1))
+            self._buffer.narrow(k_pos, k - 1, 1).copy_(data.unsqueeze(k_pos))
+
         if self._need_reset:
             is_first_push = self._num_pushes == 0
             if torch.any(is_first_push):
-                self._buffer[:, is_first_push] = data[is_first_push]
+                if self._stack_dim_internal is None:
+                    self._buffer[:, is_first_push] = data[is_first_push]
+                else:
+                    self._buffer[is_first_push] = data[is_first_push].unsqueeze(self._stack_dim_internal)
             self._need_reset = False
+
         self._num_pushes += 1
 
-    def copy_to_stacked(self, out: torch.Tensor) -> None:
-        """Fill a pre-allocated tensor with the buffer contents in oldest-to-newest channel order.
+    def _allocate_buffer(self, data: torch.Tensor) -> None:
+        """Allocate the internal buffer and finalize the storage layout on first append."""
+        if self._stack_dim_arg is None:
+            self._buffer = torch.empty(
+                (self._max_len_int, *data.shape), dtype=data.dtype, device=self._device
+            )
+            return
 
-        The output's last dimension is partitioned into ``max_length`` equal-sized channel slots.
-        Slot 0 receives the oldest stored frame's channels; slot ``max_length - 1`` receives the
-        newest. This avoids the ``permute().reshape()`` non-contiguous allocation that the
-        :attr:`buffer` getter requires for the same effect.
-
-        Args:
-            out: Pre-allocated tensor of shape ``(batch_size, *frame_shape[:-1], max_length * C)``,
-                where ``frame_shape`` is the per-frame shape of appended data and ``C`` is the
-                last-dim size of an appended frame. Will be written into in-place.
-
-        Raises:
-            RuntimeError: If no data has been appended yet.
-        """
-        if self._buffer is None:
-            raise RuntimeError("The buffer is empty. Please append data before retrieving.")
-        c = self._buffer.shape[-1]
-        for k in range(self._max_len_int):
-            out[..., k * c : (k + 1) * c].copy_(self._buffer[k])
+        ndim = data.ndim
+        k_pos = self._stack_dim_arg
+        if k_pos < 0:
+            k_pos += ndim
+        if k_pos < 1 or k_pos >= ndim:
+            raise IndexError(
+                f"stack_dim={self._stack_dim_arg} resolves to position {k_pos} for data with"
+                f" ndim={ndim}; must be in [1, {ndim - 1}] or [-{ndim - 1}, -1]."
+            )
+        self._stack_dim_internal = k_pos
+        self._buffer = torch.empty(
+            (*data.shape[:k_pos], self._max_len_int, *data.shape[k_pos:]),
+            dtype=data.dtype,
+            device=self._device,
+        )
 
     def __getitem__(self, key: torch.Tensor) -> torch.Tensor:
         """Retrieve the data from the circular buffer in last-in-first-out (LIFO) fashion.
@@ -174,7 +234,13 @@ class CircularBuffer:
         Raises:
             ValueError: If the input key has a different batch size than the buffer.
             RuntimeError: If the buffer is empty.
+            NotImplementedError: If the buffer was created with ``stack_dim`` set.
         """
+        if self._stack_dim_internal is not None:
+            raise NotImplementedError(
+                "Indexing via __getitem__ is not supported in stacked-output mode."
+                " Use .stacked or .buffer instead."
+            )
         # check the batch size
         if len(key) != self.batch_size:
             raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")

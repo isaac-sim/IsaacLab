@@ -75,7 +75,11 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         self._stack: CircularBuffer | None = None
         if frame_stack > 1:
-            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device)
+            # Channel-stack mode: buffer storage is laid out so that .stacked is a free
+            # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
+            self._stack = CircularBuffer(
+                max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
+            )
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
@@ -114,12 +118,7 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         if self._stack is not None:
             self._stack.append(obs)
-            # CircularBuffer.buffer is (B, K, C, H, W) oldest->newest along dim 1.
-            # Channel-stack: flatten the adjacent (K, C) dims so the channel axis
-            # reads oldest_C, ..., newest_C.
-            stacked = self._stack.buffer
-            b, k, c, h, w = stacked.shape
-            obs = stacked.reshape(b, k * c, h, w)
+            obs = self._stack.stacked
 
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
