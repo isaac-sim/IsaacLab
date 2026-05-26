@@ -19,9 +19,9 @@ class HydroelasticSDFCfg:
     Hydroelastic contacts generate distributed contact areas instead of point contacts,
     providing more realistic force distribution for manipulation and compliant surfaces.
 
-    For more details, see the `Newton Collisions Guide`_.
+    For more details, see the `Newton hydroelastic contacts guide`_.
 
-    .. _Newton Collisions Guide: https://newton-physics.github.io/newton/latest/concepts/collisions.html#hydroelastic-contacts
+    .. _Newton hydroelastic contacts guide: https://newton-physics.github.io/newton/latest/concepts/collisions.html#hydroelastic-contacts
     """
 
     reduce_contacts: bool = True
@@ -88,9 +88,9 @@ class NewtonCollisionPipelineCfg:
     - Mesh-mesh collision via SDF with contact reduction
     - Optional hydroelastic contact model for compliant surfaces
 
-    For more details, see the `Newton Collisions Guide`_ and `CollisionPipeline API`_.
+    For more details, see the `Newton collision pipeline guide`_ and `CollisionPipeline API`_.
 
-    .. _Newton Collisions Guide: https://newton-physics.github.io/newton/latest/concepts/collisions.html
+    .. _Newton collision pipeline guide: https://newton-physics.github.io/newton/latest/concepts/collisions.html
     .. _CollisionPipeline API: https://newton-physics.github.io/newton/api/_generated/newton.CollisionPipeline.html
     """
 

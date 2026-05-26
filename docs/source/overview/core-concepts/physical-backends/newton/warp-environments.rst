@@ -321,11 +321,4 @@ Migrating Existing Environments
 For step-by-step instructions on porting an existing stable env (or writing a new warp
 env from scratch) — covering project layout, the kernel + launch pattern shared by
 observations / rewards / events / terminations / actions, capture-safety rules, and
-parity testing — see :doc:`warp-env-migration` below.
-
-
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-
-   warp-env-migration
+parity testing — see :doc:`warp-env-migration`.

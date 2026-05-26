@@ -1,6 +1,83 @@
 Changelog
 ---------
 
+0.13.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`, sourced from its native scene-linear color buffer.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch tensor and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+
+Fixed
+^^^^^
+
+* Fixed Newton visualizer camera image views and state updates for PhysX-backed simulations.
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager._backend_is_newton`
+  returning ``False`` when ``PhysicsManager._sim`` was unset but a
+  :class:`~isaaclab.sim.SimulationContext` instance existed. The scene-data
+  provider lookup now consistently falls back to
+  :meth:`~isaaclab.sim.SimulationContext.instance`, via a new
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_scene_data_provider`
+  helper shared with :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`.
+
+
+0.12.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton-specific deformable property and material cfgs.
+* Added Newton deformable asset exports under
+  :mod:`isaaclab_newton.assets.deformable_object`.
+* Added deformable registration hooks to Newton cloning so deformable assets can
+  be added per replicated world while their USD proxy meshes are skipped by the
+  Newton USD importer.
+* Added Newton manager abstraction documentation for adding solver managers and
+  custom coupled solvers.
+
+Changed
+^^^^^^^
+
+* Moved Newton-native actuator USD authoring out of
+  ``isaaclab_newton.actuators.authoring`` (now deleted) into
+  :func:`~isaaclab.sim.schemas.define_actuator_properties`. The authoring step
+  is now invoked via the schema-side ``_post_spawn`` hook on
+  :class:`~isaaclab.assets.AssetBaseCfg`.
+* Grouped :attr:`~isaaclab_newton.physics.NewtonManager._decimation` next to
+  :attr:`~isaaclab_newton.physics.NewtonManager._num_substeps` for consistency
+  with related solver-stepping configuration.
+* Changed Newton solver configuration exports so
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg`,
+  :class:`~isaaclab_newton.physics.XPBDSolverCfg`,
+  :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`, and
+  :class:`~isaaclab_newton.physics.KaminoSolverCfg` are provided from
+  :mod:`isaaclab_newton.physics.newton_manager_cfg`.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` to use
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` as its explicit default
+  solver configuration.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` validation to reject
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` configurations that combine
+  ``use_mujoco_contacts=True`` with ``collision_cfg``. Remove ``collision_cfg``
+  or set ``use_mujoco_contacts=False``.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Fixed
+^^^^^
+
+* Fixed Newton visualization state updates for PhysX-backed simulations.
+* Fixed Newton Fabric synchronization for deformable particle meshes and
+  particle-only scenes.
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  retrieving the wrong simulation context. It now uses
+  :meth:`~isaaclab.sim.SimulationContext.instance` instead of the stale
+  ``PhysicsManager._sim`` reference.
+
+
 0.11.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -116,7 +193,7 @@ Added
   USD stage (via
   :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`)
   and refreshes ``state_0.body_q`` from rigid-body transforms supplied by the
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` each render
+  :class:`~isaaclab.scene_data.SceneDataProvider` each render
   frame.
 
 Changed
@@ -149,7 +226,7 @@ Removed
   (``NewtonSceneDataProvider``). Replace direct uses with
   :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
   :meth:`~isaaclab_newton.physics.NewtonManager.get_state` and the
-  Warp-native :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+  Warp-native :class:`~isaaclab.scene_data.SceneDataProvider`.
 
 Fixed
 ^^^^^

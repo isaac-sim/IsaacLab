@@ -1,6 +1,70 @@
 Changelog
 ---------
 
+1.10.1 (2026-05-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed the stale file-level ``@pytest.mark.xfail`` decorator on
+  ``test_environments_newton`` (the cited Hydra deep-nesting issue was already
+  resolved by PR #5029 and follow-ups #5130 / #5177).
+
+
+1.10.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.preset_cli.enumerate_task_presets` public helper that
+  returns the available preset names for a registered task, bucketed by selector type
+  (``physics=``, ``renderer=``, ``presets=``). Used by tooling such as ``list_envs.py``.
+* Added ``--show_presets`` flag to ``scripts/environments/list_envs.py``. When set, a
+  **Presets** column is added to the environment table showing physics, renderer, and domain
+  preset names available for each environment.
+* Added ``Isaac-Assemble-Trocar-G129-Dex3-v0`` and ``Isaac-Assemble-Trocar-G129-Dex3-Eval-v0``
+  environments for RL fine-tuning of VLA models with RLinf.
+* Added ``ovphysx`` preset to ``isaaclab_tasks.manager_based.locomotion.velocity``
+  for use under the OVPhysX backend. ``AnymalDFlatPhysicsCfg`` now exposes
+  an ``ovphysx`` member, and the shared ``LocomotionVelocityRoughEnvCfg``
+  injects the OVPhysX :class:`~isaaclab_ovphysx.sensors.ContactSensorCfg`
+  alongside the existing PhysX and Newton entries so the velocity task
+  selects the right contact sensor backend when run with
+  ``presets=ovphysx``.
+* Added manager-based Franka soft-body lifting environment
+  ``Isaac-Lift-Soft-Franka-v0`` as the documented rigid-deformable coupling
+  task.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the lazy legacy ``teleop_devices`` (``handtracking`` / ``manusvive``)
+  accessor on
+  :class:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.PickPlaceGR1T2EnvCfg`.
+  The env still exposes ``isaac_teleop`` (an :class:`~isaaclab_teleop.IsaacTeleopCfg`), which is
+  what the in-tree teleoperation, recording, and replay scripts use by default. Consumers that
+  read ``env_cfg.teleop_devices`` directly to build a legacy
+  :class:`~isaaclab.devices.openxr.OpenXRDevice` should construct it themselves or migrate to
+  :class:`~isaaclab_teleop.IsaacTeleopDevice` (see ``scripts/environments/teleoperation/teleop_se3_agent.py``
+  for the migrated pattern).
+* Changed Franka soft-object task configs to use backend-specific deformable cfgs.
+  Use Newton deformable cfgs from :mod:`isaaclab_newton.sim` or PhysX deformable
+  cfgs from :mod:`isaaclab_physx.sim` when customizing these tasks.
+
+Fixed
+^^^^^
+
+* Fixed nested :class:`~isaaclab_tasks.utils.hydra.PresetCfg` resolution so
+  child preset choices are scoped to the selected parent branch.
+* Improved task config resolution time by bypassing Hydra composition when only
+  preset selections or plain scalar overrides are used.
+* Removed the stale file-level ``@pytest.mark.xfail`` decorator on
+  ``test_environments_newton`` (the cited Hydra deep-nesting issue was already
+  resolved by PR #5029 and follow-ups #5130 / #5177).
+
+
 1.9.0 (2026-05-19)
 ~~~~~~~~~~~~~~~~~~
 

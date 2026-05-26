@@ -1,7 +1,7 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-version = "0.11.0"
+version = "0.13.0"
 
 # Description
 title = "Newton simulation interfaces for IsaacLab core package"
@@ -13,6 +13,7 @@ keywords = ["robotics", "simulation", "newton"]
 
 [dependencies]
 "isaaclab" = {}
+"isaaclab_ppisp" = {}
 
 [core]
 reloadable = false

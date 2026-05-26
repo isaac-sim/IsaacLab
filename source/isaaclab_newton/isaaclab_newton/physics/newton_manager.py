@@ -33,14 +33,15 @@ from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
 
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 
-from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -72,6 +73,35 @@ def _set_fabric_transforms(
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
     fabric_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
+
+
+@wp.kernel(enable_backward=False)
+def _sync_particle_points(
+    fabric_points: wp.fabricarrayarray(dtype=wp.vec3f),
+    fabric_world_matrices: wp.fabricarray(dtype=wp.mat44d),
+    offsets: wp.fabricarray(dtype=wp.uint32),
+    counts: wp.fabricarray(dtype=wp.uint32),
+    particle_q: wp.array(dtype=wp.vec3f),
+):
+    """Write Newton particle positions into Fabric mesh point arrays as local-frame points.
+
+    Newton stores particle positions in world space in ``state.particle_q``. The Fabric
+    ``points`` attribute on a ``UsdGeom.Mesh`` is local-space -- Kit multiplies by the
+    mesh prim's resolved ``omni:fabric:worldMatrix`` at render time.
+
+    This kernel inverts the mesh prim's world matrix to convert each world-space particle
+    position into local-space before writing.
+    """
+    i = wp.tid()
+    offset = int(offsets[i])
+    num_points = int(counts[i])
+
+    # Un-transpose Fabric's stored matrix to get the standard homogeneous form
+    world_matrix = wp.transpose(wp.mat44f(fabric_world_matrices[i]))
+    inv_world_matrix = wp.inverse(world_matrix)
+
+    for j in range(num_points):
+        fabric_points[i][j] = wp.transform_point(inv_world_matrix, particle_q[offset + j])
 
 
 @wp.kernel(enable_backward=False)
@@ -217,6 +247,9 @@ class NewtonManager(PhysicsManager):
     _newton_index_attr = "newton:index"
     _clone_physics_only = False
     _transforms_dirty: bool = False
+    _particles_dirty: bool = False
+    _newton_particle_offset_attr = "newton:particleOffset"
+    _newton_particle_count_attr = "newton:particleCount"
 
     # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
     _cubric = None
@@ -232,8 +265,8 @@ class NewtonManager(PhysicsManager):
     # Visualization-only state used when the sim backend is PhysX. Populated
     # lazily in :meth:`_ensure_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
-    _visualization_scene_data: SceneDataFormat.Transform | None = None
-    _visualization_mapping: wp.array | None = None
+    _scene_data: SceneDataFormat.Transform | None = None
+    _scene_data_mapping: wp.array | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -307,6 +340,7 @@ class NewtonManager(PhysicsManager):
     def pre_render(cls) -> None:
         """Flush deferred Fabric writes before cameras/visualizers read the scene."""
         cls.sync_transforms_to_usd()
+        cls.sync_particles_to_usd()
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -407,13 +441,77 @@ class NewtonManager(PhysicsManager):
             logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
 
     @classmethod
-    def _mark_transforms_dirty(cls) -> None:
-        """Flag that physics state has changed and Fabric needs re-sync.
+    def sync_particles_to_usd(cls) -> None:
+        """Write Newton particle_q to Fabric mesh point arrays for Kit viewport rendering.
 
-        Called by :meth:`_simulate` after stepping. The actual sync is deferred
-        to :meth:`sync_transforms_to_usd`, which runs at render cadence.
+        For each deformable body whose mesh prim carries a ``newton:particleOffset``
+        attribute, this function copies the corresponding slice of ``state_0.particle_q``
+        into the Fabric ``points`` array so the Kit viewport reflects the current
+        deformation.
+
+        No-op when there is no ``_usdrt_stage``, no simulation state, or no
+        deformable bodies registered.
+        """
+        if cls._usdrt_stage is None or cls._state_0 is None or cls._state_0.particle_q is None:
+            return
+        if not cls._particles_dirty:
+            return
+        pq = cls._state_0.particle_q
+        try:
+            import usdrt
+
+            selection = cls._usdrt_stage.SelectPrims(
+                require_attrs=[
+                    (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.ReadWrite),
+                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_particle_offset_attr, usdrt.Usd.Access.Read),
+                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_particle_count_attr, usdrt.Usd.Access.Read),
+                    (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
+                ],
+                device=str(PhysicsManager._device),
+            )
+            if selection.GetCount() == 0:
+                return
+            fabric_points = wp.fabricarrayarray(data=selection, attrib="points", dtype=wp.vec3f)
+            fabric_offsets = wp.fabricarray(data=selection, attrib=cls._newton_particle_offset_attr)
+            fabric_counts = wp.fabricarray(data=selection, attrib=cls._newton_particle_count_attr)
+            fabric_world_matrices = wp.fabricarray(data=selection, attrib="omni:fabric:worldMatrix")
+            wp.launch(
+                _sync_particle_points,
+                dim=selection.GetCount(),
+                inputs=[fabric_points, fabric_world_matrices, fabric_offsets, fabric_counts, pq],
+                device=PhysicsManager._device,
+            )
+            NewtonManager._particles_dirty = False
+        except Exception as exc:
+            logger.debug("[sync_particles_to_usd] %s", exc)
+
+    @classmethod
+    def _mark_transforms_dirty(cls) -> None:
+        """Flag that rigid-body transforms have changed and Fabric needs re-sync.
+
+        The actual sync is deferred to :meth:`sync_transforms_to_usd`,
+        which runs at render cadence via :meth:`pre_render`.
         """
         NewtonManager._transforms_dirty = True
+
+    @classmethod
+    def _mark_particles_dirty(cls) -> None:
+        """Flag that particle positions have changed and Fabric needs re-sync.
+
+        The actual sync is deferred to the particle sync callback (if registered),
+        which runs at render cadence via :meth:`pre_render`.
+        """
+        NewtonManager._particles_dirty = True
+
+    @classmethod
+    def _mark_state_dirty(cls) -> None:
+        """Flag that all physics state has changed and Fabric needs re-sync.
+
+        Convenience method that marks both transforms and particles dirty.
+        Called by :meth:`_simulate` after stepping.
+        """
+        cls._mark_transforms_dirty()
+        cls._mark_particles_dirty()
 
     @classmethod
     def step(cls) -> None:
@@ -500,7 +598,7 @@ class NewtonManager(PhysicsManager):
             PhysicsManager._sim_time += physics_dt
 
         if cls._usdrt_stage is not None:
-            cls._mark_transforms_dirty()
+            cls._mark_state_dirty()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -512,7 +610,7 @@ class NewtonManager(PhysicsManager):
         super().close()
 
     @classmethod
-    def get_scene_data_backend(cls) -> SceneDataBackend:
+    def get_scene_data_backend(cls) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
 
@@ -547,9 +645,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def clear(cls):
-        """Clear all Newton-specific state (callbacks cleared by super().close()).
-        Start with solver specific cleanup."""
-        cls._solver_specific_clear()
+        """Clear all Newton-specific state (callbacks cleared by super().close())."""
         if cls._cubric is not None and cls._cubric_adapter is not None:
             cls._cubric.release_adapter(cls._cubric_adapter)
         NewtonManager._cubric = None
@@ -586,9 +682,10 @@ class NewtonManager(PhysicsManager):
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
+        NewtonManager._particles_dirty = False
         NewtonManager._up_axis = "Z"
-        NewtonManager._visualization_scene_data = None
-        NewtonManager._visualization_mapping = None
+        NewtonManager._scene_data = None
+        NewtonManager._scene_data_mapping = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -596,6 +693,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
         NewtonManager._views = []
+        cls._solver_specific_clear()
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
@@ -877,6 +975,7 @@ class NewtonManager(PhysicsManager):
         if cls._pending_extended_contact_attributes:
             cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
             NewtonManager._pending_extended_contact_attributes = set()
+
         NewtonManager._state_0 = cls._model.state()
         NewtonManager._state_1 = cls._model.state()
         NewtonManager._control = cls._model.control()
@@ -902,23 +1001,29 @@ class NewtonManager(PhysicsManager):
             import usdrt
 
             body_paths = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
-            if body_paths is None:
-                raise RuntimeError("NewtonManager: model has no body_label/body_key, skipping USD/Fabric sync for RTX.")
-            NewtonManager._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(body_paths):
-                prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
-                prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-                prim.GetAttribute(cls._newton_index_attr).Set(i)
-                # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
-                # applies Inverse propagation (preserves Newton's world
-                # transforms and derives local) instead of Forward.
-                prim.AddAppliedSchema("PhysicsRigidBodyAPI")
-                xformable_prim = usdrt.Rt.Xformable(prim)
-                if not xformable_prim.HasWorldXform():
-                    xformable_prim.SetWorldXformFromUsd()
+            if not body_paths:
+                logger.warning(
+                    "NewtonManager: model has no rigid bodies (body_label/body_key is empty). "
+                    "USD/Fabric body sync for RTX is skipped. "
+                    "Particle-only scenes (e.g. cloth) must register their own USD mesh update."
+                )
+                NewtonManager._usdrt_stage = None
+            else:
+                NewtonManager._usdrt_stage = get_current_stage(fabric=True)
+                for i, prim_path in enumerate(body_paths):
+                    prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
+                    prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                    prim.GetAttribute(cls._newton_index_attr).Set(i)
+                    # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
+                    # applies Inverse propagation (preserves Newton's world
+                    # transforms and derives local) instead of Forward.
+                    prim.AddAppliedSchema("PhysicsRigidBodyAPI")
+                    xformable_prim = usdrt.Rt.Xformable(prim)
+                    if not xformable_prim.HasWorldXform():
+                        xformable_prim.SetWorldXformFromUsd()
 
-            cls._mark_transforms_dirty()
-            cls.sync_transforms_to_usd()
+                cls._mark_transforms_dirty()
+                cls.sync_transforms_to_usd()
 
     @classmethod
     def instantiate_builder_from_stage(cls):
@@ -1033,7 +1138,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     @abstractmethod
-    def _build_solver(cls, model: Model, solver_cfg: NewtonSolverCfg) -> None:
+    def _build_solver(cls, model: Model, solver_cfg) -> None:
         """Construct the solver this manager owns and assign it onto the base class.
 
         Subclasses must populate the canonical :class:`NewtonManager` slots:
@@ -1062,16 +1167,14 @@ class NewtonManager(PhysicsManager):
         raise NotImplementedError("NewtonManager subclasses must implement _build_solver()")
 
     @classmethod
-    def _step_solver(cls, state_0: State, state_1: State, control: Control, substep_dt: float) -> None:
+    def _step_solver(
+        cls, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
+    ) -> None:
         """Run one solver substep.
 
         Default invokes :attr:`_solver` once.  Subclasses can override to
         batch multiple solvers within a single substep.
         """
-        # Only solvers that consume Newton collision-pipeline contacts receive ``_contacts`` here. Solvers with
-        # internal contact handling receive ``None`` even when ``_contacts`` is allocated for later reporting via
-        # ``solver.update_contacts`` (e.g. MuJoCo with ``use_mujoco_contacts=True``).
-        contacts = cls._contacts if cls._needs_collision_pipeline else None
         cls._solver.step(state_0, state_1, control, contacts, substep_dt)
 
     @classmethod
@@ -1118,17 +1221,13 @@ class NewtonManager(PhysicsManager):
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps
             NewtonManager._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 
-            cls._build_solver(
-                cls._model,
-                cfg.solver_cfg,  # type: ignore[union-attr]
-            )
+            cls._build_solver(cls._model, cfg.solver_cfg)  # type: ignore[union-attr]
             if NewtonManager._solver is None:
                 raise RuntimeError(
                     f"{cls.__name__}._build_solver did not assign NewtonManager._solver. "
                     "Subclasses of NewtonManager must populate NewtonManager._solver, "
                     "NewtonManager._use_single_state, and NewtonManager._needs_collision_pipeline."
                 )
-
             cls._initialize_contacts()
 
         if cls._usdrt_stage is not None:
@@ -1342,17 +1441,17 @@ class NewtonManager(PhysicsManager):
         """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
         if cls._use_single_state:
             for _ in range(cls._num_substeps):
-                cls._solver.step(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
+                cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
                 cls._state_0.clear_forces()
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
             for i in range(cls._num_substeps):
-                cls._solver.step(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
+                cls._step_solver(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
                 if need_copy_on_last and i == cls._num_substeps - 1:
                     cls._state_0.assign(cls._state_1)
                 else:
-                    cls._state_0, cls._state_1 = cls._state_1, cls._state_0
+                    NewtonManager._state_0, NewtonManager._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
 
     @classmethod
@@ -1413,14 +1512,6 @@ class NewtonManager(PhysicsManager):
         cls._run_solver_substeps(contacts)
         cls._update_sensors(contacts)
 
-    @classmethod
-    def get_solver_convergence_steps(cls) -> dict[str, float | int]:
-        """Get the solver convergence steps. Needs to be implemented in solver-specific managers."""
-        if hasattr(cls, "_get_solver_convergence_steps"):
-            return cls._get_solver_convergence_steps()
-        else:
-            raise NotImplementedError("NewtonManager subclasses must implement _get_solver_convergence_steps()")
-
     # State accessors (used extensively by articulation/rigid object data)
     @classmethod
     def get_model(cls) -> Model:
@@ -1442,7 +1533,7 @@ class NewtonManager(PhysicsManager):
         return cls._state_0
 
     @classmethod
-    def get_state(cls) -> State:
+    def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
         """Get the current Newton state for visualization.
 
         Use this method from visualizers/renderers/video recorders that need a
@@ -1453,7 +1544,7 @@ class NewtonManager(PhysicsManager):
         :meth:`update_visualization_state` is a no-op and this is equivalent to
         :meth:`get_state_0`.
         """
-        cls.update_visualization_state()
+        cls.update_visualization_state(scene_data_provider)
         return cls.get_state_0()
 
     @classmethod
@@ -1461,12 +1552,11 @@ class NewtonManager(PhysicsManager):
         return cls._num_envs
 
     @classmethod
-    def _backend_is_newton(cls) -> bool:
+    def _backend_is_newton(cls, scene_data_provider: SceneDataProvider | None = None) -> bool:
         """Return ``True`` when the active sim backend is Newton."""
-        sim = PhysicsManager._sim
-        if sim is None:
-            return False
-        return isinstance(sim.get_scene_data_provider().backend, NewtonSceneDataBackend)
+        if scene_data_provider is not None:
+            return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
+        return isinstance(cls.get_scene_data_provider().backend, NewtonSceneDataBackend)
 
     @classmethod
     def _ensure_visualization_model(cls) -> None:
@@ -1481,7 +1571,7 @@ class NewtonManager(PhysicsManager):
         :meth:`_build_visualization_model_from_stage` and finalizing the resulting
         :class:`~newton.ModelBuilder`. Per-frame body transforms are pushed into
         ``_state_0.body_q`` by :meth:`update_visualization_state` using the new
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+        :class:`~isaaclab.scene_data.SceneDataProvider`.
         """
 
         if cls._model is not None and cls._state_0 is not None:
@@ -1519,8 +1609,8 @@ class NewtonManager(PhysicsManager):
 
         device = PhysicsManager._device or "cpu"
         try:
-            cls._model = builder.finalize(device=device)
-            cls._state_0 = cls._model.state()
+            NewtonManager._model = builder.finalize(device=device)
+            NewtonManager._state_0 = cls._model.state()
             cls._model.num_envs = cls._num_envs
             replace_newton_shape_colors(cls._model)
 
@@ -1529,8 +1619,8 @@ class NewtonManager(PhysicsManager):
                 "[NewtonManager] Failed to finalize the shadow Newton ModelBuilder for "
                 "visualization (sim backend is PhysX)."
             )
-            cls._model = None
-            cls._state_0 = None
+            NewtonManager._model = None
+            NewtonManager._state_0 = None
 
     @classmethod
     def _build_visualization_model_from_stage(cls, stage) -> ModelBuilder | None:
@@ -1668,14 +1758,30 @@ class NewtonManager(PhysicsManager):
         return builder
 
     @classmethod
-    def update_visualization_state(cls) -> None:
+    def get_scene_data_provider(cls) -> SceneDataProvider:
+        """Return the active scene data provider, or None if unavailable.
+
+        Prefers ``PhysicsManager._sim`` when set; otherwise falls back to
+        ``SimulationContext.instance()``.
+        """
+        sim = PhysicsManager._sim
+        if sim is None:
+            from isaaclab.sim import SimulationContext
+
+            sim = SimulationContext.instance()
+
+        assert sim is not None
+        return sim.get_scene_data_provider()
+
+    @classmethod
+    def update_visualization_state(cls, scene_data_provider: SceneDataProvider | None = None) -> None:
         """Refresh visualization state for the active sim backend.
 
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
         already advanced by :meth:`step` / forward kinematics.
 
         PhysX sim backend: pull rigid-body transforms from the
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` and write
+        :class:`~isaaclab.scene_data.SceneDataProvider` and write
         them into the shadow ``_state_0.body_q`` so Newton-native consumers
         (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
         GL video) see fresh poses.
@@ -1683,28 +1789,26 @@ class NewtonManager(PhysicsManager):
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
         """
-        if cls._backend_is_newton():
+
+        if scene_data_provider is None:
+            scene_data_provider = cls.get_scene_data_provider()
+
+        assert scene_data_provider is not None
+
+        if cls._backend_is_newton(scene_data_provider):
             return
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
             return
-        sim = PhysicsManager._sim
-        if sim is None:
-            return
 
-        sdp = sim.get_scene_data_provider()
-        if cls._visualization_scene_data is None:
-            cls._visualization_scene_data = SceneDataFormat.Transform()
-        if cls._visualization_mapping is None:
+        if cls._scene_data is None:
+            cls._scene_data = SceneDataFormat.Transform()
+        if cls._scene_data_mapping is None:
             body_paths = list(getattr(cls._model, "body_label", None) or [])
-            cls._visualization_mapping = sdp.create_mapping(body_paths)
+            cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
-        cls._visualization_scene_data.transforms = cls._state_0.body_q
-        sdp.get_transforms(
-            cls._visualization_scene_data,
-            mapping=cls._visualization_mapping,
-            allow_passthrough=False,
-        )
+        cls._scene_data.transforms = cls._state_0.body_q
+        scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
 
     @classmethod
     def get_state_1(cls) -> State:

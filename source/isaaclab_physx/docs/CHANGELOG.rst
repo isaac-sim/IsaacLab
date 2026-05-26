@@ -1,6 +1,76 @@
 Changelog
 ---------
 
+1.1.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`, sourced from the Replicator ``HdrColor`` annotator.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch buffer and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+* Added a :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` override on :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` that authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each camera prim so RTX-side tonemapping does not double-process the ISP output.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sim.views.FabricFrameView` falling back to
+  the slow USD path on every CUDA device other than ``cuda:0``.  USDRT
+  ``SelectPrims`` now accepts any CUDA device index, so Fabric acceleration
+  runs on the simulation device the view was constructed with (e.g.
+  ``cuda:1``).  This unblocks distributed training where each rank is
+  pinned to a non-primary GPU.
+
+
+1.0.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX-specific deformable property and material cfgs.
+
+Changed
+^^^^^^^
+
+* Reworded the FF-routing comments in
+  :class:`~isaaclab_physx.assets.Articulation` to refer to "actuated DOFs"
+  rather than splitting on implicit vs explicit, since the
+  ``synch_torque_and_apply_implicit_feedforwards`` kernel operates on the full
+  actuated DOF set.
+* **Breaking:** Moved deformable body schema and material APIs from
+  :mod:`isaaclab_physx.sim` to :mod:`isaaclab.sim`, and moved deformable object
+  configuration from :mod:`isaaclab_physx.assets` to :mod:`isaaclab.assets`.
+  Import :class:`~isaaclab.sim.DeformableBodyPropertiesCfg`,
+  :func:`~isaaclab.sim.define_deformable_body_properties`,
+  :func:`~isaaclab.sim.modify_deformable_body_properties`,
+  :class:`~isaaclab.sim.DeformableObjectSpawnerCfg`,
+  :class:`~isaaclab.sim.DeformableBodyMaterialCfg`,
+  :class:`~isaaclab.sim.SurfaceDeformableBodyMaterialCfg`, and
+  :func:`~isaaclab.sim.spawn_deformable_body_material` from :mod:`isaaclab.sim`
+  instead of :mod:`isaaclab_physx.sim`; import
+  :class:`~isaaclab.assets.DeformableObjectCfg` from :mod:`isaaclab.assets`
+  instead of :mod:`isaaclab_physx.assets`.
+* Changed PhysX deformable API documentation to direct users to the
+  backend-neutral :mod:`isaaclab.assets` and :mod:`isaaclab.sim` imports.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated generic PhysX deformable cfg aliases in favor of
+  ``PhysxDeformableBodyPropertiesCfg``, ``PhysxDeformableBodyMaterialCfg``,
+  and ``PhysxSurfaceDeformableBodyMaterialCfg``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.DeformableObject` state writer methods
+  to accept ``ProxyArray`` inputs without requiring manual conversion.
+
+
 0.9.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~
 
@@ -100,7 +170,7 @@ Removed
 
 * **Breaking:** Removed the ``isaaclab_physx.scene_data_providers`` package
   (``PhysxSceneDataProvider``). The Warp-native
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` now exposes
+  :class:`~isaaclab.scene_data.SceneDataProvider` now exposes
   PhysX rigid-body transforms via
   :class:`~isaaclab_physx.physics.PhysxSceneDataBackend`, and the
   PhysX→Newton state sync used by Newton visualizers/renderers moved to

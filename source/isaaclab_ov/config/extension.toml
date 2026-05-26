@@ -1,5 +1,5 @@
 [package]
-version = "0.3.0"
+version = "0.4.1"
 title = "Omniverse renderers for IsaacLab"
 description = "Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for tiled camera rendering."
 readme = "docs/README.md"
@@ -9,3 +9,4 @@ keywords = ["robotics", "simulation", "rendering", "ovrtx", "omniverse"]
 
 [dependencies]
 "isaaclab" = {}
+"isaaclab_ppisp" = {}

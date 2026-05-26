@@ -110,3 +110,10 @@ a {
     text-align: center;
     vertical-align: middle;
 }
+
+.square-crop-figure img {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    object-position: center;
+    width: min(100%, 480px);
+}

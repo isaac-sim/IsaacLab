@@ -224,6 +224,7 @@ autodoc_mock_imports = [
     "hydra.core",
     "hydra.core.config_store",
     "omegaconf",
+    "newton",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
