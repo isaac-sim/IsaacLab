@@ -103,6 +103,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     sim_time = 0.0
     count = 0
 
+    # wheel-velocity templates allocated once on the simulation device; the joint
+    # target setters dispatch to GPU Warp kernels and reject CPU tensors.
+    straight_action = torch.tensor([[10.0, 10.0]], device=sim.device)
+    turn_action = torch.tensor([[5.0, -5.0]], device=sim.device)
+
     while simulation_app.is_running():
         # reset
         if count % 500 == 0:
@@ -142,12 +147,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # drive around
         if count % 100 < 75:
             # Drive straight by setting equal wheel velocities
-            action = torch.Tensor([[10.0, 10.0]])
+            action = straight_action
         else:
             # Turn by applying different velocities
-            action = torch.Tensor([[5.0, -5.0]])
+            action = turn_action
 
-        scene["Jetbot"].set_joint_velocity_target(action)
+        scene["Jetbot"].set_joint_velocity_target_index(target=action)
 
         # wave
         wave_action = scene["Dofbot"].data.default_joint_pos.torch
