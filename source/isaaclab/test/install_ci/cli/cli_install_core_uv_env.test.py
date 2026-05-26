@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test the core install (./isaaclab.sh -i none).
+"""Test the core install (./isaaclab.sh -i core).
 
-``./isaaclab.sh -i none`` installs the always-on core set of submodules without
+``./isaaclab.sh -i core`` installs the always-on core set of submodules without
 any optional submodules (mimic, teleop) or optional extra dependencies
 (newton physics library, RL frameworks, visualizer backends, OV wheels).  All core
 packages must be importable after this install, and training with the default physics
@@ -19,7 +19,7 @@ import shutil
 import pytest
 from utils import UV_Mixin, find_isaaclab_root
 
-# Core packages that must be importable after ``-i none``.
+# Core packages that must be importable after ``-i core``.
 _CORE_PACKAGES = [
     "isaaclab",
     "isaaclab_ppisp",
@@ -37,8 +37,8 @@ _CORE_PACKAGES = [
 ]
 
 
-class Test_Install_None(UV_Mixin):
-    """./isaaclab.sh -i none: core set installed, no optional extras."""
+class Test_Install_Core(UV_Mixin):
+    """./isaaclab.sh -i core: core set installed, no optional extras."""
 
     @classmethod
     def setup_class(cls):
@@ -56,13 +56,13 @@ class Test_Install_None(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
     def test_core_install_all_packages_importable(self, isaaclab_root):
-        """All core packages are importable after ./isaaclab.sh -i none."""
+        """All core packages are importable after ./isaaclab.sh -i core."""
 
         try:
             self.create_uv_env(isaaclab_root)
 
-            result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
-            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
             for pkg in _CORE_PACKAGES:
                 result = self.run_in_uv_env(["python", "-c", f"import {pkg}; print('{pkg} ok')"])
@@ -76,21 +76,21 @@ class Test_Install_None(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
     def test_core_install_optional_submodules_not_installed(self, isaaclab_root):
-        """Optional submodules (mimic, teleop) are absent after -i none."""
+        """Optional submodules (mimic, teleop) are absent after -i core."""
 
         try:
             self.create_uv_env(isaaclab_root)
 
-            result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
-            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
             for pkg in ("isaaclab_mimic", "isaaclab_teleop"):
                 result = self.run_in_uv_env(["python", "-c", f"import {pkg}"])
-                assert result.returncode != 0, f"{pkg} should not be installed after -i none"
+                assert result.returncode != 0, f"{pkg} should not be installed after -i core"
 
             for pkg in ("ovrtx", "ovphysx"):
                 result = self.run_in_uv_env(["python", "-c", f"import {pkg}"])
-                assert result.returncode != 0, f"{pkg} should not be installed after -i none"
+                assert result.returncode != 0, f"{pkg} should not be installed after -i core"
 
         finally:
             self.destroy_uv_env()
@@ -106,8 +106,8 @@ class Test_Install_None(UV_Mixin):
         try:
             self.create_uv_env(isaaclab_root)
 
-            result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
-            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
             test_dir = str(isaaclab_root / "source" / "isaaclab_physx" / "test")
             result = self.run_in_uv_env(

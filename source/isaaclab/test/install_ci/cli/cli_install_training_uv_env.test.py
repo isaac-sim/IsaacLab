@@ -6,7 +6,7 @@
 """End-to-end installation and training workflow tests (uv).
 
 Covers uv-emnv-based installation paths:
-  - uv env + kitless (core-only, ``-i none``)
+  - uv env + kitless (core-only, ``-i core``)
   - uv env + full install (``-i all``)
 """
 
@@ -61,20 +61,20 @@ class TestUVWorkflow(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(900)
-    def test_install_none_installs_core_submodules(self, isaaclab_root):
-        """``./isaaclab.sh -i none`` installs all core submodules without extras."""
+    def test_install_core_installs_core_submodules(self, isaaclab_root):
+        """``./isaaclab.sh -i core`` installs all core submodules without extras."""
         try:
             self.create_uv_env(isaaclab_root)
             result = self.run_in_uv_env(
-                [str(self.cli_script), "-i", "none"],
+                [str(self.cli_script), "-i", "core"],
                 cwd=isaaclab_root,
                 timeout=600,
             )
-            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
             output = result.stdout + result.stderr
             # All core submodules should be installed; no optional tokens should warn
             assert "WARNING" not in output or "Unknown install token" not in output, (
-                f"Unexpected warnings from -i none:\n{output}"
+                f"Unexpected warnings from -i core:\n{output}"
             )
             # Verify core packages importable
             for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_physx"):
@@ -83,7 +83,7 @@ class TestUVWorkflow(UV_Mixin):
                     cwd=isaaclab_root,
                     timeout=60,
                 )
-                assert r.returncode == 0, f"{pkg} not importable after -i none:\n{r.stdout}\n{r.stderr}"
+                assert r.returncode == 0, f"{pkg} not importable after -i core:\n{r.stdout}\n{r.stderr}"
         finally:
             self.destroy_uv_env()
 

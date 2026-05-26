@@ -6,7 +6,7 @@
 """End-to-end installation and training workflow tests (conda).
 
 Covers conda-based installation paths:
-  - conda × kitless (core-only, ``-i none``)
+  - conda × kitless (core-only, ``-i core``)
   - conda × newton training (``-i newton,rl[rsl-rl]``)
 
 Tests in this file are intentionally slow and GPU-dependent.  They are
@@ -69,23 +69,23 @@ class TestCondaWorkflow(Conda_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(1200)
-    def test_conda_none_installs_core_submodules(self, isaaclab_root):
-        """conda + ``./isaaclab.sh -i none`` installs all core submodules without extras."""
+    def test_conda_core_installs_core_submodules(self, isaaclab_root):
+        """conda + ``./isaaclab.sh -i core`` installs all core submodules without extras."""
         try:
             self.create_conda_env(isaaclab_root)
             result = self.run_in_conda_env(
-                [str(self.cli_script), "-i", "none"],
+                [str(self.cli_script), "-i", "core"],
                 cwd=isaaclab_root,
                 timeout=900,
             )
-            assert result.returncode == 0, f"conda isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            assert result.returncode == 0, f"conda isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
             for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_physx"):
                 r = self.run_in_conda_env(
                     [str(self.python), "-c", f"import {pkg}; print({pkg!r}, 'ok')"],
                     cwd=isaaclab_root,
                     timeout=60,
                 )
-                assert r.returncode == 0, f"{pkg} not importable after conda -i none:\n{r.stdout}\n{r.stderr}"
+                assert r.returncode == 0, f"{pkg} not importable after conda -i core:\n{r.stdout}\n{r.stderr}"
         finally:
             self.destroy_conda_env()
 

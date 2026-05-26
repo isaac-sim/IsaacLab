@@ -7,6 +7,14 @@ Added
   ``./isaaclab.sh -i`` can build ``imgui-bundle`` from source without a
   separate provisioning step.
 
+Changed
+^^^^^^^
+
+* Renamed the ``./isaaclab.sh -i none`` core-only install selector to
+  ``./isaaclab.sh -i core`` for clarity (the install still ships the
+  core submodules, so ``"core"`` describes the result better than
+  ``"none"``).
+
 Fixed
 ^^^^^
 

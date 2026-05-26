@@ -464,7 +464,7 @@ def _install_isaacsim() -> None:
     )
 
 
-# Source directories installed on every ./isaaclab.sh -i invocation (even "none").
+# Source directories installed on every ./isaaclab.sh -i invocation (even "core").
 # Order matters: isaaclab must be first so dependents resolve against the local copy,
 # and isaaclab_ppisp must precede the renderer backends (newton/ov/physx) that
 # declare it as an INSTALL_REQUIRES bare-name dep.
@@ -821,7 +821,7 @@ def command_install(install_type: str = "all") -> None:
             * ``"all"`` (default) — install core submodules + optional
               submodules (``mimic``, ``teleop``) + all automatic
               extra features.
-            * ``"none"`` — install core submodules only; no optional
+            * ``"core"`` — install core submodules only; no optional
               submodules, no extra feature dependencies.
             * Comma-separated tokens — install core submodules plus the listed
               optional submodules and extra features. Valid tokens:
@@ -863,11 +863,15 @@ def command_install(install_type: str = "all") -> None:
             if pkg_dir not in submodules_to_install:
                 submodules_to_install.append(pkg_dir)
 
+    # back-compat: "none" is the old name for "core"
+    if install_type == "none":
+        install_type = "core"
+
     if install_type == "all":
         for package_dirs in OPTIONAL_ISAACLAB_SUBMODULES.values():
             append_submodules_once(package_dirs)
         extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
-    elif install_type == "none":
+    elif install_type == "core":
         # Core only — no optional submodules, no extra features.
         pass
     else:

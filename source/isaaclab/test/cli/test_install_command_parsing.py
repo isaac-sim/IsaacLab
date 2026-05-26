@@ -63,7 +63,11 @@ class TestSplitInstallItems:
     def test_all_special_value(self):
         assert split_install_items("all") == ["all"]
 
-    def test_none_special_value(self):
+    def test_core_special_value(self):
+        assert split_install_items("core") == ["core"]
+
+    def test_none_special_value_alias(self):
+        # back-compat: "none" is the old name for "core"
         assert split_install_items("none") == ["none"]
 
     def test_visualizer_with_selector(self):
@@ -233,22 +237,31 @@ class TestCommandInstallDispatch:
         mocks = self._run("all")
         mocks["_install_isaacsim"].assert_not_called()
 
-    # --- "none" ---
+    # --- "core" ---
 
-    def test_none_installs_only_core_submodules(self):
-        mocks = self._run("none")
+    def test_core_installs_only_core_submodules(self):
+        mocks = self._run("core")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         assert set(installed) == set(CORE_ISAACLAB_SUBMODULES)
 
-    def test_none_installs_no_extra_features(self):
-        mocks = self._run("none")
+    def test_core_installs_no_extra_features(self):
+        mocks = self._run("core")
         mocks["_install_extra_feature"].assert_not_called()
 
-    def test_none_does_not_install_optional_submodules(self):
-        mocks = self._run("none")
+    def test_core_does_not_install_optional_submodules(self):
+        mocks = self._run("core")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         for pkg in _optional_submodule_packages():
             assert pkg not in installed
+
+    def test_none_is_alias_for_core(self):
+        # back-compat: "none" is the old name for "core"
+        mocks_none = self._run("none")
+        mocks_core = self._run("core")
+        assert set(mocks_none["_install_isaaclab_submodules"].call_args[0][0]) == set(
+            mocks_core["_install_isaaclab_submodules"].call_args[0][0]
+        )
+        mocks_none["_install_extra_feature"].assert_not_called()
 
     # --- extra features ---
 
@@ -382,8 +395,8 @@ class TestCommandInstallDispatch:
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         assert installed[0] == "isaaclab"
 
-    def test_isaaclab_is_first_in_submodules_for_none(self):
-        mocks = self._run("none")
+    def test_isaaclab_is_first_in_submodules_for_core(self):
+        mocks = self._run("core")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         assert installed[0] == "isaaclab"
 
