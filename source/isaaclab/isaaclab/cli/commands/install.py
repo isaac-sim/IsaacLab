@@ -95,6 +95,33 @@ def _install_system_deps() -> None:
                 cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
                 run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
+        # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a
+        # CMake source build that needs GL/X11 dev headers (via glfw).
+        # Mirrors the apt step in docker/Dockerfile.base.
+        _gl_x11_packages = [
+            "libgl1-mesa-dev",
+            "libopengl-dev",
+            "libglx-dev",
+            "libx11-dev",
+            "libxcursor-dev",
+            "libxi-dev",
+            "libxinerama-dev",
+            "libxrandr-dev",
+        ]
+        if not os.path.isfile("/usr/include/X11/Xlib.h"):
+            if os.geteuid() != 0 and not shutil.which("sudo"):
+                print_info(
+                    "GL/X11 dev headers are missing and sudo is unavailable; "
+                    "skipping install.  Pre-install " + " ".join(_gl_x11_packages) + " "
+                    "if you need to build imgui-bundle from source."
+                )
+            else:
+                print_info("Installing GL/X11 dev headers (required for building imgui-bundle on ARM)...")
+                cmd = ["apt-get", "update"]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+                cmd = ["apt-get", "install", "-y", "--no-install-recommends", *_gl_x11_packages]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+
 
 def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
     """Return True when the first ``torch`` on ``sys.path`` comes from a prebundle directory.
