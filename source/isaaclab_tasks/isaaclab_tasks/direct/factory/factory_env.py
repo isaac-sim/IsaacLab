@@ -324,6 +324,21 @@ class FactoryEnv(DirectRLEnv):
 
         obs_tensors = factory_utils.collapse_obs_dict(obs_dict, self.cfg.obs_order + ["prev_actions"])
         state_tensors = factory_utils.collapse_obs_dict(state_dict, self.cfg.state_order + ["prev_actions"])
+
+        # On Newton, NaN-divergent worlds occasionally surface in obs/state
+        # tensors and poison the policy's normal distribution head ("std must
+        # be >= 0"). Detect, substitute zeros so rl_games keeps running, and
+        # delegate solver-side scrub to NewtonManager (which also queues the
+        # affected envs for a second-pass sanitize at the next reset).
+        if self._is_newton:
+            from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
+
+            nan_mask = torch.isnan(obs_tensors).any(dim=-1) | torch.isnan(state_tensors).any(dim=-1)
+            if nan_mask.any():
+                NewtonManager.flag_nan_envs(nan_mask)
+                obs_tensors = torch.nan_to_num(obs_tensors, nan=0.0)
+                state_tensors = torch.nan_to_num(state_tensors, nan=0.0)
+
         return {"policy": obs_tensors, "critic": state_tensors}
 
     def _reset_buffers(self, env_ids):
@@ -551,6 +566,12 @@ class FactoryEnv(DirectRLEnv):
         for rew_name, rew in rew_dict.items():
             rew_buf += rew_dict[rew_name] * rew_scales[rew_name]
 
+        # On Newton, flagged NaN-divergent worlds may produce NaN rewards
+        # between detection (in _get_observations) and the next reset.
+        # Substitute zeros so the rolling reward signal isn't poisoned.
+        if self._is_newton:
+            rew_buf = torch.nan_to_num(rew_buf, nan=0.0)
+
         self.prev_actions = self.actions.clone()
 
         self._log_factory_metrics(rew_dict, curr_successes)
@@ -622,6 +643,11 @@ class FactoryEnv(DirectRLEnv):
 
     def _reset_idx(self, env_ids):
         """We assume all envs will always be reset at the same time."""
+        if self._is_newton:
+            from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
+
+            NewtonManager.sanitize_pending_nan_envs()
+
         super()._reset_idx(env_ids)
 
         self._set_assets_to_default_pose(env_ids)
