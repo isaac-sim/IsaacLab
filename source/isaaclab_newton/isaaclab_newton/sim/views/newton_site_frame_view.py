@@ -919,32 +919,6 @@ class NewtonSiteFrameView(BaseFrameView):
         """Newton default: set_scales writes shape_scale (world-like)."""
         self.set_world_scales(scales, indices)
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
-        """Get per-site scales by reading from the first collision shape on the same body.
-
-        .. deprecated::
-            Use :meth:`get_local_scales` or :meth:`get_world_scales` instead.
-
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
-
-        Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
-        """
-        return self._get_shape_scales(indices)
-
-    def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set per-site scales by writing to all collision shapes on the same body.
-
-        .. deprecated::
-            Use :meth:`set_local_scales` or :meth:`set_world_scales` instead.
-
-        Args:
-            scales: New scales ``(M, 3)`` as ``wp.array``.
-            indices: Subset of sites to update. ``None`` means all sites.
-        """
-        self._set_shape_scales(scales, indices)
-
     def _get_shape_scales(self, indices: wp.array | None = None) -> wp.array:
         """Internal: read shape_scale from Newton model."""
         model = NewtonManager.get_model()

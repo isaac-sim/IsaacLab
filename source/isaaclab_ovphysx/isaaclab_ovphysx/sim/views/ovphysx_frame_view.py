@@ -834,11 +834,8 @@ class OvPhysxFrameView(BaseFrameView):
             )
         return self._usd_view
 
-    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
-        """Get prim scales from the USD stage's ``xformOp:scale`` attribute.
-
-        .. deprecated::
-            Use :meth:`get_local_scales` or :meth:`get_world_scales` instead.
+    def get_local_scales(self, indices: wp.array | None = None) -> wp.array:
+        """Get local-space scales (xformOp:scale) via the USD view.
 
         .. note::
             This reads the *static* USD authored value, not a live physics-state
@@ -854,14 +851,25 @@ class OvPhysxFrameView(BaseFrameView):
         Returns:
             A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
         """
-        return self.get_local_scales(indices)
+        return self._ensure_usd_view().get_local_scales(indices)
 
     def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
         """Get world-space (composed) scales via the USD view."""
         return self._ensure_usd_view().get_world_scales(indices)
 
     def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set local-space scales via the USD view."""
+        """Set local-space scales (xformOp:scale) via the USD view.
+
+        .. note::
+            The write lands in the USD stage but does *not* propagate to any
+            OVPhysX-side collision-shape scale. PhysX is unaffected; this is a
+            stage-only annotation. Use :class:`~isaaclab_ovphysx.assets.RigidObject`
+            APIs if you need to change physics-effective shape sizes.
+
+        Args:
+            scales: Scales ``(M, 3)`` as ``wp.array``.
+            indices: Subset of sites to update. ``None`` means all sites.
+        """
         self._ensure_usd_view().set_local_scales(scales, indices)
 
     def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
@@ -874,24 +882,6 @@ class OvPhysxFrameView(BaseFrameView):
 
     def _set_scales_default(self, scales, indices=None):
         """OvPhysX default: set_scales writes local scales (same as USD)."""
-        self.set_local_scales(scales, indices)
-
-    def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set prim scales by writing the USD ``xformOp:scale`` attribute.
-
-        .. deprecated::
-            Use :meth:`set_local_scales` or :meth:`set_world_scales` instead.
-
-        .. note::
-            The write lands in the USD stage but does *not* propagate to any
-            OVPhysX-side collision-shape scale. PhysX is unaffected; this is a
-            stage-only annotation. Use :class:`~isaaclab_ovphysx.assets.RigidObject`
-            APIs if you need to change physics-effective shape sizes.
-
-        Args:
-            scales: Scales ``(M, 3)`` as ``wp.array``.
-            indices: Subset of sites to update. ``None`` means all sites.
-        """
         self.set_local_scales(scales, indices)
 
     def get_visibility(self, indices: wp.array | None = None):
