@@ -31,7 +31,7 @@ Examples
     tools/run_install_ci.py docker --gpu -- -m "slow and gpu"
 
     # Filter by bug ID (dashes become underscores)
-    tools/run_install_ci.py docker --gpu -- -m nvbugs_5968136
+    tools/run_install_ci.py docker --gpu -- -m <bug-id>
 
     # Drop into a shell for debugging
     tools/run_install_ci.py docker --shell
@@ -232,28 +232,21 @@ def _cmd_docker(args: argparse.Namespace) -> int:
 
     repo_root = _find_repo_root()
 
-    # Build the uv base image first.
     _install_ci_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
-    uv_dockerfile = _install_ci_dir / "Dockerfile.installci"
-    uv_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
+    dockerfile = _install_ci_dir / "Dockerfile.installci"
+    image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
-    rc = _build_image(repo_root, uv_dockerfile, uv_tag, {"BASE_IMAGE": args.base_image}, args.no_cache)
+    rc = _build_image(
+        repo_root,
+        dockerfile,
+        image_tag,
+        {"BASE_IMAGE": args.base_image},
+        args.no_cache,
+    )
     if rc != 0:
-        print(f"Docker build (uv base) failed (exit {rc})")
+        print(f"Docker build failed (exit {rc})")
         return rc
-    print(f"Docker uv base image built: {uv_tag}")
-
-    # If conda mode, build the conda layer on top.
-    if getattr(args, "conda", False):
-        conda_dockerfile = _install_ci_dir / "Dockerfile.installci-conda"
-        image_tag = f"{uv_tag}-conda"
-        rc = _build_image(repo_root, conda_dockerfile, image_tag, {"UV_IMAGE": uv_tag}, args.no_cache)
-        if rc != 0:
-            print(f"Docker build (conda layer) failed (exit {rc})")
-            return rc
-        print(f"Docker conda image built: {image_tag}")
-    else:
-        image_tag = uv_tag
+    print(f"Docker image built: {image_tag}")
 
     host_results_xml: Path | None = None
     container_name: str | None = None
@@ -278,9 +271,9 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     # The container runs as the non-root 'isaaclab' user (uid 1000), so caches
     # must live under /home/isaaclab rather than /root.
     if not args.no_pip_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/home/isaaclab/.cache/pip"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-pip-cache:/home/isaaclab/.cache/pip"])
     if not args.no_uv_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/home/isaaclab/.cache/uv"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-uv-cache:/home/isaaclab/.cache/uv"])
 
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
@@ -366,7 +359,6 @@ def main() -> int:
 docker options:
   --base-image IMAGE   Docker base image (default: ubuntu:24.04)
   --gpu                Pass --gpus all to docker run
-  --conda              Build and use a conda-enabled image (layered on the uv base)
   --shell              Drop into interactive bash instead of running tests
   --no-cache           Build Docker image without layer cache
   --no-pip-cache       Disable persistent pip cache volume
@@ -385,9 +377,9 @@ pytest arguments:
     %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
     %(prog)s docker --gpu                                    # GPU support (--gpus all)
     %(prog)s docker --gpu -- -m uv                           # uv tests only
-    %(prog)s docker --gpu --conda -- -m conda                # conda tests (conda image)
+    %(prog)s docker --gpu -- -m conda                        # conda tests only
     %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
-    %(prog)s docker --gpu -- -m nvbugs_5968136               # filter by bug ID
+    %(prog)s docker --gpu -- -k <bug-id>                     # filter by bug ID
     %(prog)s docker --shell                                  # drop into shell for debugging
     %(prog)s native -- -vs                                   # run natively (no Docker)
     %(prog)s docker --wheel /tmp/isaaclab.whl                # pass a pre-built wheel
@@ -404,11 +396,6 @@ pytest arguments:
         help="Docker base image (default: ubuntu:24.04)",
     )
     docker_p.add_argument("--gpu", action="store_true", help="Pass --gpus all to docker run")
-    docker_p.add_argument(
-        "--conda",
-        action="store_true",
-        help="Build and use a conda-enabled Docker image (layered on top of the uv base image)",
-    )
     docker_p.add_argument(
         "--shell", action="store_true", help="Drop into an interactive bash shell instead of running tests"
     )
