@@ -268,7 +268,6 @@ def auto_camera_ppisp_cfg(stage: Any, camera_prim_path: str) -> PpispCfg | None:
         shader_prim = stage.GetPrimAtPath(shader_path)
         if shader_prim and shader_prim.IsValid():
             return ppisp_cfg_from_usd_shader(UsdShade.Shader(shader_prim))
-        return None
     return None
 
 

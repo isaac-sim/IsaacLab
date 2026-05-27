@@ -162,7 +162,7 @@ Follow conventional commit message practices.
 
 ## GitHub Actions and CI/CD
 
-- IMPORTANT: Pin actions by SHA hash. Use `action@<sha>  # vX.Y.Z` format for supply-chain security. Check existing workflows in `.github/workflows/` for the allowlisted hashes. New actions or versions require repo admin approval to be added to the allowlist.
+- Pin actions by major version tag (e.g. `actions/checkout@v6`). Use the same major version that other workflows in `.github/workflows/` already use — don't introduce a new major version without checking how it's used elsewhere.
 
 ## Testing Guidelines
 

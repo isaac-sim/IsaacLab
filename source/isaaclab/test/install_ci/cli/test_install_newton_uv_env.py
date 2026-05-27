@@ -33,10 +33,10 @@ class Test_Install_Newton(UV_Mixin):
                 print(f'[DEBUG] Link "{isaac_sim_link}" does not exist')
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_install_newton_and_run_tests(self, isaaclab_root):
         """Install newton extension and run the isaaclab_newton test suite."""

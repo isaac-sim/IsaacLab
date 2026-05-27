@@ -21,6 +21,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(10)
     def test_isaaclab_sh_uv_creates_env_with_python_312(self, isaaclab_root):
@@ -34,22 +35,23 @@ class Test_UV_Env_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(200)
-    def test_isaaclab_none_installs_core_including_assets(self, isaaclab_root):
-        """Run ./isaaclab.x -i none and verify the core set (incl. assets) is importable.
+    def test_isaaclab_core_installs_core_including_assets(self, isaaclab_root):
+        """Run ./isaaclab.x -i core and verify the core set (incl. assets) is importable.
 
         Under the new install model, ``isaaclab_assets`` is always installed as
-        part of the core set.  Passing ``none`` installs the full core set without
+        part of the core set.  Passing ``core`` installs the full core set without
         any optional submodules or extra feature dependencies.
         """
 
         try:
             self.create_uv_env(isaaclab_root)
 
-            # ./isaaclab.x -i none — core set only, no optional extras
-            result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
-            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            # ./isaaclab.x -i core — core set only, no optional extras
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
             # All core packages should be importable.
             for pkg in ("isaaclab_assets", "isaaclab_tasks", "isaaclab_rl", "isaaclab_physx"):
@@ -59,6 +61,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(300)
     def test_isaaclab_newton_extra_installs_newton_sim(self, isaaclab_root):

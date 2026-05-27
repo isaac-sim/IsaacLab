@@ -48,9 +48,9 @@ class Test_Install_RL_Frameworks(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     @pytest.mark.parametrize("selector,import_pkg,_train_dir,_train_args", _RL_CONFIGS)
     def test_rl_framework_importable_after_install(self, isaaclab_root, selector, import_pkg, _train_dir, _train_args):
@@ -70,10 +70,10 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_train_cartpole_rsl_rl(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[rsl-rl]' then train Isaac-Cartpole-Direct-v0 with rsl_rl."""
@@ -107,10 +107,10 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_train_cartpole_skrl(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[skrl]' then train Isaac-Cartpole-Direct-v0 with skrl."""
@@ -144,10 +144,10 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_train_cartpole_sb3(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[sb3]' then train Isaac-Cartpole-Direct-v0 with sb3."""
@@ -181,9 +181,9 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_rl_all_installs_all_frameworks(self, isaaclab_root):
         """./isaaclab.sh -i 'rl' (no selector) installs all RL frameworks."""

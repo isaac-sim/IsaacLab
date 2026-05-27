@@ -30,8 +30,6 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # tetrahedralization for deformable bodies (pinned: >=0.3 unconditionally imports pyvista at package import time)
-    "pytetwild==0.2.3",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -75,6 +73,15 @@ INSTALL_REQUIRES += [
 INSTALL_REQUIRES += [
     f"usd-core==25.11.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+]
+
+# pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on
+# aarch64 (CMake hardcodes -m64).  Gate it on x86_64 so the ARM64 docker image
+# build is not blocked; tetrahedralize callers already degrade gracefully via
+# an "install pytetwild" message when the package is missing.
+# (pinned to 0.2.3: >=0.3 unconditionally imports pyvista at package import time.)
+INSTALL_REQUIRES += [
+    f"pytetwild==0.2.3 ; ({SUPPORTED_ARCHS})",
 ]
 
 # Pin hf-xet to avoid broken tarball (hf_xet-1.1.8.dev2) cached on NVIDIA Artifactory.

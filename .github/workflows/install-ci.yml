@@ -32,7 +32,7 @@ permissions:
   pull-requests: read
 jobs:
   changes:
-    name: Detect Installation Test Changes
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
@@ -55,26 +55,28 @@ jobs:
             $'^tools/\tBuild tooling'
             $'^source/\tLibrary source code'
             $'^\\.github/actions/run-package-tests/\tTest action'
+            $'^\\.github/actions/install-ci-(collect|run)/\tInstall-ci composite actions'
             $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'(^|/)environment\\.ya?ml$\tConda environment file'
           )
-          triggered_jobs="Installation Tests"
 
           render_table() {
-            local files="$1" entry regex desc count sample
+            local files="$1" entry regex desc count sample shown
             echo "| Pattern | What it covers | Matched files |"
             echo "|---|---|---|"
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex desc <<< "$entry"
+              # escape | so it doesn't end the markdown table cell mid-regex
+              shown="${regex//|/\\|}"
               count=$(grep -cE "$regex" <<< "$files" || true)
               if [ "$count" -gt 0 ]; then
                 sample=$(grep -m 3 -E "$regex" <<< "$files" | paste -sd ', ' -)
                 [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
-                echo "| \`$regex\` | $desc | $sample |"
+                echo "| \`$shown\` | $desc | $sample |"
               else
-                echo "| \`$regex\` | $desc | - |"
+                echo "| \`$shown\` | $desc | - |"
               fi
             done
           }
@@ -95,17 +97,7 @@ jobs:
             echo "Decision: run_install_tests=$decision ($reason)"
             echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
             {
-              echo "## Installation test gating"
-              echo ""
-              if [ "$decision" = "true" ]; then
-                echo "Installation tests will **run**: $reason."
-              else
-                echo "Installation tests will be **skipped**: $reason."
-              fi
-              echo ""
-              echo "Triggered jobs: $triggered_jobs."
               if [ -n "$files" ]; then
-                echo ""
                 render_table "$files"
               fi
             } >> "$GITHUB_STEP_SUMMARY"
@@ -131,73 +123,40 @@ jobs:
             decide false "no relevant paths changed" "$changed_files"
           fi
 
-  install-tests:
-    name: Installation Tests (uv)
+  install-tests-x86:
+    name: Installation Tests (x86)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v6  # v6
-      - name: Run installation tests (uv)
-        env:
-          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
-          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
-        run: |
-          RUNNER_ARGS="--base-image $BASE_IMAGE"
-          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
-          RUNNER_ARGS="$RUNNER_ARGS --gpu"
-          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
-
-          PYTEST_EXTRA_ARGS=(-sv -m uv)
-          if [ -n "$TEST_FILTER" ]; then
-            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
-          fi
-
-          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
-
-      - name: Upload JUnit XML report
-        if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/checkout@v6
+      - name: Show Collected Tests
+        uses: ./.github/actions/install-ci-collect
         with:
-          name: junit-install-tests-uv
-          path: ${{ github.workspace }}/results/results.xml
-          if-no-files-found: ignore
-          retention-days: 7
+          test-filter: ${{ inputs.test_filter }}
+      - name: Run Tests
+        uses: ./.github/actions/install-ci-run
+        with:
+          base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          test-filter: ${{ inputs.test_filter }}
 
-  install-tests-conda:
-    name: Installation Tests (conda)
+  install-tests-arm:
+    name: Installation Tests (ARM)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 150
+    runs-on: [self-hosted, aarch64]
+    timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v6  # v6
-      - name: Run installation tests (conda)
-        env:
-          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
-          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
-        run: |
-          RUNNER_ARGS="--base-image $BASE_IMAGE"
-          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results-conda"
-          RUNNER_ARGS="$RUNNER_ARGS --gpu"
-          RUNNER_ARGS="$RUNNER_ARGS --conda"
-          RUNNER_ARGS="$RUNNER_ARGS --no-cache"
-
-          PYTEST_EXTRA_ARGS=(-sv -m conda)
-          if [ -n "$TEST_FILTER" ]; then
-            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
-          fi
-
-          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
-
-      - name: Upload JUnit XML report
-        if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/checkout@v6
+      - name: Show Collected Tests
+        uses: ./.github/actions/install-ci-collect
         with:
-          name: junit-install-tests-conda
-          path: ${{ github.workspace }}/results-conda/results.xml
-          if-no-files-found: ignore
-          retention-days: 7
+          test-filter: ${{ inputs.test_filter }}
+      - name: Run Tests
+        uses: ./.github/actions/install-ci-run
+        with:
+          base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          test-filter: ${{ inputs.test_filter }}

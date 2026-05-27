@@ -1,0 +1,43 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Run Installation CI Tests'
+description: >
+  Runs the install_ci suite inside the project's Docker harness via
+  tools/run_install_ci.py and uploads the JUnit XML report as an artifact
+  named install-ci-junit-<runner.arch>.
+
+inputs:
+  base-image:
+    description: 'Docker base image for the test container'
+    required: false
+    default: 'ubuntu:24.04'
+  test-filter:
+    description: 'pytest -k expression (empty = run everything)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Run Tests
+      shell: bash
+      env:
+        BASE_IMAGE: ${{ inputs.base-image }}
+        TEST_FILTER: ${{ inputs.test-filter }}
+      run: |
+        args=(docker --gpu --base-image "$BASE_IMAGE"
+              --results-dir "${{ github.workspace }}/results"
+              -- --tb=short -sv)
+        [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+        tools/run_install_ci.py "${args[@]}"
+    - name: Upload JUnit XML report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: install-ci-junit-${{ runner.arch }}
+        path: ${{ github.workspace }}/results/results.xml
+        if-no-files-found: ignore
+        retention-days: 7
