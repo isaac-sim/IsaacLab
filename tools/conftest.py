@@ -732,12 +732,18 @@ def pytest_sessionstart(session):
         # Match both `@pytest.mark.<marker>` (per-function) and
         # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
         # (module-level) by looking for the common `pytest.mark.<marker>` substring.
+        # OSError handling mirrors the pre-scan above so a transient filesystem
+        # issue (race-condition delete, permission flap, unreadable symlink)
+        # doesn't abort the whole session.
         marker_token = f"pytest.mark.{ci_marker}"
         new_test_files = []
         for test_file in test_files:
-            with open(test_file) as f:
-                if marker_token in f.read():
-                    new_test_files.append(test_file)
+            try:
+                with open(test_file) as f:
+                    if marker_token in f.read():
+                        new_test_files.append(test_file)
+            except OSError:
+                continue
         test_files = new_test_files
 
     if not test_files:
