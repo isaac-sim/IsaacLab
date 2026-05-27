@@ -10,6 +10,25 @@ on:
     # Run daily at 8 PM PST (4 AM UTC)
     - cron: '0 4 * * *'
 
+  # Also fire on PRs that change the workflow itself or the actions /
+  # config it depends on, so refactors get validated before merge.
+  # Narrow `paths:` keeps normal source-only PRs from spinning up the
+  # heavy compatibility matrix. This trigger is safe to gate by paths
+  # because the workflow is NOT a required branch-protection check —
+  # a not-triggered run does not block merges.
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+    paths:
+      - '.github/workflows/daily-compatibility.yml'
+      - '.github/workflows/config.yaml'
+      - '.github/actions/docker-build/**'
+      - '.github/actions/run-tests/**'
+      - '.github/actions/combine-results/**'
+
   workflow_dispatch:
     inputs:
       isaacsim_version:
