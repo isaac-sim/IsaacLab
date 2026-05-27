@@ -49,8 +49,8 @@ on:
         # Manual trigger is always a single branch. Free-text on purpose
         # — scales to any branch (e.g. a new ``release/*`` cut from
         # develop) without needing to update the workflow. A branch
-        # that lacks ``tools/changelog/cli.py`` fails the compile step
-        # with a clear error, which is the desired failure mode.
+        # that lacks ``tools/changelog/cli.py`` fails the verify step
+        # below with a clear error, which is the desired failure mode.
         description: 'Branch to compile (e.g. develop, release/3.0.0-beta2). Must carry tools/changelog/cli.py.'
         required: true
         type: string
@@ -153,6 +153,20 @@ jobs:
           # Full history so the compiler can resolve each fragment's merge
           # time via ``git log --diff-filter=A --first-parent``.
           fetch-depth: 0
+
+      - name: Verify changelog tooling exists on target branch
+        env:
+          TARGET_BRANCH: ${{ matrix.branch }}
+        run: |
+          # Loud-fail this matrix entry (not the whole run — ``fail-fast:
+          # false`` keeps siblings going) when the target branch lacks
+          # ``tools/changelog/cli.py``. A red tile is the desired signal:
+          # a branch in the nightly set without the compile tooling is a
+          # configuration error, not a "no-op" condition.
+          if [ ! -f tools/changelog/cli.py ]; then
+            echo "::error::Branch '$TARGET_BRANCH' is missing tools/changelog/cli.py — drop it from env.CRON_BRANCHES (or the dispatch input) or restore the tooling on that branch."
+            exit 1
+          fi
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
