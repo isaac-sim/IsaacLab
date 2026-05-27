@@ -649,13 +649,14 @@ def pytest_sessionstart(session):
     quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
     curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
 
-    # CI_MARKER env var generalizes the previous ISAACSIM_CI_SHORT=true gate so
-    # cross-platform jobs (ARM, Windows) can reuse this orchestrator with their
-    # own markers (arm_ci, windows_ci, ...). ISAACSIM_CI_SHORT=true stays
-    # supported as a back-compat shorthand for CI_MARKER=isaacsim_ci.
+    isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
+
+    # CI_MARKER env var is a separate, parallel mechanism for cross-platform
+    # jobs (arm-ci, windows-ci, ...) to reuse this orchestrator with their own
+    # markers. Deliberately NOT aliased to ISAACSIM_CI_SHORT: the isaacsim_ci
+    # filter is owned by Isaac Sim's external CI pipeline; this PR's CI_MARKER
+    # path leaves that contract untouched.
     ci_marker = os.environ.get("CI_MARKER", "")
-    if not ci_marker and os.environ.get("ISAACSIM_CI_SHORT", "false") == "true":
-        ci_marker = "isaacsim_ci"
 
     # Parse include files list (comma-separated paths)
     include_files = set()
@@ -719,6 +720,14 @@ def pytest_sessionstart(session):
         curobo_only,
     )
 
+    if isaacsim_ci:
+        new_test_files = []
+        for test_file in test_files:
+            with open(test_file) as f:
+                if "@pytest.mark.isaacsim_ci" in f.read():
+                    new_test_files.append(test_file)
+        test_files = new_test_files
+
     if ci_marker:
         # Match both `@pytest.mark.<marker>` (per-function) and
         # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
@@ -747,8 +756,11 @@ def pytest_sessionstart(session):
     for test_file in test_files:
         print(f"  - {test_file}")
 
-    # Run all tests individually
-    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, ci_marker)
+    # Run all tests individually. CI_MARKER takes precedence when both env
+    # vars are set; falls back to "isaacsim_ci" when only ISAACSIM_CI_SHORT
+    # is set. The pytest -m flag only accepts one expression.
+    effective_marker = ci_marker or ("isaacsim_ci" if isaacsim_ci else "")
+    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, effective_marker)
 
     print("failed tests:", failed_tests)
 
