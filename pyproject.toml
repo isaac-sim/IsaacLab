@@ -194,9 +194,7 @@ ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty"
 
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
-    "windows: mark test as runnable on Windows platforms",
     "windows_ci: mark test to run on Windows platforms in CI",
-    "arm: mark test as runnable on ARM platforms (e.g. NVIDIA DGX Spark)",
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
 ]
 
