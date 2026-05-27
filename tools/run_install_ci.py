@@ -31,7 +31,7 @@ Examples
     tools/run_install_ci.py docker --gpu -- -m "slow and gpu"
 
     # Filter by bug ID (dashes become underscores)
-    tools/run_install_ci.py docker --gpu -- -m nvbugs_5968136
+    tools/run_install_ci.py docker --gpu -- -m <bug-id>
 
     # Drop into a shell for debugging
     tools/run_install_ci.py docker --shell
@@ -379,7 +379,7 @@ pytest arguments:
     %(prog)s docker --gpu -- -m uv                           # uv tests only
     %(prog)s docker --gpu -- -m conda                        # conda tests only
     %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
-    %(prog)s docker --gpu -- -k nvbugs_5968136               # filter by bug ID
+    %(prog)s docker --gpu -- -k <bug-id>                     # filter by bug ID
     %(prog)s docker --shell                                  # drop into shell for debugging
     %(prog)s native -- -vs                                   # run natively (no Docker)
     %(prog)s docker --wheel /tmp/isaaclab.whl                # pass a pre-built wheel

@@ -87,6 +87,7 @@ class TestUVWorkflow(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    # regression for NVBug 5968136 (Cartpole training fails in MuJoCo stiffness conversion)
     @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow

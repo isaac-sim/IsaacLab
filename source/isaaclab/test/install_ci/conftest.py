@@ -16,9 +16,9 @@ from pathlib import Path
 import pytest
 
 # Make ``utils`` (sibling of this conftest) importable from tests living in
-# subdirectories (``cli/``, ``misc/``, ``nvbugs/``).  Required because
-# ``pytest.ini`` uses ``--import-mode=importlib``, which does NOT add the
-# conftest's directory to ``sys.path``.
+# subdirectories (``cli/``, ``misc/``).  Required because ``pytest.ini`` uses
+# ``--import-mode=importlib``, which does NOT add the conftest's directory to
+# ``sys.path``.
 _THIS_DIR = str(Path(__file__).resolve().parent)
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
@@ -134,8 +134,8 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Map dynamic bug markers and deselect items with mismatched env markers.
 
-    This allows filtering by bug ID natively in pytest: `-m "nvbugs_5968136"`
-    instead of the (unsupported natively) `-m "bug('nvbugs_5968136')"`.
+    This allows filtering by bug ID natively in pytest: `-m "<bug-id>"`
+    instead of the (unsupported natively) `-m "bug('<bug-id>')"`.
 
     Tests whose ``docker``/``native`` marker doesn't match the current
     execution environment are *deselected* (removed from collection) so they
