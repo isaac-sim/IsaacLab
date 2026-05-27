@@ -10,25 +10,6 @@ on:
     # Run daily at 8 PM PST (4 AM UTC)
     - cron: '0 4 * * *'
 
-  # Also fire on PRs that change the workflow itself or the actions /
-  # config it depends on, so refactors get validated before merge.
-  # Narrow `paths:` keeps normal source-only PRs from spinning up the
-  # heavy compatibility matrix. This trigger is safe to gate by paths
-  # because the workflow is NOT a required branch-protection check —
-  # a not-triggered run does not block merges.
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
-      - develop
-      - 'release/**'
-    paths:
-      - '.github/workflows/daily-compatibility.yml'
-      - '.github/workflows/config.yaml'
-      - '.github/actions/docker-build/**'
-      - '.github/actions/run-tests/**'
-      - '.github/actions/combine-results/**'
-
   workflow_dispatch:
     inputs:
       isaacsim_version:
@@ -118,6 +99,14 @@ jobs:
     # compat is ready to share the ECR registry cache with build.yaml. Today
     # it uses docker-build directly with the GHA cache backend, which works
     # but doesn't benefit from build.yaml's cross-runner ECR layer cache.
+    #
+    # Note: this workflow has no `pull_request:` trigger, so PR-time changes
+    # to this file, .github/actions/docker-build, .github/actions/run-tests,
+    # or .github/actions/combine-results are NOT validated automatically.
+    # When touching any of those, manually trigger this workflow against
+    # the PR branch before merge:
+    #   gh workflow run "Backwards Compatibility Tests" --ref <branch>
+    # Otherwise breakage surfaces only on the next nightly cron after merge.
     - name: Build Docker Image
       uses: ./.github/actions/docker-build
       with:
@@ -182,6 +171,14 @@ jobs:
     # compat is ready to share the ECR registry cache with build.yaml. Today
     # it uses docker-build directly with the GHA cache backend, which works
     # but doesn't benefit from build.yaml's cross-runner ECR layer cache.
+    #
+    # Note: this workflow has no `pull_request:` trigger, so PR-time changes
+    # to this file, .github/actions/docker-build, .github/actions/run-tests,
+    # or .github/actions/combine-results are NOT validated automatically.
+    # When touching any of those, manually trigger this workflow against
+    # the PR branch before merge:
+    #   gh workflow run "Backwards Compatibility Tests" --ref <branch>
+    # Otherwise breakage surfaces only on the next nightly cron after merge.
     - name: Build Docker Image
       uses: ./.github/actions/docker-build
       with:
