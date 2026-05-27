@@ -735,17 +735,25 @@ class stacked_image(ManagerTermBase):
                 normalize=normalize,
             )
 
-        # Stacked path: skip image()'s defensive clone — append() copies into the buffer below.
+        # Defer RGB normalize past the buffer so the ring stores native uint8 (4x cheaper
+        # per-step copies). Other data types let image() normalize per-frame as usual.
+        defer_rgb = normalize and data_type == "rgb"
         single_frame = image(
             env=env,
             sensor_cfg=sensor_cfg,
             data_type=data_type,
             convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
-            normalize=normalize,
+            normalize=normalize and not defer_rgb,
             clone=False,
         )
         self._buffer.append(single_frame)
-        return self._buffer.stacked
+        stacked = self._buffer.stacked
+
+        if defer_rgb:
+            out = stacked.float() / 255.0
+            out -= torch.mean(out, dim=(1, 2), keepdim=True)
+            return out
+        return stacked
 
 
 """

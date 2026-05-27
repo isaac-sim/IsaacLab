@@ -103,10 +103,16 @@ class CartpoleCameraEnv(CartpoleEnv):
         data_type = self.cfg.tiled_camera.data_types[0]
         camera_data = self._tiled_camera.data.output[data_type]
 
-        if data_type == "albedo" or data_type == "rgb" or data_type in SIMPLE_SHADING_TYPES:
+        is_rgb_like = data_type == "albedo" or data_type == "rgb" or data_type in SIMPLE_SHADING_TYPES
+        # Defer normalize past the ring buffer when stacking RGB-like data so the ring holds
+        # uint8 (4x cheaper per-step copies). Math is identical -- K frames live in disjoint
+        # channel slices of (B, K*C, H, W).
+        defer_normalize = self._stack is not None and is_rgb_like
+
+        if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
-            if data_type == "albedo":
-                camera_data = camera_data[..., :3]
+            camera_data = camera_data[..., :3]
+        if is_rgb_like and not defer_normalize:
             # scale to [0, 1] and mean-center per image for better training results
             camera_data = camera_data / 255.0
             camera_data -= torch.mean(camera_data, dim=(1, 2), keepdim=True)
@@ -119,6 +125,11 @@ class CartpoleCameraEnv(CartpoleEnv):
         if self._stack is not None:
             self._stack.append(obs)
             obs = self._stack.stacked
+
+        if defer_normalize:
+            # BCHW: spatial mean is over axes (H, W) = (2, 3); produces (B, K*C, 1, 1).
+            obs = obs.float() / 255.0
+            obs -= torch.mean(obs, dim=(2, 3), keepdim=True)
 
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
