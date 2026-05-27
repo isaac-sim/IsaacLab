@@ -220,6 +220,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._sim_bind_body_com,
                 self._sim_bind_joint_X_c,
                 self._joint_child,
+                self._timestamp,
             ],
             outputs=[self._data._force, self._data._torque],
             device=self._device,

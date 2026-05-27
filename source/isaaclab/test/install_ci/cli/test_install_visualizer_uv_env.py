@@ -39,9 +39,9 @@ class Test_Install_Visualizer(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_visualizer_rerun_backend_importable(self, isaaclab_root):
         """rerun-sdk is importable after ./isaaclab.sh -i 'visualizer[rerun]'."""
@@ -58,9 +58,9 @@ class Test_Install_Visualizer(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_visualizer_viser_backend_importable(self, isaaclab_root):
         """viser is importable after ./isaaclab.sh -i 'visualizer[viser]'."""
@@ -77,9 +77,9 @@ class Test_Install_Visualizer(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_visualizer_default_installs_all_backends(self, isaaclab_root):
         """./isaaclab.sh -i visualizer (no selector) installs all visualizer backends."""
@@ -99,9 +99,9 @@ class Test_Install_Visualizer(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(1800)
     def test_visualizer_all_backends_pull_newton_sim(self, isaaclab_root):
         """Every visualizer backend install also provides the newton package."""
@@ -120,10 +120,10 @@ class Test_Install_Visualizer(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_train_with_rerun_visualizer(self, isaaclab_root):
         """Training with --visualizer rerun works after ./isaaclab.sh -i 'newton,rl[rsl-rl],visualizer[rerun]'."""

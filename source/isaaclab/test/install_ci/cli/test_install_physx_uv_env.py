@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test that isaaclab_physx is importable after a core install (./isaaclab.sh -i none).
+"""Test that isaaclab_physx is importable after a core install (./isaaclab.sh -i core).
 
 Under the new installation model, ``isaaclab_physx`` is part of the always-installed
-core set.  A plain ``./isaaclab.sh -i none`` (core only, no optional extras) is
+core set.  A plain ``./isaaclab.sh -i core`` (core only, no optional extras) is
 therefore sufficient to make ``isaaclab_physx`` importable and to run its test suite.
 """
 
@@ -19,7 +19,7 @@ from utils import UV_Mixin, find_isaaclab_root
 
 
 class Test_Install_Physx(UV_Mixin):
-    """Core install (./isaaclab.sh -i none) makes isaaclab_physx importable."""
+    """Core install (./isaaclab.sh -i core) makes isaaclab_physx importable."""
 
     @classmethod
     def setup_class(cls):
@@ -33,20 +33,20 @@ class Test_Install_Physx(UV_Mixin):
             if not isaac_sim_link.exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
+    @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
-    @pytest.mark.native
     @pytest.mark.timeout(3600)
     def test_core_install_includes_physx_and_runs_tests(self, isaaclab_root):
-        """./isaaclab.sh -i none installs the core set (including physx) and tests pass."""
+        """./isaaclab.sh -i core installs the core set (including physx) and tests pass."""
 
         try:
             self.create_uv_env(isaaclab_root)
 
             # Core install — physx is part of the always-installed set.
-            result = self.run_in_uv_env([str(self.cli_script), "-i", "none"], cwd=isaaclab_root)
-            assert result.returncode == 0, f"isaaclab -i none failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
             # Verify isaaclab_physx is importable.
             result = self.run_in_uv_env(
