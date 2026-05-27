@@ -26,7 +26,7 @@ description: >
        in a registry-side build cache (e.g. ECR).
     6. Post-build: tag the result as `<repo>:deps-<hash>` so future builds
        with identical deps short-circuit at step 4.
-    7. Evict `isaac-lab-ci*:deps-*` tags older than 14 days to bound disk
+    7. Evict `isaac-lab*:deps-*` tags older than 14 days to bound disk
        growth on long-lived hosts.
     8. Post-build disk snapshot.
 
@@ -129,8 +129,8 @@ runs:
       run: |
         set +e
         docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
-        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
-        commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
+        deps_count=$(docker images --filter 'reference=isaac-lab*:deps-*' -q 2>/dev/null | wc -l)
+        commit_count=$(docker images --filter 'reference=isaac-lab*' -q 2>/dev/null | wc -l)
         {
           echo "## Disk snapshot (pre)"
           echo '```'
@@ -141,11 +141,11 @@ runs:
           docker system df
           echo
           echo "Tag counts:"
-          echo "  isaac-lab-ci-* (commit + deps tags): ${commit_count}"
-          echo "  isaac-lab-ci*:deps-* (deps cache):  ${deps_count}"
+          echo "  isaac-lab* (commit + deps tags): ${commit_count}"
+          echo "  isaac-lab*:deps-* (deps cache) :  ${deps_count}"
           echo
           echo "Deps tags (newest first):"
-          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
+          docker images --filter 'reference=isaac-lab*:deps-*' \
             --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
             | head -20
           echo '```'
@@ -289,7 +289,7 @@ runs:
             docker rmi -f "$tag" >/dev/null 2>&1 || true
             evicted=$(( evicted + 1 ))
           fi
-        done < <(docker images --filter 'reference=isaac-lab-ci*:deps-*' \
+        done < <(docker images --filter 'reference=isaac-lab*:deps-*' \
           --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' 2>/dev/null)
         echo "🔵 Evicted ${evicted} deps tag(s) older than ${TTL_DAYS}d"
 
@@ -301,8 +301,8 @@ runs:
       run: |
         set +e
         docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
-        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
-        commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
+        deps_count=$(docker images --filter 'reference=isaac-lab*:deps-*' -q 2>/dev/null | wc -l)
+        commit_count=$(docker images --filter 'reference=isaac-lab*' -q 2>/dev/null | wc -l)
         {
           echo "## Disk snapshot (post)"
           echo '```'
@@ -313,11 +313,11 @@ runs:
           docker system df
           echo
           echo "Tag counts:"
-          echo "  isaac-lab-ci-* (commit + deps tags): ${commit_count}"
-          echo "  isaac-lab-ci*:deps-* (deps cache):  ${deps_count}"
+          echo "  isaac-lab* (commit + deps tags): ${commit_count}"
+          echo "  isaac-lab*:deps-* (deps cache) :  ${deps_count}"
           echo
           echo "Deps tags (newest first):"
-          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
+          docker images --filter 'reference=isaac-lab*:deps-*' \
             --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
             | head -20
           echo '```'

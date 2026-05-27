@@ -95,6 +95,10 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # TODO: migrate to ./.github/actions/ecr-build-push-pull once daily-
+    # compat is ready to share the ECR registry cache with build.yaml. Today
+    # it uses docker-build directly with the GHA cache backend, which works
+    # but doesn't benefit from build.yaml's cross-runner ECR layer cache.
     - name: Build Docker Image
       uses: ./.github/actions/docker-build
       with:
@@ -155,6 +159,10 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # TODO: migrate to ./.github/actions/ecr-build-push-pull once daily-
+    # compat is ready to share the ECR registry cache with build.yaml. Today
+    # it uses docker-build directly with the GHA cache backend, which works
+    # but doesn't benefit from build.yaml's cross-runner ECR layer cache.
     - name: Build Docker Image
       uses: ./.github/actions/docker-build
       with:
