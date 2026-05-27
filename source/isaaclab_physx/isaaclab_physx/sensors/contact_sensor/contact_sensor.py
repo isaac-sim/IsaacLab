@@ -189,6 +189,10 @@ class ContactSensor(BaseContactSensor):
             ],
             device=self._device,
         )
+        # The contact buffer in PhysX still holds the pre-reset values until the next physics
+        # step; clear the outdated flag so the next data access returns the zeros above
+        # instead of refetching that stale buffer. See #4970.
+        self._mark_envs_up_to_date(env_mask)
 
     def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.

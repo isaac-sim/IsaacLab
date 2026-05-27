@@ -115,6 +115,10 @@ class Pva(BasePva):
             ],
             device=self._device,
         )
+        # The Newton rigid-body velocity buffer still holds the pre-reset values until the
+        # next physics step; clear the outdated flag so the next data access returns the
+        # zeros above rather than computing a spurious finite-difference acceleration. See #4970.
+        self._mark_envs_up_to_date(env_mask)
 
     """
     Implementation

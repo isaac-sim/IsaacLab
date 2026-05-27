@@ -13,8 +13,6 @@ import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import numpy as np
-import torch
 import warp as wp
 from newton.sensors import SensorContact as NewtonContactSensor
 
@@ -138,31 +136,10 @@ class ContactSensor(BaseContactSensor):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        # resolve mask via the shared helper (uses self._reset_mask, persistent across calls).
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timers and counters
-        super().reset(env_ids, env_mask)
-
-        # Resolve env_mask (same logic as base class)
-        if env_ids is None and env_mask is None:
-            env_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
-        elif env_mask is None:
-            if isinstance(env_ids, torch.Tensor):
-                env_ids_torch = env_ids.to(device=self._device, dtype=torch.long).reshape(-1)
-                mask_torch = torch.zeros(self._num_envs, dtype=torch.bool, device=self._device)
-                if env_ids_torch.numel() > 0:
-                    mask_torch[env_ids_torch] = True
-                env_mask = wp.from_torch(mask_torch, dtype=wp.bool)
-            elif isinstance(env_ids, wp.array):
-                env_ids_np = np.asarray(env_ids.numpy(), dtype=np.int64).reshape(-1)
-                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
-                if env_ids_np.size > 0:
-                    mask_np[env_ids_np] = True
-                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
-            else:
-                env_ids_np = np.asarray(env_ids, dtype=np.int64).reshape(-1)
-                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
-                if env_ids_np.size > 0:
-                    mask_np[env_ids_np] = True
-                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
+        super().reset(None, env_mask)
 
         # Compute num_filter_objects
         num_filter_objects = self._num_filter_objects
@@ -187,6 +164,10 @@ class ContactSensor(BaseContactSensor):
             ],
             device=self._device,
         )
+        # The Newton contact buffer still holds the pre-reset values until the next physics
+        # step; clear the outdated flag so the next data access returns the zeros above
+        # instead of refetching that stale buffer. See #4970.
+        self._mark_envs_up_to_date(env_mask)
 
     def find_sensors(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find sensors based on the name keys.

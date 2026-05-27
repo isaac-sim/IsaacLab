@@ -24,7 +24,12 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 
-from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
+from .kernels import (
+    clear_outdated_envs_kernel,
+    reset_envs_kernel,
+    update_outdated_envs_kernel,
+    update_timestamp_kernel,
+)
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -177,6 +182,25 @@ class SensorBase(ABC):
             reset_envs_kernel,
             dim=self._num_envs,
             inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
+            device=self._device,
+        )
+
+    def _mark_envs_up_to_date(self, env_mask: wp.array) -> None:
+        """Clears the outdated flag for the envs in ``env_mask``.
+
+        Step-dependent sensors (whose :meth:`_update_buffers_impl` reads a physics buffer that
+        only refreshes after a sim step) should call this from their :meth:`reset` override
+        after populating ``_data`` with the post-reset values. Otherwise the next lazy
+        :attr:`data` access would refetch the stale physics buffer and overwrite those values.
+
+        Args:
+            env_mask: Boolean warp array indicating which envs to mark as up to date. Typically
+                the same mask passed into :meth:`reset`.
+        """
+        wp.launch(
+            clear_outdated_envs_kernel,
+            dim=self._num_envs,
+            inputs=[env_mask, self._is_outdated],
             device=self._device,
         )
 

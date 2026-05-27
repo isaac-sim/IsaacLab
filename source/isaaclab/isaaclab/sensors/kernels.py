@@ -56,18 +56,11 @@ def reset_envs_kernel(
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
 ):
-    """Resets timestamps and clears the outdated flag for reset environments.
-
-    The outdated flag is cleared (not set) so that a sensor read immediately after
-    :meth:`SensorBase.reset` returns whatever the subclass wrote into ``_data`` during
-    reset (typically zero), rather than triggering a refetch from a physics buffer that
-    has not been stepped since the reset. The next call to :func:`update_timestamp_kernel`
-    (driven by :meth:`InteractiveScene.update` after the next physics step) re-arms the
-    outdated flag, at which point the sensor will pull fresh post-reset values.
+    """Resets the current and last update timestamps and marks environments as outdated for those being reset.
 
     Args:
         reset_mask: Boolean array indicating which envs to reset.
-        is_outdated: Boolean array indicating which envs need update. Will be cleared to False for reset envs.
+        is_outdated: Boolean array indicating which envs need update. Will be set to True for reset envs.
         timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
         timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
     """
@@ -76,6 +69,30 @@ def reset_envs_kernel(
     if not reset_mask[env]:
         return
 
+    # Reset the timestamp for the sensors
     timestamp[env] = 0.0
+
     timestamp_last_update[env] = 0.0
-    is_outdated[env] = False
+    # Set all reset sensors to outdated so that they are updated when data is called the next time.
+    is_outdated[env] = True
+
+
+@wp.kernel
+def clear_outdated_envs_kernel(
+    reset_mask: wp.array(dtype=wp.bool),
+    is_outdated: wp.array(dtype=wp.bool),
+):
+    """Clears the outdated flag for the envs marked True in ``reset_mask``.
+
+    Used by sensors whose ``reset()`` override populates ``_data`` with post-reset values
+    (typically zeros), to suppress the lazy refetch in :meth:`SensorBase._update_outdated_buffers`
+    that would otherwise overwrite those values with a stale physics buffer not stepped since the
+    reset.
+
+    Args:
+        reset_mask: Boolean array indicating which envs were just reset.
+        is_outdated: Boolean array indicating which envs need update. Cleared to False where mask is True.
+    """
+    env = wp.tid()
+    if reset_mask[env]:
+        is_outdated[env] = False
