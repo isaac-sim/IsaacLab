@@ -209,7 +209,7 @@ contributing, please reach out to us.
 .. _AirSim: https://microsoft.github.io/AirSim/
 .. _DoorGym: https://github.com/PSVL/DoorGym/
 .. _ManiSkill: https://github.com/haosulab/ManiSkill
-.. _ThreeDWorld: https://www.threedworld.org/
+.. _ThreeDWorld: https://github.com/threedworld-mit/tdw
 .. _RoboSuite: https://github.com/ARISE-Initiative/robosuite
 .. _MuJoCo: https://mujoco.org/
 .. _MuJoCo Playground: https://playground.mujoco.org/

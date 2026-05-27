@@ -146,33 +146,6 @@ def extract_all_rgb_half_tiles_kernel(
 
 
 @wp.kernel
-def extract_all_depth_tiles_kernel_legacy(
-    tiled_buffer: wp.array(dtype=wp.float32, ndim=2),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract all depth tiles from a tiled buffer in a single kernel launch.
-
-    Used with ovrtx older than 0.3.0.
-
-    Args:
-        tiled_buffer: 2D float32 array of shape (H, W) for depth.
-        output_buffer: 4D float32 array of shape (num_envs, H, W, 1) for depth.
-        num_cols: number of columns in the tiled buffer.
-        tile_width: width of each tile.
-        tile_height: height of each tile.
-    """
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x]
-
-
-@wp.kernel
 def extract_all_depth_tiles_kernel(
     tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
     output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore
@@ -319,23 +292,6 @@ def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
         | (wp.uint32(ai) << wp.uint32(24))
     )
     return color
-
-
-@wp.kernel
-def generate_random_colors_from_ids_kernel_legacy(
-    input_ids: wp.array(dtype=wp.uint32, ndim=2),  # type: ignore
-    output_colors: wp.array(dtype=wp.uint32, ndim=2),  # type: ignore
-):
-    """Generate random colors given IDs (e.g. semantic IDs).
-
-    Used with ovrtx older than 0.3.0.
-
-    Args:
-        input_ids: 2D uint32 array of shape (H, W) for semantic IDs per pixel.
-        output_data: 2D uint32 array; each word is `r | (g<<8) | (b<<16) | (a<<24)`
-    """
-    i, j = wp.tid()
-    output_colors[i, j] = random_color_from_id(input_ids[i, j])
 
 
 @wp.kernel
