@@ -129,7 +129,7 @@ class AppLauncher:
         settings.set_bool("/rtx/rtpt/lightcache/cached/enabled", False)
 
     @staticmethod
-    def _parse_visualizer_csv(value: str) -> list[str]:
+    def _parse_visualizer_csv(value: str) -> list[str] | None:
         """Parse visualizer list from a single comma-delimited CLI token."""
         valid = {"kit", "newton", "rerun", "viser", "none"}
         token = (value or "").strip()
@@ -154,6 +154,12 @@ class AppLauncher:
             raise argparse.ArgumentTypeError(
                 f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
             )
+        if "none" in names:
+            if len(names) > 1:
+                raise argparse.ArgumentTypeError(
+                    "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
+                )
+            return None
         # De-duplicate while preserving order.
         return list(dict.fromkeys(names))
 
@@ -861,7 +867,8 @@ class AppLauncher:
         visualizer_types: list[str] = []
         if raw_visualizers is not None:
             if isinstance(raw_visualizers, str):
-                visualizer_types = AppLauncher._parse_visualizer_csv(raw_visualizers)
+                parsed_visualizers = AppLauncher._parse_visualizer_csv(raw_visualizers)
+                visualizer_types = [] if parsed_visualizers is None else parsed_visualizers
             else:
                 visualizer_types = [str(v).strip().lower() for v in raw_visualizers if str(v).strip()]
 
@@ -878,7 +885,9 @@ class AppLauncher:
             )
 
         self._cli_visualizer_explicit = visualizer_explicit
-        self._cli_visualizer_disable_all = visualizer_explicit and "none" in visualizer_types
+        self._cli_visualizer_disable_all = visualizer_explicit and (
+            raw_visualizers is None or "none" in visualizer_types
+        )
         self._cli_visualizer_types = [] if self._cli_visualizer_disable_all else visualizer_types
         launcher_args["visualizer"] = self._cli_visualizer_types
 

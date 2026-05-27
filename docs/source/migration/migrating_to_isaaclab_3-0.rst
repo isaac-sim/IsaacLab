@@ -27,6 +27,7 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
 - If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
+- ``--viz none`` explicitly disables all visualizers, including config-defined ones.
 - ``--headless`` is deprecated (still supported) and overrides ``--viz`` by forcing headless mode.
 
 For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
