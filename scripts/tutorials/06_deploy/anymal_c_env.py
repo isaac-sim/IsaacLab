@@ -90,7 +90,6 @@ class AnymalCEnv(DirectRLEnv):
                 - 0.5
             ).clip(-1.0, 1.0)
         # start LEAPP annotations for inputs
-        # NOTE: height data is not used by the flat policy. not needed for this example
         root_lin_vel_b = annotate.input_tensors(self.spec.id, {"root_lin_vel_b": self._robot.data.root_lin_vel_b.torch})
         root_ang_vel_b = annotate.input_tensors(self.spec.id, {"root_ang_vel_b": self._robot.data.root_ang_vel_b.torch})
         projected_gravity_b = annotate.input_tensors(
@@ -102,6 +101,8 @@ class AnymalCEnv(DirectRLEnv):
             self.spec.id, {"default_joint_pos": self._robot.data.default_joint_pos.torch}
         )
         joint_vel = annotate.input_tensors(self.spec.id, {"joint_vel": self._robot.data.joint_vel.torch})
+        if height_data is not None:
+            height_data = annotate.input_tensors(self.spec.id, {"height_data": height_data})
         previous_actions = annotate.state_tensors(self.spec.id, {"previous_actions": self._actions})
         # end LEAPP annotations for inputs
 
