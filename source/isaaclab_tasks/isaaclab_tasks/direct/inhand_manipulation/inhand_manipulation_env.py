@@ -229,8 +229,8 @@ class InHandManipulationEnv(DirectRLEnv):
         delta_max = self.hand_dof_upper_limits[env_ids] - self.hand.data.default_joint_pos[env_ids]
         delta_min = self.hand_dof_lower_limits[env_ids] - self.hand.data.default_joint_pos[env_ids]
 
-        dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
+        dof_pos_noise = sample_uniform(0.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
+        rand_delta = delta_min + (delta_max - delta_min) * dof_pos_noise
         dof_pos = self.hand.data.default_joint_pos[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
