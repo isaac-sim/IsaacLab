@@ -74,10 +74,7 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      # TEMP (revert before final review): force run_docker_tests=false while
-      # iterating the cartpole training-smoke addition on ARM CI. Saves runner
-      # time + cost during the back-and-forth.
-      run_docker_tests: 'false'
+      run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
     steps:
     - id: detect
       env:
