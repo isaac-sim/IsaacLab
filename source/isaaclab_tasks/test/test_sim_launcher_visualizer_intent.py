@@ -61,32 +61,19 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
     """Kitless mode should persist explicit disable-all semantics for --viz none."""
     captured = {"types": None, "explicit": None, "disable_all": None}
 
-    class _FakeSettings:
-        def set_string(self, path: str, value: str) -> None:
-            if path == "/isaaclab/visualizer/types":
-                captured["types"] = value
+    class _FakeAppLauncher:
+        @staticmethod
+        def sync_visualizer_cli_settings_to_carb(launcher_args: dict) -> None:
+            captured["types"] = " ".join(launcher_args["visualizer"]) if launcher_args.get("visualizer") else ""
+            captured["explicit"] = launcher_args["visualizer_explicit"]
+            captured["disable_all"] = launcher_args["visualizer_disable_all"]
 
-        def set_bool(self, path: str, value: bool) -> None:
-            if path == "/isaaclab/visualizer/explicit":
-                captured["explicit"] = value
-            elif path == "/isaaclab/visualizer/disable_all":
-                captured["disable_all"] = value
-
-    monkeypatch.setattr(
-        sim_launcher, "compute_kit_requirements", lambda env_cfg, launcher_args: (False, False, {"none"})
-    )
-    # `app_launcher` imports both names from settings_manager; provide a full stub module
-    # so `from isaaclab.app import AppLauncher` succeeds in kitless mode.
-    _sm = types.ModuleType("isaaclab.app.settings_manager")
-    _sm.get_settings_manager = lambda: _FakeSettings()
-    _sm.initialize_carb_settings = lambda: None
-    monkeypatch.setitem(sys.modules, "isaaclab.app.settings_manager", _sm)
+    monkeypatch.setattr(sim_launcher, "compute_kit_requirements", lambda env_cfg, launcher_args: (False, False, set()))
+    monkeypatch.setitem(sys.modules, "isaaclab.app", types.SimpleNamespace(AppLauncher=_FakeAppLauncher))
 
     env_cfg = _DummyEnvCfg(_DummySimCfg(None))
-    launcher_args = argparse.Namespace(visualizer=["none"])
+    launcher_args = argparse.Namespace(visualizer=None, visualizer_explicit=True)
     with sim_launcher.launch_simulation(env_cfg, launcher_args):
         pass
 
-    # `sync_visualizer_cli_settings_to_carb` uses ``" ".join(visualizer)`` → ``"none"`` for ``["none"]``,
-    # not an empty string (empty only when *visualizer* is missing/empty).
-    assert captured == {"types": "none", "explicit": True, "disable_all": True}
+    assert captured == {"types": "", "explicit": True, "disable_all": True}
