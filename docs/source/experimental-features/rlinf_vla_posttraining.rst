@@ -98,7 +98,7 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
 .. code-block:: bash
 
    cd Isaac-GR00T
-   git apply ~/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
+   git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
