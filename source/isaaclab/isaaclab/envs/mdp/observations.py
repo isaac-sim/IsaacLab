@@ -20,6 +20,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.utils.buffers import CircularBuffer
+from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -392,19 +393,14 @@ def image(
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
-    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
-    data-types:
-
-    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
-    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
-
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
         data_type: The data type to pull from the desired camera. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
             This is used only when the data type is "distance_to_camera". Defaults to False.
-        normalize: Whether to normalize the images. This depends on the selected data type.
+        normalize: If True, post-process the image via
+            :func:`~isaaclab.utils.images.normalize_camera_image` (dispatched on ``data_type``).
             Defaults to True.
         permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
         clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
@@ -413,7 +409,7 @@ def image(
             to skip the redundant allocation.
 
     Returns:
-        The images produced at the last time-step
+        The images produced at the last time-step.
     """
     # extract the used quantities (to enable type-hinting)
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
@@ -425,16 +421,8 @@ def image(
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-    # rgb/depth/normals image normalization
     if normalize:
-        if data_type == "rgb":
-            images = images.float() / 255.0
-            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
-            images -= mean_tensor
-        elif "distance_to" in data_type or "depth" in data_type:
-            images[images == float("inf")] = 0
-        elif "normals" in data_type:
-            images = (images + 1.0) * 0.5
+        images = normalize_camera_image(images, data_type)
 
     if permute:
         images = images.permute(0, 3, 1, 2)
@@ -702,9 +690,10 @@ class stacked_image(ManagerTermBase):
 
         # K=1 is a documented passthrough; no buffer needed.
         self._buffer: CircularBuffer | None = None
+        # Reused across steps to avoid allocating a fresh output every call.
+        self._normalized_output: torch.Tensor | None = None
         if frame_stack > 1:
-            # Channel-stack mode: buffer storage is laid out so that .stacked is a free
-            # contiguous reshape into (B, H, W, K*C) -- no per-step permute/reshape alloc.
+            # Channel-stack: K frames concatenated along C; .stacked is a free contiguous view.
             self._buffer = CircularBuffer(
                 max_len=frame_stack,
                 batch_size=env.num_envs,
@@ -725,7 +714,6 @@ class stacked_image(ManagerTermBase):
         convert_perspective_to_orthogonal: bool = False,
         normalize: bool = True,
     ) -> torch.Tensor:
-        # K=1 passthrough: no buffer allocated; rely on image()'s defensive clone.
         if self._buffer is None:
             return image(
                 env=env,
@@ -735,24 +723,24 @@ class stacked_image(ManagerTermBase):
                 normalize=normalize,
             )
 
-        # Defer RGB normalize past the buffer so the ring stores native uint8 (4x cheaper
-        # per-step copies). Other data types let image() normalize per-frame as usual.
-        defer_rgb = normalize and data_type == "rgb"
+        # RGB-like camera output is uint8; defer normalize so the buffer can hold it raw.
+        # Depth / normals output is float32 — leave normalize per-frame in image().
+        defer_normalize = normalize and is_rgb_like(data_type)
         single_frame = image(
             env=env,
             sensor_cfg=sensor_cfg,
             data_type=data_type,
             convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
-            normalize=normalize and not defer_rgb,
+            normalize=normalize and not defer_normalize,
             clone=False,
         )
         self._buffer.append(single_frame)
         stacked = self._buffer.stacked
 
-        if defer_rgb:
-            out = stacked.float() / 255.0
-            out -= torch.mean(out, dim=(1, 2), keepdim=True)
-            return out
+        if defer_normalize:
+            if self._normalized_output is None:
+                self._normalized_output = torch.empty(stacked.shape, dtype=torch.float32, device=env.device)
+            return normalize_camera_image(stacked, data_type, out=self._normalized_output)
         return stacked
 
 

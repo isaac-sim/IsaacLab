@@ -680,6 +680,44 @@ def reset_wrench_composer_index(
     out_torque_b[ei, tid_body] = z
 
 
+##
+# Image normalization
+##
+
+
+@wp.kernel(enable_backward=False)
+def normalize_image_uint8_kernel(
+    src: wp.array4d(dtype=wp.uint8),
+    mean: wp.array2d(dtype=wp.float32),
+    out: wp.array4d(dtype=wp.float32),
+    channel_dim: wp.int32,
+):
+    """Compute ``out = src / 255.0 - mean`` in a single fused pass.
+
+    Single-launch fusion of dtype cast, scalar scale, and per-image-channel mean subtract;
+    ``src`` is read once and ``out`` is written once. ``mean`` is broadcast over the spatial
+    dims and must be precomputed by the caller as the mean of ``src / 255.0`` along the two
+    non-batch, non-channel axes.
+
+    Dispatch with ``dim=src.shape``. The spatial axes are symmetric; only the channel index
+    lookup differs between BHWC and BCHW layouts.
+
+    Args:
+        src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+        mean: Per-env, per-channel mean of ``src / 255.0``. Shape is ``(B, C)``.
+        out: Output float32 tensor. Same shape as ``src``.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Constant across all threads; the wrapper validates the value
+            and resolves negatives before launch.
+    """
+    i, j, k, l = wp.tid()
+    if channel_dim == 1:
+        c = j
+    else:
+        c = l
+    out[i, j, k, l] = wp.float32(src[i, j, k, l]) / 255.0 - mean[i, c]
+
+
 @wp.kernel
 def reset_wrench_composer_mask(
     env_mask: wp.array(dtype=wp.bool),

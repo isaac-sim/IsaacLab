@@ -15,6 +15,7 @@ from isaaclab.assets import Articulation
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
+from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 
@@ -74,6 +75,8 @@ class CartpoleCameraEnv(CartpoleEnv):
             )
 
         self._stack: CircularBuffer | None = None
+        # Reused across steps to avoid allocating a fresh output every call.
+        self._normalized_output: torch.Tensor | None = None
         if frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
@@ -103,19 +106,17 @@ class CartpoleCameraEnv(CartpoleEnv):
         data_type = self.cfg.tiled_camera.data_types[0]
         camera_data = self._tiled_camera.data.output[data_type]
 
-        is_rgb_like = data_type == "albedo" or data_type == "rgb" or data_type in SIMPLE_SHADING_TYPES
+        rgb_like = is_rgb_like(data_type)
         # Defer normalize past the ring buffer when stacking RGB-like data so the ring holds
         # uint8 (4x cheaper per-step copies). Math is identical -- K frames live in disjoint
         # channel slices of (B, K*C, H, W).
-        defer_normalize = self._stack is not None and is_rgb_like
+        defer_normalize = self._stack is not None and rgb_like
 
         if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
             camera_data = camera_data[..., :3]
-        if is_rgb_like and not defer_normalize:
-            # scale to [0, 1] and mean-center per image for better training results
-            camera_data = camera_data / 255.0
-            camera_data -= torch.mean(camera_data, dim=(1, 2), keepdim=True)
+        if rgb_like and not defer_normalize:
+            camera_data = normalize_camera_image(camera_data, data_type)
         elif data_type == "depth":
             camera_data[camera_data == float("inf")] = 0
 
@@ -127,9 +128,9 @@ class CartpoleCameraEnv(CartpoleEnv):
             obs = self._stack.stacked
 
         if defer_normalize:
-            # BCHW: spatial mean is over axes (H, W) = (2, 3); produces (B, K*C, 1, 1).
-            obs = obs.float() / 255.0
-            obs -= torch.mean(obs, dim=(2, 3), keepdim=True)
+            if self._normalized_output is None:
+                self._normalized_output = torch.empty(obs.shape, dtype=torch.float32, device=self.device)
+            obs = normalize_camera_image(obs, data_type, out=self._normalized_output, channel_dim=1)
 
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
