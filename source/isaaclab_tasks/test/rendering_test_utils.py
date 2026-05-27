@@ -600,6 +600,8 @@ def make_require_ovlibs_install_fixture():
 
                 print(f"ovphysx version: {ovphysx.__version__}")
             except ImportError as exc:
+                if platform.machine() == "aarch64":
+                    pytest.skip("OVPhysX has no aarch64 wheel; skipping physics_backend=ovphysx on this platform.")
                 pytest.fail(
                     "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
                     "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"
