@@ -20,9 +20,11 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
     # Resolve physics cfg
     if args.physics == "physx":
         from isaaclab_physx.physics import PhysxCfg
+
         physics_cfg = PhysxCfg()
     elif args.physics == "newton_mjwarp":
         from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
         DEFAULT_NEWTON_CFG = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=70,
@@ -44,9 +46,11 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
     viz_type = args.visualizer or DEFAULT_VISUALIZER
     if viz_type == "kit":
         from isaaclab_visualizers.kit import KitVisualizerCfg
+
         visualizer_cfg = KitVisualizerCfg()
     elif viz_type == "newton":
         from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
         visualizer_cfg = NewtonVisualizerCfg()
     else:
         raise ValueError(f"Unsupported --visualizer value: {viz_type}")

@@ -43,13 +43,6 @@ import torch
 
 from demo_helper import has_no_alive_visualizer_window, resolve_backend_and_visualizer
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
-from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
-from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
-
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     """Defines the origins of the scene."""
@@ -70,6 +63,9 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
     import isaaclab.sim as sim_utils
     from isaaclab.assets import Articulation
+    from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
+    from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
+    from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
 
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
@@ -185,7 +181,6 @@ def main():
     with resolve_backend_and_visualizer(args_cli) as (physics_cfg, visualizer_cfg):
         import isaaclab.sim as sim_utils
 
-        # define simulation time step
         # define simulation configuration
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg])
         # Initialize the simulation context
@@ -194,6 +189,7 @@ def main():
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         # design scene
         scene_entities, scene_origins = design_scene()
+        # convert origins to tensor
         scene_origins = torch.tensor(scene_origins, device=sim.device)
         # Play the simulator
         sim.reset()
