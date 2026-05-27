@@ -2,10 +2,11 @@ PhysX Configuration
 ===================
 
 PhysX scene-level settings live on :class:`~isaaclab_physx.physics.PhysxCfg`,
-which replaces the legacy ``PhysxCfg`` from Isaac Lab 2.x. Per-actor settings
-(such as per-articulation iteration counts, contact filtering, or material
-properties) continue to be authored on the USD schema; see :doc:`../../schema_cfgs`
-for the schema-level configuration helpers.
+which replaces the Isaac Lab 2.x ``PhysxCfg`` imported from ``isaaclab.sim``.
+In Isaac Lab 3.0, import ``PhysxCfg`` from ``isaaclab_physx.physics`` instead.
+Per-actor settings (such as per-articulation iteration counts, contact
+filtering, or material properties) continue to be authored on the USD schema;
+see :doc:`../../schema_cfgs` for the schema-level configuration helpers.
 
 The example below shows a representative ``PhysxCfg`` for a contact-rich
 manipulation task:
@@ -22,7 +23,7 @@ manipulation task:
         min_velocity_iteration_count=1,
         max_velocity_iteration_count=4,
         enable_ccd=False,
-        enable_stabilization=True,
+        enable_stabilization=False,
         bounce_threshold_velocity=0.2,
         friction_offset_threshold=0.04,
         friction_correlation_distance=0.025,
@@ -45,7 +46,9 @@ Solver Selection
   articulated robots; PGS can be more forgiving on stiff legacy assets.
 * ``solve_articulation_contact_last``: alters the articulation solver order so
   that dynamic contact is resolved at the end of the solve. Useful for stiff
-  gripping scenarios. Requires Isaac Sim 5.1+.
+  gripping scenarios. For Isaac Lab 3.0, the supported Isaac Sim versions
+  include this feature; it depends on PhysX schema support introduced in
+  Isaac Sim 5.1.
 
 
 Solver Iterations
@@ -65,9 +68,10 @@ Contact and Stability
 
 * ``enable_ccd``: continuous-collision detection for fast-moving bodies.
 * ``enable_stabilization``: extra solver stabilization pass; recommended only
-  when ``dt`` is large (< 30 Hz). Corrupts contact-sensor force-magnitude
-  readings — disable it if you rely on the contact sensor for force
-  observations.
+  for low-rate simulations, where the simulation timestep ``dt`` is larger
+  than about ``1 / 30`` seconds (below about 30 Hz). This pass can make
+  contact-sensor force magnitudes inaccurate, so keep it disabled if you rely
+  on the contact sensor for force observations.
 * ``bounce_threshold_velocity``: relative velocity threshold [m/s] above which
   contacts bounce.
 * ``friction_offset_threshold``: contact point distance [m] at which friction
