@@ -25,6 +25,8 @@ from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 
+pytestmark = pytest.mark.device_split
+
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_factory_dispatches_to_ovphysx_frame_view(device):
