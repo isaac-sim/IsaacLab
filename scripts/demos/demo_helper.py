@@ -69,4 +69,5 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
 
 def has_no_alive_visualizer_window(sim) -> bool:
     """Check if there are no alive visualizer windows."""
-    return bool(sim.visualizers and not any(v.is_running() and not v.is_closed for v in sim.visualizers))
+    visualizers = sim.visualizers or ()
+    return not any(v.is_running() and not v.is_closed for v in visualizers)

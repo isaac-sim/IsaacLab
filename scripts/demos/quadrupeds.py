@@ -42,6 +42,9 @@ import numpy as np
 import torch
 
 from demo_helper import has_no_alive_visualizer_window, resolve_backend_and_visualizer
+from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
+from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
+from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -62,10 +65,7 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
 def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
     import isaaclab.sim as sim_utils
-
-    from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
-    from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
-    from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+    from isaaclab.assets import Articulation
 
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
@@ -81,43 +81,36 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 1 with Anymal B
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot")
-    anymal_b = anymal_b_cfg.class_type(anymal_b_cfg)
+    anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
     # Origin 2 with Anymal C
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    anymal_c_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
-    anymal_c = anymal_c_cfg.class_type(anymal_c_cfg)
+    anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
 
     # Origin 3 with Anymal D
     sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
     # -- Robot
-    anymal_d_cfg = ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot")
-    anymal_d = anymal_d_cfg.class_type(anymal_d_cfg)
+    anymal_d = Articulation(ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot"))
 
     # Origin 4 with Unitree A1
     sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
-    unitree_a1_cfg = UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot")
-    unitree_a1 = unitree_a1_cfg.class_type(unitree_a1_cfg)
+    unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
 
     # Origin 5 with Unitree Go1
     sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
     # -- Robot
-    unitree_go1_cfg = UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot")
-    unitree_go1 = unitree_go1_cfg.class_type(unitree_go1_cfg)
+    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
 
     # Origin 6 with Unitree Go2
     sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
     # -- Robot
-    unitree_go2_cfg = UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot")
-    unitree_go2 = unitree_go2_cfg.class_type(unitree_go2_cfg)
+    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # Origin 7 with Boston Dynamics Spot
     sim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
     # -- Robot
-    spot_cfg = SPOT_CFG.replace(prim_path="/World/Origin7/Robot")
-    spot = spot_cfg.class_type(spot_cfg)
+    spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
 
     # return the scene information
     scene_entities = {
@@ -139,10 +132,8 @@ def run_simulator(sim, entities: dict, origins):
     sim_time = 0.0
     count = 0
     # Simulate physics
-    while True:
-        # Exit when every visualizer window has been closed (works for kit and newton)
-        if has_no_alive_visualizer_window(sim):
-            break
+    # Exit when every visualizer window has been closed (works for kit and newton)
+    while not has_no_alive_visualizer_window(sim):
         # reset
         if count % 200 == 0:
             # reset counters
