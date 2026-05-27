@@ -42,6 +42,10 @@ import numpy as np
 import torch
 
 from demo_helper import has_no_alive_visualizer_window, resolve_backend_and_visualizer
+
+##
+# Pre-defined configs
+##
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
 from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
