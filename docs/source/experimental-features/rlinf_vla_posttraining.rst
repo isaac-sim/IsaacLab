@@ -58,8 +58,7 @@ Prerequisites
 
   .. code-block:: bash
 
-     hf download --repo-type model nvidia/orca-dev-test \
-         --include "rlinf/assemble_trocar/" --local-dir /path/to/local/models
+     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
 
 Installation
