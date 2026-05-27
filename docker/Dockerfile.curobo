@@ -110,8 +110,9 @@ RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
-# Install toml dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml
+# Install toml (used by tools/install_deps.py) and pytest (needed to run
+# in-container tests; moved to optional [test] extra in pyproject.toml)
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml pytest
 
 # Install apt dependencies for extensions that declare them in their extension.toml,
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
