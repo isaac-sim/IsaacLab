@@ -566,35 +566,44 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
     return _attach_comparison_properties
 
 
-def make_require_ovrtx_install_fixture():
-    """Create an autouse fixture that fails fast when OVRTX is required but not installed.
+def make_require_ovlibs_install_fixture():
+    """Create an autouse fixture that fails fast when OV libraries are required but not installed.
 
-    Only parametrized cases with ``renderer == "ovrtx_renderer"`` are checked (Newton
-    Warp kitless cases do not need ``ov[ovrtx]``). Install with
-    ``./isaaclab.sh -i 'ov[ovrtx]'`` (or the equivalent in your environment).
+    Only parametrized cases with ``renderer == "ovrtx_renderer"`` or ``physics_backend == "ovphysx"`` are checked.
+    Install with ``./isaaclab.sh -i 'ov[all]'`` (or the equivalent in your environment).
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovrtx_install(request):
+    def _require_ovlibs_install(request):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
 
-        if callspec.params.get("renderer") != "ovrtx_renderer":
-            return
+        if callspec.params.get("renderer") == "ovrtx_renderer":
+            try:
+                import ovrtx
 
-        try:
-            import ovrtx
+                print(f"ovrtx version: {ovrtx.__version__}")
+            except ImportError as exc:
+                pytest.fail(
+                    "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
+                    "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
+                    f"ImportError: {exc}"
+                )
 
-            print(f"ovrtx version: {ovrtx.__version__}")
-        except ImportError as exc:
-            pytest.fail(
-                "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
-                "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
-                f"ImportError: {exc}"
-            )
+        if callspec.params.get("physics_backend") == "ovphysx":
+            try:
+                import ovphysx
 
-    return _require_ovrtx_install
+                print(f"ovphysx version: {ovphysx.__version__}")
+            except ImportError as exc:
+                pytest.fail(
+                    "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
+                    "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"
+                    f"ImportError: {exc}"
+                )
+
+    return _require_ovlibs_install
 
 
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
@@ -776,7 +785,6 @@ def rendering_test_shadow_hand(
 ) -> None:
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
-        return
 
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
@@ -867,7 +875,6 @@ def rendering_test_dexsuite_kuka(
 ) -> None:
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
-        return
 
     from isaaclab.envs import ManagerBasedRLEnv
 
