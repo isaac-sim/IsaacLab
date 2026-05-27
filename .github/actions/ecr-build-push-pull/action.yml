@@ -5,27 +5,9 @@
 
 name: 'ECR Build-Push-Pull'
 description: >
-  Build a Docker image and push it to ECR, using ECR as the layer cache.
+  Builds a Docker image and pushes it to ECR, using ECR as the layer cache.
   If the image already exists in ECR (same tag), pulls it instead of building.
-
-  Composition:
-    * This action owns the ECR-side concerns (URL resolution, auth, manifest
-      checks for the per-commit and deps-hash tags, push).
-    * The actual local build — including local-cache short-circuits, disk
-      observability, and the post-build deps-tag write — is delegated to
-      `.github/actions/docker-build`.
-
-  Flow:
-    1. Setup docker config + login to nvcr.io.
-    2. Resolve ECR URL (input → env var → SSM lookup; falls through if unset).
-    3. Login to ECR (when URL was resolved).
-    4. Check ECR for the exact per-commit image; if present, pull → done.
-    5. Check ECR for the deps-hash tag; if present, registry-side retag to
-       the commit tag → done.
-    6. Otherwise, delegate to docker-build with optional ECR-backed
-       --cache-from / --cache-to and an ECR-prefixed extra-tag.
-    7. Push the commit-tag and the deps-tag to ECR if a build happened.
-    8. Cleanup docker config.
+  Drop-in replacement for docker-build/action.yml with ECR-backed caching.
 
 inputs:
   image-tag:
@@ -48,18 +30,13 @@ inputs:
       1. ecr-url input, if provided.
       2. ECR_CACHE_URL environment variable on the runner.
       3. SSM parameter /github-runner/<instance-id>/ecr-cache-url.
-      4. If still empty, ECR is skipped and the build runs purely locally.
+      4. If still empty, ECR cache is skipped and the image is built locally.
     required: false
     default: ''
   cache-tag:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
-  platform:
-    description: Target platform for `docker buildx build --platform` (e.g. "linux/amd64", "linux/arm64").
-    required: false
-    default: 'linux/amd64'
-
 runs:
   using: composite
   steps:
@@ -69,8 +46,8 @@ runs:
     # Create a temp docker config with credsStore disabled before any login.
     # The runner's credential store backend is broken ("not implemented") and
     # causes all docker login calls to fail unless we bypass it upfront.
-    # Exported as DOCKER_CONFIG so the ECR login (step 3) and the delegated
-    # docker-build (step 6, with skip-docker-config=true) inherit it.
+    # The temp config is exported as DOCKER_CONFIG so all subsequent steps
+    # (including ECR login in step 3) inherit it automatically.
 
     - name: Setup docker config and login to nvcr.io
       shell: bash
@@ -205,29 +182,33 @@ runs:
           echo "🟢 Image pulled and tagged as ${{ inputs.image-tag }}"
         fi
 
-    ##### 5: Check deps cache (registry-side) #####
+    ##### 5: Check deps cache #####
 
-    # Hashes installation-relevant files + the base image digest to produce a
-    # stable deps-<hash> ECR tag. If the image exists in ECR, alias it as the
-    # commit-tag (registry-side, no layer download). Hash schema must stay
-    # in sync with .github/actions/docker-build (step 4 there).
-    #
-    # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install inputs change
-    # (new packages, new manifests, etc.).
+    # Hashes installation-relevant files + the base image digest to produce a stable
+    # deps-<hash> ECR tag. If the image exists in ECR, the build job succeeds
+    # immediately and test jobs pull the deps image with a source volume mount.
+
+    # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install
+    # inputs change (new packages, new manifests, etc.).
 
     - name: Check deps cache
       id: deps-cache
       if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
       shell: bash
       run: |
+        ##### Deps-hash configuration #####
+        # Exact files/dirs whose full content is hashed. The Dockerfile is first.
         DEPS_FILES=(
           "${{ inputs.dockerfile-path }}"
           isaaclab.sh
           environment.yml
           source/isaaclab/isaaclab/cli
         )
+        # Manifest files matched repo-wide via git ls-files.
         DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
+        # Resolve the actual base image digest so a new push of a mutable tag
+        # (e.g. latest-develop) invalidates the deps cache automatically.
         BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
           "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
           --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
@@ -248,8 +229,12 @@ runs:
         echo "🔵 Deps hash: ${DEPS_HASH}"
         echo "🔵 Checking if deps image ${DEPS_ECR_IMAGE} exists in ECR..."
 
+        # Lightweight manifest check - fetches only the image manifest (~KB),
+        # not the actual layers, so this completes in seconds.
         if docker manifest inspect "${DEPS_ECR_IMAGE}" >/dev/null 2>&1; then
           echo "🟢 Deps cache HIT!!! Image exists in ECR: ${DEPS_ECR_IMAGE}"
+          # Create a commit-tagged alias pointing to the same manifest (registry-side,
+          # no layer download). Test jobs will pull this tag normally.
           echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
           docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
           echo "🟢 Tagged ${ECR_IMAGE} >> ${DEPS_ECR_IMAGE}"
@@ -260,17 +245,14 @@ runs:
           echo "PUSH_DEPS_IMAGE=true"             >> "$GITHUB_ENV"
         fi
 
-    ##### 6: Local build (delegated to docker-build) #####
+    ##### 6: Full build (delegated to docker-build) #####
 
-    # Only runs when neither ECR cache lookup hit. docker-build does its own
-    # local-exact / local-deps short-circuits, then either retags or builds.
-    #
-    # When ECR is available we layer in registry-side buildx layer cache via
-    # --cache-from / --cache-to, and pass the ECR-prefixed name as an extra
-    # tag so the push step has a tagged image to push.
+    # Runs when neither the exact image nor the deps cache was available.
+    # docker-build does the actual buildx invocation; we pass ECR layer-cache
+    # refs and the ECR-prefixed tag so the push steps below have something to
+    # push.
 
-    - name: Build (via docker-build)
-      id: dbuild
+    - name: Full build
       if: steps.pull-exact.outputs.hit != 'true' && steps.deps-cache.outputs.deps-cache-hit != 'true'
       uses: ./.github/actions/docker-build
       with:
@@ -278,17 +260,15 @@ runs:
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
-        platform: ${{ inputs.platform }}
         skip-docker-config: 'true'
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
         extra-tags: ${{ steps.resolve-ecr.outputs.available == 'true' && env.ECR_IMAGE || '' }}
 
-    ##### 7: Push to ECR (commit tag) #####
+    ##### 7: Push to ECR #####
 
-    # Push when ECR is available and neither ECR cache lookup served us.
-    # The image carries the ECR-prefixed tag because step 6 passed it via
-    # docker-build's extra-tags input.
+    # Pushes the per-commit ECR image after a successful full build.
+    # Skipped if the image was pulled in (4).
 
     - name: Push to ECR
       if: >
@@ -301,9 +281,9 @@ runs:
         docker push "${ECR_IMAGE}"
         echo "🟢 Pushed ${ECR_IMAGE}"
 
-    ##### 8: Push deps tag to ECR #####
+    ##### 8: Push deps tag #####
 
-    # Tag the freshly built image as deps-<hash> so future runs with identical
+    # Tags the freshly built image as deps-<hash> so future runs with identical
     # install inputs hit the fast path (step 5) instead of doing a full build.
 
     - name: Push deps tag
