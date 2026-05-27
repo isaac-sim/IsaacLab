@@ -289,6 +289,19 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         id="newton-ovrtx-semantic_segmentation",
         marks=_FLAKY_MARK,
     ),
+    # ovphysx + newton_renderer (warp)
+    pytest.param(
+        "ovphysx",
+        "newton_renderer",
+        "rgb",
+        id="ovphysx-newton_warp-rgb",
+    ),
+    pytest.param(
+        "ovphysx",
+        "newton_renderer",
+        "depth",
+        id="ovphysx-newton_warp-depth",
+    ),
     # newton + newton_renderer (warp)
     pytest.param(
         "newton",
