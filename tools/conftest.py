@@ -416,7 +416,6 @@ class _PassContext:
         timeout: Per-pass hard timeout in seconds.
         startup_deadline: Per-pass startup-hang deadline in seconds.
         env: Environment passed to the pytest subprocess.
-        is_cold_cache_test: Used by callers to log the cold-cache buffer once.
     """
 
     test_file: str
@@ -426,7 +425,6 @@ class _PassContext:
     timeout: int
     startup_deadline: int
     env: dict
-    is_cold_cache_test: bool
 
 
 _RESULT_PRIORITY = {
@@ -773,7 +771,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             timeout=timeout,
             startup_deadline=startup_deadline,
             env=env,
-            is_cold_cache_test=is_cold_cache_test,
         )
 
         if is_device_split_file(test_file):
@@ -787,7 +784,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
             if report is not None:
                 xml_reports.append(report)
-            if was_failure:
+            if was_failure and test_file not in failed_tests:
                 failed_tests.append(test_file)
             merged_status = _merge_pass_status(merged_status, status)
 
