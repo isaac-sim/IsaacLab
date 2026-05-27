@@ -6,7 +6,6 @@
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -449,7 +448,6 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    ovphysx = OvPhysxCfg()
     physx = default
 
 

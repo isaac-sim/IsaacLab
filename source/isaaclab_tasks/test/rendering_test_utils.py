@@ -761,6 +761,10 @@ def rendering_test_shadow_hand(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("ovphysx is not supported yet.")
+        return
+
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
@@ -848,6 +852,10 @@ def rendering_test_dexsuite_kuka(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("ovphysx is not supported yet.")
+        return
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
