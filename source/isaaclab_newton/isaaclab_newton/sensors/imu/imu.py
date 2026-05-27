@@ -158,7 +158,12 @@ class Imu(BaseImu):
         wp.launch(
             imu_copy_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._newton_sensor.accelerometer, self._newton_sensor.gyroscope],
+            inputs=[
+                env_mask,
+                self._newton_sensor.accelerometer,
+                self._newton_sensor.gyroscope,
+                self._timestamp,
+            ],
             outputs=[self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,
         )

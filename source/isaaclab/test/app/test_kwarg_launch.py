@@ -152,11 +152,12 @@ def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.Monk
     assert launcher._cli_visualizer_explicit is False
 
 
-def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("visualizer", [None, ["none"]])
+def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch, visualizer):
     headless, launcher = _resolve_headless_for_case(
         monkeypatch,
         {
-            "visualizer": ["none"],
+            "visualizer": visualizer,
             "visualizer_explicit": True,
             "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
         },

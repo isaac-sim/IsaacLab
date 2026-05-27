@@ -85,8 +85,23 @@ From the Isaac Lab root directory:
    uv pip install -e ".[base]" --no-deps
    cd ../
 
-   # Step 4: Install flash-attn (must be built against the installed PyTorch)
+   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
    pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+
+.. _rlinf-skipping-flash-attn:
+
+Skipping flash-attn
+~~~~~~~~~~~~~~~~~~~
+
+If Step 4 fails, skip installation of flash-attn and apply this patch instead:
+
+.. code-block:: bash
+
+   cd Isaac-GR00T
+   git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
+
+The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
+The training and evaluation commands below work unchanged.
 
 Quick Start
 -----------

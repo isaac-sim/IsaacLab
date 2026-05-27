@@ -111,7 +111,7 @@ Installation
             ./isaaclab.sh -i 'contrib[rlinf]'
 
             # Core only — no optional submodules, no extras
-            ./isaaclab.sh -i none
+            ./isaaclab.sh -i core
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -134,4 +134,4 @@ Installation
             isaaclab.bat -i "contrib[rlinf]"
 
             :: Core only - no optional submodules, no extras
-            isaaclab.bat -i none
+            isaaclab.bat -i core

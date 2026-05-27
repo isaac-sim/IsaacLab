@@ -273,6 +273,16 @@ def launch_simulation(
     # Resolve distributed device early, before AppLauncher or physics init.
     _resolve_distributed_device(env_cfg, launcher_args)
 
+    visualizer_explicit_none = False
+    if isinstance(launcher_args, argparse.Namespace):
+        visualizer_explicit_none = getattr(launcher_args, "visualizer", None) is None and getattr(
+            launcher_args, "visualizer_explicit", False
+        )
+    elif isinstance(launcher_args, dict):
+        visualizer_explicit_none = launcher_args.get("visualizer") is None and launcher_args.get(
+            "visualizer_explicit", False
+        )
+
     if needs_kit:
         # check if Isaac Sim is installed
         import importlib.util
@@ -331,13 +341,13 @@ def launch_simulation(
             if sim_cfg is not None and hasattr(app_launcher, "device"):
                 sim_cfg.device = app_launcher.device
             close_fn = app_launcher.app.close
-    elif visualizer_types:
+    elif visualizer_types or visualizer_explicit_none:
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that
         # SimulationContext._get_cli_visualizer_types() can find it.
         from isaaclab.app import AppLauncher
 
-        disable_all = "none" in visualizer_types
+        disable_all = visualizer_explicit_none or "none" in visualizer_types
         if isinstance(launcher_args, argparse.Namespace):
             AppLauncher.sync_visualizer_cli_settings_to_carb(
                 {**vars(launcher_args), "visualizer_explicit": True, "visualizer_disable_all": disable_all}

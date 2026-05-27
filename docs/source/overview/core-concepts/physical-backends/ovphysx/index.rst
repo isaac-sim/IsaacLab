@@ -5,8 +5,8 @@ OvPhysX Backend
 
     OvPhysX is **highly experimental** and is not recommended for general use yet.
     The public surface is changing rapidly while the backend is under active
-    development. This page is a placeholder and will be expanded once the
-    in-flight integration work lands on ``develop``.
+    development. Expect feature coverage and test commands to change between
+    Isaac Lab 3.0 beta releases.
 
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
 (without the Omniverse Kit runtime) and reads scene-level solver parameters
@@ -37,32 +37,79 @@ What works today
 ----------------
 
 The asset and sensor surface tracks PhysX, but only a subset is implemented and
-validated at the time of writing. Rigid Object support is merged on
-``develop``; the remaining assets and sensors are landing through a series of
-stacked pull requests:
+validated at the time of writing. The following pieces are available on
+``develop``:
 
 * RigidObject — merged via
   `PR #5426 <https://github.com/isaac-sim/IsaacLab/pull/5426>`_.
-* Articulation — open in
+* Articulation — merged via
   `PR #5459 <https://github.com/isaac-sim/IsaacLab/pull/5459>`_.
-* Contact Sensor — open in
-  `PR #5422 <https://github.com/isaac-sim/IsaacLab/pull/5422>`_.
-* IMU — open in
-  `PR #5421 <https://github.com/isaac-sim/IsaacLab/pull/5421>`_.
-* RigidObjectCollection — open in
+* RigidObjectCollection — merged via
   `PR #5570 <https://github.com/isaac-sim/IsaacLab/pull/5570>`_.
-* SceneDataProvider — open in
+* Contact Sensor — merged via
+  `PR #5422 <https://github.com/isaac-sim/IsaacLab/pull/5422>`_.
+* SceneDataProvider — merged via
   `PR #5589 <https://github.com/isaac-sim/IsaacLab/pull/5589>`_.
+* FrameView — merged via
+  `PR #5678 <https://github.com/isaac-sim/IsaacLab/pull/5678>`_.
 
-Other sensors (Frame Transformer, Joint Wrench, PVA, Ray Caster) and the
-rendering surface are not yet wired up for OvPhysX.
+Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
+PVA, Ray Caster, and rendering support are not documented as supported here
+until their implementations land on ``develop`` and pass the backend smoke
+tests.
+
+Installation
+------------
+
+The Isaac Lab source install includes the ``isaaclab_ovphysx`` package, but it
+does not install the heavier ``ovphysx`` runtime wheel by default. After a
+standard source install, install the optional OvPhysX runtime dependency from
+the repository root:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -i 'ov[ovphysx]'
+
+You can also install all OV runtime wheels with:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -i 'ov[all]'
+
+The ``ov[ovphysx]`` selector installs ``source/isaaclab_ovphysx`` with its
+``[ovphysx]`` extra. If the wheel is missing, OvPhysX-specific tests skip with
+``ovphysx wheel not installed`` and user code fails at import time.
+
+Testing the Installation
+------------------------
+
+First check that the Python package and runtime wheel import correctly:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+
+Then run a small backend smoke test:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+
+To try a task that declares an OvPhysX physics preset, use the same preset CLI
+syntax as the other backends:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --headless presets=ovphysx
+
+This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
+after the environment has started and stepped successfully.
 
 Status and follow-up
 --------------------
 
-This page is intentionally a stub. Once the in-flight OvPhysX work merges, this
-section will be expanded with full installation, configuration, and supported
-feature lists matching the other backends. The expansion is tracked in
+OvPhysX is still experimental, so the feature list above is intentionally
+conservative. Broader feature coverage and documentation parity are tracked in
 `issue #5634 <https://github.com/isaac-sim/IsaacLab/issues/5634>`_.
 
 For architectural context, see :doc:`../../multi_backend_architecture`.

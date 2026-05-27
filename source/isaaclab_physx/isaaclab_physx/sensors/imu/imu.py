@@ -188,6 +188,7 @@ class Imu(BaseImu):
                 self._gravity_bias_w,
                 self._prev_lin_vel_w,
                 1.0 / self._dt,
+                self._timestamp,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],

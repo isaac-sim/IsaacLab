@@ -376,6 +376,60 @@ def test_no_contact_reporting(setup_simulation):
         assert contact_sensor_2.data.force_matrix_w.torch.sum().item() == 0.0
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
+    """Regression for issue #4970: ``scene.reset(env_ids)`` must not surface pre-reset contact data.
+
+    Reproduces the manager-based RL flow where an environment terminates, ``_reset_idx`` writes
+    new asset poses and calls :meth:`InteractiveScene.reset`, and the next observation read
+    happens before any further physics step. The contact sensor's lazy refetch must not return
+    PhysX's stale post-step buffer for the reset env — it must reflect the freshly reset state.
+    """
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", False)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.shape.init_state.pos = (0.0, 0.0, 1.0)
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            update_period=0.0,
+            history_length=10,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        contact_sensor: ContactSensor = scene["contact_sensor"]
+        shape: RigidObject = scene["shape"]
+
+        # Drop the cube and step until it has settled on the ground.
+        for _ in range(200):
+            _perform_sim_step(sim, scene, sim_dt)
+
+        # Sanity: cube is on the ground and reporting non-zero contact force.
+        pre_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_forces_w.torch, dim=-1).item()
+        assert pre_reset_force_mag > 1.0, f"Expected non-zero contact force before reset; got {pre_reset_force_mag!r}"
+
+        # Mimic ``ManagerBasedRLEnv._reset_idx``: write the post-reset asset pose, then
+        # ``scene.reset(env_ids)`` (which resets all sensors). No further physics step runs.
+        env_ids = torch.tensor([0], device=shape.device)
+        new_root_pose = torch.tensor([[0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0]], device=shape.device)
+        new_root_vel = torch.zeros((1, 6), device=shape.device)
+        shape.write_root_pose_to_sim_index(root_pose=new_root_pose, env_ids=env_ids)
+        shape.write_root_velocity_to_sim_index(root_velocity=new_root_vel, env_ids=env_ids)
+        scene.reset(env_ids=env_ids)
+
+        # The sensor must not return the cached pre-reset PhysX contact value here.
+        post_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_forces_w.torch, dim=-1).item()
+        assert post_reset_force_mag == 0.0, (
+            "Contact sensor returned stale pre-reset data after scene.reset(): "
+            f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
+        )
+
+
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_simulation):
     """Test sensor print is working correctly."""
