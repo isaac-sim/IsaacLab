@@ -96,8 +96,9 @@ jobs:
         # "deploy" branches build the full set of versions so every page
         # has a complete version dropdown: main, develop, tags >= v2.0.0
         # (including pre-release suffixes like -beta or -rc1). v1.x tags and
-        # release/ branches are excluded.
-        SMV_BRANCH_WHITELIST: '^(main|develop)$'
+        # most release/ branches are excluded; release/3.0.0-beta2 is included
+        # explicitly to surface it in the version switcher.
+        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0-beta2)$'
         SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags

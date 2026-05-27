@@ -30,6 +30,8 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
+    # tetrahedralization for deformable bodies (pinned: >=0.3 unconditionally imports pyvista at package import time)
+    "pytetwild==0.2.3",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -71,7 +73,7 @@ INSTALL_REQUIRES += [
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    f"usd-core==25.8.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-core==25.11.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 

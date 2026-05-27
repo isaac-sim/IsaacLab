@@ -20,7 +20,7 @@ In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--vi
 to determine whether viewer apps are launched with an Isaac Lab command.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/features/visualization`).
+(see :doc:`/source/overview/core-concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
@@ -69,9 +69,9 @@ New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 
 Two new backend extensions have been introduced:
 
-- **``isaaclab_physx``** — PhysX-specific implementations of all asset and sensor classes.
-- **``isaaclab_newton``** — Newton-specific implementations of asset classes (Articulation and
-  RigidObject).
+- **``isaaclab_physx``** — PhysX-specific implementations of asset and sensor classes.
+- **``isaaclab_newton``** — Newton-specific implementations of supported asset classes, including
+  articulations, rigid objects, and deformable objects.
 
 The following classes have been moved to ``isaaclab_physx``:
 
@@ -81,16 +81,17 @@ The following classes have been moved to ``isaaclab_physx``:
 
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
-   * - ``from isaaclab.assets import DeformableObject``
-     - ``from isaaclab_physx.assets import DeformableObject``
-   * - ``from isaaclab.assets import DeformableObjectCfg``
-     - ``from isaaclab_physx.assets import DeformableObjectCfg``
-   * - ``from isaaclab.assets import DeformableObjectData``
-     - ``from isaaclab_physx.assets import DeformableObjectData``
    * - ``from isaaclab.assets import SurfaceGripper``
      - ``from isaaclab_physx.assets import SurfaceGripper``
    * - ``from isaaclab.assets import SurfaceGripperCfg``
      - ``from isaaclab_physx.assets import SurfaceGripperCfg``
+
+.. note::
+
+   Deformable object public APIs remain in the backend-neutral ``isaaclab``
+   package. Continue importing :class:`~isaaclab.assets.DeformableObject`,
+   :class:`~isaaclab.assets.DeformableObjectCfg`, and
+   :class:`~isaaclab.assets.DeformableObjectData` from ``isaaclab.assets``.
 
 .. note::
 
@@ -382,13 +383,17 @@ release. The old soft body API has been deprecated and replaced by two distinct 
 types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
 triangle cloth meshes). The deformable type is determined by the physics material assigned:
 
-- :class:`~isaaclab_physx.sim.DeformableBodyMaterialCfg` for volume deformables.
-- :class:`~isaaclab_physx.sim.SurfaceDeformableBodyMaterialCfg` for surface deformables.
+- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
+- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
+- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
+- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface
+  deformables.
 
-All deformable-related classes have moved from ``isaaclab`` to ``isaaclab_physx``, as shown
-in the import table above. Several properties on
-:class:`~isaaclab_physx.sim.DeformableBodyPropertiesCfg` have been removed or added to match
-the new Omni Physics schema.
+Deformable property and material cfgs are backend-specific. Several properties on
+:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` have been removed or added to
+match the new Omni Physics schema. The common
+:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; OmniPhysics
+deformable body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
 
 For a comprehensive guide covering the full deformable API migration — including removed and
 added properties, material changes, code examples for both volume and surface deformables, and
@@ -877,7 +882,7 @@ Here's a complete example showing how to update your code:
 
 .. code-block:: python
 
-   from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
+   from isaaclab.assets import DeformableObject, DeformableObjectCfg
    from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
    from isaaclab.assets import RigidObjectCollection  # unchanged
 
@@ -1219,7 +1224,7 @@ All ``.data.*`` properties on asset and sensor classes now return
 the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
 change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
-:class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
+:class:`~isaaclab.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
 :class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
@@ -1276,8 +1281,8 @@ Common patterns that need updating:
      - ``isaaclab`` / ``isaaclab_physx``
    * - :class:`~isaaclab.assets.RigidObjectCollection`
      - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.assets.DeformableObject`
-     - ``isaaclab_physx``
+   * - :class:`~isaaclab.assets.DeformableObject`
+     - ``isaaclab`` / ``isaaclab_physx`` / ``isaaclab_newton``
    * - :class:`~isaaclab_physx.sensors.ContactSensor`
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.Imu`

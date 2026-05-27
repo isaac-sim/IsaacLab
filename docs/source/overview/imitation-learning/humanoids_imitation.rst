@@ -538,6 +538,24 @@ Generate the dataset with manipulation and point-to-point navigation
 
 To create a comprehensive locomanipulation dataset that combines both manipulation and navigation capabilities, you can generate a navigation dataset using the manipulation dataset from the previous step as input.
 
+.. tip::
+
+   **Skip data generation:** A pre-made locomanipulation dataset in LeRobot format is available on
+   Hugging Face at `nvidia/g1_locomanip_dataset <https://huggingface.co/datasets/nvidia/g1_locomanip_dataset>`__.
+   Downloading it lets you skip this section and the dataset conversion step, proceeding directly to
+   **Finetune the policy** below.
+
+   Download and unzip the dataset:
+
+   .. code:: bash
+
+      huggingface-cli download nvidia/g1_locomanip_dataset --repo-type dataset --local-dir ./datasets/g1_locomanip_hf
+      unzip ./datasets/g1_locomanip_hf/*.zip -d ./datasets/
+
+   The archive extracts to ``./datasets/g1_simple_high_var_lerobot/``.
+   Use this path as the ``--dataset-path`` in the finetuning step.
+   Policies trained on this dataset require ``--policy_quat_format wxyz`` at rollout time.
+
 .. list-table::
    :widths: 50 50
    :header-rows: 0
@@ -689,6 +707,23 @@ Run finetuning from the **Isaac-GR00T** repository root. Use the LeRobot-format 
        --report-to tensorboard
 
 See the GR00T N1.5 repository documentation for additional training options.
+
+.. tip::
+
+   **Skip finetuning:** A pre-trained GR00T N1.5 checkpoint for this task is available on
+   Hugging Face at `nvidia/g1_locomanip_finetune <https://huggingface.co/nvidia/g1_locomanip_finetune>`__.
+   Downloading it lets you skip the finetuning step and proceed directly to rollout.
+
+   Download and unzip the checkpoint:
+
+   .. code:: bash
+
+      huggingface-cli download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
+      unzip ./checkpoints/g1_locomanip_finetune_hf/*.zip -d ./checkpoints/
+
+   The archive extracts to ``./checkpoints/g1_locomanip_finetune_20260129_231610/``.
+   Use ``./checkpoints/g1_locomanip_finetune_20260129_231610/checkpoint-20000`` as the ``--model_path``
+   in the rollout command below. This checkpoint requires ``--policy_quat_format wxyz``.
 
 Rollout the policy in Isaac Lab
 """""""""""""""""""""""""""""""

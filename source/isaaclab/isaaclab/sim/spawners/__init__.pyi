@@ -6,6 +6,7 @@
 __all__ = [
     "SpawnerCfg",
     "RigidObjectSpawnerCfg",
+    "DeformableObjectSpawnerCfg",
     "spawn_from_mjcf",
     "spawn_from_urdf",
     "spawn_from_usd",
@@ -24,8 +25,13 @@ __all__ = [
     "LightCfg",
     "SphereLightCfg",
     "spawn_rigid_body_material",
+    "spawn_deformable_body_material",
     "PhysicsMaterialCfg",
     "RigidBodyMaterialCfg",
+    "DeformableBodyMaterialBaseCfg",
+    "DeformableBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialBaseCfg",
+    "SurfaceDeformableBodyMaterialCfg",
     "spawn_from_mdl_file",
     "spawn_preview_surface",
     "GlassMdlCfg",
@@ -36,15 +42,15 @@ __all__ = [
     "spawn_mesh_cone",
     "spawn_mesh_cuboid",
     "spawn_mesh_cylinder",
+    "spawn_mesh_rectangle",
     "spawn_mesh_sphere",
-    "spawn_mesh_square",
     "MeshCapsuleCfg",
     "MeshCfg",
     "MeshConeCfg",
     "MeshCuboidCfg",
     "MeshCylinderCfg",
+    "MeshRectangleCfg",
     "MeshSphereCfg",
-    "MeshSquareCfg",
     "spawn_camera",
     "spawn_sensor_frame",
     "FisheyeCameraCfg",
@@ -67,7 +73,7 @@ __all__ = [
     "MultiUsdFileCfg",
 ]
 
-from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg
+from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
 from .from_files import (
     spawn_from_mjcf,
     spawn_from_urdf,
@@ -91,8 +97,13 @@ from .lights import (
 )
 from .materials import (
     spawn_rigid_body_material,
+    spawn_deformable_body_material,
     PhysicsMaterialCfg,
     RigidBodyMaterialCfg,
+    DeformableBodyMaterialBaseCfg,
+    DeformableBodyMaterialCfg,
+    SurfaceDeformableBodyMaterialBaseCfg,
+    SurfaceDeformableBodyMaterialCfg,
     spawn_from_mdl_file,
     spawn_preview_surface,
     GlassMdlCfg,
@@ -105,14 +116,14 @@ from .meshes import (
     spawn_mesh_cone,
     spawn_mesh_cuboid,
     spawn_mesh_cylinder,
+    spawn_mesh_rectangle,
     spawn_mesh_sphere,
-    spawn_mesh_square,
     MeshCapsuleCfg,
     MeshCfg,
     MeshConeCfg,
     MeshCuboidCfg,
     MeshCylinderCfg,
-    MeshSquareCfg,
+    MeshRectangleCfg,
     MeshSphereCfg,
 )
 from .sensors import spawn_camera, spawn_sensor_frame, FisheyeCameraCfg, PinholeCameraCfg, SensorFrameCfg

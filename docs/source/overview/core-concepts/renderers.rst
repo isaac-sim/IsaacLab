@@ -32,6 +32,11 @@ Choosing a renderer backend
 
 .. note::
 
+   Visualization markers are not yet supported by Newton-based renderer backends,
+   including the Newton Warp renderer. Use an RTX-based renderer, such as the
+   Isaac RTX renderer or OVRTX renderer, when marker visualization is needed.
+
+.. note::
    **Temporal information for camera-based RL.** Unlike RTX modes with temporal
    anti-aliasing (DLSS, DLAA, TAA), the Newton Warp renderer does not inject
    prior-frame information into the current image. Camera-control tasks that depend
@@ -135,4 +140,4 @@ See Also
 --------
 
 - :doc:`scene_data_providers` — how scene data flows from physics backends to renderers
-- :doc:`/source/features/visualization` — lightweight visualizer backends for interactive feedback
+- :doc:`/source/overview/core-concepts/visualization` — lightweight visualizer backends for interactive feedback

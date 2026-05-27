@@ -49,6 +49,9 @@ isaaclab_physx.sim.schemas
 
   .. autosummary::
 
+    OmniPhysicsDeformableBodyPropertiesCfg
+    PhysxDeformableCollisionPropertiesCfg
+    PhysxDeformableBodyPropertiesCfg
     DeformableBodyPropertiesCfg
 
   .. rubric:: Functions
@@ -136,10 +139,25 @@ Tendon
 Deformable Body
 ---------------
 
+.. autoclass:: OmniPhysicsDeformableBodyPropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: PhysxDeformableCollisionPropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: PhysxDeformableBodyPropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
 .. autoclass:: DeformableBodyPropertiesCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__
 
-.. autofunction:: define_deformable_body_properties
-.. autofunction:: modify_deformable_body_properties
+Schema define and modify functions remain unified in
+:mod:`isaaclab.sim.schemas`.

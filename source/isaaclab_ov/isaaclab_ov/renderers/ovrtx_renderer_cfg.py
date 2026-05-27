@@ -5,6 +5,9 @@
 
 """Configuration for OVRTX Renderer."""
 
+import os
+import tempfile
+
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 
@@ -40,5 +43,5 @@ class OVRTXRendererCfg(RendererCfg):
     log_level: str = "verbose"
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""
 
-    log_file_path: str = "/tmp/ovrtx_renderer.log"
-    """Path for OVRTX log file."""
+    log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
+    """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""

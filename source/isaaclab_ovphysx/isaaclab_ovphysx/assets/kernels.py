@@ -1349,6 +1349,31 @@ def write_joint_friction_to_buffer_index(
 
 
 @wp.kernel
+def resolve_view_ids(
+    env_ids: wp.array(dtype=wp.int32),
+    body_ids: wp.array(dtype=wp.int32),
+    num_query_envs: wp.int32,
+    num_total_envs: wp.int32,
+    view_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Resolve flat view indices from environment and body index pairs.
+
+    Computes flat view indices from (env_id, body_id) pairs using body-major ordering:
+    ``view_id = body_id * num_total_envs + env_id``. The output array is laid out in
+    column-major order over the (env, body) grid.
+
+    Args:
+        env_ids: Input environment indices. Shape is (num_query_envs,).
+        body_ids: Input body indices. Shape is (num_query_bodies,).
+        num_query_envs: Total number of queried environments.
+        num_total_envs: Total number of environments in the simulation.
+        view_ids: Output flat view indices. Shape is (num_query_bodies * num_query_envs,).
+    """
+    i, j = wp.tid()
+    view_ids[j * num_query_envs + i] = body_ids[j] * num_total_envs + env_ids[i]
+
+
+@wp.kernel
 def write_joint_friction_to_buffer_mask(
     in_data: wp.array2d(dtype=wp.float32),
     env_mask: wp.array(dtype=wp.bool),

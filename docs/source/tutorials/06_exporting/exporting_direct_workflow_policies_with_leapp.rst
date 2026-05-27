@@ -25,28 +25,71 @@ annotation pattern to your own Direct RL environment.
 
 Before exporting, install LEAPP into the Isaac Lab Python environment:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p -m pip install leapp
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p -m pip install leapp
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p -m pip install leapp
 
 If you want to run the exported example with the existing
 ``Isaac-Velocity-Rough-Anymal-C-Direct-v0`` task registration, copy the annotated
 tutorial environment into the task package:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   cp scripts/tutorials/06_deploy/anymal_c_env.py \
-      source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         cp scripts/tutorials/06_deploy/anymal_c_env.py \
+            source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         copy scripts\tutorials\06_deploy\anymal_c_env.py ^
+            source\isaaclab_tasks\isaaclab_tasks\direct\anymal_c\anymal_c_env.py
 
 After your environment includes the required LEAPP input, output, and state
 annotations, export a trained policy with:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-       --task <TASK_NAME> \
-       --checkpoint <PATH_TO_CHECKPOINT> \
-       --export_save_path <EXPORT_PATH>
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+             --task <TASK_NAME> \
+             --checkpoint <PATH_TO_CHECKPOINT> \
+             --export_save_path <EXPORT_PATH>
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+             --task <TASK_NAME> ^
+             --checkpoint <PATH_TO_CHECKPOINT> ^
+             --export_save_path <EXPORT_PATH>
 
 The ``--task`` argument is the registered task name, such as
 ``Isaac-Velocity-Rough-Anymal-C-Direct-v0``. The ``--checkpoint`` argument
@@ -69,7 +112,7 @@ For more information on the export arguments, see the
 
    .. literalinclude:: ../../../../scripts/tutorials/06_deploy/anymal_c_env.py
       :language: python
-      :emphasize-lines: 20, 75-77, 92-105
+      :emphasize-lines: 20, 75-77, 92-107
       :linenos:
 
 

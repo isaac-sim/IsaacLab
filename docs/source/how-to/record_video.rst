@@ -166,4 +166,4 @@ Summary
 See also
 --------
 
-* :doc:`/source/features/visualization` - interactive visualizers
+* :doc:`/source/overview/core-concepts/visualization` - interactive visualizers

@@ -35,7 +35,7 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     python_requires=">=3.12",
-    install_requires=[],
+    install_requires=["isaaclab_ppisp"],
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_ov"],
     classifiers=[
