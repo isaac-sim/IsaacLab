@@ -89,11 +89,12 @@ def wheel_path() -> Path | None:
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
-        "--dontskip",
+        "--noskip",
         "--force",
+        "--dontskip",
         action="store_true",
         default=False,
-        dest="dontskip",
+        dest="noskip",
         help="Strip all @pytest.mark.skip markers for this run (does not affect skipif). Alias: --force.",
     )
 
@@ -174,6 +175,6 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         items[:] = remaining
         config.hook.pytest_deselected(items=deselected)
 
-    if config.getoption("--dontskip"):
+    if config.getoption("--noskip"):
         for item in items:
             item.own_markers = [m for m in item.own_markers if m.name != "skip"]
