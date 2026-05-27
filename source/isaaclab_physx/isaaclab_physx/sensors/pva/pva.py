@@ -227,6 +227,7 @@ class Pva(BasePva):
                 self._prev_lin_vel_w,
                 self._prev_ang_vel_w,
                 1.0 / self._dt,
+                self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
