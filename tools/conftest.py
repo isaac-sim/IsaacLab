@@ -699,18 +699,9 @@ def pytest_sessionstart(session):
                 for file in files:
                     if not (file.startswith("test_") and file.endswith(".py")):
                         continue
-                    full_path = os.path.join(root, file)
-                    try:
-                        with open(full_path) as f:
-                            if marker_token in f.read():
-                                marker_include_files.add(file)
-                    except OSError as exc:
-                        # Pre-scan is best-effort: even if we miss a file here,
-                        # _collect_test_files may still pick it up via the
-                        # normal walk path. Log loudly so the miss is visible
-                        # without aborting the whole orchestrator.
-                        print(f"::warning::ci_marker pre-scan could not read {full_path}: {exc}")
-                        continue
+                    with open(os.path.join(root, file)) as f:
+                        if marker_token in f.read():
+                            marker_include_files.add(file)
         if marker_include_files:
             print(f"CI_MARKER={ci_marker}: marker-tagged files: {sorted(marker_include_files)}")
             # Union with any explicit TEST_INCLUDE_FILES the caller passed.
@@ -738,23 +729,12 @@ def pytest_sessionstart(session):
         # Match both `@pytest.mark.<marker>` (per-function) and
         # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
         # (module-level) by looking for the common `pytest.mark.<marker>` substring.
-        # Unlike the pre-scan, an OSError here is fatal: this is the final
-        # filter pass, so silently dropping a file would let a marker-tagged
-        # test silently exit the run with the orchestrator still reporting
-        # success. We'd rather abort loudly than mask a real CI environment
-        # issue (permission flap, race-deleted file, broken symlink).
         marker_token = f"pytest.mark.{ci_marker}"
         new_test_files = []
         for test_file in test_files:
-            try:
-                with open(test_file) as f:
-                    if marker_token in f.read():
-                        new_test_files.append(test_file)
-            except OSError as exc:
-                raise RuntimeError(
-                    f"ci_marker post-scan could not read {test_file}; refusing to"
-                    f" silently drop a potentially marker-tagged file"
-                ) from exc
+            with open(test_file) as f:
+                if marker_token in f.read():
+                    new_test_files.append(test_file)
         test_files = new_test_files
 
     if not test_files:
