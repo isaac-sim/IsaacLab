@@ -16,6 +16,7 @@ def copy_from_newton_kernel(
     num_sensors: int,
     newton_total_force: wp.array(dtype=wp.vec3f),  # (n_envs * n_sensors)
     newton_force_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
+    timestamp: wp.array(dtype=wp.float32),
     # outputs
     net_force_total: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
     force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
@@ -30,6 +31,11 @@ def copy_from_newton_kernel(
     if env_mask:
         if not env_mask[env]:
             return
+
+    # Skip envs that have not been stepped since their last reset: Newton's contact buffer
+    # still holds pre-reset values, so reading it now would inject stale data (#4970).
+    if timestamp[env] == 0.0:
+        return
 
     # Copy total force (column 0) - only thread with f_idx == 0 does this
     src_idx = env * num_sensors + sensor

@@ -164,10 +164,6 @@ class ContactSensor(BaseContactSensor):
             ],
             device=self._device,
         )
-        # The Newton contact buffer still holds the pre-reset values until the next physics
-        # step; clear the outdated flag so the next data access returns the zeros above
-        # instead of refetching that stale buffer. See #4970.
-        self._mark_envs_up_to_date(env_mask)
 
     def find_sensors(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find sensors based on the name keys.
@@ -415,6 +411,7 @@ class ContactSensor(BaseContactSensor):
                 self._num_sensors,
                 self._newton_total_force_view,
                 self._newton_force_matrix_view,
+                self._timestamp,
             ],
             outputs=[
                 self._data._net_forces_w,

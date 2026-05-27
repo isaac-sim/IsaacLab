@@ -112,10 +112,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
         )
-        # PhysX's get_link_incoming_joint_force() still holds the pre-reset wrenches until
-        # the next physics step; clear the outdated flag so the next data access returns
-        # the zeros above instead of refetching that stale buffer. See #4970.
-        self._mark_envs_up_to_date(env_mask)
 
     """
     Implementation
@@ -232,6 +228,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 incoming_joint_wrench,
                 self._joint_pos_b,
                 self._joint_quat_b,
+                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],

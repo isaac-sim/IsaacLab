@@ -115,10 +115,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
         )
-        # The Newton joint-wrench buffer still holds the pre-reset values until the next
-        # physics step; clear the outdated flag so the next data access returns the zeros
-        # above instead of refetching that stale buffer. See #4970.
-        self._mark_envs_up_to_date(env_mask)
 
     """
     Implementation
@@ -224,6 +220,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._sim_bind_body_com,
                 self._sim_bind_joint_X_c,
                 self._joint_child,
+                self._timestamp,
             ],
             outputs=[self._data._force, self._data._torque],
             device=self._device,

@@ -103,9 +103,6 @@ class Imu(BaseImu):
             inputs=[env_mask, self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,
         )
-        # Clear the outdated flag so the next data access returns the zeros above
-        # rather than refetching the underlying physics buffer. See #4970.
-        self._mark_envs_up_to_date(env_mask)
 
     """
     Implementation
@@ -161,7 +158,12 @@ class Imu(BaseImu):
         wp.launch(
             imu_copy_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._newton_sensor.accelerometer, self._newton_sensor.gyroscope],
+            inputs=[
+                env_mask,
+                self._newton_sensor.accelerometer,
+                self._newton_sensor.gyroscope,
+                self._timestamp,
+            ],
             outputs=[self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,
         )

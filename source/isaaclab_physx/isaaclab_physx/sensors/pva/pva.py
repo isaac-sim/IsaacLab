@@ -128,10 +128,6 @@ class Pva(BasePva):
             ],
             device=self._device,
         )
-        # PhysX's get_velocities() still holds the pre-reset values until the next physics
-        # step; clear the outdated flag so the next data access returns the zeros above
-        # rather than computing a spurious finite-difference acceleration. See #4970.
-        self._mark_envs_up_to_date(env_mask)
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
@@ -231,6 +227,7 @@ class Pva(BasePva):
                 self._prev_lin_vel_w,
                 self._prev_ang_vel_w,
                 1.0 / self._dt,
+                self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
