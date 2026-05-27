@@ -174,3 +174,102 @@ class TestNormalizeImageUint8:
         src = torch.zeros((2, 4, 4, 3), dtype=torch.uint8, device=device)
         with pytest.raises(ValueError, match="channel_dim must resolve to 1 .BCHW. or 3 .BHWC."):
             normalize_image_uint8(src, channel_dim=bad_dim)
+
+    def test_multi_tile_h_axis(self, device):
+        """H > tile_size must produce NUM_TILES > 1 partial sums and reduce correctly."""
+        from isaaclab.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
+
+        # H = 2 * TILE forces NUM_TILES=2 (evenly split).
+        h = 2 * _UINT8_SUM_TILE_HW
+        torch.manual_seed(2)
+        src = torch.randint(0, 255, (2, h, 8, 6), dtype=torch.uint8, device=device)
+        out = normalize_image_uint8(src)
+        torch.testing.assert_close(out, _pytorch_reference(src), atol=1e-5, rtol=1e-5)
+
+    def test_non_divisible_h_last_tile_clamps(self, device):
+        """H not divisible by tile_size: last tile's row range must clamp via ``wp.min``."""
+        from isaaclab.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
+
+        # H = 2*TILE + 1 forces a 3rd tile with a single row.
+        h = 2 * _UINT8_SUM_TILE_HW + 1
+        torch.manual_seed(3)
+        src = torch.randint(0, 255, (2, h, 8, 6), dtype=torch.uint8, device=device)
+        out = normalize_image_uint8(src)
+        torch.testing.assert_close(out, _pytorch_reference(src), atol=1e-5, rtol=1e-5)
+
+    def test_bchw_multi_tile_h_axis(self, device):
+        """H > tile_size on BCHW (H at axis 2) must reduce correctly across multiple tiles."""
+        from isaaclab.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
+
+        h = 2 * _UINT8_SUM_TILE_HW + 1
+        torch.manual_seed(6)
+        src = torch.randint(0, 255, (2, 6, h, 8), dtype=torch.uint8, device=device)
+        out = normalize_image_uint8(src, channel_dim=1)
+        torch.testing.assert_close(out, _pytorch_reference(src, channel_dim=1), atol=1e-5, rtol=1e-5)
+
+    def test_bchw_constant_input(self, device):
+        """A constant-valued BCHW uint8 input must normalize to all zeros."""
+        from isaaclab.utils.warp.ops import normalize_image_uint8
+
+        src = torch.full((2, 6, 4, 4), 128, dtype=torch.uint8, device=device)
+        out = normalize_image_uint8(src, channel_dim=1)
+        torch.testing.assert_close(out, torch.zeros_like(out))
+
+    def test_bchw_preallocated_output_reused(self, device):
+        """``out`` kwarg on the BCHW path is written-into and the same object is returned."""
+        from isaaclab.utils.warp.ops import normalize_image_uint8
+
+        src = torch.randint(0, 255, (2, 6, 8, 8), dtype=torch.uint8, device=device)
+        out = torch.empty(src.shape, dtype=torch.float32, device=device)
+        ptr_before = out.data_ptr()
+        result = normalize_image_uint8(src, channel_dim=1, out=out)
+        assert result is out
+        assert result.data_ptr() == ptr_before
+        torch.testing.assert_close(result, _pytorch_reference(src, channel_dim=1), atol=1e-5, rtol=1e-5)
+
+        src2 = torch.randint(0, 255, (2, 6, 8, 8), dtype=torch.uint8, device=device)
+        result2 = normalize_image_uint8(src2, channel_dim=1, out=out)
+        assert result2.data_ptr() == ptr_before
+        torch.testing.assert_close(result2, _pytorch_reference(src2, channel_dim=1), atol=1e-5, rtol=1e-5)
+
+    def test_partials_cache_keyed_by_channel_dim(self, device):
+        """BCHW and BHWC inputs of identical shape must land in separate cache slots."""
+        from isaaclab.utils.warp import ops as warp_ops
+
+        shape = (2, 6, 8, 8)  # ambiguous shape: works as both BHWC (B=2,H=6,W=8,C=8) and BCHW (B=2,C=6,H=8,W=8)
+        src_bhwc = torch.randint(0, 255, shape, dtype=torch.uint8, device=device)
+        src_bchw = torch.randint(0, 255, shape, dtype=torch.uint8, device=device)
+
+        warp_ops._uint8_sum_partials_cache.clear()
+
+        warp_ops.normalize_image_uint8(src_bhwc)  # channel_dim defaults to -1 -> resolves to 3
+        warp_ops.normalize_image_uint8(src_bchw, channel_dim=1)
+
+        # Both calls had shape ``shape`` but different channel_dim, so the cache key
+        # (shape, device, channel_dim) must distinguish them: two entries, not one.
+        assert (shape, device, 3) in warp_ops._uint8_sum_partials_cache
+        assert (shape, device, 1) in warp_ops._uint8_sum_partials_cache
+        assert len(warp_ops._uint8_sum_partials_cache) == 2
+
+    def test_partials_cache_reuses_scratch_across_calls(self, device):
+        """Repeat calls with the same shape must hit the partials cache, not grow it."""
+        from isaaclab.utils.warp import ops as warp_ops
+
+        shape = (2, warp_ops._UINT8_SUM_TILE_HW + 4, 8, 6)
+        src_a = torch.randint(0, 255, shape, dtype=torch.uint8, device=device)
+        src_b = torch.randint(0, 255, shape, dtype=torch.uint8, device=device)
+
+        # Clear the cache to isolate this test from prior tests' state.
+        warp_ops._uint8_sum_partials_cache.clear()
+
+        warp_ops.normalize_image_uint8(src_a)
+        size_after_first = len(warp_ops._uint8_sum_partials_cache)
+        first_scratch_ptr = warp_ops._uint8_sum_partials_cache[(shape, device, 3)][0].data_ptr()
+
+        warp_ops.normalize_image_uint8(src_b)
+        size_after_second = len(warp_ops._uint8_sum_partials_cache)
+        second_scratch_ptr = warp_ops._uint8_sum_partials_cache[(shape, device, 3)][0].data_ptr()
+
+        assert size_after_first == 1
+        assert size_after_second == size_after_first
+        assert first_scratch_ptr == second_scratch_ptr

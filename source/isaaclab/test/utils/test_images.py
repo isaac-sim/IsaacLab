@@ -56,6 +56,12 @@ class TestPredicates:
 
         assert is_normals_like(data_type)
 
+    @pytest.mark.parametrize("data_type", ["rgb", "albedo", "depth", "distance_to_camera"])
+    def test_is_normals_like_rejects(self, data_type):
+        from isaaclab.utils.images import is_normals_like
+
+        assert not is_normals_like(data_type)
+
 
 class TestNormalizeCameraImageRGBLike:
     """RGB-like dispatch: rgb, albedo, simple_shading_*."""

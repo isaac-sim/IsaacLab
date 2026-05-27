@@ -24,6 +24,57 @@ from . import kernels
 _all_env_mask_cache: dict[tuple[int, str], wp.array] = {}
 
 
+# Tile size for the spatial-axis split in :func:`_uint8_spatial_mean`.
+_UINT8_SUM_TILE_HW: int = 32
+
+# Cache of int32 partials scratch tensors keyed by (src.shape, device). Avoids per-call
+# allocation in :func:`_uint8_spatial_mean`.
+_uint8_sum_partials_cache: dict[tuple[tuple[int, ...], str], tuple[torch.Tensor, int]] = {}
+
+
+def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -> torch.Tensor:
+    """Per-(batch, channel) mean of a uint8 image scaled by ``1 / scale``.
+
+    Equivalent to ``src.sum(dim=spatial_dims, dtype=int32).float() / scale`` where
+    ``spatial_dims`` is the pair of non-batch, non-channel axes.
+
+    Args:
+        src: Input image. Shape is ``(B, H, W, C)`` (BHWC) or ``(B, C, H, W)`` (BCHW),
+            dtype ``torch.uint8``, contiguous.
+        scale: Multiplier for the per-channel sum. Pass ``H * W * 255`` to get the mean
+            of ``src / 255``.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Defaults to ``3`` (BHWC) for back-compat with internal callers.
+
+    Returns:
+        Per-(batch, channel) mean as float32. Shape is ``(B, C)``.
+    """
+    if channel_dim == 1:
+        b, c, h, _ = src.shape
+    else:
+        b, h, _, c = src.shape
+    device_str = str(src.device)
+    cache_key = (src.shape, device_str, channel_dim)
+    cached = _uint8_sum_partials_cache.get(cache_key)
+    if cached is None:
+        num_tiles = (h + _UINT8_SUM_TILE_HW - 1) // _UINT8_SUM_TILE_HW
+        # C innermost: adjacent threads stride-1 along src's contiguous trailing dim (BHWC fast path).
+        partials = torch.empty((b, num_tiles, c), dtype=torch.int32, device=src.device)
+        _uint8_sum_partials_cache[cache_key] = (partials, num_tiles)
+    else:
+        partials, num_tiles = cached
+
+    src_wp = wp.from_torch(src, dtype=wp.uint8)
+    partials_wp = wp.from_torch(partials, dtype=wp.int32)
+    wp.launch(
+        kernel=kernels.spatial_sum_uint8_tiled,
+        dim=(b, num_tiles, c),
+        inputs=[src_wp, partials_wp, _UINT8_SUM_TILE_HW, channel_dim],
+        device=device_str,
+    )
+    return partials.sum(dim=1).float() / scale
+
+
 def raycast_mesh(
     ray_starts: torch.Tensor,
     ray_directions: torch.Tensor,
@@ -413,8 +464,8 @@ def normalize_image_uint8(
 ) -> torch.Tensor:
     """Compute ``(src / 255.0) - mean(src / 255.0, spatial_dims, keepdim=True)`` via a fused Warp kernel.
 
-    Equivalent to the pure-PyTorch expression to within float32 precision, but reads ``src``
-    once and writes ``out`` once. Pass an ``out`` tensor to reuse storage across steps.
+    Equivalent to the pure-PyTorch expression to within float32 precision. Pass an ``out``
+    tensor to reuse storage across steps.
 
     Supports both image layouts via ``channel_dim``:
 
@@ -466,14 +517,13 @@ def normalize_image_uint8(
     # Spatial dims = the two non-batch, non-channel axes; mean is shape (B, C) for both layouts.
     spatial_dims = tuple(d for d in (1, 2, 3) if d != resolved_channel_dim)
     spatial_size = src.shape[spatial_dims[0]] * src.shape[spatial_dims[1]]
-    # torch.sum on uint8 promotes to int64; dividing once at the end avoids a float32 transient.
-    mean = src.sum(dim=spatial_dims, dtype=torch.int64).to(torch.float32) / (spatial_size * 255.0)
+    mean = _uint8_spatial_mean(src, spatial_size * 255.0, channel_dim=resolved_channel_dim)
 
     src_wp = wp.from_torch(src, dtype=wp.uint8)
     mean_wp = wp.from_torch(mean, dtype=wp.float32)
     out_wp = wp.from_torch(out, dtype=wp.float32)
     wp.launch(
-        kernel=kernels.normalize_image_uint8_kernel,
+        kernel=kernels.normalize_image_uint8,
         dim=src.shape,
         inputs=[src_wp, mean_wp, out_wp, resolved_channel_dim],
         device=str(src.device),
