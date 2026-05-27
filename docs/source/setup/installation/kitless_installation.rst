@@ -131,7 +131,7 @@ Examples:
       .. code-block:: bash
 
          # Core only (physx, tasks, assets always included — no optional extras)
-         ./isaaclab.sh -i none
+         ./isaaclab.sh -i core
 
          # Newton physics + RSL-RL (most common kitless setup)
          ./isaaclab.sh -i newton,'rl[rsl-rl]'
@@ -145,7 +145,7 @@ Examples:
       .. code-block:: batch
 
          :: Core only
-         isaaclab.bat -i none
+         isaaclab.bat -i core
 
          :: Newton physics + RSL-RL
          isaaclab.bat -i newton,rl[rsl-rl]

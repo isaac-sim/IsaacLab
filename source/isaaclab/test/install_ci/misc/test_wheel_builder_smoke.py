@@ -17,6 +17,8 @@ from utils import UV_Mixin, run_cmd
 class Test_Wheel_Builder(UV_Mixin):
     """Test building the isaaclab wheel and installing it in a uv environment."""
 
+    _wheel: str = ""
+
     @classmethod
     def setup_class(cls):
         if not shutil.which("uv"):
@@ -37,7 +39,7 @@ class Test_Wheel_Builder(UV_Mixin):
         # Find the built wheel
         wheels = glob.glob(str(dist_dir / "isaaclab-*.whl"))
         assert len(wheels) == 1, f"Expected exactly 1 wheel in {dist_dir}, found: {wheels}"
-        cls.wheel_path = wheels[0]
+        cls._wheel = wheels[0]
 
         # Create uv environment and install the wheel
         self.create_uv_env(isaaclab_root)
@@ -46,7 +48,7 @@ class Test_Wheel_Builder(UV_Mixin):
         cls.env_path = self.env_path
         cls.python = self.python
         cls.cli_script = self.cli_script
-        result = self.run_in_uv_env(["uv", "pip", "install", cls.wheel_path + "[all]"])
+        result = self.run_in_uv_env(["uv", "pip", "install", cls._wheel + "[all]"])
         assert result.returncode == 0, f"uv pip install wheel failed:\n{result.stdout}\n{result.stderr}"
 
         yield
@@ -64,7 +66,7 @@ class Test_Wheel_Builder(UV_Mixin):
         """Verify isaaclab.__version__ matches the wheel version."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab import __version__; print(__version__)"])
         imported_version = result.stdout.strip()
-        expected_version = self.wheel_path.split("/")[-1].split("-")[1]
+        expected_version = self._wheel.split("/")[-1].split("-")[1]
         assert imported_version == expected_version, (
             f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
         )
