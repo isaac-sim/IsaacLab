@@ -101,6 +101,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -159,6 +161,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Run General Tests
       uses: ./.github/actions/run-tests
