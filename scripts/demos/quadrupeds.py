@@ -82,6 +82,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
     anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
+
     # Origin 2 with Anymal C
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
@@ -181,9 +182,8 @@ def main():
         import isaaclab.sim as sim_utils
 
         # define simulation time step
-        dt = 1 / 200
         # define simulation configuration
-        sim_cfg = sim_utils.SimulationCfg(dt=dt, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg])
+        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg])
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
