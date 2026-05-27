@@ -14,10 +14,11 @@ bound to ``ParticleFieldEmissive.mdl`` with ``apply_inverse_tonemap=0`` and
 The wrapper PPISP cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) engages every PPISP
 feature past its subtle-correction defaults so the integration test can check
-*semantic invariants* of the PPISP pipeline (vignetting darkens corners,
-exposure increases mean, no overflow above 255, output stays in [0, 255])
-instead of doing a fidelity-against-baked comparison — which would have to
-absorb renderer-internal HDR-magnitude calibration drift between renderers.
+*semantic invariants* of the PPISP pipeline (the renderer produces HDR, PPISP
+maps it to a non-degenerate LDR range, vignetting darkens corners, and output
+stays in [0, 255]) instead of doing a fidelity-against-baked comparison —
+which would have to absorb renderer-internal HDR-magnitude calibration drift
+between renderers.
 
 Renderer parametrization:
   * ``isaac_rtx`` is the only renderer exercised by this test.
@@ -94,13 +95,14 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians(renderer_cfg_cls
     """Wrapper PPISP via ``isaac_rtx`` must show every PPISP-feature signature.
 
     Renders a synthetic RGBW gaussian grid through ``isaac_rtx`` + the aggressive
-    wrapper PPISP cfg and asserts (via :func:`assert_ppisp_invariants`):
+    wrapper PPISP cfg and asserts:
 
     1. **Non-degenerate frame** — content is rendered (not pure black / pure white).
-    2. **Vignetting** — each corner patch mean is meaningfully below the center mean.
-    3. **Exposure** — center patch is bright (the +2 stop boost lifts the gaussian
-       colors well into the upper half of the 0-255 range).
-    4. **CRF clamping** — output stays in [0, 255] with no overflow.
+    2. **HDR source** — ``rgb_hdr`` is present and bright enough for PPISP.
+    3. **PPISP LDR mapping** — the center patch lands in a useful, non-saturated
+       LDR range after the calibrated responsivity/exposure pair.
+    4. **Vignetting** — each corner patch mean is meaningfully below the center mean.
+    5. **CRF/clamping** — output stays in [0, 255] with no overflow.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
@@ -124,9 +126,10 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(render
     independently for every tile.
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so
-    the camera regex resolves to one camera per env;
-    :attr:`Camera.data.output["rgb"]` then carries one frame per matched camera
-    and each tile is asserted independently.
+    the camera regex resolves to one camera per env. Both ``rgb`` and
+    ``rgb_hdr`` are batched over the matched cameras, and each tile is checked
+    independently for HDR presence, useful PPISP LDR mapping, vignetting, and
+    bounded output.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
