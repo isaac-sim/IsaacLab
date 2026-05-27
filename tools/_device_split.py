@@ -26,8 +26,7 @@ Recognises both single-mark and single-line list forms:
 * ``pytestmark = [pytest.mark.device_split, pytest.mark.foo]``
 
 Multi-line list forms are not supported (currently no test file uses one); if
-a future test needs that, expand the parsing rule alongside the marker
-contract documented in ``scripts/run_ovphysx.sh``.
+a future test needs that, expand the parsing rule.
 """
 
 # Per-pass pytest ``-k`` selectors used by ``tools/conftest.py`` when a file
