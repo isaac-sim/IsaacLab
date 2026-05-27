@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import math
 import os
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,9 +39,7 @@ import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 # By setting OVRTX_SKIP_USD_CHECK, we prevent the C library from loading the pxr Python package.
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
-import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
-from packaging.version import Version
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
@@ -52,12 +49,10 @@ from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_depth_tiles_kernel,
-    extract_all_depth_tiles_kernel_legacy,
     extract_all_rgb_float_tiles_kernel,
     extract_all_rgb_half_tiles_kernel,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
-    generate_random_colors_from_ids_kernel_legacy,
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
@@ -73,10 +68,6 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-
-# Shared integration floor for this module; reuse for ovrtx features that share one support floor.
-_OVRTX_VERSION = Version(ovrtx.__version__)
-_IS_OVRTX_0_3_0_OR_NEWER = Version("0.3.0") <= _OVRTX_VERSION
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
 _RTX_MINIMAL_MODES = {
@@ -171,7 +162,6 @@ class OVRTXRenderer(BaseRenderer):
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
-        self._usd_handles = []
         self._render_product_paths = []
         self._camera_binding = None
         self._object_binding = None
@@ -181,7 +171,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
 
-        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning and _IS_OVRTX_0_3_0_OR_NEWER
+        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning
 
         if self._use_ovrtx_cloning:
             clone_plan = SimulationContext.instance().get_clone_plan()
@@ -193,7 +183,7 @@ class OVRTXRenderer(BaseRenderer):
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
-            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
+            read_gpu_transforms=True,
             keep_system_alive=True,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
@@ -233,7 +223,7 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
-        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning, not _IS_OVRTX_0_3_0_OR_NEWER)
+        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning)
 
         self._exported_usd_string = export_stage_to_string(stage, num_envs, self._use_ovrtx_cloning)
 
@@ -272,33 +262,19 @@ class OVRTXRenderer(BaseRenderer):
             combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
             self._exported_usd_string = None  # Free memory
 
+            # If temp_usd_dir is set, write the combined USD stage to a temporary file.
             if self.cfg.temp_usd_dir is not None:
                 temp_usd_dir = Path(self.cfg.temp_usd_dir)
-            elif not _IS_OVRTX_0_3_0_OR_NEWER:
-                # OVRTX 0.2.0 is not able to load USD from a string, so we need to write to a temporary file.
-                temp_usd_dir = Path(tempfile.gettempdir()) / "ovrtx"
-            else:
-                temp_usd_dir = None
-
-            if temp_usd_dir is not None:
                 temp_usd_dir.mkdir(parents=True, exist_ok=True)
                 temp_usd_path = temp_usd_dir / "ovrtx_renderer_stage.usda"
                 with open(temp_usd_path, "w", encoding="utf-8") as f:
                     f.write(combined_usd_string)
                     logger.info("Wrote combined USD stage to %s", temp_usd_path)
-            else:
-                temp_usd_path = None
 
             logger.info("Loading USD into OvRTX...")
             try:
-                if _IS_OVRTX_0_3_0_OR_NEWER:
-                    self._renderer.open_usd_from_string(combined_usd_string)
-                    logger.info("OVRTX loaded USD from string successfully")
-                else:
-                    assert temp_usd_path is not None  # OVRTX < 0.3.0 always materializes combined USD on disk.
-                    handle = self._renderer.add_usd(str(temp_usd_path), path_prefix=None)
-                    self._usd_handles.append(handle)
-                    logger.info("OVRTX loaded USD from file successfully (path: %s, handle: %s)", temp_usd_path, handle)
+                self._renderer.open_usd_from_string(combined_usd_string)
+                logger.info("OVRTX loaded USD from string successfully")
             except Exception as e:
                 logger.exception("Error loading USD: %s", e)
                 raise
@@ -545,11 +521,7 @@ class OVRTXRenderer(BaseRenderer):
         output_colors = self._output_semantic_color_buffer
 
         wp.launch(
-            kernel=(
-                generate_random_colors_from_ids_kernel
-                if _IS_OVRTX_0_3_0_OR_NEWER
-                else generate_random_colors_from_ids_kernel_legacy
-            ),
+            kernel=generate_random_colors_from_ids_kernel,
             dim=input_ids.shape,
             inputs=[input_ids, output_colors],
             device=self._device,
@@ -589,12 +561,10 @@ class OVRTXRenderer(BaseRenderer):
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
     ) -> None:
         """Extract per-env depth tiles into output_buffers (single kernel launch)."""
-        kernel = extract_all_depth_tiles_kernel if _IS_OVRTX_0_3_0_OR_NEWER else extract_all_depth_tiles_kernel_legacy
-
         for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
             if depth_type in output_buffers:
                 wp.launch(
-                    kernel=kernel,
+                    kernel=extract_all_depth_tiles_kernel,
                     dim=(render_data.num_envs, render_data.height, render_data.width),
                     inputs=[
                         tiled_depth_data,
@@ -763,13 +733,11 @@ class OVRTXRenderer(BaseRenderer):
         self._object_binding = None
 
         if self._renderer:
-            if self._usd_handles:
-                for handle in self._usd_handles:
-                    try:
-                        self._renderer.remove_usd(handle)
-                    except Exception as e:
-                        logger.warning("Error removing USD: %s", e)
-                self._usd_handles.clear()
+            try:
+                self._renderer.reset_stage()
+            except Exception as e:
+                logger.warning("Error resetting stage: %s", e)
+
             self._renderer = None
 
         self._render_product_paths.clear()
