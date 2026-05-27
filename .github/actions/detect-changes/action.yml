@@ -56,12 +56,16 @@ runs:
       run: |
         set -euo pipefail
 
-        # Parse newline+tab-delimited input into a bash array.
+        # Parse newline+tab-delimited input into a bash array. Tab-less lines
+        # are an error (likely space-delimited by mistake) — a silently-skipped
+        # pattern could make the workflow not trigger on changes it should have.
         patterns=()
         while IFS= read -r line; do
-          # Skip blank lines and lines without a tab (treat as malformed).
           [ -z "$line" ] && continue
-          [[ "$line" == *$'\t'* ]] || continue
+          if [[ "$line" != *$'\t'* ]]; then
+            echo "::error::detect-changes: pattern line missing tab separator: '$line'"
+            exit 1
+          fi
           patterns+=("$line")
         done <<< "$PATTERNS_INPUT"
 

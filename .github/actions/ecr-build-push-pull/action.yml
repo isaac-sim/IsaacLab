@@ -57,7 +57,7 @@ runs:
       run: |
         set +e
         docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
-        deps_count=$(docker images --filter 'reference=*:deps-*' -q 2>/dev/null | wc -l)
+        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
         commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
         {
           echo "## Disk snapshot (pre)"
@@ -73,7 +73,7 @@ runs:
           echo "  *:deps-* (deps cache):              ${deps_count}"
           echo
           echo "Deps tags (newest first):"
-          docker images --filter 'reference=*:deps-*' \
+          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
             --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
             | head -20
           echo '```'
@@ -484,7 +484,7 @@ runs:
             docker rmi -f "$tag" >/dev/null 2>&1 || true
             evicted=$(( evicted + 1 ))
           fi
-        done < <(docker images --filter 'reference=*:deps-*' \
+        done < <(docker images --filter 'reference=isaac-lab-ci*:deps-*' \
           --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' 2>/dev/null)
         echo "🔵 Evicted ${evicted} deps tag(s) older than ${TTL_DAYS}d"
 
@@ -499,7 +499,7 @@ runs:
       run: |
         set +e
         docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
-        deps_count=$(docker images --filter 'reference=*:deps-*' -q 2>/dev/null | wc -l)
+        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
         commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
         {
           echo "## Disk snapshot (post)"
@@ -515,7 +515,7 @@ runs:
           echo "  *:deps-* (deps cache):              ${deps_count}"
           echo
           echo "Deps tags (newest first):"
-          docker images --filter 'reference=*:deps-*' \
+          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
             --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
             | head -20
           echo '```'
