@@ -5,9 +5,27 @@
 
 name: 'ECR Build-Push-Pull'
 description: >
-  Builds a Docker image and pushes it to ECR, using ECR as the layer cache.
+  Build a Docker image and push it to ECR, using ECR as the layer cache.
   If the image already exists in ECR (same tag), pulls it instead of building.
-  Drop-in replacement for docker-build/action.yml with ECR-backed caching.
+
+  Composition:
+    * This action owns the ECR-side concerns (URL resolution, auth, manifest
+      checks for the per-commit and deps-hash tags, push).
+    * The actual local build — including local-cache short-circuits, disk
+      observability, and the post-build deps-tag write — is delegated to
+      `.github/actions/docker-build`.
+
+  Flow:
+    1. Setup docker config + login to nvcr.io.
+    2. Resolve ECR URL (input → env var → SSM lookup; falls through if unset).
+    3. Login to ECR (when URL was resolved).
+    4. Check ECR for the exact per-commit image; if present, pull → done.
+    5. Check ECR for the deps-hash tag; if present, registry-side retag to
+       the commit tag → done.
+    6. Otherwise, delegate to docker-build with optional ECR-backed
+       --cache-from / --cache-to and an ECR-prefixed extra-tag.
+    7. Push the commit-tag and the deps-tag to ECR if a build happened.
+    8. Cleanup docker config.
 
 inputs:
   image-tag:
@@ -30,7 +48,7 @@ inputs:
       1. ecr-url input, if provided.
       2. ECR_CACHE_URL environment variable on the runner.
       3. SSM parameter /github-runner/<instance-id>/ecr-cache-url.
-      4. If still empty, ECR cache is skipped and the image is built locally.
+      4. If still empty, ECR is skipped and the build runs purely locally.
     required: false
     default: ''
   cache-tag:
@@ -41,51 +59,18 @@ inputs:
     description: Target platform for `docker buildx build --platform` (e.g. "linux/amd64", "linux/arm64").
     required: false
     default: 'linux/amd64'
+
 runs:
   using: composite
   steps:
-
-    ##### 0: Host disk snapshot (pre) #####
-
-    # Capture host filesystem + docker store usage before the action does any
-    # work. Output goes to the run's step summary (visible on the PR page) and
-    # stdout (greppable across runs via `gh run view`). Used to size the
-    # deps-cache eviction policy once we have a few weeks of data.
-
-    - name: Host disk snapshot (pre)
-      shell: bash
-      run: |
-        set +e
-        docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
-        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
-        commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
-        {
-          echo "## Disk snapshot (pre)"
-          echo '```'
-          echo "Filesystem:"
-          df -h / "${docker_root}" 2>/dev/null | sort -u
-          echo
-          echo "docker system df:"
-          docker system df
-          echo
-          echo "Tag counts:"
-          echo "  isaac-lab-ci-* (commit + deps tags): ${commit_count}"
-          echo "  *:deps-* (deps cache):              ${deps_count}"
-          echo
-          echo "Deps tags (newest first):"
-          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
-            --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
-            | head -20
-          echo '```'
-        } | tee -a "$GITHUB_STEP_SUMMARY"
 
     ##### 1: Setup docker config + Login to nvcr.io #####
 
     # Create a temp docker config with credsStore disabled before any login.
     # The runner's credential store backend is broken ("not implemented") and
     # causes all docker login calls to fail unless we bypass it upfront.
-    # The temp config is exported as DOCKER_CONFIG so all subsequent steps
-    # (including ECR login in step 3) inherit it automatically.
+    # Exported as DOCKER_CONFIG so the ECR login (step 3) and the delegated
+    # docker-build (step 6, with skip-docker-config=true) inherit it.
 
     - name: Setup docker config and login to nvcr.io
       shell: bash
@@ -106,78 +91,6 @@ runs:
           echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
 
-    ##### 1.5: Local-image short-circuit #####
-
-    # Fast path: if the exact image-tag is already in the local docker store
-    # (built by an earlier job on this same self-hosted runner), skip ECR
-    # resolution, manifest checks, deps-cache lookup, build, and push entirely.
-    # Image tags are commit-pinned (CI_IMAGE_TAG in build.yaml / arm-ci.yaml),
-    # so a local hit is safe: every code, Dockerfile, dep, or config.yaml
-    # change produces a new SHA and a new tag.
-
-    - name: Check image locally
-      id: local
-      shell: bash
-      run: |
-        if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
-          echo "🟢 Image already in local docker store: ${{ inputs.image-tag }}"
-          echo "hit=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "🔵 Image not present locally, will try ECR / build paths"
-        fi
-
-    ##### 1.6: Local deps-cache short-circuit #####
-
-    # Equivalent of step 5 (ECR deps-cache), but checked against the local
-    # docker store. When ECR is unreachable (today's arm64 path), this is the
-    # only way to reuse work across different commit SHAs of the same PR when
-    # dependencies haven't changed.
-    #
-    # Hash inputs match step 5 exactly. If the deps-<hash> tag exists locally,
-    # retag it as the requested commit-tag (metadata-only operation) so the
-    # rest of the action treats it as a cache hit. Otherwise, export
-    # LOCAL_DEPS_TAG so step 6.5 can populate the cache after a full build.
-
-    - name: Check deps-tag locally
-      id: local-deps
-      if: steps.local.outputs.hit != 'true'
-      shell: bash
-      run: |
-        DEPS_FILES=(
-          "${{ inputs.dockerfile-path }}"
-          isaaclab.sh
-          environment.yml
-          source/isaaclab/isaaclab/cli
-        )
-        DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
-
-        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
-        else
-          echo "🟠 Could not resolve base image digest, falling back to tag string"
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
-        fi
-
-        MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
-        FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
-          | sha256sum | cut -c1-16)
-        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
-        LOCAL_DEPS_TAG="$(echo "${{ inputs.image-tag }}" | cut -d: -f1):deps-${DEPS_HASH}"
-
-        echo "🔵 Local deps tag: ${LOCAL_DEPS_TAG}"
-        echo "LOCAL_DEPS_TAG=${LOCAL_DEPS_TAG}" >> "$GITHUB_ENV"
-
-        if docker image inspect "${LOCAL_DEPS_TAG}" >/dev/null 2>&1; then
-          echo "🟢 Local deps-cache HIT! Retagging as ${{ inputs.image-tag }}"
-          docker tag "${LOCAL_DEPS_TAG}" "${{ inputs.image-tag }}"
-          echo "hit=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "🟠 Local deps-cache MISS (will build then tag for future hits)"
-        fi
-
     ##### 2: Resolve ECR URL #####
 
     # Tries: explicit input >> ECR_CACHE_URL env var >> SSM parameter on EC2.
@@ -185,9 +98,6 @@ runs:
 
     - name: Resolve ECR URL
       id: resolve-ecr
-      if: >
-        steps.local.outputs.hit != 'true' &&
-        steps.local-deps.outputs.hit != 'true'
       shell: bash
       env:
         INPUT_ECR_URL: ${{ inputs.ecr-url }}
@@ -295,33 +205,29 @@ runs:
           echo "🟢 Image pulled and tagged as ${{ inputs.image-tag }}"
         fi
 
-    ##### 5: Check deps cache #####
+    ##### 5: Check deps cache (registry-side) #####
 
-    # Hashes installation-relevant files + the base image digest to produce a stable
-    # deps-<hash> ECR tag. If the image exists in ECR, the build job succeeds
-    # immediately and test jobs pull the deps image with a source volume mount.
-
-    # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install
-    # inputs change (new packages, new manifests, etc.).
+    # Hashes installation-relevant files + the base image digest to produce a
+    # stable deps-<hash> ECR tag. If the image exists in ECR, alias it as the
+    # commit-tag (registry-side, no layer download). Hash schema must stay
+    # in sync with .github/actions/docker-build (step 4 there).
+    #
+    # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install inputs change
+    # (new packages, new manifests, etc.).
 
     - name: Check deps cache
       id: deps-cache
       if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
       shell: bash
       run: |
-        ##### Deps-hash configuration #####
-        # Exact files/dirs whose full content is hashed. The Dockerfile is first.
         DEPS_FILES=(
           "${{ inputs.dockerfile-path }}"
           isaaclab.sh
           environment.yml
           source/isaaclab/isaaclab/cli
         )
-        # Manifest files matched repo-wide via git ls-files.
         DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
-        # Resolve the actual base image digest so a new push of a mutable tag
-        # (e.g. latest-develop) invalidates the deps cache automatically.
         BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
           "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
           --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
@@ -342,12 +248,8 @@ runs:
         echo "🔵 Deps hash: ${DEPS_HASH}"
         echo "🔵 Checking if deps image ${DEPS_ECR_IMAGE} exists in ECR..."
 
-        # Lightweight manifest check - fetches only the image manifest (~KB),
-        # not the actual layers, so this completes in seconds.
         if docker manifest inspect "${DEPS_ECR_IMAGE}" >/dev/null 2>&1; then
           echo "🟢 Deps cache HIT!!! Image exists in ECR: ${DEPS_ECR_IMAGE}"
-          # Create a commit-tagged alias pointing to the same manifest (registry-side,
-          # no layer download). Test jobs will pull this tag normally.
           echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
           docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
           echo "🟢 Tagged ${ECR_IMAGE} >> ${DEPS_ECR_IMAGE}"
@@ -358,72 +260,35 @@ runs:
           echo "PUSH_DEPS_IMAGE=true"             >> "$GITHUB_ENV"
         fi
 
-    ##### 6: Full build #####
+    ##### 6: Local build (delegated to docker-build) #####
 
-    # Runs when neither the exact image nor the deps cache was available.
-    # Uses ECR layer cache (--cache-from/--cache-to) when ECR is available.
+    # Only runs when neither ECR cache lookup hit. docker-build does its own
+    # local-exact / local-deps short-circuits, then either retags or builds.
+    #
+    # When ECR is available we layer in registry-side buildx layer cache via
+    # --cache-from / --cache-to, and pass the ECR-prefixed name as an extra
+    # tag so the push step has a tagged image to push.
 
-    - name: Full build
-      if: >
-        steps.local.outputs.hit != 'true' &&
-        steps.local-deps.outputs.hit != 'true' &&
-        steps.pull-exact.outputs.hit != 'true' &&
-        steps.deps-cache.outputs.deps-cache-hit != 'true'
-      shell: bash
-      run: |
-        BUILD_ARGS=(
-          --progress=plain
-          --platform ${{ inputs.platform }}
-          -f "${{ inputs.dockerfile-path }}"
-          --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
-          --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"
-          --build-arg "ISAACSIM_ROOT_PATH_ARG=/isaac-sim"
-          --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab"
-          --build-arg "DOCKER_USER_HOME_ARG=/root"
-          -t "${{ inputs.image-tag }}"
-        )
-        if [ -n "${ECR_URL:-}" ]; then
-          BUILD_ARGS+=(
-            --cache-from "type=registry,ref=${CACHE_IMAGE}"
-            --cache-to   "type=registry,ref=${CACHE_IMAGE},mode=max"
-            -t "${ECR_IMAGE}"
-          )
-        fi
+    - name: Build (via docker-build)
+      id: dbuild
+      if: steps.pull-exact.outputs.hit != 'true' && steps.deps-cache.outputs.deps-cache-hit != 'true'
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ inputs.image-tag }}
+        isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        dockerfile-path: ${{ inputs.dockerfile-path }}
+        platform: ${{ inputs.platform }}
+        skip-docker-config: 'true'
+        cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
+        cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
+        extra-tags: ${{ steps.resolve-ecr.outputs.available == 'true' && env.ECR_IMAGE || '' }}
 
-        BUILDER_NAME="ci-builder-${{ github.run_id }}-${{ github.job }}"
-        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
-          || docker buildx use "${BUILDER_NAME}"
-        trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
+    ##### 7: Push to ECR (commit tag) #####
 
-        echo "🔵 Building ${{ inputs.image-tag }}..."
-        docker buildx build --load "${BUILD_ARGS[@]}" .
-
-    ##### 6.5: Tag built image with local deps-tag #####
-
-    # Local mirror of step 8 (Push deps tag). After a successful full build,
-    # tag the resulting image as deps-<hash> in the local docker store so the
-    # next build on this host with identical deps short-circuits via step 1.6,
-    # regardless of whether ECR is reachable.
-
-    - name: Tag built image with local deps-tag
-      if: >
-        steps.local.outputs.hit != 'true' &&
-        steps.local-deps.outputs.hit != 'true' &&
-        steps.pull-exact.outputs.hit != 'true' &&
-        steps.deps-cache.outputs.deps-cache-hit != 'true'
-      shell: bash
-      run: |
-        if [ -n "${LOCAL_DEPS_TAG:-}" ]; then
-          docker tag "${{ inputs.image-tag }}" "${LOCAL_DEPS_TAG}"
-          echo "🟢 Tagged local deps-cache: ${LOCAL_DEPS_TAG}"
-        else
-          echo "🟠 LOCAL_DEPS_TAG not set, skipping local deps-cache tag"
-        fi
-
-    ##### 7: Push to ECR #####
-
-    # Pushes the per-commit ECR image after a successful full build.
-    # Skipped if the image was pulled in (4).
+    # Push when ECR is available and neither ECR cache lookup served us.
+    # The image carries the ECR-prefixed tag because step 6 passed it via
+    # docker-build's extra-tags input.
 
     - name: Push to ECR
       if: >
@@ -436,9 +301,9 @@ runs:
         docker push "${ECR_IMAGE}"
         echo "🟢 Pushed ${ECR_IMAGE}"
 
-    ##### 8: Push deps tag #####
+    ##### 8: Push deps tag to ECR #####
 
-    # Tags the freshly built image as deps-<hash> so future runs with identical
+    # Tag the freshly built image as deps-<hash> so future runs with identical
     # install inputs hit the fast path (step 5) instead of doing a full build.
 
     - name: Push deps tag
@@ -458,65 +323,3 @@ runs:
         if [ -n "${DOCKER_CONFIG}" ] && [ -d "${DOCKER_CONFIG}" ]; then
           rm -rf "${DOCKER_CONFIG}"
         fi
-
-    ##### 10: Evict stale local deps-cache tags #####
-
-    # 14-day TTL on `*:deps-*` images. Prevents unbounded disk growth on
-    # long-lived self-hosted runners as new deps hashes land over time.
-    # Re-acquiring an evicted tag costs one full build (~13 min on arm64,
-    # registry pull on Linux), which is acceptable given the hit rate.
-    # Runs `if: always()` so cleanup happens even on failed jobs.
-
-    - name: Evict stale local deps-cache tags (>14d)
-      if: always()
-      shell: bash
-      run: |
-        set +e
-        TTL_DAYS=14
-        cutoff=$(date -u -d "${TTL_DAYS} days ago" +%s)
-        evicted=0
-        while IFS='|' read -r created tag; do
-          [ -z "$tag" ] && continue
-          created_epoch=$(date -d "$created" +%s 2>/dev/null) || continue
-          if [ "$created_epoch" -lt "$cutoff" ]; then
-            days_old=$(( (cutoff - created_epoch) / 86400 + TTL_DAYS ))
-            echo "🟠 Evicting deps tag (~${days_old}d old): ${tag}"
-            docker rmi -f "$tag" >/dev/null 2>&1 || true
-            evicted=$(( evicted + 1 ))
-          fi
-        done < <(docker images --filter 'reference=isaac-lab-ci*:deps-*' \
-          --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' 2>/dev/null)
-        echo "🔵 Evicted ${evicted} deps tag(s) older than ${TTL_DAYS}d"
-
-    ##### 11: Host disk snapshot (post) #####
-
-    # Mirror of step 0. Same schema so the pre/post pair is diffable. The
-    # delta (post - pre) is one job's net contribution to host disk.
-
-    - name: Host disk snapshot (post)
-      if: always()
-      shell: bash
-      run: |
-        set +e
-        docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
-        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
-        commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
-        {
-          echo "## Disk snapshot (post)"
-          echo '```'
-          echo "Filesystem:"
-          df -h / "${docker_root}" 2>/dev/null | sort -u
-          echo
-          echo "docker system df:"
-          docker system df
-          echo
-          echo "Tag counts:"
-          echo "  isaac-lab-ci-* (commit + deps tags): ${commit_count}"
-          echo "  *:deps-* (deps cache):              ${deps_count}"
-          echo
-          echo "Deps tags (newest first):"
-          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
-            --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
-            | head -20
-          echo '```'
-        } | tee -a "$GITHUB_STEP_SUMMARY"

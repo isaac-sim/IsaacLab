@@ -3,82 +3,322 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: 'Build Docker Image'
-description: 'Builds a Docker image with IsaacSim and IsaacLab dependencies'
+name: 'Docker Build (local-cache)'
+description: >
+  Build a Docker image with local-cache short-circuits and observability.
+  No ECR knowledge built in: the output stays in the host's local docker
+  store. Designed for self-hosted runners where ECR is not wired up (e.g.
+  the arm64 / Spark pool), and as the build primitive that
+  `ecr-build-push-pull` delegates to once its registry-side checks miss.
+
+  Pipeline:
+    1. Optional: setup docker config + login to nvcr.io (skipped when the
+       caller has already done it — `skip-docker-config: true`).
+    2. Pre-build disk snapshot (df + docker system df + tag counts) into the
+       step summary.
+    3. Local exact-tag short-circuit: skip everything if `image-tag` is
+       already in the host's docker store.
+    4. Local deps-tag short-circuit: compute a hash over Dockerfile +
+       setup.py / pyproject.toml / uv.lock + base image digest. If
+       `<repo>:deps-<hash>` exists locally, retag as `image-tag` (metadata-only).
+    5. buildx build (only when neither short-circuit fired). Optional
+       `--cache-from` / `--cache-to` flags for callers that want to layer
+       in a registry-side build cache (e.g. ECR).
+    6. Post-build: tag the result as `<repo>:deps-<hash>` so future builds
+       with identical deps short-circuit at step 4.
+    7. Evict `isaac-lab-ci*:deps-*` tags older than 14 days to bound disk
+       growth on long-lived hosts.
+    8. Post-build disk snapshot.
+
+  The deps-hash schema must stay identical to the one in
+  `ecr-build-push-pull`'s registry-side deps-cache (step 5 there) so a local
+  build and a registry retag converge on the same image identity.
 
 inputs:
   image-tag:
-    description: 'Docker image tag to use'
+    description: 'Tag for the Docker image (e.g. my-image:latest).'
     required: true
   isaacsim-base-image:
-    description: 'IsaacSim base image'
+    description: 'IsaacSim base image (passed as ISAACSIM_BASE_IMAGE_ARG build-arg).'
     required: true
   isaacsim-version:
-    description: 'IsaacSim version'
+    description: 'IsaacSim version (passed as ISAACSIM_VERSION_ARG build-arg).'
     required: true
   dockerfile-path:
-    description: 'Path to Dockerfile'
+    description: 'Path to Dockerfile, relative to the repository root.'
     default: 'docker/Dockerfile.base'
     required: false
   context-path:
-    description: 'Build context path'
+    description: 'Build context path passed to `docker buildx build`.'
     default: '.'
     required: false
+  platform:
+    description: 'Target platform for `docker buildx build --platform`.'
+    default: 'linux/amd64'
+    required: false
+  cache-from:
+    description: >
+      Optional value for `docker buildx build --cache-from`. Typically a
+      `type=registry,ref=<image>` for cross-host layer cache. Leave empty for
+      pure local-only builds.
+    default: ''
+    required: false
+  cache-to:
+    description: >
+      Optional value for `docker buildx build --cache-to`. Pairs with
+      `cache-from` for registry-backed layer cache writes.
+    default: ''
+    required: false
+  extra-tags:
+    description: >
+      Newline-separated additional tags to apply to the built image (e.g. an
+      ECR-prefixed tag for the caller to push). Each tag is materialized via
+      `docker tag` after a successful build or local short-circuit, so the
+      caller can rely on them being present.
+    default: ''
+    required: false
+  skip-docker-config:
+    description: >
+      Skip the docker config setup + nvcr.io login step. Set to "true" when
+      the caller has already configured docker auth (e.g. ecr-build-push-pull
+      does its own ECR + nvcr setup before delegating here).
+    default: 'false'
+    required: false
+
+outputs:
+  local-hit:
+    description: '"true" if the exact image-tag was already in local docker.'
+    value: ${{ steps.local.outputs.hit }}
+  local-deps-hit:
+    description: '"true" if a local deps-cache tag matched (and was retagged).'
+    value: ${{ steps.local-deps.outputs.hit }}
+  was-built:
+    description: '"true" if a full buildx build ran (no cache hit).'
+    value: ${{ steps.build.outputs.was-built }}
 
 runs:
   using: composite
   steps:
-    - name: NGC Login
-      shell: sh
+
+    ##### 1: Setup docker config + login to nvcr.io (optional) #####
+
+    - name: Setup docker config and login to nvcr.io
+      if: inputs.skip-docker-config != 'true'
+      shell: bash
       run: |
-        # Only attempt NGC login if API key is available
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
-          echo "Logging into NGC registry..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
-          echo "✅ Successfully logged into NGC registry"
+        DOCKER_CONFIG_DIR=$(mktemp -d)
+        if [ -f "${HOME}/.docker/config.json" ]; then
+          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
         else
-          echo "⚠️ NGC_API_KEY not available - skipping NGC login"
-          echo "This is normal for PRs from forks or when secrets are not configured"
+          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        fi
+        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        if [ -n "${NGC_API_KEY:-}" ]; then
+          echo "🔵 Logging into nvcr.io..."
+          docker login -u \$oauthtoken -p "${NGC_API_KEY}" nvcr.io
+        else
+          echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
 
-    - name: Build Docker Image
-      shell: sh
+    ##### 2: Host disk snapshot (pre) #####
+
+    - name: Host disk snapshot (pre)
+      shell: bash
       run: |
-        # Function to build Docker image
-        build_docker_image() {
-          local image_tag="$1"
-          local isaacsim_base_image="$2"
-          local isaacsim_version="$3"
-          local dockerfile_path="$4"
-          local context_path="$5"
+        set +e
+        docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
+        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
+        commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
+        {
+          echo "## Disk snapshot (pre)"
+          echo '```'
+          echo "Filesystem:"
+          df -h / "${docker_root}" 2>/dev/null | sort -u
+          echo
+          echo "docker system df:"
+          docker system df
+          echo
+          echo "Tag counts:"
+          echo "  isaac-lab-ci-* (commit + deps tags): ${commit_count}"
+          echo "  isaac-lab-ci*:deps-* (deps cache):  ${deps_count}"
+          echo
+          echo "Deps tags (newest first):"
+          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
+            --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
+            | head -20
+          echo '```'
+        } | tee -a "$GITHUB_STEP_SUMMARY"
 
-          # Skip build if image already exists locally (e.g. built by a prior job on the same runner)
-          if docker image inspect "$image_tag" > /dev/null 2>&1; then
-            echo "Image $image_tag already exists locally, skipping build."
-            return 0
+    ##### 3: Local exact-tag short-circuit #####
+
+    - name: Check image locally
+      id: local
+      shell: bash
+      run: |
+        if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
+          echo "🟢 Image already in local docker store: ${{ inputs.image-tag }}"
+          echo "hit=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "🔵 Image not present locally, will check deps-cache / build"
+        fi
+
+    ##### 4: Local deps-tag short-circuit #####
+
+    - name: Check deps-tag locally
+      id: local-deps
+      if: steps.local.outputs.hit != 'true'
+      shell: bash
+      run: |
+        DEPS_FILES=(
+          "${{ inputs.dockerfile-path }}"
+          isaaclab.sh
+          environment.yml
+          source/isaaclab/isaaclab/cli
+        )
+        DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
+
+        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
+        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
+          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
+        else
+          echo "🟠 Could not resolve base image digest, falling back to tag string"
+          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+        fi
+
+        MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
+        FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
+          | sha256sum | cut -c1-16)
+        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
+        LOCAL_DEPS_TAG="$(echo "${{ inputs.image-tag }}" | cut -d: -f1):deps-${DEPS_HASH}"
+
+        echo "🔵 Local deps tag: ${LOCAL_DEPS_TAG}"
+        echo "LOCAL_DEPS_TAG=${LOCAL_DEPS_TAG}" >> "$GITHUB_ENV"
+
+        if docker image inspect "${LOCAL_DEPS_TAG}" >/dev/null 2>&1; then
+          echo "🟢 Local deps-cache HIT! Retagging as ${{ inputs.image-tag }}"
+          docker tag "${LOCAL_DEPS_TAG}" "${{ inputs.image-tag }}"
+          echo "hit=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "🟠 Local deps-cache MISS (will build then tag for future hits)"
+        fi
+
+    ##### 5: Full build #####
+
+    - name: Build image
+      id: build
+      if: >
+        steps.local.outputs.hit != 'true' &&
+        steps.local-deps.outputs.hit != 'true'
+      shell: bash
+      run: |
+        BUILD_ARGS=(
+          --progress=plain
+          --platform "${{ inputs.platform }}"
+          -f "${{ inputs.dockerfile-path }}"
+          --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
+          --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"
+          --build-arg "ISAACSIM_ROOT_PATH_ARG=/isaac-sim"
+          --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab"
+          --build-arg "DOCKER_USER_HOME_ARG=/root"
+          -t "${{ inputs.image-tag }}"
+        )
+        if [ -n "${{ inputs.cache-from }}" ]; then
+          BUILD_ARGS+=( --cache-from "${{ inputs.cache-from }}" )
+        fi
+        if [ -n "${{ inputs.cache-to }}" ]; then
+          BUILD_ARGS+=( --cache-to "${{ inputs.cache-to }}" )
+        fi
+
+        BUILDER_NAME="docker-build-${{ github.run_id }}-${{ github.job }}"
+        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
+          || docker buildx use "${BUILDER_NAME}"
+        trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
+
+        echo "🔵 Building ${{ inputs.image-tag }}..."
+        docker buildx build --load "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
+        echo "was-built=true" >> "$GITHUB_OUTPUT"
+
+    ##### 6: Tag built image with local deps-tag #####
+
+    # Runs only when a real build happened (not on cache hits). Populates the
+    # deps-tag so the next build with identical deps short-circuits at step 4.
+
+    - name: Tag built image with local deps-tag
+      if: steps.build.outputs.was-built == 'true'
+      shell: bash
+      run: |
+        if [ -n "${LOCAL_DEPS_TAG:-}" ]; then
+          docker tag "${{ inputs.image-tag }}" "${LOCAL_DEPS_TAG}"
+          echo "🟢 Tagged local deps-cache: ${LOCAL_DEPS_TAG}"
+        else
+          echo "🟠 LOCAL_DEPS_TAG not set, skipping local deps-cache tag"
+        fi
+
+    ##### 6b: Apply extra-tags (for callers that need additional names) #####
+
+    - name: Apply extra tags
+      if: inputs.extra-tags != ''
+      shell: bash
+      run: |
+        while IFS= read -r extra; do
+          [ -z "$extra" ] && continue
+          docker tag "${{ inputs.image-tag }}" "$extra"
+          echo "🟢 Tagged: $extra"
+        done <<< "${{ inputs.extra-tags }}"
+
+    ##### 7: Evict stale local deps-cache tags (>14d) #####
+
+    - name: Evict stale local deps-cache tags (>14d)
+      if: always()
+      shell: bash
+      run: |
+        set +e
+        TTL_DAYS=14
+        cutoff=$(date -u -d "${TTL_DAYS} days ago" +%s)
+        evicted=0
+        while IFS='|' read -r created tag; do
+          [ -z "$tag" ] && continue
+          created_epoch=$(date -d "$created" +%s 2>/dev/null) || continue
+          if [ "$created_epoch" -lt "$cutoff" ]; then
+            days_old=$(( (cutoff - created_epoch) / 86400 + TTL_DAYS ))
+            echo "🟠 Evicting deps tag (~${days_old}d old): ${tag}"
+            docker rmi -f "$tag" >/dev/null 2>&1 || true
+            evicted=$(( evicted + 1 ))
           fi
+        done < <(docker images --filter 'reference=isaac-lab-ci*:deps-*' \
+          --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' 2>/dev/null)
+        echo "🔵 Evicted ${evicted} deps tag(s) older than ${TTL_DAYS}d"
 
-          echo "Building Docker image: $image_tag"
-          echo "Using Dockerfile: $dockerfile_path"
-          echo "Build context: $context_path"
+    ##### 8: Host disk snapshot (post) #####
 
-          # Build Docker image
-          docker buildx build --progress=plain --platform linux/amd64 \
-            -t $image_tag \
-            --build-arg ISAACSIM_BASE_IMAGE_ARG="$isaacsim_base_image" \
-            --build-arg ISAACSIM_VERSION_ARG="$isaacsim_version" \
-            --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
-            --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
-            --build-arg DOCKER_USER_HOME_ARG=/root \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            -f $dockerfile_path \
-            --load $context_path
-
-          echo "✅ Docker image built successfully: $image_tag"
-          echo "Current local Docker images:"
-          docker images
-        }
-
-        # Call the function with provided parameters
-        build_docker_image "${{ inputs.image-tag }}" "${{ inputs.isaacsim-base-image }}" "${{ inputs.isaacsim-version }}" "${{ inputs.dockerfile-path }}" "${{ inputs.context-path }}"
+    - name: Host disk snapshot (post)
+      if: always()
+      shell: bash
+      run: |
+        set +e
+        docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo "/var/lib/docker")
+        deps_count=$(docker images --filter 'reference=isaac-lab-ci*:deps-*' -q 2>/dev/null | wc -l)
+        commit_count=$(docker images --filter 'reference=isaac-lab-ci*' -q 2>/dev/null | wc -l)
+        {
+          echo "## Disk snapshot (post)"
+          echo '```'
+          echo "Filesystem:"
+          df -h / "${docker_root}" 2>/dev/null | sort -u
+          echo
+          echo "docker system df:"
+          docker system df
+          echo
+          echo "Tag counts:"
+          echo "  isaac-lab-ci-* (commit + deps tags): ${commit_count}"
+          echo "  isaac-lab-ci*:deps-* (deps cache):  ${deps_count}"
+          echo
+          echo "Deps tags (newest first):"
+          docker images --filter 'reference=isaac-lab-ci*:deps-*' \
+            --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' 2>/dev/null \
+            | head -20
+          echo '```'
+        } | tee -a "$GITHUB_STEP_SUMMARY"

@@ -68,7 +68,7 @@ jobs:
             ^docker/	Container build inputs
             (^|/)pyproject\.toml$	Python project metadata
             ^\.github/workflows/arm-ci\.yaml$	This workflow file
-            ^\.github/actions/ecr-build-push-pull/	ECR action
+            ^\.github/actions/docker-build/	Docker build action
             ^\.github/actions/detect-changes/	Change-detection action
             ^VERSION$	Version file
 
@@ -114,13 +114,12 @@ jobs:
           lfs: true
 
       - name: Build Base Docker image
-        uses: ./.github/actions/ecr-build-push-pull
+        uses: ./.github/actions/docker-build
         with:
           image-tag: ${{ env.CI_IMAGE_TAG }}
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
-          cache-tag: cache-base-arm64
           platform: linux/arm64
 
       # tools/conftest.py's subprocess-per-file orchestrator picks up
