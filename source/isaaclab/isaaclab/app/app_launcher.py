@@ -242,7 +242,6 @@ class AppLauncher:
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
         self.device: str  # resolved device string (e.g. "cuda:0" or "cpu")
-        self._deferred_cuda_device_id: int | None = None
         self.local_rank: int  # local rank of GPUs in the current node
         self.global_rank: int  # global rank for multi-node training
 
@@ -251,7 +250,6 @@ class AppLauncher:
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
-        self._set_deferred_cuda_device()
         # Load IsaacSim extensions
         self._load_extensions()
 
@@ -1007,25 +1005,18 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
-        # Defer importing torch until after SimulationApp starts.  Importing
-        # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
-        # Kit's platform-info fork during startup.
+        # Set the current CUDA device early so that physics backends (e.g. Newton/Warp)
+        # that allocate on the "current" device during initialization get the correct GPU.
+        # Without this, all ranks may default to cuda:0 for early allocations.
         if "cuda" in device:
-            self._deferred_cuda_device_id = self.device_id
+            import torch
+
+            torch.cuda.set_device(self.device_id)
 
         # Store the resolved device string for downstream consumers (e.g. sim_launcher)
         self.device = device
 
         logger.info("Using device: %s", device)
-
-    def _set_deferred_cuda_device(self) -> None:
-        """Set the current torch CUDA device after Kit startup."""
-        if self._deferred_cuda_device_id is None:
-            return
-
-        import torch
-
-        torch.cuda.set_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
