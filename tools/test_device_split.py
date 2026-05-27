@@ -10,8 +10,6 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-import pytest
-
 from _device_split import is_device_split_file
 
 

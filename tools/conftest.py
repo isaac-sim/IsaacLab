@@ -18,6 +18,7 @@ from prettytable import PrettyTable
 
 # Local imports
 import test_settings as test_settings  # isort: skip
+from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -428,6 +429,38 @@ class _PassContext:
     is_cold_cache_test: bool
 
 
+_RESULT_PRIORITY = {
+    "STARTUP_HANG": 5,
+    "CRASHED": 4,
+    "TIMEOUT": 3,
+    "FAILED": 2,
+    "passed (shutdown hanged)": 1,
+    "passed": 0,
+}
+
+
+def _merge_pass_status(prev: dict | None, new: dict) -> dict:
+    """Merge per-pass status dicts into a single per-file entry.
+
+    Counters (``errors``, ``failures``, ``skipped``, ``tests``,
+    ``time_elapsed``, ``wall_time``) are summed. ``result`` becomes the more
+    severe of the two via :data:`_RESULT_PRIORITY`.
+    """
+    if prev is None:
+        return new
+    return {
+        "errors": prev["errors"] + new["errors"],
+        "failures": prev["failures"] + new["failures"],
+        "skipped": prev["skipped"] + new["skipped"],
+        "tests": prev["tests"] + new["tests"],
+        "time_elapsed": prev["time_elapsed"] + new["time_elapsed"],
+        "wall_time": prev["wall_time"] + new["wall_time"],
+        "result": prev["result"]
+        if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
+        else new["result"],
+    }
+
+
 def _run_one_pass(
     ctx: _PassContext,
     k_expr: str | None,
@@ -743,12 +776,23 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             is_cold_cache_test=is_cold_cache_test,
         )
 
-        report, status, was_failure = _run_one_pass(ctx, k_expr=None, suffix="")
-        if report is not None:
-            xml_reports.append(report)
-        if was_failure:
-            failed_tests.append(test_file)
-        test_status[test_file] = status
+        if is_device_split_file(test_file):
+            print(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
+            passes = DEVICE_SPLIT_PASSES
+        else:
+            passes = [("", None)]
+
+        merged_status: dict | None = None
+        for suffix, k_expr in passes:
+            report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
+            if report is not None:
+                xml_reports.append(report)
+            if was_failure:
+                failed_tests.append(test_file)
+            merged_status = _merge_pass_status(merged_status, status)
+
+        assert merged_status is not None  # the pass list is never empty
+        test_status[test_file] = merged_status
 
     print("~~~~~~~~~~~~ Finished running all tests")
 
