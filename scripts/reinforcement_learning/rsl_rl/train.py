@@ -121,7 +121,7 @@ remaining_args = list_intersection(remaining_args, remaining_args_env_registrati
 
 # Build path for ``--frontend=warp`` lives in ``isaaclab_experimental``, which is an
 # optional package — torch (the default) must still work without it, so import lazily.
-# Warp callers are required to pass ``presets=newton`` themselves; the frontend hard-checks
+# Warp callers are required to pass ``presets=newton_mjwarp`` themselves; the frontend hard-checks
 # it at build time rather than mutating Hydra args here.
 _frontend_build = None
 try:

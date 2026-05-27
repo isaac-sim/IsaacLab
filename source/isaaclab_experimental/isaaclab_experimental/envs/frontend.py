@@ -131,7 +131,7 @@ def _adapt_cfg_for_warp(cfg: Any, task_id: str) -> None:
     1. :func:`_require_newton_physics` — hard check that ``cfg.sim.physics`` is
        :class:`~isaaclab_newton.physics.NewtonCfg`. The user is responsible for
        selecting the Newton variant of the task's :class:`PresetCfg` via
-       ``presets=newton``; we don't auto-inject.
+       ``presets=newton_mjwarp``; we don't auto-inject.
     2. :func:`_promote_scene_entity_cfgs` — replace stable
        :class:`~isaaclab.managers.SceneEntityCfg` instances under each term's
        ``params`` with the warp variant (which adds warp-cached ``joint_mask``,
@@ -153,7 +153,7 @@ def _require_newton_physics(cfg: Any, task_id: str) -> None:
 
     The warp managers' assets read state through :class:`NewtonManager`;
     a :class:`PhysxCfg` (or unresolved :class:`PresetCfg`) is a hard
-    incompatibility. The fix is to pass ``presets=newton`` on the CLI so
+    incompatibility. The fix is to pass ``presets=newton_mjwarp`` on the CLI so
     Hydra resolves the task's :class:`PresetCfg` wrapper to the Newton field
     before construction.
     """
@@ -164,7 +164,7 @@ def _require_newton_physics(cfg: Any, task_id: str) -> None:
         return
     raise FrontendIncompatibleError(
         f"--frontend=warp on {task_id!r}: expected cfg.sim.physics to be NewtonCfg,"
-        f" got {type(physics).__name__!r}. Pass `presets=newton` on the CLI so"
+        f" got {type(physics).__name__!r}. Pass `presets=newton_mjwarp` on the CLI so"
         f" Hydra resolves the task's PresetCfg wrapper to the Newton variant."
     )
 

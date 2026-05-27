@@ -131,7 +131,7 @@ class TestRequireNewtonPhysics(unittest.TestCase):
         cfg = self._cfg_with(PhysxCfg())
         with self.assertRaises(FrontendIncompatibleError) as exc:
             _require_newton_physics(cfg, "Isaac-Test-v0")
-        self.assertIn("presets=newton", str(exc.exception))
+        self.assertIn("presets=newton_mjwarp", str(exc.exception))
         self.assertIn("PhysxCfg", str(exc.exception))
 
     def test_rejects_none(self):
