@@ -34,13 +34,13 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab.app import AppLauncher
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.app import AppLauncher
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor, prim_world_positions
 from isaaclab.sim import SimulationContext
 
@@ -78,8 +78,7 @@ _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0,
 """Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
-    eye - lookat
-    for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
+    eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
 )
 """Generated tiled-camera target-relative eye offset matching the shared visualizer viewing direction."""
 
@@ -421,6 +420,7 @@ def _visualizer_debug_case(viz_kind: str, physics_kind: str, *, tiled: bool = Fa
         else:
             os.environ[_VIS_DEBUG_TEST_ID_OVERRIDE_ENV] = previous
 
+
 def _save_visualizer_debug_image(frame, file_name: str, *, tiled: bool = False) -> None:
     """Save a visualizer frame to a clearly named PNG for pause/motion debugging."""
     if not _WRITE_VIS_DEBUG_FRAMES:
@@ -568,8 +568,7 @@ def _log_cartpole_runtime_state(env, *, label: str) -> None:
         body_pos = cartpole.data.body_pos_w.torch[0].detach().cpu()
         body_names = list(cartpole.body_names)
         body_summary = {
-            name: tuple(round(float(v), 4) for v in body_pos[idx].tolist())
-            for idx, name in enumerate(body_names[:4])
+            name: tuple(round(float(v), 4) for v in body_pos[idx].tolist()) for idx, name in enumerate(body_names[:4])
         }
         _log_camera_debug(
             f"{label}: joint_pos={tuple(round(float(v), 5) for v in joint_pos)} "
@@ -585,7 +584,6 @@ def _log_cartpole_runtime_state(env, *, label: str) -> None:
         "/World/envs/env_0/Robot/pole",
     ):
         _log_usd_prim_pose(stage, prim_path, label=label)
-
 
 
 def _save_visualizer_debug_delta(frame_a, frame_b, file_name: str, *, tiled: bool = False) -> None:
@@ -882,7 +880,9 @@ def _run_newton_viewer_frame_motion_test(
         )
         return physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state
 
-    physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state = _attempt_rendering_pause()
+    physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state = (
+        _attempt_rendering_pause()
+    )
     assert get_physics_step_count() > physics_step_before_render_pause, (
         f"{case_label} physics step count did not advance during pausing_rendering."
     )
@@ -950,7 +950,9 @@ def _run_newton_viewer_frame_motion_test(
         )
         return physics_step_before_simulation_pause, simulation_pause_start_state, simulation_pause_end_state
 
-    physics_step_before_simulation_pause, simulation_pause_start_state, simulation_pause_end_state = _attempt_simulation_pause()
+    physics_step_before_simulation_pause, simulation_pause_start_state, simulation_pause_end_state = (
+        _attempt_simulation_pause()
+    )
     assert get_physics_step_count() == physics_step_before_simulation_pause, (
         f"{case_label} physics step count advanced during pausing_simulation."
     )
@@ -1259,8 +1261,7 @@ def _log_visualizer_tiled_camera_state(
     try:
         target_positions = prim_world_positions(stage, cfg.tiled_cam_target_prim_path, camera_indices, scene=scene)
         rounded_targets = [
-            tuple(round(float(value), 4) for value in row)
-            for row in target_positions.detach().cpu().tolist()
+            tuple(round(float(value), 4) for value in row) for row in target_positions.detach().cpu().tolist()
         ]
         _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: resolved target positions={rounded_targets}")
     except Exception as exc:
@@ -1363,9 +1364,7 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
     for _ in range(_START_BUFFER_STEPS):
         env.step(action=actions)
 
-    motion_start_frame = _capture_visualizer_tiled_camera_rgb(
-        visualizer, label="1a_playing_frame_00"
-    )
+    motion_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="1a_playing_frame_00")
     for _ in range(PLAY_VIZ_N_STEP):
         env.step(action=actions)
     play_end_idx = PLAY_VIZ_N_STEP
@@ -1393,9 +1392,7 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
 
     def _attempt_pause():
         _set_kit_simulation_paused(env, True)
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(
-            visualizer, label="2a_pausing_frame_20"
-        )
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20")
         for _ in range(PAUSE_VIZ_N_STEP):
             env.sim.render()
         paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25")
@@ -1479,10 +1476,7 @@ def _make_cartpole_camera_env(
     env_cfg.seed = None
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
-    visualizer_cfgs = [
-        _get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0]
-        for kind in visualizer_kinds
-    ]
+    visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
     return CartpoleCameraEnv(env_cfg)
 
@@ -1543,9 +1537,7 @@ def run_cartpole_env_visualizers_motion_with_play_pause(backend_kind: str, caplo
             SimulationContext.clear_instance()
 
 
-def run_cartpole_env_visualizers_tiled_camera_motion(
-    backend_kind: str, caplog: pytest.LogCaptureFixture
-) -> None:
+def run_cartpole_env_visualizers_tiled_camera_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Cartpole env + tiled Kit/Newton visualizers: RGB moves, pauses, and resumes without log errors."""
     env = None
     try:
