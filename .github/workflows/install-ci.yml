@@ -157,6 +157,15 @@ jobs:
 
           tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
 
+      - name: Upload JUnit XML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-install-tests-uv
+          path: ${{ github.workspace }}/results/results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
   install-tests-conda:
     name: Installation Tests (conda)
     needs: [changes]
@@ -183,3 +192,12 @@ jobs:
           fi
 
           tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
+
+      - name: Upload JUnit XML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-install-tests-conda
+          path: ${{ github.workspace }}/results-conda/results.xml
+          if-no-files-found: ignore
+          retention-days: 7

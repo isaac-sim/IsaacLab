@@ -20,7 +20,7 @@ In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--vi
 to determine whether viewer apps are launched with an Isaac Lab command.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/features/visualization`).
+(see :doc:`/source/overview/core-concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.

@@ -13,10 +13,6 @@ route to the underlying USD attributes.
 
 Migrating from 2.x? See :ref:`schemas-cfg-refactor` in the 3.0 migration guide.
 
-.. contents::
-   :local:
-   :depth: 2
-
 Quick example
 -------------
 
@@ -138,7 +134,7 @@ What parameters live where
    if they drift from the source, the API docs win.
 
 Universal physics (declared on the base class)
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Lives on the **base class**. Most fields write to ``physics:*`` (the standard
 ``UsdPhysics.*API`` namespace), but a small set of "exception" fields are
@@ -195,7 +191,7 @@ below is the actual emitted attribute, not the namespace family.
      - ``physics:approximation``
 
 PhysX-specific (``physx*:*`` namespace, ``Physx*API`` schemas)
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Lives on the PhysX subclass. Only authored when the user opts in by setting the
 field on a PhysX cfg.
@@ -227,7 +223,7 @@ field on a PhysX cfg.
      - ``physxConvexHullCollision:*`` / ``PhysxConvexHullCollisionAPI``
 
 Newton-targeted (``newton:*`` namespace, ``Newton*API`` schemas)
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Lives on the Newton subclass. Authored only when the user opts in.
 
@@ -258,7 +254,7 @@ Lives on the Newton subclass. Authored only when the user opts in.
      - ``newton:*`` / ``NewtonArticulationRootAPI``
 
 MuJoCo-solver-specific (``mjc:*`` namespace)
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Lives on a MuJoCo subclass that extends a Newton subclass. Only consumed when
 running Newton's MuJoCo solver.
@@ -339,7 +335,7 @@ correct subclass at write time:
 .. _schema-cfgs-gravcomp:
 
 Gravity compensation (MuJoCo solver)
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Gravity compensation has two halves and you typically need both:
 
