@@ -134,8 +134,8 @@ Resolution Rules (CLI + Config)
 The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visualizer_cfgs``:
 
 - ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
-- If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
-- ``--viz none`` explicitly disables all visualizers.
+- If ``--viz`` is omitted, the CLI visualizer value defaults to ``None`` internally and Isaac Lab falls back to
+  ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 - If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
 
 For the migration-focused summary and deprecation context, see
@@ -177,9 +177,6 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
    * - no ``--viz``
      - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Launch custom Newton and custom Rerun visualizers from config.
-   * - ``--viz none``
-     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - Run headless with all visualizers disabled.
    * - ``--headless``
      - any
      - Run headless with deprecation warning.
