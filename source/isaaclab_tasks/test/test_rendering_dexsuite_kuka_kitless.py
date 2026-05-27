@@ -13,7 +13,7 @@ from rendering_test_utils import (
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
-    make_require_ovrtx_install_fixture,
+    make_require_ovlibs_install_fixture,
     rendering_test_dexsuite_kuka,
 )
 
@@ -24,7 +24,7 @@ _COMPARISON_SCORES: list[dict] = []
 _determinism_fixture = make_determinism_fixture()
 _generate_html_report_fixture = make_generate_html_report_fixture(_COMPARISON_SCORES, Path(__file__).stem + ".html")
 _attach_comparison_properties_fixture = make_attach_comparison_properties_fixture(_COMPARISON_SCORES)
-_require_ovrtx_install_fixture = make_require_ovrtx_install_fixture()
+_require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)

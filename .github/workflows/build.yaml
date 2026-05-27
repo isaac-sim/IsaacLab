@@ -699,7 +699,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx"
+        extra-pip-packages: "ovrtx ovphysx"
         include-files: "test_rendering_cartpole_kitless.py,test_rendering_dexsuite_kuka_kitless.py,test_rendering_shadow_hand_kitless.py"
         container-name: isaac-lab-rendering-correctness-kitless-test
   #endregion
