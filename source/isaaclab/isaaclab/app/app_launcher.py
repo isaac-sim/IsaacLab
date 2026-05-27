@@ -188,6 +188,44 @@ class AppLauncher:
             )
         return has_any, has_kit
 
+    @staticmethod
+    def _resolve_python_logging_level(launcher_args: dict) -> int:
+        """Resolve the Python logging level that should survive Kit startup."""
+        if launcher_args.get("verbose", False) or "--verbose" in sys.argv:
+            return logging.DEBUG
+        if launcher_args.get("info", False) or "--info" in sys.argv:
+            return logging.INFO
+
+        level = logging.getLogger().getEffectiveLevel()
+        return logging.WARNING if level == logging.NOTSET else level
+
+    @staticmethod
+    def _apply_python_logging_level(level: int) -> None:
+        """Apply a Python logging level to the root logger and its handlers."""
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+        for handler in root_logger.handlers:
+            handler.setLevel(level)
+
+    @staticmethod
+    def _ensure_isaaclab_info_stream_handler() -> None:
+        """Add a stream handler for Isaac Lab INFO records hidden by Kit logging."""
+        handler_name = "isaaclab_info_stream"
+        root_logger = logging.getLogger()
+        if any(getattr(handler, "name", None) == handler_name for handler in root_logger.handlers):
+            return
+
+        class _IsaacLabInfoFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                return record.levelno == logging.INFO and record.name.startswith("isaaclab")
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.name = handler_name
+        handler.setLevel(logging.INFO)
+        handler.addFilter(_IsaacLabInfoFilter())
+        handler.setFormatter(logging.Formatter("[INFO]: %(message)s"))
+        root_logger.addHandler(handler)
+
     def __init__(self, launcher_args: argparse.Namespace | dict | None = None, **kwargs):
         """Create a `SimulationApp`_ instance based on the input settings.
 
@@ -237,6 +275,9 @@ class AppLauncher:
                     " discern priority between them."
                 )
             launcher_args.update(kwargs)
+
+        # Preserve the Python logging intent before Kit installs its own logging bridge.
+        self._python_logging_level = AppLauncher._resolve_python_logging_level(launcher_args)
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
@@ -1187,8 +1228,16 @@ class AppLauncher:
             logger.info("Applied RTX settings for deterministic rendering (--deterministic).")
 
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
-        # Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.
-        logging.getLogger().setLevel(logging.WARNING)
+        # Re-apply the intended Python logging level, then add a scoped stream handler for
+        # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
+        AppLauncher._apply_python_logging_level(self._python_logging_level)
+        if self._python_logging_level <= logging.INFO:
+            AppLauncher._ensure_isaaclab_info_stream_handler()
+        elif self._python_logging_level == logging.WARNING:
+            AppLauncher._ensure_isaaclab_info_stream_handler()
+            # Let Isaac Lab INFO records reach the scoped handler while the other root
+            # handlers remain at WARNING.
+            logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
