@@ -92,6 +92,10 @@ jobs:
           ACCEPT_EULA: "Y"
           ISAAC_SIM_HEADLESS: "1"
           ISAACLAB_TEST_DEVICES: "001"
+          # Boot Kit with active_gpu=1 so PhysX and Warp pin to cuda:1 from
+          # process start. Kit's active_gpu is locked after SimulationApp
+          # init, so per-test device parametrize alone cannot retarget it.
+          ISAACLAB_SIM_DEVICE: "cuda:1"
         run: |
           set +e
 
@@ -100,24 +104,16 @@ jobs:
           # them on cpu+cuda:0; they're only skipped on the multi-GPU runner
           # (which sets ISAACLAB_TEST_DEVICES=001 → cuda:1 only).
           #
-          # Categories of skips:
-          #   - FabricFrameView SelectPrims deadlock on cuda:1
+          # Categories of skips that remain after the AppLauncher
+          # active_gpu env-var fix:
+          #   - FabricFrameView: usdrt SelectPrims only supports cuda:0,
+          #     tracked upstream in Kit.
           #   - newton/contact_sensor: pre-existing ``measure_total`` kwarg
-          #     mismatch (not multi-GPU specific)
-          #   - newton asset suites: SIGSEGV / cuda:1 assertion failures
-          #   - physx/newton rigid-object init hangs at cuda:1-2 (>1 env
-          #     spawn on cuda:1)
-          #   - test_simulation_context: cuda:1 hang past first parametrize
+          #     mismatch from Newton PR #2135 API rename (not multi-GPU
+          #     specific; needs caller update in newton_manager.py).
           SKIP=$(cat <<'EOF'
           source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
-          source/isaaclab/test/sim/test_simulation_context.py
           source/isaaclab_newton/test/sensors/test_contact_sensor.py
-          source/isaaclab_newton/test/assets/test_articulation.py
-          source/isaaclab_newton/test/assets/test_rigid_object.py
-          source/isaaclab_newton/test/assets/test_rigid_object_collection.py
-          source/isaaclab_newton/test/sim/test_views_xform_prim_newton.py
-          source/isaaclab_physx/test/assets/test_rigid_object.py
-          source/isaaclab_physx/test/assets/test_rigid_object_collection.py
           EOF
           )
 
