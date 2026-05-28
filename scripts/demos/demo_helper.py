@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def resolve_backend_and_visualizer(args, newton_cfg=None):
+def resolve_backend_and_visualizer(args, physx_cfg=None, newton_cfg=None):
     """Resolve physics + visualizer cfgs from ``--physics`` / ``--visualizer``.
 
     Yields ``(physics_cfg, visualizer_cfg)``. Kit is launched when required by
@@ -23,7 +23,7 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
     if args.physics == "physx":
         from isaaclab_physx.physics import PhysxCfg
 
-        physics_cfg = PhysxCfg()
+        physics_cfg = physx_cfg or PhysxCfg()
     elif args.physics == "newton_mjwarp":
         from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
