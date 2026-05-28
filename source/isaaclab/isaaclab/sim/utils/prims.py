@@ -16,7 +16,9 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+from isaaclab.utils.module import lazy_imports
+
+lazy_imports("pxr", ["Sdf", "Usd", "UsdGeom", "UsdPhysics", "UsdShade", "UsdUtils"])
 
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
@@ -28,6 +30,8 @@ from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils  # noqa: F401
+
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 
 # import logger

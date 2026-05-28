@@ -10,10 +10,16 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from pxr import Sdf, Usd, UsdPhysics
+from isaaclab.utils.module import lazy_imports
+
+lazy_imports("pxr", ["Sdf", "Usd", "UsdPhysics"])
 
 from .stage import get_current_stage
+
+if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdPhysics  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)

@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from isaaclab.utils.module import lazy_imports
+
+lazy_imports("pxr", ["Gf", "Sdf", "Usd", "UsdGeom"])
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg, SurfaceDeformableBodyMaterialBaseCfg
@@ -33,6 +35,8 @@ from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
+
     from . import from_files_cfg
 
 # import logger

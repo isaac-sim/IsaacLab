@@ -15,11 +15,18 @@ transforms in a consistent way across different USD assets.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from isaaclab.utils.module import lazy_imports
+
+lazy_imports("pxr", ["Gf", "Sdf", "Usd", "UsdGeom"])
+
+if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
+
 
 _INVALID_XFORM_OPS = [
     "xformOp:rotateX",

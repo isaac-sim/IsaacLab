@@ -236,3 +236,89 @@ def lazy_export(
     setattr(mod, "__dir__", __dir__)
     setattr(mod, "__all__", __all__)
     return __getattr__, __dir__, __all__
+
+
+# ---------------------------------------------------------------------------
+# Lazy-import helper for foreign-package submodules (companion to lazy_export).
+#
+# lazy_export() defers WHICH SUBMODULE of the current package loads, driven by
+# a .pyi stub.  lazy_imports() defers what an already-loaded *leaf* module
+# itself imports from a foreign package (``pxr``, ``omni``, ...).  Same load-
+# on-first-access shape, applied at a different scope.  Use whichever fits.
+# ---------------------------------------------------------------------------
+
+
+class _LazyModule:
+    """Proxy that imports its target on first attribute access.
+
+    On the first ``proxy.X`` access, this imports the real submodule via
+    ``importlib.import_module`` AND rebinds the same local name in the
+    owning module's globals to the real module.  Subsequent ``proxy.X``
+    accesses go straight to the real module — no proxy hop, native module-
+    attribute lookup.
+
+    Constructed by :func:`lazy_imports`; not meant to be instantiated by
+    hand.
+    """
+
+    __slots__ = ("_full_name", "_local_name", "_owner_mod_name")
+
+    def __init__(self, full_name: str, local_name: str, owner_mod_name: str):
+        object.__setattr__(self, "_full_name", full_name)
+        object.__setattr__(self, "_local_name", local_name)
+        object.__setattr__(self, "_owner_mod_name", owner_mod_name)
+
+    def __getattr__(self, attr: str):
+        real = importlib.import_module(self._full_name)
+        setattr(sys.modules[self._owner_mod_name], self._local_name, real)
+        return getattr(real, attr)
+
+    def __repr__(self) -> str:
+        return f"<lazy {self._full_name} (not yet loaded)>"
+
+
+def lazy_imports(package: str, names: list[str]) -> None:
+    """Bind ``<package>.<n>`` for each *n* in *names* as a lazy proxy in the
+    caller's module globals.
+
+    Each binding is a proxy that imports the real submodule on first attribute
+    access and self-replaces in the caller's globals with the real module, so
+    subsequent accesses are native module-attr lookups (no proxy overhead).
+
+    The function returns ``None``; the side effect IS the API.  This keeps
+    every call site one statement, with no tuple-unpack noise regardless of
+    how many names are bound.  Reference the bound names directly in function
+    bodies as if they had been imported at module top.
+
+    Companion to :func:`lazy_export`:
+
+    * :func:`lazy_export` — defers WHICH submodule of the current package
+      loads, declared via a ``.pyi`` stub.  Used in package ``__init__.py``.
+    * :func:`lazy_imports` — defers what an already-loaded leaf module itself
+      imports from a foreign package (``pxr``, ``omni``, ...).  Used at the
+      top of leaf modules.
+
+    Both rely on the same load-on-first-access pattern.
+
+    Args:
+        package: The package to import from, e.g. ``"pxr"``.
+        names: Submodule names within *package* to bind in the caller's
+            globals.
+
+    Example:
+        ::
+
+            from isaaclab.utils.module import lazy_imports
+
+            if TYPE_CHECKING:
+                from pxr import Sdf, Usd, UsdGeom  # noqa: F401
+
+            lazy_imports("pxr", ["Sdf", "Usd", "UsdGeom"])
+
+            # ``Sdf.Path``, ``Usd.Stage``, ``UsdGeom.Xformable`` are now
+            # usable in function bodies as if imported at module top.
+    """
+    caller_globals = sys._getframe(1).f_globals
+    caller_name = caller_globals["__name__"]
+    for n in names:
+        caller_globals[n] = _LazyModule(f"{package}.{n}", n, caller_name)

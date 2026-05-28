@@ -17,8 +17,6 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
-from pxr import Sdf
-
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import (
@@ -38,12 +36,18 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.sim.views import FrameView
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
+from isaaclab.utils.module import lazy_imports
+
+lazy_imports("pxr", ["Sdf"])
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
+
+if TYPE_CHECKING:
+    from pxr import Sdf  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)

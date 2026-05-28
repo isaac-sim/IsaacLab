@@ -8,10 +8,16 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdGeom, UsdSemantics
+from isaaclab.utils.module import lazy_imports
+
+lazy_imports("pxr", ["Usd", "UsdGeom", "UsdSemantics"])
 
 from .stage import get_current_stage
+
+if TYPE_CHECKING:
+    from pxr import Usd, UsdGeom, UsdSemantics  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
