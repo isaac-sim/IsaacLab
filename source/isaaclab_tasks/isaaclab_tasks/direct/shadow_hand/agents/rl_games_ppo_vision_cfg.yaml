@@ -67,7 +67,7 @@ params:
     schedule_type: standard
     kl_threshold: 0.01
     score_to_win: 100000
-    max_epochs: 50000
+    max_epochs: 5000
     save_best_after: 100
     save_frequency: 200
     print_stats: True

@@ -77,7 +77,7 @@ class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 @configclass
 class ShadowHandVisionFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
-    max_iterations = 50000
+    max_iterations = 5000
     save_interval = 250
     experiment_name = "shadow_hand_vision"
     actor = RslRlMLPModelCfg(
