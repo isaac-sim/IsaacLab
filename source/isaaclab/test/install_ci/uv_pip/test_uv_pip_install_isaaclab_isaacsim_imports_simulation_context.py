@@ -7,10 +7,12 @@
 Setup:
     - bash tools/wheel_builder/build.sh
     - ./isaaclab.sh -u
-    - uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
-        (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst)
     - uv pip install <wheel>[isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
+    - uv pip install --reinstall-package torch --reinstall-package torchvision
+        torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+        (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst.
+         Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - python -c "from isaaclab.app import AppLauncher" -> verify AppLauncher importable
@@ -57,25 +59,9 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
         cls.python = self.python
         cls.cli_script = self.cli_script
 
-        # 3. Pre-install CUDA-matched torch (mirrors docs/source/setup/installation/pip_installation.rst:
-        #    cu128 on x86_64, cu130 on aarch64).
-        result = self.run_in_uv_env(
-            [
-                "uv",
-                "pip",
-                "install",
-                "-U",
-                "torch==2.10.0",
-                "torchvision==0.25.0",
-                "--index-url",
-                cuda_torch_index_url(),
-            ],
-            cwd=isaaclab_root,
-            timeout=1800,
-        )
-        assert result.returncode == 0, f"uv pip install torch failed:\n{result.stdout}\n{result.stderr}"
-
-        # 4. Install isaaclab with the isaacsim extra from the NVIDIA index.
+        # 3. Install isaaclab with the isaacsim extra from the NVIDIA index.
+        #    NOTE: --index-strategy unsafe-best-match re-resolves torch from PyPI (CPU build),
+        #    so install isaaclab FIRST and force-reinstall CUDA torch in step 4 below.
         result = self.run_in_uv_env(
             [
                 "uv",
@@ -94,6 +80,27 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
         assert result.returncode == 0, (
             f"uv pip install {cls._wheel}[isaacsim] failed:\n{result.stdout}\n{result.stderr}"
         )
+
+        # 4. Reinstall CUDA-matched torch (cu128 on x86_64, cu130 on aarch64) to swap out the
+        #    CPU torch unsafe-best-match picked above. Mirrors docs/source/setup/installation/pip_installation.rst.
+        result = self.run_in_uv_env(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--reinstall-package",
+                "torch",
+                "--reinstall-package",
+                "torchvision",
+                "torch==2.10.0",
+                "torchvision==0.25.0",
+                "--index-url",
+                cuda_torch_index_url(),
+            ],
+            cwd=isaaclab_root,
+            timeout=1800,
+        )
+        assert result.returncode == 0, f"uv pip install CUDA torch failed:\n{result.stdout}\n{result.stderr}"
 
         yield
 
