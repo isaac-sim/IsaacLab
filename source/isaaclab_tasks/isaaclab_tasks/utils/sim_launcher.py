@@ -218,7 +218,7 @@ def validate_runtime_compatibility(
         "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
         "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
         "    (and avoid `--visualizer kit`):\n"
-        "      presets=newton,ovrtx_renderer\n"
+        "      presets=newton_mjwarp,ovrtx_renderer\n"
     )
 
 
