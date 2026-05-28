@@ -63,26 +63,22 @@ End-of-replay termination:
     again. The USD stage is loaded only once.
 
 Stats output:
-    Every iteration where ``env.step()`` actually ran contributes one
-    CPU frame-time sample (``time.perf_counter()`` delta in ms). Pre-
-    START render-only frames, warmup ticks, and post-quit render-only
-    spin-down are excluded so the resulting numbers reflect the
-    steady-state replay workload rather than agent bookkeeping
-    overhead. Per-run samples are summarised into mean / p50 / p90 /
+    The wall-clock deltas between successive ``env.sim.render()`` calls
+    produced during the active window are recorded as a per-rendered-frame
+    interval series (N gated renders produce N-1 samples). Pre-START
+    render-only frames, warmup ticks, and post-quit render-only
+    spin-down are excluded so the numbers reflect the steady-state
+    replay workload rather than agent bookkeeping overhead. Per-run samples are summarised into mean / p50 / p90 /
     p95 / p99 / min / max / stddev (under ``cpu_frame_time_ms``) plus
     derived FPS metrics (under ``fps``). Both blocks are reported on
-    a **per-render** basis: each env.step CPU sample is divided by
-    ``decimation / render_interval`` (the number of renders per
-    ``env.step``) before stats are computed, so ``cpu_frame_time_ms``
-    reads as the average wall time between rendered frames and ``fps``
-    reads as the render rate -- the same number the simulator's HUD
-    shows, which is what the headset wearer / spectator actually
-    perceives during real-time teleop. The two blocks remain self-consistent: ``fps.mean``
-    equals ``1000 / cpu_frame_time_ms.mean`` (harmonic mean of FPS
-    = total frames / total step time). When either ``decimation`` or
-    ``render_interval`` is unavailable from the env config, the samples
-    fall back to the raw per-env.step units rather than dropping the
-    report.
+    a **per-render** basis -- ``cpu_frame_time_ms`` is the wall time
+    between rendered frames and ``fps`` is the render rate, matching
+    what the simulator's HUD shows and what the headset wearer /
+    spectator actually perceives during real-time teleop. The two
+    blocks stay self-consistent: ``fps.mean`` equals ``1000 /
+    cpu_frame_time_ms.mean`` (harmonic mean of FPS = total frames /
+    total step time). The agent terminates with an exception if a run
+    recorded active iterations but produced no per-render samples.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
     call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
@@ -139,11 +135,11 @@ Stats output:
               "active_iterations": 322,
               "active_duration_s": 21.503,
               "success_step_count": 1,
-              "cpu_frame_time_ms": {  # per-render ms (env.step * render_interval / decimation)
+              "cpu_frame_time_ms": {  # per-render ms (wall time between sim.render calls)
                 "mean": ..., "p50": ..., "p90": ..., "p95": ..., "p99": ...,
                 "min": ..., "max": ..., "stddev": ..., "n": ...
               },
-              "fps": {  # per-render rate (env.step rate * decimation / render_interval; simulator HUD)
+              "fps": {  # per-render rate (matches simulator HUD)
                 "mean": ..., "min_instantaneous": ..., "max_instantaneous": ...
               },
               "gpu_stats": {
@@ -400,15 +396,22 @@ keys) do not require a bump."""
 class _RunStats:
     """Per-replay performance + outcome record.
 
-    ``active_frame_times_ms`` is sampled only on iterations where
-    ``env.step()`` actually ran (post-START, pre-terminator). Pre-START
-    render-only frames, warmup ticks, and post-quit render-only spin-down
-    are intentionally excluded so the resulting stats reflect the steady-
-    state replay workload rather than the agent's bookkeeping overhead.
+    ``active_frame_times_ms`` is the per-rendered-frame series: wall-clock
+    deltas between successive :meth:`SimulationContext.render` calls
+    produced from inside ``env.step`` during the active window
+    (post-START, pre-terminator). Pre-START render-only frames, warmup
+    ticks, and post-quit render-only spin-down are excluded so the
+    stats reflect the steady-state replay workload, not agent
+    bookkeeping. This is the source of ``cpu_frame_time_ms`` and ``fps``
+    in the JSON report.
+
+    ``active_iterations`` counts ``env.step`` calls during the active
+    window and backs the same-named field in the JSON report.
     """
 
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
     active_frame_times_ms: list[float] = field(default_factory=list)
+    active_iterations: int = 0
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
     # Filled in at run end from ``GpuStatsProvider.summary()``.
@@ -416,43 +419,25 @@ class _RunStats:
     # produces a missing-but-not-None ``"gpu_stats"`` slot.
     gpu_stats: dict = field(default_factory=dict)
 
-    def to_dict(
-        self,
-        run_index: int,
-        decimation: int | None = None,
-        render_interval: int | None = None,
-    ) -> dict:
-        # Project the per-env.step CPU samples onto a per-render basis by
-        # uniform averaging. Each env.step internally runs ``decimation``
-        # physics ticks of ``sim.dt`` and (interleaved) one render every
-        # ``render_interval`` ticks, so there are ``decimation /
-        # render_interval`` renders per env.step. Per-render ms is therefore
-        # ``env.step ms / (decimation / render_interval) = env.step ms *
-        # render_interval / decimation``, and per-render FPS is ``env.step
-        # FPS * decimation / render_interval`` -- which matches the
-        # simulator's HUD.
-        # Per-render units track the rate the headset wearer / spectator
-        # actually feels, which is what real-time teleop perf cares about.
-        # When either ``decimation`` or ``render_interval`` is unavailable,
-        # fall back to the raw env.step samples -- coarser units, but
-        # better than dropping the report. Future: replace this
-        # derived-by-averaging path with samples taken directly around each
-        # render once the agent collects them (the schema is already
-        # aligned to per-render semantics).
-        samples_ms = self.active_frame_times_ms
-        if decimation is not None and decimation > 0 and render_interval is not None and render_interval > 0:
-            renders_per_env_step = decimation / render_interval
-            samples_ms = [t / renders_per_env_step for t in samples_ms]
-        cpu_stats = _compute_frame_stats(samples_ms)
-        fps_stats = _compute_fps_stats(samples_ms)
+    def to_dict(self, run_index: int) -> dict:
+        # Per-render intervals are the sole source of truth; a run that
+        # recorded active iterations but produced none indicates the
+        # render-timing shim never fired and the report would be junk.
+        if self.active_iterations and not self.active_frame_times_ms:
+            raise RuntimeError(
+                f"Run {run_index} recorded {self.active_iterations} active env.step "
+                "iterations but no per-render interval samples. env.sim.render did not fire "
+                "during the active window -- check that the sim is rendering (headless mode "
+                "with rendering disabled is unsupported)."
+            )
         return {
             "run_index": run_index,
             "outcome": self.outcome,
-            "active_iterations": len(self.active_frame_times_ms),
+            "active_iterations": self.active_iterations,
             "active_duration_s": round(self.active_duration_s, 6),
             "success_step_count": self.success_step_count,
-            "cpu_frame_time_ms": cpu_stats,
-            "fps": fps_stats,
+            "cpu_frame_time_ms": _compute_frame_stats(self.active_frame_times_ms),
+            "fps": _compute_fps_stats(self.active_frame_times_ms),
             "gpu_stats": self.gpu_stats,
         }
 
@@ -512,29 +497,18 @@ def _compute_frame_stats(samples_ms: list[float]) -> dict:
 
 
 def _compute_fps_stats(samples_ms: list[float]) -> dict:
-    """Compute FPS stats from per-step CPU times.
+    """Compute FPS stats from per-rendered-frame intervals (in ms).
 
     All three fields are derived from the same ``samples_ms`` series
     that feeds ``cpu_frame_time_ms`` and stay self-consistent with it:
     ``mean == 1000 / cpu_frame_time_ms.mean`` (harmonic mean of FPS =
-    total frames / total step time). The harmonic mean is what
-    Devdeep's "use harmonic mean for FPS and it will agree with the
-    arithmetic mean of frame time" prescription expects -- it avoids
-    the upward bias of arithmetic-mean-of-instantaneous-FPS
-    (dominated by the fastest frames) and the downward bias of
-    ``n / active_duration_s`` (dragged down by inter-step
-    bookkeeping).
-
-    The basis of ``samples_ms`` (per-render vs per-env.step etc.) is
-    set by the caller, so the units of this function's output match
-    whatever the caller passed in. :meth:`_RunStats.to_dict` passes
-    samples that have already been divided by ``decimation /
-    render_interval``, so the reported FPS reads as the per-render
-    rate -- matching the simulator's HUD and the rate the headset
-    wearer perceives.
+    total frames / total step time). The harmonic mean avoids the
+    upward bias of arithmetic-mean-of-instantaneous-FPS (dominated by
+    the fastest frames) and the downward bias of
+    ``n / active_duration_s`` (dragged down by inter-step bookkeeping).
 
     ``min_instantaneous`` and ``max_instantaneous`` are derived from
-    the slowest / fastest individual step respectively.
+    the slowest / fastest individual rendered frame respectively.
     """
     n = len(samples_ms)
     if n == 0:
@@ -751,16 +725,9 @@ def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
     total = max(len(all_runs), 1)
     success_rate = outcomes_count.get("success", 0) / total
 
-    # Pull ``decimation`` and ``render_interval`` once so every per-run dict
-    # projects the per-env.step CPU samples onto per-render ms (and the
-    # corresponding FPS) using the same factor. Either value being ``None``
-    # leaves the samples unscaled (coarser env.step units) rather than
-    # substituting a default that could silently misreport the rate.
     env_perf_cfg = _extract_env_perf_cfg(env_cfg) if env_cfg is not None else None
-    decimation = env_perf_cfg.get("decimation") if env_perf_cfg else None
-    render_interval = env_perf_cfg["sim"].get("render_interval") if env_perf_cfg else None
 
-    run_dicts = [r.to_dict(i, decimation=decimation, render_interval=render_interval) for i, r in enumerate(all_runs)]
+    run_dicts = [r.to_dict(i) for i, r in enumerate(all_runs)]
 
     return {
         "schema_version": _STATS_SCHEMA_VERSION,
@@ -1235,6 +1202,28 @@ def _run_single_replay(
     if run_index == 0:
         print(f"Using teleop device: {teleop_interface}")
 
+    # Wrap ``env.sim.render`` so renders fired from inside ``env.step``
+    # during the active window record their wall-clock interval since
+    # the previous gated render. ``sampling_active`` is toggled around
+    # each ``env.step`` call below; the first gated render seeds
+    # ``last_gated_render_ts`` and emits no sample, so N gated renders
+    # produce N-1 intervals. Restored after the with-block since ``env``
+    # is shared across the multi-run batch.
+    sampling_active: list[bool] = [False]
+    last_gated_render_ts: list[float | None] = [None]
+    _orig_sim_render = env.sim.render
+
+    def _timed_sim_render(*args, **kwargs):
+        result = _orig_sim_render(*args, **kwargs)
+        if sampling_active[0]:
+            now = time.perf_counter()
+            if last_gated_render_ts[0] is not None:
+                stats.active_frame_times_ms.append((now - last_gated_render_ts[0]) * 1000.0)
+            last_gated_render_ts[0] = now
+        return result
+
+    env.sim.render = _timed_sim_render
+
     with teleop_interface:
         # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
         # does a hard physics reinit (re-binds articulation views, plays the
@@ -1346,16 +1335,23 @@ def _run_single_replay(
                         env.sim.render()
                         continue
 
-                    # Sample CPU frame time across the env.step call only
-                    # (the active-frame window the stats report covers).
+                    # ``sampling_active`` is flipped on for the duration
+                    # of the env.step call so the wrapped
+                    # ``env.sim.render`` records intervals only for
+                    # renders fired from within this step. The
+                    # active-window timestamps bracket the same call
+                    # for ``active_duration_s``.
                     iter_start_s = time.perf_counter()
                     if active_start_s is None:
                         active_start_s = iter_start_s
                     actions = action.repeat(env.num_envs, 1)
-                    _, _, terminated, truncated, _ = env.step(actions)
-                    iter_end_s = time.perf_counter()
-                    stats.active_frame_times_ms.append((iter_end_s - iter_start_s) * 1000.0)
-                    last_active_end_s = iter_end_s
+                    sampling_active[0] = True
+                    try:
+                        _, _, terminated, truncated, _ = env.step(actions)
+                    finally:
+                        sampling_active[0] = False
+                    last_active_end_s = time.perf_counter()
+                    stats.active_iterations += 1
 
                     # Snapshot GPU state right after env.step so the
                     # sample reflects the active workload (post-render
@@ -1415,6 +1411,8 @@ def _run_single_replay(
                 logger.exception("Error during simulation step")
                 stats.outcome = "failure"
                 break
+
+    env.sim.render = _orig_sim_render
 
     # Stamp the active window duration. Falls back to 0.0 when no env
     # step ever ran (recording never reached START, or terminated before
