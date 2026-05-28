@@ -393,14 +393,19 @@ def image(
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
+    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
+    data-types:
+
+    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
+    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
+
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
         data_type: The data type to pull from the desired camera. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
             This is used only when the data type is "distance_to_camera". Defaults to False.
-        normalize: If True, post-process the image via
-            :func:`~isaaclab.utils.images.normalize_camera_image` (dispatched on ``data_type``).
+        normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
         permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
         clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
@@ -409,7 +414,7 @@ def image(
             to skip the redundant allocation.
 
     Returns:
-        The images produced at the last time-step.
+        The images produced at the last time-step
     """
     # extract the used quantities (to enable type-hinting)
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]

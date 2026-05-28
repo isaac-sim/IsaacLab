@@ -39,7 +39,7 @@ class CircularBuffer:
                 :meth:`append`. Defaults to ``None`` (legacy layout).
 
         Raises:
-            ValueError: If ``max_len < 1`` or ``stack_dim == 0``.
+            ValueError: If the buffer size is less than one, or ``stack_dim == 0``.
         """
         if max_len < 1:
             raise ValueError(f"The buffer size should be greater than zero. However, it is set to {max_len}!")
@@ -52,7 +52,9 @@ class CircularBuffer:
 
         # CPU mirror of max_len; avoids a GPU sync via ``.item()`` on every property access.
         self._max_len_int: int = max_len
+        # max length tensor for comparisons
         self._max_len = torch.full((batch_size,), max_len, dtype=torch.int, device=device)
+        # number of data pushes passed since the last call to :meth:`reset`
         self._num_pushes = torch.zeros(batch_size, dtype=torch.long, device=device)
         # CPU gate; lets ``append`` skip a ``torch.any`` GPU sync on the steady-state path.
         self._need_reset: bool = True
@@ -140,6 +142,8 @@ class CircularBuffer:
         self._num_pushes[batch_ids_resolved] = 0
         self._need_reset = True
         if self._buffer is not None:
+            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns
+            # the cleared circular buffer after reset.
             if self._stack_dim_internal is None:
                 self._buffer[:, batch_ids_resolved] = 0.0
             else:
@@ -242,5 +246,7 @@ class CircularBuffer:
 
         # Clamp to [0, ..] so batches with _num_pushes == 0 return the zeroed slot.
         valid_keys = torch.clamp(torch.minimum(key, self._num_pushes - 1), min=0)
+        # The buffer is stored oldest->newest along dimension 0, so the most
+        # recent item lives at the last index.
         index_in_buffer = (self._max_len_int - 1 - valid_keys).to(dtype=torch.long)
         return self._buffer[index_in_buffer, self._ALL_INDICES]
