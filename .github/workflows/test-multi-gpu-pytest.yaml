@@ -62,11 +62,13 @@ jobs:
         # env_isaaclab); the 5.x line on PyPI requires Python 3.11.
         run: pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
 
-      - name: Install pytest
-        # pytest is not pulled in by ``--install none`` or by isaacsim.
-        # Some runners in the multi-gpu pool already have it cached; some
-        # don't.  Pin it explicitly to make the job runner-independent.
-        run: pip install pytest
+      - name: Install pytest and test deps
+        # pytest, pytest-mock, and flaky live in ``source/isaaclab``'s
+        # ``install_requires`` but aren't always pulled in by ``--install
+        # none`` (pip's resolver with multiple ``--extra-index-url`` flags
+        # silently skips pure-Python deps in some orderings).  Pin them
+        # explicitly so the job is runner-independent.
+        run: pip install pytest pytest-mock flaky
 
       - name: Verify multi-GPU availability
         run: |
@@ -93,11 +95,16 @@ jobs:
         run: |
           set +e
 
-          # Files explicitly excluded from multi-GPU CI.
-          # Add a path here (one per line) when a file's cuda:1 path is
-          # known broken and tracked elsewhere.
+          # Files explicitly excluded from multi-GPU CI.  These are still
+          # parametrized with ``cuda_test_devices()`` so single-GPU CI runs
+          # them on cpu+cuda:0; they're only skipped on the multi-GPU runner
+          # (which sets ISAACLAB_TEST_DEVICES=001 → cuda:1 only).
           SKIP=$(cat <<'EOF'
           source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
+          source/isaaclab_newton/test/sensors/test_contact_sensor.py
+          source/isaaclab_newton/test/assets/test_articulation.py
+          source/isaaclab_newton/test/assets/test_rigid_object_collection.py
+          source/isaaclab_newton/test/sim/test_views_xform_prim_newton.py
           EOF
           )
 
@@ -137,12 +144,19 @@ jobs:
 
           fail=0
 
+          # pytest exit code 5 = no tests collected.  Treat as success here
+          # because module-level ``pytestmark = pytest.mark.skipif(...)``
+          # (e.g. ovphysx tests that gate on backend availability) and
+          # device-only parametrize that resolves to ``[cuda:1]`` on a host
+          # that skips cuda:1 are legitimate "nothing to do" outcomes.
+          is_ok() { [ "$1" = "0" ] || [ "$1" = "5" ]; }
+
           if [ ${#PURE[@]} -gt 0 ]; then
             echo "::group::pytest (pure-python, single session)"
             ./isaaclab.sh -p -m pytest -v "${PURE[@]}"
             rc=$?
             echo "::endgroup::"
-            if [ $rc -ne 0 ]; then
+            if ! is_ok $rc; then
               echo "::error::pure-python pytest exit $rc"
               fail=1
             fi
@@ -153,7 +167,7 @@ jobs:
             timeout 600 ./isaaclab.sh -p -m pytest "$f" -v
             rc=$?
             echo "::endgroup::"
-            if [ $rc -ne 0 ]; then
+            if ! is_ok $rc; then
               echo "::error file=$f::pytest exit $rc"
               fail=1
             fi
