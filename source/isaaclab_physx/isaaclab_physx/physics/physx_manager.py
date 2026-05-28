@@ -173,8 +173,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
 
-        Discovers rigid body prims by traversing the USD stage and creates the
-        PhysX view from their exact prim paths.
+        Discovers rigid body prims by traversing the USD stage and converts
+        per-environment paths (``/World/envs/env_N/...``) into wildcard
+        patterns so a single PhysX view covers every environment instance.
         """
         if self._rigid_body_view is not None:
             return self._rigid_body_view
@@ -186,15 +187,15 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return None
 
-        paths: list[str] = []
+        patterns: set[str] = set()
         for prim in stage.Traverse():
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                paths.append(prim.GetPath().pathString)
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
 
-        if not paths:
+        if not patterns:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(paths)
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(list(patterns))
         return self._rigid_body_view
 
     @property
