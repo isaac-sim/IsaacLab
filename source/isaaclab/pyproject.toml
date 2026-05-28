@@ -49,10 +49,10 @@ dependencies = [
     # cross-platform file locking
     "filelock",
     "lazy_loader>=0.4",
-    # IK controller (Linux x86_64 + ARM64)
+    # IK controller (Linux x86_64 + ARM64), requires pinning to 3.1.0 and 0.8.5 to avoid breaking change
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "pin-pink>=3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "daqp>=0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # OpenUSD (kit-less mode)
     "usd-core>=25.0.0 ; platform_machine in 'x86_64 AMD64'",
     "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
