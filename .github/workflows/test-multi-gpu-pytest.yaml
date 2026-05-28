@@ -101,11 +101,16 @@ jobs:
         # path; deps-cache-hit creates an ECR registry-side alias but
         # leaves nothing in local docker.  The action's final "Cleanup
         # docker config" step removes its temp DOCKER_CONFIG, so we
-        # re-authenticate with ECR here (the runner's IAM role still
-        # has ``ecr:GetAuthorizationToken`` from the instance profile).
+        # create our own with credsStore disabled (the runner's default
+        # credential helper is broken: ``not implemented``) and
+        # re-authenticate to ECR via the EC2 IAM role.
         run: |
           set -e
-          unset DOCKER_CONFIG
+          DOCKER_CONFIG_DIR=$(mktemp -d)
+          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+          export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+          echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+
           REGISTRY=$(echo "$ECR_URL" | cut -d'/' -f1)
           AWS_REGION=$(echo "$REGISTRY" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
           aws ecr get-login-password --region "$AWS_REGION" | \
