@@ -14,7 +14,8 @@ from contextlib import contextmanager
 def resolve_backend_and_visualizer(args, newton_cfg=None):
     """Resolve physics + visualizer cfgs from ``--physics`` / ``--visualizer``.
 
-    Yields ``(physics_cfg, visualizer_cfg)``. Kit is closed automatically on exit.
+    Yields ``(physics_cfg, visualizer_cfg)``. Kit is launched when required by
+    either the visualizer or the physics backend, and closed automatically on exit.
     """
 
     # Resolve physics cfg
@@ -42,8 +43,9 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
         raise ValueError(f"Unsupported --physics value: {args.physics}")
 
     # Resolve visualizer cfg
-    DEFAULT_VISUALIZER = "kit"
-    viz_type = args.visualizer or DEFAULT_VISUALIZER
+    if not isinstance(args.visualizer, list) or len(args.visualizer) != 1:
+        raise ValueError("Demos support exactly one --visualizer value: kit or newton.")
+    viz_type = args.visualizer[0]
     if viz_type == "kit":
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
@@ -55,9 +57,10 @@ def resolve_backend_and_visualizer(args, newton_cfg=None):
     else:
         raise ValueError(f"Unsupported --visualizer value: {viz_type}")
 
-    # Kit needs to be closed by explicitly calling AppLauncher.close()
+    # PhysX requires Isaac Sim Kit extensions even when rendering through a
+    # standalone visualizer such as Newton.
     close_fn = None
-    if viz_type == "kit":
+    if viz_type == "kit" or args.physics == "physx":
         from isaaclab.app import AppLauncher
 
         args.visualizer = [viz_type]

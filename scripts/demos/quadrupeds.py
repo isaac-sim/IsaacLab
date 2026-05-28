@@ -21,8 +21,8 @@ This script demonstrates different legged robots.
     # Usage with the Newton (MJWarp) backend without Kit (launches Newton visualizer).
     ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp --visualizer newton
 
-    # Usage with the PhysX backend without Kit (launches Newton visualizer).
-    # TODO(yizew@nvidia.com): Not supported yet. Investigation needed.
+    # Usage with the PhysX backend and Newton visualizer.
+    # PhysX still launches Isaac Sim Kit headless because it depends on Kit extensions.
     ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics physx --visualizer newton
 
 """
@@ -34,11 +34,11 @@ import argparse
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.", conflict_handler="resolve")
+parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
-parser.add_argument("--visualizer", default="kit", choices=["kit", "newton"], help="Visualizer backend.")
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
