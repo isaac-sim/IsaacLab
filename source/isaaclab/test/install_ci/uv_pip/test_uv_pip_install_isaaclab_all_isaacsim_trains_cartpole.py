@@ -96,7 +96,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
             # uv pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
             #   --index-strategy unsafe-best-match --prerelease=allow
             result = self.run_in_uv_env(
-                [
+                    f"{wheel}[all,isaacsim]",
                     "uv",
                     "pip",
                     "install",
