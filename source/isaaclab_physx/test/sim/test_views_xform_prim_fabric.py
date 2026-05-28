@@ -22,6 +22,25 @@ from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
 
+# --- Version diagnostics: print Kit / Fabric / UsdRT versions ---
+import carb  # noqa: E402
+import omni.kit.app  # noqa: E402
+
+_app = omni.kit.app.get_app()
+_tokens = carb.tokens.get_tokens_interface()
+_ext_mgr = _app.get_extension_manager()
+print("\n" + "=" * 70)
+print(f"Kit version:        {_app.get_kit_version()}")
+print(f"Kit kernel version: {_app.get_kernel_version()}")
+print(f"Kit git hash:       {_tokens.resolve('${kit_git_hash}')}")
+print(f"Kit version short:  {_tokens.resolve('${kit_version_short}')}")
+for _ext_name in ["omni.fabric.core", "omni.usdrt.core", "omni.usdrt.scenegraph", "omni.physx"]:
+    _eid = _ext_mgr.get_enabled_extension_id(_ext_name)
+    print(f"  {_ext_name}: {_eid}")
+print("=" * 70 + "\n", flush=True)
+del _app, _tokens, _ext_mgr, _eid, _ext_name
+# --- End version diagnostics ---
+
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
