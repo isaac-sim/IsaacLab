@@ -12,7 +12,7 @@ import sys
 import time
 
 import pytest
-from junitparser import Error, JUnitXml, TestCase, TestSuite
+from junitparser import Error, Failure, JUnitXml, Skipped, TestCase, TestSuite
 from prettytable import PrettyTable
 
 # Local imports
@@ -436,6 +436,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                 "result": "STARTUP_HANG",
                 "time_elapsed": 0.0,
                 "wall_time": wall_time,
+                "cases": [],
             }
             continue
 
@@ -465,6 +466,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                 "result": "TIMEOUT",
                 "time_elapsed": timeout,
                 "wall_time": wall_time,
+                "cases": [],
             }
             continue
 
@@ -498,6 +500,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                 "result": "CRASHED",
                 "time_elapsed": 0.0,
                 "wall_time": wall_time,
+                "cases": [],
             }
             continue
 
@@ -507,9 +510,28 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
         try:
             report = JUnitXml.fromfile(report_file)
+            cases = []
             for suite in report:
                 if suite.name == "pytest":
                     suite.name = os.path.splitext(file_name)[0]
+                for case in suite:
+                    case_results = list(case.result) if case.result else []
+                    if not case_results:
+                        case_status = "passed"
+                    elif any(isinstance(r, Failure) for r in case_results):
+                        case_status = "FAILED"
+                    elif any(isinstance(r, Error) for r in case_results):
+                        case_status = "ERROR"
+                    elif any(isinstance(r, Skipped) for r in case_results):
+                        case_status = "skipped"
+                    else:
+                        case_status = "passed"
+                    cases.append({
+                        "name": case.name or "",
+                        "classname": case.classname or "",
+                        "time": float(case.time or 0.0),
+                        "result": case_status,
+                    })
             report.write(report_file)
             xml_reports.append(report)
 
@@ -529,6 +551,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                 "result": "FAILED",
                 "time_elapsed": 0.0,
                 "wall_time": wall_time,
+                "cases": [],
             }
             continue
 
@@ -553,6 +576,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "result": result,
             "time_elapsed": time_elapsed,
             "wall_time": wall_time,
+            "cases": cases,
         }
 
     print("~~~~~~~~~~~~ Finished running all tests")
@@ -780,21 +804,28 @@ def pytest_sessionstart(session):
     per_test_result_table.align["Test (s)"] = "r"
     per_test_result_table.align["Wall (s)"] = "r"
     for test_path in test_files:
-        num_tests_passed = (
-            test_status[test_path]["tests"]
-            - test_status[test_path]["failures"]
-            - test_status[test_path]["errors"]
-            - test_status[test_path]["skipped"]
-        )
+        status = test_status[test_path]
+        num_tests_passed = status["tests"] - status["failures"] - status["errors"] - status["skipped"]
         per_test_result_table.add_row(
             [
                 test_path,
-                test_status[test_path]["result"],
-                f"{test_status[test_path]['time_elapsed']:0.2f}",
-                f"{test_status[test_path]['wall_time']:0.2f}",
-                f"{num_tests_passed}/{test_status[test_path]['tests']}",
+                status["result"],
+                f"{status['time_elapsed']:0.2f}",
+                f"{status['wall_time']:0.2f}",
+                f"{num_tests_passed}/{status['tests']}",
             ]
         )
+        for case in status.get("cases", []):
+            case_label = f"{case['classname']}::{case['name']}" if case["classname"] else case["name"]
+            per_test_result_table.add_row(
+                [
+                    f"    \u21b3 {case_label}",
+                    case["result"],
+                    f"{case['time']:0.2f}",
+                    "",
+                    "",
+                ]
+            )
 
     summary_str += per_test_result_table.get_string()
 
