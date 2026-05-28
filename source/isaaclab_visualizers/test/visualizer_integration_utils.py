@@ -52,7 +52,7 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 
 # Debugging mode configs.
 
-_WRITE_VIS_DEBUG_FRAMES = True
+_WRITE_VIS_DEBUG_FRAMES = False
 """Whether to emit visualizer debug PNGs during integration tests.  Disabled by default."""
 
 _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
