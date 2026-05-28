@@ -152,7 +152,6 @@ class PhysicsCfg(PresetCfg):
             ),
             dst_solver_cfg=VBDSolverCfg(
                 iterations=10,
-                integrate_with_external_rigid_solver=True,
             ),
             src_bodies=["/World/envs/env_.*/Robot"],
             proxy_bodies=[
