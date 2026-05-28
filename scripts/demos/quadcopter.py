@@ -35,6 +35,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -74,7 +75,7 @@ def main():
 
     # Fetch relevant parameters to make the quadcopter hover in place
     prop_body_ids = robot.find_bodies("m.*_prop")[0]
-    robot_mass = robot.root_view.get_masses().sum()
+    robot_mass = wp.to_torch(robot.root_view.get_masses())[0].sum()
     gravity = torch.tensor(sim.cfg.gravity, device=sim.device).norm()
 
     # Now we are ready!
