@@ -15,10 +15,6 @@ from pathlib import Path
 
 from isaaclab.test.utils import cuda_test_devices
 
-_NEWTON_5132 = {
-    "cuda:1": ("Newton/Warp init-order bug on cuda:1 — tracked in https://github.com/isaac-sim/IsaacLab/issues/5132"),
-}
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
@@ -117,7 +113,7 @@ def view_factory():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 def test_reject_body_path(device):
     """FrameView rejects prim paths that resolve to a Newton physics body."""
     ctx = _sim_context(device, num_envs=2)
@@ -131,7 +127,7 @@ def test_reject_body_path(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 def test_reject_shape_path(device):
     """FrameView rejects prim paths that resolve to a Newton collision shape."""
     ctx = _sim_context(device, num_envs=2)
@@ -154,7 +150,7 @@ def test_reject_shape_path(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 def test_world_attached_returns_initial_pose(device):
     """A world-rooted Xform returns its USD-authored position."""
     ctx = _sim_context(device, num_envs=2)
@@ -177,7 +173,7 @@ def test_world_attached_returns_initial_pose(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 def test_world_attached_set_world_roundtrip(device):
     """A world-attached prim can be repositioned via set_world_poses."""
     ctx = _sim_context(device, num_envs=2)

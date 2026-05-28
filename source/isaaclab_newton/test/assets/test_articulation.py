@@ -11,10 +11,6 @@
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import cuda_test_devices
 
-_NEWTON_5132 = {
-    "cuda:1": ("Newton/Warp init-order bug on cuda:1 — tracked in https://github.com/isaac-sim/IsaacLab/issues/5132"),
-}
-
 HEADLESS = True
 
 # launch omniverse app
@@ -490,7 +486,7 @@ def sim(request):
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_initialization_floating_base_non_root(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -539,7 +535,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_initialization_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -589,7 +585,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_initialization_fixed_base(sim, num_articulations, device, articulation_type):
     """Test initialization for fixed base.
@@ -646,7 +642,7 @@ def test_initialization_fixed_base(sim, num_articulations, device, articulation_
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 def test_initialization_fixed_base_single_joint(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -704,7 +700,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 def test_initialization_hand_with_tendons(sim, num_articulations, device, articulation_type):
     """Test initialization for fixed base articulated hand with tendons.
@@ -753,7 +749,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device, articu
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_initialization_floating_base_made_fixed_base(
@@ -807,7 +803,7 @@ def test_initialization_floating_base_made_fixed_base(
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_initialization_fixed_base_made_floating_base(
@@ -853,7 +849,7 @@ def test_initialization_fixed_base_made_floating_base(
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -884,7 +880,7 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         sim.reset()
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_out_of_range_default_joint_vel(sim, device, articulation_type):
     """Test that the default joint velocity from configuration is out of range.
@@ -909,7 +905,7 @@ def test_out_of_range_default_joint_vel(sim, device, articulation_type):
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -985,7 +981,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, arti
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -1019,7 +1015,7 @@ def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane, a
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_buffer(sim, num_articulations, device, articulation_type):
     """Test if external force buffer correctly updates in the force value is zero case.
@@ -1104,7 +1100,7 @@ def test_external_force_buffer(sim, num_articulations, device, articulation_type
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_single_body(sim, num_articulations, device, articulation_type):
     """Test application of external force on the base of the articulation.
@@ -1162,7 +1158,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, articulat
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_single_body_at_position(sim, num_articulations, device, articulation_type):
     """Test application of external force on the base of the articulation at a given position.
@@ -1257,7 +1253,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_multiple_bodies(sim, num_articulations, device, articulation_type):
     """Test application of external force on the legs of the articulation.
@@ -1317,7 +1313,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, device, articulation_type):
     """Test application of external force on the legs of the articulation at a given position.
@@ -1411,7 +1407,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_loading_gains_from_usd(sim, num_articulations, device, articulation_type):
     """Test that gains are loaded from USD file if actuator model has them as None.
@@ -1473,7 +1469,7 @@ def test_loading_gains_from_usd(sim, num_articulations, device, articulation_typ
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -1508,7 +1504,7 @@ def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulation_type):
     """Test that gains are loaded from the configuration dictionary correctly.
@@ -1541,7 +1537,7 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulatio
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("vel_limit_sim", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 @pytest.mark.parametrize("add_ground_plane", [False])
@@ -1613,7 +1609,7 @@ def test_setting_velocity_limit_implicit(
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("vel_limit_sim", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
@@ -1669,7 +1665,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
 @pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
@@ -1726,7 +1722,7 @@ def test_setting_effort_limit_implicit(
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
 @pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
@@ -1792,7 +1788,7 @@ def test_setting_effort_limit_explicit(
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_reset(sim, num_articulations, device, articulation_type):
     """Test that reset method works properly."""
@@ -1836,7 +1832,7 @@ def test_reset(sim, num_articulations, device, articulation_type):
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_apply_joint_command(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -1876,7 +1872,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane, a
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 def test_body_root_state(sim, num_articulations, device, with_offset, articulation_type):
@@ -2001,7 +1997,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
 @pytest.mark.parametrize("gravity_enabled", [False])
@@ -2090,7 +2086,7 @@ def test_write_root_state(
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_setting_articulation_root_prim_path(sim, device, articulation_type):
     """Test that the articulation root prim path can be set explicitly."""
@@ -2109,7 +2105,7 @@ def test_setting_articulation_root_prim_path(sim, device, articulation_type):
     assert articulation._is_initialized
 
 
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_type):
     """Test that the articulation root prim path can be set explicitly."""
@@ -2128,7 +2124,7 @@ def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_t
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled, articulation_type):
@@ -2234,7 +2230,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 @pytest.mark.skip(reason="Spatial tendons are not supported in Newton yet.")
 def test_spatial_tendons(sim, num_articulations, device, articulation_type):
@@ -2288,7 +2284,7 @@ def test_spatial_tendons(sim, num_articulations, device, articulation_type):
 
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test applying of joint position target functions correctly for a robotic arm."""
@@ -2440,7 +2436,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
 
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", cuda_test_devices(skip=_NEWTON_5132))
+@pytest.mark.parametrize("device", cuda_test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test getting and setting material properties (friction/restitution) via view-level APIs."""
