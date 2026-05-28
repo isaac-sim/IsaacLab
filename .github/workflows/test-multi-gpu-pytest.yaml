@@ -17,6 +17,11 @@
 # Kit-bound files (those that start ``SimulationApp`` at module import)
 # each get their own pytest invocation because Kit is a process-wide
 # singleton.  Pure-Python files share one pytest session.
+#
+# Uses the same docker image as the rest of CI (``nvcr.io/nvidian/isaac-lab``,
+# pulled from ECR via the EC2 runner's IAM role), so dep matrices match
+# the single-GPU CI exactly.  No nvcr.io credentials required at PR-time
+# (only at nightly build time).
 
 name: Multi-GPU pytest
 
@@ -32,43 +37,39 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Matches build.yaml's CI_IMAGE_TAG so the multi-GPU job can pull the
+  # exact per-commit image the regular CI built for this SHA.
+  CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+
 jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/workflows/config.yaml
+          sparse-checkout-cone-mode: false
+      - id: load
+        run: |
+          set -euo pipefail
+          f=.github/workflows/config.yaml
+          echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+          echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
+    needs: [config]
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.12"
-
-      - name: Install cmake via pip (avoid sudo apt path)
-        # install.py skips its sudo apt-get block when ``cmake`` is already on
-        # PATH (source/isaaclab/isaaclab/cli/commands/install.py:35).
-        run: pip install cmake
-
-      - name: Install Isaac Lab
-        # ``--install none`` = core submodules only.  Avoids robomimic/egl_probe
-        # build that needs libEGL/X11 headers the multi-GPU runner image lacks.
-        run: ./isaaclab.sh --install none
-
-      - name: Install Isaac Sim
-        # Isaac Sim is an optional extra in source/isaaclab/setup.py; not
-        # pulled by ``--install none``.  Pinned to 6.0.0 (matches the local
-        # env_isaaclab); the 5.x line on PyPI requires Python 3.11.
-        run: pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
-
-      - name: Install pytest and test deps
-        # pytest, pytest-mock, and flaky live in ``source/isaaclab``'s
-        # ``install_requires`` but aren't always pulled in by ``--install
-        # none`` (pip's resolver with multiple ``--extra-index-url`` flags
-        # silently skips pure-Python deps in some orderings).  Pin them
-        # explicitly so the job is runner-independent.
-        run: pip install pytest pytest-mock flaky
 
       - name: Verify multi-GPU availability
         run: |
@@ -79,59 +80,49 @@ jobs:
             exit 1
           fi
 
-      - name: Discover and run multi-GPU tests
-        # Auto-discovery:
-        # - find every test file that calls ``cuda_test_devices()`` (the opt-in)
-        # - filter out files in SKIP (e.g. known-broken cuda:1 paths)
-        # - split by Kit usage: pure-Python files share one pytest session,
-        #   Kit-bound files each get their own (Kit is process-singleton)
-        # - per Kit-file ``timeout 600`` bounds any hang; loop continues on
-        #   failure and reports all results, exits non-zero if any failed
+      - name: Pull image from ECR
+        # Auths to ECR via the runner EC2 instance's IAM role + SSM
+        # parameter ``/github-runner/<instance-id>/ecr-cache-url`` (set by
+        # the AMI, same mechanism the [self-hosted, gpu] pool uses).
+        # If the per-commit image is missing from ECR (e.g. the regular
+        # CI's build.yaml hasn't completed yet), the action falls back to
+        # building locally — which then requires NGC_API_KEY and is slow.
+        # Normal-path: ECR cache hit, ~tens-of-seconds pull.
+        uses: ./.github/actions/ecr-build-push-pull
         env:
-          OMNI_KIT_ACCEPT_EULA: "yes"
-          ACCEPT_EULA: "Y"
-          ISAAC_SIM_HEADLESS: "1"
-          ISAACLAB_TEST_DEVICES: "001"
-          # Boot Kit with active_gpu=1 so PhysX and Warp pin to cuda:1 from
-          # process start. Kit's active_gpu is locked after SimulationApp
-          # init, so per-test device parametrize alone cannot retarget it.
-          ISAACLAB_SIM_DEVICE: "cuda:1"
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
+      - name: Discover and run multi-GPU tests in container
+        # Runs the discovery + Kit-singleton loop inside the isaac-lab
+        # docker image.  Workspace is volume-mounted so the in-image source
+        # is replaced by the PR's checkout (test files migrated for
+        # ``cuda_test_devices()``), while the image's pre-installed deps
+        # (Isaac Sim, Newton, Warp, mujoco_warp, etc.) supply the runtime.
         run: |
           set +e
 
-          # Files explicitly excluded from multi-GPU CI.  These are still
-          # parametrized with ``cuda_test_devices()`` so single-GPU CI runs
-          # them on cpu+cuda:0; they're only skipped on the multi-GPU runner
-          # (which sets ISAACLAB_TEST_DEVICES=001 → cuda:1 only).
-          #
-          # Files excluded from multi-GPU CI. All still keep their
+          # Files excluded from multi-GPU CI.  All still keep their
           # ``cuda_test_devices()`` parametrize so single-GPU CI runs them
           # on cpu+cuda:0 — only the cuda:1 path on the multi-GPU runner
           # is gated here.
           #
           # Categories:
-          # 1. Upstream Kit limits (no IsaacLab fix possible without
-          #    upstream change):
-          #     - FabricFrameView: usdrt SelectPrims only supports cuda:0
-          #
-          # 2. Pre-existing test/API breakage unrelated to multi-GPU:
-          #     - newton/contact_sensor: ``measure_total`` kwarg mismatch
-          #       from Newton PR #2135 scalar-kwarg API rename
-          #
-          # 3. Newton on cuda:1 — Warp allocator failure in
-          #    mujoco_warp.collision_driver (``RuntimeError: Failed to
-          #    allocate N bytes on device 'cuda:1'``). Reproduces locally
-          #    on a 3-device MIG host; root cause is in mujoco_warp's
-          #    collision pipeline, not the AppLauncher routing.
-          #
-          # 4. PhysX on cuda:1 — hangs at ``test_initialization[cuda:1-2]``
-          #    only on the AWS multi-GPU runner. Passes in <11 s on Horde
-          #    (RTX PRO 6000 Blackwell MIG slices) with the same code,
-          #    so the hang is L40-runner / driver / peer-access specific
-          #    rather than an IsaacLab bug.
+          # 1. Upstream Kit limit: FabricFrameView usdrt SelectPrims only
+          #    supports cuda:0.
+          # 2. Newton on cuda:1 — Warp allocator failure inside
+          #    ``mujoco_warp.collision_driver``.  Tracked in
+          #    isaac-sim/IsaacLab#5132.
+          # 3. PhysX on cuda:1 — hangs at ``test_initialization[cuda:1-2]``
+          #    only on the AWS L40 runner.  Passes locally on Horde MIG
+          #    slices with the same code.
           SKIP=$(cat <<'EOF'
           source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
-          source/isaaclab_newton/test/sensors/test_contact_sensor.py
           source/isaaclab_newton/test/assets/test_articulation.py
           source/isaaclab_newton/test/assets/test_rigid_object.py
           source/isaaclab_newton/test/assets/test_rigid_object_collection.py
@@ -142,7 +133,7 @@ jobs:
           EOF
           )
 
-          # Discover opt-in files.
+          # Discover opt-in files on the host (checkout is here).
           mapfile -t MIGRATED < <(grep -rl 'cuda_test_devices()' source/ --include='test_*.py' | sort -u)
 
           if [ ${#MIGRATED[@]} -eq 0 ]; then
@@ -176,35 +167,55 @@ jobs:
           echo "::notice::pure-python: ${#PURE[@]} files"
           echo "::notice::kit-bound:   ${#KIT[@]} files"
 
-          fail=0
+          # Build the in-container script.  ``isaaclab.sh -p -m pytest`` runs
+          # against the image's installed environment; the volume mount
+          # provides the PR's source.
+          PURE_FILES="${PURE[*]}"
+          KIT_FILES="${KIT[*]}"
 
-          # pytest exit code 5 = no tests collected.  Treat as success here
-          # because module-level ``pytestmark = pytest.mark.skipif(...)``
-          # (e.g. ovphysx tests that gate on backend availability) and
-          # device-only parametrize that resolves to ``[cuda:1]`` on a host
-          # that skips cuda:1 are legitimate "nothing to do" outcomes.
-          is_ok() { [ "$1" = "0" ] || [ "$1" = "5" ]; }
+          docker run --rm --gpus all --network=host \
+            -v "$PWD:/workspace/isaaclab" \
+            -w /workspace/isaaclab \
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ACCEPT_EULA=Y \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e ISAACLAB_TEST_DEVICES=001 \
+            -e ISAACLAB_SIM_DEVICE=cuda:1 \
+            -e PURE_FILES="$PURE_FILES" \
+            -e KIT_FILES="$KIT_FILES" \
+            "${{ env.CI_IMAGE_TAG }}" \
+            bash -c '
+              set +e
+              cd /workspace/isaaclab
+              rm -f _isaac_sim
+              ln -s /isaac-sim _isaac_sim
 
-          if [ ${#PURE[@]} -gt 0 ]; then
-            echo "::group::pytest (pure-python, single session)"
-            ./isaaclab.sh -p -m pytest -v "${PURE[@]}"
-            rc=$?
-            echo "::endgroup::"
-            if ! is_ok $rc; then
-              echo "::error::pure-python pytest exit $rc"
-              fail=1
-            fi
-          fi
+              fail=0
 
-          for f in "${KIT[@]}"; do
-            echo "::group::pytest $f"
-            timeout 600 ./isaaclab.sh -p -m pytest "$f" -v
-            rc=$?
-            echo "::endgroup::"
-            if ! is_ok $rc; then
-              echo "::error file=$f::pytest exit $rc"
-              fail=1
-            fi
-          done
+              # pytest exit code 5 = no tests collected; treat as success.
+              is_ok() { [ "$1" = "0" ] || [ "$1" = "5" ]; }
 
-          exit $fail
+              if [ -n "$PURE_FILES" ]; then
+                echo "::group::pytest (pure-python, single session)"
+                ./isaaclab.sh -p -m pytest -v $PURE_FILES
+                rc=$?
+                echo "::endgroup::"
+                if ! is_ok $rc; then
+                  echo "::error::pure-python pytest exit $rc"
+                  fail=1
+                fi
+              fi
+
+              for f in $KIT_FILES; do
+                echo "::group::pytest $f"
+                timeout 600 ./isaaclab.sh -p -m pytest "$f" -v
+                rc=$?
+                echo "::endgroup::"
+                if ! is_ok $rc; then
+                  echo "::error file=$f::pytest exit $rc"
+                  fail=1
+                fi
+              done
+
+              exit $fail
+            '
