@@ -3,7 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test uv-based installation scenarios for isaaclab."""
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -u -> verify env has Python 3.12
+    - ./isaaclab.sh -i core -> verify core packages (incl. assets) importable
+    - ./isaaclab.sh -i newton -> verify newton[sim] extra installed
+    - ./isaaclab.sh -i mimic -> verify isaaclab_mimic importable
+    - ./isaaclab.sh -i core -> verify isaaclab_mimic NOT installed
+    - ./isaaclab.sh -i mimic -> verify core packages still importable
+    - ./isaaclab.sh -i newton -> run isaaclab_newton test suite
+"""
 
 from __future__ import annotations
 

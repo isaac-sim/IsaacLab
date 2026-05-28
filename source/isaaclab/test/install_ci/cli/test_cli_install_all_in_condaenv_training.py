@@ -3,19 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end installation and training workflow tests (conda).
-
-Covers conda-based installation paths:
-  - conda × kitless (core-only, ``-i core``)
-  - conda × newton training (``-i newton,rl[rsl-rl]``)
-
-Tests in this file are intentionally slow and GPU-dependent.  They are
-gated behind pytest markers so they only run in the appropriate CI
-environment:
-
-  ``@pytest.mark.conda`` – routed to the conda-enabled Docker image
-  ``@pytest.mark.gpu``   – requires a GPU
-  ``@pytest.mark.slow``  – skipped in fast/smoke runs
+"""
+Setup:
+    - conda create -n <env> python=3.12
+Tests:
+    - ./isaaclab.sh -i core -> verify core submodules importable
+    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify cartpole training works
 """
 
 from __future__ import annotations

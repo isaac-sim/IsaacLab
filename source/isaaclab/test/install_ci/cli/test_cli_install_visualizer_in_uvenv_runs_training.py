@@ -3,18 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for visualizer backend extra-feature installs.
-
-``visualizer`` is an extra feature selector that reinstalls the already-present
-``isaaclab_visualizers`` core package with specific backend extras:
-
-  - ``./isaaclab.sh -i 'visualizer[rerun]'``  → rerun-sdk + newton[sim]
-  - ``./isaaclab.sh -i 'visualizer[viser]'``  → viser + newton[sim]
-  - ``./isaaclab.sh -i 'visualizer[newton]'`` → imgui-bundle + newton[sim]
-  - ``./isaaclab.sh -i visualizer``            → all backends (default)
-
-All backends also pull in the ``newton[sim]`` git dependency because the
-Newton renderer underpins every visualizer implementation.
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i visualizer[rerun] -> verify rerun importable
+    - ./isaaclab.sh -i visualizer[viser] -> verify viser importable
+    - ./isaaclab.sh -i visualizer -> verify all backends (rerun, viser) importable
+    - ./isaaclab.sh -i visualizer -> verify newton[sim] also pulled in
+    - ./isaaclab.sh -i newton,rl[rsl-rl],visualizer[rerun] -> verify cartpole training works
 """
 
 from __future__ import annotations

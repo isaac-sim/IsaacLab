@@ -3,18 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration tests for RL framework extra-feature installs.
-
-Each test installs the core set + a specific RL framework via
-``./isaaclab.sh -i 'rl[<framework>]'`` and then verifies that
-(a) the framework is importable and (b) a short training run succeeds.
-
-Valid selectors for the ``rl`` feature:
-  - ``rsl-rl``  → rsl-rl-lib
-  - ``skrl``    → skrl
-  - ``sb3``     → stable-baselines3
-  - ``rl-games`` → rl-games (git dep)
-  - (no selector / ``all``) → all frameworks
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i rl[rsl-rl] -> verify rsl_rl importable
+    - ./isaaclab.sh -i rl[skrl] -> verify skrl importable
+    - ./isaaclab.sh -i rl[sb3] -> verify stable_baselines3 importable
+    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify cartpole training with rsl_rl works
+    - ./isaaclab.sh -i newton,rl[skrl] -> verify cartpole training with skrl works
+    - ./isaaclab.sh -i newton,rl[sb3] -> verify cartpole training with sb3 works
+    - ./isaaclab.sh -i rl -> verify all RL frameworks installed
 """
 
 from __future__ import annotations

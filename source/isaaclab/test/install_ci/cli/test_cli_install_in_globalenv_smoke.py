@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test ``./isaaclab.sh -i`` in a global system Python environment.
-
-Marked ``docker`` because installing isaaclab into the system Python is destructive.
+"""
+Setup:
+    - none (system Python, no uv/conda env active)
+Tests:
+    - ./isaaclab.sh -i -> verify isaaclab importable in system Python
 """
 
 from __future__ import annotations

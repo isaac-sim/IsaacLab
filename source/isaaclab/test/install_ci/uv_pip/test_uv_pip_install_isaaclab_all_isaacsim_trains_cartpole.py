@@ -3,7 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Build the isaaclab wheel, install it in a uv env with ``[all]`` extras, and train cartpole."""
+"""
+Setup:
+    - bash tools/wheel_builder/build.sh
+    - ./isaaclab.sh -u
+    - uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+    - uv pip install <wheel>[all,isaacsim] --extra-index-url https://pypi.nvidia.com
+        --index-strategy unsafe-best-match --prerelease=allow
+Tests:
+    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct-v0 --num_envs 16
+        presets=newton_mjwarp --max_iterations 5 --headless
+"""
 
 from __future__ import annotations
 

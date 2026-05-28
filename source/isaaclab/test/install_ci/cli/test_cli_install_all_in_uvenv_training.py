@@ -4,7 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-./isaaclab.sh -i all/core in uv env, verify cartpole training is working.
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i core -> verify core submodules importable
+    - ./isaaclab.sh -i all -> verify cartpole training works
 """
 
 from __future__ import annotations

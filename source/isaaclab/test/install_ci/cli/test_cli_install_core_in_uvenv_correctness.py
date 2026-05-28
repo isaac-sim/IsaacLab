@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test the core install (./isaaclab.sh -i core).
-
-``./isaaclab.sh -i core`` installs the always-on core set of submodules without
-any optional submodules (mimic, teleop) or optional extra dependencies
-(newton physics library, RL frameworks, visualizer backends, OV wheels).  All core
-packages must be importable after this install, and training with the default physics
-preset must succeed.
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i core -> verify all core packages importable
+    - ./isaaclab.sh -i core -> verify optional submodules (mimic, teleop, ovrtx, ovphysx) NOT installed
+    - ./isaaclab.sh -i core -> verify isaaclab_physx test suite passes
 """
 
 from __future__ import annotations

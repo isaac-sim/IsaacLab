@@ -3,7 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test wheel build and install scenarios for isaaclab."""
+"""
+Setup:
+    - bash tools/wheel_builder/build.sh
+    - ./isaaclab.sh -u
+    - uv pip install <wheel>[all]
+Tests:
+    - import isaaclab -> verify importable
+    - from isaaclab import __version__ -> verify version matches wheel filename
+    - from isaaclab.app import AppLauncher -> verify importable
+    - from isaaclab.envs import ViewerCfg -> verify importable
+    - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
+    - from isaaclab.scene import InteractiveSceneCfg -> verify importable
+    - python -m isaaclab --help -> verify CLI functional
+    - import pinocchio -> verify importable
+"""
 
 from __future__ import annotations
 
