@@ -46,6 +46,7 @@ simulation_app = app_launcher.app
 import math
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -141,6 +142,15 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
     )
 
 
+def reshape_data_to_view_3d(
+    rigid_object_collection: RigidObjectCollection, data: torch.Tensor, data_dim: int, device: str
+) -> torch.Tensor:
+    """Reshape env-major ``(num_envs, num_bodies, data_dim)`` data to body-major view order."""
+
+    data_wp = wp.from_torch(data.contiguous(), dtype=wp.float32)
+    return wp.to_torch(rigid_object_collection.reshape_data_to_view_3d(data_wp, data_dim, device=device))
+
+
 def reset_object_collections(
     scene: InteractiveScene, asset_name: str, view_states: torch.Tensor, view_ids: torch.Tensor, noise: bool = False
 ) -> None:
@@ -189,8 +199,10 @@ def reset_object_collections(
     view_states[view_ids, :7] = torch.concat((positions, orientations), dim=-1)
     view_states[view_ids, 7:] = new_velocities
 
-    rigid_object_collection.root_view.set_transforms(view_states[:, :7], indices=view_ids)
-    rigid_object_collection.root_view.set_velocities(view_states[:, 7:], indices=view_ids)
+    states = view_states.view(rigid_object_collection.num_bodies, scene.num_envs, 13).transpose(0, 1).contiguous()
+
+    rigid_object_collection.write_body_link_pose_to_sim_index(body_poses=states[..., :7])
+    rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=states[..., 7:])
 
 
 def build_grocery_defaults(
@@ -263,7 +275,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     # Extract scene entities
     # note: we only do this here for readability.
     groceries: RigidObjectCollection = scene["groceries"]
-    num_objects = groceries.num_objects
+    num_objects = groceries.num_bodies
     num_envs = scene.num_envs
     device = scene.device
     view_indices = torch.arange(num_envs * num_objects, device=device)
@@ -280,11 +292,12 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     # Offset poses into each environment's world frame.
     active_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
     cached_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
-    active_spawn_poses = groceries.reshape_data_to_view(active_spawn_poses)
-    cached_spawn_poses = groceries.reshape_data_to_view(cached_spawn_poses)
-    spawn_w = groceries.reshape_data_to_view(default_state_w).clone()
+    active_spawn_poses = reshape_data_to_view_3d(groceries, active_spawn_poses, 7, device)
+    cached_spawn_poses = reshape_data_to_view_3d(groceries, cached_spawn_poses, 7, device)
+    spawn_w = reshape_data_to_view_3d(groceries, default_state_w, 13, device).clone()
 
-    groceries_mask_helper = torch.arange(num_objects * num_envs, device=device) % num_objects
+    # Match root_view order: body_0/env_0..env_N, body_1/env_0..env_N, ...
+    groceries_mask_helper = torch.arange(num_objects, device=device).view(num_objects, 1)
     # Precompute a helper mask to toggle objects between active and cached sets.
     # Precompute XY bounds [[x_min,y_min],[x_max,y_max]]
     bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device, dtype=spawn_w.dtype)
@@ -296,16 +309,15 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
             count = 0
             # Randomly choose how many groceries stay active in each environment.
             num_active_groceries = torch.randint(MIN_OBJECTS_PER_BIN, num_objects, (num_envs, 1), device=device)
-            groceries_mask = (groceries_mask_helper.view(num_envs, -1) < num_active_groceries).view(-1, 1)
+            groceries_mask = (groceries_mask_helper < num_active_groceries.view(1, num_envs)).reshape(-1, 1)
             spawn_w[:, :7] = cached_spawn_poses * (~groceries_mask) + active_spawn_poses * groceries_mask
             # Retrieve positions
             with Timer("[INFO] Time to reset scene: "):
                 reset_object_collections(scene, "groceries", spawn_w, view_indices[~groceries_mask.view(-1)])
                 reset_object_collections(scene, "groceries", spawn_w, view_indices[groceries_mask.view(-1)], noise=True)
                 # Vary the mass and gravity settings so cached objects stay parked.
-                random_masses = torch.rand(groceries.num_instances * num_objects, device=device) * 0.2 + 0.2
-                groceries.root_view.set_masses(random_masses.cpu(), view_indices.cpu())
-                groceries.root_view.set_disable_gravities((~groceries_mask).cpu(), indices=view_indices.cpu())
+                random_masses = torch.rand((groceries.num_instances, num_objects), device=device) * 0.2 + 0.2
+                groceries.set_masses_index(masses=random_masses)
                 scene.reset()
 
         # Write data to sim
@@ -314,11 +326,17 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
         sim.step()
 
         # Bring out-of-bounds objects back to the bin in one pass.
-        xy = groceries.reshape_data_to_view(groceries.data.object_pos_w - scene.env_origins.unsqueeze(1))[:, :2]
+        body_pos_b = groceries.data.body_link_pos_w.torch - scene.env_origins.unsqueeze(1)
+        xy = reshape_data_to_view_3d(groceries, body_pos_b, 3, device)[:, :2]
         out_bound = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=1), as_tuple=False).flatten()
         if out_bound.numel():
             # Teleport stray objects back into the active stack to keep the bin tidy.
-            reset_object_collections(scene, "groceries", spawn_w, out_bound)
+            current_state_w = torch.cat(
+                [groceries.data.body_link_pose_w.torch, groceries.data.body_com_vel_w.torch], dim=-1
+            )
+            current_state_w = reshape_data_to_view_3d(groceries, current_state_w, 13, device)
+            current_state_w[out_bound] = spawn_w[out_bound]
+            reset_object_collections(scene, "groceries", current_state_w, out_bound)
         # Increment counter
         count += 1
         # Update buffers
