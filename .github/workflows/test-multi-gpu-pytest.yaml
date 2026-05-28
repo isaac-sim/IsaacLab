@@ -62,6 +62,12 @@ jobs:
         # env_isaaclab); the 5.x line on PyPI requires Python 3.11.
         run: pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
 
+      - name: Install pytest
+        # pytest is not pulled in by ``--install none`` or by isaacsim.
+        # Some runners in the multi-gpu pool already have it cached; some
+        # don't.  Pin it explicitly to make the job runner-independent.
+        run: pip install pytest
+
       - name: Verify multi-GPU availability
         run: |
           GPU_COUNT=$(nvidia-smi -L | wc -l)
