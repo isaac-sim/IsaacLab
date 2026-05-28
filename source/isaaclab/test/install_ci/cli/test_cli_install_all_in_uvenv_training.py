@@ -49,7 +49,7 @@ def _assert_training_passed(result) -> None:
 # ---------------------------------------------------------------------------
 
 
-class TestUVWorkflow(UV_Mixin):
+class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
     """Installation and training smoke tests using uv environments."""
 
     @classmethod
@@ -62,7 +62,7 @@ class TestUVWorkflow(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(900)
-    def test_install_core_installs_core_submodules(self, isaaclab_root):
+    def test_install_core_makes_core_submodules_importable(self, isaaclab_root):
         """``./isaaclab.sh -i core`` installs all core submodules without extras."""
         try:
             self.create_uv_env(isaaclab_root)

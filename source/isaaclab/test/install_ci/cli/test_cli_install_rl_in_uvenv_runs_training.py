@@ -33,7 +33,7 @@ _RL_CONFIGS = [
 ]
 
 
-class Test_Install_RL_Frameworks(UV_Mixin):
+class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
     """./isaaclab.sh -i 'rl[<framework>]' installs the RL framework extras."""
 
     @classmethod
@@ -52,7 +52,7 @@ class Test_Install_RL_Frameworks(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
     @pytest.mark.parametrize("selector,import_pkg,_train_dir,_train_args", _RL_CONFIGS)
-    def test_rl_framework_importable_after_install(self, isaaclab_root, selector, import_pkg, _train_dir, _train_args):
+    def test_install_rl_makes_framework_importable(self, isaaclab_root, selector, import_pkg, _train_dir, _train_args):
         """./isaaclab.sh -i 'rl[<selector>]' makes the framework importable."""
 
         try:
@@ -74,7 +74,7 @@ class Test_Install_RL_Frameworks(UV_Mixin):
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_cartpole_rsl_rl(self, isaaclab_root):
+    def test_install_newton_rl_rsl_rl_trains_cartpole(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[rsl-rl]' then train Isaac-Cartpole-Direct-v0 with rsl_rl."""
 
         try:
@@ -111,7 +111,7 @@ class Test_Install_RL_Frameworks(UV_Mixin):
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_cartpole_skrl(self, isaaclab_root):
+    def test_install_newton_rl_skrl_trains_cartpole(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[skrl]' then train Isaac-Cartpole-Direct-v0 with skrl."""
 
         try:
@@ -148,7 +148,7 @@ class Test_Install_RL_Frameworks(UV_Mixin):
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_cartpole_sb3(self, isaaclab_root):
+    def test_install_newton_rl_sb3_trains_cartpole(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[sb3]' then train Isaac-Cartpole-Direct-v0 with sb3."""
 
         try:
@@ -184,7 +184,7 @@ class Test_Install_RL_Frameworks(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_rl_all_installs_all_frameworks(self, isaaclab_root):
+    def test_install_rl_pulls_all_frameworks(self, isaaclab_root):
         """./isaaclab.sh -i 'rl' (no selector) installs all RL frameworks."""
 
         try:

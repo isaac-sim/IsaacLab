@@ -37,7 +37,7 @@ _CORE_PACKAGES = [
 ]
 
 
-class Test_Install_Core(UV_Mixin):
+class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
     """./isaaclab.sh -i core: core set installed, no optional extras."""
 
     @classmethod
@@ -55,7 +55,7 @@ class Test_Install_Core(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_core_install_all_packages_importable(self, isaaclab_root):
+    def test_install_core_makes_all_core_packages_importable(self, isaaclab_root):
         """All core packages are importable after ./isaaclab.sh -i core."""
 
         try:
@@ -75,7 +75,7 @@ class Test_Install_Core(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_core_install_optional_submodules_not_installed(self, isaaclab_root):
+    def test_install_core_omits_optional_submodules(self, isaaclab_root):
         """Optional submodules (mimic, teleop) are absent after -i core."""
 
         try:
@@ -100,7 +100,7 @@ class Test_Install_Core(UV_Mixin):
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_core_install_physx_tests_pass(self, isaaclab_root):
+    def test_install_core_passes_isaaclab_physx_test_suite(self, isaaclab_root):
         """isaaclab_physx tests pass after core install (physx is always in the core set)."""
 
         try:

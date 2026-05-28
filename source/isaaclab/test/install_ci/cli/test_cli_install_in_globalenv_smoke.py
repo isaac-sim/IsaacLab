@@ -19,7 +19,7 @@ import pytest
 from utils import run_cmd
 
 
-class Test_Install_Global:
+class Test_Cli_Install_In_Globalenv_Smoke:
     """./isaaclab.sh -i with no uv/conda env active (system Python)."""
 
     @classmethod
@@ -31,7 +31,7 @@ class Test_Install_Global:
     @pytest.mark.docker
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_install_global(self, isaaclab_root):
+    def test_install_makes_isaaclab_importable(self, isaaclab_root):
         """``./isaaclab.sh -i`` succeeds and installs into the system Python."""
 
         cli_script = isaaclab_root / "isaaclab.sh"

@@ -49,7 +49,7 @@ def _assert_training_passed(result) -> None:
 # ---------------------------------------------------------------------------
 
 
-class TestCondaWorkflow(Conda_Mixin):
+class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
     """Installation and training smoke tests using conda environments."""
 
     @classmethod
@@ -62,7 +62,7 @@ class TestCondaWorkflow(Conda_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(1200)
-    def test_conda_core_installs_core_submodules(self, isaaclab_root):
+    def test_install_core_makes_core_submodules_importable(self, isaaclab_root):
         """conda + ``./isaaclab.sh -i core`` installs all core submodules without extras."""
         try:
             self.create_conda_env(isaaclab_root)
@@ -87,7 +87,7 @@ class TestCondaWorkflow(Conda_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(1800)
-    def test_conda_newton_rsl_rl_trains_cartpole(self, isaaclab_root):
+    def test_install_newton_rl_rsl_rl_trains_cartpole(self, isaaclab_root):
         """conda + ``./isaaclab.sh -i newton,rl[rsl-rl]`` + training completes successfully."""
         try:
             self.create_conda_env(isaaclab_root)

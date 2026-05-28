@@ -28,7 +28,7 @@ import pytest
 from utils import UV_Mixin, run_cmd
 
 
-class Test_Wheel_Builder(UV_Mixin):
+class Test_Wheel_Builder_Smoke(UV_Mixin):
     """Test building the isaaclab wheel and installing it in a uv environment."""
 
     _wheel: str = ""
@@ -70,13 +70,13 @@ class Test_Wheel_Builder(UV_Mixin):
         self.destroy_uv_env()
 
     # import isaaclab
-    def test_import_isaaclab(self):
+    def test_isaaclab_importable(self):
         """Verify 'isaaclab' is importable."""
         result = self.run_in_uv_env(["python", "-c", "import isaaclab;"])
         assert result.returncode == 0, f"import isaaclab failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab import __version__; print(__version__)
-    def test_version_matches_wheel(self):
+    def test_isaaclab_version_matches_wheel(self):
         """Verify isaaclab.__version__ matches the wheel version."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab import __version__; print(__version__)"])
         imported_version = result.stdout.strip()
@@ -86,37 +86,37 @@ class Test_Wheel_Builder(UV_Mixin):
         )
 
     # from isaaclab.app import AppLauncher
-    def test_import_isaaclab_app(self):
+    def test_isaaclab_app_importable(self):
         """Verify isaaclab.app and AppLauncher are importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab.envs import ViewerCfg
-    def test_import_isaaclab_envs(self):
+    def test_isaaclab_envs_importable(self):
         """Verify isaaclab.envs is importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import ViewerCfg"])
         assert result.returncode == 0, f"import isaaclab.envs failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
-    def test_import_isaaclab_assets(self):
+    def test_isaaclab_assets_importable(self):
         """Verify isaaclab_assets is importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG"])
         assert result.returncode == 0, f"import isaaclab_assets failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab.scene import InteractiveSceneCfg
-    def test_import_isaaclab_scene(self):
+    def test_isaaclab_scene_importable(self):
         """Verify isaaclab.scene and InteractiveSceneCfg are importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.scene import InteractiveSceneCfg"])
         assert result.returncode == 0, f"import isaaclab.scene failed:\n{result.stdout}\n{result.stderr}"
 
     # python -m isaaclab --help
-    def test_cli_help(self):
+    def test_python_m_isaaclab_help_works(self):
         """Verify the isaaclab CLI is functional."""
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
 
     # import pinocchio as pin; print(pin.__version__)
-    def test_pinocchio_import(self):
+    def test_pinocchio_importable(self):
         """Verify pinocchio is importable and has the expected version."""
         result = self.run_in_uv_env(["python", "-c", "import pinocchio as pin; print(pin.__version__)"])
         assert result.returncode == 0, f"import pinocchio failed:\n{result.stdout}\n{result.stderr}"

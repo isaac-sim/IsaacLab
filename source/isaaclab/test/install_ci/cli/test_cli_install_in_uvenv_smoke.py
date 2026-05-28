@@ -33,8 +33,8 @@ def _skip_if_isaacsim_unavailable() -> None:
             pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
 
-class Test_UV_Env_Smoke(UV_Mixin):
-    """Test ./isaaclab.x -u, then validate with some quick checks."""
+class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
+    """./isaaclab.sh -u/-i smoke checks plus optional submodule (mimic) and feature (newton) installs."""
 
     @classmethod
     def setup_class(cls):
@@ -44,7 +44,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(10)
-    def test_isaaclab_sh_uv_creates_env_with_python_312(self, isaaclab_root):
+    def test_uv_env_uses_python_312(self, isaaclab_root):
         """Run ./isaaclab.x -u and verify the created env has Python 3.12."""
 
         try:
@@ -58,7 +58,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(200)
-    def test_isaaclab_core_installs_core_including_assets(self, isaaclab_root):
+    def test_install_core_makes_assets_importable(self, isaaclab_root):
         """Run ./isaaclab.x -i core and verify the core set (incl. assets) is importable.
 
         Under the new install model, ``isaaclab_assets`` is always installed as
@@ -84,7 +84,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(300)
-    def test_isaaclab_newton_extra_installs_newton_sim(self, isaaclab_root):
+    def test_install_newton_pulls_newton_sim(self, isaaclab_root):
         """Run ./isaaclab.x -i newton and verify the newton[sim] extra is installed.
 
         ``newton`` is an extra feature selector: it reinstalls the already-present
@@ -110,7 +110,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_mimic_importable_after_install(self, isaaclab_root):
+    def test_install_mimic_makes_isaaclab_mimic_importable(self, isaaclab_root):
         """isaaclab_mimic is importable after ./isaaclab.sh -i mimic."""
         _skip_if_isaacsim_unavailable()
 
@@ -130,7 +130,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_mimic_not_installed_by_core(self, isaaclab_root):
+    def test_install_core_omits_isaaclab_mimic(self, isaaclab_root):
         """isaaclab_mimic is absent after ./isaaclab.sh -i core (core only)."""
         _skip_if_isaacsim_unavailable()
 
@@ -150,7 +150,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_core_still_present_after_mimic_install(self, isaaclab_root):
+    def test_install_mimic_preserves_core_packages(self, isaaclab_root):
         """Core packages remain importable after ./isaaclab.sh -i mimic."""
         _skip_if_isaacsim_unavailable()
 
@@ -174,7 +174,7 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_install_newton_and_run_tests(self, isaaclab_root):
+    def test_install_newton_passes_isaaclab_newton_test_suite(self, isaaclab_root):
         """Install newton extension and run the isaaclab_newton test suite."""
         _skip_if_isaacsim_unavailable()
 

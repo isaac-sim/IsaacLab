@@ -22,7 +22,7 @@ import pytest
 from utils import UV_Mixin, find_isaaclab_root
 
 
-class Test_Install_Visualizer(UV_Mixin):
+class Test_Cli_Install_Visualizer_In_Uvenv_Runs_Training(UV_Mixin):
     """./isaaclab.sh -i 'visualizer[<backend>]' installs the chosen visualizer extras."""
 
     @classmethod
@@ -40,7 +40,7 @@ class Test_Install_Visualizer(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_visualizer_rerun_backend_importable(self, isaaclab_root):
+    def test_install_visualizer_rerun_makes_rerun_importable(self, isaaclab_root):
         """rerun-sdk is importable after ./isaaclab.sh -i 'visualizer[rerun]'."""
 
         try:
@@ -59,7 +59,7 @@ class Test_Install_Visualizer(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_visualizer_viser_backend_importable(self, isaaclab_root):
+    def test_install_visualizer_viser_makes_viser_importable(self, isaaclab_root):
         """viser is importable after ./isaaclab.sh -i 'visualizer[viser]'."""
 
         try:
@@ -78,7 +78,7 @@ class Test_Install_Visualizer(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_visualizer_default_installs_all_backends(self, isaaclab_root):
+    def test_install_visualizer_pulls_all_backends(self, isaaclab_root):
         """./isaaclab.sh -i visualizer (no selector) installs all visualizer backends."""
 
         try:
@@ -100,7 +100,7 @@ class Test_Install_Visualizer(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_visualizer_all_backends_pull_newton_sim(self, isaaclab_root):
+    def test_install_visualizer_pulls_newton_sim(self, isaaclab_root):
         """Every visualizer backend install also provides the newton package."""
 
         try:
@@ -122,7 +122,7 @@ class Test_Install_Visualizer(UV_Mixin):
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_with_rerun_visualizer(self, isaaclab_root):
+    def test_install_newton_rl_rsl_rl_visualizer_rerun_trains_cartpole(self, isaaclab_root):
         """Training with --visualizer rerun works after ./isaaclab.sh -i 'newton,rl[rsl-rl],visualizer[rerun]'."""
 
         try:
