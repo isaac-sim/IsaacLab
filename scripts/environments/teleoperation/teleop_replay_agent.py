@@ -77,8 +77,16 @@ Stats output:
     spectator actually perceives during real-time teleop. The two
     blocks stay self-consistent: ``fps.mean`` equals ``1000 /
     cpu_frame_time_ms.mean`` (harmonic mean of FPS = total frames /
-    total step time). The agent terminates with an exception if a run
-    recorded active iterations but produced no per-render samples.
+    total step time). Each interval is the wall-clock delta between
+    successive ``env.sim.render`` calls, so a run needs at least two
+    rendered frames during the active window to contribute. If any run
+    in the batch stepped the env but produced no usable intervals
+    (0 or 1 renders -- typically the sim is not rendering, or the
+    active window closed too quickly), the agent raises
+    ``RuntimeError`` from :func:`_build_report` before any stdout
+    summary or JSON file is written. Partial reports are never
+    emitted: CI relies on "no JSON output" as an unambiguous failure
+    signal.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
     call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
@@ -409,10 +417,12 @@ class _RunStats:
     ``active_iterations`` counts ``env.step`` calls during the active
     window and backs the same-named field in the JSON report.
 
-    ``active_render_calls`` counts gated ``env.sim.render`` invocations
-    so :meth:`to_dict` can distinguish "shim never fired" from "shim
-    fired but produced too few samples for an interval" (N renders
-    yield N-1 intervals).
+    ``active_render_calls`` counts gated ``env.sim.render`` invocations.
+    :func:`_assert_runs_measured` uses it in its diagnostic message to
+    distinguish "shim never fired" (0 calls) from "rendered only once"
+    (1 call); both are measurement failures because at least two
+    renders are required to produce a usable interval (N renders yield
+    N-1 intervals).
     """
 
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
@@ -427,18 +437,6 @@ class _RunStats:
     gpu_stats: dict = field(default_factory=dict)
 
     def to_dict(self, run_index: int) -> dict:
-        # Per-render intervals are the sole source of truth; a run that
-        # recorded active iterations but zero gated render calls means
-        # the shim never fired and the report would be junk. A single
-        # gated render call yields zero intervals (N-1 samples), which
-        # is degenerate but not a measurement failure.
-        if self.active_iterations and not self.active_render_calls:
-            raise RuntimeError(
-                f"Run {run_index} recorded {self.active_iterations} active env.step "
-                "iterations but no env.sim.render calls during the active window. The "
-                "render-timing shim never fired -- check that the sim is rendering "
-                "(headless mode with rendering disabled is unsupported)."
-            )
         return {
             "run_index": run_index,
             "outcome": self.outcome,
@@ -725,8 +723,48 @@ def _extract_env_perf_cfg(env_cfg) -> dict:
     }
 
 
+def _assert_runs_measured(all_runs: list[_RunStats]) -> None:
+    """Batch-level gate: abort with ``RuntimeError`` if any run produced
+    no usable per-render interval samples.
+
+    A run is unmeasured when it stepped the env at least once but the
+    ``env.sim.render`` shim recorded no intervals, i.e.
+    ``active_iterations > 0`` and ``active_frame_times_ms`` is empty.
+    Each interval is the wall-clock delta between successive renders,
+    so at least two ``env.sim.render`` calls are required during the
+    active window; runs with 0 or 1 calls cannot contribute. The 0-call
+    case typically means the sim is not rendering; the 1-call case
+    means the active window closed before a second frame fired.
+
+    Failing the whole batch -- rather than per-run -- is intentional.
+    CI treats "no JSON report written" as an unambiguous signal that
+    measurement failed; a partial report covering only the runs that
+    happened to render twice would erode that signal, since downstream
+    consumers cannot tell a real result from a degraded one. Raise
+    here so neither :func:`_print_stdout_summary` nor
+    :func:`_write_json_report` execute.
+    """
+    bad = [(i, r) for i, r in enumerate(all_runs) if r.active_iterations and not r.active_frame_times_ms]
+    if not bad:
+        return
+    details = "; ".join(
+        f"run {i}: {r.active_iterations} env.step iterations, {r.active_render_calls} env.sim.render "
+        "call(s), 0 usable intervals"
+        for i, r in bad
+    )
+    raise RuntimeError(
+        f"Per-render frame interval measurement failed for {len(bad)} of {len(all_runs)} run(s) "
+        f"({details}). Each interval is the wall-clock delta between successive env.sim.render "
+        "calls, so at least 2 calls are required per run. Check that the sim is rendering "
+        "(headless mode with rendering disabled is unsupported) and that the active window is "
+        "long enough for multiple frames. Aborting the batch without writing a report."
+    )
+
+
 def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
     """Build the structured JSON report dict from a list of completed runs."""
+    _assert_runs_measured(all_runs)
+
     outcomes_count = {"success": 0, "failure": 0, "incomplete": 0, "timeout": 0}
     for r in all_runs:
         outcomes_count[r.outcome] = outcomes_count.get(r.outcome, 0) + 1
