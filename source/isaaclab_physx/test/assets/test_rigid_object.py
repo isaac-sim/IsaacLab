@@ -14,7 +14,8 @@ from isaaclab.test.utils import cuda_test_devices
 
 _PHYSX_NO_FRICTION_CUDA1 = {
     "cuda:1": (
-        "PhysX free-fall numerical precision exceeds 1e-5 tolerance on cuda:1 (observed delta ~1.8e-3 at index (0,2)); needs per-device tolerance or root-cause fix"
+        "PhysX free-fall numerical precision exceeds 1e-5 tolerance on cuda:1 "
+        "(observed delta ~1.8e-3 at index (0,2)); needs per-device tolerance or root-cause fix"
     ),
 }
 
