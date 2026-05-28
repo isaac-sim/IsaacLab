@@ -14,8 +14,7 @@ import pytest
 from utils import UV_Mixin, run_cmd
 
 _TRAIN_CMD = [
-    "python",
-    "scripts/reinforcement_learning/train.py",
+    "train",
     "--rl_library",
     "rsl_rl",
     "--task",
@@ -64,17 +63,54 @@ class Test_Wheel_UV_Install_Trains_Cartpole(UV_Mixin):
             wheel = wheels[0]
 
             # 2. Create the uv env and install the wheel with [all] extras.
+
             self.create_uv_env(isaaclab_root)
+
+            # pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
             result = self.run_in_uv_env(
-                ["uv", "pip", "install", f"{wheel}[all]"],
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "-U",
+                    "torch==2.10.0",
+                    "torchvision==0.25.0",
+                    "--index-url",
+                    "https://download.pytorch.org/whl/cu128",
+                ],
                 cwd=isaaclab_root,
                 timeout=1800,
             )
-            assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
+            assert result.returncode == 0, f"uv pip install torch failed:\n{result.stdout}\n{result.stderr}"
 
-            # 3. Run cartpole training inside the uv env (bypass isaaclab.sh so PYTHONPATH does
-            #    not point at the in-tree source and shadow the wheel install).
-            result = self.run_in_uv_env(_TRAIN_CMD, cwd=isaaclab_root, timeout=900)
+            # uv pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
+            #   --index-strategy unsafe-best-match --prerelease=allow
+            result = self.run_in_uv_env(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    f"{wheel}[all, isaacsim]",
+                    "--extra-index-url",
+                    "https://pypi.nvidia.com",
+                    "--index-strategy",
+                    "unsafe-best-match",
+                    "--prerelease=allow",
+                ],
+                cwd=isaaclab_root,
+                timeout=1800,
+            )
+            assert result.returncode == 0, (
+                f"uv pip install {wheel}[all, isaacsim] failed:\n{result.stdout}\n{result.stderr}"
+            )
+
+            # 3. Run cartpole training via ./isaaclab.sh train (same invocation as
+            #    test_cli_install_training_in_uvenv::test_install_all_trains_cartpole).
+            result = self.run_in_uv_env(
+                [str(self.cli_script)] + _TRAIN_CMD,
+                cwd=isaaclab_root,
+                timeout=900,
+            )
             _assert_training_passed(result)
         finally:
             self.destroy_uv_env()
