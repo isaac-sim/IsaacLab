@@ -397,6 +397,41 @@ def test_write_changelog_entry_self_heal_is_noop_on_well_formed(tmp_path):
     assert "\n\n\n0.1.0" not in out  # no extra blank line inserted
 
 
+def test_compile_failure_preserves_fragments_and_version(tmp_path):
+    """A package whose ``CHANGELOG.rst`` is genuinely malformed must not
+    have its fragments deleted or its version bumped.
+
+    Locks the "fail before any write" guarantee for the failure modes
+    per-package isolation defends against. Fragment deletion (step 6 of
+    ``Package.compile``) runs strictly after both writes succeed, so a
+    header-regex raise in step 4 short-circuits before any side effect
+    reaches disk. Without this guarantee, per-package isolation would
+    silently lose work on the failed package each cycle.
+    """
+    pkg_root = tmp_path / "pkg"
+    (pkg_root / "config").mkdir(parents=True)
+    (pkg_root / "docs").mkdir(parents=True)
+    (pkg_root / "changelog.d").mkdir()
+    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    # Unrecoverable shape: no ``Changelog`` header at all — self-heal can't
+    # do anything and the strict regex raises ValueError.
+    (pkg_root / "docs" / "CHANGELOG.rst").write_text("No header at all\n", encoding="utf-8")
+    fragment = pkg_root / "changelog.d" / "test.rst"
+    fragment.write_text("Added\n^^^^^\n\n* Did a thing.\n", encoding="utf-8")
+
+    pkg = cli.Package(pkg_root)
+    with pytest.raises(ValueError, match="Could not locate changelog header"):
+        pkg.compile(dry_run=False)
+
+    # Fragment survived the failed compile.
+    assert fragment.exists(), "fragment must be preserved when compile raises"
+    assert fragment.read_text(encoding="utf-8") == "Added\n^^^^^\n\n* Did a thing.\n"
+    # Version unchanged.
+    assert 'version = "0.1.0"' in (pkg_root / "config" / "extension.toml").read_text(encoding="utf-8")
+    # CHANGELOG.rst unchanged (no entry prepended).
+    assert (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8") == "No header at all\n"
+
+
 def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, capsys):
     """One package's compile failure must not abort the batch.
 
@@ -438,9 +473,15 @@ def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, 
     captured = capsys.readouterr()
 
     assert rc == 1
-    # Good package compiled — its CHANGELOG.rst now carries the new entry.
+    # Good package compiled — its CHANGELOG.rst now carries the new entry
+    # and its fragment was deleted.
     assert "Added" in (packages_root / "good_pkg" / "docs" / "CHANGELOG.rst").read_text()
-    # Bad package surfaces in the failure summary, but the good one still ran.
+    assert not (packages_root / "good_pkg" / "changelog.d" / "test.rst").exists()
+    # Bad package's fragment is preserved — per-package isolation does not
+    # discard work on the failed package; the next compile gets another try
+    # against the same fragment after the human fixes the CHANGELOG.rst.
+    assert (packages_root / "bad_pkg" / "changelog.d" / "test.rst").exists()
+    # Bad package surfaces in the failure summary.
     assert "bad_pkg" in captured.err
     assert "1 package(s) failed to compile" in captured.err
 
