@@ -44,6 +44,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
@@ -210,4 +211,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # run the main function
     main()
