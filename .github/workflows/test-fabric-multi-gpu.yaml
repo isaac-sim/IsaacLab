@@ -14,12 +14,19 @@
 
 name: FabricFrameView Multi-GPU Tests
 
+# DISABLED: No self-hosted runner with the 'multi-gpu' label is currently
+# registered.  All runs queue indefinitely.  Re-enable once infra provisions
+# a multi-GPU runner (see also .github/workflows/test-multi-gpu.yaml which
+# has the same issue).
+#
+# on:
+#   pull_request:
+#     paths:
+#       - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
+#       - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
+#       - ".github/workflows/test-fabric-multi-gpu.yaml"
+#   workflow_dispatch:
 on:
-  pull_request:
-    paths:
-      - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
-      - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
-      - ".github/workflows/test-fabric-multi-gpu.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -29,44 +36,14 @@ concurrency:
 jobs:
   test-fabric-multi-gpu:
     name: FabricFrameView multi-GPU unit tests
-    runs-on: [self-hosted, linux, x64, multi-gpu]
-    timeout-minutes: 60
+    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
-        with:
-          python-version: "3.12"
-
-      - name: Install cmake via pip (avoid sudo apt path)
-        # install.py skips its sudo apt-get block when ``cmake`` is already on
-        # PATH (source/isaaclab/isaaclab/cli/commands/install.py:35).  The
-        # pip wheel provides a cmake shim under the setup-python venv's bin/,
-        # which is on PATH, so installing it here bypasses the apt branch.
-        run: pip install cmake
-
       - name: Install Isaac Lab
-        # ``--install none`` = core submodules only (no mimic, no teleop, no
-        # auto-extra features).  The FabricFrameView cuda:1 tests only need
-        # isaaclab core + isaaclab_physx + Isaac Sim.  Avoids building
-        # robomimic's egl_probe wheel, which requires libEGL/X11 headers
-        # that the multi-GPU runner image lacks.
-        run: ./isaaclab.sh --install none
-
-      - name: Install Isaac Sim
-        # Isaac Sim is an optional extra in source/isaaclab/setup.py and is
-        # not pulled by ``--install none``.  Without it, AppLauncher's
-        # ``import isaacsim`` is silently caught by
-        # ``contextlib.suppress(ModuleNotFoundError)``, ``EXP_PATH`` stays
-        # unset, and test collection crashes with ``KeyError: 'EXP_PATH'``.
-        #
-        # Pinned to 6.0.0.0 because that is the only release line with a
-        # Python 3.12 wheel.  The 5.x line on PyPI requires Python 3.11
-        # (and source/isaaclab/setup.py's ``isaacsim==5.1.0`` pin is stale
-        # relative to the 3.12 baseline declared in pyproject.toml).
-        run: pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
+        run: ./isaaclab.sh --install
 
       - name: Verify multi-GPU availability
         # Fail loud if the runner regressed to a single GPU.  Without this, the
@@ -85,19 +62,7 @@ jobs:
           fi
 
       - name: Run FabricFrameView multi-GPU unit tests
-        # ``ISAACLAB_TEST_MULTI_GPU=1`` enables the three cuda:1-parameterised
-        # tests in test_views_xform_prim_fabric.py added by PR #5514.  These
-        # tests target FabricFrameView's SelectPrims path on non-zero CUDA
-        # devices and currently hang indefinitely on real multi-GPU hardware
-        # (reproduced locally on 3x RTX 6000 Pro Blackwell and on the
-        # [self-hosted, ..., multi-gpu] runner pool).  The 60-min workflow
-        # timeout will cancel the job and surface the regression in CI for
-        # the FabricFrameView maintainers.  Land this PR once the hang is
-        # fixed in source/isaaclab_physx/.../fabric_frame_view.py.
         env:
-          OMNI_KIT_ACCEPT_EULA: "yes"
-          ACCEPT_EULA: "Y"
-          ISAAC_SIM_HEADLESS: "1"
           ISAACLAB_TEST_MULTI_GPU: "1"
         run: |
           ./isaaclab.sh -p -m pytest \
