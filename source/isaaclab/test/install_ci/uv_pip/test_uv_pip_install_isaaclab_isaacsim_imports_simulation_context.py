@@ -10,6 +10,7 @@ Setup:
     - uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
     - uv pip install <wheel>[isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
+    - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - python -c "from isaaclab.app import AppLauncher" -> verify AppLauncher importable
     - python -c "from isaaclab.sim import SimulationContext" -> verify pxr-dependent imports resolve
@@ -21,7 +22,7 @@ import glob
 import shutil
 
 import pytest
-from utils import UV_Mixin, run_cmd
+from utils import UV_Mixin, aarch64_isaacsim_env, run_cmd
 
 
 @pytest.mark.install_path_uv_pip
@@ -102,7 +103,10 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
     @pytest.mark.timeout(1800)
     def test_install_isaacsim_makes_isaaclab_app_importable(self):
         """``from isaaclab.app import AppLauncher`` succeeds after ``uv pip install <wheel>[isaacsim]``."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
+        result = self.run_in_uv_env(
+            ["python", "-c", "from isaaclab.app import AppLauncher"],
+            env=aarch64_isaacsim_env(),
+        )
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
     @pytest.mark.docker
@@ -111,5 +115,8 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
     @pytest.mark.timeout(1800)
     def test_install_isaacsim_makes_simulation_context_importable(self):
         """``from isaaclab.sim import SimulationContext`` resolves pxr from the isaacsim extra."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.sim import SimulationContext"])
+        result = self.run_in_uv_env(
+            ["python", "-c", "from isaaclab.sim import SimulationContext"],
+            env=aarch64_isaacsim_env(),
+        )
         assert result.returncode == 0, f"import isaaclab.sim failed:\n{result.stdout}\n{result.stderr}"

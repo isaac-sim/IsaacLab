@@ -135,16 +135,18 @@ Installing dependencies
 
          .. note::
 
-            After installing Isaac Lab on aarch64, you may encounter warnings such as:
+            **Required for Isaac Sim on aarch64.** After installing Isaac Lab on aarch64, the PyTorch
+            wheel ships its own ``libgomp`` (GNU OpenMP) that conflicts with the system OpenMP that
+            Isaac Sim expects. Without overriding ``LD_PRELOAD`` to point at the system library,
+            ``import isaaclab.app`` and any ``./isaaclab.sh train ...`` invocation will exit
+            immediately with ``rc=1`` and the message:
 
             .. code-block:: none
 
-               ERROR: ld.so: object '...torch.libs/libgomp-XXXX.so.1.0.0' cannot be preloaded: ignored.
+               WARNING: For the application to run, some shared libraries must be loaded before others ...
+                  LD_PRELOAD="/lib/aarch64-linux-gnu/libgomp.so.1" <COMMAND>
 
-            This occurs when both the system and PyTorch ``libgomp`` (GNU OpenMP) libraries are preloaded.
-            Isaac Sim expects the **system** OpenMP runtime, while PyTorch sometimes bundles its own.
-
-            To fix this, unset any existing ``LD_PRELOAD`` and set it to use the system library only:
+            Unset any existing ``LD_PRELOAD`` and force the system library before invoking Python:
 
             .. code-block:: bash
 

@@ -10,6 +10,7 @@ Setup:
     - uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
     - uv pip install <wheel>[all,isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
+    - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct-v0 --num_envs 16
         presets=newton_mjwarp --max_iterations 5 --headless
@@ -21,7 +22,7 @@ import glob
 import shutil
 
 import pytest
-from utils import UV_Mixin, run_cmd
+from utils import UV_Mixin, aarch64_isaacsim_env, run_cmd
 
 _TRAIN_CMD = [
     "train",
@@ -120,6 +121,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
             result = self.run_in_uv_env(
                 [str(self.cli_script)] + _TRAIN_CMD,
                 cwd=isaaclab_root,
+                env=aarch64_isaacsim_env(),
                 timeout=900,
             )
             _assert_training_passed(result)
