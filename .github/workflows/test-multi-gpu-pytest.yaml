@@ -5,15 +5,18 @@
 
 # Multi-GPU unit-test workflow
 #
-# Runs the subset of unit tests that opt in to the multi-GPU device
-# parametrization via :func:`isaaclab.testing.cuda_test_devices`.  On the
-# multi-GPU runner pool the env var ``ISAACLAB_TEST_DEVICES=001`` makes the
-# helper return ``[cuda:1]``; on single-GPU CI (where this workflow does not
-# run) the env var is unset and the helper returns ``[cpu, cuda:0]``.
+# Auto-discovers test files that opt in to multi-GPU coverage by calling
+# :func:`isaaclab.testing.cuda_test_devices` in a ``parametrize`` decorator,
+# and runs them on the multi-GPU runner pool with
+# ``ISAACLAB_TEST_DEVICES=001`` (cuda:1 only).
 #
-# Start small: only the P0 pure-Python utility tests are in the pytest target
-# below.  Add files to the target list as their parametrize calls are
-# migrated to use ``cuda_test_devices()``.
+# Adding a new test to the multi-GPU CI scope requires no workflow edits:
+# migrate the test file to use ``cuda_test_devices()`` and the next run of
+# this workflow picks it up.
+#
+# Kit-bound files (those that start ``SimulationApp`` at module import)
+# each get their own pytest invocation because Kit is a process-wide
+# singleton.  Pure-Python files share one pytest session.
 
 name: Multi-GPU pytest
 
@@ -21,9 +24,7 @@ on:
   pull_request:
     paths:
       - "source/isaaclab/isaaclab/testing/**"
-      - "source/isaaclab/test/utils/test_math.py"
-      - "source/isaaclab/test/utils/test_wrench_composer.py"
-      - "source/isaaclab/test/utils/test_episode_data.py"
+      - "source/**/test/**/test_*.py"
       - ".github/workflows/test-multi-gpu-pytest.yaml"
   workflow_dispatch:
 
@@ -35,7 +36,7 @@ jobs:
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
     runs-on: [self-hosted, linux, x64, multi-gpu]
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -47,26 +48,21 @@ jobs:
 
       - name: Install cmake via pip (avoid sudo apt path)
         # install.py skips its sudo apt-get block when ``cmake`` is already on
-        # PATH (source/isaaclab/isaaclab/cli/commands/install.py:35).  The pip
-        # wheel provides a cmake shim under the setup-python venv's bin/.
+        # PATH (source/isaaclab/isaaclab/cli/commands/install.py:35).
         run: pip install cmake
 
       - name: Install Isaac Lab
-        # ``--install none`` = core submodules only (no mimic, no teleop, no
-        # auto-extra features).  Avoids robomimic/egl_probe build that needs
-        # libEGL/X11 headers the multi-GPU runner image lacks.
+        # ``--install none`` = core submodules only.  Avoids robomimic/egl_probe
+        # build that needs libEGL/X11 headers the multi-GPU runner image lacks.
         run: ./isaaclab.sh --install none
 
       - name: Install Isaac Sim
-        # Isaac Sim is an optional extra in source/isaaclab/setup.py and is
-        # not pulled by ``--install none``.  Pinned to 6.0.0 (matches local
+        # Isaac Sim is an optional extra in source/isaaclab/setup.py; not
+        # pulled by ``--install none``.  Pinned to 6.0.0 (matches the local
         # env_isaaclab); the 5.x line on PyPI requires Python 3.11.
         run: pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
 
       - name: Verify multi-GPU availability
-        # Fail loud if the runner regressed to a single GPU.  ``cuda_test_devices``
-        # in strict mode would also raise on a mask requesting an unavailable
-        # device, but pre-flight gives a clearer diagnostic.
         run: |
           GPU_COUNT=$(nvidia-smi -L | wc -l)
           echo "Detected $GPU_COUNT GPU(s)"
@@ -75,18 +71,86 @@ jobs:
             exit 1
           fi
 
-      - name: Run multi-GPU unit tests
-        # ISAACLAB_TEST_DEVICES=001 makes cuda_test_devices() return [cuda:1].
-        # Tests in the pytest target below are migrated to call the helper, so
-        # they run only on cuda:1 here (single-GPU CI continues to run them on
-        # [cpu, cuda:0] via the helper's default mask 110).
+      - name: Discover and run multi-GPU tests
+        # Auto-discovery:
+        # - find every test file that calls ``cuda_test_devices()`` (the opt-in)
+        # - filter out files in SKIP (e.g. known-broken cuda:1 paths)
+        # - split by Kit usage: pure-Python files share one pytest session,
+        #   Kit-bound files each get their own (Kit is process-singleton)
+        # - per Kit-file ``timeout 600`` bounds any hang; loop continues on
+        #   failure and reports all results, exits non-zero if any failed
         env:
           OMNI_KIT_ACCEPT_EULA: "yes"
           ACCEPT_EULA: "Y"
           ISAAC_SIM_HEADLESS: "1"
           ISAACLAB_TEST_DEVICES: "001"
         run: |
-          ./isaaclab.sh -p -m pytest -v \
-            source/isaaclab/test/utils/test_math.py \
-            source/isaaclab/test/utils/test_wrench_composer.py \
-            source/isaaclab/test/utils/test_episode_data.py
+          set +e
+
+          # Files explicitly excluded from multi-GPU CI.
+          # Add a path here (one per line) when a file's cuda:1 path is
+          # known broken and tracked elsewhere.
+          SKIP=$(cat <<'EOF'
+          source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
+          EOF
+          )
+
+          # Discover opt-in files.
+          mapfile -t MIGRATED < <(grep -rl 'cuda_test_devices()' source/ --include='test_*.py' | sort -u)
+
+          if [ ${#MIGRATED[@]} -eq 0 ]; then
+            echo "::error::No migrated tests discovered (grep for cuda_test_devices)"
+            exit 1
+          fi
+
+          # Filter SKIP list.
+          FILTERED=()
+          for f in "${MIGRATED[@]}"; do
+            if echo "$SKIP" | grep -qFx "$f"; then
+              echo "::notice file=$f::skipping (in SKIP list)"
+              continue
+            fi
+            FILTERED+=("$f")
+          done
+
+          # Split into pure-Python vs Kit-bound (Kit detected by import of
+          # AppLauncher / SimulationApp at module level).
+          PURE=()
+          KIT=()
+          for f in "${FILTERED[@]}"; do
+            if grep -qE 'AppLauncher|simulation_app\s*=' "$f"; then
+              KIT+=("$f")
+            else
+              PURE+=("$f")
+            fi
+          done
+
+          echo "::notice::discovered ${#MIGRATED[@]} migrated, ${#FILTERED[@]} after skip"
+          echo "::notice::pure-python: ${#PURE[@]} files"
+          echo "::notice::kit-bound:   ${#KIT[@]} files"
+
+          fail=0
+
+          if [ ${#PURE[@]} -gt 0 ]; then
+            echo "::group::pytest (pure-python, single session)"
+            ./isaaclab.sh -p -m pytest -v "${PURE[@]}"
+            rc=$?
+            echo "::endgroup::"
+            if [ $rc -ne 0 ]; then
+              echo "::error::pure-python pytest exit $rc"
+              fail=1
+            fi
+          fi
+
+          for f in "${KIT[@]}"; do
+            echo "::group::pytest $f"
+            timeout 600 ./isaaclab.sh -p -m pytest "$f" -v
+            rc=$?
+            echo "::endgroup::"
+            if [ $rc -ne 0 ]; then
+              echo "::error file=$f::pytest exit $rc"
+              fail=1
+            fi
+          done
+
+          exit $fail

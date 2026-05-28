@@ -69,7 +69,6 @@ import os
 
 import torch
 
-
 _DEFAULT_MASK = "110"
 """Default mask when ``ISAACLAB_TEST_DEVICES`` is unset.
 
@@ -112,9 +111,7 @@ def cuda_test_devices(*, mask: str | None = None, strict: bool = True) -> list[s
     flags = _expand_mask(mask, len(available), strict=strict)
     devices = [device for device, keep in zip(available, flags) if keep]
     if strict and not devices:
-        raise ValueError(
-            f"Mask {mask!r} resolves to empty device list (available: {available})"
-        )
+        raise ValueError(f"Mask {mask!r} resolves to empty device list (available: {available})")
     return devices
 
 
@@ -183,8 +180,7 @@ def _expand_mask(mask: str, length: int, *, strict: bool) -> list[bool]:
             if any(surplus):
                 pos = length + surplus.index(True)
                 raise ValueError(
-                    f"Mask {mask!r} requires a device at position {pos} but the "
-                    f"host only has {length} devices"
+                    f"Mask {mask!r} requires a device at position {pos} but the host only has {length} devices"
                 )
         return body_flags[:length]
 
