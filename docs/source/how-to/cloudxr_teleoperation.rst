@@ -404,7 +404,7 @@ API as headset-based optical hand tracking in Isaac Teleop, so the same retarget
 work with both input sources.
 
 For plugin configuration details, see the `Manus plugin documentation
-<https://github.com/NVIDIA/IsaacTeleop/blob/main/docs/source/device/manus.rst>`_.
+<https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_.
 
 The recommended workflow:
 
