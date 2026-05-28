@@ -9,61 +9,103 @@
 # source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py on the
 # dedicated multi-GPU runner.  Kept separate from test-multi-gpu.yaml so
 # changes to FabricFrameView do not gate distributed-training validation and
-# vice versa.  Runner preconditions (label, install step, GPU pre-flight) are
-# identical to the training workflow.
+# vice versa.
+#
+# Uses the same Docker-based approach as build.yaml to ensure the test runs
+# against the Kit version baked into the Isaac Sim container (not a stale
+# pip-installed version).
 
 name: FabricFrameView Multi-GPU Tests
 
-# DISABLED: No self-hosted runner with the 'multi-gpu' label is currently
-# registered.  All runs queue indefinitely.  Re-enable once infra provisions
-# a multi-GPU runner (see also .github/workflows/test-multi-gpu.yaml which
-# has the same issue).
-#
-# on:
-#   pull_request:
-#     paths:
-#       - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
-#       - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
-#       - ".github/workflows/test-fabric-multi-gpu.yaml"
-#   workflow_dispatch:
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
+      - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
+      - ".github/workflows/test-fabric-multi-gpu.yaml"
+    branches:
+      - main
+      - develop
+      - 'release/**'
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CI_IMAGE_TAG: isaac-lab-ci:pr-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
 jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/workflows/config.yaml
+          sparse-checkout-cone-mode: false
+      - id: load
+        run: |
+          set -euo pipefail
+          f=.github/workflows/config.yaml
+          echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+          echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build Base Docker Image
+    needs: config
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Build and push to ECR
+        uses: ./.github/actions/ecr-build-push-pull
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
   test-fabric-multi-gpu:
     name: FabricFrameView multi-GPU unit tests
-    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
-    timeout-minutes: 30
+    needs: [build, config]
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    timeout-minutes: 60
+    if: needs.build.result == 'success'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Isaac Lab
-        run: ./isaaclab.sh --install
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
 
       - name: Verify multi-GPU availability
-        # Fail loud if the runner regressed to a single GPU.  Without this, the
-        # test helper's ``_skip_if_unavailable`` would skip every ``cuda:1`` case
-        # and the job would go green with no real coverage.
         run: |
           echo "=== GPU Info ==="
           nvidia-smi --query-gpu=index,name,memory.total --format=csv
-
-          GPU_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())")
+          GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
           echo "Detected $GPU_COUNT GPU(s)"
-
           if [ "$GPU_COUNT" -lt 2 ]; then
             echo "::error::At least 2 GPUs required for Fabric multi-GPU tests, found $GPU_COUNT"
             exit 1
           fi
 
       - name: Run FabricFrameView multi-GPU unit tests
-        env:
-          ISAACLAB_TEST_MULTI_GPU: "1"
-        run: |
-          ./isaaclab.sh -p -m pytest \
-            source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v
+        uses: ./.github/actions/run-package-tests
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          include-files: "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
+          container-name: fabric-mgpu-test
+          multi-gpu: "true"

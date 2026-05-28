@@ -72,6 +72,10 @@ inputs:
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
+  multi-gpu:
+    description: 'Enable multi-GPU tests (sets ISAACLAB_TEST_MULTI_GPU=1 inside the container)'
+    default: 'false'
+    required: false
 runs:
   using: composite
   steps:
@@ -150,6 +154,7 @@ runs:
         include-files: ${{ inputs.include-files }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        multi-gpu: ${{ inputs.multi-gpu }}
 
     - name: Check Test Results
       if: always()

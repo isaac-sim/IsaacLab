@@ -69,6 +69,10 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  multi-gpu:
+    description: 'Enable multi-GPU tests (sets ISAACLAB_TEST_MULTI_GPU=1 inside the container)'
+    default: 'false'
+    required: false
 
 runs:
   using: composite
@@ -93,6 +97,7 @@ runs:
           local shard_count="${13}"
           local volume_mount_source="${14}"
           local extra_pip_packages="${15}"
+          local multi_gpu="${16}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -160,6 +165,11 @@ runs:
           if [ "$quarantined_only" = "true" ]; then
             docker_env_vars="$docker_env_vars -e TEST_QUARANTINED_ONLY=true"
             echo "Setting TEST_QUARANTINED_ONLY=true"
+          fi
+
+          if [ "$multi_gpu" = "true" ]; then
+            docker_env_vars="$docker_env_vars -e ISAACLAB_TEST_MULTI_GPU=1"
+            echo "Setting ISAACLAB_TEST_MULTI_GPU=1"
           fi
 
           if [ -n "$include_files" ]; then
@@ -392,7 +402,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.multi-gpu }}"
 
     - name: Kill container on cancellation
       if: cancelled()
