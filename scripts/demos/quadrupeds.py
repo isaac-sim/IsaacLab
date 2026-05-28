@@ -52,6 +52,13 @@ args_cli = parser.parse_args()
 import numpy as np
 import torch
 
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
+
+from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
+from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
+from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     """Defines the origins of the scene."""
@@ -70,12 +77,6 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
 
 def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import Articulation
-    from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
-    from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
-    from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
-
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -188,8 +189,6 @@ def run_simulator(sim, entities: dict, origins):
 def main():
     """Main function."""
     with resolve_backend_and_visualizer(args_cli) as (physics_cfg, visualizer_cfg):
-        import isaaclab.sim as sim_utils
-
         # define simulation configuration
         sim_cfg = sim_utils.SimulationCfg(
             dt=0.005, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg]
