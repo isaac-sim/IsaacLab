@@ -407,7 +407,7 @@ Train a policy for the more complex adaptive bin stacking:
 
 .. note::
 
-   The training script will save the model checkpoints in the model directory under ``IssacLab/logs/robomimic``.
+   The training script will save the model checkpoints in the model directory under ``IsaacLab/logs/robomimic``.
 
 Evaluating Trained Policies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

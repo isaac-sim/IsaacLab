@@ -96,7 +96,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     )
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_franka_visuomotor(setup_visuomotor_test_environment):
     """Test dataset generation for the visuomotor cube-stack environment (single env)."""
     workflow_root, input_file = setup_visuomotor_test_environment
@@ -104,7 +103,6 @@ def test_generate_dataset_franka_visuomotor(setup_visuomotor_test_environment):
     _run_generation(workflow_root, input_file, output_file, num_envs=1)
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_franka_visuomotor_multi_env(setup_visuomotor_test_environment):
     """Test dataset generation for the visuomotor cube-stack environment (5 envs)."""
     workflow_root, input_file = setup_visuomotor_test_environment

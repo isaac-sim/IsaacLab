@@ -27,7 +27,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -247,22 +247,22 @@ def test_constant_velocity(setup_sim):
         if idx > 1:
             # check the imu accelerations
             torch.testing.assert_close(
-                wp.to_torch(scene.sensors["imu_ball"].data.lin_acc_b),
+                scene.sensors["imu_ball"].data.lin_acc_b.torch,
                 prev_lin_acc_ball,
                 rtol=1e-3,
                 atol=1e-3,
             )
 
             torch.testing.assert_close(
-                wp.to_torch(scene.sensors["imu_cube"].data.lin_acc_b),
+                scene.sensors["imu_cube"].data.lin_acc_b.torch,
                 prev_lin_acc_cube,
                 rtol=1e-3,
                 atol=1e-3,
             )
 
         # update previous values
-        prev_lin_acc_ball = wp.to_torch(scene.sensors["imu_ball"].data.lin_acc_b).clone()
-        prev_lin_acc_cube = wp.to_torch(scene.sensors["imu_cube"].data.lin_acc_b).clone()
+        prev_lin_acc_ball = scene.sensors["imu_ball"].data.lin_acc_b.torch.clone()
+        prev_lin_acc_cube = scene.sensors["imu_cube"].data.lin_acc_b.torch.clone()
 
 
 @pytest.mark.isaacsim_ci
@@ -290,9 +290,9 @@ def test_constant_acceleration(setup_sim):
 
         # check the imu linear acceleration data (includes gravity since IMU always measures it)
         torch.testing.assert_close(
-            wp.to_torch(scene.sensors["imu_ball"].data.lin_acc_b),
+            scene.sensors["imu_ball"].data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
-                wp.to_torch(scene.rigid_objects["balls"].data.root_quat_w),
+                scene.rigid_objects["balls"].data.root_quat_w.torch,
                 torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
                 / sim.get_physics_dt()
                 + torch.tensor([[0.0, 0.0, 9.81]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1),
@@ -303,8 +303,8 @@ def test_constant_acceleration(setup_sim):
 
         # check the angular velocity
         torch.testing.assert_close(
-            wp.to_torch(scene.sensors["imu_ball"].data.ang_vel_b),
-            wp.to_torch(scene.rigid_objects["balls"].data.root_ang_vel_b),
+            scene.sensors["imu_ball"].data.ang_vel_b.torch,
+            scene.rigid_objects["balls"].data.root_ang_vel_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
@@ -333,16 +333,16 @@ def test_single_dof_pendulum(setup_sim):
 
         # check the angular velocities of the imus between offset and direct definition
         torch.testing.assert_close(
-            wp.to_torch(base_data.ang_vel_b),
-            wp.to_torch(imu_data.ang_vel_b),
+            base_data.ang_vel_b.torch,
+            imu_data.ang_vel_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the linear acceleration of the imus between offset and direct definition
         torch.testing.assert_close(
-            wp.to_torch(base_data.lin_acc_b),
-            wp.to_torch(imu_data.lin_acc_b),
+            base_data.lin_acc_b.torch,
+            imu_data.lin_acc_b.torch,
             rtol=1e-1,
             atol=1e-1,
         )
@@ -385,16 +385,16 @@ def test_indirect_attachment(setup_sim):
 
         # check the angular velocities of the imus between offset and direct definition
         torch.testing.assert_close(
-            wp.to_torch(base_data.ang_vel_b),
-            wp.to_torch(imu_data.ang_vel_b),
+            base_data.ang_vel_b.torch,
+            imu_data.ang_vel_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the linear acceleration of the imus between offset and direct definition
         torch.testing.assert_close(
-            wp.to_torch(base_data.lin_acc_b),
-            wp.to_torch(imu_data.lin_acc_b),
+            base_data.lin_acc_b.torch,
+            imu_data.lin_acc_b.torch,
             rtol=1e-1,
             atol=1e-1,
         )
@@ -427,16 +427,16 @@ def test_offset_calculation(setup_sim):
 
         # check the linear accelerations
         torch.testing.assert_close(
-            wp.to_torch(scene.sensors["imu_robot_base"].data.lin_acc_b),
-            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.lin_acc_b),
+            scene.sensors["imu_robot_base"].data.lin_acc_b.torch,
+            scene.sensors["imu_robot_imu_link"].data.lin_acc_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
 
         # check the angular velocities
         torch.testing.assert_close(
-            wp.to_torch(scene.sensors["imu_robot_base"].data.ang_vel_b),
-            wp.to_torch(scene.sensors["imu_robot_imu_link"].data.ang_vel_b),
+            scene.sensors["imu_robot_base"].data.ang_vel_b.torch,
+            scene.sensors["imu_robot_imu_link"].data.ang_vel_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
@@ -483,6 +483,60 @@ def test_env_ids_propagation(setup_sim):
     sim.step()
     # read data from sim
     scene.update(sim.get_physics_dt())
+
+
+@configclass
+class _StaleResetSceneCfg(InteractiveSceneCfg):
+    """Minimal scene for the post-reset staleness regression test."""
+
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.25, 0.25, 0.25),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+    )
+    imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
+
+
+def test_no_stale_data_after_scene_reset():
+    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values.
+
+    Mirrors the ``ManagerBasedRLEnv._reset_idx`` flow where reset runs inside a step
+    without a subsequent physics step. The IMU sensor's lazy ``data`` accessor must not
+    refetch from the PhysX rigid-body view here (the velocity buffer reflects the previous
+    physics step and would produce a spurious finite-difference acceleration).
+    """
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _StaleResetSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        sensor: Imu = scene["imu_cube"]
+
+        # Let the cube fall so PhysX accumulates a non-zero rigid-body velocity.
+        for _ in range(30):
+            scene.write_data_to_sim()
+            sim.step(render=False)
+            scene.update(dt=sim.get_physics_dt())
+
+        # Reset the scene without writing fresh velocity/transform. The PhysX velocity
+        # buffer therefore still holds the pre-reset (falling) value.
+        scene.reset(env_ids=torch.tensor([0], device=sensor.device))
+
+        # The public ``data`` accessor must not refetch a stale PhysX buffer; ``reset()``
+        # zeroes ``_ang_vel_b`` and ``_lin_acc_b`` and those must be what comes out here.
+        post_reset_lin_acc = sensor.data.lin_acc_b.torch
+        post_reset_ang_vel = sensor.data.ang_vel_b.torch
+        torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
+        torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
 
 
 @pytest.mark.isaacsim_ci

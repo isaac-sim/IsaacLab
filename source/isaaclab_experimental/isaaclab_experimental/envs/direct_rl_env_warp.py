@@ -164,6 +164,7 @@ class DirectRLEnvWarp(DirectRLEnv):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveSceneWarp(self.cfg.scene)
                 self._setup_scene()
+                self.scene.initialize_renderers()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 

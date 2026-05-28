@@ -34,9 +34,9 @@ app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
 # disable metrics assembler due to scene graph instancing
-from isaacsim.core.utils.extensions import disable_extension
+from isaacsim.core.experimental.utils.app import enable_extension
 
-disable_extension("omni.usd.metrics.assembler.ui")
+enable_extension("omni.usd.metrics.assembler.ui", enabled=False)
 
 """Rest everything else."""
 
@@ -304,12 +304,12 @@ def main():
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = (
-                wp.to_torch(ee_frame_sensor.data.target_pos_w)[..., 0, :].clone() - env.unwrapped.scene.env_origins
+                ee_frame_sensor.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
             )
-            tcp_rest_orientation = wp.to_torch(ee_frame_sensor.data.target_quat_w)[..., 0, :].clone()
+            tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
             # -- object frame
             object_data: RigidObjectData = env.unwrapped.scene["object"].data
-            object_position = wp.to_torch(object_data.root_pos_w) - env.unwrapped.scene.env_origins
+            object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
             object_position += object_local_grasp_position
 
             # -- target object frame

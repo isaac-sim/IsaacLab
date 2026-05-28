@@ -14,6 +14,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 try:
     from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 except (ImportError, ModuleNotFoundError):
@@ -82,6 +84,18 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_mass: wp.array | None = None
         self._body_inertia: wp.array | None = None
 
+        # ProxyArray caches
+        self._default_body_pose_ta: ProxyArray | None = None
+        self._default_body_vel_ta: ProxyArray | None = None
+        self._body_link_pose_w_ta: ProxyArray | None = None
+        self._body_link_vel_w_ta: ProxyArray | None = None
+        self._body_com_pose_w_ta: ProxyArray | None = None
+        self._body_com_vel_w_ta: ProxyArray | None = None
+        self._body_com_acc_w_ta: ProxyArray | None = None
+        self._body_com_pose_b_ta: ProxyArray | None = None
+        self._body_mass_ta: ProxyArray | None = None
+        self._body_inertia_ta: ProxyArray | None = None
+
     def _identity_quat(self, *shape: int) -> wp.array:
         """Create identity quaternion warp array (w, x, y, z) = (1, 0, 0, 0)."""
         quat_np = np.zeros((*shape, 4), dtype=np.float32)
@@ -91,234 +105,276 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
     # -- Default state properties --
 
     @property
-    def default_body_pose(self) -> wp.array:
+    def default_body_pose(self) -> ProxyArray:
         """Default body poses. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._default_body_pose is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout
             self._default_body_pose = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._default_body_pose
+            self._default_body_pose_ta = None
+        if self._default_body_pose_ta is None:
+            self._default_body_pose_ta = ProxyArray(self._default_body_pose)
+        return self._default_body_pose_ta
 
     @property
-    def default_body_vel(self) -> wp.array:
+    def default_body_vel(self) -> ProxyArray:
         """Default body velocities. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._default_body_vel is None:
             self._default_body_vel = wp.zeros(
                 (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
             ).view(wp.spatial_vectorf)
-        return self._default_body_vel
+            self._default_body_vel_ta = None
+        if self._default_body_vel_ta is None:
+            self._default_body_vel_ta = ProxyArray(self._default_body_vel)
+        return self._default_body_vel_ta
 
     @property
-    def default_body_state(self) -> wp.array:
+    def default_body_state(self) -> ProxyArray:
         """Default body states. Shape: (N, num_bodies, 13)."""
-        pose = wp.to_torch(self.default_body_pose)
-        vel = wp.to_torch(self.default_body_vel)
-        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+        pose = self.default_body_pose.torch
+        vel = self.default_body_vel.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose, vel], dim=-1)))
 
     # -- Body state properties (link frame) --
 
     @property
-    def body_link_pose_w(self) -> wp.array:
+    def body_link_pose_w(self) -> ProxyArray:
         """Body link poses in world frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
             self._body_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._body_link_pose_w
+            self._body_link_pose_w_ta = None
+        if self._body_link_pose_w_ta is None:
+            self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w)
+        return self._body_link_pose_w_ta
 
     @property
-    def body_link_vel_w(self) -> wp.array:
+    def body_link_vel_w(self) -> ProxyArray:
         """Body link velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_link_vel_w is None:
             self._body_link_vel_w = wp.zeros(
                 (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
             ).view(wp.spatial_vectorf)
-        return self._body_link_vel_w
+            self._body_link_vel_w_ta = None
+        if self._body_link_vel_w_ta is None:
+            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w)
+        return self._body_link_vel_w_ta
 
     @property
-    def body_link_state_w(self) -> wp.array:
+    def body_link_state_w(self) -> ProxyArray:
         """Body link states in world frame. Shape: (N, num_bodies, 13)."""
-        pose = wp.to_torch(self.body_link_pose_w)
-        vel = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+        pose = self.body_link_pose_w.torch
+        vel = self.body_link_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose, vel], dim=-1)))
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def body_link_pos_w(self) -> wp.array:
+    def body_link_pos_w(self) -> ProxyArray:
         """Body link positions. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_link_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.body_link_pose_w.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def body_link_quat_w(self) -> wp.array:
+    def body_link_quat_w(self) -> ProxyArray:
         """Body link orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_link_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.body_link_pose_w.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     @property
-    def body_link_lin_vel_w(self) -> wp.array:
+    def body_link_lin_vel_w(self) -> ProxyArray:
         """Body link linear velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_link_vel_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_link_vel_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def body_link_ang_vel_w(self) -> wp.array:
+    def body_link_ang_vel_w(self) -> ProxyArray:
         """Body link angular velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_link_vel_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_link_vel_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     # -- Body state properties (CoM frame) --
 
     @property
-    def body_com_pose_w(self) -> wp.array:
+    def body_com_pose_w(self) -> ProxyArray:
         """Body CoM poses in world frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_com_pose_w is None:
-            self._body_com_pose_w = wp.clone(self.body_link_pose_w, self.device)
-        return self._body_com_pose_w
+            self._body_com_pose_w = wp.clone(self.body_link_pose_w.warp, self.device)
+            self._body_com_pose_w_ta = None
+        if self._body_com_pose_w_ta is None:
+            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w)
+        return self._body_com_pose_w_ta
 
     @property
-    def body_com_vel_w(self) -> wp.array:
+    def body_com_vel_w(self) -> ProxyArray:
         """Body CoM velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_vel_w is None:
-            self._body_com_vel_w = wp.clone(self.body_link_vel_w, self.device)
-        return self._body_com_vel_w
+            self._body_com_vel_w = wp.clone(self.body_link_vel_w.warp, self.device)
+            self._body_com_vel_w_ta = None
+        if self._body_com_vel_w_ta is None:
+            self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w)
+        return self._body_com_vel_w_ta
 
     @property
-    def body_com_state_w(self) -> wp.array:
+    def body_com_state_w(self) -> ProxyArray:
         """Body CoM states in world frame. Shape: (N, num_bodies, 13)."""
-        pose = wp.to_torch(self.body_com_pose_w)
-        vel = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+        pose = self.body_com_pose_w.torch
+        vel = self.body_com_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose, vel], dim=-1)))
 
     @property
-    def body_com_acc_w(self) -> wp.array:
+    def body_com_acc_w(self) -> ProxyArray:
         """Body CoM accelerations in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_acc_w is None:
             self._body_com_acc_w = wp.zeros(
                 (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
             ).view(wp.spatial_vectorf)
-        return self._body_com_acc_w
+            self._body_com_acc_w_ta = None
+        if self._body_com_acc_w_ta is None:
+            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w)
+        return self._body_com_acc_w_ta
 
     @property
-    def body_com_pose_b(self) -> wp.array:
+    def body_com_pose_b(self) -> ProxyArray:
         """Body CoM poses in body frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_com_pose_b is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
             self._body_com_pose_b = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._body_com_pose_b
+            self._body_com_pose_b_ta = None
+        if self._body_com_pose_b_ta is None:
+            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b)
+        return self._body_com_pose_b_ta
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def body_com_pos_w(self) -> wp.array:
+    def body_com_pos_w(self) -> ProxyArray:
         """Body CoM positions. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_com_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.body_com_pose_w.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def body_com_quat_w(self) -> wp.array:
+    def body_com_quat_w(self) -> ProxyArray:
         """Body CoM orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_com_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.body_com_pose_w.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     @property
-    def body_com_lin_vel_w(self) -> wp.array:
+    def body_com_lin_vel_w(self) -> ProxyArray:
         """Body CoM linear velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_com_vel_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_com_vel_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def body_com_ang_vel_w(self) -> wp.array:
+    def body_com_ang_vel_w(self) -> ProxyArray:
         """Body CoM angular velocities. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_com_vel_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_com_vel_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     @property
-    def body_com_lin_acc_w(self) -> wp.array:
+    def body_com_lin_acc_w(self) -> ProxyArray:
         """Body CoM linear accelerations. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_com_acc_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_com_acc_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def body_com_ang_acc_w(self) -> wp.array:
+    def body_com_ang_acc_w(self) -> ProxyArray:
         """Body CoM angular accelerations. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_com_acc_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_com_acc_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     @property
-    def body_com_pos_b(self) -> wp.array:
+    def body_com_pos_b(self) -> ProxyArray:
         """Body CoM positions in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_com_pose_b
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.body_com_pose_b.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def body_com_quat_b(self) -> wp.array:
+    def body_com_quat_b(self) -> ProxyArray:
         """Body CoM orientations in body frame. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_com_pose_b
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.body_com_pose_b.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     # -- Body properties --
 
     @property
-    def body_mass(self) -> wp.array:
+    def body_mass(self) -> ProxyArray:
         """Body masses. Shape: (N, num_bodies)."""
         if self._body_mass is None:
-            return wp.ones((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
-        return self._body_mass
+            self._body_mass = wp.ones((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+            self._body_mass_ta = None
+        if self._body_mass_ta is None:
+            self._body_mass_ta = ProxyArray(self._body_mass)
+        return self._body_mass_ta
 
     @property
-    def body_inertia(self) -> wp.array:
+    def body_inertia(self) -> ProxyArray:
         """Body inertias (flattened 3x3). Shape: (N, num_bodies, 9)."""
         if self._body_inertia is None:
             inertia_np = np.zeros((self._num_instances, self._num_bodies, 9), dtype=np.float32)
             inertia_np[..., 0] = 1.0  # Ixx
             inertia_np[..., 4] = 1.0  # Iyy
             inertia_np[..., 8] = 1.0  # Izz
-            return wp.array(inertia_np, dtype=wp.float32, device=self.device)
-        return self._body_inertia
+            self._body_inertia = wp.array(inertia_np, dtype=wp.float32, device=self.device)
+            self._body_inertia_ta = None
+        if self._body_inertia_ta is None:
+            self._body_inertia_ta = ProxyArray(self._body_inertia)
+        return self._body_inertia_ta
 
     # -- Derived properties --
 
     @property
-    def projected_gravity_b(self) -> wp.array:
+    def projected_gravity_b(self) -> ProxyArray:
         """Gravity projection on bodies. Shape: (N, num_bodies), dtype=wp.vec3f."""
         gravity_np = np.zeros((self._num_instances, self._num_bodies, 3), dtype=np.float32)
         gravity_np[..., 2] = -1.0
-        return wp.array(gravity_np, dtype=wp.float32, device=self.device).view(wp.vec3f)
+        return ProxyArray(wp.array(gravity_np, dtype=wp.float32, device=self.device).view(wp.vec3f))
 
     @property
-    def heading_w(self) -> wp.array:
+    def heading_w(self) -> ProxyArray:
         """Yaw heading per body. Shape: (N, num_bodies)."""
-        return wp.zeros((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+        return ProxyArray(wp.zeros((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device))
 
     @property
-    def body_link_lin_vel_b(self) -> wp.array:
+    def body_link_lin_vel_b(self) -> ProxyArray:
         """Body link linear velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        return wp.clone(self.body_link_lin_vel_w, self.device)
+        return ProxyArray(wp.clone(self.body_link_lin_vel_w.warp, self.device))
 
     @property
-    def body_link_ang_vel_b(self) -> wp.array:
+    def body_link_ang_vel_b(self) -> ProxyArray:
         """Body link angular velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        return wp.clone(self.body_link_ang_vel_w, self.device)
+        return ProxyArray(wp.clone(self.body_link_ang_vel_w.warp, self.device))
 
     @property
-    def body_com_lin_vel_b(self) -> wp.array:
+    def body_com_lin_vel_b(self) -> ProxyArray:
         """Body CoM linear velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        return wp.clone(self.body_com_lin_vel_w, self.device)
+        return ProxyArray(wp.clone(self.body_com_lin_vel_w.warp, self.device))
 
     @property
-    def body_com_ang_vel_b(self) -> wp.array:
+    def body_com_ang_vel_b(self) -> ProxyArray:
         """Body CoM angular velocities in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        return wp.clone(self.body_com_ang_vel_w, self.device)
+        return ProxyArray(wp.clone(self.body_com_ang_vel_w.warp, self.device))
 
     # -- Body state (abstract) --
 
     @property
-    def body_state_w(self) -> wp.array:
+    def body_state_w(self) -> ProxyArray:
         """Body states (link pose + CoM velocity). Shape: (N, num_bodies, 13)."""
-        pose = wp.to_torch(self.body_link_pose_w)
-        vel = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+        pose = self.body_link_pose_w.torch
+        vel = self.body_com_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose, vel], dim=-1)))
 
     # -- Shorthand properties (body_pose_w, body_pos_w, com_pos_b, etc.) --
     # Inherited from BaseRigidObjectCollectionData
@@ -336,33 +392,43 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     def set_default_body_pose(self, value: torch.Tensor) -> None:
         self._default_body_pose = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._default_body_pose_ta = None
 
     def set_default_body_vel(self, value: torch.Tensor) -> None:
         self._default_body_vel = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
+        self._default_body_vel_ta = None
 
     def set_body_link_pose_w(self, value: torch.Tensor) -> None:
         self._body_link_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._body_link_pose_w_ta = None
 
     def set_body_link_vel_w(self, value: torch.Tensor) -> None:
         self._body_link_vel_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
+        self._body_link_vel_w_ta = None
 
     def set_body_com_pose_w(self, value: torch.Tensor) -> None:
         self._body_com_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._body_com_pose_w_ta = None
 
     def set_body_com_vel_w(self, value: torch.Tensor) -> None:
         self._body_com_vel_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
+        self._body_com_vel_w_ta = None
 
     def set_body_com_acc_w(self, value: torch.Tensor) -> None:
         self._body_com_acc_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.spatial_vectorf)
+        self._body_com_acc_w_ta = None
 
     def set_body_com_pose_b(self, value: torch.Tensor) -> None:
         self._body_com_pose_b = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._body_com_pose_b_ta = None
 
     def set_body_mass(self, value: torch.Tensor) -> None:
         self._body_mass = wp.from_torch(value.to(self.device).contiguous())
+        self._body_mass_ta = None
 
     def set_body_inertia(self, value: torch.Tensor) -> None:
         self._body_inertia = wp.from_torch(value.to(self.device).contiguous())
+        self._body_inertia_ta = None
 
     def set_mock_data(self, **kwargs) -> None:
         """Bulk setter for mock data."""

@@ -36,9 +36,8 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaacsim.core.cloner import GridCloner
-
 import isaaclab.sim as sim_utils
+from isaaclab import cloner as lab_cloner
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -82,16 +81,16 @@ def main():
     # this is needed to visualize the scene when flatcache is enabled
     sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
-    # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0, stage=sim.stage)
-    cloner.define_base_env("/World/envs")
+    # Create environment clones using Lab's cloner utilities
+    num_envs = args_cli.num_robots
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Clone the scene
-    num_envs = args_cli.num_robots
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    _ = cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
+    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     # Design props
     design_scene()
     # Spawn things into the scene
@@ -110,8 +109,8 @@ def main():
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance
     physics_scene_path = sim.get_physics_context().prim_path
-    cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
+    lab_cloner.filter_collisions(
+        sim.stage, physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
     )
 
     # Play the simulator

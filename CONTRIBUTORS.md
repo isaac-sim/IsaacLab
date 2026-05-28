@@ -60,6 +60,7 @@ Guidelines for modifications:
 * Bocheng Zou
 * Brayden Zhang
 * Brian Bingham
+* Brian Dilinila
 * Brian McCann
 * Caelan Garrett
 * Calvin Yu
@@ -79,8 +80,10 @@ Guidelines for modifications:
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fatima Anes
 * Felipe Mohr
 * Felix Yu
+* Frank Lai
 * Gary Lvov
 * Giulio Romualdi
 * Grzegorz Malczyk
@@ -119,6 +122,7 @@ Guidelines for modifications:
 * Louis Le Lay
 * Lukas Fröhlich
 * Manuel Schweiger
+* Marco Alesiani
 * Masoud Moghani
 * Mateo Guaman Castro
 * Maurice Rahme
@@ -133,6 +137,8 @@ Guidelines for modifications:
 * Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
+* Nicholas Blauch
+* Nicolas Moenne-Loccoz
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
@@ -142,6 +148,7 @@ Guidelines for modifications:
 * Patrick Yin
 * Paul Reeves
 * Peter Du
+* Peter Verswyvelen
 * Philipp Reist
 * Piotr Barejko
 * Pulkit Goyal
@@ -151,6 +158,7 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Schmitt
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise
@@ -182,6 +190,7 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xu Li
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo

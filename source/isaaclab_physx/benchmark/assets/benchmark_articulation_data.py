@@ -60,7 +60,7 @@ import torch
 _mock_physics_sim_view = MagicMock()
 _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
@@ -131,7 +131,6 @@ NOT_IMPLEMENTED_PROPERTIES = {
     "spatial_tendon_damping",
     "spatial_tendon_limit_stiffness",
     "spatial_tendon_offset",
-    "body_incoming_joint_wrench_b",
 }
 
 # Removed default_* properties that raise RuntimeError

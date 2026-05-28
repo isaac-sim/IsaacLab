@@ -22,14 +22,15 @@ pyproject.dependencies.all = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.12.0",
+    "warp-lang==1.13.0",
     "matplotlib>=3.10.3",
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",
     "botocore",
     # livestream
-    "starlette==0.49.1",  # TODO: update starlette once Isaac Lab be released with Isaac Sim 6.0.0
-    "omniverseclient",
+    # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
+    "starlette>=0.46.0,<0.50",
+    "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
     "pytest-mock",
@@ -40,7 +41,11 @@ pyproject.dependencies.all = [
     # visualizers
     "imgui-bundle==1.92.4",
     "rerun-sdk>=0.29.0",
-    "viser>=1.0.16",
+    "pyarrow==22.0.0",
+    # viser is intentionally not a base dep: viser>=1.0.16 pulls websockets>=13.1,
+    # but isaacsim-kernel==6.0.0.0 pins websockets==12.0. Users who want the viser
+    # visualizer install isaaclab[viser] explicitly (see the optional-dependencies
+    # block below).
     "typing_extensions==4.12.2",
     "lazy_loader>=0.4",
     "pin ; platform_system == 'Linux'",
@@ -82,10 +87,8 @@ pyproject.optional-dependencies.all = [
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
     # ================================================================================
     { "newton" = [
-        "warp-lang==1.12.0",
-        "mujoco==3.6.0",
-        "mujoco-warp==3.6.0",
-        "newton @ git+https://github.com/newton-physics/newton.git@a27277ed49d6f307b8a1e4c394be7e1d14965a62",
+        "warp-lang==1.13.0",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
         "PyOpenGL-accelerate==3.1.10"
     ] },
     # ================================================================================
@@ -96,8 +99,14 @@ pyproject.optional-dependencies.all = [
     { "skrl" = ["skrl>=1.4.3"] },
     # { "rl-games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
     # { "rl_games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
-    { "rsl-rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
-    { "rsl_rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
+    { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
+    { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/setup.py
+    # ================================================================================
+    # Viser visualizer (opt-in: viser pulls websockets>=13.1 which collides with
+    # isaacsim-kernel==6.0.0.0's websockets==12.0; do not include in [all]).
+    { "viser" = ["viser>=1.0.16"] },
     # RL libraries (all)
     { "all" = [
         "stable-baselines3>=2.6",
@@ -105,7 +114,7 @@ pyproject.optional-dependencies.all = [
         "rich",
         "skrl>=1.4.3",
         # "rl-games==1.6.1",  # TODO: re-enable when rl-games Python package supports Python 3.11
-        "rsl-rl-lib==3.1.2",
+        "rsl-rl-lib==5.0.1",
         "onnxscript>=0.5",
     ] },
 ]

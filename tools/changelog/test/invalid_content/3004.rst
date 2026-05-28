@@ -1,0 +1,9 @@
+Added
+^^^^^
+
+* Added ``foo()`` to support feature X.
+
+This is a free-form paragraph that lives at column 0 inside the Added
+section, neither a bullet nor a continuation of the previous bullet.
+The bot would splice this verbatim into ``CHANGELOG.rst`` and Sphinx
+then rejects the build with ``Unexpected indentation [docutils]``.

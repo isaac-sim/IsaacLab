@@ -17,13 +17,14 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 
 import pytest
+import torch
 
 import omni.physx
 import omni.usd
 import usdrt
-from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
@@ -194,23 +195,19 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         base_env_path = "/World/envs"
         source_prim_path = f"{base_env_path}/env_0"
 
-        # create cloner
-        cloner = GridCloner(spacing=3, stage=stage_in_memory)
-        cloner.define_base_env(base_env_path)
+        # create environment clones using Isaac Lab's cloner utilities
+        env_ids = torch.arange(num_clones, dtype=torch.long, device="cpu")
+        env_origins, _ = cloner.grid_transforms(num_clones, spacing=3.0, device="cpu")
 
         # create source prim
+        stage_in_memory.DefinePrim(source_prim_path, "Xform")
         sim_utils.create_prim(f"{source_prim_path}/Robot", "Xform", usd_path=usd_path)
 
         # generate target paths
-        target_paths = cloner.generate_paths("/World/envs/env", num_clones)
+        env_fmt = "/World/envs/env_{}"
 
         # clone robots at target paths
-        cloner.clone(
-            source_prim_path=source_prim_path,
-            base_env_path=base_env_path,
-            prim_paths=target_paths,
-            replicate_physics=True,
-        )
+        cloner.usd_replicate(stage_in_memory, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
     # verify prims exist in fabric stage using usdrt apis
     stage_id = sim_utils.get_current_stage_id()

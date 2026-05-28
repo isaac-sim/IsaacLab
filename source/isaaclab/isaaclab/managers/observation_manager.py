@@ -646,7 +646,9 @@ class ObservationManager(ManagerBase):
                     old_dims.insert(1, term_cfg.history_length)
                     obs_dims = tuple(old_dims)
                     if term_cfg.flatten_history_dim:
-                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+                        # Cast to ``int`` so the dim is a plain Python int rather than ``np.int64``;
+                        # otherwise the tuple would render as ``(np.int64(N),)`` in __str__.
+                        obs_dims = (obs_dims[0], int(np.prod(obs_dims[1:])))
 
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
 

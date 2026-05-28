@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Literal
+from typing import Any, Literal
 
 from isaaclab.sim import SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -75,3 +75,30 @@ class AssetBaseCfg:
 
     debug_vis: bool = False
     """Whether to enable debug visualization for the asset. Defaults to ``False``."""
+
+    disable_shape_checks: bool | None = None
+    """Disable shape/dtype validation in setter and writer methods.
+
+    When ``True``, :meth:`~AssetBase.assert_shape_and_dtype` and
+    :meth:`~AssetBase.assert_shape_and_dtype_mask` become no-ops,
+    eliminating per-call assertion overhead.
+
+    When ``False``, shape checks are always enabled, even under ``python -O``.
+
+    When ``None`` (the default), shape checks follow Python's ``__debug__``
+    flag — enabled in normal mode, disabled with ``python -O``.
+    """
+
+    def _post_spawn(self, stage: Any) -> None:
+        """Hook invoked by :class:`~isaaclab.assets.AssetBase` after the asset's prims are
+        spawned and verified to exist on the stage.
+
+        The default implementation is a no-op. Subclasses that need to author additional
+        USD schemas tied to this asset (for example, :class:`~isaaclab.assets.ArticulationCfg`
+        which authors ``NewtonActuator`` prims from its ``actuators`` mapping) should
+        override this method.
+
+        Args:
+            stage: The USD stage on which the asset was spawned.
+        """
+        pass

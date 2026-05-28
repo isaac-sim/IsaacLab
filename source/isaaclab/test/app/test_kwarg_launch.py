@@ -43,25 +43,27 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "visualizer_max_worlds": 0})
+    launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
 
     assert settings.values == {
         "/isaaclab/visualizer/types": "viser rerun",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": 0,
+        "/isaaclab/visualizer/max_visible_envs": 0,
     }
 
 
-def test_set_visualizer_settings_rejects_negative_max_worlds(monkeypatch: pytest.MonkeyPatch):
+def test_set_visualizer_settings_rejects_negative_max_visible_envs(
+    monkeypatch: pytest.MonkeyPatch,
+):
     def _unexpected_settings_manager():
         raise AssertionError("settings manager should not be queried for invalid values")
 
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", _unexpected_settings_manager)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    with pytest.raises(ValueError, match="Invalid value for --visualizer_max_worlds: -5"):
-        launcher._set_visualizer_settings({"visualizer": ["viser"], "visualizer_max_worlds": -5})
+    with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
+        launcher._set_visualizer_settings({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
 def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch: pytest.MonkeyPatch):
@@ -71,17 +73,17 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", _raise_settings_error)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._set_visualizer_settings({"visualizer": ["viser"], "visualizer_max_worlds": 3})
+    launcher._set_visualizer_settings({"visualizer": ["viser"], "max_visible_envs": 3})
 
 
 def test_parse_visualizer_csv_accepts_comma_delimited_values():
-    parsed = app_launcher_module._parse_visualizer_csv("kit,newton,rerun,viser")
+    parsed = app_launcher_module.AppLauncher._parse_visualizer_csv("kit,newton,rerun,viser")
     assert parsed == ["kit", "newton", "rerun", "viser"]
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
     with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        app_launcher_module._parse_visualizer_csv("kit, newton")
+        app_launcher_module.AppLauncher._parse_visualizer_csv("kit, newton")
 
 
 def test_resolve_visualizer_settings_rejects_none_with_others():
@@ -97,11 +99,11 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
     app_launcher_module.AppLauncher.add_app_launcher_args(parser)
 
     args, hydra_args = parser.parse_known_args(
-        ["--visualizer", "kit,newton,rerun", "presets=newton", "env.episode_length=10"]
+        ["--visualizer", "kit,newton,rerun", "presets=newton_mjwarp", "env.episode_length=10"]
     )
 
     assert args.visualizer == ["kit", "newton", "rerun"]
-    assert hydra_args == ["presets=newton", "env.episode_length=10"]
+    assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 
 def _resolve_headless_for_case(monkeypatch: pytest.MonkeyPatch, launcher_args: dict) -> tuple[bool, AppLauncher]:
@@ -150,11 +152,12 @@ def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.Monk
     assert launcher._cli_visualizer_explicit is False
 
 
-def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("visualizer", [None, ["none"]])
+def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch, visualizer):
     headless, launcher = _resolve_headless_for_case(
         monkeypatch,
         {
-            "visualizer": ["none"],
+            "visualizer": visualizer,
             "visualizer_explicit": True,
             "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
         },

@@ -11,7 +11,7 @@ import numpy as np
 import torch
 
 # enable motion generation extensions
-from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
+from isaacsim.core.experimental.utils.app import enable_extension, get_extension_path
 
 enable_extension("isaacsim.robot_motion.lula")
 enable_extension("isaacsim.robot_motion.motion_generation")
@@ -37,7 +37,7 @@ def _resolve_rmpflow_path(path: str) -> str:
     """
     if path.startswith(_RMPFLOW_EXT_PREFIX):
         rel = path[len(_RMPFLOW_EXT_PREFIX) :]
-        ext_dir = get_extension_path_from_name(_RMPFLOW_EXT_NAME)
+        ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
         return os.path.join(ext_dir, rel)
     return path
 

@@ -8,34 +8,40 @@ __all__ = [
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
     "activate_contact_sensors",
+    "define_actuator_properties",
     "define_articulation_root_properties",
     "define_collision_properties",
+    "define_deformable_body_properties",
     "define_mass_properties",
     "define_mesh_collision_properties",
     "define_rigid_body_properties",
     "modify_articulation_root_properties",
     "modify_collision_properties",
+    "modify_deformable_body_properties",
     "modify_fixed_tendon_properties",
     "modify_joint_drive_properties",
     "modify_mass_properties",
     "modify_mesh_collision_properties",
     "modify_rigid_body_properties",
     "modify_spatial_tendon_properties",
-    "ArticulationRootPropertiesCfg",
+    "ArticulationRootBaseCfg",
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
-    "CollisionPropertiesCfg",
-    "ConvexDecompositionPropertiesCfg",
-    "ConvexHullPropertiesCfg",
-    "FixedTendonPropertiesCfg",
-    "JointDrivePropertiesCfg",
+    "CollisionBaseCfg",
+    "DeformableBodyPropertiesBaseCfg",
+    "DeformableBodyPropertiesCfg",
+    "JointDriveBaseCfg",
     "MassPropertiesCfg",
-    "MeshCollisionPropertiesCfg",
-    "RigidBodyPropertiesCfg",
-    "SDFMeshPropertiesCfg",
-    "SpatialTendonPropertiesCfg",
-    "TriangleMeshPropertiesCfg",
-    "TriangleMeshSimplificationPropertiesCfg",
+    "MeshCollisionBaseCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "MujocoRigidBodyPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
+    "RigidBodyBaseCfg",
 ]
 
 from .schemas import (
@@ -45,11 +51,13 @@ from .schemas import (
     activate_contact_sensors,
     define_articulation_root_properties,
     define_collision_properties,
+    define_deformable_body_properties,
     define_mass_properties,
     define_mesh_collision_properties,
     define_rigid_body_properties,
     modify_articulation_root_properties,
     modify_collision_properties,
+    modify_deformable_body_properties,
     modify_fixed_tendon_properties,
     modify_joint_drive_properties,
     modify_mass_properties,
@@ -57,20 +65,28 @@ from .schemas import (
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
 )
+from .schemas_actuators import (
+    define_actuator_properties,
+)
 from .schemas_cfg import (
-    ArticulationRootPropertiesCfg,
+    ArticulationRootBaseCfg,
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
-    CollisionPropertiesCfg,
-    ConvexDecompositionPropertiesCfg,
-    ConvexHullPropertiesCfg,
-    FixedTendonPropertiesCfg,
-    JointDrivePropertiesCfg,
+    CollisionBaseCfg,
+    DeformableBodyPropertiesBaseCfg,
+    DeformableBodyPropertiesCfg,
+    JointDriveBaseCfg,
     MassPropertiesCfg,
-    MeshCollisionPropertiesCfg,
-    RigidBodyPropertiesCfg,
-    SDFMeshPropertiesCfg,
-    SpatialTendonPropertiesCfg,
-    TriangleMeshPropertiesCfg,
-    TriangleMeshSimplificationPropertiesCfg,
+    MeshCollisionBaseCfg,
+    RigidBodyBaseCfg,
 )
+
+# Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
+MujocoJointDrivePropertiesCfg = ...
+MujocoRigidBodyPropertiesCfg = ...
+NewtonArticulationRootPropertiesCfg = ...
+NewtonCollisionPropertiesCfg = ...
+NewtonJointDrivePropertiesCfg = ...
+NewtonMaterialPropertiesCfg = ...
+NewtonMeshCollisionPropertiesCfg = ...
+NewtonRigidBodyPropertiesCfg = ...

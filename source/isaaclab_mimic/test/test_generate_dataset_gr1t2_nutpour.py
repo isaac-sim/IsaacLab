@@ -96,7 +96,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     )
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_gr1t2_nutpour(setup_nutpour_gr1t2_test_environment):
     """Test dataset generation for the GR1T2 nut-pour environment (single env)."""
     workflow_root, input_file = setup_nutpour_gr1t2_test_environment
@@ -104,7 +103,6 @@ def test_generate_dataset_gr1t2_nutpour(setup_nutpour_gr1t2_test_environment):
     _run_generation(workflow_root, input_file, output_file, num_envs=1)
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_gr1t2_nutpour_multi_env(setup_nutpour_gr1t2_test_environment):
     """Test dataset generation for the GR1T2 nut-pour environment (5 envs)."""
     workflow_root, input_file = setup_nutpour_gr1t2_test_environment

@@ -14,9 +14,12 @@ from .mjcf_converter_cfg import MjcfConverterCfg
 class MjcfConverter(AssetConverterBase):
     """Converter for a MJCF description file to a USD file.
 
-    This class wraps around the `isaacsim.asset.importer.mjcf`_ extension to provide a lazy implementation
-    for MJCF to USD conversion. It uses the :class:`MJCFImporter` class and :class:`MJCFImporterConfig`
-    dataclass from Isaac Sim to perform the conversion.
+    This class wraps around the `isaacsim.asset.importer.mjcf`_ extension to provide a lazy
+    implementation for MJCF to USD conversion. All conversion logic (USD schema application,
+    fix-base, density, actuator gains, self-collision, mesh merging, asset transformer
+    profile) is performed by :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` — this class
+    only translates :class:`MjcfConverterCfg` into a flat
+    :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
 
     .. caution::
         The current lazy conversion implementation does not automatically trigger USD generation if
@@ -44,43 +47,41 @@ class MjcfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        # The new MJCF importer outputs to: {usd_path}/{robot_name}/{robot_name}.usda
-        # Pre-adjust usd_file_name to match this output structure so that lazy conversion works correctly.
+        # The MJCF importer outputs to: {usd_path}/{robot_name}/{robot_name}.usda
+        # Pre-adjust `usd_file_name` to match this output structure so that lazy conversion works correctly.
         file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
         cfg.usd_file_name = os.path.join(file_basename, f"{file_basename}.usda")
         super().__init__(cfg=cfg)
 
-    """
-    Implementation specific methods.
-    """
-
     def _convert_asset(self, cfg: MjcfConverterCfg):
-        """Calls underlying Isaac Sim MJCFImporter to convert MJCF to USD.
+        """Run the Isaac Sim MJCF importer pipeline.
 
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        import shutil
-
         from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig
-
-        # Clean up existing output subdirectory so the importer writes fresh files.
-        # The MJCFImporter outputs to {usd_dir}/{robot_name}/{robot_name}.usda and may
-        # skip writing if the output already exists from a previous conversion.
-        file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
-        output_subdir = os.path.join(self.usd_dir, file_basename)
-        if os.path.exists(output_subdir):
-            shutil.rmtree(output_subdir)
 
         import_config = MJCFImporterConfig(
             mjcf_path=cfg.asset_path,
             usd_path=self.usd_dir,
+            import_scene=cfg.import_physics_scene,
             merge_mesh=cfg.merge_mesh,
             collision_from_visuals=cfg.collision_from_visuals,
             collision_type=cfg.collision_type,
             allow_self_collision=cfg.self_collision,
-            import_scene=cfg.import_physics_scene,
+            robot_type=cfg.robot_type,
+            fix_base=cfg.fix_base,
+            link_density=cfg.link_density if cfg.link_density > 0.0 else None,
+            override_gain_type=cfg.override_gain_type,
+            override_bias_type=cfg.override_bias_type,
+            override_gain_prm=cfg.override_gain_prm,
+            override_bias_prm=cfg.override_bias_prm,
+            run_asset_transformer=cfg.run_asset_transformer,
+            run_multi_physics_conversion=cfg.run_multi_physics_conversion,
+            debug_mode=cfg.debug_mode,
         )
 
-        importer = MJCFImporter(import_config)
-        importer.import_mjcf()
+        generated_usd_path = MJCFImporter(import_config).import_mjcf()
+        if generated_usd_path:
+            generated_usd_path = os.path.normpath(generated_usd_path)
+            self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)

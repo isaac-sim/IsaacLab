@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     pass
@@ -28,10 +28,10 @@ class IsaacsimKitPerspectiveVideoCfg:
     camera_prim_path: str = "/OmniverseKit_Persp"
     """Viewport camera prim used for the render product."""
 
-    camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Camera position in world space (metres)."""
 
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Camera look-at target in world space (metres)."""
 
     window_width: int = 1280

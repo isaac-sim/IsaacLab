@@ -27,22 +27,8 @@ from .manager_term_cfg import ActionTermCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-
-@wp.kernel
-def _zero_masked_2d(
-    # input
-    mask: wp.array(dtype=wp.bool),
-    # input/output
-    data: wp.array(dtype=wp.float32, ndim=2),
-):
-    """Zero rows of a 2D buffer where ``mask`` is True.
-
-    Launched with dim = (num_envs, data.shape[1]).
-    """
-
-    env_id, j = wp.tid()
-    if mask[env_id]:
-        data[env_id, j] = 0.0
+# Shared kernel – imported from utils to avoid duplication.
+from isaaclab_experimental.utils.warp.utils import zero_masked_2d as _zero_masked_2d
 
 
 class ActionTerm(ManagerTermBase):

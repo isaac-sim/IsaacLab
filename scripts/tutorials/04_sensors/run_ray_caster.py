@@ -32,7 +32,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -98,9 +97,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     balls: RigidObject = scene_entities["balls"]
 
     # define an initial position of the sensor
-    ball_default_pose = wp.to_torch(balls.data.default_root_pose).clone()
+    ball_default_pose = balls.data.default_root_pose.torch.clone()
     ball_default_pose[:, :3] = torch.rand_like(ball_default_pose[:, :3]) * 10
-    ball_default_vel = wp.to_torch(balls.data.default_root_vel).clone()
+    ball_default_vel = balls.data.default_root_vel.torch.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -120,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Update the ray-caster
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
-            f" {torch.max(wp.to_torch(ray_caster.data.pos_w)).item():.2f}"
+            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}"
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter

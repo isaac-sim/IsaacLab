@@ -265,8 +265,6 @@ from isaaclab.sensors import (
     CameraCfg,
     RayCasterCamera,
     RayCasterCameraCfg,
-    TiledCamera,
-    TiledCameraCfg,
     patterns,
 )
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
@@ -280,14 +278,14 @@ Camera Creation
 
 
 def create_camera_base(
-    camera_cfg: type[CameraCfg | TiledCameraCfg],
+    camera_cfg: type[CameraCfg],
     num_cams: int,
     data_types: list[str],
     height: int,
     width: int,
     prim_path: str | None = None,
     instantiate: bool = True,
-) -> Camera | TiledCamera | CameraCfg | TiledCameraCfg | None:
+) -> Camera | CameraCfg | None:
     """Generalized function to create a camera or tiled camera sensor."""
     # Determine prim prefix based on the camera class
     name = camera_cfg.class_type.__name__
@@ -320,12 +318,12 @@ def create_camera_base(
 
 def create_tiled_cameras(
     num_cams: int = 2, data_types: list[str] | None = None, height: int = 100, width: int = 120
-) -> TiledCamera | None:
+) -> Camera | None:
     if data_types is None:
         data_types = ["rgb", "depth"]
-    """Defines the tiled camera sensor to add to the scene."""
+    """Defines the camera sensor to add to the scene."""
     return create_camera_base(
-        camera_cfg=TiledCameraCfg,
+        camera_cfg=CameraCfg,
         num_cams=num_cams,
         data_types=data_types,
         height=height,
@@ -381,10 +379,10 @@ def create_ray_caster_cameras(
         return None
 
 
-def create_tiled_camera_cfg(prim_path: str) -> TiledCameraCfg:
-    """Grab a simple tiled camera config for injecting into task environments."""
+def create_tiled_camera_cfg(prim_path: str) -> CameraCfg:
+    """Grab a simple camera config for injecting into task environments."""
     return create_camera_base(
-        TiledCameraCfg,
+        CameraCfg,
         num_cams=args_cli.num_tiled_cameras,
         data_types=args_cli.tiled_camera_data_types,
         width=args_cli.width,

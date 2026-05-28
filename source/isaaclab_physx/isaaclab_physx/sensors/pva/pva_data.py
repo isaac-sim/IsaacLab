@@ -10,6 +10,7 @@ import logging
 import warp as wp
 
 from isaaclab.sensors.pva import BasePvaData
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_1d_kernel
 
@@ -20,7 +21,7 @@ class PvaData(BasePvaData):
     """Data container for the PhysX PVA sensor."""
 
     @property
-    def pose_w(self) -> wp.array:
+    def pose_w(self) -> ProxyArray:
         """Pose of the sensor origin in world frame.
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
@@ -33,66 +34,82 @@ class PvaData(BasePvaData):
             outputs=[self._pose_w],
             device=self._device,
         )
-        return self._pose_w
+        if self._pose_w_ta is None:
+            self._pose_w_ta = ProxyArray(self._pose_w)
+        return self._pose_w_ta
 
     @property
-    def pos_w(self) -> wp.array:
+    def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return self._pos_w
+        if self._pos_w_ta is None:
+            self._pos_w_ta = ProxyArray(self._pos_w)
+        return self._pos_w_ta
 
     @property
-    def quat_w(self) -> wp.array:
+    def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         The orientation is provided in (x, y, z, w) format.
         """
-        return self._quat_w
+        if self._quat_w_ta is None:
+            self._quat_w_ta = ProxyArray(self._quat_w)
+        return self._quat_w_ta
 
     @property
-    def projected_gravity_b(self) -> wp.array:
+    def projected_gravity_b(self) -> ProxyArray:
         """Gravity direction unit vector projected on the PVA frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return self._projected_gravity_b
+        if self._projected_gravity_b_ta is None:
+            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b)
+        return self._projected_gravity_b_ta
 
     @property
-    def lin_vel_b(self) -> wp.array:
+    def lin_vel_b(self) -> ProxyArray:
         """PVA frame linear velocity relative to the world expressed in PVA frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return self._lin_vel_b
+        if self._lin_vel_b_ta is None:
+            self._lin_vel_b_ta = ProxyArray(self._lin_vel_b)
+        return self._lin_vel_b_ta
 
     @property
-    def ang_vel_b(self) -> wp.array:
+    def ang_vel_b(self) -> ProxyArray:
         """PVA frame angular velocity relative to the world expressed in PVA frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return self._ang_vel_b
+        if self._ang_vel_b_ta is None:
+            self._ang_vel_b_ta = ProxyArray(self._ang_vel_b)
+        return self._ang_vel_b_ta
 
     @property
-    def lin_acc_b(self) -> wp.array:
+    def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration (coordinate) in the PVA frame [m/s^2].
 
         Equal to -g in freefall, zero at rest.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return self._lin_acc_b
+        if self._lin_acc_b_ta is None:
+            self._lin_acc_b_ta = ProxyArray(self._lin_acc_b)
+        return self._lin_acc_b_ta
 
     @property
-    def ang_acc_b(self) -> wp.array:
+    def ang_acc_b(self) -> ProxyArray:
         """PVA frame angular acceleration relative to the world expressed in PVA frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return self._ang_acc_b
+        if self._ang_acc_b_ta is None:
+            self._ang_acc_b_ta = ProxyArray(self._ang_acc_b)
+        return self._ang_acc_b_ta
 
     def create_buffers(self, num_envs: int, device: str) -> None:
         """Create internal buffers for sensor data.
@@ -118,3 +135,13 @@ class PvaData(BasePvaData):
         self._ang_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._lin_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._ang_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+
+        # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
+        self._pose_w_ta: ProxyArray | None = None
+        self._pos_w_ta: ProxyArray | None = None
+        self._quat_w_ta: ProxyArray | None = None
+        self._projected_gravity_b_ta: ProxyArray | None = None
+        self._lin_vel_b_ta: ProxyArray | None = None
+        self._ang_vel_b_ta: ProxyArray | None = None
+        self._lin_acc_b_ta: ProxyArray | None = None
+        self._ang_acc_b_ta: ProxyArray | None = None

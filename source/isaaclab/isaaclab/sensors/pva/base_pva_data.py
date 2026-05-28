@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
+from isaaclab.utils.leapp import (
+    POSE7_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
+    XYZ_ELEMENT_NAMES,
+    InputKindEnum,
+    leapp_tensor_semantics,
+)
+from isaaclab.utils.warp import ProxyArray
 
 
 class BasePvaData(ABC):
@@ -21,7 +28,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def pose_w(self) -> wp.array | None:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame [m, unitless].
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
@@ -31,7 +39,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def pos_w(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -40,7 +49,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def quat_w(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
@@ -50,7 +60,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def projected_gravity_b(self) -> ProxyArray:
         """Gravity direction unit vector projected on the PVA frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -59,7 +70,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def lin_vel_b(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def lin_vel_b(self) -> ProxyArray:
         """PVA frame linear velocity relative to the world expressed in PVA frame [m/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -68,7 +80,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def ang_vel_b(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def ang_vel_b(self) -> ProxyArray:
         """PVA frame angular velocity relative to the world expressed in PVA frame [rad/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -77,7 +90,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def lin_acc_b(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names=XYZ_ELEMENT_NAMES)
+    def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration (coordinate) in the PVA frame [m/s^2].
 
         Equal to -g in freefall, zero at rest.
@@ -88,7 +102,8 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    def ang_acc_b(self) -> wp.array:
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names=XYZ_ELEMENT_NAMES)
+    def ang_acc_b(self) -> ProxyArray:
         """PVA frame angular acceleration relative to the world expressed in PVA frame [rad/s^2].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).

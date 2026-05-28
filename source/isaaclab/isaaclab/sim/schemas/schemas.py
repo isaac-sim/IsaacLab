@@ -6,18 +6,23 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
-from typing import Any
 
-from pxr import Usd, UsdPhysics
+import numpy as np
+import warp as wp
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
 
 from ..utils import (
     apply_nested,
+    create_prim,
     find_global_fixed_joint_prim,
+    get_all_matching_child_prims,
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
@@ -46,21 +51,167 @@ MESH_APPROXIMATION_TOKENS = {
 }
 
 
-PHYSX_MESH_COLLISION_CFGS = [
-    schemas_cfg.ConvexDecompositionPropertiesCfg,
-    schemas_cfg.ConvexHullPropertiesCfg,
-    schemas_cfg.TriangleMeshPropertiesCfg,
-    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-    schemas_cfg.SDFMeshPropertiesCfg,
-]
+# Lazy accessors. These lists were used by the legacy ``usd_api`` / ``physx_api`` instance-
+# field dispatch in ``modify_mesh_collision_properties``. The new metadata-driven writer
+# does not consult them, but they are preserved as a public API so external code that
+# imported them keeps working. The PhysX leaves now live in ``isaaclab_physx``; we resolve
+# them lazily so this module does not import ``isaaclab_physx`` at load time.
+def _get_physx_mesh_collision_cfgs() -> list:
+    from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
 
-USD_MESH_COLLISION_CFGS = [
-    schemas_cfg.BoundingCubePropertiesCfg,
-    schemas_cfg.BoundingSpherePropertiesCfg,
-    schemas_cfg.ConvexDecompositionPropertiesCfg,
-    schemas_cfg.ConvexHullPropertiesCfg,
-    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-]
+    return [
+        _physx_cfg.PhysxConvexHullPropertiesCfg,
+        _physx_cfg.PhysxConvexDecompositionPropertiesCfg,
+        _physx_cfg.PhysxTriangleMeshPropertiesCfg,
+        _physx_cfg.PhysxTriangleMeshSimplificationPropertiesCfg,
+        _physx_cfg.PhysxSDFMeshPropertiesCfg,
+        # legacy deprecation aliases
+        _physx_cfg.ConvexHullPropertiesCfg,
+        _physx_cfg.ConvexDecompositionPropertiesCfg,
+        _physx_cfg.TriangleMeshPropertiesCfg,
+        _physx_cfg.TriangleMeshSimplificationPropertiesCfg,
+        _physx_cfg.SDFMeshPropertiesCfg,
+    ]
+
+
+class _LazyList:
+    """Lazy list whose contents are produced on first access.
+
+    Used to keep the public ``PHYSX_MESH_COLLISION_CFGS`` / ``USD_MESH_COLLISION_CFGS`` symbols
+    resolvable for callers that imported them, without triggering an ``isaaclab_physx`` import
+    at this module's load time.
+    """
+
+    def __init__(self, factory):
+        self._factory = factory
+        self._cache = None
+
+    def _resolved(self):
+        if self._cache is None:
+            self._cache = list(self._factory())
+        return self._cache
+
+    def __iter__(self):
+        return iter(self._resolved())
+
+    def __contains__(self, item):
+        return item in self._resolved()
+
+    def __len__(self):
+        return len(self._resolved())
+
+    def __getitem__(self, index):
+        return self._resolved()[index]
+
+
+PHYSX_MESH_COLLISION_CFGS = _LazyList(_get_physx_mesh_collision_cfgs)
+
+USD_MESH_COLLISION_CFGS = _LazyList(
+    lambda: [
+        schemas_cfg.BoundingCubePropertiesCfg,
+        schemas_cfg.BoundingSpherePropertiesCfg,
+    ]
+)
+
+
+"""
+Schema-application helper.
+"""
+
+
+def _get_field_declaring_class(cfg_class: type, field_name: str) -> type | None:
+    """Return the most-base class in the MRO that declares ``field_name``.
+
+    Each cfg field is owned by a single class in the hierarchy (the one whose body
+    contains its annotation). This function walks the MRO in reverse so a base class
+    declaration wins over a subclass redeclaration with the same name -- the field's
+    USD namespace follows where it semantically lives, not where it was last
+    overridden for default values.
+    """
+    for cls in reversed(cfg_class.__mro__):
+        if field_name in getattr(cls, "__annotations__", {}):
+            return cls
+    return None
+
+
+def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
+    """Route every cfg field to its declaring class's namespace and apply schemas.
+
+    The helper handles the common ``AddAppliedSchema`` + namespaced-attribute write
+    logic shared by every metadata-driven writer. Caller is responsible for popping
+    fields that need typed-API writes (multi-instance ``UsdPhysics.DriveAPI``,
+    ``TfToken`` attributes with ``allowedTokens``) out of ``cfg_dict`` first.
+
+    USD attribute names are derived by snake_case -> camelCase conversion of cfg field
+    names. The codebase enforces this as a convention: any cfg field whose
+    snake_case name does not produce the correct USD camelCase attr is renamed (with a
+    deprecation alias forwarded in ``__post_init__``) rather than mapped via metadata.
+
+    Two passes:
+
+    1. **Per-field exceptions** -- ``cfg._usd_field_exceptions`` is a mapping
+       ``applied_schema -> (namespace, [cfg_field, ...])``. For each schema, if any
+       listed field is non-None, the schema is applied (once) and each non-None field is
+       written under that schema's namespace. Fields are popped from ``cfg_dict``.
+    2. **Per-declaring-class routing** -- each remaining non-None field is grouped by the
+       class that declares it (walking the MRO). Each group writes under that class's
+       ``_usd_namespace`` and applies that class's ``_usd_applied_schema`` (if any). This
+       means base-class fields go under the base namespace (e.g. ``physics:*``) even when
+       the cfg instance is a PhysX subclass -- the subclass's ``_usd_namespace =
+       "physxRigidBody"`` only governs *its own* fields.
+
+    Args:
+        prim: The USD prim to author on.
+        cfg: The cfg instance carrying the metadata.
+        cfg_dict: A mutable dict view of the cfg's non-metadata fields. Modified in place.
+
+    Raises:
+        ValueError: If a non-None field's declaring class does not define ``_usd_namespace``.
+    """
+    cfg_class = type(cfg)
+
+    # 1. Per-field exceptions (overrides per-class routing for codeless-PhysX-namespace
+    #    fields like ``disable_gravity`` on RigidBodyBaseCfg).
+    field_exceptions = getattr(cfg, "_usd_field_exceptions", {}) or {}
+    for applied_schema, (exc_ns, fields) in field_exceptions.items():
+        triggered: list[tuple[str, object]] = []
+        for cfg_field in fields:
+            if cfg_field in cfg_dict:
+                value = cfg_dict.pop(cfg_field)
+                if value is not None:
+                    triggered.append((to_camel_case(cfg_field, "cC"), value))
+        if not triggered:
+            continue
+        if applied_schema and applied_schema not in prim.GetAppliedSchemas():
+            prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in triggered:
+            safe_set_attribute_on_usd_prim(prim, f"{exc_ns}:{usd_attr}", value, camel_case=False)
+
+    # 2. Group remaining non-None writes by declaring class.
+    by_class: dict[type, list[tuple[str, object]]] = {}
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is None:
+            continue
+        decl_class = _get_field_declaring_class(cfg_class, cfg_field)
+        if decl_class is None:
+            continue
+        by_class.setdefault(decl_class, []).append((to_camel_case(cfg_field, "cC"), value))
+
+    for decl_class, writes in by_class.items():
+        # Read namespace/schema from the declaring class's own ``__dict__`` (not via
+        # ``getattr``) so subclass overrides don't leak into base-field routing.
+        namespace = decl_class.__dict__.get("_usd_namespace", None)
+        applied_schema = decl_class.__dict__.get("_usd_applied_schema", None)
+        if namespace is None:
+            raise ValueError(
+                f"{decl_class.__name__} declares fields {[a for a, _ in writes]} but does"
+                " not define '_usd_namespace'. Add '_usd_namespace' to the class metadata"
+                " or route the fields via '_usd_field_exceptions'."
+            )
+        if applied_schema and applied_schema not in prim.GetAppliedSchemas():
+            prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in writes:
+            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
 """
@@ -69,7 +220,7 @@ Articulation root properties.
 
 
 def define_articulation_root_properties(
-    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
 ):
     """Apply the articulation root schema on the input prim and set its properties.
 
@@ -103,7 +254,7 @@ def define_articulation_root_properties(
 
 @apply_nested
 def modify_articulation_root_properties(
-    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for an articulation root prim.
 
@@ -153,21 +304,14 @@ def modify_articulation_root_properties(
     # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
-    # ensure PhysX articulation API is applied
-    applied_schemas = articulation_prim.GetAppliedSchemas()
-    if "PhysxArticulationAPI" not in applied_schemas:
-        articulation_prim.AddAppliedSchema("PhysxArticulationAPI")
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    # extract non-USD properties
-    fix_root_link = cfg.pop("fix_root_link", None)
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
+    # extract writer-side (non-USD) properties
+    fix_root_link = cfg_dict.pop("fix_root_link", None)
 
-    # set into physx api (prim attributes under physxArticulation:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(
-            articulation_prim, f"physxArticulation:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-        )
+    # apply per-field exceptions + main-namespace writes
+    _apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     # fix root link based on input
     # we do the fixed joint processing later to not interfere with setting other properties
@@ -242,9 +386,7 @@ Rigid body properties.
 """
 
 
-def define_rigid_body_properties(
-    prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage | None = None
-):
+def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):
     """Apply the rigid body schema on the input prim and set its properties.
 
     See :func:`modify_rigid_body_properties` for more details on how the properties are set.
@@ -277,16 +419,16 @@ def define_rigid_body_properties(
 
 @apply_nested
 def modify_rigid_body_properties(
-    prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
-    """Modify PhysX parameters for a rigid body prim.
+    """Modify parameters for a rigid body prim.
 
-    A `rigid body`_ is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
-    A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by the user, but does not
-    respond to forces. They are similar to having static bodies that can be moved around.
+    A `rigid body`_ is a single body that can be simulated by a physics engine. It can be either dynamic
+    or kinematic. A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by
+    the user, but does not respond to forces.
 
-    The schema comprises of attributes that belong to the `RigidBodyAPI`_ and `PhysxRigidBodyAPI`_.
-    schemas. The latter contains the PhysX parameters for the rigid body.
+    Solver-common properties (from `RigidBodyAPI`_) are always written. Solver-specific properties are
+    written based on the cfg subclass metadata (``_usd_namespace``, ``_usd_applied_schema``).
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
@@ -295,11 +437,13 @@ def modify_rigid_body_properties(
     .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/RigidBodyOverview.html
     .. _kinematic body: https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies
     .. _RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
-    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
 
     Args:
         prim_path: The prim path to the rigid body.
-        cfg: The configuration for the rigid body.
+        cfg: The configuration for the rigid body. Accepts
+            :class:`~schemas_cfg.RigidBodyBaseCfg` for solver-common properties,
+            :class:`~schemas_cfg.PhysxRigidBodyPropertiesCfg` for PhysX properties, or
+            :class:`~schemas_cfg.MujocoRigidBodyPropertiesCfg` for Newton (MuJoCo) properties.
         stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
@@ -315,25 +459,14 @@ def modify_rigid_body_properties(
     # check if prim has rigid-body applied on it
     if not UsdPhysics.RigidBodyAPI(rigid_body_prim):
         return False
-    # retrieve the USD rigid-body api
-    usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
-    # ensure PhysX rigid body API is applied
-    applied_schemas = rigid_body_prim.GetAppliedSchemas()
-    if "PhysxRigidBodyAPI" not in applied_schemas:
-        rigid_body_prim.AddAppliedSchema("PhysxRigidBodyAPI")
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    # set into USD API
-    for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
-        value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
-    # set into PhysX API (prim attributes under physxRigidBody:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(
-            rigid_body_prim, f"physxRigidBody:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-        )
-    # success
+    # All fields routed by the helper via per-declaring-class lookup: base
+    # ``rigid_body_enabled`` / ``kinematic_enabled`` go under ``physics:*``;
+    # ``disable_gravity`` via field exceptions; PhysX-subclass fields under
+    # ``physxRigidBody:*``.
+    _apply_namespaced_schemas(rigid_body_prim, cfg, cfg_dict)
     return True
 
 
@@ -412,29 +545,21 @@ def modify_collision_properties(
     # check if prim has collision applied on it
     if not UsdPhysics.CollisionAPI(collider_prim):
         return False
-    # retrieve the USD collision api
-    usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
-    # ensure PhysX collision API is applied
-    applied_schemas = collider_prim.GetAppliedSchemas()
-    if "PhysxCollisionAPI" not in applied_schemas:
-        collider_prim.AddAppliedSchema("PhysxCollisionAPI")
-
+    # dispatch nested mesh-collision cfg if present (preserve legacy behavior)
     mesh_collision_cfg = getattr(cfg, "mesh_collision_property", None)
     if mesh_collision_cfg is not None:
         modify_mesh_collision_properties(prim_path, mesh_collision_cfg, stage)
-    # convert to dict
-    cfg = cfg.to_dict()
-    # pop the mesh_collision_property since it is already set
-    cfg.pop("mesh_collision_property", None)
-    # set into USD API
-    for attr_name in ["collision_enabled"]:
-        value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value, camel_case=True)
-    # set into PhysX API (prim attributes under physxCollision:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(
-            collider_prim, f"physxCollision:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-        )
+
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
+    # pop the mesh_collision_property since it is already dispatched above
+    cfg_dict.pop("mesh_collision_property", None)
+
+    # All fields routed by the helper via per-declaring-class lookup: base
+    # ``collision_enabled`` goes under ``physics:*``; ``contact_offset`` /
+    # ``rest_offset`` via field exceptions; PhysX-subclass fields under
+    # ``physxCollision:*``.
+    _apply_namespaced_schemas(collider_prim, cfg, cfg_dict)
     # success
     return True
 
@@ -513,15 +638,10 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     # check if prim has mass API applied on it
     if not UsdPhysics.MassAPI(rigid_prim):
         return False
-    # retrieve the USD mass api
-    usd_physics_mass_api = UsdPhysics.MassAPI(rigid_prim)
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    # set into USD API
-    for attr_name in ["mass", "density"]:
-        value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_physics_mass_api, attr_name, value, camel_case=True)
+    # ``mass`` / ``density`` (``physics:*``) routed via the helper's per-declaring-class lookup.
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
+    _apply_namespaced_schemas(rigid_prim, cfg, cfg_dict)
     # success
     return True
 
@@ -612,17 +732,16 @@ Joint drive properties.
 
 @apply_nested
 def modify_joint_drive_properties(
-    prim_path: str, cfg: schemas_cfg.JointDrivePropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.JointDriveBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
-    """Modify PhysX parameters for a joint prim.
+    """Modify parameters for a joint prim.
 
     This function checks if the input prim is a prismatic or revolute joint and applies the joint drive schema
     on it. If the joint is a tendon (i.e., it has the `PhysxTendonAxisAPI`_ schema applied on it), then the joint
     drive schema is not applied.
 
-    Based on the configuration, this method modifies the properties of the joint drive. These properties are
-    based on the `UsdPhysics.DriveAPI`_ schema. For more information on the properties, please refer to the
-    official documentation.
+    Solver-common properties (from `UsdPhysics.DriveAPI`_) are always written. Solver-specific properties
+    are written based on the cfg subclass metadata (``_usd_namespace``, ``_usd_applied_schema``).
 
     .. caution::
 
@@ -635,7 +754,10 @@ def modify_joint_drive_properties(
 
     Args:
         prim_path: The prim path where to apply the joint drive schema.
-        cfg: The configuration for the joint drive.
+        cfg: The configuration for the joint drive. Accepts
+            :class:`~schemas_cfg.JointDriveBaseCfg` for solver-common properties,
+            :class:`~schemas_cfg.PhysxJointDrivePropertiesCfg` for PhysX properties, or
+            :class:`~schemas_cfg.MujocoJointDrivePropertiesCfg` for Newton (MuJoCo) properties.
         stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
@@ -671,54 +793,49 @@ def modify_joint_drive_properties(
     usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
-    # ensure PhysX joint API is applied
-    if "PhysxJointAPI" not in applied_schemas_str:
-        prim.AddAppliedSchema("PhysxJointAPI")
 
-    # mapping from configuration name to USD attribute name
-    cfg_to_usd_map = {
-        "max_velocity": "max_joint_velocity",
-        "max_effort": "max_force",
-        "drive_type": "type",
-    }
-    # convert to dict
-    cfg = cfg.to_dict()
+    # ``drive_type`` is a permanent inline carve-out: the USD attribute is named ``type``
+    # (a Python keyword-like name we cannot use as a cfg field). All other solver-common
+    # joint-drive fields follow the snake_case = camelCase convention.
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
 
     # ensure_drives_exist: if both stiffness and damping are zero on the authored drive,
     # set a minimal stiffness so that backends like Newton recognise the drive as active.
-    ensure_drives = cfg.pop("ensure_drives_exist", False)
-    if ensure_drives and cfg["stiffness"] is None and cfg["damping"] is None:
+    ensure_drives = cfg_dict.pop("ensure_drives_exist", False)
+    if ensure_drives and cfg_dict["stiffness"] is None and cfg_dict["damping"] is None:
         # read the current values from the drive
         cur_stiffness = usd_drive_api.GetStiffnessAttr().Get()
         cur_damping = usd_drive_api.GetDampingAttr().Get()
         if (cur_stiffness is None or cur_stiffness == 0.0) and (cur_damping is None or cur_damping == 0.0):
-            cfg["stiffness"] = 1e-3
+            cfg_dict["stiffness"] = 1e-3
 
     # check if linear drive
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
     # convert values for angular drives from radians to degrees units
     if not is_linear_drive:
-        if cfg["max_velocity"] is not None:
-            # rad / s --> deg / s
-            cfg["max_velocity"] = cfg["max_velocity"] * 180.0 / math.pi
-        if cfg["stiffness"] is not None:
+        if cfg_dict.get("max_joint_velocity") is not None:
+            # rad / s --> deg / s (PhysX angular convention is degrees)
+            cfg_dict["max_joint_velocity"] = cfg_dict["max_joint_velocity"] * 180.0 / math.pi
+        if cfg_dict["stiffness"] is not None:
             # N-m/rad --> N-m/deg
-            cfg["stiffness"] = cfg["stiffness"] * math.pi / 180.0
-        if cfg["damping"] is not None:
+            cfg_dict["stiffness"] = cfg_dict["stiffness"] * math.pi / 180.0
+        if cfg_dict["damping"] is not None:
             # N-m-s/rad --> N-m-s/deg
-            cfg["damping"] = cfg["damping"] * math.pi / 180.0
+            cfg_dict["damping"] = cfg_dict["damping"] * math.pi / 180.0
 
-    # set into PhysX API (prim attributes under physxJoint:*)
-    for attr_name in ["max_velocity"]:
-        value = cfg.pop(attr_name, None)
-        usd_attr_name = cfg_to_usd_map[attr_name]
-        safe_set_attribute_on_usd_prim(
-            prim, f"physxJoint:{to_camel_case(usd_attr_name, 'cC')}", value, camel_case=False
-        )
-    # set into USD API
-    for attr_name, attr_value in cfg.items():
-        attr_name = cfg_to_usd_map.get(attr_name, attr_name)
-        safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
+    # set into USD API (solver-common properties; UsdPhysics.DriveAPI fields). Pop only
+    # the solver-common fields here; the helper handles the PhysX-namespaced remainder.
+    for attr_name in ["drive_type", "max_force", "stiffness", "damping"]:
+        if attr_name not in cfg_dict:
+            continue
+        attr_value = cfg_dict.pop(attr_name)
+        usd_attr_name = "type" if attr_name == "drive_type" else attr_name
+        safe_set_attribute_on_usd_schema(usd_drive_api, usd_attr_name, attr_value, camel_case=True)
+
+    # apply per-field exceptions (max_velocity -> physxJoint:maxJointVelocity) + any
+    # PhysX-subclass main-namespace writes
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
     return True
 
@@ -730,7 +847,7 @@ Fixed tendon properties.
 
 @apply_nested
 def modify_fixed_tendon_properties(
-    prim_path: str, cfg: schemas_cfg.FixedTendonPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.PhysxFixedTendonPropertiesCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a fixed tendon attachment prim.
 
@@ -794,7 +911,7 @@ Spatial tendon properties.
 
 @apply_nested
 def modify_spatial_tendon_properties(
-    prim_path: str, cfg: schemas_cfg.SpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.PhysxSpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a spatial tendon attachment prim.
 
@@ -858,75 +975,19 @@ Collision mesh properties.
 """
 
 
-def _get_physx_collision_namespace(schema_name: str) -> str:
-    """Convert PhysX schema name to attribute namespace used on the prim."""
-    if not schema_name:
-        raise ValueError("PhysX schema name must be provided for mesh collision properties.")
-    schema_name = schema_name.removesuffix("API")
-    return schema_name[0].lower() + schema_name[1:]
-
-
-def _get_usd_mesh_collision_api(api_name: str):
-    """Resolve the USD mesh collision API from a string name."""
-    if not api_name:
-        raise ValueError("USD schema name must be provided for mesh collision properties.")
-    usd_api = getattr(UsdPhysics, api_name, None)
-    if usd_api is None:
-        raise ValueError(f"USD schema '{api_name}' not found in UsdPhysics.")
-    return usd_api
-
-
-def extract_mesh_collision_api_and_attrs(
-    cfg: schemas_cfg.MeshCollisionPropertiesCfg,
-) -> tuple[tuple[str, Any], dict[str, Any]]:
-    """Extract the mesh collision API type/value and custom attributes from the configuration.
-
-    Args:
-        cfg: The configuration for the mesh collision properties.
-
-    Returns:
-        A tuple of ((api_type, api_value), custom_attrs). api_type is "usd" or "physx";
-        api_value is the USD API class (callable) or PhysX schema name string.
-
-    Raises:
-        ValueError: When neither USD nor PhysX API can be determined to be used.
-    """
-    custom_attrs = {
-        key: value
-        for key, value in cfg.to_dict().items()
-        if value is not None and key not in ["usd_api", "physx_api", "mesh_approximation_name"]
-    }
-
-    use_usd_api = False
-    use_physx_api = False
-
-    if len(custom_attrs) > 0 and type(cfg) in PHYSX_MESH_COLLISION_CFGS:
-        use_physx_api = True
-    elif len(custom_attrs) == 0:
-        if type(cfg) in USD_MESH_COLLISION_CFGS:
-            use_usd_api = True
-        else:
-            use_physx_api = True
-    elif len(custom_attrs) > 0 and type(cfg) in USD_MESH_COLLISION_CFGS:
-        raise ValueError("Args are specified but the USD Mesh API doesn't support them!")
-
-    if use_usd_api and getattr(cfg, "usd_api", None):
-        return ("usd", cfg.usd_api), custom_attrs
-    if use_physx_api and getattr(cfg, "physx_api", None):
-        return ("physx", cfg.physx_api), custom_attrs
-    raise ValueError("Either USD or PhysX API should be used for modifying mesh collision attributes!")
-
-
 def define_mesh_collision_properties(
-    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.MeshCollisionBaseCfg, stage: Usd.Stage | None = None
 ):
     """Apply the mesh collision schema on the input prim and set its properties.
-    See :func:`modify_collision_mesh_properties` for more details on how the properties are set.
+
+    See :func:`modify_mesh_collision_properties` for more details on how the properties are set.
+
     Args:
-        prim_path : The prim path where to apply the mesh collision schema.
-        cfg : The configuration for the mesh collision properties.
-        stage : The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path where to apply the mesh collision schema.
+        cfg: The configuration for the mesh collision properties.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
+
     Raises:
         ValueError: When the prim path is not valid.
     """
@@ -939,36 +1000,43 @@ def define_mesh_collision_properties(
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
-    (api_type, api_value), _ = extract_mesh_collision_api_and_attrs(cfg=cfg)
-
-    if api_type == "usd":
-        usd_api_class = _get_usd_mesh_collision_api(api_value)
-        if not usd_api_class(prim):
-            usd_api_class.Apply(prim)
-    else:
-        if api_value not in prim.GetAppliedSchemas():
-            prim.AddAppliedSchema(api_value)
+    # Always apply the standard ``UsdPhysics.MeshCollisionAPI`` so the approximation token is
+    # writable. The PhysX cooking schema (if any) is applied lazily by the writer below
+    # only when the user authored at least one PhysX-namespaced tuning field.
+    if not UsdPhysics.MeshCollisionAPI(prim):
+        UsdPhysics.MeshCollisionAPI.Apply(prim)
 
     modify_mesh_collision_properties(prim_path=prim_path, cfg=cfg, stage=stage)
 
 
 @apply_nested
 def modify_mesh_collision_properties(
-    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.MeshCollisionBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Set properties for the mesh collision of a prim.
-    These properties are based on either the `Phsyx the `UsdPhysics.MeshCollisionAPI` schema.
+
+    Metadata-driven writer. The standard ``UsdPhysics.MeshCollisionAPI`` is applied
+    unconditionally (it is the carrier of the ``physics:approximation`` token). The
+    PhysX cooking schema declared by ``_usd_applied_schema`` (e.g.
+    ``PhysxConvexHullCollisionAPI``) is gated on the user authoring at least one
+    non-``None`` namespaced tuning field, mirroring the gating used by the other
+    consumption-gated writers (rigid body, joint drive, collision, articulation root).
+
     .. note::
-        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
-        (that have the schema applied on them) under the input prim path.
-    .. UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+        This function is decorated with :func:`apply_nested` that sets the properties to
+        all the prims (that have the schema applied on them) under the input prim path.
+
+    .. _UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+
     Args:
-        prim_path : The prim path of the rigid body. This prim should be a Mesh prim.
-        cfg : The configuration for the mesh collision properties.
-        stage : The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path of the rigid body. This prim should be a Mesh prim.
+        cfg: The configuration for the mesh collision properties.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
+
     Returns:
         True if the properties were successfully set, False otherwise.
+
     Raises:
         ValueError: When the mesh approximation name is invalid.
     """
@@ -981,8 +1049,12 @@ def modify_mesh_collision_properties(
     # we need MeshCollisionAPI to set mesh collision approximation attribute
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
-    # convert mesh approximation string to token
-    approximation_name = cfg.mesh_approximation_name
+
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
+
+    # write the standard ``physics:approximation`` token via UsdPhysics.MeshCollisionAPI
+    approximation_name = cfg_dict.pop("mesh_approximation_name", "none")
     if approximation_name not in MESH_APPROXIMATION_TOKENS:
         raise ValueError(
             f"Invalid mesh approximation name: '{approximation_name}'. "
@@ -993,23 +1065,371 @@ def modify_mesh_collision_properties(
         UsdPhysics.MeshCollisionAPI(prim), "Approximation", approximation_token, camel_case=False
     )
 
-    (api_type, api_value), custom_attrs = extract_mesh_collision_api_and_attrs(cfg=cfg)
+    # The standard ``UsdPhysics.MeshCollisionAPI`` is already applied above. The base
+    # ``MeshCollisionBaseCfg`` declares ``_usd_applied_schema = "MeshCollisionAPI"`` so the
+    # helper would re-apply (idempotent) if any base-namespace write fired. PhysX cooking
+    # subclasses (ConvexHull / TriangleMesh / SDF / ...) override the schema and namespace
+    # to author their tuning fields under e.g. ``physxConvexHullCollision:*``; the helper
+    # gates ``Physx*CollisionAPI`` application on at least one non-None tuning field, so
+    # Newton-targeted prims stay free of PhysX cooking schemas they did not opt in to.
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
-    if api_type == "usd":
-        usd_api_class = _get_usd_mesh_collision_api(api_value)
-        mesh_collision_api = usd_api_class(prim)
-        if not mesh_collision_api:
-            return False
-        for attr_name, value in custom_attrs.items():
-            camel_case = attr_name != "Attribute"
-            safe_set_attribute_on_usd_schema(mesh_collision_api, attr_name, value, camel_case=camel_case)
+    # success
+    return True
+
+
+"""
+Deformable body properties.
+"""
+
+
+@wp.kernel
+def _fix_tet_winding_kernel(
+    points: wp.array(dtype=wp.vec3),
+    tet_indices: wp.array(ndim=2, dtype=wp.int32),
+):
+    """Flip any tet with negative signed volume by swapping its last two vertex indices.
+
+    ``UsdGeom.TetMesh`` and :meth:`UsdGeom.TetMesh.ComputeSurfaceFaces` require a
+    right-handed tet winding (positive signed volume). Swapping indices 2 and 3
+    reverses the orientation without changing which four vertices form the tet.
+    """
+    i = wp.tid()
+    v0 = tet_indices[i, 0]
+    v1 = tet_indices[i, 1]
+    v2 = tet_indices[i, 2]
+    v3 = tet_indices[i, 3]
+    p0 = points[v0]
+    e1 = points[v1] - p0
+    e2 = points[v2] - p0
+    e3 = points[v3] - p0
+    signed_volume = wp.dot(e1, wp.cross(e2, e3))
+    if signed_volume < 0.0:
+        tet_indices[i, 2] = v3
+        tet_indices[i, 3] = v2
+
+
+def define_deformable_body_properties(
+    prim_path: str,
+    cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,
+    stage: Usd.Stage | None = None,
+    deformable_type: str = "volume",
+    sim_mesh_prim_path: str | None = None,
+):
+    """Apply the deformable body schema on the input prim and set its properties. The input prim should
+    have a visual surface mesh as child. Volume deformables will have their simulation tetrahedral mesh
+    automatically computed from the surface mesh of the input prim. Surface deformables simply copy the visual mesh
+    as simulation mesh.
+
+    See :func:`modify_deformable_body_properties` for more details on how the properties are set.
+
+    .. note::
+        If the input prim is not a mesh, this function will traverse the prim and find the first mesh
+        under it. If no mesh or multiple meshes are found, an error is raised. This is because the deformable
+        body schema can only be applied to a single mesh.
+
+    Args:
+        prim_path: The prim path where to apply the deformable body schema.
+        cfg: The configuration for the deformable body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+        deformable_type: The type of the deformable body (surface or volume).
+            This is used to determine which USD API to use for the deformable body. Defaults to "volume".
+        sim_mesh_prim_path: Optional override for the simulation mesh creation prim path.
+            Ignored when pre-tetrahedralized mesh is found for volume deformables.
+            If None, it is set to ``{prim_path}/sim_mesh``.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+        ValueError: When the prim has no mesh or multiple meshes.
+        RuntimeError: When setting the deformable body properties fails.
+    """
+    from omni.physx.scripts import deformableUtils
+
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
+    # get USD prim
+    root_prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not root_prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    sim_mesh_prim = None
+    # for volume deformables, we check if a pre-tetrahedralized TetMesh exists for the sim_mesh
+    if deformable_type == "volume":
+        matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "TetMesh")
+        if len(matching_prims) == 0:
+            sim_mesh_prim = None
+        elif len(matching_prims) > 1:
+            # get list of all meshes found
+            mesh_paths = [p.GetPrimPath() for p in matching_prims]
+            raise ValueError(
+                f"Found multiple tetrahedral meshes in '{prim_path}': {mesh_paths}."
+                " Deformable body schema can only be applied to one mesh for now."
+            )
+        else:
+            # found existing tetmesh
+            sim_mesh_prim = matching_prims[0]
+            if not sim_mesh_prim.IsValid():
+                raise ValueError(f"Mesh prim path '{sim_mesh_prim.GetPrimPath()}' is not valid.")
+
+    # Search for a visual surface mesh for both surface and volume deformables
+    matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "Mesh")
+    # check if the visual surface mesh is valid
+    if len(matching_prims) == 0:
+        # in case a TetMesh is found but no Mesh is found, we use the TetMesh surface as visual.
+        if sim_mesh_prim is not None:
+            tet_mesh_prim = UsdGeom.TetMesh(sim_mesh_prim)
+            surface_indices = UsdGeom.TetMesh.ComputeSurfaceFaces(tet_mesh_prim, Usd.TimeCode.Default())
+            if surface_indices is None or len(surface_indices) == 0:
+                raise ValueError(
+                    f"Deformable body at '{prim_path}' has no surface indices on its TetMesh prim; "
+                    "cannot sync to visual mesh."
+                )
+            # create visual mesh
+            vis_mesh_prim = create_prim(
+                prim_path + "/vis_mesh",
+                prim_type="Mesh",
+                attributes={
+                    "points": tet_mesh_prim.GetPointsAttr().Get(),
+                    "faceVertexIndices": np.asarray(surface_indices).flatten(),
+                    "faceVertexCounts": [3] * len(surface_indices),
+                },
+                stage=stage,
+            )
+            matching_prims = [vis_mesh_prim]
+        else:
+            raise ValueError(f"Could not find any visual mesh in '{prim_path}'. Please check asset.")
+    if len(matching_prims) > 1:
+        # get list of all meshes found
+        mesh_paths = [p.GetPrimPath() for p in matching_prims]
+        raise ValueError(
+            f"Found multiple visual meshes in '{prim_path}': {mesh_paths}."
+            " Deformable body schema can only be applied to one mesh for now."
+        )
+    vis_mesh_prim = matching_prims[0]
+
+    # check if the prim is valid
+    if not vis_mesh_prim.IsValid():
+        raise ValueError(f"Mesh prim path '{vis_mesh_prim.GetPrimPath()}' is not valid.")
+
+    # remove potential previous configuration
+    deformableUtils.remove_deformable_body(stage, prim_path)
+
+    # create and set simulation/root prim properties based on the type of the deformable mesh (surface vs volume)
+    sim_mesh_prim_path = prim_path + "/sim_mesh" if sim_mesh_prim_path is None else sim_mesh_prim_path
+    # extract visual surface mesh vertices and faces
+    vertices = np.array(vis_mesh_prim.GetAttribute("points").Get())
+    faces = np.array(vis_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
+    face_counts = np.array(vis_mesh_prim.GetAttribute("faceVertexCounts").Get())
+    if deformable_type == "surface":
+        # create simulation mesh as copy of visual mesh
+        sim_mesh_prim = create_prim(
+            sim_mesh_prim_path,
+            prim_type="Mesh",
+            attributes={
+                "points": vertices,
+                "faceVertexIndices": faces,
+                "faceVertexCounts": face_counts,
+            },
+            stage=stage,
+        )
+
+        # apply sim API
+        if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
+            raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
+
+        # apply collision API
+        if not sim_mesh_prim.ApplyAPI(UsdPhysics.CollisionAPI):
+            raise RuntimeError(f"Failed to set surface deformable collision API on prim '{sim_mesh_prim_path}'.")
+
+        # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
+        sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(vertices)
+        sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(faces)
+
+    elif deformable_type == "volume":
+        if sim_mesh_prim is None:
+            try:
+                from pytetwild import tetrahedralize
+            except ImportError as exc:
+                raise ImportError(
+                    "Automatic tetrahedralization of volume deformables requires the optional 'pytetwild' "
+                    "package. Install pytetwild or provide a pre-tetrahedralized UsdGeom.TetMesh under the "
+                    f"deformable prim '{prim_path}'."
+                ) from exc
+
+            tet_mesh_points, tet_mesh_indices = tetrahedralize(
+                vertices,
+                faces.reshape(-1, 3),
+                edge_length_fac=0.1,
+                simplify=False,
+                epsilon=1e-2,
+                coarsen=True,
+            )
+            # pytetwild's default ordering does not guarantee positive signed volume, which
+            # ``UsdGeom.TetMesh`` and ``ComputeSurfaceFaces`` require. Flip any inverted tets.
+            device = "cpu"
+            _tet_points_wp = wp.array(tet_mesh_points.astype(np.float32), dtype=wp.vec3, device=device)
+            _tet_indices_wp = wp.array(
+                np.asarray(tet_mesh_indices, dtype=np.int32).reshape(-1, 4), dtype=wp.int32, device=device
+            )
+            wp.launch(
+                _fix_tet_winding_kernel,
+                dim=_tet_indices_wp.shape[0],
+                inputs=[_tet_points_wp, _tet_indices_wp],
+                device=device,
+            )
+            tet_mesh_indices = _tet_indices_wp.numpy()
+            sim_mesh_prim = create_prim(
+                sim_mesh_prim_path,
+                prim_type="TetMesh",
+                attributes={
+                    "points": tet_mesh_points,
+                    "tetVertexIndices": tet_mesh_indices,
+                },
+                stage=stage,
+            )
+
+        # apply sim API
+        if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
+            raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
+
+        # apply collision API
+        if not sim_mesh_prim.ApplyAPI(UsdPhysics.CollisionAPI):
+            raise RuntimeError(f"Failed to set volume deformable collision API on prim '{sim_mesh_prim_path}'.")
+
+        # set surface faces and rest-shape attributes required by OmniPhysicsVolumeDeformableSimAPI
+        surface_face_indices = UsdGeom.TetMesh.ComputeSurfaceFaces(
+            UsdGeom.TetMesh(sim_mesh_prim), Usd.TimeCode.Default()
+        )
+        UsdGeom.TetMesh(sim_mesh_prim).GetSurfaceFaceVertexIndicesAttr().Set(surface_face_indices)
+        sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+        sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
+            sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
+        )
+
     else:
-        if api_value not in prim.GetAppliedSchemas():
-            return False
-        attr_namespace = _get_physx_collision_namespace(api_value)
-        for attr_name, value in custom_attrs.items():
-            attr_token = attr_name if attr_name == "Attribute" else to_camel_case(attr_name, "cC")
-            safe_set_attribute_on_usd_prim(prim, f"{attr_namespace}:{attr_token}", value, camel_case=False)
+        raise ValueError(
+            f"""Unsupported deformable type: '{deformable_type}'.
+            Only surface and volume deformables are supported."""
+        )
 
+    # TODO: Temporary solution: Overwrite visual mesh with tet mesh surface points or copy
+    # surface sim mesh to vis mesh. In the future we can have separate visual from simulation mesh.
+    # This currently does not work if an asset is loaded where the visual mesh is not the simulation mesh surface.
+    vis_mesh = UsdGeom.Mesh(vis_mesh_prim)
+    if deformable_type == "volume":
+        tet_mesh_prim = UsdGeom.TetMesh(sim_mesh_prim)
+        surface_indices = tet_mesh_prim.GetSurfaceFaceVertexIndicesAttr().Get()
+        if surface_indices is None or len(surface_indices) == 0:
+            raise ValueError(
+                f"Deformable body at '{prim_path}' has no surface indices on its TetMesh prim; "
+                "cannot sync to visual mesh."
+            )
+        vis_mesh.GetPointsAttr().Set(tet_mesh_prim.GetPointsAttr().Get())
+        vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+        vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+    else:
+        sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
+        vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+        vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+
+    # bind visual to sim mesh by applying bind pose deformable pose API
+    purposes = ["bindPose"]
+    vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+    vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        purposes
+    )
+    points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+    vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(
+        points
+    )
+
+    sim_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+    sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        purposes
+    )
+
+    # disable simulation mesh for rendering
+    UsdGeom.Imageable(sim_mesh_prim).GetPurposeAttr().Set(UsdGeom.Tokens.guide)
+
+    # apply deformable body api
+    if not root_prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
+        raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
+
+    # set deformable body properties
+    modify_deformable_body_properties(prim_path, cfg, stage)
+
+
+@apply_nested
+def modify_deformable_body_properties(
+    prim_path: str, cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg, stage: Usd.Stage | None = None
+):
+    """Modify deformable body parameters for a deformable body prim.
+
+    A `deformable body`_ is a single body (either surface or volume deformable) that can be simulated by PhysX
+    or Newton. Unlike rigid bodies, deformable bodies support relative motion of the nodes in the mesh.
+    Consequently, they can be used to simulate deformations under applied forces.
+
+    PhysX deformable body simulation employs Finite Element Analysis (FEA) to simulate the deformations of the mesh.
+    It uses two meshes to represent the deformable body:
+
+    1. **Simulation mesh**: This mesh is used for the simulation and is the one that is deformed by the solver.
+    2. **Collision mesh**: This mesh only needs to match the surface of the simulation mesh and is used for
+       collision detection.
+
+    For most applications, we assume that the above two meshes are computed from the "render mesh" of the deformable
+    body. The render mesh is the mesh that is visible in the scene and is used for rendering purposes. It is composed
+    of triangles, while the simulation mesh is composed of tetrahedrons for volume deformables,
+    and triangles for surface deformables.
+
+    We apply similar design choices to the simulation in Newton with a separate visual, simulation and collision mesh.
+
+    .. caution::
+        The deformable body schema is still under development by the Omniverse team. The current implementation
+        works with the PhysX schemas shipped with Isaac Sim 6.0.0 onwards. It may change in future releases.
+
+    .. note::
+        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
+        (that have the schema applied on them) under the input prim path.
+
+    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.6.1/docs/DeformableVolume.html
+    .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/physxschema/annotated.html
+
+    Args:
+        prim_path: The prim path to the deformable body.
+        cfg: The configuration for the deformable body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Returns:
+        True if the properties were successfully set, False otherwise.
+    """
+    # get stage handle
+    if stage is None:
+        stage = get_current_stage()
+
+    # get deformable-body USD prim
+    deformable_body_prim = stage.GetPrimAtPath(prim_path)
+    # check if the prim is valid
+    if not deformable_body_prim.IsValid():
+        return False
+    # check if deformable body API is applied
+    if "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas():
+        return False
+
+    # build cfg dict from dataclass fields only; USD routing is driven by the
+    # declaring classes' ``_usd_namespace`` / ``_usd_applied_schema`` metadata.
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
+
+    if cfg_dict.get("kinematic_enabled"):
+        logger.warning(
+            "Kinematic deformable bodies are not fully supported in the current version of Omni Physics. "
+            "Setting kinematic_enabled to True may lead to unexpected behavior."
+        )
+
+    _apply_namespaced_schemas(deformable_body_prim, cfg, cfg_dict)
     # success
     return True

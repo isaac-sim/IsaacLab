@@ -71,6 +71,16 @@ def _is_kitless_physics(node) -> bool:
     return isinstance(node, PhysicsCfg) and type(node).__name__ in ("NewtonCfg", "OvPhysxCfg")
 
 
+def _is_kit_physics(node) -> bool:
+    """True when the node is a Kit-required physics config (Isaac Sim PhysX)."""
+    return isinstance(node, PhysicsCfg) and type(node).__name__ == "PhysxCfg"
+
+
+def _is_ovrtx_renderer(node) -> bool:
+    """True when the node is an OVRTX renderer config."""
+    return isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"
+
+
 def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
     """Extract requested visualizer type names from launcher args."""
     if isinstance(launcher_args, argparse.Namespace):
@@ -122,6 +132,15 @@ def _is_kit_camera(node) -> bool:
         return True
     if isinstance(renderer_cfg, RendererCfg):
         return renderer_cfg.renderer_type in ("default", "isaac_rtx")
+    # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved during
+    # environment construction when the physics backend is known (see
+    # resolve_task_config and preset resolution in presets.py).  At this
+    # stage we assume they will match the physics backend, so not
+    # necessarily Kit.
+    from isaaclab_tasks.utils import PresetCfg
+
+    if isinstance(renderer_cfg, PresetCfg):
+        return False
     return True
 
 
@@ -149,6 +168,118 @@ def compute_kit_requirements(
     return needs_kit, has_kit_cameras, visualizer_types
 
 
+def validate_runtime_compatibility(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None = None,
+) -> None:
+    """Validate that the resolved physics, renderer, and visualizer combination is supported.
+
+    The OVRTX renderer (``OVRTXRendererCfg``, ``renderer_type="ovrtx"``) is a kitless
+    renderer that runs without Isaac Sim / Omniverse Kit. Combining it with Kit-based
+    runtimes — Isaac Sim PhysX physics (``PhysxCfg``) or the Kit visualizer
+    (``--visualizer kit`` / a ``visualizer_cfgs`` entry with ``visualizer_type="kit"``) —
+    is unsupported. When such a combination is detected this function raises with a
+    message that points the user at the correct ``isaacsim_rtx_renderer`` preset.
+
+    Args:
+        env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
+        launcher_args: Optional CLI args. Inspected for ``--visualizer kit``.
+
+    Raises:
+        ValueError: If the OVRTX renderer is combined with Kit-based physics or the
+            Kit visualizer.
+    """
+    has_kit_physics, has_ovrtx_renderer = _scan_config(env_cfg, [_is_kit_physics, _is_ovrtx_renderer])
+    if not has_ovrtx_renderer:
+        return
+
+    visualizer_intent = _compute_visualizer_intent(env_cfg)
+    visualizer_types = _get_visualizer_types(launcher_args)
+    has_kit_visualizer = "kit" in visualizer_types or visualizer_intent.get("has_kit_visualizer", False)
+
+    if not has_kit_physics and not has_kit_visualizer:
+        return
+
+    sources = []
+    if has_kit_physics:
+        sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")
+    if has_kit_visualizer:
+        sources.append('the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`)')
+    sources_text = " and ".join(sources)
+
+    raise ValueError(
+        "Invalid backend combination: the OVRTX renderer (`OVRTXRendererCfg`,"
+        ' `renderer_type="ovrtx"`) is a kitless renderer and cannot be used together'
+        f" with Isaac Sim / Kit ({sources_text}).\n"
+        "\n"
+        "To fix this, pick one of the following supported combinations:\n"
+        "  * Keep Isaac Sim / Kit and switch the renderer:\n"
+        "      presets=isaacsim_rtx_renderer\n"
+        "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
+        "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
+        "    (and avoid `--visualizer kit`):\n"
+        "      presets=newton_mjwarp,ovrtx_renderer\n"
+    )
+
+
+def _resolve_distributed_device(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None,
+) -> None:
+    """Set ``env_cfg.sim.device`` for distributed training.
+
+    When ``--distributed`` is active and CUDA_VISIBLE_DEVICES restricts each
+    process to a single GPU, ``local_rank`` may exceed the visible device count.
+    This helper applies the same fallback logic used by :class:`AppLauncher` so
+    that **training scripts do not need their own device-resolution code**.
+
+    For the Kit path, :func:`launch_simulation` additionally propagates
+    ``AppLauncher.device`` after creation; this function handles the early
+    (pre-AppLauncher) and kitless cases.
+    """
+    distributed = False
+    if isinstance(launcher_args, argparse.Namespace):
+        distributed = getattr(launcher_args, "distributed", False)
+    elif isinstance(launcher_args, dict):
+        distributed = launcher_args.get("distributed", False)
+
+    if not distributed:
+        return
+
+    import os
+
+    import torch
+
+    local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
+    num_visible_gpus = torch.cuda.device_count()
+
+    # Compare local_rank against device_count (not WORLD_SIZE) so that
+    # multi-node setups work correctly: WORLD_SIZE is global across all
+    # nodes, but device_count is local.
+    if local_rank < num_visible_gpus:
+        device_str = f"cuda:{local_rank}"
+    else:
+        device_str = "cuda:0"
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is not None:
+        sim_cfg.device = device_str
+
+    # Set CUDA device early so physics backends that allocate on the
+    # "current" device during init get the correct GPU. For the Kit path,
+    # AppLauncher._resolve_device_settings will call set_device again with
+    # the same value, which is harmless. For the kitless Newton path, this
+    # is the only place it gets set.
+    torch.cuda.set_device(device_str)
+
+    logger.info(
+        "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d)",
+        device_str,
+        local_rank,
+        num_visible_gpus,
+    )
+
+
 @contextmanager
 def launch_simulation(
     env_cfg,
@@ -169,6 +300,25 @@ def launch_simulation(
         with launch_simulation(env_cfg, args_cli):
             main()
     """
+    # When --visualizer kit is explicitly requested alongside an ovrtx preset, fail early.
+    # ovrtx and Kit ship the same RTX hydra libraries under conflicting USD namespaces;
+    # loading both in the same process causes a dynamic-linker crash.  Use
+    # --visualizer newton instead, which is compatible with ovrtx presets.
+    early_visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in early_visualizer_types:
+        has_ovrtx = _scan_config(
+            env_cfg, [lambda node: isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"]
+        )[0]
+        if has_ovrtx:
+            raise ValueError(
+                "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
+                "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
+                "(librtx.hydra.so, liblegacy.hydra.so) compiled against different USD namespaces, "
+                "which causes a dynamic-linker crash when loaded into the same process. "
+                "Use '--visualizer newton' instead, which is fully compatible with ovrtx presets."
+            )
+
+    validate_runtime_compatibility(env_cfg, launcher_args)
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
@@ -184,6 +334,19 @@ def launch_simulation(
                 launcher_args["enable_cameras"] = True
 
     close_fn: Any = None
+
+    # Resolve distributed device early, before AppLauncher or physics init.
+    _resolve_distributed_device(env_cfg, launcher_args)
+
+    visualizer_explicit_none = False
+    if isinstance(launcher_args, argparse.Namespace):
+        visualizer_explicit_none = getattr(launcher_args, "visualizer", None) is None and getattr(
+            launcher_args, "visualizer_explicit", False
+        )
+    elif isinstance(launcher_args, dict):
+        visualizer_explicit_none = launcher_args.get("visualizer") is None and launcher_args.get(
+            "visualizer_explicit", False
+        )
 
     if needs_kit:
         # check if Isaac Sim is installed
@@ -235,20 +398,29 @@ def launch_simulation(
             from isaaclab.app import AppLauncher
 
             app_launcher = AppLauncher(launcher_args)
+            # AppLauncher may refine the device choice (e.g. Kit-specific
+            # overrides), so propagate its final value to env_cfg.  This
+            # intentionally overwrites the earlier value set by
+            # _resolve_distributed_device.
+            sim_cfg = getattr(env_cfg, "sim", None)
+            if sim_cfg is not None and hasattr(app_launcher, "device"):
+                sim_cfg.device = app_launcher.device
             close_fn = app_launcher.app.close
-    elif visualizer_types:
+    elif visualizer_types or visualizer_explicit_none:
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that
         # SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app.settings_manager import get_settings_manager
+        from isaaclab.app import AppLauncher
 
-        disable_all = "none" in visualizer_types
-        active_types = [] if disable_all else sorted(visualizer_types)
-        visualizer_str = " ".join(active_types)
-        settings = get_settings_manager()
-        settings.set_string("/isaaclab/visualizer/types", visualizer_str)
-        settings.set_bool("/isaaclab/visualizer/explicit", True)
-        settings.set_bool("/isaaclab/visualizer/disable_all", disable_all)
+        disable_all = visualizer_explicit_none or "none" in visualizer_types
+        if isinstance(launcher_args, argparse.Namespace):
+            AppLauncher.sync_visualizer_cli_settings_to_carb(
+                {**vars(launcher_args), "visualizer_explicit": True, "visualizer_disable_all": disable_all}
+            )
+        elif isinstance(launcher_args, dict):
+            AppLauncher.sync_visualizer_cli_settings_to_carb(
+                {**launcher_args, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
+            )
 
     try:
         yield

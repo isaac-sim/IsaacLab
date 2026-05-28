@@ -15,7 +15,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 from .manager_base import ManagerBase, ManagerTermBase

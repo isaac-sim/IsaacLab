@@ -224,7 +224,7 @@ the following dependencies are also needed.
 
 .. code-block:: bash
 
-  python3 -p -m pip install kubernetes Jinja2
+  python3 -m pip install kubernetes Jinja2
 
 For use on Kubernetes clusters with KubeRay,
 such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, ``kubectl`` is required, and can
@@ -276,7 +276,7 @@ Shared Steps Between KubeRay and Pure Ray Part I
 
 .. code-block:: bash
 
-  python3 -p -m pip install ray[default]==2.31.0
+  python3 -m pip install "ray[default]==2.31.0"
 
 2.) Build the Isaac Ray image, and upload it to your container registry of choice.
 

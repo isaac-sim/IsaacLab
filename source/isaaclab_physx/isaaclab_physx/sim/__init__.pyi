@@ -7,20 +7,34 @@ __all__ = [
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "DeformableBodyPropertiesCfg",
-    "DeformableObjectSpawnerCfg",
-    "spawn_deformable_body_material",
+    "JointDrivePropertiesCfg",
+    "OmniPhysicsDeformableBodyPropertiesCfg",
+    "PhysxDeformableBodyPropertiesCfg",
+    "PhysxJointDrivePropertiesCfg",
+    "PhysxRigidBodyPropertiesCfg",
+    "RigidBodyPropertiesCfg",
     "DeformableBodyMaterialCfg",
+    "PhysxDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialCfg",
+    "views",
 ]
 
 from .schemas import (
     define_deformable_body_properties,
     modify_deformable_body_properties,
-    DeformableBodyPropertiesCfg
+    DeformableBodyPropertiesCfg,
+    JointDrivePropertiesCfg,
+    OmniPhysicsDeformableBodyPropertiesCfg,
+    PhysxDeformableBodyPropertiesCfg,
+    PhysxJointDrivePropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+    RigidBodyPropertiesCfg,
 )
 from .spawners import (
-    DeformableObjectSpawnerCfg,
-    spawn_deformable_body_material,
     DeformableBodyMaterialCfg,
+    PhysxDeformableBodyMaterialCfg,
+    PhysxSurfaceDeformableBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
 )
+from . import views

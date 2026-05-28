@@ -16,12 +16,12 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -87,8 +87,8 @@ def test_data_shapes(sim):
     scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    ang_vel = wp.to_torch(imu.data.ang_vel_b)
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    ang_vel = imu.data.ang_vel_b.torch
+    lin_acc = imu.data.lin_acc_b.torch
 
     assert ang_vel.shape == (2, 3)
     assert lin_acc.shape == (2, 3)
@@ -106,7 +106,7 @@ def test_gravity_at_rest(sim):
         scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    lin_acc = imu.data.lin_acc_b.torch
 
     # At rest, accelerometer should read ~9.81 in the up direction (Z body frame)
     torch.testing.assert_close(
@@ -135,7 +135,7 @@ def test_angular_velocity_at_rest(sim):
         scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    ang_vel = wp.to_torch(imu.data.ang_vel_b)
+    ang_vel = imu.data.ang_vel_b.torch
 
     torch.testing.assert_close(
         ang_vel,
@@ -160,7 +160,7 @@ def test_reset(sim):
 
     imu: Imu = scene["imu"]
 
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    lin_acc = imu.data.lin_acc_b.torch
     assert torch.any(lin_acc != 0), "Expected non-zero data before reset"
 
     imu.reset()
@@ -209,7 +209,7 @@ def test_freefall_acceleration(sim):
         scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    lin_acc = imu.data.lin_acc_b.torch
 
     # In freefall, accelerometer should read near zero (gravity and inertial acceleration cancel)
     acc_magnitude = torch.norm(lin_acc, dim=-1)
@@ -231,3 +231,38 @@ def test_sensor_print(sim):
     sensor_str = str(imu)
     assert "newton" in sensor_str
     assert "IMU sensor" in sensor_str
+
+
+def test_no_stale_data_after_scene_reset(sim):
+    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values (Newton).
+
+    Mirrors the PhysX equivalent. Reproduces the ``ManagerBasedRLEnv._reset_idx`` flow where
+    reset runs inside a step without a subsequent physics step; the IMU sensor's lazy ``data``
+    accessor must not refetch from the Newton rigid-body view here (the velocity buffer reflects
+    the previous step and would produce a spurious finite-difference acceleration).
+    """
+    scene_cfg = ImuTestSceneCfg(num_envs=1)
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    scene.reset()
+
+    imu: Imu = scene["imu"]
+    cube: RigidObject = scene["cube"]
+
+    # Let the cube fall so the rigid-body view accumulates a non-zero velocity.
+    for _ in range(30):
+        scene.write_data_to_sim()
+        sim.step(render=False)
+        scene.update(dt=sim.get_physics_dt())
+
+    # Reset the scene without writing fresh velocity/transform. The Newton velocity
+    # buffer therefore still holds the pre-reset (falling) value.
+    env_ids = torch.tensor([0], device=cube.device)
+    scene.reset(env_ids=env_ids)
+
+    # The public ``data`` accessor must not refetch a stale physics buffer; ``reset()`` zeroes
+    # ``_lin_acc_b`` / ``_ang_vel_b`` and those must be what comes out here.
+    post_reset_lin_acc = imu.data.lin_acc_b.torch
+    post_reset_ang_vel = imu.data.ang_vel_b.torch
+    torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
+    torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))

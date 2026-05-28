@@ -8,15 +8,6 @@
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import numpy as np
 import torch
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple

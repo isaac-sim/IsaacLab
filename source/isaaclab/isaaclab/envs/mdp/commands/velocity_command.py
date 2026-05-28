@@ -12,7 +12,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
@@ -84,9 +83,19 @@ class UniformVelocityCommand(CommandTerm):
         self.heading_target = torch.zeros(self.num_envs, device=self.device)
         self.is_heading_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.is_standing_env = torch.zeros_like(self.is_heading_env)
-        # -- metrics
+        # -- metrics: finalized per-episode means/rates, written at reset() and read by the base class
         self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_vel_yaw"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
+        # -- per-episode running sums (cleared at episode reset)
+        self._error_xy_sum = torch.zeros(self.num_envs, device=self.device)
+        self._error_yaw_sum = torch.zeros(self.num_envs, device=self.device)
+        self._step_count = torch.zeros(self.num_envs, device=self.device)
+
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/velocity"
+        self.cfg.element_names = self.cfg.element_names or ["lin_vel_x", "lin_vel_y", "ang_vel_z"]
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
@@ -113,17 +122,39 @@ class UniformVelocityCommand(CommandTerm):
     """
 
     def _update_metrics(self):
-        # time for which the command was executed
-        max_command_time = self.cfg.resampling_time_range[1]
-        max_command_step = max_command_time / self._env.step_dt
-        # logs data
-        self.metrics["error_vel_xy"] += (
-            torch.linalg.norm(self.vel_command_b[:, :2] - wp.to_torch(self.robot.data.root_lin_vel_b)[:, :2], dim=-1)
-            / max_command_step
-        )
-        self.metrics["error_vel_yaw"] += (
-            torch.abs(self.vel_command_b[:, 2] - wp.to_torch(self.robot.data.root_ang_vel_b)[:, 2]) / max_command_step
-        )
+        # accumulate per-step tracking error sums; the per-episode mean is finalized in
+        # :meth:`reset` so the value is independent of episode length and
+        # ``resampling_time_range`` (no magic ``max_command_step`` divisor).
+        error_xy = torch.linalg.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b.torch[:, :2], dim=-1)
+        error_yaw = torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b.torch[:, 2])
+        self._error_xy_sum += error_xy
+        self._error_yaw_sum += error_yaw
+        self._step_count += 1.0
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
+        # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
+        # is below both thresholds. Then super().reset() logs and zeros ``self.metrics``;
+        # we zero the running sums for ``env_ids`` afterwards so the next episode starts clean.
+        if env_ids is None:
+            env_ids = slice(None)
+        denom = self._step_count[env_ids].clamp_min(1.0)
+        mean_error_xy = self._error_xy_sum[env_ids] / denom
+        mean_error_yaw = self._error_yaw_sum[env_ids] / denom
+        self.metrics["error_vel_xy"][env_ids] = mean_error_xy
+        self.metrics["error_vel_yaw"][env_ids] = mean_error_yaw
+        self.metrics["success_rate"][env_ids] = (
+            (mean_error_xy < self.cfg.vel_xy_success_threshold) & (mean_error_yaw < self.cfg.vel_yaw_success_threshold)
+        ).float()
+        extras = super().reset(env_ids)
+        # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
+        # / wandb card across tasks); pop it from the returned dict so CommandManager does
+        # not additionally log it under ``Metrics/<term_name>/success_rate``.
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
+        self._error_xy_sum[env_ids] = 0.0
+        self._error_yaw_sum[env_ids] = 0.0
+        self._step_count[env_ids] = 0.0
+        return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample velocity commands
@@ -154,7 +185,7 @@ class UniformVelocityCommand(CommandTerm):
             env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
             # compute angular velocity
             heading_error = math_utils.wrap_to_pi(
-                self.heading_target[env_ids] - wp.to_torch(self.robot.data.heading_w)[env_ids]
+                self.heading_target[env_ids] - self.robot.data.heading_w.torch[env_ids]
             )
             self.vel_command_b[env_ids, 2] = torch.clip(
                 self.cfg.heading_control_stiffness * heading_error,
@@ -191,12 +222,12 @@ class UniformVelocityCommand(CommandTerm):
             return
         # get marker location
         # -- base state
-        base_pos_w = wp.to_torch(self.robot.data.root_pos_w).clone()
+        base_pos_w = self.robot.data.root_pos_w.torch.clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales and quaternions
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
         vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(
-            wp.to_torch(self.robot.data.root_lin_vel_b)[:, :2]
+            self.robot.data.root_lin_vel_b.torch[:, :2]
         )
         # display markers
         self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
@@ -218,7 +249,7 @@ class UniformVelocityCommand(CommandTerm):
         zeros = torch.zeros_like(heading_angle)
         arrow_quat = math_utils.quat_from_euler_xyz(zeros, zeros, heading_angle)
         # convert everything back from base to world frame
-        base_quat_w = wp.to_torch(self.robot.data.root_quat_w)
+        base_quat_w = self.robot.data.root_quat_w.torch
         arrow_quat = math_utils.quat_mul(base_quat_w, arrow_quat)
 
         return arrow_scale, arrow_quat

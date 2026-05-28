@@ -5,23 +5,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Sequence
 
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd, UsdGeom
-
-from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
+from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
 
 
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
-    sources: list[str],
+    sources: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -57,13 +55,32 @@ def _build_newton_builder_from_mapping(
     builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
-        ignore_paths=["/World/envs"] + sources,
+        ignore_paths=["/World/envs", *sources],
         schema_resolvers=schema_resolvers,
     )
 
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
     env0_pos = positions[0]
+
+    # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
+    # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
+    # can skip them via ignore_paths.
+    import re
+
+    _deformable_ignore_paths: list[str] = []
+    if hasattr(NewtonManager, "_deformable_registry"):
+        for entry in NewtonManager._deformable_registry:
+            pat = re.compile(entry.prim_path.replace(".*", "[^/]*") + "$")
+            for src_path in sources:
+                # Check if any prim under this source matches the deformable pattern
+                prim = stage.GetPrimAtPath(src_path)
+                if prim.IsValid():
+                    for child in Usd.PrimRange(prim):
+                        child_path = str(child.GetPath())
+                        if pat.match(child_path):
+                            _deformable_ignore_paths.append(child_path)
+
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = NewtonManager.create_builder(up_axis=up_axis)
@@ -74,6 +91,7 @@ def _build_newton_builder_from_mapping(
             load_visual_shapes=True,
             skip_mesh_approximation=True,
             schema_resolvers=schema_resolvers,
+            ignore_paths=_deformable_ignore_paths if _deformable_ignore_paths else None,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
@@ -109,8 +127,19 @@ def _build_newton_builder_from_mapping(
                     local_site_map[label] = [[] for _ in range(num_worlds)]
                 for proto_shape_idx in proto_shape_indices:
                     local_site_map[label][col].append(offset + proto_shape_idx)
+
+        # Run per-world builder hooks (e.g. deformable body registration).
+        if hasattr(NewtonManager, "_per_world_builder_hooks"):
+            for hook in NewtonManager._per_world_builder_hooks:
+                hook(builder, col, positions[col].tolist(), quaternions[col].tolist())
+
         # end the world context
         builder.end_world()
+
+    # Run post-replicate hooks (e.g. builder.color() for deformable coloring).
+    if hasattr(NewtonManager, "_post_replicate_hooks"):
+        for hook in NewtonManager._post_replicate_hooks:
+            hook(builder)
 
     site_index_map = {
         **global_site_map,
@@ -120,10 +149,36 @@ def _build_newton_builder_from_mapping(
     return builder, stage_info, site_index_map
 
 
+# Built-in label arrays that ``_rename_builder_labels`` rewrites in Pass 1.
+# Each type ``t`` has a paired ``<t>_label`` (or ``<t>_key``) string column
+# and a ``<t>_world`` int column on Newton's ``ModelBuilder``. Exposed as a
+# module-level constant so tests can import it instead of duplicating.
+_BUILTIN_LABEL_TYPES: tuple[str, ...] = (
+    "body",
+    "joint",
+    "shape",
+    "articulation",
+    "constraint_mimic",
+    "equality_constraint",
+)
+
+
 def _rename_builder_labels(
-    builder: ModelBuilder, sources: list[str], destinations: list[str], env_ids: torch.Tensor, mapping: torch.Tensor
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    destinations: Sequence[str],
+    env_ids: torch.Tensor,
+    mapping: torch.Tensor,
 ) -> None:
     """Rename builder labels/keys from source roots to destination roots.
+
+    Walks both built-in label arrays (see :data:`_BUILTIN_LABEL_TYPES`) and any
+    string-typed custom-attribute column whose frequency declares a sibling
+    world column (``references="world"``).
+    The boundary-safe match (exact source root, or source root followed by ``/``)
+    makes the rewrite a no-op for strings that are not paths under the source.
+    Non-path custom string columns are passed through untouched and any future
+    solver-registered string column is handled automatically without changes here.
 
     Args:
         builder: Newton model builder to update in-place.
@@ -134,27 +189,77 @@ def _rename_builder_labels(
     """
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
-        src_prefix_len = len(src_path.rstrip("/"))
-        swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
+        # Canonicalize the source root (drop any trailing ``/``) so the
+        # boundary-safe match logic in ``_rename_pair`` is unambiguous.
+        src_root = src_path.rstrip("/")
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
         # Map Newton world IDs (sequential) to destination paths using env_ids
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
-        for t in ("body", "joint", "shape", "articulation"):
+        def _rename_pair(values, worlds):
+            if len(values) != len(worlds):
+                raise ValueError(f"label/world column length mismatch: {len(values)} vs {len(worlds)}")
+            for k in range(len(values)):
+                v = values[k]
+                if not isinstance(v, str):
+                    continue
+                world_id = int(worlds[k])
+                if world_id not in world_roots:
+                    continue
+                # Gate on an explicit prefix test before slicing. ``str.removeprefix``
+                # is tempting but conflates "match with empty suffix" and "no match"
+                # (both return a string starting with "/"), so a label already
+                # rewritten in an earlier source-iteration would be re-prepended to
+                # the next iteration's dst root.
+                if not v.startswith(src_root):
+                    continue
+                suffix = v[len(src_root) :]
+                # ``suffix == ""``     -> exact source-root match (rewrite to dst root).
+                # ``suffix[0] == "/"`` -> child path under source.
+                # otherwise           -> boundary-bleed sibling like "/Sources/protoAB/x"
+                #                        when src_root is "/Sources/protoA" -> skip.
+                if suffix and not suffix.startswith("/"):
+                    continue
+                values[k] = world_roots[world_id] + suffix
+
+        # Pass 1: built-in label arrays. Each has a paired ``*_world`` int column.
+        # Use ``is None`` (not ``or``) so an empty-but-defined ``*_label`` column
+        # is recognized — falling through to ``*_key`` would over-match a
+        # builder that legitimately exposes both attributes.
+        for t in _BUILTIN_LABEL_TYPES:
             labels = getattr(builder, f"{t}_label", None)
             if labels is None:
-                labels = getattr(builder, f"{t}_key")
-            worlds_arr = getattr(builder, f"{t}_world")
-            for k, w in enumerate(worlds_arr):
-                world_id = int(w)
-                if world_id in world_roots and labels[k].startswith(src_path):
-                    labels[k] = swap(labels[k], world_roots[world_id])
+                labels = getattr(builder, f"{t}_key", None)
+            worlds_arr = getattr(builder, f"{t}_world", None)
+            if labels is None or worlds_arr is None:
+                continue
+            _rename_pair(labels, worlds_arr)
+
+        # Pass 2: string-typed custom-attribute columns (e.g. ``mujoco:tendon_label``)
+        # paired with a world companion declared via ``references="world"``. Index
+        # world companions by frequency for O(1) lookup, then walk the str columns.
+        custom = builder.custom_attributes
+        world_by_freq: dict[str, ModelBuilder.CustomAttribute] = {}
+        for attr in custom.values():
+            if getattr(attr, "references", None) == "world":
+                world_by_freq[attr.frequency] = attr
+        for attr in custom.values():
+            if attr.dtype is not str:
+                continue
+            world_attr = world_by_freq.get(attr.frequency)
+            if world_attr is None:
+                continue
+            values = attr.values
+            worlds = world_attr.values
+            if not values or not worlds:
+                continue
+            _rename_pair(values, worlds)
 
 
 def newton_physics_replicate(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -199,8 +304,8 @@ def newton_physics_replicate(
 
 def newton_visualizer_prebuild(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -243,55 +348,3 @@ def newton_visualizer_prebuild(
     model = builder.finalize(device=device)
     state = model.state()
     return model, state
-
-
-def create_newton_visualizer_prebuild_clone_fn(
-    stage,
-    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
-):
-    """Create a cloner callback that prebuilds Newton visualizer artifacts.
-
-    Args:
-        stage: USD stage used by the clone callback.
-        set_visualizer_artifact: Callback used to store the produced prebuilt artifact.
-
-    Returns:
-        Clone callback that builds and stores visualizer prebuilt artifacts.
-    """
-    up_axis = UsdGeom.GetStageUpAxis(stage)
-
-    def _visualizer_clone_fn(
-        stage,
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=None,
-        quaternions=None,
-        device="cpu",
-    ):
-        """Prebuild Newton model/state and store visualizer artifacts for clone consumers."""
-        model, state = newton_visualizer_prebuild(
-            stage=stage,
-            sources=sources,
-            destinations=destinations,
-            env_ids=env_ids,
-            mapping=mapping,
-            positions=positions,
-            quaternions=quaternions,
-            device=device,
-            up_axis=up_axis,
-        )
-        set_visualizer_artifact(
-            VisualizerPrebuiltArtifacts(
-                model=model,
-                state=state,
-                rigid_body_paths=list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
-                articulation_paths=list(
-                    getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
-                ),
-                num_envs=int(mapping.size(1)),
-            )
-        )
-
-    return _visualizer_clone_fn

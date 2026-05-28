@@ -1,0 +1,45 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Collect Installation CI Tests'
+description: >
+  Runs `pytest --collect-only` against source/isaaclab/test/install_ci in a
+  throw-away venv and writes the collected test list to the GitHub step
+  summary. Used to gate the heavy install jobs on a fast inventory check.
+
+inputs:
+  test-filter:
+    description: 'pytest -k expression (empty = collect everything)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Collect tests
+      shell: bash
+      env:
+        TEST_FILTER: ${{ inputs.test-filter }}
+        # mirror what the install-tests job sees so docker-only tests are not
+        # silently deselected from the collected list shown in the summary.
+        ISAACLAB_INSTALL_CI_ENV: docker
+      run: |
+        set -uo pipefail
+        venv="$RUNNER_TEMP/collect-venv"
+        collected="$RUNNER_TEMP/install-ci-collected.txt"
+        python3 -m venv "$venv"
+        "$venv/bin/pip" install --quiet pytest pytest-timeout
+        # -m "not skip" hides tests with @pytest.mark.skip; they would just
+        # report SKIPPED at run time and clutter the collected inventory.
+        args=( --collect-only -q -m "not skip" source/isaaclab/test/install_ci )
+        [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+        "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
+        rc=${PIPESTATUS[0]}
+        {
+          echo '```'
+          cat "$collected"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit "$rc"

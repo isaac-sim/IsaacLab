@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms
@@ -128,8 +127,8 @@ class gear_shaft_pos_w(ManagerTermBase):
         gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Get base gear position and orientation
-        base_pos = wp.to_torch(self.asset.data.root_pos_w)
-        base_quat = wp.to_torch(self.asset.data.root_quat_w)
+        base_pos = self.asset.data.root_pos_w.torch
+        base_quat = self.asset.data.root_quat_w.torch
 
         # Update offsets using vectorized indexing
         self.offsets_buffer = self.gear_offsets_stacked[gear_type_indices]
@@ -182,13 +181,12 @@ class gear_shaft_quat_w(ManagerTermBase):
             Gear shaft orientation tensor of shape (num_envs, 4)
         """
         # Get base quaternion
-        base_quat = wp.to_torch(self.asset.data.root_quat_w)
+        base_quat = self.asset.data.root_quat_w.torch
 
         # Ensure w component is positive (q and -q represent the same rotation)
         # Pick one canonical form to reduce observation variation seen by the policy
-        w_negative = base_quat[:, 0] < 0
-        positive_quat = base_quat.clone()
-        positive_quat[w_negative] = -base_quat[w_negative]
+        w_negative = base_quat[:, 3] < 0
+        positive_quat = torch.where(w_negative.unsqueeze(-1), -base_quat, base_quat)
 
         return positive_quat
 
@@ -250,9 +248,9 @@ class gear_pos_w(ManagerTermBase):
         # Stack all gear positions
         all_gear_positions = torch.stack(
             [
-                wp.to_torch(self.gear_assets["gear_small"].data.root_pos_w),
-                wp.to_torch(self.gear_assets["gear_medium"].data.root_pos_w),
-                wp.to_torch(self.gear_assets["gear_large"].data.root_pos_w),
+                self.gear_assets["gear_small"].data.root_pos_w.torch,
+                self.gear_assets["gear_medium"].data.root_pos_w.torch,
+                self.gear_assets["gear_large"].data.root_pos_w.torch,
             ],
             dim=1,
         )
@@ -323,9 +321,9 @@ class gear_quat_w(ManagerTermBase):
         # Stack all gear quaternions
         all_gear_quat = torch.stack(
             [
-                wp.to_torch(self.gear_assets["gear_small"].data.root_quat_w),
-                wp.to_torch(self.gear_assets["gear_medium"].data.root_quat_w),
-                wp.to_torch(self.gear_assets["gear_large"].data.root_quat_w),
+                self.gear_assets["gear_small"].data.root_quat_w.torch,
+                self.gear_assets["gear_medium"].data.root_quat_w.torch,
+                self.gear_assets["gear_large"].data.root_quat_w.torch,
             ],
             dim=1,
         )
@@ -335,7 +333,7 @@ class gear_quat_w(ManagerTermBase):
 
         # Ensure w component is positive (q and -q represent the same rotation)
         # Pick one canonical form to reduce observation variation seen by the policy
-        w_negative = gear_quat[:, 0] < 0
+        w_negative = gear_quat[:, 3] < 0
         gear_positive_quat = gear_quat.clone()
         gear_positive_quat[w_negative] = -gear_quat[w_negative]
 

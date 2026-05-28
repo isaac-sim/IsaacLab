@@ -7,7 +7,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.rigid_object import RigidObjectCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .rigid_object_collection import RigidObjectCollection

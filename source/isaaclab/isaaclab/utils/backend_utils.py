@@ -3,10 +3,46 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import importlib
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from isaaclab.renderers.renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
+
+
+def get_default_renderer_cfg() -> RendererCfg:
+    """Return the default :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` for cameras.
+
+    Lazily imports :mod:`isaaclab_physx.renderers` and returns a new
+    :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` instance.
+
+    Returns:
+        A new default Isaac RTX renderer configuration.
+
+    Raises:
+        ImportError: If :mod:`isaaclab_physx.renderers` cannot be imported or does not
+            expose ``IsaacRtxRendererCfg``.
+    """
+    try:
+        renderers_mod = importlib.import_module("isaaclab_physx.renderers")
+    except ImportError as e:
+        raise ImportError(
+            "The default camera renderer configuration requires the optional 'isaaclab_physx' "
+            "package (import 'isaaclab_physx.renderers'). Install isaaclab_physx or set "
+            "CameraCfg.renderer_cfg explicitly."
+        ) from e
+    try:
+        default_cls = renderers_mod.IsaacRtxRendererCfg
+    except AttributeError as e:
+        raise ImportError(
+            "Module 'isaaclab_physx.renderers' is available but does not define 'IsaacRtxRendererCfg'."
+        ) from e
+    return default_cls()
 
 
 class FactoryBase:

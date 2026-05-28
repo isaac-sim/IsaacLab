@@ -28,7 +28,17 @@ inputs:
     default: 'cache-base'
     required: false
   filter-pattern:
-    description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
+    description: >-
+      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
+      contains this pattern are included. Only one pattern can be used at a time,
+      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
+      form for exclude-only jobs.
+    default: ''
+    required: false
+  exclude-pattern:
+    description: >-
+      Comma-separated substrings; test files whose path contains any entry are
+      skipped. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
   shard-index:
@@ -53,6 +63,10 @@ inputs:
     required: false
   pytest-options:
     description: 'Additional pytest options'
+    default: ''
+    required: false
+  extra-pip-packages:
+    description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
   container-name:
@@ -82,6 +96,15 @@ runs:
         else
           echo "🟠 Could not obtain IMDS token, probably not running on EC2"
         fi
+
+    - name: Prepare Docker disk space
+      shell: bash
+      run: |
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "pre-test-cleanup" \
+          "true"
 
     - name: Record pull start time
       id: pull-start
@@ -119,12 +142,14 @@ runs:
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
         filter-pattern: ${{ inputs.filter-pattern }}
+        exclude-pattern: ${{ inputs.exclude-pattern }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}
         quarantined-only: ${{ inputs.quarantined-only }}
         include-files: ${{ inputs.include-files }}
         volume-mount-source: ${{ github.workspace }}
+        extra-pip-packages: ${{ inputs.extra-pip-packages }}
 
     - name: Check Test Results
       if: always()
@@ -153,28 +178,8 @@ runs:
       if: always()
       shell: bash
       run: |
-        # Don't let cleanup errors fail a passing test job
-        set +e
-
-        echo "🔵 Cleaning up old Docker images..."
-
-        echo "⚪ Disk usage before cleanup:"
-        df -h /var/lib/docker
-
-        ISAACSIM_IMAGE="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
-
-        # Pin the base IsaacSim image so prune -a doesn't remove it
-        ISAACSIM_IMAGE_PIN_CONTAINER="isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
-        echo "🔵 Pinning IsaacSim base image: ${ISAACSIM_IMAGE} to temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}"
-        docker create --name "${ISAACSIM_IMAGE_PIN_CONTAINER}" "${ISAACSIM_IMAGE}" true 2>/dev/null || true
-
-        echo "🔵 Removing Docker images older than 3 days..."
-        docker image prune -a -f --filter "until=72h"
-
-        echo "🔵 Removing temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}..."
-        docker rm "${ISAACSIM_IMAGE_PIN_CONTAINER}" 2>/dev/null || true
-
-        echo "🟢 Docker image cleanup complete."
-
-        echo "⚪ Disk usage after cleanup:"
-        df -h /var/lib/docker
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "post-job-cleanup" \
+          "false"

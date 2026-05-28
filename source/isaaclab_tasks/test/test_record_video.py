@@ -28,6 +28,9 @@ from isaaclab_tasks.utils import parse_env_cfg
 from env_test_utils import setup_environment  # isort: skip
 
 
+pytestmark = pytest.mark.isaacsim_ci
+
+
 @pytest.fixture(scope="function")
 def setup_video_params():
     # common parameters

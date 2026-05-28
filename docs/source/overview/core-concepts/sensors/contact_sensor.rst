@@ -55,7 +55,7 @@ Here, we print both the net contact force and the filtered force matrix for each
 
   -------------------------------
   Contact sensor @ '/World/envs/env_.*/Robot/LF_FOOT':
-          view type         : <class 'omni.physics.tensors.impl.api.RigidBodyView'>
+          view type         : <class 'omni.physics.tensors.api.RigidBodyView'>
           update period (s) : 0.0
           number of bodies  : 1
           body names        : ['LF_FOOT']
@@ -64,7 +64,7 @@ Here, we print both the net contact force and the filtered force matrix for each
   Received contact force of:  tensor([[[-1.3923e-05,  1.5727e-04,  1.1032e+02]]], device='cuda:0')
   -------------------------------
   Contact sensor @ '/World/envs/env_.*/Robot/RF_FOOT':
-          view type         : <class 'omni.physics.tensors.impl.api.RigidBodyView'>
+          view type         : <class 'omni.physics.tensors.api.RigidBodyView'>
           update period (s) : 0.0
           number of bodies  : 1
           body names        : ['RF_FOOT']
@@ -85,7 +85,7 @@ Notice that even with filtering, both sensors report the net contact force actin
 
   -------------------------------
   Contact sensor @ '/World/envs/env_.*/Robot/.*H_FOOT':
-          view type         : <class 'omni.physics.tensors.impl.api.RigidBodyView'>
+          view type         : <class 'omni.physics.tensors.api.RigidBodyView'>
           update period (s) : 0.0
           number of bodies  : 2
           body names        : ['LH_FOOT', 'RH_FOOT']

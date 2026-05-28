@@ -13,6 +13,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 try:
     from isaaclab.sensors.pva.base_pva_data import BasePvaData
 except (ImportError, ModuleNotFoundError):
@@ -53,100 +55,137 @@ class MockPvaData(BasePvaData):
         self._lin_acc_b: wp.array | None = None
         self._ang_acc_b: wp.array | None = None
 
+        # ProxyArray caches
+        self._pos_w_ta: ProxyArray | None = None
+        self._quat_w_ta: ProxyArray | None = None
+        self._projected_gravity_b_ta: ProxyArray | None = None
+        self._lin_vel_b_ta: ProxyArray | None = None
+        self._ang_vel_b_ta: ProxyArray | None = None
+        self._lin_acc_b_ta: ProxyArray | None = None
+        self._ang_acc_b_ta: ProxyArray | None = None
+
     # -- Properties --
 
     @property
-    def pos_w(self) -> wp.array:
+    def pos_w(self) -> ProxyArray:
         """Position of sensor origin in world frame. Shape: (N, 3)."""
         if self._pos_w is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._pos_w
+            self._pos_w = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._pos_w_ta = None
+        if self._pos_w_ta is None:
+            self._pos_w_ta = ProxyArray(self._pos_w)
+        return self._pos_w_ta
 
     @property
-    def quat_w(self) -> wp.array:
+    def quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) in world frame. Shape: (N, 4)."""
         if self._quat_w is None:
             # Default to identity quaternion (x, y, z, w) = (0, 0, 0, 1)
             quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
             quat_np[:, 3] = 1.0  # w component is at index 3 in XYZW format
-            return wp.array(quat_np, dtype=wp.float32, device=self.device)
-        return self._quat_w
+            self._quat_w = wp.array(quat_np, dtype=wp.float32, device=self.device)
+            self._quat_w_ta = None
+        if self._quat_w_ta is None:
+            self._quat_w_ta = ProxyArray(self._quat_w)
+        return self._quat_w_ta
 
     @property
-    def pose_w(self) -> wp.array:
+    def pose_w(self) -> ProxyArray:
         """Pose in world frame (pos + quat). Shape: (N, 7)."""
-        pos_t = wp.to_torch(self.pos_w)
-        quat_t = wp.to_torch(self.quat_w)
+        pos_t = self.pos_w.torch
+        quat_t = self.quat_w.torch
         pose_t = torch.cat([pos_t, quat_t], dim=-1)
-        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
+        return ProxyArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
 
     @property
-    def projected_gravity_b(self) -> wp.array:
+    def projected_gravity_b(self) -> ProxyArray:
         """Gravity direction in PVA body frame. Shape: (N, 3)."""
         if self._projected_gravity_b is None:
             # Default gravity pointing down in body frame
             gravity_np = np.zeros((self._num_instances, 3), dtype=np.float32)
             gravity_np[:, 2] = -1.0
-            return wp.array(gravity_np, dtype=wp.float32, device=self.device)
-        return self._projected_gravity_b
+            self._projected_gravity_b = wp.array(gravity_np, dtype=wp.float32, device=self.device)
+            self._projected_gravity_b_ta = None
+        if self._projected_gravity_b_ta is None:
+            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b)
+        return self._projected_gravity_b_ta
 
     @property
-    def lin_vel_b(self) -> wp.array:
+    def lin_vel_b(self) -> ProxyArray:
         """Linear velocity in PVA body frame. Shape: (N, 3)."""
         if self._lin_vel_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._lin_vel_b
+            self._lin_vel_b = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._lin_vel_b_ta = None
+        if self._lin_vel_b_ta is None:
+            self._lin_vel_b_ta = ProxyArray(self._lin_vel_b)
+        return self._lin_vel_b_ta
 
     @property
-    def ang_vel_b(self) -> wp.array:
+    def ang_vel_b(self) -> ProxyArray:
         """Angular velocity in PVA body frame. Shape: (N, 3)."""
         if self._ang_vel_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._ang_vel_b
+            self._ang_vel_b = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._ang_vel_b_ta = None
+        if self._ang_vel_b_ta is None:
+            self._ang_vel_b_ta = ProxyArray(self._ang_vel_b)
+        return self._ang_vel_b_ta
 
     @property
-    def lin_acc_b(self) -> wp.array:
+    def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration in PVA body frame. Shape: (N, 3)."""
         if self._lin_acc_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._lin_acc_b
+            self._lin_acc_b = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._lin_acc_b_ta = None
+        if self._lin_acc_b_ta is None:
+            self._lin_acc_b_ta = ProxyArray(self._lin_acc_b)
+        return self._lin_acc_b_ta
 
     @property
-    def ang_acc_b(self) -> wp.array:
+    def ang_acc_b(self) -> ProxyArray:
         """Angular acceleration in PVA body frame. Shape: (N, 3)."""
         if self._ang_acc_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._ang_acc_b
+            self._ang_acc_b = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._ang_acc_b_ta = None
+        if self._ang_acc_b_ta is None:
+            self._ang_acc_b_ta = ProxyArray(self._ang_acc_b)
+        return self._ang_acc_b_ta
 
     # -- Setters --
 
     def set_pos_w(self, value: torch.Tensor) -> None:
         """Set position in world frame."""
         self._pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._pos_w_ta = None
 
     def set_quat_w(self, value: torch.Tensor) -> None:
         """Set orientation in world frame."""
         self._quat_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._quat_w_ta = None
 
     def set_projected_gravity_b(self, value: torch.Tensor) -> None:
         """Set projected gravity in body frame."""
         self._projected_gravity_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._projected_gravity_b_ta = None
 
     def set_lin_vel_b(self, value: torch.Tensor) -> None:
         """Set linear velocity in body frame."""
         self._lin_vel_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._lin_vel_b_ta = None
 
     def set_ang_vel_b(self, value: torch.Tensor) -> None:
         """Set angular velocity in body frame."""
         self._ang_vel_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._ang_vel_b_ta = None
 
     def set_lin_acc_b(self, value: torch.Tensor) -> None:
         """Set linear acceleration in body frame."""
         self._lin_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._lin_acc_b_ta = None
 
     def set_ang_acc_b(self, value: torch.Tensor) -> None:
         """Set angular acceleration in body frame."""
         self._ang_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._ang_acc_b_ta = None
 
     def set_mock_data(
         self,

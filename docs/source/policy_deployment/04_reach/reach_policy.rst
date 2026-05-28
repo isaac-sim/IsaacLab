@@ -498,14 +498,18 @@ The training hyperparameters are the same for both robots:
     num_steps_per_env = 512
     max_iterations = 1500
     save_interval = 50
-    empirical_normalization = True
-    obs_groups = {"policy": ["policy"], "critic": ["policy"]}
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
 
-    policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.0,
-        actor_hidden_dims=[256, 128, 64],
-        critic_hidden_dims=[256, 128, 64],
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 64],
         activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+    )
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 64],
+        activation="elu",
+        obs_normalization=True,
     )
 
     algorithm = RslRlPpoAlgorithmCfg(

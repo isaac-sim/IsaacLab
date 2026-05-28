@@ -188,9 +188,9 @@ class Thruster:
 
     def rk4_integration(self, error: torch.Tensor, mixing_factor: torch.Tensor):
         k1 = self.motor_model_rate(error, mixing_factor)
-        k2 = self.motor_model_rate(error + 0.5 * self.cfg.dt * k1, mixing_factor)
-        k3 = self.motor_model_rate(error + 0.5 * self.cfg.dt * k2, mixing_factor)
-        k4 = self.motor_model_rate(error + self.cfg.dt * k3, mixing_factor)
+        k2 = self.motor_model_rate(error - 0.5 * self.cfg.dt * k1, mixing_factor)
+        k3 = self.motor_model_rate(error - 0.5 * self.cfg.dt * k2, mixing_factor)
+        k4 = self.motor_model_rate(error - self.cfg.dt * k3, mixing_factor)
         return (self.cfg.dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
     def discrete_mixing_factor(self, time_constant: torch.Tensor):

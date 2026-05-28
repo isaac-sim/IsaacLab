@@ -52,7 +52,7 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     source: ../tools
     target: ${DOCKER_ISAACLAB_PATH}/tools
     # The effect of these volumes is twofold:
-    # 1. Prevent root-owned files from flooding the _build and logs dir
+    # 1. Prevent generated files from flooding the _build and logs dir
     #    on the host machine
     # 2. Preserve the artifacts in persistent volumes for later copying
     #    to the host machine
@@ -72,7 +72,6 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
 
 x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
-  - OMNI_KIT_ALLOW_ROOT=1
 
 x-default-isaac-lab-deploy: &default-isaac-lab-deploy
   resources:

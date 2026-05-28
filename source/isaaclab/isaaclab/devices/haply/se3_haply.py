@@ -16,7 +16,7 @@ from collections.abc import Callable
 import numpy as np
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 try:
     import websockets

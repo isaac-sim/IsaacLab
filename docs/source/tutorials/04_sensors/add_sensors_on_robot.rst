@@ -93,11 +93,11 @@ Height scanner
 
 The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
 Through the :class:`sensors.RayCasterCfg`, we can specify the pattern of rays to cast and the
-meshes against which to cast the rays. Since they are virtual sensors, there is no corresponding
-prim created in the scene for them. Instead they are attached to a prim in the scene, which is
-used to specify the location of the sensor.
+meshes against which to cast the rays. By default, :attr:`~sensors.RayCasterCfg.spawn` creates
+a plain USD Xform at :attr:`~sensors.RayCasterCfg.prim_path` to serve as the sensor's
+attachment frame, similar to how :class:`sensors.CameraCfg` spawns a Camera prim.
 
-For this tutorial, the ray-cast based height scanner is attached to the base frame of the robot.
+For this tutorial, the ray-cast based height scanner is attached under the base frame of the robot.
 The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For
 a uniform grid pattern, we specify the pattern using :class:`~sensors.patterns.GridPatternCfg`.
 Since we only care about the height information, we do not need to consider the roll and pitch

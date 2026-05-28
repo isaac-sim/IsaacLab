@@ -19,6 +19,8 @@ import time
 
 from isaaclab.app import AppLauncher
 
+from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+
 # -- CLI arguments -----------------------------------------------------------
 
 parser = argparse.ArgumentParser(description="Profile IsaacLab startup phases.")
@@ -57,10 +59,8 @@ parser.add_argument(
 
 # append AppLauncher cli args (provides --device, --headless, etc.)
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli, hydra_args = parser.parse_known_args()
-
-# clear out sys.argv for Hydra
+args_cli, hydra_args = setup_preset_cli(parser)
+hydra_args = fold_preset_tokens(hydra_args)
 sys.argv = [sys.argv[0]] + hydra_args
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))

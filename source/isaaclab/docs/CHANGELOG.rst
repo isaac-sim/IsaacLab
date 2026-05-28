@@ -1,6 +1,1398 @@
 Changelog
 ---------
 
+6.1.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sim.ServiceLocator` and exposed it as
+  :attr:`~isaaclab.sim.SimulationContext.services`.
+
+  Backend-specific caches can be registered and retrieved using subscript
+  syntax (``services[cls] = instance``, ``services[cls]``).  Services with
+  a ``close()`` method are automatically closed on ``clear_instance()``.
+* Added :class:`~isaaclab.sensors.camera.CameraISPMode` (values ``AUTO_CAMERA`` and ``AUTO_ANY``) and the :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` field to author or auto-discover an ISP cfg (:class:`~isaaclab_ppisp.PpispCfg`) from a USD ``RenderProduct`` bound to the camera (or anywhere on the stage as a fallback).
+* Added :attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR` to the renderer output contract so backends can advertise a 3-channel float HDR AOV.
+* Added :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` hook so backends can author per-camera USD overrides.
+* Added :class:`~isaaclab.renderers.CameraRenderSpec`, an immutable description of a tiled camera passed to render backends so they no longer hold a reference to the camera sensor instance.
+* Added shared visualizer defaults for CLI-created visualizer configs.
+
+Changed
+^^^^^^^
+
+* Updated the ``usd-core`` dependency to 25.11.0 to match Kit 110.1.1.
+
+Fixed
+^^^^^
+
+* Fixed visualizer tiled camera defaults and camera pose helpers so tiled camera views remain opt-in and respect selected environment ids.
+
+
+6.0.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.sim.schemas.define_actuator_properties` to author
+  ``NewtonActuator`` USD prims from IsaacLab actuator configs. Lives alongside
+  the other ``define_*_properties`` schema writers and is invoked from the
+  schema-side post-spawn hook below.
+* Added :meth:`~isaaclab.assets.AssetBaseCfg._post_spawn` hook (no-op by
+  default) invoked by :class:`~isaaclab.assets.AssetBase` after spawning the
+  asset. :class:`~isaaclab.assets.ArticulationCfg` overrides it to author
+  Newton-native actuator prims from :attr:`~isaaclab.assets.ArticulationCfg.actuators`.
+* Added common deformable property and material base cfgs in :mod:`isaaclab.sim`.
+* Added backend-neutral deformable asset APIs, including
+  :class:`~isaaclab.assets.DeformableObject`,
+  :class:`~isaaclab.assets.DeformableObjectCfg`, and shared base/data classes.
+* Added deformable body spawner, schema, and material APIs under
+  :mod:`isaaclab.sim`, including
+  :class:`~isaaclab.sim.DeformableObjectSpawnerCfg`,
+  :class:`~isaaclab.sim.DeformableBodyPropertiesCfg`,
+  :func:`~isaaclab.sim.define_deformable_body_properties`,
+  :func:`~isaaclab.sim.modify_deformable_body_properties`,
+  :class:`~isaaclab.sim.DeformableBodyMaterialCfg`,
+  :class:`~isaaclab.sim.SurfaceDeformableBodyMaterialCfg`, and
+  :func:`~isaaclab.sim.spawn_deformable_body_material`.
+* Added ``pytetwild`` as a package dependency for tetrahedral mesh generation.
+* Added deformable API, migration, and tutorial documentation for
+  backend-neutral imports and Newton backend selection.
+* Added :mod:`isaaclab.scene_data` sub-package consolidating
+  :class:`~isaaclab.scene_data.SceneDataProvider`,
+  :class:`~isaaclab.scene_data.SceneDataBackend`, and
+  :class:`~isaaclab.scene_data.SceneDataFormat` in a single import location.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.assets.BaseArticulation` no longer imports
+  ``isaaclab_newton`` from its ``__init__``. Newton-native actuator authoring
+  now flows through the generic ``_post_spawn`` hook on
+  :class:`~isaaclab.assets.AssetBaseCfg`.
+* :meth:`~isaaclab.physics.PhysicsManager.set_decimation` now has an explicit
+  ``pass`` body so the base class is consistent with the other no-op
+  classmethods.
+* Removed temporary startup and runtime debug breadcrumbs from core simulation and environment setup logs.
+* Changed deformable spawners to accept backend-specific deformable property and
+  material cfgs. Use PhysX cfgs from :mod:`isaaclab_physx.sim` or Newton cfgs
+  from :mod:`isaaclab_newton.sim`.
+* Changed deformable demos and tutorials to use the backend-neutral
+  :mod:`isaaclab.assets` and :mod:`isaaclab.sim` APIs with selectable PhysX or
+  Newton backends.
+* Changed USD spawning to support deformable objects whose USD assets contain
+  embedded tetrahedral mesh data.
+* **Breaking:** Renamed :class:`~isaaclab.sim.spawners.meshes.MeshSquareCfg`
+  to :class:`~isaaclab.sim.spawners.meshes.MeshRectangleCfg` and
+  :func:`~isaaclab.sim.spawners.meshes.spawn_mesh_square` to
+  :func:`~isaaclab.sim.spawners.meshes.spawn_mesh_rectangle`. The ``size``
+  attribute is now a ``tuple[float, float]`` of X- and Y-axis lengths instead
+  of a single edge length. Migrate ``MeshSquareCfg(size=s)`` to
+  ``MeshRectangleCfg(size=(s, s))``.
+* **Breaking:** Moved :class:`~isaaclab.scene_data.SceneDataProvider` from
+  :mod:`isaaclab.scene.scene_data_provider` and
+  :class:`~isaaclab.scene_data.SceneDataBackend` /
+  :class:`~isaaclab.scene_data.SceneDataFormat` from :mod:`isaaclab.physics`
+  to the new :mod:`isaaclab.scene_data` sub-package. Update imports::
+
+      # before
+      from isaaclab.scene.scene_data_provider import SceneDataProvider
+      from isaaclab.physics import SceneDataBackend, SceneDataFormat
+
+      # after
+      from isaaclab.scene_data import SceneDataProvider, SceneDataBackend, SceneDataFormat
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated generic deformable property and material cfgs in favor of
+  ``PhysxDeformableBodyPropertiesCfg``, ``PhysxDeformableBodyMaterialCfg``,
+  ``PhysxSurfaceDeformableBodyMaterialCfg``, ``NewtonDeformableBodyPropertiesCfg``,
+  ``NewtonDeformableBodyMaterialCfg``, and ``NewtonSurfaceDeformableBodyMaterialCfg``.
+
+Fixed
+^^^^^
+
+* Fixed three places where ``OvPhysxManager`` was misclassified as the
+  PhysX backend by a substring/schema match:
+
+  - :meth:`~isaaclab.sensors.SensorBase._register_callbacks` matched
+    ``"physx" in physics_mgr_cls.__name__.lower()`` to gate the PhysX
+    ``IsaacEvents.PRIM_DELETION`` import — the substring also matches
+    ``"OvPhysxManager"``, so the ``isaaclab_physx`` import fired in
+    kitless OVPhysX mode and raised
+    :exc:`ModuleNotFoundError` because ``omni.physics.tensors`` is not
+    loaded.  Switched to an exact ``physics_mgr_cls.__name__ ==
+    "PhysxManager"`` match.
+  - :meth:`~isaaclab.assets.AssetBase.set_debug_vis` had the same
+    substring check guarding an ``import omni.kit.app`` call, which
+    would fire for OVPhysX-backed assets and break under
+    ``./scripts/run_ovphysx.sh``.  Switched to an exact
+    ``"PhysxManager"`` match.
+  - :meth:`~isaaclab.physics.SceneDataProvider._get_backend` used
+    ``"physx" in manager_name`` to dispatch the backend factory; this
+    silently routed ``OvPhysxManager`` to the PhysX scene-data
+    provider.  Switched to exact ``"PhysxManager"`` /
+    ``"NewtonManager"`` matches and an explicit ``ValueError`` for
+    unknown managers.
+* Made
+  :attr:`~isaaclab.scene.InteractiveScene.physics_scene_path` accept a
+  bare :class:`pxr.UsdPhysics.Scene` prim as a fallback when no prim
+  with ``PhysxSceneAPI`` applied is on the stage.  Kitless OVPhysX
+  does not load the ``omni.physx`` schema, so the auto-created scene
+  prim only carries the stock USD type.  PhysX-backed flows continue
+  to prefer the ``PhysxSceneAPI`` prim.
+* Fixed a per-step performance regression in :func:`~isaaclab.envs.mdp.events.apply_external_force_torque`
+  when the event was configured with all-zero ``force_range`` and ``torque_range`` (a common default
+  for tasks that declare the event term but apply no disturbance). The event was unconditionally
+  sampling zero wrenches and routing them through the dual-buffer ``WrenchComposer`` introduced in
+  PR #5265, paying the full per-step compose-and-apply cost in
+  :meth:`~isaaclab.assets.Articulation.write_data_to_sim` for what is semantically a no-op. The
+  function now returns early when both ranges are exactly zero. This restores the H1, G1, and
+  Anymal-C ``Velocity-Rough`` throughput observed prior to PR #5265. Behaviour for non-zero ranges
+  is unchanged.
+* Fixed visualization marker backend initialization so USD markers remain available during rendering even when standalone visualizers are not launched.
+* Fixed :class:`~isaaclab.sim.views.FrameView` dispatch under the OVPhysX
+  backend. ``FrameView(...)`` now routes to
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView` instead of silently
+  falling through to ``FabricFrameView``, which returned stale USD spawn
+  poses for sensor frames riding on physics bodies.
+
+
+5.5.1 (2026-05-19)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a Windows fatal exception (``0xc0000139``) that crashed the process on startup when
+  running any :class:`~isaaclab.envs.ManagerBasedRLEnv`-based script (e.g. ``skrl/play.py``)
+  on machines where ``h5py``'s native DLL could not be loaded. The ``import h5py`` in
+  :class:`~isaaclab.utils.datasets.HDF5DatasetFileHandler` was a top-level statement that
+  executed unconditionally at import time. It is now deferred to the individual methods that
+  open or create HDF5 files, so the DLL is only loaded when dataset recording is actually used.
+
+
+5.5.0 (2026-05-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the installation model of :meth:`~isaaclab.cli.commands.install.command_install`
+  from per-submodule selection to a three-tier system. All core submodules
+  (``isaaclab``, ``isaaclab_assets``, ``isaaclab_contrib``, ``isaaclab_experimental``,
+  ``isaaclab_newton``, ``isaaclab_ov``, ``isaaclab_ovphysx``, ``isaaclab_physx``,
+  ``isaaclab_rl``, ``isaaclab_tasks``, ``isaaclab_tasks_experimental``,
+  ``isaaclab_visualizers``)
+  are now always installed by ``./isaaclab.sh -i``. Optional submodules
+  (``mimic``, ``teleop``) and automatic extra feature sets
+  (``newton``, ``rl[...]``, ``visualizer[...]``) are installed by ``./isaaclab.sh -i``
+  / ``./isaaclab.sh -i all``.
+  Optional dependency extras require selectors, so rlinf dependencies are
+  installed with ``contrib[rlinf]`` and the ``ovrtx`` / ``ovphysx`` wheels are installed
+  with ``ov[ovrtx]``, ``ov[ovphysx]``, or ``ov[all]``. Old per-submodule tokens (e.g.
+  ``assets``, ``tasks``, ``physx``) now emit a warning and are skipped gracefully.
+  Migrate using the table below:
+
+  +----------------------------------------------+-------------------------------------------+
+  | Old command                                  | New command                               |
+  +==============================================+===========================================+
+  | ``./isaaclab.sh -i assets,tasks,physx``      | ``./isaaclab.sh -i none``                 |
+  +----------------------------------------------+-------------------------------------------+
+  | ``./isaaclab.sh -i assets,tasks,ov,rl[...]`` | ``./isaaclab.sh -i ov[all],rl[...]``      |
+  +----------------------------------------------+-------------------------------------------+
+  | ``./isaaclab.sh -i newton,rl[all]``          | unchanged                                 |
+  +----------------------------------------------+-------------------------------------------+
+  | ``./isaaclab.sh -i mimic,teleop``            | unchanged                                 |
+  +----------------------------------------------+-------------------------------------------+
+  | ``uv pip install isaaclab[tasks,rl,assets]`` | ``uv pip install isaaclab[all]``          |
+  +----------------------------------------------+-------------------------------------------+
+
+* Simplified :mod:`isaaclab` package extras to ``isaacsim`` and ``all``; removed the old
+  per-submodule extras (``tasks``, ``rl``, ``assets``, etc.) from ``pip install isaaclab[...]``.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.cloner.cloner_utils.is_homogeneous` because it is an implementation detail.
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab`` wheel's ``rsl-rl`` optional dependency to install
+  ``rsl-rl-lib==5.0.1``, matching the version required by the RSL-RL training
+  scripts.
+* Fixed the root ``uv run`` workflow by restoring the documented
+  ``pyproject.toml`` extras, the IsaacLab-only ``all`` extra, and removing the
+  Isaac Sim extra from the development project.
+* Fixed ``uv run`` creating ``.venv`` from an active conda Python by requiring
+  uv-managed Python for the development project.
+
+
+5.4.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sensors.ray_caster.BaseRayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.BaseRayCasterCamera`,
+  :class:`~isaaclab.sensors.ray_caster.BaseMultiMeshRayCaster`, and
+  :class:`~isaaclab.sensors.ray_caster.BaseMultiMeshRayCasterCamera`
+  carrying the backend-agnostic ray-caster logic. Backend subclasses
+  override only the body-tracker and target-mesh-tracker hooks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab.sensors.camera.CameraData`
+  camera-owned buffers to :class:`~isaaclab.utils.warp.ProxyArray`.
+  Access torch tensor operations through the explicit ``.torch`` view.
+* :class:`~isaaclab.sensors.ray_caster.RayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera`,
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster`, and
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera` are now
+  :class:`~isaaclab.utils.backend_utils.FactoryBase` shims dispatching
+  to PhysX / Newton implementations. Cfg surface and runtime semantics
+  unchanged.
+* Changed ray-caster camera update paths to keep pose, ray, depth, normal,
+  and mesh-id buffers Warp-owned internally, while exposing public camera
+  outputs through :class:`~isaaclab.utils.warp.ProxyArray`.
+
+
+5.3.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unified ``train`` and ``play`` console-script entry points (``isaaclab.cli:train``
+  and ``isaaclab.cli:play``) that dispatch to a library-specific implementation via
+  ``--rl_library``. Supported libraries are ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``,
+  and ``rlinf``.
+* Added refactored per-library train/play scripts under
+  ``scripts/reinforcement_learning/`` with a shared ``common.dispatch_library_entrypoint``
+  helper, replacing the previous standalone per-library scripts.
+* Added experimental ``uv run`` workflow allowing ``uv run train`` and ``uv run play``
+  directly from the repository root without manual environment setup. See
+  :ref:`uv-run-training` for usage.
+* Added :attr:`~isaaclab.sim.converters.UrdfConverterCfg.ros_package_paths`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.robot_type`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.run_asset_transformer`,
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.run_multi_physics_conversion`, and
+  :attr:`~isaaclab.sim.converters.UrdfConverterCfg.debug_mode` config fields that mirror the
+  new :class:`isaacsim.asset.importer.urdf.URDFImporterConfig` options.
+* Extended :attr:`~isaaclab.sim.converters.UrdfConverterCfg.collision_type` to accept
+  ``"Bounding Sphere"`` and ``"Bounding Cube"`` in addition to the existing ``"Convex Hull"``
+  and ``"Convex Decomposition"`` values.
+* Added :attr:`~isaaclab.sim.converters.MjcfConverterCfg.fix_base`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.link_density`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.robot_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_gain_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_bias_type`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_gain_prm`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.override_bias_prm`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.run_asset_transformer`,
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.run_multi_physics_conversion`, and
+  :attr:`~isaaclab.sim.converters.MjcfConverterCfg.debug_mode` config fields that mirror the
+  new :class:`isaacsim.asset.importer.mjcf.MJCFImporterConfig` options.
+* Added ``--deterministic`` flag to :class:`~isaaclab.app.app_launcher.AppLauncher` so training and
+  rendering runs can opt into RTX/RTPT carb settings for more reproducible output after startup.
+* Added :func:`~isaaclab.cloner.cloner_utils.is_homogeneous` to detect whether a :class:`~isaaclab.cloner.ClonePlan`
+  assigns every environment from every source (a homogeneous clone mask).
+* Added :class:`~isaaclab.envs.mdp.observations.stacked_image`, a stateful
+  :class:`~isaaclab.managers.ManagerTermBase` that channel-stacks the last ``N`` frames
+  from a camera sensor. Manager-based environments can reference it in observation cfg
+  to add explicit temporal information for camera-based RL tasks whose renderer doesn't
+  supply implicit temporal data (e.g., Newton Warp).
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.converters.UrdfConverter` to delegate the full conversion
+  pipeline to :class:`isaacsim.asset.importer.urdf.URDFImporter` /
+  :class:`isaacsim.asset.importer.urdf.URDFImporterConfig`. The duplicated IsaacLab
+  implementations of ``_apply_fix_base``, ``_apply_link_density``, ``_apply_joint_drives``,
+  ``_set_drive_type_on_joints``, ``_set_target_type_on_joints``, ``_set_drive_gains_on_joints``,
+  and ``_fix_articulation_root_for_fixed_base`` have been removed and replaced with a thin
+  translation layer that maps :class:`~isaaclab.sim.converters.UrdfConverterCfg` onto the
+  Isaac Sim importer config. All behaviour is preserved.
+* Updated :class:`~isaaclab.sim.converters.MjcfConverter` to forward the full set of
+  :class:`isaacsim.asset.importer.mjcf.MJCFImporterConfig` options to the Isaac Sim importer.
+* Bumped the ``newton[sim]`` pin from ``v1.2.0rc2`` to ``v1.2.0``
+  (stable) across :mod:`isaaclab_newton`, :mod:`isaaclab_physx`
+  (``[newton]`` extra), :mod:`isaaclab_visualizers` (3×), and
+  ``tools/wheel_builder/res/python_packages.toml``. Upstream release
+  notes: `newton-physics/newton v1.2.0
+  <https://github.com/newton-physics/newton/releases/tag/v1.2.0>`_.
+* No IsaacLab-side ``mujoco`` / ``mujoco-warp`` pin change — the
+  transitive ``mjwarp`` bump flows in through ``newton[sim]`` since
+  `isaac-sim/IsaacLab#5566
+  <https://github.com/isaac-sim/IsaacLab/pull/5566>`_ dropped the
+  explicit pins.
+* Changed Isaac Lab Docker images to run as the non-root ``isaaclab`` user by default. Use an explicit
+  container user override when root access is required.
+* Changed :class:`~isaaclab.sensors.camera.CameraData` to expose all sensor buffers as
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of :class:`torch.Tensor`. The fields
+  :attr:`~isaaclab.sensors.camera.CameraData.pos_w` (``wp.vec3f``),
+  :attr:`~isaaclab.sensors.camera.CameraData.quat_w_world` (``wp.quatf``),
+  :attr:`~isaaclab.sensors.camera.CameraData.intrinsic_matrices` (``wp.mat33f``), and all
+  entries in :attr:`~isaaclab.sensors.camera.CameraData.output` are now backed by warp arrays.
+  Use ``.torch`` for a zero-copy :class:`torch.Tensor` view or ``.warp`` to pass the array
+  directly to a warp kernel. Existing code using these fields as tensors (indexing, arithmetic,
+  :func:`torch.testing.assert_close`, etc.) continues to work via the
+  :class:`~isaaclab.utils.warp.ProxyArray` deprecation bridge with a one-time
+  :class:`DeprecationWarning`.
+* Updated :meth:`~isaaclab.renderers.BaseRenderer.set_outputs` and
+  :meth:`~isaaclab.renderers.BaseRenderer.update_camera` in :class:`~isaaclab.renderers.BaseRenderer`
+  to accept :class:`~isaaclab.utils.warp.ProxyArray` arguments instead of :class:`torch.Tensor`.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.sim.converters.urdf_utils.merge_fixed_joints` as it is now handled by the Isaac Sim URDF importer.
+
+Fixed
+^^^^^
+
+* Fixed a startup crash in :class:`~isaaclab.app.AppLauncher` when launching with a CUDA device.
+  Setting the current torch CUDA device used to happen before ``SimulationApp`` was created, which
+  imported ``torch`` (and transitively NumPy/OpenBLAS) prior to Kit's platform-info fork. On systems
+  where OpenBLAS's at-fork handlers were not yet safe, that fork could crash. The
+  ``torch.cuda.set_device`` call is now deferred until after ``SimulationApp`` starts.
+* Fixed ``calculate_rotation_error`` in
+  ``source/isaaclab/test/controllers/test_pink_ik.py`` composing rotation matrices
+  with element-wise ``*`` instead of matrix multiplication ``@`` — a latent bug
+  from `isaac-sim/IsaacLab#3149
+  <https://github.com/isaac-sim/IsaacLab/pull/3149>`_ that surfaced as NaN after
+  `isaac-sim/IsaacLab#5609
+  <https://github.com/isaac-sim/IsaacLab/pull/5609>`_ added the unit-norm guard to
+  ``quat_from_matrix``.
+* Made ``test_pink_ik`` deterministic by seeding the env (``env_cfg.seed = 42``)
+  in ``create_test_env``.
+* Loosened the G1 Pink IK rotation tolerance from ``0.030`` rad to ``0.100`` rad
+  in ``pink_ik_g1_test_configs.json`` to accommodate G1's intentionally smooth IK
+  tuning (slower-converging than GR1T2). GR1T2 tolerance unchanged at ``0.020`` rad.
+
+
+5.2.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.math.create_rotation_matrix_from_view` returning a singular
+  matrix when the look-at direction was parallel to the up axis. The function now produces
+  a valid orthonormal frame via an alternate reference vector, and fills NaN for rows with
+  truly undefined forward direction (``eyes == targets`` or non-finite input). Callers
+  detect per-row failure with ``torch.isnan(R).any(dim=(-2, -1))``.
+* Fixed :func:`~isaaclab.utils.math.quat_from_matrix` silently returning a non-unit
+  quaternion for non-rotation input (singular, reflection, or scale-error matrices).
+  Such inputs now return NaN, detectable via :func:`torch.isnan`.
+* Fixed :meth:`~isaaclab.sensors.camera.Camera.set_world_poses_from_view` and
+  :meth:`~isaaclab.sensors.ray_caster.RayCasterCamera.set_world_poses_from_view` silently
+  applying garbage poses when an eye position equaled its target. Degenerate rows are now
+  skipped (with a logged warning), and ``ValueError`` is raised if every row in the batch
+  is degenerate.
+
+
+5.2.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` and
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w` properties,
+  exposing the per-body geometric Jacobian referenced at the link origin and
+  body center of mass respectively. The pair mirrors the existing
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_pose_w` /
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_pose_w` and
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_vel_w` /
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_vel_w` exposure pattern.
+  Backends without a native primitive raise :class:`NotImplementedError`.
+* Added :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix` property,
+  exposing the joint-space generalized mass matrix ``M(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  property, exposing the joint-space gravity-loading torque vector ``g(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` — number of
+  free DoFs of the floating base (``0`` for fixed-base, ``6`` for floating-
+  base). Use it to map an actuated-joint index ``j`` to its column in the
+  Jacobian / mass matrix / gravity vector via ``j + num_base_dofs``.
+
+* The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
+  base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
+  num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
+  num_joints + num_base_dofs)`` for the mass matrix. This matches the
+  cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
+  Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
+  ``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
+  6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
+  returning ``(6 + dofs, 6 + dofs)``).
+* Added :attr:`~isaaclab.scene_data.SceneDataProvider.usd_stage`,
+  :attr:`~isaaclab.scene_data.SceneDataProvider.num_envs`, and
+  :meth:`~isaaclab.scene_data.SceneDataProvider.get_camera_transforms`
+  so visualizers and renderers can pull stage-derived data through the same
+  Warp-native provider that already exposes transforms.
+
+Changed
+^^^^^^^
+
+* Migrated :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`,
+  :class:`~isaaclab.envs.mdp.actions.task_space_actions.OperationalSpaceControllerAction`,
+  and :class:`~isaaclab.envs.mdp.actions.rmpflow_task_space_actions.RMPFlowAction`
+  to fetch dynamic quantities through the new
+  :class:`~isaaclab.assets.BaseArticulationData` properties instead of the
+  PhysX-only ``root_view``. The OSC action term now also gates the
+  per-step mass-matrix and gravity-compensation fetches behind the
+  controller cfg's :attr:`inertial_dynamics_decoupling`,
+  :attr:`nullspace_control`, and :attr:`gravity_compensation` flags
+  so backends without a native primitive are not invoked when the
+  controller does not consume the result.
+* Action terms (DiffIK / OSC / RMPFlow / Pink) compute their Jacobian
+  joint-axis indices via
+  ``[j + asset.num_base_dofs for j in joint_ids]``, which is ``0`` for
+  fixed-base and ``+6`` for floating-base. Pink IK previously hardcoded
+  a private ``_physx_floating_joint_indices_offset = 6``; that was
+  removed in favor of the cross-backend property.
+* PhysX backend's :attr:`body_link_jacobian_w` applies the COM→origin shift to
+  PhysX's natively COM-referenced Jacobian. The previously-exposed
+  ``Articulation.get_jacobians()`` was a passthrough that returned the raw
+  COM-referenced Jacobian, while IK / OSC consumers also read
+  :attr:`body_link_pose_w` as the EE pose setpoint — a frame mismatch that
+  produced a ``ω × r_com_w`` per-body bias in tracking. The new property
+  reads the same engine buffer and applies the shift so ``J · q_dot`` matches
+  ``body_link_lin_vel_w``. Consumers that intentionally want the raw
+  COM-referenced form can read :attr:`body_com_jacobian_w`.
+* **Breaking:** :class:`~isaaclab.visualizers.base_visualizer.BaseVisualizer`
+  subclasses now receive a
+  :class:`~isaaclab.scene_data.SceneDataProvider` in
+  :meth:`~isaaclab.visualizers.base_visualizer.BaseVisualizer.initialize`
+  instead of the removed ``BaseSceneDataProvider``. Read environment count
+  from :attr:`~isaaclab.scene_data.SceneDataProvider.num_envs`
+  and call
+  :meth:`~isaaclab.scene_data.SceneDataProvider.get_camera_transforms`
+  on the new provider; both replace the previous ``get_metadata()`` /
+  ``get_camera_transforms()`` calls on the legacy interface.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.physics.BaseSceneDataProvider``,
+  ``isaaclab.physics.SceneDataProvider`` (the legacy factory),
+  ``SimulationContext.initialize_scene_data_provider()``, and
+  ``SimulationContext.update_scene_data_provider()``. Use
+  :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_scene_data_provider`
+  to obtain the new provider; consumers that previously called
+  ``get_newton_model()`` / ``get_newton_state()`` should call
+  ``NewtonManager.get_model()`` / ``NewtonManager.get_state()`` instead.
+* Removed explicit ``mujoco`` and ``mujoco-warp`` dependencies from
+  :mod:`isaaclab`. These packages are not used by ``isaaclab`` core and are
+  now resolved transitively through Newton's ``[sim]`` extra in
+  :mod:`isaaclab_newton`. Users installing only the PhysX or Kit backends no
+  longer pull in MuJoCo.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~envs.LeappDeploymentEnv` crashing on ``reset()`` with
+  ``AttributeError: 'LeappDeploymentEnv' object has no attribute 'extras'``
+  by initializing ``self.extras`` in ``__init__``.
+* Fixed ``./isaaclab.sh -p -m pip ...`` failing with ``No module named pip``
+  in the conda env created from ``environment.yml`` on Linux aarch64
+  (e.g. DGX Spark / GB10). The conda-forge solver was not pulling
+  ``pip`` in transitively on aarch64, so the resulting ``env_isaaclab``
+  had no pip. ``environment.yml`` now lists ``pip`` explicitly so it
+  is seeded on every platform.
+* Fixed ``pip install isaaclab[isaacsim,all]==3.0.0`` failing with
+  ``No solution found`` (UV) or ``error: resolution-too-deep`` (pip) when
+  resolving against ``isaacsim==6.0.0.0``. ``viser>=1.0.16`` was a base
+  dependency of the built ``isaaclab`` wheel and transitively requires
+  ``websockets>=13.1``, but ``isaacsim-kernel==6.0.0.0`` pins
+  ``websockets==12.0``. Moved ``viser`` to an opt-in ``viser`` extra in
+  ``tools/wheel_builder/res/python_packages.toml`` so the base wheel is
+  installable alongside ``isaacsim==6.0.0.0``. Users who want the Viser
+  visualizer can request it explicitly with ``isaaclab[viser]``.
+
+
+5.1.1 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton-related dependencies to use MuJoCo 3.8, MuJoCo Warp 3.8.0.2,
+  Warp 1.13 or newer, and the packaged Newton 1.2.0 release candidate.
+
+Fixed
+^^^^^
+
+* Fixed a spurious ``[Error][carb] Client passed into the framework is nullptr.``
+  log emitted from :meth:`~isaaclab.cloner._fabric_notices.FabricNoticeBindings.initialize`
+  when an environment imports IsaacLab outside Kit (e.g. remote asset resolution
+  via ``omni.client``). The helper was passing ``clientName=None`` as a fallback
+  to ``tryAcquireInterfaceWithClient``; Carbonite has rejected null client names
+  since 2018, so the call only emitted a misleading error log and never returned
+  a valid interface. The fallback has been removed; the helper still fails closed
+  when Fabric is unavailable, with no impact on the cloning speedup when Fabric
+  is present.
+
+
+5.1.0 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.scene.InteractiveScene.initialize_renderers` to
+  pre-create renderer backends for all scene sensors with a
+  ``renderer_cfg`` against the shared
+  :class:`~isaaclab.renderers.render_context.RenderContext`. The method is
+  idempotent and is now invoked from
+  :class:`~isaaclab.envs.DirectRLEnv`,
+  :class:`~isaaclab.envs.DirectMARLEnv`,
+  :class:`~isaaclab.envs.ManagerBasedEnv`, and
+  :class:`~isaaclab.envs.LeappDeploymentEnv` after scene construction so
+  that renderer backend creation order is deterministic and front-loaded
+  before the first :meth:`~isaaclab.sim.SimulationContext.reset`.
+* Added :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.initialize`
+  post-physics lifecycle hook (default no-op) that runs once per backend
+  after :meth:`~isaaclab.sim.SimulationContext.reset` builds physics
+  models. ``__init__`` now defines the pre-physics phase (eagerly invoked
+  by :meth:`~isaaclab.scene.InteractiveScene.initialize_renderers`) and
+  ``initialize`` defines the post-physics phase, letting backends whose
+  setup needs scene data (e.g. a built Newton model) defer that work
+  cleanly. Driven by
+  :meth:`~isaaclab.renderers.render_context.RenderContext.ensure_initialize`,
+  registered on
+  :class:`~isaaclab.physics.physics_manager.PhysicsEvent` ``PHYSICS_READY``
+  by :class:`~isaaclab.sim.SimulationContext` at ``order=5`` so it fires
+  before sensor/asset callbacks (``order=10``). This decouples renderer
+  post-physics setup from camera initialization. Backends created lazily
+  after PHYSICS_READY are eagerly initialized at
+  :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`
+  time.
+* Added forwarding shims on :mod:`isaaclab.sim.schemas` and :mod:`isaaclab.sim` for the
+  Newton/MuJoCo cfg classes added in :mod:`isaaclab_newton.sim.schemas`
+  (:class:`NewtonRigidBodyPropertiesCfg`, :class:`NewtonJointDrivePropertiesCfg`,
+  :class:`NewtonCollisionPropertiesCfg`, :class:`NewtonMeshCollisionPropertiesCfg`,
+  :class:`NewtonMaterialPropertiesCfg`, :class:`NewtonArticulationRootPropertiesCfg`,
+  :class:`MujocoRigidBodyPropertiesCfg`, :class:`MujocoJointDrivePropertiesCfg`).
+  The shims resolve lazily on first access so importing :mod:`isaaclab.sim.schemas`
+  does not require :mod:`isaaclab_newton` to be installed.
+
+Fixed
+^^^^^
+
+* Fixed extension installation to honor ``pip_upgrade_dependencies`` declared
+  in ``config/extension.toml``.
+
+
+5.0.0 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.cloner.ClonePlan` as the flat clone contract shared by
+  scene cloning, backend replication, and scene-data providers.
+* Added :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` for publishing the
+  scene's clone plan.
+* Added :attr:`~isaaclab.scene.InteractiveScene.clone_plan` for consumers holding
+  a scene reference.
+* Added explicit ``spawn_paths`` support to multi-asset spawners so scene
+  planning can spawn representative heterogeneous sources directly.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed scene-data providers to build visualizer backend models
+  from :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` instead of a
+  clone-time visualizer artifact. Use the published
+  :class:`~isaaclab.cloner.ClonePlan` for custom scene-data integrations.
+* **Breaking:** Changed :class:`~isaaclab.scene.InteractiveScene` to build clone
+  plans directly from asset configuration, spawn representative sources in their
+  selected environments, and replicate from those sources instead of spawning and
+  discovering prototypes under ``/World/template``.
+* **Breaking:** Replaced ``TemplateCloneCfg`` with
+  :class:`~isaaclab.cloner.CloneCfg` for clone execution settings.
+* **Breaking:** Changed :func:`~isaaclab.cloner.make_clone_plan` to return a
+  :class:`~isaaclab.cloner.ClonePlan` object directly.
+* **Breaking:** Changed clone plan publication to use
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` for the single scene
+  clone plan.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed
+  :attr:`~isaaclab.cloner.TemplateCloneCfg.visualizer_clone_fn`,
+  :func:`~isaaclab.cloner.resolve_visualizer_clone_fn`, and
+  :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`.
+  Use the :class:`~isaaclab.cloner.ClonePlan` published through
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` instead.
+* **Breaking:** Removed
+  :meth:`~isaaclab.sim.SimulationContext.get_scene_data_visualizer_prebuilt_artifact`,
+  :meth:`~isaaclab.sim.SimulationContext.set_scene_data_visualizer_prebuilt_artifact`,
+  and
+  :meth:`~isaaclab.sim.SimulationContext.clear_scene_data_visualizer_prebuilt_artifact`.
+  Use :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` /
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` instead.
+* **Breaking:** Removed :func:`~isaaclab.cloner.clone_from_template`. Use
+  :func:`~isaaclab.cloner.make_clone_plan`,
+  :func:`~isaaclab.cloner.usd_replicate`, and backend physics replication
+  functions for direct cloning workflows.
+
+
+4.8.2 (2026-05-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Pink IK setup checks to reinstall and report the required ``daqp``
+  solver when it is missing or incompatible.
+
+
+4.8.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Pink IK task-space action base link frame lookup to read direct
+  body link pose data instead of slicing packed body link state. No user
+  migration is required.
+* Added :mod:`filelock` to ``isaaclab`` install requirements.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.assets.Articulation` joint friction API docs to clarify backend-specific semantics.
+* Fixed :class:`~isaaclab.envs.mdp.actions.PinkInverseKinematicsAction`
+  base link pose reads to avoid deprecated body link state access.
+* Fixed the sensor overview documentation to include
+  :class:`~isaaclab.sensors.Pva` and
+  :class:`~isaaclab.sensors.JointWrenchSensor`.
+* Fixed the PVA sensor demo to align front-foot sensor names with their prim
+  paths.
+* Fixed Sphinx docs build failing due to ``https://nvidia.github.io/warp/objects.inv`` returning 404.
+  Pinned the ``warp`` intersphinx mapping to ``/stable/``, which is where the inventory now lives.
+* Fixed the sensor prim-deletion callback guard so the OvPhysX backend is not
+  treated as the Kit PhysX backend.
+* Relaxed the ``starlette`` pin in :mod:`isaaclab` from ``==0.49.1`` to
+  ``>=0.46.0,<0.50`` so installs of ``isaaclab[isaacsim,all]==3.0.0``
+  alongside ``isaacsim==6.0.0.0`` resolve cleanly. The transitive pin
+  from ``isaacsim-kernel`` -> ``fastapi==0.117.1`` requires
+  ``starlette<0.49.0``; the previous exact pin was mutually exclusive.
+* Fixed :mod:`isaaclab.sim.spawners.from_files` failing to import on Windows
+  due to an unconditional ``import fcntl`` (Unix-only). The distributed-rank
+  USD spawn lock now uses :class:`filelock.FileLock`, which works on both
+  Windows and POSIX.
+* Certain functions in test_math were failing non deterministically. This was caused by not setting seed values.
+
+
+4.8.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped Newton pin to ``v1.2.0rc2``. Pulls in IsaacLab-relevant fixes from
+  `newton-physics/newton#2678 <https://github.com/newton-physics/newton/pull/2678>`_
+  and `newton-physics/newton#2720
+  <https://github.com/newton-physics/newton/pull/2720>`_ (``SolverKamino``
+  reset under ``world_mask``), the upstream tendon-scoping fix from
+  `newton-physics/newton#2659
+  <https://github.com/newton-physics/newton/pull/2659>`_ ("Scope USD
+  custom-frequency parsing"), and a VRAM-leak fix on example reset
+  (`newton-physics/newton#2710
+  <https://github.com/newton-physics/newton/pull/2710>`_).
+* Newton ``v1.2.0rc2`` requires ``warp-lang==1.13.0``, ``mujoco==3.8.0``,
+  and ``mujoco-warp==3.8.0.1``. ``warp-lang``/``mujoco``/``mujoco-warp``
+  pins live in :mod:`isaaclab` and ``tools/wheel_builder/res/python_packages.toml``;
+  the Newton pin is mirrored across :mod:`isaaclab_newton`,
+  :mod:`isaaclab_visualizers` (3×), :mod:`isaaclab_physx` (``[newton]``
+  extra), and the wheel-builder TOML.
+* Updated ``wp.math.transform_to_matrix`` to ``wp.transform_to_matrix`` in
+  :mod:`~isaaclab_newton.physics.newton_manager` and
+  :mod:`~isaaclab_ov.renderers.ovrtx_renderer_kernels` to match the
+  ``warp-lang`` 1.13 API (the ``wp.math`` namespace was removed).
+
+
+4.7.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP export support for manager-based RSL-RL policies, including
+  export-time observation/action annotation, recurrent actor-state handling, and
+  deployment through :mod:`scripts.reinforcement_learning.leapp.deploy`.
+* Added a Direct workflow LEAPP export tutorial and annotated ANYmal-C example
+  script showing how to mark policy inputs, outputs, and persistent state with
+  LEAPP annotations. Direct workflow policies can be exported with
+  :mod:`scripts.reinforcement_learning.leapp.rsl_rl.export`, but are not yet
+  supported by :mod:`scripts.reinforcement_learning.leapp.deploy`.
+* Added LEAPP deployment documentation describing the exported-policy validation
+  flow and linking the manager-based and Direct workflow export paths.
+* Added LEAPP export annotations, proxy utilities, and deployment environment
+  support for Isaac Lab assets, sensors, commands, and manager-based environments.
+* Added :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` so render backends
+  take explicit camera inputs (USD paths, :class:`~isaaclab.sensors.camera.CameraCfg`, device,
+  counts) instead of the :class:`~isaaclab.sensors.camera.Camera` instance.
+* Added :class:`~isaaclab.renderers.render_context.RenderContext` (accessed as
+  :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context`) to own one or
+  more :class:`~isaaclab.renderers.base_renderer.BaseRenderer` instances: configurations that
+  compare equal under ``==`` and share the same concrete
+  :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` class reuse a backend; distinct
+  types (e.g. Isaac RTX and Newton) register separate backends, each with
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` the first time a camera
+  with that configuration initializes.
+* Added :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera` to run
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` (at most once
+  per physics step), then :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render` and
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
+* Added :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count`.
+* Added :class:`~isaaclab.cloner.ClonePlan` frozen dataclass capturing per-group
+  prototype-to-environment mappings (``dest_template``, ``prototype_paths``,
+  ``clone_mask``). Lets downstream consumers (scene data providers, mesh samplers)
+  read prototype geometry once and scatter to environments via the per-group mask
+  instead of walking per-env USD paths.
+* Added :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` for publishing and
+  consuming the cloner's per-group plan map.
+* Added :attr:`~isaaclab.scene.InteractiveScene.clone_plans` property (forwards to
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plans`) so consumers holding a
+  scene reference can read the published plans without going through the sim
+  context.
+* Added backend-agnostic :class:`~isaaclab.markers.VisualizationMarkers` support for
+  marker-capable Kit, Newton, Rerun, and Viser visualizers.
+* Added :meth:`~isaaclab.utils.backend_utils.get_default_renderer_cfg`. to lazy load the IsaacRtxRendererCfg
+* Added :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, the solver-common
+  base class for rigid-body physics materials. Carries the ``UsdPhysics.MaterialAPI`` standard
+  fields (``static_friction``, ``dynamic_friction``, ``restitution``). The PhysX-specific
+  compliant-contact and combine-mode fields moved to
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+* Added :class:`~isaaclab.sim.schemas.CollisionBaseCfg`, the solver-common base class for
+  collision properties. Carries :attr:`collision_enabled` (``UsdPhysics.CollisionAPI``) plus
+  :attr:`contact_offset` and :attr:`rest_offset` whose USD attributes are PhysX-namespaced
+  but are consumed by Newton's importer via the PhysX bridge resolver
+  (``import_usd.py:2104, 2111``).
+* Added :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`, the solver-common base class
+  for articulation root properties (``fix_root_link``, ``articulation_enabled``).
+* Added :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`, the solver-common base class for
+  mesh collision properties carrying ``mesh_approximation_name`` (writes
+  ``physics:approximation`` via :class:`UsdPhysics.MeshCollisionAPI`). The class-level
+  ``_usd_applied_schema`` metadata replaces the deprecated ``usd_api`` / ``physx_api``
+  instance-field dispatch.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.sensors.camera.Camera` obtains a backend via
+  :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer` and calls
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data` with
+  a :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` (no
+  :class:`~isaaclab.sensors.sensor_base.SensorBase` reference on the public API).
+* :class:`~isaaclab.scene.interactive_scene.InteractiveScene` calls
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` once at the start
+  of :meth:`~isaaclab.scene.interactive_scene.InteractiveScene.update` when
+  ``lazy_sensor_update`` is false; fetches that render still dedupe the same way via
+  ``physics_step_count`` in :class:`~isaaclab.renderers.render_context.RenderContext`.
+* **Breaking:** :func:`~isaaclab.cloner.clone_from_template` now returns
+  ``dict[str, ClonePlan]`` instead of ``None``. Bind the result and publish it
+  through :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` if downstream
+  consumers (e.g. the PhysX scene data provider's Newton-visualizer build path)
+  need to read the plan.
+* Changed :func:`~isaaclab.envs.mdp.body_incoming_wrench` to read from
+  :class:`~isaaclab.sensors.JointWrenchSensor`. Pass
+  ``sensor_cfg=SceneEntityCfg("joint_wrench", body_names=...)`` instead of an
+  articulation asset config.
+* Updated :class:`~isaaclab.sensors.camera.Camera` to construct its internal
+  :class:`~isaaclab.sim.views.FrameView` without the now-removed
+  ``sync_usd_on_fabric_write`` kwarg.  USD attributes on camera prims are
+  no longer kept in sync with Fabric writes; read poses through the view's
+  getters instead.
+* :class:`~isaaclab.sensors.camera.CameraCfg` now defaults its render_cfg to :class:`~isaaclab.renderers.RenderCfg`
+  :meth:`~isaaclab.utils.backend_utils.get_default_renderer_cfg` is called during __post_init__ to replace
+  the generic RenderCfg with the default config :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+* Cleaned up the schema-cfg base classes to no longer carry PhysX namespace metadata.
+  :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`,
+  :class:`~isaaclab.sim.schemas.CollisionBaseCfg`,
+  :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`, and
+  :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` now declare ``_usd_namespace = None`` and
+  ``_usd_applied_schema = None``. Per-field PhysX overrides for fields whose only USD path
+  today is the ``physx*:*`` namespace (``disable_gravity``, ``contact_offset``,
+  ``rest_offset``, ``articulation_enabled``, ``max_velocity``) are declared via a new
+  ``_usd_field_exceptions`` mapping ``applied_schema -> (namespace, {cfg_field: usd_attr})``.
+  When any listed field is non-None at write time, the writer applies that schema and writes
+  the attribute under the exception namespace; otherwise the schema is not stamped onto the
+  prim. PhysX subclasses (:class:`PhysxRigidBodyPropertiesCfg`,
+  :class:`PhysxCollisionPropertiesCfg`, :class:`PhysxArticulationRootPropertiesCfg`,
+  :class:`PhysxJointDrivePropertiesCfg`) now self-declare ``_usd_namespace`` and
+  ``_usd_applied_schema`` for their own fields. Observable behavior on standard inputs is
+  unchanged.
+* Consolidated the per-writer schema-application loop in
+  :mod:`isaaclab.sim.schemas` into a single shared helper ``_apply_namespaced_schemas``.
+  ``modify_articulation_root_properties``, ``modify_rigid_body_properties``,
+  ``modify_collision_properties``, ``modify_joint_drive_properties``,
+  ``modify_mesh_collision_properties``, and ``spawn_rigid_body_material`` all delegate to the
+  helper after writing their typed-API ``UsdPhysics`` fields. The canonical exception-table
+  + main-namespace gating logic now lives in one place instead of being duplicated across
+  six call sites.
+* Moved the ``max_velocity`` field from :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`
+  to :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`. The field is the only USD path to set
+  Newton's ``Model.joint_velocity_limit`` and is consumed by Newton's importer. The USD
+  attribute written is unchanged (``physxJoint:maxJointVelocity``); existing code using
+  ``PhysxJointDrivePropertiesCfg(max_velocity=...)`` continues to work because the field
+  is inherited.
+* Moved the ``disable_gravity`` field from :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`
+  to :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`. PhysX honors per-body via
+  ``physxRigidBody:disableGravity``; Newton currently honors at scene level (partial),
+  documented in the field docstring. Existing code using
+  ``PhysxRigidBodyPropertiesCfg(disable_gravity=...)`` continues to work via inheritance.
+* Documented :attr:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg.articulation_enabled`
+  and :attr:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg.enabled_self_collisions`
+  to lock their placement for the future :class:`ArticulationRootBaseCfg` /
+  ``PhysxArticulationRootPropertiesCfg`` split: ``articulation_enabled`` stays on the base
+  (single-namespace USD with verified Newton consumer); ``enabled_self_collisions`` moves
+  to the PhysX subclass (dual-namespace USD, with a future Newton sibling cfg owning the
+  ``newton:*`` namespace).
+* Changed the defaults of :attr:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg.compliant_contact_stiffness`,
+  :attr:`compliant_contact_damping`, :attr:`friction_combine_mode`, and
+  :attr:`restitution_combine_mode` from concrete values (``0.0``, ``0.0``, ``"average"``,
+  ``"average"``) to ``None``. PhysX engine defaults match the previous concrete values, so
+  user-observable simulation behavior is unchanged; the difference is that these attributes
+  are now authored on the prim only when the user explicitly sets them (consistent with the
+  rest of the consumption-gated cfg layer).
+* Relocated :class:`RigidBodyMaterialCfg` to :mod:`isaaclab_physx.sim.spawners.materials` and
+  split its fields between the new :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`
+  (UsdPhysics-standard friction/restitution) and
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
+  (PhysX-specific compliant-contact and combine-mode fields). A forwarding shim on
+  :mod:`isaaclab.sim.spawners.materials` and :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material` to be
+  metadata-driven: it reads ``_usd_applied_schema``, ``_usd_namespace``, and
+  ``_usd_attr_name_map`` from the cfg class and gates ``PhysxMaterialAPI`` application on
+  whether the user authored at least one PhysX-namespaced field with a non-``None`` value.
+  Previously, the writer applied ``PhysxMaterialAPI`` unconditionally on every material spawn.
+* Relocated :class:`CollisionPropertiesCfg` to :mod:`isaaclab_physx.sim.schemas` and split
+  its fields between the new :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common
+  ``collision_enabled`` plus the PhysX-namespaced but Newton-consumed
+  ``contact_offset`` / ``rest_offset``) and
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` (PhysX-only
+  ``torsional_patch_radius`` / ``min_torsional_patch_radius``). A forwarding shim on
+  :mod:`isaaclab.sim.schemas`, :mod:`isaaclab.sim.schemas.schemas_cfg`, and
+  :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_collision_properties` to be metadata-driven
+  and to gate ``PhysxCollisionAPI`` application on whether the user authored at least one
+  PhysX-namespaced field with a non-``None`` value. Previously, the writer applied
+  ``PhysxCollisionAPI`` unconditionally on every collision prim, stamping the schema onto
+  Newton-targeted prims that only set ``collision_enabled``.
+* Relocated :class:`ArticulationRootPropertiesCfg` to :mod:`isaaclab_physx.sim.schemas` and
+  split its fields between the new :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`
+  (solver-common ``fix_root_link`` plus the PhysX-namespaced ``articulation_enabled`` which
+  is consumed by the IL Newton wrapper as a spawn-time guard) and
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`
+  (``enabled_self_collisions`` and PhysX TGS solver iter / sleep / stabilization thresholds).
+  A forwarding shim on :mod:`isaaclab.sim.schemas`,
+  :mod:`isaaclab.sim.schemas.schemas_cfg`, and :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` to be
+  metadata-driven and to gate ``PhysxArticulationAPI`` application on whether the user
+  authored at least one PhysX-namespaced field with a non-``None`` value. Previously, the
+  writer applied ``PhysxArticulationAPI`` unconditionally on every articulation root,
+  stamping the schema onto Newton-targeted prims that only set ``fix_root_link``.
+* Relocated :class:`MeshCollisionPropertiesCfg`, :class:`ConvexHullPropertiesCfg`,
+  :class:`ConvexDecompositionPropertiesCfg`, :class:`TriangleMeshPropertiesCfg`,
+  :class:`TriangleMeshSimplificationPropertiesCfg`, and :class:`SDFMeshPropertiesCfg` to
+  :mod:`isaaclab_physx.sim.schemas`. :class:`BoundingCubePropertiesCfg` and
+  :class:`BoundingSpherePropertiesCfg` stay in core because they author no PhysX schema.
+  A forwarding shim preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_mesh_collision_properties` to be
+  metadata-driven. The writer now reads ``_usd_applied_schema`` and ``_usd_namespace`` from
+  the cfg class instead of consulting instance-level ``usd_api`` / ``physx_api`` fields.
+  The standard :class:`UsdPhysics.MeshCollisionAPI` is always applied; PhysX cooking
+  schemas (``PhysxConvexHullCollisionAPI`` etc.) are gated on at least one
+  PhysX-namespaced tuning field being set.
+* Relocated :class:`FixedTendonPropertiesCfg` and :class:`SpatialTendonPropertiesCfg` to
+  :mod:`isaaclab_physx.sim.schemas` as :class:`PhysxFixedTendonPropertiesCfg` and
+  :class:`PhysxSpatialTendonPropertiesCfg`. Tendons are a PhysX-only feature; no Newton
+  equivalent exists. A forwarding shim on :mod:`isaaclab.sim.schemas`,
+  :mod:`isaaclab.sim.schemas.schemas_cfg`, and :mod:`isaaclab.sim` preserves existing
+  imports.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``usd_api`` and ``physx_api`` instance attributes on the mesh-collision
+  cfg classes in favor of class-level ``_usd_applied_schema`` metadata. Reading these
+  attributes still works through one minor version but emits a ``DeprecationWarning``.
+  Scheduled for removal in 5.0.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed
+  :attr:`~isaaclab.cloner.TemplateCloneCfg.visualizer_clone_fn`,
+  :func:`~isaaclab.cloner.resolve_visualizer_clone_fn`, and
+  :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`.
+  Scene data providers now build backend models from the
+  :class:`~isaaclab.cloner.ClonePlan` map via
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` instead of receiving a
+  prebuilt artifact through a clone-time callback.
+* **Breaking:** Removed
+  :meth:`~isaaclab.sim.SimulationContext.get_scene_data_visualizer_prebuilt_artifact`,
+  :meth:`~isaaclab.sim.SimulationContext.set_scene_data_visualizer_prebuilt_artifact`,
+  and
+  :meth:`~isaaclab.sim.SimulationContext.clear_scene_data_visualizer_prebuilt_artifact`.
+  Use :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` /
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` instead.
+* Removed ``BaseArticulationData.body_incoming_joint_wrench_b``. Add
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+Fixed
+^^^^^
+
+* Pinned ``omniverseclient`` to ``2.71.1.7015``.
+* Fixed :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` and
+  :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` so that ``PhysxJointAPI`` and
+  ``PhysxRigidBodyAPI`` are applied only when the user authored at least one PhysX-namespaced
+  field with a non-``None`` value. Previously, schema application was gated on class-level
+  metadata being defined, which caused Newton-targeted prims to receive PhysX schemas even
+  when the user only set base ``UsdPhysics``-standard fields.
+
+
+4.6.27 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+* Added :class:`~isaaclab.sensors.JointWrenchSensor`.
+
+
+4.6.26 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Metrics/success_rate`` tracking to benchmark scripts. The result is always logged
+  to the benchmark artifact; ``--check_success`` additionally early-stops training on convergence.
+
+
+4.6.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``isaaclab.bat --install`` on Windows 11 failing with
+  ``'"setuptools<82.0.0"': Expected package name at the start of dependency
+  specifier``. ``extract_python_exe`` now prefers the underlying
+  ``kit/python/python.exe`` over Isaac Sim's ``python.bat`` so child pip calls
+  bypass the cmd.exe quoting hop that was preserving the literal double
+  quotes through to pip's argv. The fallback ``cmd.exe /c`` wrapper for
+  ``.bat``/``.cmd`` invocations now also uses caret-escaping
+  (e.g. ``setuptools^<82.0.0``) for metacharacters instead of double-quoting,
+  so the bat-hop path no longer leaks quotes.
+
+
+4.6.24 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh -i`` failing to build the ``nlopt`` wheel on ARM Linux
+  (e.g. DGX Spark) when the host image is missing SWIG. The bare-metal install
+  path now mirrors ``docker/Dockerfile.base``: on ARM Linux it installs
+  ``swig`` via apt and pre-installs ``nlopt==2.6.2`` with
+  ``--no-build-isolation`` so later submodule installs skip the source-build
+  fallback.
+
+
+4.6.23 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks` configuration option
+  to skip shape/dtype validation in setter and writer methods, reducing per-call overhead
+  in production workloads.
+
+Fixed
+^^^^^
+
+* Fixed cross-backend asset interface regression tests to cover tensor views passed to
+  backend index resolution helpers.
+
+
+4.6.22 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.renderers.BaseRenderer` now publishes a renderer-owned
+  output contract via ``supported_output_types() -> {RenderBufferKind: RenderBufferSpec}``.
+  :class:`~isaaclab.sensors.camera.CameraData` allocates buffers for the
+  intersection of the requested ``data_types`` and the contract; ``rgb`` is
+  exposed as a view into ``rgba`` when both are published. Requested types
+  the active backend cannot produce are dropped with a single warning instead
+  of being silently discarded later.
+* :class:`~isaaclab_ov.renderers.OVRTXRenderer` now writes rendered tiles
+  directly into the torch storage backing ``camera.data.output``, eliminating
+  the per-frame ``wp.copy`` bridge.
+* Moved Kit/RTX-only logic out of :class:`~isaaclab.sensors.camera.Camera`
+  into :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated RTX-flavored fields on :class:`~isaaclab.sensors.camera.CameraCfg`
+  (``semantic_filter``, ``colorize_semantic_segmentation``,
+  ``colorize_instance_segmentation``, ``colorize_instance_id_segmentation``,
+  ``semantic_segmentation_mapping``, ``depth_clipping_behavior``); set them on
+  :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` instead.
+
+
+4.6.21 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ProxyArray migration guidance and static regression checks to cover
+  deprecated ``wp.to_torch(proxy_array)`` usage and direct tensor/wp.array
+  method calls on data properties.
+
+
+4.6.20 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.checked_apply` for forwarding declared
+  fields from an Isaac Lab configclass onto an external dataclass
+  (typically an upstream library config object). Raises
+  :class:`AttributeError` if the target is missing a declared field, so
+  upstream renames surface at startup instead of as silent no-ops.
+* Added an opt-in runtime detector on :class:`~isaaclab.utils.warp.ProxyArray`
+  that emits a :class:`UserWarning` with the call site (``stacklevel=2``) on
+  every ``.torch`` read of a ``wp.quatf``-typed array when the
+  ``WARN_ON_TORCH_QUATF_ACCESS`` environment variable is set to ``"1"``.
+  Helps users find code that still assumes Isaac Lab 2.x's ``(w, x, y, z)``
+  quaternion convention after the migration to Isaac Lab 3.x's
+  ``(x, y, z, w)`` convention. Documented in the Isaac Lab 3.0 migration
+  guide as a complement to the source-level quaternion finder tool.
+
+
+4.6.19 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Marked :meth:`~isaaclab.envs.manager_based_rl_mimic_env.ManagerBasedRLMimicEnv.get_subtask_start_signals` and
+  :meth:`~isaaclab.envs.manager_based_rl_mimic_env.ManagerBasedRLMimicEnv.get_subtask_term_signals` with
+  ``@optional_method``.
+
+
+4.6.18 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.cloner.TemplateCloneCfg` docstring example to import
+  ``get_current_stage`` from :mod:`isaaclab.sim.utils.stage` instead of
+  ``isaacsim.core.experimental.utils.stage``, aligning with the Isaac Lab API.
+* Added a "Migration off Deprecated Isaac Sim APIs" section to the Isaac Lab 3.0
+  migration guide (``docs/source/migration/migrating_to_isaaclab_3-0.rst``) that maps
+  deprecated ``isaacsim.core.*`` paths to their recommended replacements, preferring
+  Isaac Lab in-tree APIs (``isaaclab.sim.utils.*``, :class:`~isaaclab.sim.views.FrameView`,
+  :mod:`~isaaclab.cloner`) over the ``isaacsim.core.experimental.*`` fallbacks where
+  an Isaac Lab API exists.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.randomize_visual_color` and
+  :class:`~isaaclab.envs.mdp.randomize_visual_texture` failing with
+  ``'rtx::neuraylib::MdlModuleId' for '' is Invalid`` on Replicator >= 1.13.0.
+  Kit's ``omni_usd_resolver`` intentionally returns an empty string when resolving
+  builtin MDL short-names such as ``OmniPBR.mdl`` (``OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1``),
+  but Replicator's ``create_sdf_spec_material`` now passes that empty resolved path directly
+  into ``UsdMdl.RegistryUtils.GetSubIdentifiersForAsset``. The fix pre-resolves the absolute
+  on-disk path via ``carb.tokens`` (``${kit}/mdl/core/Base/OmniPBR.mdl``) before handing it
+  to Replicator so the resolver returns a valid path.
+
+
+4.6.17 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated cross-backend asset interface tests to import :class:`~isaaclab_physx.physics.PhysxManager`
+  (aliased as ``SimulationManager``) instead of ``isaacsim.core.simulation_manager.SimulationManager``.
+* Stopped registering deprecated Isaac Sim extension search paths in Isaac Lab Kit experiences and
+  switched explicit Isaac Sim extension dependencies to non-deprecated ``isaacsim.core.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``, ``isaacsim.robot.wheeled_robots.nodes``, and
+  ``isaacsim.sensors.experimental.*`` equivalents.
+* Migrated remaining Isaac Lab imports off deprecated Isaac Sim core utility/prim Python module paths
+  to their ``isaacsim.core.experimental.*`` replacements.
+
+Fixed
+^^^^^
+
+* Fixed ``isaaclab.sh --install`` leaving ``pinocchio`` uninstalled on top of recent Isaac Sim
+  base images that preinstall ``pin-pink`` in the kit's bundled ``site-packages`` without its
+  ``pin`` (cmeel pinocchio) dependency. Pip treats the ``pin-pink`` requirement as already
+  satisfied and skips the transitive ``pin`` resolve, so the pink IK controller and its tests
+  fail to import. ``isaaclab.cli.commands.install`` now probes ``import pinocchio`` after
+  installing the Isaac Lab submodules and force-reinstalls the cmeel ``pin``/``pin-pink``/
+  ``daqp`` stack when the probe fails.
+
+Removed
+^^^^^^^
+
+* Retired several ``source/isaaclab/test/deps/isaacsim`` standalone reproducers that depended on
+  deprecated Isaac Sim core extensions; use :mod:`isaaclab.sim` and ``isaacsim.core.experimental.*``
+  for similar debugging workflows.
+
+
+4.6.16 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the ``TorchArray`` wrapper to
+  :class:`~isaaclab.utils.warp.ProxyArray` and its module from
+  ``isaaclab.utils.warp.torch_array`` to
+  ``isaaclab.utils.warp.proxy_array``. The new name better describes
+  the class as a proxy around a :class:`wp.array` exposing both
+  ``.warp`` and ``.torch`` accessors, rather than a torch-first type.
+  No backward-compatibility alias — downstream code must update
+  imports and type hints.
+
+Removed
+^^^^^^^
+
+* Removed :meth:`~isaaclab.utils.warp.ProxyArray.rebind`. ``ProxyArray``
+  instances are now immutable after construction: assigning to any
+  attribute other than the internal ``_torch_cache`` raises
+  :class:`AttributeError`. Call sites that previously rebound a
+  sim-bound wrapper (Newton / PhysX asset data classes when the solver
+  re-creates its arrays) now assign a fresh
+  ``ProxyArray(new_buf)`` instead. The old pattern was unsafe —
+  callers holding a stale ``.torch`` reference read the old memory
+  silently after ``rebind``. Forcing a new wrapper per rebind makes
+  the stale-reference hazard local and explicit.
+
+  .. code-block:: python
+
+     # Before (4.6.15)
+     self._joint_pos_ta.rebind(self._sim_bind_joint_pos)
+     # After (4.6.16)
+     self._joint_pos_ta = ProxyArray(self._sim_bind_joint_pos)
+
+
+4.6.15 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :meth:`~isaaclab.sim.views.BaseFrameView.get_world_poses` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_local_poses` now return
+  a pair of :class:`~isaaclab.utils.warp.ProxyArray` wrappers instead
+  of raw ``wp.array``. :class:`~isaaclab.sim.views.UsdFrameView`,
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`, and
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` were updated
+  accordingly. Calls without ``indices`` reuse a cached ProxyArray
+  wrapping the backend's stable buffer (Fabric/Newton); calls with
+  ``indices`` and all calls on USD construct a fresh ProxyArray per
+  invocation.
+
+  **Breaking change** — call sites that wrapped the return in
+  ``wp.to_torch(...)`` or passed the result directly to a kernel must
+  migrate:
+
+  .. code-block:: python
+
+     # Before (4.6.14)
+     pos_wp, quat_wp = view.get_world_poses(indices)
+     tensor = wp.to_torch(pos_wp)
+     # After (4.6.15)
+     pos_w, quat_w = view.get_world_poses(indices)
+     tensor = pos_w.torch
+     # ... and when passing to a warp kernel:
+     wp.launch(..., inputs=[pos_w.warp, ...])
+
+
+4.6.14 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.sensors.RayCasterData` and
+  :class:`~isaaclab.sensors.MultiMeshRayCasterData` properties
+  :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+  :attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+  :attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` now return
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view or ``.warp``
+  for the underlying ``wp.array``.
+
+  **Breaking change** — call sites that previously wrapped these in
+  ``wp.to_torch(...)`` must migrate to the ``.torch`` accessor:
+
+  .. code-block:: python
+
+     # Before (4.6.13)
+     hits = wp.to_torch(sensor.data.ray_hits_w)
+     # After (4.6.14)
+     hits = sensor.data.ray_hits_w.torch
+
+
+4.6.13 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.utils.warp.ProxyArray`, a warp-first dual-access array
+  that provides explicit ``.torch`` and ``.warp`` accessors for seamless
+  interoperability between warp and PyTorch workflows.
+
+Changed
+^^^^^^^
+
+* All properties on the following base data classes now return
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
+  :class:`~isaaclab.assets.articulation.BaseArticulationData`,
+  :class:`~isaaclab.assets.rigid_object.BaseRigidObjectData`,
+  :class:`~isaaclab.assets.rigid_object_collection.BaseRigidObjectCollectionData`,
+  :class:`~isaaclab.sensors.contact_sensor.BaseContactSensorData`,
+  :class:`~isaaclab.sensors.frame_transformer.BaseFrameTransformerData`,
+  :class:`~isaaclab.sensors.imu.BaseImuData`, and
+  :class:`~isaaclab.sensors.pva.BasePvaData`.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
+  the underlying ``wp.array``. Implicit torch operations (arithmetic,
+  ``torch.*`` functions) work during the deprecation period but emit a warning.
+
+
+4.6.12 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added caching to :func:`~isaaclab.utils.string.resolve_matching_names`,
+  avoiding repeated regex matching across ``find_bodies``, ``find_joints``,
+  and related calls.
+
+
+4.6.11 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.sensors.RayCaster` to spawn its own non-physics Xform prim via
+  the new :attr:`~isaaclab.sensors.RayCasterCfg.spawn` attribute. ``prim_path`` should now
+  point to a child under the parent link (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``).
+* Renamed :class:`~isaaclab.sim.views.XformPrimView` to :class:`~isaaclab.sim.views.FrameView`,
+  ``BaseXformPrimView`` to :class:`~isaaclab.sim.views.BaseFrameView`,
+  and ``UsdXformPrimView`` to :class:`~isaaclab.sim.views.UsdFrameView`.
+  ``XformPrimView`` is kept as a deprecated alias.
+* Moved :class:`~isaaclab.sensors.RayCasterCfg` offset into the spawned prim's local transform
+  instead of applying it at runtime. The :class:`~isaaclab.sim.views.FrameView` world pose now
+  includes the offset directly.
+* Unified sensor prim path resolution in :class:`~isaaclab.sensors.SensorBase`. When
+  ``prim_path`` points at a physics body and a spawner is configured, a child prim is
+  automatically created underneath.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated passing a ``prim_path`` with ``ArticulationRootAPI`` or ``RigidBodyAPI`` to
+  :class:`~isaaclab.sensors.RayCasterCfg`. The path is automatically extended with
+  ``/raycaster``; users should migrate to the child-path convention.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab.sensors.RayCasterCfg.attach_yaw_only` (deprecated since 2.1.1).
+  Use ``ray_alignment="yaw"`` or ``ray_alignment="base"`` instead.
+
+
+4.6.10 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.add_raw_buffers_from` to merge one composer's raw
+  input buffers into another.
+* Added ``render_enabled`` property to all environment base classes
+  (:class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.ManagerBasedRLEnv`,
+  :class:`~isaaclab.envs.DirectRLEnv`, :class:`~isaaclab.envs.DirectMARLEnv`).
+  Setting ``env.render_enabled = False`` before calling ``step()`` skips the Kit app loop
+  (``app.update()``) and camera/RTX sensor rendering, while standalone visualizers (Newton,
+  Rerun, Viser) continue to update normally.  Kit bundles camera rendering with its app loop
+  so the two cannot be separated; non-Kit visualizers have independent ``step()`` methods and
+  are unaffected by this flag.  Post-reset re-renders for RTX sensors are also skipped when
+  disabled.  The property can be toggled between steps for per-step control.  Defaults to
+  ``True`` for full backward compatibility.
+* Added ``skip_app_pumping`` parameter to
+  :meth:`~isaaclab.sim.SimulationContext.render` and
+  :meth:`~isaaclab.sim.SimulationContext.update_visualizers` to selectively skip
+  visualizers that pump the Kit app loop (``pumps_app_update() == True``).
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.utils.wrench_composer.WrenchComposer` to a dual-buffer architecture with separate
+  global (world-frame) and local (body-frame) buffers. A new
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.compose_to_body_frame` method rotates global forces/torques
+  into the body frame at apply time using the current body orientation, then sums with local forces/torques.
+* Updated imports of the PhysX tensors API in the ray caster sensors from
+  ``omni.physics.tensors.impl.api`` to ``omni.physics.tensors.api`` to track the upstream
+  Isaac Sim module relocation (the ``impl`` submodule was removed).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :attr:`~isaaclab.utils.wrench_composer.WrenchComposer.composed_force` and
+  :attr:`~isaaclab.utils.wrench_composer.WrenchComposer.composed_torque` in favor of
+  :attr:`~isaaclab.utils.wrench_composer.WrenchComposer.out_force_b` and
+  :attr:`~isaaclab.utils.wrench_composer.WrenchComposer.out_torque_b`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.utils.wrench_composer.WrenchComposer` not correctly updating the composed torque from global
+  positional forces when the body moves.
+* Fixed :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.reset` not clearing the ``_active`` flag when called
+  with ``slice(None)``.
+* Fixed :class:`~isaaclab.utils.wrench_composer.WrenchComposer` producing spurious torque when global forces are
+  applied without explicit positions.
+* Fixed ``set_external_force_and_torque`` wiping forces from non-resetting environments during partial
+  episode resets by using ``reset(env_ids)`` + ``add_forces_and_torques`` instead of ``set_forces_and_torques``.
+
+
 4.6.9 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~
 
@@ -66,7 +1458,7 @@ Changed
 
 
 4.6.7 (2026-04-20)
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -86,7 +1478,6 @@ Fixed
   sorting prototype roots before building the clone plan in
   :func:`~isaaclab.cloner.cloner_utils.clone_from_template`, keeping downstream
   order stable across simulation and visualization backends.
-
 
 4.6.6 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~
@@ -133,6 +1524,7 @@ Changed
 
 Added
 ^^^^^
+
 
 * Added :class:`~isaaclab.sim.spawners.meshes.MeshSquareCfg` and
   :func:`~isaaclab.sim.spawners.meshes.spawn_mesh_square` for spawning 2D triangle
@@ -342,6 +1734,21 @@ Added
 
 Added
 ^^^^^
+
+
+* Added :class:`~isaaclab.sim.views.BaseXformPrimView` abstract base class that defines
+  the common interface for backend-specific ``XformPrimView`` implementations.
+* Added :class:`~isaaclab.sim.views.XformPrimView` factory to instantiate the correct
+  backend-specific ``XformPrimView`` based on the active simulation backend.
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.views.XformPrimView` to delegate backend-specific
+  logic to :class:`~isaaclab_physx.sim.views.FabricXformPrimView` and
+  :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView`. The public API is
+  unchanged; use :class:`~isaaclab.sim.views.XformPrimView` for backend-aware
+  instantiation.
 
 * Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.

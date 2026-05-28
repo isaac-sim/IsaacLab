@@ -7,15 +7,25 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any, cast
 
+import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+
+def test_web_visualizer_cfgs_do_not_open_browser_by_default():
+    assert RerunVisualizerCfg().open_browser is False
+    assert ViserVisualizerCfg().open_browser is False
 
 
 class _FakePhysicsManager:
@@ -27,14 +37,26 @@ class _FakePhysicsManager:
 
 
 class _FakeProvider:
-    def __init__(self):
-        self.update_calls = []
+    """Fake new-style SceneDataProvider for tests; only provides what visualizers read."""
 
-    def update(self, env_ids=None):
-        self.update_calls.append(env_ids)
+    def __init__(self, num_envs: int = 0):
+        self._num_envs = num_envs
+
+    @property
+    def num_envs(self) -> int:
+        return self._num_envs
+
+    @property
+    def usd_stage(self):
+        return None
+
+    def get_camera_transforms(self):
+        return None
 
 
 class _FakeVisualizer:
+    """Minimal visualizer for orchestration tests."""
+
     def __init__(
         self,
         *,
@@ -92,36 +114,42 @@ class _FakeVisualizer:
     def pumps_app_update(self):
         return self._pumps_app_update
 
+    def supports_markers(self):
+        return False
+
+    def flush_startup_messages(self):
+        pass
+
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
     ctx._visualizers = list(visualizers)
     ctx._scene_data_provider = provider
     ctx.physics_manager = _FakePhysicsManager()
-    ctx._visualizer_step_counter = 0
     return ctx
 
 
-def test_update_scene_data_provider_unions_env_ids_and_forwards():
+def test_update_visualizers_runs_forward_when_a_visualizer_requires_it():
     provider = _FakeProvider()
     viz_a = _FakeVisualizer(env_ids=[0, 2], requires_forward=True)
     viz_b = _FakeVisualizer(env_ids=[2, 3])
-    viz_c = _FakeVisualizer(env_ids=None)
-    ctx = _make_context([viz_a, viz_b, viz_c], provider=provider)
+    ctx = _make_context([viz_a, viz_b], provider=provider)
 
-    ctx.update_scene_data_provider()
+    ctx.update_visualizers(0.1)
 
     assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [[0, 2, 3]]
-    assert ctx._visualizer_step_counter == 1
+    assert viz_a.step_calls == [0.1]
+    assert viz_b.step_calls == [0.1]
 
 
-def test_update_scene_data_provider_force_forward_with_no_visualizers():
+def test_update_visualizers_skips_forward_when_no_visualizer_requires_it():
     provider = _FakeProvider()
-    ctx = _make_context([], provider=provider)
-    ctx.update_scene_data_provider(force_require_forward=True)
-    assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [None]
+    viz = _FakeVisualizer(env_ids=[0])
+    ctx = _make_context([viz], provider=provider)
+
+    ctx.update_visualizers(0.1)
+
+    assert ctx.physics_manager.forward_calls == 0
 
 
 def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
@@ -167,19 +195,16 @@ def test_update_visualizers_handles_training_pause_loop():
 
 
 class _DummyViserSceneDataProvider:
-    def __init__(self):
-        self._metadata = {"num_envs": 4}
-        self.state_calls: list[list[int] | None] = []
+    @property
+    def num_envs(self) -> int:
+        return 4
 
-    def get_metadata(self) -> dict:
-        return self._metadata
+    @property
+    def usd_stage(self):
+        return None
 
-    def get_newton_model(self):
-        return "dummy-model"
-
-    def get_newton_state(self, env_ids: list[int] | None):
-        self.state_calls.append(env_ids)
-        return {"state_call": len(self.state_calls), "env_ids": env_ids}
+    def get_camera_transforms(self):
+        return {}
 
 
 class _DummyViserViewer:
@@ -199,40 +224,63 @@ class _DummyViserViewer:
         return True
 
 
-def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: pytest.MonkeyPatch):
+def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypatch: pytest.MonkeyPatch):
     provider = _DummyViserSceneDataProvider()
     viewer = _DummyViserViewer()
 
     def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
         assert record_to_viser is None
-        assert metadata == provider.get_metadata()
+        assert metadata == {"num_envs": provider.num_envs}
         self._viewer = viewer
 
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
+
+    state_calls: list[object] = []
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
+            return "dummy-model"
+
+        @staticmethod
+        def get_state(scene_data_provider=None):
+            state_calls.append(scene_data_provider)
+            return {"state_call": len(state_calls)}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
 
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider))
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
-    assert provider.state_calls == [None, None]
+    assert state_calls == [provider, provider]
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    assert viewer.calls[1] == ("log_state", {"state_call": 2, "env_ids": None})
+    # log_state passes NewtonManager.get_state(provider) through as-is; no env_ids merged in.
+    assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
 
 
 @pytest.mark.parametrize(
-    ("cfg_max_worlds", "expected_max_worlds"),
+    ("cfg_max_visible_envs", "expected_visible"),
     [
         (None, None),
-        (0, 0),
-        (3, 3),
+        (0, []),
+        (3, [0, 1, 2]),
     ],
 )
-def test_viser_visualizer_create_viewer_forwards_max_worlds(
-    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+def test_viser_visualizer_create_viewer_applies_visible_worlds(
+    monkeypatch: pytest.MonkeyPatch,
+    cfg_max_visible_envs: int | None,
+    expected_visible: list[int] | None,
 ):
     captured = {}
 
@@ -241,6 +289,7 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
             self,
             *,
             port: int,
+            bind_address: str,
             label: str | None,
             verbose: bool,
             share: bool,
@@ -249,6 +298,7 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
         ):
             captured["init"] = {
                 "port": port,
+                "bind_address": bind_address,
                 "label": label,
                 "verbose": verbose,
                 "share": share,
@@ -256,11 +306,18 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
                 "metadata": metadata,
             }
 
-        def set_model(self, model: Any, max_worlds: int | None) -> None:
-            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+        def set_model(self, model: Any) -> None:
+            captured["set_model"] = model
+
+        def set_visible_worlds(self, worlds) -> None:
+            captured["visible_worlds"] = worlds
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
+
+        @property
+        def share_url(self) -> str | None:
+            return None
 
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
     monkeypatch.setattr(
@@ -270,25 +327,34 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
     )
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
 
-    cfg = ViserVisualizerCfg(max_worlds=cfg_max_worlds, open_browser=False)
+    cfg = ViserVisualizerCfg(
+        max_visible_envs=cfg_max_visible_envs,
+        open_browser=False,
+        randomly_sample_visible_envs=False,
+    )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer._model = "dummy-model"
+    visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
-    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+    assert captured["set_model"] == "dummy-model"
+    assert captured["init"]["bind_address"] == cfg.bind_address
+    assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
 @pytest.mark.parametrize(
-    ("cfg_max_worlds", "expected_max_worlds"),
+    ("cfg_max_visible_envs", "expected_visible"),
     [
         (None, None),
-        (0, 0),
-        (3, 3),
+        (0, []),
+        (3, [0, 1, 2]),
     ],
 )
-def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
-    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
+    monkeypatch: pytest.MonkeyPatch,
+    cfg_max_visible_envs: int | None,
+    expected_visible: list[int] | None,
 ):
     captured = {}
 
@@ -304,6 +370,7 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
             keep_historical_data: bool,
             keep_scalar_history: bool,
             record_to_rrd: str | None,
+            open_browser: bool,
         ):
             captured["init"] = {
                 "app_id": app_id,
@@ -314,10 +381,14 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
                 "keep_historical_data": keep_historical_data,
                 "keep_scalar_history": keep_scalar_history,
                 "record_to_rrd": record_to_rrd,
+                "open_browser": open_browser,
             }
 
-        def set_model(self, model: Any, max_worlds: int | None = None) -> None:
-            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+        def set_model(self, model: Any) -> None:
+            captured["set_model"] = model
+
+        def set_visible_worlds(self, worlds) -> None:
+            captured["visible_worlds"] = worlds
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
@@ -326,14 +397,34 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
             captured["closed"] = True
 
     class _DummyRerunSceneDataProvider:
-        def get_metadata(self) -> dict:
-            return {"num_envs": 4}
+        @property
+        def num_envs(self) -> int:
+            return 4
 
-        def get_newton_model(self):
+        @property
+        def usd_stage(self):
+            return None
+
+        def get_camera_transforms(self):
+            return {}
+
+    class _FakeNewtonManager:
+        @staticmethod
+        def get_model():
             return "dummy-model"
 
-        def get_newton_state(self, env_ids: list[int] | None):
-            return {"env_ids": env_ids}
+        @staticmethod
+        def get_state(scene_data_provider=None):
+            captured["state_provider"] = scene_data_provider
+            return {"ok": True}
+
+        @staticmethod
+        def get_num_envs() -> int:
+            return 1
+
+    import isaaclab_newton.physics as _np_mod
+
+    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
@@ -347,12 +438,161 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
     )
     monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
-    cfg = RerunVisualizerCfg(open_browser=False, max_worlds=cfg_max_worlds)
+    cfg = RerunVisualizerCfg(
+        open_browser=False,
+        max_visible_envs=cfg_max_visible_envs,
+        randomly_sample_visible_envs=False,
+    )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
 
-    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+    assert captured["set_model"] == "dummy-model"
+    assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+
+
+def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
+    """Default ``--viz kit`` should work for envs without a camera prim."""
+
+    class _FakeViewportApi:
+        def __init__(self):
+            self.set_active_camera_calls = []
+
+        def get_active_camera(self):
+            return "/OmniverseKit_Persp"
+
+        def set_active_camera(self, camera_path):
+            self.set_active_camera_calls.append(camera_path)
+
+    class _FakeViewportWindow:
+        def __init__(self):
+            self.viewport_api = _FakeViewportApi()
+
+    class _FakeStage:
+        def GetPrimAtPath(self, path):
+            raise AssertionError(f"default Kit visualizer should not look up camera prims: {path}")
+
+    class _FakeProvider:
+        def get_usd_stage(self):
+            return _FakeStage()
+
+    viewport_window = _FakeViewportWindow()
+    viewport_utility = type(
+        "ViewportUtility",
+        (),
+        {
+            "create_viewport_window": staticmethod(lambda **kwargs: viewport_window),
+            "get_active_viewport_window": staticmethod(lambda: viewport_window),
+        },
+    )
+    monkeypatch.setitem(sys.modules, "omni", type(sys)("omni"))
+    monkeypatch.setitem(sys.modules, "omni.kit", type(sys)("omni.kit"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport", type(sys)("omni.kit.viewport"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility", viewport_utility)
+    monkeypatch.setitem(sys.modules, "omni.ui", type("OmniUi", (), {"DockPosition": object})())
+
+    applied_camera_poses = []
+    monkeypatch.setattr(
+        kit_visualizer.KitVisualizer,
+        "_set_viewport_camera",
+        lambda self, eye, target: applied_camera_poses.append((tuple(eye), tuple(target))),
+    )
+
+    cfg = KitVisualizerCfg()
+    visualizer = kit_visualizer.KitVisualizer(cfg)
+    visualizer._scene_data_provider = _FakeProvider()
+    visualizer._runtime_headless = False
+
+    visualizer._setup_viewport()
+
+    assert not cfg.tiled_cam_view
+    assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
+    assert viewport_window.viewport_api.set_active_camera_calls == []
+    assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
+
+
+def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):
+    """Default Kit visualizer camera follows SimulationContext/ViewportCameraController updates."""
+    applied_camera_poses = []
+    monkeypatch.setattr(
+        kit_visualizer.KitVisualizer,
+        "_set_viewport_camera",
+        lambda self, eye, target: applied_camera_poses.append((tuple(eye), tuple(target))),
+    )
+
+    visualizer = kit_visualizer.KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+
+    visualizer.set_camera_view((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+
+    assert applied_camera_poses == [((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))]
+
+
+def test_kit_visualizer_set_viewport_camera_does_not_require_authored_coi(monkeypatch: pytest.MonkeyPatch):
+    """Regression: ``_set_viewport_camera`` must not feed an unauthored ``omni:kit:centerOfInterest`` into
+    ``ViewportCameraState.set_position_world``.
+
+    A freshly-opened stage's default ``/OmniverseKit_Persp`` camera has no ``omni:kit:centerOfInterest`` attribute
+    authored. ``ViewportCameraState.set_position_world(..., rotate=True)`` reads that attribute as ``None`` and
+    crashes inside ``Matrix4d.Transform`` (the boost binding rejects ``NoneType``). ``_set_viewport_camera`` must
+    therefore use ``rotate=False`` for the eye set; the follow-up ``set_target_world(..., rotate=True)`` performs
+    the look-at rotation and authors the COI as a side effect.
+
+    The fake ``ViewportCameraState`` here mirrors that boost-binding behavior: ``set_position_world(..., rotate=True)``
+    raises ``TypeError``, so the old call path would surface inside ``_set_viewport_camera`` exactly as it did in
+    production.
+    """
+
+    class _FakeViewportApi:
+        def get_active_camera(self):
+            return "/OmniverseKit_Persp"
+
+    state_holder: dict[str, Any] = {}
+
+    class _FakeCameraState:
+        def __init__(self, camera_path: str, viewport_api):
+            self.position_calls: list[tuple[Any, bool]] = []
+            self.target_calls: list[tuple[Any, bool]] = []
+            state_holder["state"] = self
+
+        def set_position_world(self, world_position, rotate):
+            if rotate:
+                raise TypeError(
+                    "Python argument types in Matrix4d.Transform(Matrix4d, NoneType) did not match C++ signature"
+                )
+            self.position_calls.append((world_position, rotate))
+
+        def set_target_world(self, world_target, rotate):
+            self.target_calls.append((world_target, rotate))
+
+    camera_state_module = type(sys)("omni.kit.viewport.utility.camera_state")
+    camera_state_module.ViewportCameraState = _FakeCameraState
+
+    monkeypatch.setitem(sys.modules, "omni", type(sys)("omni"))
+    monkeypatch.setitem(sys.modules, "omni.kit", type(sys)("omni.kit"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport", type(sys)("omni.kit.viewport"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility", type(sys)("omni.kit.viewport.utility"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility.camera_state", camera_state_module)
+
+    cfg = KitVisualizerCfg()
+    visualizer = kit_visualizer.KitVisualizer(cfg)
+    visualizer._viewport_api = _FakeViewportApi()
+
+    eye = (1.0, 2.0, 3.0)
+    target = (4.0, 5.0, 6.0)
+
+    visualizer._set_viewport_camera(eye, target)
+
+    state = state_holder["state"]
+    assert len(state.position_calls) == 1
+    pos_arg, pos_rotate = state.position_calls[0]
+    assert pos_rotate is False
+    assert (float(pos_arg[0]), float(pos_arg[1]), float(pos_arg[2])) == eye
+
+    assert len(state.target_calls) == 1
+    tgt_arg, tgt_rotate = state.target_calls[0]
+    assert tgt_rotate is True
+    assert (float(tgt_arg[0]), float(tgt_arg[1]), float(tgt_arg[2])) == target
 
 
 def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
@@ -389,6 +629,7 @@ class _FailingInitVisualizer(_FakeVisualizer):
 def _make_context_with_settings(
     settings: dict,
     visualizer_cfgs=None,
+    default_visualizer_cfg=None,
     *,
     has_gui: bool = False,
     has_offscreen_render: bool = False,
@@ -404,6 +645,7 @@ def _make_context_with_settings(
         (),
         {
             "visualizer_cfgs": visualizer_cfgs,
+            "default_visualizer_cfg": default_visualizer_cfg,
             "physics": type("PhysicsCfg", (), {"dt": 0.01})(),
             "dt": 0.01,
             "render_interval": 1,
@@ -419,11 +661,31 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
-    ctx._visualizer_prebuilt_artifact = None
-    ctx._visualizer_step_counter = 0
+    ctx._clone_plan = None
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
     return ctx
+
+
+def test_default_visualizer_cfg_applies_to_cli_created_configs():
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    default_cfg = VisualizerCfg(
+        tiled_cam_target_prim_path="/World/envs/*/Object",
+        tiled_cam_eye=(1.0, -1.0, 0.5),
+    )
+    ctx = _make_context_with_settings(settings, default_visualizer_cfg=default_cfg)
+
+    cfgs = ctx._resolve_visualizer_cfgs()
+
+    assert len(cfgs) == 1
+    assert isinstance(cfgs[0], NewtonVisualizerCfg)
+    assert cfgs[0].tiled_cam_target_prim_path == "/World/envs/*/Object"
+    assert cfgs[0].tiled_cam_eye == (1.0, -1.0, 0.5)
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():
@@ -456,7 +718,7 @@ def test_explicit_unknown_visualizer_type_raises():
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -470,7 +732,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -497,7 +759,7 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -516,7 +778,7 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -534,7 +796,7 @@ def test_explicit_partial_valid_types_raises_for_invalid():
         "/isaaclab/visualizer/types": "newton,bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -548,7 +810,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -564,7 +826,7 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/types": "",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 

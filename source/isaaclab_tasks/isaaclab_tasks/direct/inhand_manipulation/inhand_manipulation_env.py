@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
@@ -51,15 +51,21 @@ class InHandManipulationEnv(DirectRLEnv):
         self.finger_bodies.sort()
         self.num_fingertips = len(self.finger_bodies)
 
+        self.finger_wrench_bodies = []
+        if getattr(self, "_joint_wrench_sensor", None) is not None:
+            for body_name in self.cfg.fingertip_body_names:
+                self.finger_wrench_bodies.append(self._joint_wrench_sensor.body_names.index(body_name))
+            self.finger_wrench_bodies.sort()
+
         # joint limits
-        joint_pos_limits = wp.to_torch(self.hand.data.joint_limits).to(self.device)
+        joint_pos_limits = self.hand.data.joint_limits.torch.to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
         # track goal resets
         self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         # used to compare object position
-        self.in_hand_pos = wp.to_torch(self.object.data.default_root_pose)[:, 0:3].clone()
+        self.in_hand_pos = self.object.data.default_root_pose.torch[:, 0:3].clone()
         self.in_hand_pos[:, 2] -= 0.04
         # default goal positions
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
@@ -72,31 +78,27 @@ class InHandManipulationEnv(DirectRLEnv):
         # track successes
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
+        self._last_episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # unit tensors
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
-        # bind backend-optimal write methods (Newton prefers mask-based, PhysX prefers indexed)
-        use_mask = "newton" in self.sim.physics_manager.__name__.lower()
-        if use_mask:
-            self._set_joint_pos_target = self.hand.set_joint_position_target
-            self._write_obj_root_pose = self.object.write_root_pose_to_sim
-            self._write_obj_root_vel = self.object.write_root_velocity_to_sim
-            self._write_hand_joint_pos = self.hand.write_joint_position_to_sim
-            self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim
-        else:
-            self._set_joint_pos_target = self.hand.set_joint_position_target_index
-            self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
-            self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
-            self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
-            self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
+        # bind write methods
+        self._set_joint_pos_target = self.hand.set_joint_position_target_index
+        self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
+        self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
+        self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
+        self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
 
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
         self.hand = Articulation(self.cfg.robot_cfg)
         self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
+        self._joint_wrench_sensor = None
+        if self.cfg.asymmetric_obs:
+            self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate (no need to filter for this environment)
@@ -104,9 +106,15 @@ class InHandManipulationEnv(DirectRLEnv):
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
+        if self._joint_wrench_sensor is not None:
+            self.scene.sensors["joint_wrench"] = self._joint_wrench_sensor
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
+
+    def _create_joint_wrench_sensor(self) -> JointWrenchSensor:
+        """Create the joint-wrench sensor used for fingertip force/torque observations."""
+        return JointWrenchSensor(JointWrenchSensorCfg(prim_path=self.cfg.robot_cfg.prim_path))
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
@@ -135,15 +143,7 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         if self.cfg.asymmetric_obs:
-            # Newton does not implement body_incoming_joint_wrench_b; fall back to zeros.
-            try:
-                self.fingertip_force_sensors = wp.to_torch(self.hand.data.body_incoming_joint_wrench_b)[
-                    :, self.finger_bodies
-                ]
-            except NotImplementedError:
-                self.fingertip_force_sensors = torch.zeros(
-                    self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
-                )
+            self._update_fingertip_force_sensors()
 
         if self.cfg.obs_type == "openai":
             obs = self.compute_reduced_observations()
@@ -159,6 +159,27 @@ class InHandManipulationEnv(DirectRLEnv):
         if self.cfg.asymmetric_obs:
             observations = {"policy": obs, "critic": states}
         return observations
+
+    def _update_fingertip_force_sensors(self) -> None:
+        """Update fingertip force/torque observations from the joint-wrench sensor."""
+        if getattr(self, "_joint_wrench_sensor", None) is None:
+            self.fingertip_force_sensors = torch.zeros(
+                self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
+            )
+            return
+
+        sensor_data = self._joint_wrench_sensor.data
+        force_data = sensor_data.force
+        torque_data = sensor_data.torque
+        if force_data is None or torque_data is None:
+            self.fingertip_force_sensors = torch.zeros(
+                self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
+            )
+            return
+
+        force = force_data.torch[:, self.finger_wrench_bodies]
+        torque = torque_data.torch[:, self.finger_wrench_bodies]
+        self.fingertip_force_sensors = torch.cat((force, torque), dim=-1)
 
     def _get_rewards(self) -> torch.Tensor:
         (
@@ -222,14 +243,20 @@ class InHandManipulationEnv(DirectRLEnv):
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int]):
+        # Episode counts as successful when goals reached >= cfg.success_count_threshold.
+        self._last_episode_success[env_ids] = self.successes[env_ids] >= self.cfg.success_count_threshold
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (
+            self._last_episode_success[env_ids].float().mean().item()
+        )
+
         super()._reset_idx(env_ids)
 
         # reset goals
         self._reset_target_pose(env_ids)
 
         # reset object
-        object_default_pose = wp.to_torch(self.object.data.default_root_pose).clone()[env_ids]
-        object_default_vel = wp.to_torch(self.object.data.default_root_vel).clone()[env_ids]
+        object_default_pose = self.object.data.default_root_pose.torch.clone()[env_ids]
+        object_default_vel = self.object.data.default_root_vel.torch.clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
         # global object positions
         object_default_pose[:, 0:3] = (
@@ -246,15 +273,15 @@ class InHandManipulationEnv(DirectRLEnv):
         self._write_obj_root_vel(root_velocity=object_default_vel, env_ids=env_ids)
 
         # reset hand
-        delta_max = self.hand_dof_upper_limits[env_ids] - wp.to_torch(self.hand.data.default_joint_pos)[env_ids]
-        delta_min = self.hand_dof_lower_limits[env_ids] - wp.to_torch(self.hand.data.default_joint_pos)[env_ids]
+        delta_max = self.hand_dof_upper_limits[env_ids] - self.hand.data.default_joint_pos.torch[env_ids]
+        delta_min = self.hand_dof_lower_limits[env_ids] - self.hand.data.default_joint_pos.torch[env_ids]
 
         dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
         rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
-        dof_pos = wp.to_torch(self.hand.data.default_joint_pos)[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
+        dof_pos = self.hand.data.default_joint_pos.torch[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        dof_vel = wp.to_torch(self.hand.data.default_joint_vel)[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
+        dof_vel = self.hand.data.default_joint_vel.torch[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
 
         self.prev_targets[env_ids] = dof_pos
         self.cur_targets[env_ids] = dof_pos
@@ -283,22 +310,22 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self):
         # data for hand
-        self.fingertip_pos = wp.to_torch(self.hand.data.body_pos_w)[:, self.finger_bodies]
-        self.fingertip_rot = wp.to_torch(self.hand.data.body_quat_w)[:, self.finger_bodies]
+        self.fingertip_pos = self.hand.data.body_pos_w.torch[:, self.finger_bodies]
+        self.fingertip_rot = self.hand.data.body_quat_w.torch[:, self.finger_bodies]
         self.fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
             self.num_envs, self.num_fingertips, 3
         )
-        self.fingertip_velocities = wp.to_torch(self.hand.data.body_vel_w)[:, self.finger_bodies]
+        self.fingertip_velocities = self.hand.data.body_vel_w.torch[:, self.finger_bodies]
 
-        self.hand_dof_pos = wp.to_torch(self.hand.data.joint_pos)
-        self.hand_dof_vel = wp.to_torch(self.hand.data.joint_vel)
+        self.hand_dof_pos = self.hand.data.joint_pos.torch
+        self.hand_dof_vel = self.hand.data.joint_vel.torch
 
         # data for object
-        self.object_pos = wp.to_torch(self.object.data.root_pos_w) - self.scene.env_origins
-        self.object_rot = wp.to_torch(self.object.data.root_quat_w)
-        self.object_velocities = wp.to_torch(self.object.data.root_vel_w)
-        self.object_linvel = wp.to_torch(self.object.data.root_lin_vel_w)
-        self.object_angvel = wp.to_torch(self.object.data.root_ang_vel_w)
+        self.object_pos = self.object.data.root_pos_w.torch - self.scene.env_origins
+        self.object_rot = self.object.data.root_quat_w.torch
+        self.object_velocities = self.object.data.root_vel_w.torch
+        self.object_linvel = self.object.data.root_lin_vel_w.torch
+        self.object_angvel = self.object.data.root_ang_vel_w.torch
 
     def compute_reduced_observations(self):
         # Per https://arxiv.org/pdf/1808.00177.pdf Table 2

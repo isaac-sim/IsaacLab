@@ -31,6 +31,9 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -75,9 +78,9 @@ def design_scene():
     # spawn a blue cuboid with deformable body
     cfg_cuboid_deformable = sim_utils.MeshCuboidCfg(
         size=(0.2, 0.5, 0.2),
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        deformable_props=PhysxDeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-        physics_material=sim_utils.DeformableBodyMaterialCfg(),
+        physics_material=PhysxDeformableBodyMaterialCfg(),
     )
     cfg_cuboid_deformable.func("/World/Objects/CuboidDeformable", cfg_cuboid_deformable, translation=(0.15, 0.0, 2.0))
 

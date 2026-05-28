@@ -573,8 +573,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self.finger_bodies = wp.array(finger_bodies, dtype=wp.int32, device=self.device)
 
         # joint limits
-        self.hand_dof_lower_limits = self.hand.data.joint_pos_limits_lower
-        self.hand_dof_upper_limits = self.hand.data.joint_pos_limits_upper
+        self.hand_dof_lower_limits = self.hand.data.joint_pos_limits_lower.warp
+        self.hand_dof_upper_limits = self.hand.data.joint_pos_limits_upper.warp
 
         # unit vectors
         self.x_unit_vec = wp.vec3f(1.0, 0.0, 0.0)
@@ -603,7 +603,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self.goal_pos_w = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
 
         # Initialize goal constants from Torch (avoid a one-off kernel launch).
-        default_root_pose = wp.to_torch(self.object.data.default_root_pose).to(self.device)
+        default_root_pose = self.object.data.default_root_pose.torch.to(self.device)
         in_hand_pos = default_root_pose[:, 0:3].clone()
         in_hand_pos[:, 2] -= 0.04
         self.in_hand_pos.assign(wp.from_torch(in_hand_pos, dtype=wp.vec3f))
@@ -812,15 +812,15 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             reset_object,
             dim=self.num_envs,
             inputs=[
-                self.object.data.default_root_pose,
+                self.object.data.default_root_pose.warp,
                 self.env_origins,
                 self.cfg.reset_position_noise,
                 self.x_unit_vec,
                 self.y_unit_vec,
                 mask,
                 self.rng_state,
-                self.object.data.root_link_pose_w,
-                self.object.data.root_com_vel_w,
+                self.object.data.root_link_pose_w.warp,
+                self.object.data.root_com_vel_w.warp,
             ],
             device=self.device,
         )
@@ -830,8 +830,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             reset_hand,
             dim=self.num_envs,
             inputs=[
-                self.hand.data.default_joint_pos,
-                self.hand.data.default_joint_vel,
+                self.hand.data.default_joint_pos.warp,
+                self.hand.data.default_joint_vel.warp,
                 self.hand_dof_lower_limits,
                 self.hand_dof_upper_limits,
                 self.cfg.reset_dof_pos_noise,
@@ -839,8 +839,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 mask,
                 self.num_hand_dofs,
                 self.rng_state,
-                self.hand.data.joint_pos,
-                self.hand.data.joint_vel,
+                self.hand.data.joint_pos.warp,
+                self.hand.data.joint_vel.warp,
                 self.prev_targets,
                 self.cur_targets,
                 self.hand_dof_targets,
@@ -900,13 +900,13 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             compute_intermediate_values,
             dim=self.num_envs,
             inputs=[
-                self.hand.data.body_pos_w,
-                self.hand.data.body_quat_w,
-                self.hand.data.body_vel_w,
+                self.hand.data.body_pos_w.warp,
+                self.hand.data.body_quat_w.warp,
+                self.hand.data.body_vel_w.warp,
                 self.finger_bodies,
                 self.env_origins,
-                self.object.data.root_link_pose_w,
-                self.object.data.root_com_vel_w,
+                self.object.data.root_link_pose_w.warp,
+                self.object.data.root_com_vel_w.warp,
                 self.num_fingertips,
                 self.fingertip_pos,
                 self.fingertip_rot,
@@ -950,8 +950,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             compute_full_observations,
             dim=self.num_envs,
             inputs=[
-                self.hand.data.joint_pos,
-                self.hand.data.joint_vel,
+                self.hand.data.joint_pos.warp,
+                self.hand.data.joint_vel.warp,
                 self.hand_dof_lower_limits,
                 self.hand_dof_upper_limits,
                 self.cfg.vel_obs_scale,

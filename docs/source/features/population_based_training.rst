@@ -122,12 +122,12 @@ Launch *N* workers, where *n* indicates each worker index:
      --track \
      --wandb-name=idx<n> \
      --wandb-entity=<**entity**> \
-     --wandb-project-name=<**project**>
+     --wandb-project-name=<**project**> \
      agent.pbt.enabled=True \
      agent.pbt.num_policies=<N> \
      agent.pbt.policy_idx=<n> \
      agent.pbt.workspace=<**pbt_workspace_name**> \
-     agent.pbt.directory=<**/path/to/shared_folder**> \
+     agent.pbt.directory=<**/path/to/shared_folder**>
 
 
 References

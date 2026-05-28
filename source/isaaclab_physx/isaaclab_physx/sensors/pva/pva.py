@@ -17,6 +17,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -180,7 +181,7 @@ class Pva(BasePva):
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
         gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
-        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f)
+        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
 
         # Create internal buffers
         self._initialize_buffers_impl()
@@ -226,6 +227,7 @@ class Pva(BasePva):
                 self._prev_lin_vel_w,
                 self._prev_ang_vel_w,
                 1.0 / self._dt,
+                self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
@@ -276,27 +278,32 @@ class Pva(BasePva):
             return
         # get marker location
         # -- base state (convert warp -> torch for visualization)
-        base_pos_w = wp.to_torch(self._data.pos_w).clone()
+        base_pos_w = self._data.pos_w.torch.clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
-        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(
-            wp.to_torch(self._data.lin_acc_b).shape[0], 1
-        )
+        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.torch.shape[0], 1)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
-        # arrow-direction
-        pos_w_torch = wp.to_torch(self._data.pos_w)
-        quat_w_torch = wp.to_torch(self._data.quat_w)
-        lin_acc_b_torch = wp.to_torch(self._data.lin_acc_b)
-        quat_opengl = math_utils.quat_from_matrix(
-            math_utils.create_rotation_matrix_from_view(
-                pos_w_torch,
-                pos_w_torch + math_utils.quat_apply(quat_w_torch, lin_acc_b_torch),
-                up_axis=up_axis,
-                device=self._device,
-            )
+        # arrow-direction; filter out bodies with effectively zero accel (no defined direction)
+        pos_w_torch = self._data.pos_w.torch
+        accel_w = math_utils.quat_apply(self._data.quat_w.torch, self._data.lin_acc_b.torch)
+        valid_indices = (torch.linalg.norm(accel_w, dim=-1) > 1e-5).nonzero(as_tuple=True)[0]
+        if valid_indices.numel() == 0:
+            return
+        pos_filtered = pos_w_torch.index_select(0, valid_indices)
+        accel_filtered = accel_w.index_select(0, valid_indices)
+        rotation_matrix = math_utils.create_rotation_matrix_from_view(
+            pos_filtered,
+            pos_filtered + accel_filtered,
+            up_axis=up_axis,
+            device=self._device,
         )
+        quat_opengl = math_utils.quat_from_matrix(rotation_matrix)
         quat_w = math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world")
         # display markers
-        self.acceleration_visualizer.visualize(base_pos_w, quat_w, arrow_scale)
+        self.acceleration_visualizer.visualize(
+            base_pos_w.index_select(0, valid_indices),
+            quat_w,
+            arrow_scale.index_select(0, valid_indices),
+        )

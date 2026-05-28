@@ -81,8 +81,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
         if cfg.video_recorder is not None:
             cfg.video_recorder.env_render_mode = render_mode
-            cfg.video_recorder.camera_position = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.camera_target = tuple(float(x) for x in cfg.viewer.lookat)
+            cfg.video_recorder.eye = tuple(float(x) for x in cfg.viewer.eye)
+            cfg.video_recorder.lookat = tuple(float(x) for x in cfg.viewer.lookat)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
@@ -171,6 +171,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         6. Compute the observations.
         7. Return the observations, rewards, resets and extras.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
+        When ``render_enabled`` is False:
+
+        - The Kit app loop (``app.update()``) is **skipped**, which also disables
+          camera/RTX sensor rendering and GUI viewport updates.  Kit bundles these
+          operations together, so they cannot be separated.
+        - Standalone visualizers (Newton, Rerun, Viser) **continue to update**
+          normally because their ``step()`` methods are independent of the Kit
+          app loop.
+        - Post-reset re-renders for RTX sensors are also skipped.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -187,22 +199,34 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         is_rendering = self.sim.is_rendering
 
         # perform physics stepping
-        for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
-            # set actions into buffers
+        if self._physics_handles_decimation:
+            self._sim_step_counter += self.cfg.decimation
             self.action_manager.apply_action()
-            # set actions into simulator
             self.scene.write_data_to_sim()
-            # simulate
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
-            # render between steps only if the GUI or an RTX sensor needs it
-            # note: we assume the render interval to be the shortest accepted rendering interval.
-            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            # render only when a render_interval boundary falls within this decimation block,
+            # mirroring the per-sub-step check in the else branch.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
-            # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+                self.sim.render(skip_app_pumping=not self.render_enabled)
+            self.scene.update(dt=self.step_dt)
+        else:
+            for _ in range(self.cfg.decimation):
+                self._sim_step_counter += 1
+                # set actions into buffers
+                self.action_manager.apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
+                # simulate
+                self.sim.step(render=False)
+                self.recorder_manager.record_post_physics_decimation_step()
+                # render between steps only if the GUI or an RTX sensor needs it.
+                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+                # but standalone visualizers (Newton, Rerun, Viser) still update.
+                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                    self.sim.render(skip_app_pumping=not self.render_enabled)
+                # update buffers at sim dt
+                self.scene.update(dt=self.physics_dt)
 
         # post-step:
         # -- update env counters (used for curriculum generation)
@@ -221,7 +245,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
@@ -229,7 +253,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_idx(reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 

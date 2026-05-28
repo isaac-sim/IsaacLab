@@ -9,7 +9,7 @@ from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,

@@ -26,7 +26,7 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
     Returns:
         A tuple containing the paths to the URDF file and the mesh directory.
     """
-    from isaacsim.core.utils.extensions import enable_extension
+    from isaacsim.core.experimental.utils.app import enable_extension
 
     enable_extension("isaacsim.asset.exporter.urdf")
 

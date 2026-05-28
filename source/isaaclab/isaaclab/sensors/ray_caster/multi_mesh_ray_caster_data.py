@@ -6,7 +6,7 @@
 
 """Data container for the multi-mesh ray-cast sensor."""
 
-import torch
+from isaaclab.utils.warp import ProxyArray
 
 from .ray_caster_data import RayCasterData
 
@@ -14,7 +14,7 @@ from .ray_caster_data import RayCasterData
 class MultiMeshRayCasterData(RayCasterData):
     """Data container for the multi-mesh ray-cast sensor."""
 
-    ray_mesh_ids: torch.Tensor = None
+    ray_mesh_ids: ProxyArray = None
     """The mesh ids of the ray hits.
 
     Shape is (N, B, 1), where N is the number of sensors, B is the number of rays

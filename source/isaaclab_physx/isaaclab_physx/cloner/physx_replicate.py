@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 
 from omni.physx import get_physx_replicator_interface
@@ -13,8 +15,8 @@ from pxr import Usd, UsdUtils
 
 def physx_replicate(
     stage: Usd.Stage,
-    sources: list[str],  # e.g. ["/World/Template/A", "/World/Template/B"]
-    destinations: list[str],  # e.g. ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"]
+    sources: Sequence[str],  # e.g. ["/World/Template/A", "/World/Template/B"]
+    destinations: Sequence[str],  # e.g. ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"]
     env_ids: torch.Tensor,  # env_ids
     mapping: torch.Tensor,  # (num_sources, num_envs) bool; True -> place sources[i] into world=j
     positions: torch.Tensor | None = None,

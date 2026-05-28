@@ -20,8 +20,8 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.manager_based.manipulation.place import mdp as place_mdp
 from isaaclab_tasks.manager_based.manipulation.place.config.agibot import place_toy2box_rmp_rel_env_cfg

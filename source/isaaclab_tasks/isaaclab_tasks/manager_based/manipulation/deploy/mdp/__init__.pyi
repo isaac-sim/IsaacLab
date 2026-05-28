@@ -17,6 +17,8 @@ __all__ = [
     "keypoint_command_error_exp",
     "keypoint_entity_error",
     "keypoint_entity_error_exp",
+    "keypoint_ee_grasp_error",
+    "keypoint_ee_grasp_error_exp",
     "reset_when_gear_dropped",
     "reset_when_gear_orientation_exceeds_threshold",
 ]
@@ -29,6 +31,8 @@ from .rewards import (
     keypoint_command_error_exp,
     keypoint_entity_error,
     keypoint_entity_error_exp,
+    keypoint_ee_grasp_error,
+    keypoint_ee_grasp_error_exp,
 )
 from .terminations import reset_when_gear_dropped, reset_when_gear_orientation_exceeds_threshold
 from isaaclab.envs.mdp import *

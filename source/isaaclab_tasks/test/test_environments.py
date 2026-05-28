@@ -37,4 +37,10 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 @pytest.mark.isaacsim_ci
 def test_environments(task_name, num_envs, device):
     # run environments without stage in memory
-    _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
+    _run_environments(
+        task_name,
+        device,
+        num_envs,
+        force_interval_events=True,
+        create_stage_in_memory=False,
+    )

@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import pytest
 import torch
 
@@ -24,8 +15,12 @@ import isaaclab.utils.noise as noise
 def test_gaussian_noise(device, noise_device, op):
     """Test guassian_noise function."""
 
-    # create random data set
-    data = torch.rand(10000, 3, device=device)
+    # Use ones for 'scale' so noisy_data is the noise term directly;
+    # random data can be exactly 0 (torch.rand's [0, 1) contract), and 0/0 = NaN (OMPE-94619).
+    if op == "scale":
+        data = torch.ones(10000, 3, device=device)
+    else:
+        data = torch.rand(10000, 3, device=device)
     # define standard deviation and mean
     std = torch.tensor([0.1, 0.2, 0.3], device=noise_device)
     mean = torch.tensor([0.4, 0.5, 0.6], device=noise_device)
@@ -38,9 +33,7 @@ def test_gaussian_noise(device, noise_device, op):
         # calculate resulting noise compared to original data set
         if op == "add":
             std_result, mean_result = torch.std_mean(noisy_data - data, dim=0)
-        elif op == "scale":
-            std_result, mean_result = torch.std_mean(noisy_data / data, dim=0)
-        elif op == "abs":
+        elif op == "scale" or op == "abs":
             std_result, mean_result = torch.std_mean(noisy_data, dim=0)
 
         assert str(noise_cfg.mean.device) == device
@@ -54,8 +47,12 @@ def test_gaussian_noise(device, noise_device, op):
 @pytest.mark.parametrize("op", ["add", "scale", "abs"])
 def test_uniform_noise(device, noise_device, op):
     """Test uniform_noise function."""
-    # create random data set
-    data = torch.rand(10000, 3, device=device)
+    # Use ones for 'scale' so noisy_data is the noise term directly;
+    # random data can be exactly 0 (torch.rand's [0, 1) contract), and 0/0 = NaN (OMPE-94619).
+    if op == "scale":
+        data = torch.ones(10000, 3, device=device)
+    else:
+        data = torch.rand(10000, 3, device=device)
     # define uniform minimum and maximum
     n_min = torch.tensor([0.1, 0.2, 0.3], device=noise_device)
     n_max = torch.tensor([0.4, 0.5, 0.6], device=noise_device)
@@ -69,10 +66,7 @@ def test_uniform_noise(device, noise_device, op):
         if op == "add":
             min_result, _ = torch.min(noisy_data - data, dim=0)
             max_result, _ = torch.max(noisy_data - data, dim=0)
-        elif op == "scale":
-            min_result, _ = torch.min(torch.div(noisy_data, data), dim=0)
-            max_result, _ = torch.max(torch.div(noisy_data, data), dim=0)
-        elif op == "abs":
+        elif op == "scale" or op == "abs":
             min_result, _ = torch.min(noisy_data, dim=0)
             max_result, _ = torch.max(noisy_data, dim=0)
 
@@ -88,8 +82,12 @@ def test_uniform_noise(device, noise_device, op):
 @pytest.mark.parametrize("op", ["add", "scale", "abs"])
 def test_constant_noise(device, noise_device, op):
     """Test constant_noise"""
-    # create random data set
-    data = torch.rand(10000, 3, device=device)
+    # Use ones for 'scale' so noisy_data is the bias term directly;
+    # random data can be exactly 0 (torch.rand's [0, 1) contract), and 0/0 = NaN (OMPE-94619).
+    if op == "scale":
+        data = torch.ones(10000, 3, device=device)
+    else:
+        data = torch.rand(10000, 3, device=device)
     # define a bias
     bias = torch.tensor([0.1, 0.2, 0.3], device=noise_device)
     # create noise config
@@ -101,9 +99,7 @@ def test_constant_noise(device, noise_device, op):
         # calculate resulting noise compared to original data set
         if op == "add":
             bias_result = noisy_data - data
-        elif op == "scale":
-            bias_result = noisy_data / data
-        elif op == "abs":
+        elif op == "scale" or op == "abs":
             bias_result = noisy_data
 
         assert str(noise_cfg.bias.device) == device

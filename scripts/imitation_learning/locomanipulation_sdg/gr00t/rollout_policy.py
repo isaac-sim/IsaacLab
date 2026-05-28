@@ -40,6 +40,7 @@ import gymnasium as gym
 import torch
 from policy import Policy
 
+from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 
@@ -375,6 +376,9 @@ if __name__ == "__main__":
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
         env_cfg.sim.device = args_cli.device
+        # Drop the SDG output-data recorder term: it pulls env._locomanipulation_sdg_output_data,
+        # which is only populated by the data-generation state machine, not during policy rollout.
+        env_cfg.recorders = ActionStateRecorderManagerCfg()
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
 

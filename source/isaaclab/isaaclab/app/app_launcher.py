@@ -49,57 +49,6 @@ class ExplicitAction(argparse.Action):
         setattr(namespace, f"{self.dest}_explicit", True)
 
 
-def _parse_visualizer_csv(value: str) -> list[str]:
-    """Parse visualizer list from a single comma-delimited CLI token."""
-    valid = {"kit", "newton", "rerun", "viser", "none"}
-    token = (value or "").strip()
-    if not token:
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
-        )
-    if " " in token:
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: spaces are not allowed. "
-            "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
-        )
-
-    names = [item.strip().lower() for item in token.split(",")]
-    if any(not name for name in names):
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty visualizer entry detected. "
-            "Use a comma-separated list without empty items."
-        )
-    invalid = [name for name in names if name not in valid]
-    if invalid:
-        raise argparse.ArgumentTypeError(
-            f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
-        )
-    # De-duplicate while preserving order.
-    return list(dict.fromkeys(names))
-
-
-def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
-    """Normalize and validate upstream config visualizer intent payload.
-
-    The expected schema is:
-    ``{"has_any_visualizers": bool, "has_kit_visualizer": bool}``.
-    """
-    if intent is None:
-        return False, False
-    if not isinstance(intent, dict):
-        raise ValueError("Invalid value for `visualizer_intent`: expected dict or None.")
-
-    has_any = intent.get("has_any_visualizers", False)
-    has_kit = intent.get("has_kit_visualizer", False)
-    if not isinstance(has_any, bool) or not isinstance(has_kit, bool):
-        raise ValueError(
-            "Invalid `visualizer_intent` values: expected booleans for `has_any_visualizers` and `has_kit_visualizer`."
-        )
-    if has_kit and not has_any:
-        raise ValueError("Invalid `visualizer_intent`: `has_kit_visualizer=True` requires `has_any_visualizers=True`.")
-    return has_any, has_kit
-
-
 class ExplicitTrueAction(argparse.Action):
     """Custom action to track explicit use of boolean flags."""
 
@@ -132,6 +81,150 @@ class AppLauncher:
         ``LIVESTREAM`` is used.
 
     """
+
+    @staticmethod
+    def sync_visualizer_cli_settings_to_carb(launcher_args: dict) -> None:
+        """Write visualizer CLI selection and ``--max_visible_envs`` to carb settings.
+
+        Callers may set ``visualizer_explicit`` / ``visualizer_disable_all`` when those values
+        were resolved elsewhere (e.g. :class:`AppLauncher` strips flags from *launcher_args*).
+        Otherwise ``disable_all`` is inferred from ``"none"`` in ``visualizer``.
+
+        Also used when Kit is skipped (see :mod:`isaaclab_tasks.utils.sim_launcher`).
+        """
+        visualizers = launcher_args.get("visualizer")
+
+        if "max_visible_envs" in launcher_args:
+            v = launcher_args["max_visible_envs"]
+            if v is not None and int(v) < 0:
+                raise ValueError(f"Invalid value for --max_visible_envs: {v}. Expected non-negative int.")
+
+        cli_explicit = bool(launcher_args.get("visualizer_explicit", False))
+        if "visualizer_disable_all" in launcher_args:
+            cli_disable_all = bool(launcher_args["visualizer_disable_all"])
+        else:
+            cli_disable_all = bool(cli_explicit) and visualizers is not None and "none" in visualizers
+
+        with contextlib.suppress(Exception):
+            visualizer_str = " ".join(visualizers) if visualizers else ""
+            settings = get_settings_manager()
+            settings.set_string("/isaaclab/visualizer/types", visualizer_str)
+            settings.set_bool("/isaaclab/visualizer/explicit", cli_explicit)
+            settings.set_bool("/isaaclab/visualizer/disable_all", cli_disable_all)
+
+            # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
+            if "max_visible_envs" in launcher_args:
+                settings.set_int("/isaaclab/visualizer/max_visible_envs", int(launcher_args["max_visible_envs"]))
+            else:
+                settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
+
+    @staticmethod
+    def apply_rtx_determinism_settings() -> None:
+        """Apply RTX RealTimePathTracing and disable RTPT caches for reproducible RTX rendering.
+        Called after :class:`isaacsim.simulation_app.SimulationApp` starts whenever ``--deterministic`` is set.
+        """
+        settings = get_settings_manager()
+        settings.set_string("/rtx/rendermode", "RealTimePathTracing")
+        settings.set_bool("/rtx/rtpt/cached/enabled", False)
+        settings.set_bool("/rtx/rtpt/lightcache/cached/enabled", False)
+
+    @staticmethod
+    def _parse_visualizer_csv(value: str) -> list[str] | None:
+        """Parse visualizer list from a single comma-delimited CLI token."""
+        valid = {"kit", "newton", "rerun", "viser", "none"}
+        token = (value or "").strip()
+        if not token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
+            )
+        if " " in token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: spaces are not allowed. "
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
+            )
+
+        names = [item.strip().lower() for item in token.split(",")]
+        if any(not name for name in names):
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: empty visualizer entry detected. "
+                "Use a comma-separated list without empty items."
+            )
+        invalid = [name for name in names if name not in valid]
+        if invalid:
+            raise argparse.ArgumentTypeError(
+                f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
+            )
+        if "none" in names:
+            if len(names) > 1:
+                raise argparse.ArgumentTypeError(
+                    "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
+                )
+            return None
+        # De-duplicate while preserving order.
+        return list(dict.fromkeys(names))
+
+    @staticmethod
+    def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
+        """Normalize and validate upstream config visualizer intent payload.
+
+        The expected schema is:
+        ``{"has_any_visualizers": bool, "has_kit_visualizer": bool}``.
+        """
+        if intent is None:
+            return False, False
+        if not isinstance(intent, dict):
+            raise ValueError("Invalid value for `visualizer_intent`: expected dict or None.")
+
+        has_any = intent.get("has_any_visualizers", False)
+        has_kit = intent.get("has_kit_visualizer", False)
+        if not isinstance(has_any, bool) or not isinstance(has_kit, bool):
+            raise ValueError(
+                "Invalid `visualizer_intent` values: expected booleans for `has_any_visualizers` and "
+                "`has_kit_visualizer`."
+            )
+        if has_kit and not has_any:
+            raise ValueError(
+                "Invalid `visualizer_intent`: `has_kit_visualizer=True` requires `has_any_visualizers=True`."
+            )
+        return has_any, has_kit
+
+    @staticmethod
+    def _resolve_python_logging_level(launcher_args: dict) -> int:
+        """Resolve the Python logging level that should survive Kit startup."""
+        if launcher_args.get("verbose", False) or "--verbose" in sys.argv:
+            return logging.DEBUG
+        if launcher_args.get("info", False) or "--info" in sys.argv:
+            return logging.INFO
+
+        level = logging.getLogger().getEffectiveLevel()
+        return logging.WARNING if level == logging.NOTSET else level
+
+    @staticmethod
+    def _apply_python_logging_level(level: int) -> None:
+        """Apply a Python logging level to the root logger and its handlers."""
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+        for handler in root_logger.handlers:
+            handler.setLevel(level)
+
+    @staticmethod
+    def _ensure_isaaclab_info_stream_handler() -> None:
+        """Add a stream handler for Isaac Lab INFO records hidden by Kit logging."""
+        handler_name = "isaaclab_info_stream"
+        root_logger = logging.getLogger()
+        if any(getattr(handler, "name", None) == handler_name for handler in root_logger.handlers):
+            return
+
+        class _IsaacLabInfoFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                return record.levelno == logging.INFO and record.name.startswith("isaaclab")
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.name = handler_name
+        handler.setLevel(logging.INFO)
+        handler.addFilter(_IsaacLabInfoFilter())
+        handler.setFormatter(logging.Formatter("[INFO]: %(message)s"))
+        root_logger.addHandler(handler)
 
     def __init__(self, launcher_args: argparse.Namespace | dict | None = None, **kwargs):
         """Create a `SimulationApp`_ instance based on the input settings.
@@ -183,16 +276,20 @@ class AppLauncher:
                 )
             launcher_args.update(kwargs)
 
+        # Preserve the Python logging intent before Kit installs its own logging bridge.
+        self._python_logging_level = AppLauncher._resolve_python_logging_level(launcher_args)
+
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
-        self._visualizer_max_worlds: int | None  # Optional max worlds override for Newton-based visualizers
         self._video_enabled: bool  # Whether --video recording is enabled
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
+        self.device: str  # resolved device string (e.g. "cuda:0" or "cpu")
+        self._deferred_cuda_device_id: int | None = None
         self.local_rank: int  # local rank of GPUs in the current node
         self.global_rank: int  # global rank for multi-node training
 
@@ -201,8 +298,18 @@ class AppLauncher:
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
+        self._set_deferred_cuda_device()
         # Load IsaacSim extensions
         self._load_extensions()
+
+        # Re-run path sanitization.  Kit and its extensions may have inserted
+        # additional ``pip_prebundle`` or conflicting extension directories onto
+        # ``sys.path`` during startup.  A second pass ensures pip-installed
+        # packages still take priority over bundled copies.
+        from isaaclab import _deprioritize_prebundle_paths
+
+        _deprioritize_prebundle_paths()
+
         # Hide the stop button in the toolbar
         self._hide_stop_button()
         # Set settings from the given rendering mode
@@ -318,6 +425,9 @@ class AppLauncher:
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
 
+        * ``deterministic`` (bool): After startup, applies RTX/RTPT carb settings for reproducible rendering.
+          Does not change how the default experience file is chosen.
+
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
@@ -333,10 +443,9 @@ class AppLauncher:
           - Multiple visualizers can be specified as a comma-delimited list:
             ``--viz rerun,newton,viser``.
 
-        * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
-          rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
-          config default.
-
+        * ``max_visible_envs`` (int | None): Optional global override for partial visualization by capping
+          how many environments are shown in the visualizers.
+          More partial visualization configuration fields are available in the ``VisualizerCfg`` class.
 
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
@@ -417,7 +526,7 @@ class AppLauncher:
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=_parse_visualizer_csv,
+            type=AppLauncher._parse_visualizer_csv,
             action=ExplicitAction,
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
@@ -443,6 +552,12 @@ class AppLauncher:
                 " the experience file is determined based on the headless flag. If a relative path is provided,"
                 " it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order)."
             ),
+        )
+        arg_group.add_argument(
+            "--deterministic",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
+            help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
         )
         arg_group.add_argument(
             "--rendering_mode",
@@ -488,13 +603,10 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
-            "--visualizer_max_worlds",
+            "--max_visible_envs",
             type=int,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["visualizer_max_worlds"][1],
-            help=(
-                "Optional global max worlds override for Newton-based visualizers (newton/rerun/viser). "
-                "If omitted, visualizer config defaults are used."
-            ),
+            default=argparse.SUPPRESS,
+            help=("When set, caps the nums of envs shown in the launched visualizers."),
         )
         # special flag for backwards compatibility
 
@@ -515,8 +627,9 @@ class AppLauncher:
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
+        "deterministic": ([bool], False),
         "rendering_mode": ([str], "balanced"),
-        "visualizer_max_worlds": ([int, type(None)], None),
+        "max_visible_envs": ([int, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -786,7 +899,9 @@ class AppLauncher:
     def _resolve_visualizer_settings(self, launcher_args: dict) -> None:
         """Resolve visualizer CLI semantics and normalize selection."""
         raw_visualizers = launcher_args.get("visualizer")
-        cfg_has_any, cfg_has_kit = _normalize_visualizer_intent(launcher_args.pop("visualizer_intent", None))
+        cfg_has_any, cfg_has_kit = AppLauncher._normalize_visualizer_intent(
+            launcher_args.pop("visualizer_intent", None)
+        )
         self._cfg_has_any_visualizers = cfg_has_any
         self._cfg_has_kit_visualizer = cfg_has_kit
         visualizer_explicit = bool(launcher_args.pop("visualizer_explicit", False))
@@ -796,7 +911,8 @@ class AppLauncher:
         visualizer_types: list[str] = []
         if raw_visualizers is not None:
             if isinstance(raw_visualizers, str):
-                visualizer_types = _parse_visualizer_csv(raw_visualizers)
+                parsed_visualizers = AppLauncher._parse_visualizer_csv(raw_visualizers)
+                visualizer_types = [] if parsed_visualizers is None else parsed_visualizers
             else:
                 visualizer_types = [str(v).strip().lower() for v in raw_visualizers if str(v).strip()]
 
@@ -813,7 +929,9 @@ class AppLauncher:
             )
 
         self._cli_visualizer_explicit = visualizer_explicit
-        self._cli_visualizer_disable_all = visualizer_explicit and "none" in visualizer_types
+        self._cli_visualizer_disable_all = visualizer_explicit and (
+            raw_visualizers is None or "none" in visualizer_types
+        )
         self._cli_visualizer_types = [] if self._cli_visualizer_disable_all else visualizer_types
         launcher_args["visualizer"] = self._cli_visualizer_types
 
@@ -911,7 +1029,20 @@ class AppLauncher:
             # global rank (GPU id) in multi-gpu multi-node mode
             self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
-            self.device_id = self.local_rank
+            # When CUDA_VISIBLE_DEVICES restricts each process to a single GPU,
+            # local_rank may exceed the visible device count. Fall back to cuda:0
+            # so the process uses the one GPU it can see.
+            # We compare local_rank against device_count (not WORLD_SIZE) so that
+            # multi-node setups work correctly: WORLD_SIZE is global across all
+            # nodes, but device_count is local.
+            import torch
+
+            num_visible_gpus = torch.cuda.device_count()
+            if self.local_rank < num_visible_gpus:
+                self.device_id = self.local_rank
+            else:
+                self.device_id = 0
+
             device = "cuda:" + str(self.device_id)
             launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
@@ -929,13 +1060,34 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
+        # Defer importing torch until after SimulationApp starts.  Importing
+        # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
+        # Kit's platform-info fork during startup.
+        if "cuda" in device:
+            self._deferred_cuda_device_id = self.device_id
+
+        # Store the resolved device string for downstream consumers (e.g. sim_launcher)
+        self.device = device
+
         logger.info("Using device: %s", device)
+
+    def _set_deferred_cuda_device(self) -> None:
+        """Set the current torch CUDA device after Kit startup."""
+        if self._deferred_cuda_device_id is None:
+            return
+
+        import torch
+
+        torch.cuda.set_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
         self._sim_experience_file = launcher_args.pop("experience", "")
+        deterministic_mode = bool(
+            launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
+        )
 
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
@@ -988,6 +1140,7 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        self._apply_rtx_determinism = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
@@ -1073,9 +1226,21 @@ class AppLauncher:
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
 
+        if self._apply_rtx_determinism:
+            AppLauncher.apply_rtx_determinism_settings()
+            logger.info("Applied RTX settings for deterministic rendering (--deterministic).")
+
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
-        # Re-apply root logger level to WARNING to suppress third-party and verbose debug/info noise.
-        logging.getLogger().setLevel(logging.WARNING)
+        # Re-apply the intended Python logging level, then add a scoped stream handler for
+        # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
+        AppLauncher._apply_python_logging_level(self._python_logging_level)
+        if self._python_logging_level <= logging.INFO:
+            AppLauncher._ensure_isaaclab_info_stream_handler()
+        elif self._python_logging_level == logging.WARNING:
+            AppLauncher._ensure_isaaclab_info_stream_handler()
+            # Let Isaac Lab INFO records reach the scoped handler while the other root
+            # handlers remain at WARNING.
+            logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
@@ -1155,28 +1320,14 @@ class AppLauncher:
         settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
-        """Store visualizer selection and max-worlds override in settings."""
-        visualizers = launcher_args.get("visualizer")
-        visualizer_max_worlds = launcher_args.get("visualizer_max_worlds")
-
-        if visualizer_max_worlds is not None and visualizer_max_worlds < 0:
-            raise ValueError(
-                f"Invalid value for --visualizer_max_worlds: {visualizer_max_worlds}. Expected non-negative int."
-            )
-
-        with contextlib.suppress(Exception):
-            visualizer_str = " ".join(visualizers) if visualizers else ""
-            settings = get_settings_manager()
-            cli_visualizer_explicit = getattr(self, "_cli_visualizer_explicit", False)
-            cli_visualizer_disable_all = getattr(self, "_cli_visualizer_disable_all", False)
-            settings.set_string("/isaaclab/visualizer/types", visualizer_str)
-            settings.set_bool("/isaaclab/visualizer/explicit", cli_visualizer_explicit)
-            settings.set_bool("/isaaclab/visualizer/disable_all", cli_visualizer_disable_all)
-            # Store as int setting where -1 means "use per-visualizer defaults".
-            if visualizer_max_worlds is None:
-                settings.set_int("/isaaclab/visualizer/max_worlds", -1)
-            else:
-                settings.set_int("/isaaclab/visualizer/max_worlds", int(visualizer_max_worlds))
+        """Persist visualizer CLI flags and ``max_visible_envs`` override for :class:`SimulationContext`."""
+        AppLauncher.sync_visualizer_cli_settings_to_carb(
+            {
+                **launcher_args,
+                "visualizer_explicit": getattr(self, "_cli_visualizer_explicit", False),
+                "visualizer_disable_all": getattr(self, "_cli_visualizer_disable_all", False),
+            }
+        )
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""

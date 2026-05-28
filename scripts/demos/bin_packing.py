@@ -46,15 +46,15 @@ simulation_app = app_launcher.app
 import math
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 ##
 # Scene Configuration
@@ -267,9 +267,9 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     num_envs = scene.num_envs
     device = scene.device
     view_indices = torch.arange(num_envs * num_objects, device=device)
-    default_pose_w = wp.to_torch(groceries.data.default_body_pose).clone()
+    default_pose_w = groceries.data.default_body_pose.torch.clone()
     default_pose_w[..., :3] = default_pose_w[..., :3] + scene.env_origins.unsqueeze(1)
-    default_vel_w = wp.to_torch(groceries.data.default_body_vel).clone()
+    default_vel_w = groceries.data.default_body_vel.torch.clone()
     default_state_w = torch.cat([default_pose_w, default_vel_w], dim=-1)
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()

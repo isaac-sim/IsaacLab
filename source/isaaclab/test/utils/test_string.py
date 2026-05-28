@@ -3,22 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# NOTE: While we don't actually use the simulation app in this test, we still need to launch it
-#       because warp is only available in the context of a running simulation
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import random
 
 import pytest
 
 import isaaclab.utils.string as string_utils
+from isaaclab.utils.string import _resolve_matching_names_impl
 
 
 def test_resolvable_string_metadata_is_non_eager():
@@ -131,7 +121,8 @@ def test_resolve_matching_names_with_joint_name_strings():
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
     # test matching names with regex but shuffled
     # randomize order of previous query list
-    random.shuffle(query_list)
+    rng = random.Random(0)
+    rng.shuffle(query_list)
     index_list, names_list = string_utils.resolve_matching_names(query_list, robot_joint_names)
     ground_truth_index_list = [0, 1, 4, 5, 8, 9]
     assert names_list != query_list
@@ -251,3 +242,22 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     query_names = {"a|c": 1, "b": 0, "f": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(query_names, target_names, preserve_order=True)
+
+
+def test_clear_resolve_matching_names_cache():
+    """Clearing the cache discards previously cached entries."""
+    target_names = ["a", "b", "c"]
+    # Populate the cache
+    string_utils.resolve_matching_names("a", target_names)
+    info_before = _resolve_matching_names_impl.cache_info()
+    assert info_before.currsize > 0
+
+    # Clear the cache
+    string_utils.clear_resolve_matching_names_cache()
+    info_after = _resolve_matching_names_impl.cache_info()
+    assert info_after.currsize == 0
+
+    # Results are still correct after clearing
+    idx, names = string_utils.resolve_matching_names("a", target_names)
+    assert idx == [0]
+    assert names == ["a"]

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .rmpflow_task_space_actions import RMPFlowAction

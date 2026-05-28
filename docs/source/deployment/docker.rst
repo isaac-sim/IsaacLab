@@ -102,6 +102,20 @@ The following shows how to launch the container in a detached state and enter it
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
     ./docker/container.py enter base
 
+The Isaac Lab base, ROS 2, and cuRobo images run as a non-root user with uid/gid 1000 to keep
+bind-mounted workspaces writable on GitHub runners. If you run one of these images directly with
+``docker run`` and your host uid differs, pass Docker's ``--user "$(id -u):1000"`` option so
+new files on bind mounts are owned by your host user while retaining runtime-home access.
+
+If you are upgrading an existing Compose setup from older root-based images, recreate the named
+volumes before starting the new images. Older cache, log, and data volumes may contain root-owned
+files that the uid/gid 1000 runtime user cannot update. Copy any artifacts you want to keep, then
+remove the old Compose volumes from the ``docker`` directory:
+
+.. code:: bash
+
+    docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+
 To copy files from the base container to the host machine, you can use the following command:
 
 .. code:: bash

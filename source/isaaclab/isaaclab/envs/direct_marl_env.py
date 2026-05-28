@@ -92,6 +92,7 @@ class DirectMARLEnv(gym.Env):
         self.render_mode = render_mode
         # initialize internal variables
         self._is_closed = False
+        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -145,6 +146,8 @@ class DirectMARLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
+                self.scene.initialize_renderers()
+            self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -169,15 +172,15 @@ class DirectMARLEnv(gym.Env):
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback TiledCamera
+        # Instantiate the video recorder before sim.reset() so that any fallback Camera
         # (used for state-based envs without an observation camera) is spawned into the USD
         # stage and registered for the PHYSICS_READY callback before physics initialises.
         # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
         if self.cfg.video_recorder is not None:
             self.cfg.video_recorder.env_render_mode = render_mode
             vr = self.cfg.video_recorder
-            vr.camera_position = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.camera_target = tuple(float(x) for x in self.cfg.viewer.lookat)
+            vr.eye = tuple(float(x) for x in self.cfg.viewer.eye)
+            vr.lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None
@@ -196,6 +199,10 @@ class DirectMARLEnv(gym.Env):
             # this shouldn't cause an issue since later on, users do a reset over all the environments
             # so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        # let the physics backend know about the env decimation so it can
+        # fold the full loop into a single step() when possible
+        self.sim.physics_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -217,6 +224,13 @@ class DirectMARLEnv(gym.Env):
         # initialize data and constants
         # -- counter for simulation steps
         self._sim_step_counter = 0
+        # -- controls camera/Kit rendering in step().
+        # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
+        # skipped, but standalone visualizers (Newton, Rerun, Viser) continue to update.
+        # This is because Kit bundles camera rendering with its app loop and the two
+        # cannot be separated.  Non-Kit visualizers have independent step() methods
+        # that do not trigger camera or GUI updates, so they remain active.
+        self.render_enabled: bool = True
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
@@ -391,6 +405,17 @@ class DirectMARLEnv(gym.Env):
         5. Apply interval events if they are enabled.
         6. Compute observations.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
+        When ``render_enabled`` is False:
+
+        - The Kit app loop (``app.update()``) is **skipped**, which also disables
+          camera/RTX sensor rendering and GUI viewport updates.  Kit bundles these
+          operations together, so they cannot be separated.
+        - Standalone visualizers (Newton, Rerun, Viser) **continue to update**
+          normally because their ``step()`` methods are independent of the Kit
+          app loop.
+
         Args:
             actions: The actions to apply on the environment (keyed by the agent ID).
                 Shape of individual tensors is (num_envs, action_dim).
@@ -414,21 +439,32 @@ class DirectMARLEnv(gym.Env):
         is_rendering = self.sim.is_rendering
 
         # perform physics stepping
-        for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
-            # set actions into buffers
+        if self._physics_handles_decimation:
+            self._sim_step_counter += self.cfg.decimation
             self._apply_action()
-            # set actions into simulator
             self.scene.write_data_to_sim()
-            # simulate
             self.sim.step(render=False)
-            # render between steps only if the GUI or an RTX sensor needs it
-            # note: we assume the render interval to be the shortest accepted rendering interval.
-            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            # render only when a render_interval boundary falls within this decimation block,
+            # mirroring the per-sub-step check in the else branch.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
-            # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+                self.sim.render(skip_app_pumping=not self.render_enabled)
+            self.scene.update(dt=self.step_dt)
+        else:
+            for _ in range(self.cfg.decimation):
+                self._sim_step_counter += 1
+                # set actions into buffers
+                self._apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
+                # simulate
+                self.sim.step(render=False)
+                # render between steps only if the GUI or an RTX sensor needs it.
+                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+                # but standalone visualizers (Newton, Rerun, Viser) still update.
+                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                    self.sim.render(skip_app_pumping=not self.render_enabled)
+                # update buffers at sim dt
+                self.scene.update(dt=self.physics_dt)
 
         # post-step:
         # -- update env counters (used for curriculum generation)

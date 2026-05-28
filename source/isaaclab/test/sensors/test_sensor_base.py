@@ -23,7 +23,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @dataclass

@@ -1,6 +1,55 @@
 Changelog
 ---------
 
+0.4.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_contrib.deformable` with contributed Newton deformable
+  asset and VBD solver support, including
+  :class:`~isaaclab_contrib.deformable.DeformableObject`,
+  :class:`~isaaclab_contrib.deformable.VBDSolverCfg`,
+  :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`, and
+  :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` for
+  one- and two-way rigid-deformable coupling.
+* Added :class:`~isaaclab_contrib.deformable.NewtonModelCfg` for shared Newton
+  deformable contact parameters.
+* Added Newton deformable coupling documentation with Franka soft-body lift
+  tuning guidance for
+  :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` and
+  :class:`~isaaclab_contrib.deformable.NewtonModelCfg`.
+
+Fixed
+^^^^^
+
+* Fixed ``[rlinf]`` extra dependency declarations to avoid version conflicts with IsaacLab core
+  (torch, transformers, tokenizers). Conflicting packages are now documented as manual ``--no-deps``
+  installation steps.
+
+
+0.3.2 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed ``_patched_reset`` monkey-patch in RLinf extension; use
+  ``num_rerenders_on_reset`` env config instead.
+
+
+0.3.1 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated TacSL visuotactile sensor camera configuration and examples to use
+  :class:`~isaaclab.sensors.CameraCfg` and :class:`~isaaclab.sensors.Camera`
+  instead of deprecated tiled-camera aliases.
+
+
 0.3.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 

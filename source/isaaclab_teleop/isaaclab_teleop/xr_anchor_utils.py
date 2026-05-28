@@ -17,7 +17,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import get_current_stage_id
+from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 
 from .xr_cfg import XrAnchorRotationMode
 
@@ -51,8 +51,6 @@ class XrAnchorSynchronizer:
 
         # Resolve USD layer identifier of the anchor for updates
         try:
-            from isaacsim.core.utils.stage import get_current_stage
-
             stage = get_current_stage()
             xr_anchor_headset_prim = stage.GetPrimAtPath(self._xr_anchor_headset_path)
             prim_stack = xr_anchor_headset_prim.GetPrimStack() if xr_anchor_headset_prim is not None else None

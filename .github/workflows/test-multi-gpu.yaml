@@ -1,0 +1,153 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Multi-GPU distributed training validation
+#
+# This workflow validates that multi-GPU training works correctly across:
+# - Physics backends: PhysX, Newton
+# - Rendering backends: none (physics-only), Isaac RTX, Newton Warp
+#
+# Runs on a dedicated multi-GPU runner (separate from standard CI) to minimize costs.
+# Only triggered on PRs that touch distributed training code paths.
+
+name: Multi-GPU Training Tests
+
+on:
+  pull_request:
+    paths:
+      - "source/isaaclab/isaaclab/app/app_launcher.py"
+      - "source/isaaclab_tasks/isaaclab_tasks/utils/sim_launcher.py"
+      - "scripts/reinforcement_learning/**/train.py"
+      - ".github/workflows/test-multi-gpu.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-multi-gpu:
+    name: Multi-GPU (${{ matrix.physics }}, ${{ matrix.renderer }})
+    # Use dedicated multi-GPU runner to avoid blocking standard CI resources
+    # Configure this label on a runner with 2+ GPUs (e.g., g5.12xlarge with 4x A10G)
+    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # PhysX physics-only
+          - physics: physx
+            renderer: none
+            task: Isaac-Cartpole-Direct-v0
+            extra_args: ""
+
+          # PhysX + Isaac RTX renderer
+          - physics: physx
+            renderer: isaac-rtx
+            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            extra_args: ""
+            trainer: skrl
+
+          # PhysX + Newton Warp renderer (hybrid)
+          - physics: physx
+            renderer: newton-warp
+            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            extra_args: "env.tiled_camera.renderer_cfg=newton_renderer"
+            trainer: skrl
+
+          # Newton physics-only
+          - physics: newton
+            renderer: none
+            task: Isaac-Cartpole-Direct-v0
+            extra_args: "+sim=newton"
+
+          # Newton + Newton Warp renderer
+          - physics: newton
+            renderer: newton-warp
+            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            extra_args: "+sim=newton env.tiled_camera.renderer_cfg=newton_renderer"
+            trainer: skrl
+
+          # Newton + Isaac RTX renderer (hybrid)
+          - physics: newton
+            renderer: isaac-rtx
+            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            extra_args: "+sim=newton"
+            trainer: skrl
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Isaac Lab
+        run: |
+          ./isaaclab.sh --install
+
+      - name: Verify multi-GPU availability
+        run: |
+          echo "=== GPU Info ==="
+          nvidia-smi --query-gpu=index,name,memory.total --format=csv
+
+          GPU_COUNT=$(python -c "import torch; print(torch.cuda.device_count())")
+          echo "Detected $GPU_COUNT GPU(s)"
+
+          if [ "$GPU_COUNT" -lt 2 ]; then
+            echo "::error::At least 2 GPUs required for multi-GPU tests, found $GPU_COUNT"
+            exit 1
+          fi
+
+      - name: Run multi-GPU training (${{ matrix.physics }}, ${{ matrix.renderer }})
+        env:
+          NCCL_DEBUG: WARN
+        run: |
+          TRAINER="${{ matrix.trainer || 'rsl_rl' }}"
+
+          echo "=========================================="
+          echo "Physics: ${{ matrix.physics }}"
+          echo "Renderer: ${{ matrix.renderer }}"
+          echo "Task: ${{ matrix.task }}"
+          echo "Trainer: $TRAINER"
+          echo "Extra args: ${{ matrix.extra_args }}"
+          echo "=========================================="
+
+          # Run 2-GPU distributed training for 3 iterations
+          ./isaaclab.sh -p -m torch.distributed.run --nproc_per_node=2 \
+            scripts/reinforcement_learning/${TRAINER}/train.py \
+            --task=${{ matrix.task }} \
+            --headless \
+            --distributed \
+            --max_iterations=3 \
+            --num_envs=16 \
+            ${{ matrix.extra_args }}
+
+      - name: Verify training completed
+        run: |
+          # Find the most recent log directory
+          LATEST_LOG=$(ls -td logs/*/*/*/ 2>/dev/null | head -1)
+
+          if [ -z "$LATEST_LOG" ]; then
+            echo "::error::No training log directory found"
+            exit 1
+          fi
+
+          echo "Log directory: $LATEST_LOG"
+          ls -la "$LATEST_LOG"
+
+          # Check for model checkpoints
+          MODELS=$(find "$LATEST_LOG" -name "*.pt" | wc -l)
+          echo "Model checkpoints found: $MODELS"
+
+          if [ "$MODELS" -lt 1 ]; then
+            echo "::error::No model checkpoints found - training may have failed"
+            exit 1
+          fi
+
+          echo "✅ Multi-GPU training completed successfully (${{ matrix.physics }}, ${{ matrix.renderer }})"

@@ -6,7 +6,7 @@
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as _BaseContactSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor

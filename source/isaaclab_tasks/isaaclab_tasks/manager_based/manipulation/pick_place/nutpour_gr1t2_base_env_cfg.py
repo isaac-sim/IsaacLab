@@ -7,8 +7,6 @@ import logging
 import tempfile
 from dataclasses import MISSING
 
-import torch
-
 try:
     from isaaclab_teleop import XrCfg
 
@@ -27,12 +25,12 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from . import mdp
 
@@ -167,14 +165,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Set table view camera
-    robot_pov_cam = TiledCameraCfg(
+    robot_pov_cam = CameraCfg(
         prim_path="{ENV_REGEX_NS}/RobotPOVCam",
         update_period=0.0,
         height=160,
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.9801, 0.0, 0.0, -0.19848), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.9801, 0.0, 0.0, -0.19848), convention="ros"),
     )
 
     # Ground plane
@@ -310,48 +308,44 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3),
     #                 right arm quat (4), left/right hand joint pos (22)]
-    idle_action = torch.tensor(
-        [
-            [
-                -0.22878,
-                0.2536,
-                1.0953,
-                0.5,
-                -0.5,
-                0.5,
-                0.5,
-                0.22878,
-                0.2536,
-                1.0953,
-                0.5,
-                -0.5,
-                0.5,
-                0.5,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-            ]
-        ]
-    )
+    idle_action = [
+        -0.22878,
+        0.2536,
+        1.0953,
+        0.5,
+        -0.5,
+        0.5,
+        0.5,
+        0.22878,
+        0.2536,
+        1.0953,
+        0.5,
+        -0.5,
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
 
     def __post_init__(self):
         """Post initialization."""

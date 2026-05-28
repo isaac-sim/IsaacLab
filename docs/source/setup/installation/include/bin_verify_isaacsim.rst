@@ -34,7 +34,7 @@ Check that the simulator runs from a standalone python script:
             # checks that python path is set correctly
             ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
             # checks that Isaac Sim can be launched from python
-            ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.api/add_cubes.py
+            ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
 
     .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
@@ -44,7 +44,7 @@ Check that the simulator runs from a standalone python script:
             :: checks that python path is set correctly
             %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
             :: checks that Isaac Sim can be launched from python
-            %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.api\add_cubes.py
+            %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.experimental.api\add_cubes.py
 
 .. caution::
 

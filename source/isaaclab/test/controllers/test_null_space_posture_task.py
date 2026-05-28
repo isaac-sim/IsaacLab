@@ -2,13 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 """Unit tests for NullSpacePostureTask with simplified robot configuration using Pink library directly."""
 
 import numpy as np

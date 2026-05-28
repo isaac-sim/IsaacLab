@@ -23,7 +23,7 @@ def _kill_process_group(pgid: int, sig: int):
         os.killpg(pgid, sig)
 
 
-def run_script(command: list[str], timeout: int = 1800) -> subprocess.CompletedProcess:
+def run_script(command: list[str], timeout: int = 5000) -> subprocess.CompletedProcess:
     """Run a script in a subprocess and return a CompletedProcess.
 
     The Kit / Omniverse runtime's ``simulation_app.close()`` can hang

@@ -31,9 +31,14 @@ export PYTHONPATH="$ISAACLAB_PATH/source/isaaclab:$PYTHONPATH"
 # If a local Isaac Sim binary is present, source its env setup so that
 # PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
 # activate.d hook (those don't fire reliably under e.g. `conda run`).
-if [ -f "$ISAACLAB_PATH/_isaac_sim/setup_conda_env.sh" ]; then
-    # shellcheck disable=SC1091
-    . "$ISAACLAB_PATH/_isaac_sim/setup_conda_env.sh" >/dev/null 2>&1 || true
+if [ -d "$ISAACLAB_PATH/_isaac_sim" ]; then
+    if [ -f "$ISAACLAB_PATH/_isaac_sim/setup_conda_env.sh" ]; then
+        # shellcheck disable=SC1091
+        . "$ISAACLAB_PATH/_isaac_sim/setup_conda_env.sh" >/dev/null 2>&1 || true
+    else
+        echo "[WARNING] _isaac_sim is present but _isaac_sim/setup_conda_env.sh is missing; Isaac Sim env vars not exported." >&2
+        echo "[WARNING] Re-extract the Isaac Sim binary zip if you intend to use the bundled binary." >&2
+    fi
 fi
 
 # Execute CLI.

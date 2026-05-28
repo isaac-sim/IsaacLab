@@ -134,7 +134,6 @@ Table of Contents
    Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
-   source/features/visualization
 
 
 .. toctree::
@@ -142,7 +141,8 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
-   source/experimental-features/newton-physics-integration/index
+   source/experimental-features/visuo_tactile_sensor
+   source/experimental-features/rlinf_vla_posttraining
 
 .. toctree::
    :maxdepth: 1
