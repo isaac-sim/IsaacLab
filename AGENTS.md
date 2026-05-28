@@ -174,9 +174,10 @@ These tests exist to validate documented installation paths end-to-end. Follow t
 
 #### Scope: installation integration only
 
-- **Belongs here:** tests that create a fresh env (uv/conda/system Python), run an install command (`./isaaclab.sh -i <args>`, `uv pip install <wheel>[extras]`), build the wheel via `tools/wheel_builder/build.sh`, and verify imports / smoke training in the resulting env.
+- **Belongs here:** tests that create a fresh env (uv/conda/system Python), run an install command (`./isaaclab.sh -i <args>`, `uv pip install <wheel>[extras]`), and verify imports / smoke training in the resulting env.
 - **Does not belong here:** unit tests on `pyproject.toml` / `python_packages.toml` contents, unit tests on the install CLI's argument parsing, anything that does not actually install. Those go to `source/isaaclab/test/cli/`.
-- **Self-containment:** files under `install_ci/` MUST NOT reference paths outside the directory. The only exception is `tools/wheel_builder/build.sh`. `(cd source/isaaclab/test/install_ci && pytest)` must work after copying the directory elsewhere.
+- **Self-containment:** files under `install_ci/` MUST NOT reference paths outside the directory. `(cd source/isaaclab/test/install_ci && pytest)` must work after copying the directory elsewhere.
+- **Wheel comes from the runner, not the test.** Tests under `uv_pip/` MUST NOT call `tools/wheel_builder/build.sh` themselves; instead they consume the `wheel` session fixture (errors out if no wheel was provided). The runner builds it on demand via `tools/run_install_ci.py --build-wheel` or accepts a pre-built one via `--wheel <path>`, exposed to pytest through `ISAACLAB_WHEEL`.
 
 #### Directory layout
 

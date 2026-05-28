@@ -5,7 +5,7 @@
 
 """
 Setup:
-    - bash tools/wheel_builder/build.sh
+    - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
     - uv pip install <wheel>[isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
@@ -21,16 +21,15 @@ Tests:
 
 from __future__ import annotations
 
-import glob
 import shutil
 
 import pytest
-from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url, run_cmd
+from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url
 
 
 @pytest.mark.install_path_uv_pip
 class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin):
-    """Build the wheel, ``uv pip install <wheel>[isaacsim]`` from the NVIDIA index, verify pxr-dependent imports."""
+    """``uv pip install <wheel>[isaacsim]`` from the NVIDIA index; verify pxr-dependent imports."""
 
     _wheel: str = ""
 
@@ -40,28 +39,19 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
             pytest.skip("uv is not available")
 
     @pytest.fixture(autouse=True, scope="class")
-    def _build_and_install_wheel(self, isaaclab_root):
+    def _install_wheel(self, isaaclab_root, wheel):
         cls = self.__class__
-        build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
-        dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
+        cls._wheel = str(wheel)
 
-        # 1. Build the wheel.
-        result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, timeout=600)
-        assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
-
-        wheels = glob.glob(str(dist_dir / "isaaclab-*.whl"))
-        assert len(wheels) == 1, f"Expected exactly 1 wheel in {dist_dir}, found: {wheels}"
-        cls._wheel = wheels[0]
-
-        # 2. Create the uv env.
+        # 1. Create the uv env.
         self.create_uv_env(isaaclab_root)
         cls.env_path = self.env_path
         cls.python = self.python
         cls.cli_script = self.cli_script
 
-        # 3. Install isaaclab with the isaacsim extra from the NVIDIA index.
+        # 2. Install isaaclab with the isaacsim extra from the NVIDIA index.
         #    NOTE: --index-strategy unsafe-best-match re-resolves torch from PyPI (CPU build),
-        #    so install isaaclab FIRST and force-reinstall CUDA torch in step 4 below.
+        #    so install isaaclab FIRST and force-reinstall CUDA torch in step 3 below.
         result = self.run_in_uv_env(
             [
                 "uv",
@@ -81,7 +71,7 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
             f"uv pip install {cls._wheel}[isaacsim] failed:\n{result.stdout}\n{result.stderr}"
         )
 
-        # 4. Reinstall CUDA-matched torch (cu128 on x86_64, cu130 on aarch64) to swap out the
+        # 3. Reinstall CUDA-matched torch (cu128 on x86_64, cu130 on aarch64) to swap out the
         #    CPU torch unsafe-best-match picked above. Mirrors docs/source/setup/installation/pip_installation.rst.
         result = self.run_in_uv_env(
             [

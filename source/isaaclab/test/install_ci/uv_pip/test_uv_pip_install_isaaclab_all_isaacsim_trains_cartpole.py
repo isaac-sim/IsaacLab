@@ -5,7 +5,7 @@
 
 """
 Setup:
-    - bash tools/wheel_builder/build.sh
+    - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
     - uv pip install <wheel>[all,isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
@@ -21,11 +21,10 @@ Tests:
 
 from __future__ import annotations
 
-import glob
 import shutil
 
 import pytest
-from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url, run_cmd
+from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url
 
 _TRAIN_CMD = [
     "train",
@@ -63,21 +62,10 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(3600)
-    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root):
-        """Build wheel, install with ``[all]`` extras via ``uv pip``, run cartpole training."""
+    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root, wheel):
+        """Install the runner-supplied wheel with ``[all,isaacsim]`` via ``uv pip``, run cartpole training."""
         try:
-            build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
-            dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
-
-            # 1. Build the wheel.
-            result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, timeout=600)
-            assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
-
-            wheels = glob.glob(str(dist_dir / "isaaclab-*.whl"))
-            assert len(wheels) == 1, f"Expected exactly 1 wheel in {dist_dir}, found: {wheels}"
-            wheel = wheels[0]
-
-            # 2. Create the uv env and install the wheel with [all,isaacsim] extras.
+            # 1. Create the uv env and install the wheel with [all,isaacsim] extras.
             self.create_uv_env(isaaclab_root)
 
             # uv pip install "isaaclab[all,isaacsim]" --extra-index-url https://pypi.nvidia.com
@@ -104,10 +92,10 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                 f"uv pip install {wheel}[all,isaacsim] failed:\n{result.stdout}\n{result.stderr}"
             )
 
-            # uv pip install --reinstall-package torch --reinstall-package torchvision
-            #   torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
-            #   cu128 on x86_64, cu130 on aarch64 (e.g. GB10 / DGX Spark with CUDA capability 12.x).
-            #   --reinstall-package forces uv to swap the CPU torch installed above with the CUDA build.
+            # 2. uv pip install --reinstall-package torch --reinstall-package torchvision
+            #    torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+            #    cu128 on x86_64, cu130 on aarch64 (e.g. GB10 / DGX Spark with CUDA capability 12.x).
+            #    --reinstall-package forces uv to swap the CPU torch installed above with the CUDA build.
             result = self.run_in_uv_env(
                 [
                     "uv",

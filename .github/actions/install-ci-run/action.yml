@@ -29,6 +29,7 @@ runs:
         TEST_FILTER: ${{ inputs.test-filter }}
       run: |
         args=(docker --gpu --base-image "$BASE_IMAGE"
+              --build-wheel
               --results-dir "${{ github.workspace }}/results"
               -- --tb=short -sv)
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
