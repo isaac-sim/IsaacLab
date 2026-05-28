@@ -49,7 +49,7 @@ class CoupledSolverCfg(NewtonSolverCfg):
     """Manager class for the coupled solver."""
 
     requires_graph_coloring: bool = True
-    """VBD-style graph coloring is built when either sub-solver needs it (kept as a default)."""
+    """VBD-style graph coloring is built when either sub-solver needs it."""
 
     src_solver_cfg: NewtonSolverCfg = MISSING
     """Source sub-solver configuration (e.g. :class:`~isaaclab_newton.physics.MJWarpSolverCfg`)."""

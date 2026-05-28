@@ -262,7 +262,6 @@ def test_select_proxy_bodies_filters_to_collide_shapes():
 
 
 def test_select_proxy_bodies_requires_body_names():
-    """For ``SceneEntityCfg`` entries — proxies must be a subset, not the whole asset."""
     model = _model_with_two_bodies(with_shapes=True)
     with pytest.raises(ValueError, match="requires `body_names`"):
         NewtonCoupledSolverManager._select_proxy_bodies(
@@ -273,7 +272,6 @@ def test_select_proxy_bodies_requires_body_names():
 
 
 def test_select_proxy_bodies_empty_input_returns_empty():
-    """No ``proxy_bodies`` entries → no proxies (short-circuit before model lookups)."""
     proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
         model=_FakeModel(body_count=0, body_label=[]),
         proxy_bodies=[],
@@ -283,7 +281,6 @@ def test_select_proxy_bodies_empty_input_returns_empty():
 
 
 def test_select_proxy_bodies_deduplicates_across_entries():
-    """Multiple entries matching the same body produce a single proxy entry."""
     model = _model_with_two_bodies(with_shapes=True)
     proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
         model,
@@ -327,7 +324,6 @@ def test_resolve_string_narrows_to_a_single_body():
 
 
 def test_resolve_string_no_matches_raises():
-    """A raw prim-path string with zero matches is treated as a typo."""
     model = _model_with_two_bodies()
     with pytest.raises(ValueError, match="matched no bodies"):
         NewtonCoupledSolverManager._resolve_entity_to_body_ids(

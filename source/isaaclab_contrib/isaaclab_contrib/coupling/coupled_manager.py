@@ -63,20 +63,14 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
 
     @classmethod
     def _resolve_solver_class(cls, sub_cfg: NewtonSolverCfg) -> type[SolverBase]:
-        """Resolve a sub-solver cfg to its concrete :class:`SolverBase` subclass.
-
-        Raises:
-            ValueError: The cfg type is not registered in
-                :attr:`_SOLVER_CLASS_BY_CFG_TYPE`.
-        """
+        """Look ``sub_cfg``'s concrete solver class up in :attr:`_SOLVER_CLASS_BY_CFG_TYPE`."""
         try:
             return cls._SOLVER_CLASS_BY_CFG_TYPE[type(sub_cfg)]
         except KeyError:
             known = ", ".join(sorted(t.__name__ for t in cls._SOLVER_CLASS_BY_CFG_TYPE))
             raise ValueError(
-                f"CoupledSolverCfg sub-solver cfg of type {type(sub_cfg).__name__!r} has no "
-                f"registered Newton solver class. Register it in "
-                f"`NewtonCoupledSolverManager._SOLVER_CLASS_BY_CFG_TYPE` (known: {known})."
+                f"No Newton solver registered for sub-cfg type {type(sub_cfg).__name__!r}. "
+                f"Register it in `NewtonCoupledSolverManager._SOLVER_CLASS_BY_CFG_TYPE` (known: {known})."
             ) from None
 
     @classmethod
