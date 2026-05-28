@@ -17,3 +17,10 @@ the initialized environment instance to the wrapper constructor. However, since 
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
 """
+
+import importlib.metadata
+
+try:
+    __version__ = importlib.metadata.version("isaaclab_rl")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"

@@ -10,15 +10,22 @@ These components are not part of the core Isaac Lab framework yet, but are plann
 in the future. They are contributed by the community to extend the capabilities of Isaac Lab.
 """
 
+import importlib.metadata
 import os
-import toml
+import tomllib
 
-# Conveniences to other module directories via relative paths
 ISAACLAB_CONTRIB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 """Path to the extension source directory."""
 
-ISAACLAB_CONTRIB_METADATA = toml.load(os.path.join(ISAACLAB_CONTRIB_EXT_DIR, "config", "extension.toml"))
+_ext_toml = os.path.join(ISAACLAB_CONTRIB_EXT_DIR, "config", "extension.toml")
+if os.path.exists(_ext_toml):
+    with open(_ext_toml, "rb") as _f:
+        ISAACLAB_CONTRIB_METADATA = tomllib.load(_f)
+else:
+    ISAACLAB_CONTRIB_METADATA = {}
 """Extension metadata dictionary parsed from the extension.toml file."""
 
-# Configure the module-level variables
-__version__ = ISAACLAB_CONTRIB_METADATA["package"]["version"]
+try:
+    __version__ = importlib.metadata.version("isaaclab_contrib")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
