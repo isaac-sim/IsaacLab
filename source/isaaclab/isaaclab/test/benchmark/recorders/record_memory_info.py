@@ -33,6 +33,12 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         self._uss_m2 = 0
         self._uss_n = 0
 
+        # Peak (running max) alongside the Welford mean/std. Initialised to
+        # 0.0 so emit-before-record returns a meaningful zero.
+        self._rss_peak = 0.0
+        self._vms_peak = 0.0
+        self._uss_peak = 0.0
+
         # Process handle
         self._process = psutil.Process(os.getpid())
         self._get_hardware_info()
@@ -62,17 +68,21 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         self._rss_mean, self._rss_m2, self._rss_n, rss_std = self._update_welford(
             mem_info.rss, self._rss_mean, self._rss_m2, self._rss_n
         )
+        self._rss_peak = max(self._rss_peak, float(mem_info.rss))
         self._memory_runtime_info["rss_mean"] = self._rss_mean
         self._memory_runtime_info["rss_std"] = rss_std
         self._memory_runtime_info["rss_n"] = self._rss_n
+        self._memory_runtime_info["rss_peak"] = self._rss_peak
 
         # VMS (Virtual Memory Size) - total virtual memory
         self._vms_mean, self._vms_m2, self._vms_n, vms_std = self._update_welford(
             mem_info.vms, self._vms_mean, self._vms_m2, self._vms_n
         )
+        self._vms_peak = max(self._vms_peak, float(mem_info.vms))
         self._memory_runtime_info["vms_mean"] = self._vms_mean
         self._memory_runtime_info["vms_std"] = vms_std
         self._memory_runtime_info["vms_n"] = self._vms_n
+        self._memory_runtime_info["vms_peak"] = self._vms_peak
 
         # USS (Unique Set Size) - memory unique to process (not shared)
         try:
@@ -80,9 +90,11 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
             self._uss_mean, self._uss_m2, self._uss_n, uss_std = self._update_welford(
                 uss, self._uss_mean, self._uss_m2, self._uss_n
             )
+            self._uss_peak = max(self._uss_peak, float(uss))
             self._memory_runtime_info["uss_mean"] = self._uss_mean
             self._memory_runtime_info["uss_std"] = uss_std
             self._memory_runtime_info["uss_n"] = self._uss_n
+            self._memory_runtime_info["uss_peak"] = self._uss_peak
         except (psutil.AccessDenied, AttributeError):
             # USS may not be available on all platforms
             pass
@@ -117,6 +129,11 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
                 value=self._bytes_to_gb(self._memory_runtime_info.get("rss_std", 0)),
                 unit="GB",
             ),
+            SingleMeasurement(
+                name="System Memory RSS peak",
+                value=self._bytes_to_gb(self._memory_runtime_info.get("rss_peak", 0)),
+                unit="GB",
+            ),
             SingleMeasurement(name="System Memory RSS n", value=self._memory_runtime_info.get("rss_n", 0), unit=""),
             # VMS (Virtual Memory Size)
             SingleMeasurement(
@@ -127,6 +144,11 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
             SingleMeasurement(
                 name="System Memory VMS std",
                 value=self._bytes_to_gb(self._memory_runtime_info.get("vms_std", 0)),
+                unit="GB",
+            ),
+            SingleMeasurement(
+                name="System Memory VMS peak",
+                value=self._bytes_to_gb(self._memory_runtime_info.get("vms_peak", 0)),
                 unit="GB",
             ),
             SingleMeasurement(name="System Memory VMS n", value=self._memory_runtime_info.get("vms_n", 0), unit=""),
@@ -144,6 +166,11 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
                     SingleMeasurement(
                         name="System Memory USS std",
                         value=self._bytes_to_gb(self._memory_runtime_info.get("uss_std", 0)),
+                        unit="GB",
+                    ),
+                    SingleMeasurement(
+                        name="System Memory USS peak",
+                        value=self._bytes_to_gb(self._memory_runtime_info.get("uss_peak", 0)),
                         unit="GB",
                     ),
                     SingleMeasurement(
