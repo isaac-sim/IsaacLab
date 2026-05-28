@@ -888,17 +888,15 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
 
         # Obtain gravity direction
         if gravity_enabled:
-            gravity_dir = (0.0, 0.0, -1.0)
+            expected_g = (0.0, 0.0, -9.81)
         else:
-            gravity_dir = (0.0, 0.0, 0.0)
+            expected_g = (0.0, 0.0, 0.0)
 
         # Play sim
         sim.reset()
 
         # Check that gravity is set correctly
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 0] == gravity_dir[0]
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 1] == gravity_dir[1]
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 2] == gravity_dir[2]
+        torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch[0], torch.tensor(expected_g, device=device))
 
         # Simulate physics
         for _ in range(2):
@@ -913,6 +911,44 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
                 gravity[:, :, 2] = -9.81
             # Check the body accelerations are correct
             torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("num_cubes", [2, 3])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
+    """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
+
+    Regression for the pre-fix snapshot: ``GRAVITY_VEC_W`` used to be env 0's
+    gravity broadcast to every env, hiding per-env gravity randomization (e.g.
+    :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity`).
+    """
+    with _newton_sim_context(device, gravity_enabled=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        sim.reset()
+
+        # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
+        model_gravity_arr = SimulationManager.get_model().gravity
+        assert cube_object.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
+
+        # Mutate model.gravity per-env in place, as randomize_physics_scene_gravity does.
+        new_gravity = torch.tensor(
+            [[0.1 * (i + 1), 0.2 * (i + 1), -3.0 - float(i)] for i in range(num_cubes)],
+            device=device,
+            dtype=torch.float32,
+        )
+        wp.to_torch(model_gravity_arr).copy_(new_gravity)
+        SimulationManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
+
+        # Live view: new per-env values are visible immediately, no invalidation step.
+        torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)
+
+        # Recompute the lazily-cached projected_gravity_b without sim.step, so cube
+        # orientation stays at identity and the projection equals unit-direction gravity.
+        cube_object.update(sim.cfg.dt)
+        expected = torch.nn.functional.normalize(new_gravity, dim=-1)
+        torch.testing.assert_close(cube_object.data.projected_gravity_b.torch, expected, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.isaacsim_ci

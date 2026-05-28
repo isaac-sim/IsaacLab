@@ -9,12 +9,11 @@ import warnings
 import weakref
 from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -78,16 +77,11 @@ class RigidObjectData(BaseRigidObjectData):
         self._is_primed = False
         self._fk_timestamp = 0.0
 
-        # Convert to direction vector
-        gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        gravity_dir = gravity_dir.repeat(self._root_view.count, 1)
-        forward_vec = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
-
-        # Initialize constants
-        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir, dtype=wp.vec3f))
-        self.FORWARD_VEC_B = ProxyArray(wp.from_torch(forward_vec, dtype=wp.vec3f))
+        # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
+        # per-env gravity randomization stays live; consumers normalize on read.
+        self.GRAVITY_VEC_W = ProxyArray(SimulationManager.get_model().gravity)
+        forward_vec = np.full((self._root_view.count, 3), (1.0, 0.0, 0.0), dtype=np.float32)
+        self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
 
         self._create_simulation_bindings()
         self._create_buffers()
@@ -414,7 +408,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             wp.launch(
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],
