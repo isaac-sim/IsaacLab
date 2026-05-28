@@ -101,6 +101,25 @@ jobs:
             exit 1
           fi
 
+      - name: Discover opt-in test files
+        # Auto-discovery: any test_*.py that calls ``cuda_test_devices`` is
+        # in scope.  Adding a new test to multi-GPU CI requires no workflow
+        # edit — migrate the file to use the helper and the next run picks
+        # it up.  Per-device skips (e.g. cuda:1 is known broken for a file)
+        # are declared inside the file via ``cuda_test_devices(skip={...})``
+        # so the workflow stays opt-in/opt-out-free.
+        id: discover
+        run: |
+          mapfile -t discovered < <(grep -rl 'cuda_test_devices' source/ --include='test_*.py' | sort -u)
+          if [ ${#discovered[@]} -eq 0 ]; then
+            echo "::error::No opt-in tests discovered (grep for cuda_test_devices)"
+            exit 1
+          fi
+          basenames=$(printf '%s\n' "${discovered[@]}" | xargs -n1 basename | sort -u | paste -sd,)
+          echo "include=$basenames" >> "$GITHUB_OUTPUT"
+          echo "::notice::Discovered ${#discovered[@]} opt-in test files"
+          printf '  %s\n' "${discovered[@]}"
+
       - uses: ./.github/actions/run-package-tests
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -109,21 +128,10 @@ jobs:
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           container-name: isaac-lab-multi-gpu-pytest
-          # Opt-in subset that calls ``cuda_test_devices()`` and has a
-          # known-working cuda:1 path. Test files with cuda:1 hangs or
-          # backend-skipif issues are intentionally omitted; see PR 5823
-          # description for the catalogued failures and tracking issues.
-          include-files: >
-            test_math.py,
-            test_wrench_composer.py,
-            test_episode_data.py,
-            test_modifiers.py,
-            test_noise.py,
-            test_newton_model_utils.py,
-            test_simulation_context.py,
-            test_views_xform_prim.py,
-            test_views_xform_prim_fabric.py,
-            test_contact_sensor.py
+          # Auto-discovered from the ``Discover opt-in test files`` step:
+          # every test that calls ``cuda_test_devices()`` is in scope.
+          # No workflow edit needed when a new test opts in.
+          include-files: ${{ steps.discover.outputs.include }}
           # ISAACLAB_TEST_DEVICES drives the parametrize helper at
           # collection time; ISAACLAB_SIM_DEVICE makes AppLauncher boot
           # Kit with active_gpu=1, so PhysX and Warp pin to cuda:1 from

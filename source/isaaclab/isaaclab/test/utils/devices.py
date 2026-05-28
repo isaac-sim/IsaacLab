@@ -80,7 +80,12 @@ _ENV_VAR = "ISAACLAB_TEST_DEVICES"
 """Name of the environment variable that overrides the default mask."""
 
 
-def cuda_test_devices(*, mask: str | None = None, strict: bool = True) -> list[str]:
+def cuda_test_devices(
+    *,
+    mask: str | None = None,
+    strict: bool = False,
+    skip: dict[str, str] | None = None,
+) -> list:
     """Resolve a device-selection mask to a list of device strings.
 
     Args:
@@ -88,16 +93,28 @@ def cuda_test_devices(*, mask: str | None = None, strict: bool = True) -> list[s
             module docstring. When ``None``, the helper reads the mask from
             the ``ISAACLAB_TEST_DEVICES`` environment variable, defaulting
             to ``"110"`` if the variable is unset.
-        strict: When ``True`` (the default), raise ``ValueError`` if the
-            mask requests devices the host does not have or if the resolved
-            list would be empty. When ``False``, silently truncate to what
-            the host can satisfy - callers using this in
-            ``pytest.mark.parametrize`` get a clean "no tests collected for
-            this function" skip when the resolved list is empty.
+        strict: When ``False`` (the default), silently truncate to what the
+            host can satisfy - tests on a CPU-only dev machine collect the
+            cpu variant cleanly and ``cuda:N`` variants are skipped instead
+            of failing at collection time. When ``True``, raise
+            ``ValueError`` if the mask requests devices the host does not
+            have or if the resolved list would be empty - useful for CI
+            workflows that should hard-fail when the runner regressed to
+            fewer GPUs than the mask requires.
+        skip: Optional ``{device: reason}`` mapping. Devices the resolver
+            would otherwise return that are in this mapping are wrapped in
+            ``pytest.param(..., marks=pytest.mark.skip(reason=...))`` so
+            pytest still collects the variant and shows it as ``SKIPPED``
+            with the reason in CI output. Use this to gate specific cuda
+            variants of a parametrized test that have known issues while
+            keeping the other variants running. Remove an entry from the
+            mapping when its upstream issue is fixed.
 
     Returns:
-        Ordered list of device strings (``"cpu"`` and/or ``"cuda:N"``)
-        produced by applying the mask to the host's visible device list.
+        Ordered list of device strings (``"cpu"`` and/or ``"cuda:N"``) or
+        ``pytest.param`` wrappers for devices the caller marked as skip.
+        Suitable as the second argument to
+        :func:`pytest.mark.parametrize`.
 
     Raises:
         ValueError: When the mask is syntactically invalid (``X`` not at the
@@ -112,7 +129,12 @@ def cuda_test_devices(*, mask: str | None = None, strict: bool = True) -> list[s
     devices = [device for device, keep in zip(available, flags) if keep]
     if strict and not devices:
         raise ValueError(f"Mask {mask!r} resolves to empty device list (available: {available})")
-    return devices
+    if not skip:
+        return devices
+
+    import pytest  # local import keeps the helper importable from non-test code
+
+    return [pytest.param(d, marks=pytest.mark.skip(reason=skip[d])) if d in skip else d for d in devices]
 
 
 def _list_available_devices() -> list[str]:

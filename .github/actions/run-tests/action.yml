@@ -213,12 +213,16 @@ runs:
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
           fi
 
-          # Caller-supplied extra env vars (one KEY=value per line).
+          # Caller-supplied extra env vars (one KEY=value per line). Skips
+          # blank lines and full-line comments (line where the first
+          # non-whitespace char is ``#``). Mid-line ``#`` is preserved so
+          # values like ``IMAGE_TAG=v1.0#nightly`` survive.
           if [ -n "$extra_env_vars" ]; then
             while IFS= read -r line; do
-              line="${line%%#*}"
-              line="$(echo "$line" | xargs)"
+              # Strip leading whitespace (YAML ``|`` block can leave indent).
+              line="${line#"${line%%[![:space:]]*}"}"
               [ -z "$line" ] && continue
+              [ "${line:0:1}" = "#" ] && continue
               key="${line%%=*}"
               value="${line#*=}"
               export "$key"="$value"
