@@ -200,8 +200,13 @@ jobs:
           # tools/conftest.py's ``pytest_ignore_collect`` returns True
           # for every file (it spawns each test in a subprocess); without
           # the ignore, pytest collects 0 items and exits.
+          # Match the host uid:gid so the container can write into the
+          # volume-mounted workspace (the image's default USER is
+          # ``isaaclab`` uid 1000, which can't write to a mount owned by
+          # the runner's github-runner user).
           docker run --rm --gpus all --network=host \
             --entrypoint bash \
+            --user "$(id -u):$(id -g)" \
             -v "$PWD:/workspace/isaaclab" \
             -w /workspace/isaaclab \
             -e OMNI_KIT_ACCEPT_EULA=yes \
