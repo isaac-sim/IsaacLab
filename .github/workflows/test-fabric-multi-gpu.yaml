@@ -71,10 +71,13 @@ jobs:
       - name: Reinstall test harness after Isaac Sim dependency resolution
         # The Isaac Sim wheel install churns the active Python environment and
         # can leave pytest unavailable even though ``./isaaclab.sh --install
-        # none`` installed IsaacLab's test requirements earlier.  Reassert the
-        # minimal test runner stack after Isaac Sim so the focused repro reaches
-        # the cuda:1 FabricFrameView test instead of failing in setup.
-        run: pip install pytest pytest-mock junitparser coverage==7.6.1
+        # none`` installed IsaacLab's test requirements earlier.  Reassert only
+        # the missing test-runner stack after Isaac Sim so the focused repro
+        # reaches the cuda:1 FabricFrameView test instead of failing in setup.
+        # Do not reinstall coverage here: isaacsim-kernel 6.0.0.0 pins
+        # coverage==7.4.4, and changing it creates an avoidable resolver
+        # conflict while debugging this single repro.
+        run: pip install pytest pytest-mock junitparser
 
       - name: Verify multi-GPU availability
         # Fail loud if the runner regressed to a single GPU.  Without this, the
@@ -84,10 +87,10 @@ jobs:
           echo "=== GPU Info ==="
           nvidia-smi --query-gpu=index,name,memory.total --format=csv
 
-          GPU_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())")
+          GPU_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())" | awk '/^[0-9]+$/ { value=$0 } END { print value }')
           echo "Detected $GPU_COUNT GPU(s)"
 
-          if [ "$GPU_COUNT" -lt 2 ]; then
+          if [ -z "$GPU_COUNT" ] || [ "$GPU_COUNT" -lt 2 ]; then
             echo "::error::At least 2 GPUs required for Fabric multi-GPU tests, found $GPU_COUNT"
             exit 1
           fi
@@ -104,6 +107,12 @@ jobs:
           ISAAC_SIM_HEADLESS: "1"
           ISAACLAB_TEST_MULTI_GPU: "1"
         run: |
+          set -o pipefail
           ./isaaclab.sh -p -m pytest \
             "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py::test_fabric_cuda1_world_pose_roundtrip[cuda:1]" \
-            -v -s --tb=short
+            -v -s --tb=short 2>&1 | tee /tmp/fabric-frameview-pytest.log
+
+          if ! grep -Eq "[[:space:]][1-9][0-9]* passed" /tmp/fabric-frameview-pytest.log; then
+            echo "::error::Focused FabricFrameView pytest did not report a passing test"
+            exit 1
+          fi
