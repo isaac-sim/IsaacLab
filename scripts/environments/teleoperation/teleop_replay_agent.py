@@ -79,14 +79,14 @@ Stats output:
     cpu_frame_time_ms.mean`` (harmonic mean of FPS = total frames /
     total step time). Each interval is the wall-clock delta between
     successive ``env.sim.render`` calls, so a run needs at least two
-    rendered frames during the active window to contribute. If any run
-    in the batch stepped the env but produced no usable intervals
-    (0 or 1 renders -- typically the sim is not rendering, or the
-    active window closed too quickly), the agent raises
-    ``RuntimeError`` from :func:`_build_report` before any stdout
-    summary or JSON file is written. Partial reports are never
-    emitted: CI relies on "no JSON output" as an unambiguous failure
-    signal.
+    rendered frames during the active window to contribute. The agent
+    asserts this per-run inside :func:`_run_single_replay`: if a run
+    stepped the env but produced no usable intervals (0 or 1 renders
+    -- typically the sim is not rendering, or the active window closed
+    too quickly), it raises ``RuntimeError`` immediately, so the
+    remaining replays never start and no stdout summary or JSON file
+    is written. Partial reports are never emitted: CI relies on
+    "no JSON output" as an unambiguous failure signal.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
     call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
@@ -418,7 +418,7 @@ class _RunStats:
     window and backs the same-named field in the JSON report.
 
     ``active_render_calls`` counts gated ``env.sim.render`` invocations.
-    :func:`_assert_runs_measured` uses it in its diagnostic message to
+    :func:`_assert_run_measured` uses it in its diagnostic message to
     distinguish "shim never fired" (0 calls) from "rendered only once"
     (1 call); both are measurement failures because at least two
     renders are required to produce a usable interval (N renders yield
@@ -723,8 +723,8 @@ def _extract_env_perf_cfg(env_cfg) -> dict:
     }
 
 
-def _assert_runs_measured(all_runs: list[_RunStats]) -> None:
-    """Batch-level gate: abort with ``RuntimeError`` if any run produced
+def _assert_run_measured(stats: _RunStats, run_index: int) -> None:
+    """Per-run gate: abort with ``RuntimeError`` if ``stats`` carries
     no usable per-render interval samples.
 
     A run is unmeasured when it stepped the env at least once but the
@@ -732,39 +732,31 @@ def _assert_runs_measured(all_runs: list[_RunStats]) -> None:
     ``active_iterations > 0`` and ``active_frame_times_ms`` is empty.
     Each interval is the wall-clock delta between successive renders,
     so at least two ``env.sim.render`` calls are required during the
-    active window; runs with 0 or 1 calls cannot contribute. The 0-call
-    case typically means the sim is not rendering; the 1-call case
-    means the active window closed before a second frame fired.
+    active window; runs with 0 or 1 calls cannot contribute.
 
-    Failing the whole batch -- rather than per-run -- is intentional.
-    CI treats "no JSON report written" as an unambiguous signal that
-    measurement failed; a partial report covering only the runs that
-    happened to render twice would erode that signal, since downstream
-    consumers cannot tell a real result from a degraded one. Raise
-    here so neither :func:`_print_stdout_summary` nor
-    :func:`_write_json_report` execute.
+    Called at the end of :func:`_run_single_replay` so the batch
+    aborts on the first bad run -- the remaining replays are never
+    started, ``env`` is closed by ``main``'s ``finally`` block, and
+    the exception propagates out before any stdout summary or JSON
+    report is produced. This makes "no JSON output" an unambiguous
+    measurement-failure signal for CI: a partial report covering only
+    the runs that happened to render twice would erode that signal.
     """
-    bad = [(i, r) for i, r in enumerate(all_runs) if r.active_iterations and not r.active_frame_times_ms]
-    if not bad:
+    if not stats.active_iterations or stats.active_frame_times_ms:
         return
-    details = "; ".join(
-        f"run {i}: {r.active_iterations} env.step iterations, {r.active_render_calls} env.sim.render "
-        "call(s), 0 usable intervals"
-        for i, r in bad
-    )
     raise RuntimeError(
-        f"Per-render frame interval measurement failed for {len(bad)} of {len(all_runs)} run(s) "
-        f"({details}). Each interval is the wall-clock delta between successive env.sim.render "
-        "calls, so at least 2 calls are required per run. Check that the sim is rendering "
-        "(headless mode with rendering disabled is unsupported) and that the active window is "
-        "long enough for multiple frames. Aborting the batch without writing a report."
+        f"Per-render frame interval measurement failed for run {run_index}: "
+        f"{stats.active_iterations} env.step iterations, {stats.active_render_calls} "
+        "env.sim.render call(s), 0 usable intervals. Each interval is the wall-clock delta "
+        "between successive env.sim.render calls, so at least 2 calls are required per run. "
+        "Check that the sim is rendering (headless mode with rendering disabled is unsupported) "
+        "and that the active window is long enough for multiple frames. Aborting the batch "
+        "without writing a report."
     )
 
 
 def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
     """Build the structured JSON report dict from a list of completed runs."""
-    _assert_runs_measured(all_runs)
-
     outcomes_count = {"success": 0, "failure": 0, "incomplete": 0, "timeout": 0}
     for r in all_runs:
         outcomes_count[r.outcome] = outcomes_count.get(r.outcome, 0) + 1
@@ -1479,6 +1471,10 @@ def _run_single_replay(
         stats.active_duration_s = last_active_end_s - active_start_s
     stats.success_step_count = success_step_count
     stats.gpu_stats = gpu_stats_provider.summary()
+
+    # Fail loud before returning so the next replay never starts and
+    # the batch produces no partial report. See _assert_run_measured.
+    _assert_run_measured(stats, run_index)
     return stats
 
 
