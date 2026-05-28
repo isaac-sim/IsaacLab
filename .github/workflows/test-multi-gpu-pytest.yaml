@@ -173,7 +173,15 @@ jobs:
           PURE_FILES="${PURE[*]}"
           KIT_FILES="${KIT[*]}"
 
+          # ``--entrypoint bash`` overrides the isaac-sim base image's
+          # default ENTRYPOINT (which would launch Kit and swallow our
+          # script as Kit-argv).  ``--ignore=tools/conftest.py`` is the
+          # same flag the regular CI's run-tests action uses, because
+          # tools/conftest.py's ``pytest_ignore_collect`` returns True
+          # for every file (it spawns each test in a subprocess); without
+          # the ignore, pytest collects 0 items and exits.
           docker run --rm --gpus all --network=host \
+            --entrypoint bash \
             -v "$PWD:/workspace/isaaclab" \
             -w /workspace/isaaclab \
             -e OMNI_KIT_ACCEPT_EULA=yes \
@@ -184,20 +192,21 @@ jobs:
             -e PURE_FILES="$PURE_FILES" \
             -e KIT_FILES="$KIT_FILES" \
             "${{ env.CI_IMAGE_TAG }}" \
-            bash -c '
+            -c '
               set +e
               cd /workspace/isaaclab
               rm -f _isaac_sim
               ln -s /isaac-sim _isaac_sim
 
               fail=0
+              ignore_args="--ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci"
 
               # pytest exit code 5 = no tests collected; treat as success.
               is_ok() { [ "$1" = "0" ] || [ "$1" = "5" ]; }
 
               if [ -n "$PURE_FILES" ]; then
                 echo "::group::pytest (pure-python, single session)"
-                ./isaaclab.sh -p -m pytest -v $PURE_FILES
+                ./isaaclab.sh -p -m pytest $ignore_args -v $PURE_FILES
                 rc=$?
                 echo "::endgroup::"
                 if ! is_ok $rc; then
@@ -208,7 +217,7 @@ jobs:
 
               for f in $KIT_FILES; do
                 echo "::group::pytest $f"
-                timeout 600 ./isaaclab.sh -p -m pytest "$f" -v
+                timeout 600 ./isaaclab.sh -p -m pytest $ignore_args "$f" -v
                 rc=$?
                 echo "::endgroup::"
                 if ! is_ok $rc; then
