@@ -68,6 +68,14 @@ jobs:
         # relative to the 3.12 baseline declared in pyproject.toml).
         run: pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
 
+      - name: Reinstall test harness after Isaac Sim dependency resolution
+        # The Isaac Sim wheel install churns the active Python environment and
+        # can leave pytest unavailable even though ``./isaaclab.sh --install
+        # none`` installed IsaacLab's test requirements earlier.  Reassert the
+        # minimal test runner stack after Isaac Sim so the focused repro reaches
+        # the cuda:1 FabricFrameView test instead of failing in setup.
+        run: pip install pytest pytest-mock junitparser coverage==7.6.1
+
       - name: Verify multi-GPU availability
         # Fail loud if the runner regressed to a single GPU.  Without this, the
         # test helper's ``_skip_if_unavailable`` would skip every ``cuda:1`` case
