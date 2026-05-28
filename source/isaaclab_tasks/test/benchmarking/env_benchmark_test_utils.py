@@ -109,13 +109,8 @@ def evaluate_job(workflow, task, env_config, train_result):
     if not log_data:
         kpi_payload["success"] = False
         kpi_payload["failure_kind"] = "did_not_finish"
-        rc = int(train_result.get("returncode", 0))
         base = os.path.join(_repo_path_for_logs(), "logs", workflow, task)
         parts = []
-        if rc != 0:
-            parts.append(f"training subprocess exited with code {rc}")
-        stderr = (train_result.get("stderr") or "").strip()
-        stdout = (train_result.get("stdout") or "").strip()
         if stderr:
             parts.append(f"stderr_tail={stderr[-3500:]}")
         if stdout:
