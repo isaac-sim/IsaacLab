@@ -7,6 +7,7 @@
 This script contains helper functions for the demos.
 """
 
+import textwrap
 from contextlib import contextmanager
 
 
@@ -78,3 +79,13 @@ def has_no_alive_visualizer_window(sim) -> bool:
     """Check if there are no alive visualizer windows."""
     visualizers = sim.visualizers or ()
     return not any(v.is_running() and not v.is_closed for v in visualizers)
+
+
+def get_usage_examples(doc: str) -> str:
+    """Return usage examples from the module docstring."""
+    marker = ".. code-block:: bash"
+    if marker not in doc:
+        return ""
+
+    examples = textwrap.dedent(doc.split(marker, maxsplit=1)[1]).strip()
+    return "Examples:\n" + textwrap.indent(examples, "  ")

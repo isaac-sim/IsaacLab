@@ -31,10 +31,16 @@ This script demonstrates different legged robots.
 
 import argparse
 
+from demo_helper import get_usage_examples, has_no_alive_visualizer_window, resolve_backend_and_visualizer
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different legged robots.",
+    epilog=get_usage_examples(str(__doc__)),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -44,8 +50,6 @@ args_cli = parser.parse_args()
 
 import numpy as np
 import torch
-
-from demo_helper import has_no_alive_visualizer_window, resolve_backend_and_visualizer
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -186,7 +190,9 @@ def main():
         import isaaclab.sim as sim_utils
 
         # define simulation configuration
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg])
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.005, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg]
+        )
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
