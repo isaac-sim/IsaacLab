@@ -10,7 +10,16 @@ from __future__ import annotations
 import shutil
 
 import pytest
-from utils import UV_Mixin
+from utils import UV_Mixin, find_isaaclab_root
+
+
+def _skip_if_isaacsim_unavailable() -> None:
+    """Skip the current test when isaacsim is neither importable nor symlinked at ``_isaac_sim``."""
+    try:
+        import isaacsim  # noqa: F401
+    except ImportError:
+        if not (find_isaaclab_root() / "_isaac_sim").exists():
+            pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
 
 class Test_UV_Env_Smoke(UV_Mixin):
@@ -82,6 +91,97 @@ class Test_UV_Env_Smoke(UV_Mixin):
             # The newton[sim] extra should make the newton package importable.
             result = self.run_in_uv_env(["python", "-c", "import newton; print('newton ok')"])
             assert result.returncode == 0, f"import newton failed:\n{result.stdout}\n{result.stderr}"
+
+        finally:
+            self.destroy_uv_env()
+
+    @pytest.mark.cli
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.timeout(1800)
+    def test_mimic_importable_after_install(self, isaaclab_root):
+        """isaaclab_mimic is importable after ./isaaclab.sh -i mimic."""
+        _skip_if_isaacsim_unavailable()
+
+        try:
+            self.create_uv_env(isaaclab_root)
+
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "mimic"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i mimic failed:\n{result.stdout}\n{result.stderr}"
+
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab_mimic; print('isaaclab_mimic ok')"])
+            assert result.returncode == 0, f"import isaaclab_mimic failed:\n{result.stdout}\n{result.stderr}"
+
+        finally:
+            self.destroy_uv_env()
+
+    @pytest.mark.cli
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.timeout(1800)
+    def test_mimic_not_installed_by_core(self, isaaclab_root):
+        """isaaclab_mimic is absent after ./isaaclab.sh -i core (core only)."""
+        _skip_if_isaacsim_unavailable()
+
+        try:
+            self.create_uv_env(isaaclab_root)
+
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
+
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab_mimic"])
+            assert result.returncode != 0, "isaaclab_mimic should not be installed after -i core"
+
+        finally:
+            self.destroy_uv_env()
+
+    @pytest.mark.cli
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.timeout(1800)
+    def test_core_still_present_after_mimic_install(self, isaaclab_root):
+        """Core packages remain importable after ./isaaclab.sh -i mimic."""
+        _skip_if_isaacsim_unavailable()
+
+        try:
+            self.create_uv_env(isaaclab_root)
+
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "mimic"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i mimic failed:\n{result.stdout}\n{result.stderr}"
+
+            for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_rl"):
+                result = self.run_in_uv_env(["python", "-c", f"import {pkg}; print('{pkg} ok')"])
+                assert result.returncode == 0, (
+                    f"import {pkg} failed after mimic install:\n{result.stdout}\n{result.stderr}"
+                )
+
+        finally:
+            self.destroy_uv_env()
+
+    @pytest.mark.cli
+    @pytest.mark.uv
+    @pytest.mark.gpu
+    @pytest.mark.slow
+    @pytest.mark.timeout(3600)
+    def test_install_newton_and_run_tests(self, isaaclab_root):
+        """Install newton extension and run the isaaclab_newton test suite."""
+        _skip_if_isaacsim_unavailable()
+
+        try:
+            self.create_uv_env(isaaclab_root)
+
+            # ./isaaclab.sh -i newton
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "newton"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i newton failed:\n{result.stdout}\n{result.stderr}"
+
+            # Run isaaclab_newton test suite
+            test_dir = str(isaaclab_root / "source" / "isaaclab_newton" / "test")
+            result = self.run_in_uv_env(
+                ["python", "-m", "pytest", test_dir, "-sv", "--tb=short"],
+                cwd=isaaclab_root,
+            )
+            output = result.stdout + result.stderr
+            assert result.returncode == 0, f"isaaclab_newton tests failed (rc={result.returncode}):\n{output}"
 
         finally:
             self.destroy_uv_env()
