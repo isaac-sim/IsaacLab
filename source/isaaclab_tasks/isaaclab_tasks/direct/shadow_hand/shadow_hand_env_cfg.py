@@ -122,7 +122,7 @@ class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
     newton_mjwarp = NewtonEventCfg()
     default = physx
-    kamino = newton
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -194,7 +194,7 @@ class ShadowHandRobotCfg(PresetCfg):
         soft_joint_pos_limit_factor=1.0,
     )
     default = physx
-    kamino = newton
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -234,7 +234,7 @@ class ObjectCfg(PresetCfg):
         articulation_root_prim_path="",
     )
     default = physx
-    kamino = newton
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -252,7 +252,7 @@ class ShadowHandSceneCfg(PresetCfg):
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
     default: InteractiveSceneCfg = physx
-    kamino = newton
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -277,7 +277,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     default = physx
-    kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
 
 
 @configclass

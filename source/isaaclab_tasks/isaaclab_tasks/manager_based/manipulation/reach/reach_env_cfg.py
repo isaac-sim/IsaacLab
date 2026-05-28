@@ -49,7 +49,7 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
-    kamino: NewtonCfg = NewtonCfg(
+    newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
         num_substeps=2,
     )
@@ -84,7 +84,7 @@ class TableCfg(PresetCfg):
         articulation_root_prim_path="",
     )
 
-    kamino = newton
+    newton_kamino = newton_mjwarp
     default = physx
 
 

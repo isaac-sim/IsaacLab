@@ -119,7 +119,20 @@ class NewtonKaminoManager(NewtonManager):
         Sets :attr:`NewtonManager._needs_collision_pipeline` to ``True`` only
         when ``use_collision_detector=False`` (Kamino's internal detector
         handles contacts otherwise).
+
+        Applies :attr:`KaminoSolverCfg.max_contacts_per_world`, when set, by overriding
+        ``model.rigid_contact_max`` before solver construction. This bounds GPU memory
+        for contact-rich multi-env training that would otherwise over-allocate from
+        ``geoms.world_minimum_contacts``.
         """
+        if solver_cfg.max_contacts_per_world is not None:
+            model.rigid_contact_max = int(solver_cfg.max_contacts_per_world) * model.world_count
+            logger.info(
+                "[KAMINO] Capping rigid_contact_max to %d (%d/world * %d worlds)",
+                model.rigid_contact_max,
+                solver_cfg.max_contacts_per_world,
+                model.world_count,
+            )
         NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector

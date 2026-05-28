@@ -29,7 +29,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = default
-    kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
 
 
 @configclass

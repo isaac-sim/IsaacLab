@@ -38,7 +38,7 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
+    newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
