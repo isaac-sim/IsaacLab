@@ -3,11 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end installation and training workflow tests (uv).
-
-Covers uv-emnv-based installation paths:
-  - uv env + kitless (core-only, ``-i core``)
-  - uv env + full install (``-i all``)
+"""
+./isaaclab.sh -i all/core in uv env, verify cartpole training is working.
 """
 
 from __future__ import annotations
