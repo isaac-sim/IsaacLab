@@ -29,6 +29,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CI_IMAGE_TAG: isaac-lab-ci:pr-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
+
 jobs:
   config:
     name: Load Config
@@ -37,7 +40,7 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: .github/workflows/config.yaml
       - id: load
@@ -46,19 +49,20 @@ jobs:
           echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
 
-  build-base:
+  build:
     name: Build Base Docker Image
     needs: config
     runs-on: [self-hosted, linux, x64, multi-gpu]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
+          fetch-depth: 1
           lfs: true
 
-      - name: Build/Pull Docker Image
+      - name: Build and push to ECR
         uses: ./.github/actions/ecr-build-push-pull
         with:
-          image-tag: isaac-lab-ci:pr-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
+          image-tag: ${{ env.CI_IMAGE_TAG }}
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
@@ -66,12 +70,14 @@ jobs:
 
   test-fabric-multi-gpu:
     name: FabricFrameView multi-GPU unit tests
-    needs: [config, build-base]
+    needs: [build, config]
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 60
+    if: needs.build.result == 'success'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
+          fetch-depth: 1
           lfs: true
 
       - name: Verify multi-GPU availability
@@ -86,30 +92,11 @@ jobs:
           fi
 
       - name: Run FabricFrameView multi-GPU unit tests
-        uses: ./.github/actions/run-tests
+        uses: ./.github/actions/run-package-tests
         with:
-          test-path: "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py::test_fabric_cuda1_world_pose_roundtrip[cuda:1]"
-          result-file: "fabric-multi-gpu-report.xml"
-          container-name: "fabric-mgpu-${{ github.run_id }}-${{ github.run_attempt }}"
-          image-tag: isaac-lab-ci:pr-${{ github.event.pull_request.number || github.run_id }}-${{ github.sha }}
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          include-files: "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
           pytest-options: "-v -s --tb=short"
-          volume-mount-source: ${{ github.workspace }}
-
-      - name: Check Test Results
-        if: always()
-        run: |
-          if [ -f "reports/fabric-multi-gpu-report.xml" ]; then
-            if grep -qE 'failures="[1-9][0-9]*"' reports/fabric-multi-gpu-report.xml || \
-               grep -qE 'errors="[1-9][0-9]*"' reports/fabric-multi-gpu-report.xml; then
-              echo "::error::FabricFrameView multi-GPU tests failed"
-              exit 1
-            fi
-            if ! grep -qE 'tests="[1-9]' reports/fabric-multi-gpu-report.xml; then
-              echo "::error::No tests were actually executed (all skipped?)"
-              exit 1
-            fi
-            echo "✅ FabricFrameView multi-GPU tests passed"
-          else
-            echo "::error::No test results file found"
-            exit 1
-          fi
+          container-name: fabric-mgpu-test
