@@ -487,7 +487,7 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 # Optional submodules — only installed when explicitly requested or with 'all'.
 # Maps the short CLI name to one or more source directory names under source/.
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
-    "mimic": ("isaaclab_mimic",),
+    "mimic": ("isaaclab_teleop", "isaaclab_mimic"),
     "teleop": ("isaaclab_teleop",),
 }
 
