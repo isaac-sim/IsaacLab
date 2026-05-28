@@ -84,10 +84,8 @@ jobs:
         # Auths to ECR via the runner EC2 instance's IAM role + SSM
         # parameter ``/github-runner/<instance-id>/ecr-cache-url`` (set by
         # the AMI, same mechanism the [self-hosted, gpu] pool uses).
-        # If the per-commit image is missing from ECR (e.g. the regular
-        # CI's build.yaml hasn't completed yet), the action falls back to
-        # building locally — which then requires NGC_API_KEY and is slow.
-        # Normal-path: ECR cache hit, ~tens-of-seconds pull.
+        # Sets ECR_IMAGE in env so the explicit ``docker pull`` step below
+        # can fetch the image locally.
         uses: ./.github/actions/ecr-build-push-pull
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -97,6 +95,18 @@ jobs:
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
+
+      - name: Ensure image is local
+        # ecr-build-push-pull only pulls locally on the exact-cache-hit
+        # path. On deps-cache-hit (where ECR has a registry-side alias
+        # only) or full-build path the image is already local, but a
+        # ``docker pull`` against the ECR URL covers both: it's a no-op
+        # if already local, otherwise pulls from ECR (auth still in effect
+        # from the action's docker login).
+        run: |
+          set -e
+          docker pull "$ECR_IMAGE"
+          docker tag "$ECR_IMAGE" "${{ env.CI_IMAGE_TAG }}"
 
       - name: Discover and run multi-GPU tests in container
         # Runs the discovery + Kit-singleton loop inside the isaac-lab
