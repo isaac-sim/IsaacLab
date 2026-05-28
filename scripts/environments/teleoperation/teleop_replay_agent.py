@@ -363,6 +363,7 @@ import os
 import statistics
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -407,11 +408,17 @@ class _RunStats:
 
     ``active_iterations`` counts ``env.step`` calls during the active
     window and backs the same-named field in the JSON report.
+
+    ``active_render_calls`` counts gated ``env.sim.render`` invocations
+    so :meth:`to_dict` can distinguish "shim never fired" from "shim
+    fired but produced too few samples for an interval" (N renders
+    yield N-1 intervals).
     """
 
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
     active_frame_times_ms: list[float] = field(default_factory=list)
     active_iterations: int = 0
+    active_render_calls: int = 0
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
     # Filled in at run end from ``GpuStatsProvider.summary()``.
@@ -421,14 +428,16 @@ class _RunStats:
 
     def to_dict(self, run_index: int) -> dict:
         # Per-render intervals are the sole source of truth; a run that
-        # recorded active iterations but produced none indicates the
-        # render-timing shim never fired and the report would be junk.
-        if self.active_iterations and not self.active_frame_times_ms:
+        # recorded active iterations but zero gated render calls means
+        # the shim never fired and the report would be junk. A single
+        # gated render call yields zero intervals (N-1 samples), which
+        # is degenerate but not a measurement failure.
+        if self.active_iterations and not self.active_render_calls:
             raise RuntimeError(
                 f"Run {run_index} recorded {self.active_iterations} active env.step "
-                "iterations but no per-render interval samples. env.sim.render did not fire "
-                "during the active window -- check that the sim is rendering (headless mode "
-                "with rendering disabled is unsupported)."
+                "iterations but no env.sim.render calls during the active window. The "
+                "render-timing shim never fired -- check that the sim is rendering "
+                "(headless mode with rendering disabled is unsupported)."
             )
         return {
             "run_index": run_index,
@@ -1202,13 +1211,19 @@ def _run_single_replay(
     if run_index == 0:
         print(f"Using teleop device: {teleop_interface}")
 
-    # Wrap ``env.sim.render`` so renders fired from inside ``env.step``
-    # during the active window record their wall-clock interval since
+    # Wrap ``env.sim.render`` so any call that fires while
+    # ``sampling_active`` is set records its wall-clock interval since
     # the previous gated render. ``sampling_active`` is toggled around
-    # each ``env.step`` call below; the first gated render seeds
-    # ``last_gated_render_ts`` and emits no sample, so N gated renders
-    # produce N-1 intervals. Restored after the with-block since ``env``
-    # is shared across the multi-run batch.
+    # each ``env.step`` call below, so the wrapper captures every
+    # render produced from inside ``env.step`` during the active window
+    # -- including reset-cycle rerenders -- and ignores everything else.
+    # The first gated render seeds ``last_gated_render_ts`` and emits
+    # no sample, so N gated renders produce N-1 intervals.
+    # ``_patched_sim_render`` restores the original method on the way
+    # out, including on uncaught exceptions from inside the
+    # ``teleop_interface`` block; ``env`` is shared across the
+    # multi-run batch so leaving the wrapper installed would corrupt
+    # subsequent runs.
     sampling_active: list[bool] = [False]
     last_gated_render_ts: list[float | None] = [None]
     _orig_sim_render = env.sim.render
@@ -1216,15 +1231,22 @@ def _run_single_replay(
     def _timed_sim_render(*args, **kwargs):
         result = _orig_sim_render(*args, **kwargs)
         if sampling_active[0]:
+            stats.active_render_calls += 1
             now = time.perf_counter()
             if last_gated_render_ts[0] is not None:
                 stats.active_frame_times_ms.append((now - last_gated_render_ts[0]) * 1000.0)
             last_gated_render_ts[0] = now
         return result
 
-    env.sim.render = _timed_sim_render
+    @contextmanager
+    def _patched_sim_render():
+        env.sim.render = _timed_sim_render
+        try:
+            yield
+        finally:
+            env.sim.render = _orig_sim_render
 
-    with teleop_interface:
+    with _patched_sim_render(), teleop_interface:
         # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
         # does a hard physics reinit (re-binds articulation views, plays the
         # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
@@ -1411,8 +1433,6 @@ def _run_single_replay(
                 logger.exception("Error during simulation step")
                 stats.outcome = "failure"
                 break
-
-    env.sim.render = _orig_sim_render
 
     # Stamp the active window duration. Falls back to 0.0 when no env
     # step ever ran (recording never reached START, or terminated before
