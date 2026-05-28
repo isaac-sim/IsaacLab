@@ -122,6 +122,7 @@ jobs:
             test_newton_model_utils.py,
             test_simulation_context.py,
             test_views_xform_prim.py,
+            test_views_xform_prim_fabric.py,
             test_contact_sensor.py
           # ISAACLAB_TEST_DEVICES drives the parametrize helper at
           # collection time; ISAACLAB_SIM_DEVICE makes AppLauncher boot
