@@ -88,6 +88,13 @@ def _resolve_agent_entry_point(args_cli: argparse.Namespace) -> tuple[str, str]:
     return agent_cfg_entry_point, algorithm
 
 
+def _get_distributed_rank(args_cli: argparse.Namespace) -> int:
+    """Return the global distributed rank for the selected skrl ML framework."""
+    if args_cli.ml_framework.startswith("jax"):
+        return int(os.getenv("JAX_RANK", "0"))
+    return int(os.getenv("RANK", "0"))
+
+
 def run(argv: list[str]) -> None:
     """Train a skrl agent."""
     import skrl
@@ -121,7 +128,7 @@ def run(argv: list[str]) -> None:
         validate_distributed_device(args_cli)
 
         if args_cli.distributed:
-            global_rank = int(os.getenv("RANK", "0"))
+            global_rank = _get_distributed_rank(args_cli)
 
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
