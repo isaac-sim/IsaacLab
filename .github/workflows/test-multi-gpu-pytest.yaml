@@ -203,12 +203,19 @@ jobs:
           # Match the host uid:gid so the container can write into the
           # volume-mounted workspace (the image's default USER is
           # ``isaaclab`` uid 1000, which can't write to a mount owned by
-          # the runner's github-runner user).
+          # the runner's github-runner user). With a custom uid:gid the
+          # image's $HOME (=/root) is not writable, so we point HOME and
+          # XDG_CACHE_HOME at a fresh tmp dir for Warp/numpy/pip caches.
+          DOCKER_HOME="${RUNNER_TEMP:-/tmp}/isaaclab-ci-home"
+          mkdir -p "$DOCKER_HOME/.cache"
           docker run --rm --gpus all --network=host \
             --entrypoint bash \
             --user "$(id -u):$(id -g)" \
             -v "$PWD:/workspace/isaaclab" \
+            -v "$DOCKER_HOME:/tmp/isaaclab-ci-home" \
             -w /workspace/isaaclab \
+            -e HOME=/tmp/isaaclab-ci-home \
+            -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
             -e OMNI_KIT_ACCEPT_EULA=yes \
             -e ACCEPT_EULA=Y \
             -e ISAAC_SIM_HEADLESS=1 \
