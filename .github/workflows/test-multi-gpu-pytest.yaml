@@ -55,9 +55,34 @@ jobs:
           echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
 
+  build:
+    name: Build / cache image
+    needs: [config]
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+      # Pre-populates the ECR exact-commit tag from deps-cache (registry-side
+      # alias). Without this prior step, run-package-tests' internal
+      # ecr-build-push-pull hits exact-cache-miss + deps-cache-hit and leaves
+      # no local image, causing `docker run` to fail with `pull access
+      # denied`. Mirrors the build → test split in build.yaml.
+      - uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
-    needs: [config]
+    needs: [config, build]
+    if: needs.build.result == 'success'
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 45
     steps:
