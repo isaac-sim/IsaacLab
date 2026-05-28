@@ -25,8 +25,6 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
-from pxr import Gf
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -85,16 +83,9 @@ def view_factory():
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
         InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
-
-        stage = sim_utils.get_current_stage()
-        for i in range(num_envs):
-            prim = stage.DefinePrim(f"/World/envs/env_{i}/Cube/CameraMount", "Xform")
-            sim_utils.standardize_xform_ops(prim)
-            prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*CHILD_OFFSET))
-            prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
-
-        sim.reset()
+        sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
         view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        sim.reset()
 
         return ViewBundle(
             view=view,
@@ -143,6 +134,50 @@ def test_reject_shape_path(device):
     ctx.__exit__(None, None, None)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_clone_plan_view_uses_source_child_without_destination_usd(device):
+    """FrameView expands a registered body-local site through the ClonePlan."""
+    num_envs = 3
+    ctx = _sim_context(device, num_envs=num_envs)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
+
+    stage = sim_utils.get_current_stage()
+    assert stage.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+    assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
+    sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
+
+    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+    sim.reset()
+
+    assert view.count == num_envs
+    assert not stage.GetPrimAtPath("/World/envs/env_1/Cube/CameraMount").IsValid()
+    pos = view.get_world_poses()[0].torch
+    expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
+    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
+    ctx.__exit__(None, None, None)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_view_can_resolve_from_body_labels_after_reset(device):
+    """FrameView can resolve a body-local frame directly from Newton body labels."""
+    num_envs = 3
+    ctx = _sim_context(device, num_envs=num_envs)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
+    sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
+
+    sim.reset()
+    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+
+    pos = view.get_world_poses()[0].torch
+    expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
+    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
+    ctx.__exit__(None, None, None)
+
+
 # ==================================================================
 # Newton edge case: world-attached prim (body=-1)
 # ==================================================================
@@ -150,19 +185,14 @@ def test_reject_shape_path(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_world_attached_returns_initial_pose(device):
-    """A world-rooted Xform returns its USD-authored position."""
+    """A world-rooted frame returns its configured position."""
     ctx = _sim_context(device, num_envs=2)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
 
-    stage = sim_utils.get_current_stage()
-    prim = stage.DefinePrim("/World/StaticMarker", "Xform")
-    sim_utils.standardize_xform_ops(prim)
-    prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*WORLD_MARKER_POS))
-    prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
-
     sim.reset()
+    sim_utils.create_prim("/World/StaticMarker", translation=WORLD_MARKER_POS)
     view = FrameView("/World/StaticMarker", device=device)
 
     pos = view.get_world_poses()[0].torch
@@ -179,13 +209,8 @@ def test_world_attached_set_world_roundtrip(device):
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
 
-    stage = sim_utils.get_current_stage()
-    prim = stage.DefinePrim("/World/StaticMarker", "Xform")
-    sim_utils.standardize_xform_ops(prim)
-    prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*WORLD_MARKER_POS))
-    prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
-
     sim.reset()
+    sim_utils.create_prim("/World/StaticMarker", translation=WORLD_MARKER_POS)
     view = FrameView("/World/StaticMarker", device=device)
 
     new_pos = _wp_vec3f([[10.0, 20.0, 30.0]], device=device)

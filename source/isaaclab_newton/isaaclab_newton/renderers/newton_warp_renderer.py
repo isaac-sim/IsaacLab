@@ -261,7 +261,7 @@ class NewtonWarpRenderer(BaseRenderer):
         owns the sentinel-resolution + cfg-normalization step. Newton has no
         USD-side overrides to author beyond this.
         """
-        if not spec.camera_prim_paths:
+        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
         from isaaclab_ppisp import resolve_and_normalize
 

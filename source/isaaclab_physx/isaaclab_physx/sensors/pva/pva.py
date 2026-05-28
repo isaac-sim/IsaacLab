@@ -11,9 +11,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import UsdGeom
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
@@ -150,29 +149,8 @@ class Pva(BasePva):
         super()._initialize_impl()
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # check if the prim at path is a rigid prim
-        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if prim is None:
-            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
 
-        # Find the first matching ancestor prim that implements rigid body API
-        ancestor_prim = sim_utils.get_first_matching_ancestor_prim(
-            prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
-        )
-        if ancestor_prim is None:
-            raise RuntimeError(f"Failed to find a rigid body ancestor prim at path expression: {self.cfg.prim_path}")
-        # Convert ancestor prim path to expression
-        if ancestor_prim == prim:
-            self._rigid_parent_expr = self.cfg.prim_path
-            fixed_pos_b, fixed_quat_b = None, None
-        else:
-            # Convert ancestor prim path to expression by stripping the relative
-            # suffix (including its leading '/') so no trailing '/' remains.
-            relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
-            self._rigid_parent_expr = self.cfg.prim_path.replace("/" + relative_path, "")
-            # Resolve the relative pose between the target prim and the ancestor prim
-            fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
-
+        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         # Create the rigid body view on the ancestor
         self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
 

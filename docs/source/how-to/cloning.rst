@@ -129,7 +129,10 @@ Clone Plans
 
 For one source row, passing ``sources``, ``destinations``, and ``mask`` by hand is simple.
 For heterogeneous scenes, the mapping is easier to build with
-:func:`~isaaclab.cloner.make_clone_plan`.
+:func:`~isaaclab.cloner.make_clone_plan`, which returns the raw flat components. Composing
+those components into a :class:`~isaaclab.cloner.ClonePlan` together with the per-environment
+pose buffer is the caller's responsibility — keeping pose authority on the side that owns the
+buffer (typically the scene) avoids duplicating tensors.
 
 :class:`~isaaclab.cloner.ClonePlan` stores the same flat contract used by direct cloning:
 
@@ -138,8 +141,10 @@ For heterogeneous scenes, the mapping is easier to build with
     sources      = [source_0, source_1, ...]
     destinations = [destination_0, destination_1, ...]
     clone_mask   = bool tensor, shape [len(sources), num_envs]
+    env_pose     = float tensor, shape [num_envs, 7]  (xyz position + xyzw quaternion)
 
 ``clone_mask[i, j]`` is ``True`` when environment ``j`` should receive source row ``i``.
+``env_pose[j]`` is the per-environment world pose used to place the cloned destinations.
 The same plan can be passed to USD replication, physics replication, and scene-data
 providers.
 
@@ -180,7 +185,7 @@ The plan maps those source rows to all environments:
 
     from isaaclab.cloner import make_clone_plan, sequential
 
-    plan = make_clone_plan(
+    sources, destinations, clone_mask = make_clone_plan(
         sources=[
             [
                 "/World/envs/env_0/Object",
@@ -196,12 +201,12 @@ The plan maps those source rows to all environments:
 
     # source row used by env: 0, 1, 2, 0, 1, 2, 0, 1
 
-Direct code can use the plan exactly like the hand-written direct example:
+Direct code can use the components exactly like the hand-written direct example:
 
 .. code-block:: python
 
-    physx_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask, device="cuda:0")
-    usd_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask)
+    physx_replicate(stage, sources, destinations, env_ids, clone_mask, device="cuda:0")
+    usd_replicate(stage, sources, destinations, env_ids, clone_mask)
 
 When variants span multiple groups, such as robot variants and object variants,
 ``make_clone_plan`` enumerates the Cartesian product of the groups and assigns one

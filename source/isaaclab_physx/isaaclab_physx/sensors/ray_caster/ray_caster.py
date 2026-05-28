@@ -14,20 +14,15 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import path_source_path
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
 from isaaclab_physx.physics import PhysxManager
 
 
-def _find_physics_ancestor(prim):
-    """Return the nearest rigid-body ancestor for a sensor or target prim."""
-    ancestor = prim
-    while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
-        if ancestor.HasAPI(UsdPhysics.RigidBodyAPI):
-            return ancestor
-        ancestor = ancestor.GetParent()
-    return None
+def _has_rigid_body_api(prim) -> bool:
+    return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
 
 def _body_expr_from_sensor_expr(sensor_expr: str, first_sensor_prim, first_body_prim) -> str:
@@ -63,14 +58,23 @@ class _PhysXRayCasterMixin:
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Initialize direct PhysX body tracking or a cached static pose table."""
-        prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-        if len(prims) == 0:
-            raise RuntimeError(f"No sensor prims matched: {self.cfg.prim_path}")
+        # Resolve via the clone plan when available; otherwise use the original stage scan.
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        if plan is not None:
+            source_path, dest_glob, asset_suffix = path_source_path(self.cfg.prim_path, plan)
+            source_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path + asset_suffix)
+            if not source_prim or not source_prim.IsValid():
+                raise RuntimeError(f"No source sensor prim at: {source_path + asset_suffix}")
+            prims = [source_prim]
+        else:
+            prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            if len(prims) == 0:
+                raise RuntimeError(f"No sensor prims matched: {self.cfg.prim_path}")
 
         # The base classes still use ``self._view.count`` in a few generic
         # places. Point it at the sensor instead of constructing an adapter.
         self._view = self
-        body = _find_physics_ancestor(prims[0])
+        body = sim_utils.get_first_matching_ancestor_prim(prims[0].GetPath(), predicate=_has_rigid_body_api)
         if body is None:
             self._initialize_static_pose_tracking(prims)
             return
@@ -78,11 +82,20 @@ class _PhysXRayCasterMixin:
         requested_prim_path = getattr(self, "_requested_prim_path", self.cfg.prim_path)
         # When the public prim path pointed at a rigid body, BaseRayCaster
         # spawned a child sensor prim and preserved the original body path.
-        body_expr = (
-            requested_prim_path
-            if self.cfg.prim_path != requested_prim_path
-            else _body_expr_from_sensor_expr(self.cfg.prim_path, prims[0], body)
-        )
+        if plan is not None:
+            if self.cfg.prim_path != requested_prim_path:
+                # The requested expression already maps to the rigid body across all envs.
+                body_source_path, body_dest_glob, body_suffix = path_source_path(requested_prim_path, plan)
+                body_expr = body_dest_glob + body_suffix
+            else:
+                # Map the body's source path back to the destination glob.
+                body_expr = dest_glob + body.GetPath().pathString[len(source_path) :]
+        else:
+            body_expr = (
+                requested_prim_path
+                if self.cfg.prim_path != requested_prim_path
+                else _body_expr_from_sensor_expr(self.cfg.prim_path, prims[0], body)
+            )
         physics_sim_view = PhysxManager.get_physics_sim_view()
         if physics_sim_view is None:
             raise RuntimeError("PhysX simulation view is not initialized.")
@@ -92,7 +105,7 @@ class _PhysXRayCasterMixin:
         offset_pos = []
         offset_quat = []
         for prim in prims:
-            body_prim = _find_physics_ancestor(prim)
+            body_prim = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), predicate=_has_rigid_body_api)
             p, q = sim_utils.resolve_prim_pose(prim, body_prim)
             offset_pos.append(p)
             offset_quat.append(q)
@@ -152,7 +165,7 @@ class _PhysXRayCasterMixin:
                 body_paths.append(target_prim_path)
                 continue
             for prim in prims:
-                body = _find_physics_ancestor(prim)
+                body = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), predicate=_has_rigid_body_api)
                 if body is None:
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_prim_path}' with PhysX. "

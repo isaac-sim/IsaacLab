@@ -183,7 +183,7 @@ def test_multi_body_articulation(sim):
 
 
 def test_nested_articulation_root_resolution(sim):
-    """Sensor accepts an asset prim path whose articulation root is nested in the USD asset."""
+    """Sensor covers a nested articulation root from the configured asset prefix."""
     scene = InteractiveScene(_NestedRootAntSceneCfg(num_envs=1))
     sim.reset()
 

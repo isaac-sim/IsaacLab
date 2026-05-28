@@ -483,9 +483,9 @@ class Camera(SensorBase):
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
             device=device_str,
-            num_instances=len(cam_paths),
+            num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
-            view_count=len(cam_paths),
+            view_count=self._num_envs,
             camera_path_relative_to_env_0=rel_under_env0,
         )
 
@@ -512,8 +512,12 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
 
-        # Convert all encapsulated prims to Camera
-        for cam_prim in self._view.prims:
+        # Convert all encapsulated prims to Camera. Newton keeps only source USD camera prims.
+        self._sensor_prims.clear()
+        view_prims = list(self._view.prims)
+        if not view_prims and cam_paths:
+            view_prims = [self.stage.GetPrimAtPath(cam_paths[0])] * self._view.count
+        for cam_prim in view_prims:
             # Obtain the prim path
             cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera

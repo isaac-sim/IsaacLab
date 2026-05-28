@@ -105,11 +105,15 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Publish a trivial homogeneous ClonePlan so consumers (e.g. multi-mesh ray-caster's
     # target tracker) can drive per-env work via clone_mask. Mirrors InteractiveScene's
     # synthesis path for hand-authored scenes that bypass it.
+    env_pose = torch.zeros((num_envs, 7), dtype=torch.float32, device=sim.device)
+    env_pose[:, :3] = env_origins
+    env_pose[:, 6] = 1.0  # identity quaternion (xyzw)
     sim.set_clone_plan(
         lab_cloner.ClonePlan(
             sources=(env_fmt.format(0),),
             destinations=(env_fmt,),
             clone_mask=torch.ones((1, num_envs), dtype=torch.bool, device=sim.device),
+            env_pose=env_pose,
         )
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —

@@ -198,7 +198,7 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
         assert sys.getrefcount(object_collection) < 10
 
         # Play sim
-        with pytest.raises(RuntimeError):
+        with pytest.raises(KeyError):
             sim.reset()
 
 
