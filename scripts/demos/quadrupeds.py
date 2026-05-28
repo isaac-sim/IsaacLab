@@ -8,19 +8,40 @@ This script demonstrates different legged robots.
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with the default PhysX backend (launches Isaac Sim Kit by default).
     ./isaaclab.sh -p scripts/demos/quadrupeds.py
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --visualizer kit
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics physx
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics physx --visualizer kit
+
+    # Usage with the kit-less Newton (MJWarp) backend (launches Isaac Sim Kit by default).
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp --visualizer kit
+
+    # Usage with the Newton (MJWarp) backend without Kit (launches Newton visualizer).
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp --visualizer newton
+
+    # Usage with the PhysX backend and Newton visualizer.
+    # PhysX still launches Isaac Sim Kit headless because it depends on Kit extensions.
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics physx --visualizer newton
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+
+from demo_helper import get_usage_examples, has_no_alive_visualizer_window, resolve_backend_and_visualizer
 
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different legged robots.",
+    epilog=get_usage_examples(str(__doc__)),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -28,24 +49,8 @@ parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
 import numpy as np
 import torch
-
-import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
-from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
-from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -65,6 +70,12 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
 
 def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import Articulation
+    from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
+    from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
+    from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -124,14 +135,15 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
+def run_simulator(sim, entities: dict, origins):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
     # Simulate physics
-    while simulation_app.is_running():
+    # Exit when every visualizer window has been closed (works for kit and newton)
+    while not has_no_alive_visualizer_window(sim):
         # reset
         if count % 200 == 0:
             # reset counters
@@ -175,24 +187,29 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 
 def main():
     """Main function."""
+    with resolve_backend_and_visualizer(args_cli) as (physics_cfg, visualizer_cfg):
+        import isaaclab.sim as sim_utils
 
-    # Initialize the simulation context
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01))
-    # Set main camera
-    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+        # define simulation configuration
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.005, device=args_cli.device, physics=physics_cfg, visualizer_cfgs=[visualizer_cfg]
+        )
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+        # design scene
+        scene_entities, scene_origins = design_scene()
+        # convert origins to tensor
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()
