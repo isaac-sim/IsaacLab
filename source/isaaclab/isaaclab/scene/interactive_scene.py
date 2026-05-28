@@ -257,10 +257,7 @@ class InteractiveScene:
             for _, spawn_cfg, destination, _ in groups:
                 set_spawn_paths(spawn_cfg, [destination.format(0)])
             clone_mask = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-            cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
-            return cloner.ClonePlan(
-                (self.env_fmt.format(0),), (self.env_fmt,), clone_mask, self._default_env_pose, cfg_rows
-            )
+            return cloner.ClonePlan((self.env_fmt.format(0),), (self.env_fmt,), clone_mask, self._default_env_pose)
 
         sources, destinations, clone_mask = cloner.make_clone_plan(
             sources=[[destination.format(i) for i in range(count)] for _, _, destination, count in groups],
@@ -271,7 +268,6 @@ class InteractiveScene:
         )
 
         # Move each planned source entry to the first environment that actually uses it.
-        cfg_rows: dict[int, tuple[int, ...]] = {}
         source_start = 0
         sources = list(sources)
         for cfg, spawn_cfg, destination, count in groups:
@@ -283,11 +279,10 @@ class InteractiveScene:
                 if path is not None:
                     sources[source_start + offset] = path
             set_spawn_paths(spawn_cfg, paths)
-            cfg_rows[id(cfg)] = tuple(range(source_start, source_start + count))
             source_start += count
 
         logger.debug("Built heterogeneous ClonePlan with %d source entries.", len(sources))
-        return cloner.ClonePlan(tuple(sources), destinations, clone_mask, self._default_env_pose, cfg_rows)
+        return cloner.ClonePlan(tuple(sources), destinations, clone_mask, self._default_env_pose)
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.

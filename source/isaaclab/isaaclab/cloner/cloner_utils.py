@@ -21,49 +21,12 @@ from .clone_plan import ClonePlan
 logger = logging.getLogger(__name__)
 
 
-def cfg_source_path(cfg_id: int, plan: ClonePlan) -> tuple[str, str, str]:
-    """Resolve a cfg's source-side prim path, destination glob, and (empty) asset suffix.
-
-    Symmetric counterpart of :func:`path_source_path`. Looks up the rows owned by
-    ``cfg_id`` in :attr:`~isaaclab.cloner.ClonePlan.cfg_rows`, OR-merges their
-    :attr:`~isaaclab.cloner.ClonePlan.clone_mask` rows, and returns the row's source
-    prim path together with the destination template (``{}`` replaced by ``*``). The
-    ``asset_suffix`` is always empty for cfg-keyed lookups: the cfg's ``prim_path``
-    is, by construction, identical to the row's destination template (modulo
-    ``{}``/``.*`` substitution), so consumers append their walk's descendant suffix
-    instead.
-
-    Args:
-        cfg_id: ``id(cfg)`` key into :attr:`~isaaclab.cloner.ClonePlan.cfg_rows`.
-        plan: Active clone plan with ``cfg_id`` registered.
-
-    Returns:
-        Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)`` where
-        ``asset_suffix`` is the empty string.
-
-    Raises:
-        KeyError: When ``cfg_id`` is not registered in :attr:`~isaaclab.cloner.ClonePlan.cfg_rows`.
-        NotImplementedError: When the OR-merged clone mask does not cover every env
-            (partial-env heterogeneous coverage is unsupported).
-        ValueError: When the cfg's rows span multiple distinct destination templates.
-    """
-    rows = plan.cfg_rows[cfg_id]
-    if not plan.clone_mask[list(rows)].any(dim=0).all():
-        raise NotImplementedError(
-            f"cfg {cfg_id}: partial-env heterogeneous coverage is unsupported; cfg rows must collectively cover all envs."
-        )
-    templates = {plan.destinations[r] for r in rows}
-    if len(templates) != 1:
-        raise ValueError(f"cfg {cfg_id}: rows span multiple destination templates: {templates}.")
-    return plan.sources[rows[0]], next(iter(templates)).replace("{}", "*"), ""
-
-
 def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str]:
     """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
 
-    Symmetric counterpart of :func:`cfg_source_path`. Finds the rows whose destination
-    template owns ``path_expr`` (same matching logic as :func:`iter_clone_plan_matches`),
-    OR-merges their :attr:`~isaaclab.cloner.ClonePlan.clone_mask` rows, and splits the
+    Finds the rows whose destination template owns ``path_expr`` (same matching
+    logic as :func:`iter_clone_plan_matches`), OR-merges their
+    :attr:`~isaaclab.cloner.ClonePlan.clone_mask` rows, and splits the
     expression at the row's destination template so the asset-relative suffix is
     returned for downstream walks.
 

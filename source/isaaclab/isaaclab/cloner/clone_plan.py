@@ -42,14 +42,6 @@ class ClonePlan:
     is its quaternion in xyzw. Defaults to identity at the origin (allocated on
     :attr:`clone_mask`'s device) when omitted at construction."""
 
-    cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
-    """Mapping from ``id(cfg)`` to the row indices of :attr:`sources` /
-    :attr:`destinations` that the cfg owns. Cherry-picked from the per-cfg
-    replication design (PR 5770) so consumers can resolve their source prim
-    path via :func:`~isaaclab.cloner.cloner_utils.cfg_source_path` instead of
-    glob-matching their ``prim_path`` against destination templates. Empty
-    when not populated (e.g., direct ``ClonePlan`` construction in tests)."""
-
     def __post_init__(self) -> None:
         if self.env_pose is _UNSET_ENV_POSE:
             num_envs = int(self.clone_mask.shape[1])
