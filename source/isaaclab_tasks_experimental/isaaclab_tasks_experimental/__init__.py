@@ -5,20 +5,12 @@
 
 """Package containing task implementations for various robotic environments."""
 
-import os
-import toml
+import importlib.metadata
 
-# Conveniences to other module directories via relative paths
-ISAACLAB_TASKS_EXPERIMENTAL_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-"""Path to the extension source directory."""
-
-ISAACLAB_TASKS_EXPERIMENTAL_METADATA = toml.load(
-    os.path.join(ISAACLAB_TASKS_EXPERIMENTAL_EXT_DIR, "config", "extension.toml")
-)
-"""Extension metadata dictionary parsed from the extension.toml file."""
-
-# Configure the module-level variables
-__version__ = ISAACLAB_TASKS_EXPERIMENTAL_METADATA["package"]["version"]
+try:
+    __version__ = importlib.metadata.version("isaaclab_tasks_experimental")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 ##
 # Register Gym environments.

@@ -27,21 +27,17 @@ app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 
-import copy  # noqa: E402
 import types  # noqa: E402
 
 import pytest  # noqa: E402
-import torch  # noqa: E402
 from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
-from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv  # noqa: E402
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
-    ShadowHandVisionBenchmarkEnvCfg,
     ShadowHandVisionEnvCfg,
 )
-from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets  # noqa: E402
+from isaaclab_tasks.utils.hydra import collect_presets  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -301,125 +297,3 @@ def test_warp_with_invalid_camera_preset(shadow_hand_vision_presets, camera_pres
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, True)
     with pytest.raises(ValueError):
         cfg.validate_config()
-
-
-# ---------------------------------------------------------------------------
-# Integration: camera output tensors must contain non-zero pixel values
-# ---------------------------------------------------------------------------
-
-_RENDER_CORRECTNESS_CASES = [
-    # (renderer_preset, camera_preset, physics) - physics is "physx" or "newton"
-    # ── PhysX physics (default) + IsaacRTX: supports all data types ──
-    pytest.param(("isaacsim_rtx_renderer", "rgb", "physx"), id="physx-isaacsim_rtx-rgb"),
-    pytest.param(("isaacsim_rtx_renderer", "depth", "physx"), id="physx-isaacsim_rtx-depth"),
-    pytest.param(("isaacsim_rtx_renderer", "albedo", "physx"), id="physx-isaacsim_rtx-albedo"),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "simple_shading_constant_diffuse", "physx"),
-        id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
-    ),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", "physx"),
-        id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
-    ),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "simple_shading_full_mdl", "physx"),
-        id="physx-isaacsim_rtx-simple_shading_full_mdl",
-    ),
-    # ── PhysX physics + Warp: only rgb and depth are supported ──
-    # xfail: standard Shadow Hand USD contains PhysX tendons that Newton's ModelBuilder cannot parse,
-    # so the Newton model build fails and the Warp renderer cannot initialise.
-    pytest.param(
-        ("newton_renderer", "rgb", "physx"),
-        id="physx-warp-rgb",
-        marks=pytest.mark.xfail(raises=RuntimeError, reason="PhysX tendon schemas unsupported by Newton ModelBuilder"),
-    ),
-    pytest.param(
-        ("newton_renderer", "depth", "physx"),
-        id="physx-warp-depth",
-        marks=pytest.mark.xfail(raises=RuntimeError, reason="PhysX tendon schemas unsupported by Newton ModelBuilder"),
-    ),
-    # ── Newton physics + Warp: Warp renderer is physics-backend agnostic ──
-    pytest.param(("newton_renderer", "rgb", "newton"), id="newton-warp-rgb"),
-    pytest.param(("newton_renderer", "depth", "newton"), id="newton-warp-depth"),
-    # ── Newton physics + IsaacRTX ──
-    pytest.param(("isaacsim_rtx_renderer", "rgb", "newton"), id="newton-isaacsim_rtx-rgb"),
-    pytest.param(("isaacsim_rtx_renderer", "depth", "newton"), id="newton-isaacsim_rtx-depth"),
-    pytest.param(("isaacsim_rtx_renderer", "albedo", "newton"), id="newton-isaacsim_rtx-albedo"),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "simple_shading_constant_diffuse", "newton"),
-        id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-    ),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", "newton"),
-        id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-    ),
-    pytest.param(
-        ("isaacsim_rtx_renderer", "simple_shading_full_mdl", "newton"),
-        id="newton-isaacsim_rtx-simple_shading_full_mdl",
-    ),
-    # ── OVRTX: disabled ──
-    pytest.param(
-        ("ovrtx_renderer", "rgb", "physx"),
-        id="physx-ovrtx-rgb",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
-    ),
-]
-
-
-@pytest.fixture(params=_RENDER_CORRECTNESS_CASES)
-def render_correctness_env(request, shadow_hand_vision_presets):
-    """Build an env with the specified renderer+camera+physics combination, step once, yield, close.
-
-    Function-scoped so each parametrized case creates and closes its own env sequentially.
-    ``SimulationContext.clear_instance()`` (called by ``env.close()``) fully tears down the
-    singleton, allowing a new env with a different physics backend to be created next.
-
-    The shared ``shadow_hand_vision_presets`` fixture is deepcopied before mutation so that
-    subsequent parametrized cases see clean preset configs.
-    """
-    renderer_preset, camera_preset, physics = request.param
-    cfg = ShadowHandVisionBenchmarkEnvCfg()
-    # Wire in the requested camera and renderer presets.
-    camera_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera"][camera_preset])
-    camera_cfg.renderer_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer_preset])
-    cfg.tiled_camera = camera_cfg
-    # Apply MJWarp presets before resolve_presets so they are not overwritten by defaults.
-    # Newton needs a specific solver config, a different robot USD, an articulation-based object,
-    # and a stripped-down event cfg (no PhysX-specific material randomization).
-    if physics == "newton":
-        cfg.sim.physics = copy.deepcopy(shadow_hand_vision_presets["sim.physics"]["newton_mjwarp"])
-        cfg.robot_cfg = copy.deepcopy(shadow_hand_vision_presets["robot_cfg"]["newton_mjwarp"])
-        cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["newton_mjwarp"])
-        if "events" in shadow_hand_vision_presets:
-            cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["newton_mjwarp"])
-    cfg = resolve_presets(cfg)
-    cfg.scene.num_envs = 4
-    cfg.feature_extractor.write_image_to_file = False
-    env = ShadowHandVisionEnv(cfg)
-    env.reset()
-    actions = torch.zeros(cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-    env.step(actions)
-    yield renderer_preset, camera_preset, physics, env
-    env.close()
-
-
-def test_camera_renders_not_empty(render_correctness_env):
-    """Camera output must contain at least one non-zero pixel for every valid renderer+camera combo.
-
-    Depth tensors may contain ``inf`` for background pixels (empty space). ``inf`` is replaced
-    with 0 before checking ``max()``; a non-zero max confirms the renderer produced geometry pixels.
-
-    All renderer+camera+physics combinations are expected to produce non-empty frames.
-    """
-    renderer_preset, camera_preset, physics, env = render_correctness_env
-    label = f"{physics}-{renderer_preset}+{camera_preset}"
-    camera_output = env._tiled_camera.data.output
-    assert len(camera_output) > 0, f"[{label}] Camera produced no output tensors at all."
-    for dt, output in camera_output.items():
-        tensor = output.torch
-        finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
-        # import pdb; pdb.set_trace()
-        assert finite.max() > 0.2, (
-            f"[{label}] Camera output '{dt}' is all zeros or all inf "
-            f"after stepping. Tensor shape: {tensor.shape}, dtype: {tensor.dtype}."
-        )

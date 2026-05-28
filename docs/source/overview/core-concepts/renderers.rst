@@ -140,4 +140,4 @@ See Also
 --------
 
 - :doc:`scene_data_providers` — how scene data flows from physics backends to renderers
-- :doc:`/source/features/visualization` — lightweight visualizer backends for interactive feedback
+- :doc:`/source/overview/core-concepts/visualization` — lightweight visualizer backends for interactive feedback

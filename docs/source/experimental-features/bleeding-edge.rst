@@ -5,162 +5,73 @@ Isaac Lab is open source because our intention is to grow a community of open co
 We believe that robust tools are crucial for the future of robotics.
 
 Sometimes new features may require extensive changes to the internal structure of Isaac Lab.
-Directly integrating such features before they are complete and without feedback from the full community could cause serious issues for users caught unaware.
+Directly integrating such features before they are complete and without feedback from the full community could cause
+serious issues for users caught unaware.
 
-To address this, some major features will be released as Experimental Feature Branches.
-This way, the community can experiment with and contribute to the feature before it's fully integrated, reducing the likelihood of being derailed by unexpected and new errors.
+To address this, major and experimental features are developed in the ``isaaclab_contrib`` package and released as
+experimental features. This way, the community can experiment with and contribute to a feature before it is
+fully integrated, reducing the likelihood of being derailed by unexpected errors.
 
-.. _rlinf-post-training:
+The ``isaaclab_contrib`` Package
+---------------------------------
 
-RL Post-Training for VLA Models
--------------------------------
+The ``source/isaaclab_contrib`` folder is the **community incubator** for Isaac Lab. It provides a collection of
+specialized robot types, actuator models, sensors, controllers, and other components that extend the core framework
+for specific use cases. Contributions here are:
 
-`RLinf <https://github.com/RLinf/RLinf.git>`_ is a flexible and scalable open-source RL infrastructure designed for
-Embodied and Agentic AI. This integration enables **reinforcement learning fine-tuning of Vision-Language-Action
-(VLA) models** (e.g., GR00T, OpenVLA) on Isaac Lab simulation tasks.
+- Actively maintained and supported by the community
+- Developed openly so the broader community can provide feedback before a wider release
+- Candidates for eventual integration into the core Isaac Lab packages once they mature
 
-The typical workflow follows three stages:
-
-1. **Data collection** — Collect demonstration data from the Isaac Lab environment (e.g., via teleoperation or scripted policy).
-2. **Base model training** — Train a VLA base model (e.g., GR00T) on the collected demonstrations using supervised learning.
-3. **RL fine-tuning** — Fine-tune the pretrained VLA model on the Isaac Lab task using RLinf with PPO / Actor-Critic / SAC.
-
-Overview
-~~~~~~~~
-
-The RLinf integration allows Isaac Lab users to:
-
-- Fine-tune pretrained VLA models on Isaac Lab tasks using PPO / Actor-Critic / SAC
-- Leverage RLinf's FSDP-based distributed training across multiple GPUs/nodes
-- Define observation/action mappings from Isaac Lab to GR00T format via a single YAML config
-- Register Isaac Lab tasks into RLinf without modifying RLinf source code
-
-Architecture
-~~~~~~~~~~~~
-
-.. code-block:: text
-
-    ┌────────────────────────────────────────────────────────────────┐
-    │                         RLinf Runner                           │
-    │                 (EmbodiedRunner / EvalRunner)                  │
-    ├────────────────┬──────────────────────┬────────────────────────┤
-    │  Actor Worker  │   Rollout Worker     │      Env Worker        │
-    │  (FSDP)        │  (HF Inference)      │  (IsaacLab Sim)        │
-    │                │                      │                        │
-    │ Policy         │  Multi-step rollout  │ IsaacLabGenericEnv     │
-    │ Update         │  with VLA model      │  ├─ _make_env_function │
-    │                │                      │  ├─ _wrap_obs          │
-    │                │                      │  └─ _wrap_action       │
-    └────────────────┴──────────────────────┴────────────────────────┘
-
-**Data flow:**
-
-1. ``EnvWorker`` runs Isaac Lab simulation and converts observations to RLinf format
-2. ``RolloutWorker`` runs VLA model inference (e.g., GR00T) to produce actions
-3. Actions are converted back to Isaac Lab format and stepped in the environment
-4. ``ActorWorker`` updates the VLA model with PPO/actor-critic loss via FSDP
-
-Prerequisites
-~~~~~~~~~~~~~
-
-- **Isaac Lab** installed and configured
-- **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format
-- Multi-GPU setup recommended (FSDP requires at least 1 GPU)
-
-Installation
-~~~~~~~~~~~~
-
-From the Isaac Lab root directory:
+The package follows Isaac Lab's standard extension structure and can be installed with optional extras that pull in
+only the dependencies needed for the features you use:
 
 .. code-block:: bash
 
-   # If running Isaac Sim headless for the first time, accept the EULA via env var
-   # (interactive sessions prompt automatically; headless mode requires this)
-   export OMNI_KIT_ACCEPT_EULA=yes
+   # Install the base contrib package
+   uv pip install -e "source/isaaclab_contrib"
 
-   # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   # Install with optional extras (e.g., for RLinf VLA post-training)
    uv pip install -e "source/isaaclab_contrib[rlinf]"
 
-   # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+Current Contributions
+---------------------
 
-   # Step 3: Install Isaac-GR00T (pinned version)
-   git clone https://github.com/NVIDIA/Isaac-GR00T.git
-   cd Isaac-GR00T
-   git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-   uv pip install -e ".[base]" --no-deps
-   cd ../
+The following features are currently available in ``isaaclab_contrib``:
 
-   # Step 4: Install flash-attn (must be built against the installed PyTorch)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+.. list-table::
+   :header-rows: 1
+   :widths: 25 50 25
 
-Quick Start
-~~~~~~~~~~~
+   * - Feature
+     - Description
+     - Documentation
+   * - **Visuo-Tactile Sensor** (TacSL)
+     - GPU-accelerated simulation of vision-based tactile sensors with elastomer deformation,
+       RGB tactile images, and per-taxel force fields.
+     - :doc:`visuo_tactile_sensor`
+   * - **RL Post-Training for VLA Models** (RLinf)
+     - Reinforcement learning fine-tuning of Vision-Language-Action models (e.g., GR00T, OpenVLA)
+       using RLinf's scalable PPO / Actor-Critic / SAC infrastructure.
+     - :doc:`rlinf_vla_posttraining`
+   * - **Multirotor Systems**
+     - Full simulation support for multirotor aerial vehicles (quadcopters, hexacopters, octocopters),
+       including the :class:`~isaaclab_contrib.assets.Multirotor` asset, :class:`~isaaclab_contrib.actuators.Thruster`
+       actuator with asymmetric motor dynamics, and :class:`~isaaclab_contrib.mdp.actions.ThrustAction` MDP terms.
+     - API reference: :mod:`~isaaclab_contrib.assets`, :mod:`~isaaclab_contrib.actuators`, :mod:`~isaaclab_contrib.mdp`
+   * - **Geometric Controllers**
+     - Geometric controllers for multirotor attitude, velocity, acceleration, and position tracking
+       on SO(3) (Lee et al.). Suitable for both trajectory following and RL baselines.
+     - API reference: :mod:`~isaaclab_contrib.controllers`
+   * - **Newton VBD Deformable Objects**
+     - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
+       including Featherstone and MjWarp coupling managers.
+     - API reference: :mod:`~isaaclab_contrib.deformable`
 
-**Training** — RL fine-tuning of a pretrained VLA model:
+Contributing
+------------
 
-.. code-block:: bash
-
-   python scripts/reinforcement_learning/rlinf/train.py \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint
-
-**Evaluation** — Evaluate a trained checkpoint with video recording:
-
-.. code-block:: bash
-
-   python scripts/reinforcement_learning/rlinf/play.py \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint \
-       --video
-
-.. note::
-
-   The ``--config_path`` flag is optional. When omitted, the scripts automatically
-   search the ``isaaclab_tasks`` package for the matching YAML configuration file.
-
-Configuration
-~~~~~~~~~~~~~
-
-All configuration lives in a **single YAML file** loaded by `Hydra <https://hydra.cc/>`_.
-The key configuration block is the ``env.train.isaaclab`` section, which defines how Isaac Lab observations
-are converted to GR00T format:
-
-.. code-block:: yaml
-
-   isaaclab: &isaaclab_config
-     task_description: "assemble trocar from tray"
-
-     # IsaacLab → RLinf observation mapping
-     main_images: "front_camera"
-     extra_view_images:
-       - "left_wrist_camera"
-       - "right_wrist_camera"
-     states:
-       - key: "robot_joint_state"
-         slice: [15, 29]
-       - key: "robot_dex3_joint_state"
-
-     # GR00T → IsaacLab action conversion
-     action_mapping:
-       prefix_pad: 15
-       suffix_pad: 0
-
-Key Files
-~~~~~~~~~
-
-.. code-block:: text
-
-   scripts/reinforcement_learning/rlinf/
-   ├── README.md          # Detailed documentation
-   ├── train.py           # Training entry point
-   ├── play.py            # Evaluation entry point
-   └── cli_args.py        # Shared CLI argument definitions
-
-   source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
-   ├── __init__.py
-   └── extension.py       # Task registration, obs/action conversion
-
-For detailed configuration options, CLI arguments, and how to add new tasks,
-see ``scripts/reinforcement_learning/rlinf/README.md``.
+We welcome contributions to ``isaaclab_contrib``! If you have developed specialized robot assets, novel actuator
+models, custom MDP components, or domain-specific utilities, please follow the Isaac Lab contribution guidelines
+and open a pull request. See the `contributing guide <https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html>`_
+for more information.
