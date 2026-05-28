@@ -93,14 +93,14 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
             )
             assert result.returncode == 0, f"uv pip install torch failed:\n{result.stdout}\n{result.stderr}"
 
-            # uv pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
+            # uv pip install "isaaclab[all,isaacsim]" --extra-index-url https://pypi.nvidia.com
             #   --index-strategy unsafe-best-match --prerelease=allow
             result = self.run_in_uv_env(
-                    f"{wheel}[all,isaacsim]",
+                [
                     "uv",
                     "pip",
                     "install",
-                    f"{wheel}[all, isaacsim]",
+                    f"{wheel}[all,isaacsim]",
                     "--extra-index-url",
                     "https://pypi.nvidia.com",
                     "--index-strategy",
@@ -111,7 +111,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                 timeout=1800,
             )
             assert result.returncode == 0, (
-                f"uv pip install {wheel}[all, isaacsim] failed:\n{result.stdout}\n{result.stderr}"
+                f"uv pip install {wheel}[all,isaacsim] failed:\n{result.stdout}\n{result.stderr}"
             )
 
             # 3. Run cartpole training via ./isaaclab.sh train (same invocation as
