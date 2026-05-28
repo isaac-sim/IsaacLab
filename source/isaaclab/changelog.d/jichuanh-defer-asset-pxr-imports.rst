@@ -1,7 +1,7 @@
 Fixed
 ^^^^^
 
-* Fixed :class:`~isaaclab.assets.AssetBase` and :class:`~isaaclab.assets.BaseArticulation`
+* Fixed ``from isaaclab.assets import Articulation`` and ``from isaaclab.sim import SimulationContext``
   loading ``pxr`` at module-import time, which forced :class:`~isaaclab.app.AppLauncher`
-  to run before any ``from isaaclab.assets import Articulation`` and blocked
-  kit-less workflows that import asset classes at module top.
+  to run before any such import and blocked kit-less workflows that bind these
+  classes at module top.
