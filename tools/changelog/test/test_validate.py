@@ -307,6 +307,49 @@ def test_compile_guard_nonexistent_package_errors():
         cli.cmd_compile(args, parser)
 
 
+def test_changelog_header_re_accepts_minimum_stub():
+    """The minimum-valid stub ``Changelog\\n---------\\n\\n`` is accepted.
+
+    This is the smallest seed a new package needs to start receiving
+    bot-written entries. Anything shorter (e.g. ``Changelog\\n---------\\n``
+    without a trailing blank line) leaves no anchor for the prepend and
+    must be rejected.
+    """
+    assert cli.CHANGELOG_HEADER_RE.search("Changelog\n---------\n\n") is not None
+
+
+def test_changelog_header_re_rejects_unterminated_stub():
+    """A header missing the trailing blank line cannot anchor an insert.
+
+    Regression: ``isaaclab_ppisp`` landed on develop with this exact
+    20-byte shape, wedging the nightly compile job (run
+    https://github.com/isaac-sim/IsaacLab/actions/runs/26494922179).
+    """
+    assert cli.CHANGELOG_HEADER_RE.search("Changelog\n---------\n") is None
+
+
+def test_every_managed_package_has_parseable_changelog_header():
+    """Lock the compile precondition: every managed package on disk must
+    have a ``CHANGELOG.rst`` whose header matches ``CHANGELOG_HEADER_RE``.
+
+    Catches the recurrence of #5748 — a new package landing with a
+    malformed stub silently breaks the next nightly run. Failing here
+    surfaces the malformed file at PR time (this test runs under the
+    standard ``pytest`` collection used by CI).
+    """
+    bad: list[tuple[str, str]] = []
+    for pkg in cli.Package.discover():
+        text = pkg.changelog_path.read_text(encoding="utf-8")
+        if cli.CHANGELOG_HEADER_RE.search(text) is None:
+            bad.append((pkg.name, str(pkg.changelog_path)))
+    assert not bad, (
+        "Malformed CHANGELOG.rst — each file must contain "
+        "'Changelog\\n---------\\n\\n' (header + underline + blank line) "
+        "so the nightly compile has a place to prepend the next version block. "
+        f"Bad files: {bad}"
+    )
+
+
 def test_compile_rejects_fragments_that_check_would_reject(tmp_path):
     """``compile`` must enforce the same content rules as ``check``.
 

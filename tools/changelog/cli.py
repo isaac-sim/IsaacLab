@@ -82,6 +82,14 @@ PACKAGES_ROOT = REPO_ROOT / "source"
 FRAGMENT_RE = re.compile(r"^(?P<slug>[^./][^./]*)(?:\.(?P<bump>minor|major))?\.rst$")
 SKIP_RE = re.compile(r"^(?P<slug>[^./][^./]*)\.skip$")
 
+# Anchor the compile-time insertion point in ``CHANGELOG.rst``. A managed
+# package's file must contain at minimum ``Changelog\n---+\n\n`` — header,
+# underline, then a blank line — so the bot has a place to prepend the next
+# version block. Imported by both ``Package.write_changelog_entry`` (the
+# producer) and ``test_validate`` (the regression gate) so the two cannot
+# drift on what "valid header" means.
+CHANGELOG_HEADER_RE = re.compile(r"^Changelog\n-+\s*\n\s*\n", re.MULTILINE)
+
 
 def _display_path(p: Path) -> str:
     """Pretty-print a Path. Strips ``REPO_ROOT`` if ``p`` is inside the repo,
@@ -570,7 +578,7 @@ class Package:
 
     def write_changelog_entry(self, entry: str, *, dry_run: bool) -> None:
         text = self.changelog_path.read_text(encoding="utf-8")
-        m = re.search(r"^Changelog\n-+\s*\n\s*\n", text, re.MULTILINE)
+        m = CHANGELOG_HEADER_RE.search(text)
         if not m:
             raise ValueError(f"Could not locate changelog header in {self.changelog_path}")
         updated = text[: m.end()] + entry + "\n" + text[m.end() :]
@@ -947,7 +955,19 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print(f"ERROR: git diff failed: {e.stderr}", file=sys.stderr)
         return 1
 
-    missing, invalid_fragments = diff.evaluate(Package.discover())
+    packages = Package.discover()
+
+    # Header invariant — every managed package's ``CHANGELOG.rst`` must contain
+    # a parseable header. Without this the nightly ``compile`` raises and the
+    # whole batch is lost (run 26494922179 — ``isaaclab_ppisp`` shipped with a
+    # 20-byte stub that the regex couldn't anchor to).
+    malformed_headers: list[str] = []
+    for pkg in packages:
+        text = pkg.changelog_path.read_text(encoding="utf-8")
+        if CHANGELOG_HEADER_RE.search(text) is None:
+            malformed_headers.append(str(pkg.changelog_path.relative_to(REPO_ROOT)))
+
+    missing, invalid_fragments = diff.evaluate(packages)
 
     if invalid_fragments:
         print("::error::Invalid changelog fragment(s) in this PR:")
@@ -981,7 +1001,27 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print()
         print("See AGENTS.md ## Changelog for full guidance.")
 
-    if invalid_fragments or missing:
+    if malformed_headers:
+        print("::error::Malformed CHANGELOG.rst — header must contain ``Changelog\\n---------\\n\\n``")
+        print("(header line, underline, then a blank line — the anchor the nightly compile prepends to):")
+        for path in malformed_headers:
+            print(f"  • {path}")
+        print()
+        print("Seed the file with at minimum:")
+        print()
+        print("    Changelog")
+        print("    ---------")
+        print()
+        print("    0.1.0 (YYYY-MM-DD)")
+        print("    ~~~~~~~~~~~~~~~~~~")
+        print()
+        print("    Added")
+        print("    ^^^^^")
+        print()
+        print("    * Initial release.")
+        print()
+
+    if invalid_fragments or missing or malformed_headers:
         return 1
 
     print("✓ All modified packages have valid changelog fragments.")
