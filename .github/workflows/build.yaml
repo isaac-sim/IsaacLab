@@ -74,7 +74,11 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
+      # TEMP (revert before final review): force run_docker_tests=false while
+      # iterating the Multi-GPU pytest docker conversion on PR #5823. All gated
+      # test/build jobs skip via their existing if-gate, freeing the single-GPU
+      # runner pool from re-running on every push.
+      run_docker_tests: 'false'
     steps:
     - id: detect
       env:
