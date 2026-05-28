@@ -213,7 +213,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     the pink IK controller and its tests work out of the box.
 
     Only runs on Linux x86_64 / aarch64 — the same platforms that have
-    pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
+    pinocchio listed in :mod:`isaaclab`'s ``pyproject.toml`` install requirements.
     Skipped on Windows and macOS (no cmeel wheels) and on unsupported
     architectures so the rest of ``--install`` behaves unchanged there.
 
@@ -487,7 +487,7 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 # Optional submodules — only installed when explicitly requested or with 'all'.
 # Maps the short CLI name to one or more source directory names under source/.
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
-    "mimic": ("isaaclab_mimic",),
+    "mimic": ("isaaclab_teleop", "isaaclab_mimic"),
     "teleop": ("isaaclab_teleop",),
 }
 
@@ -548,8 +548,8 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
     pip_cmd = get_pip_command(python_exe)
     for pkg_name in isaaclab_submodules:
         item = source_dir / pkg_name
-        if not item.is_dir() or not (item / "setup.py").exists():
-            print_warning(f"Submodule directory not found or missing setup.py: {item}")
+        if not item.is_dir() or not ((item / "pyproject.toml").exists() or (item / "setup.py").exists()):
+            print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
         run_command(pip_cmd + ["install", "--editable", str(item)])
@@ -978,7 +978,7 @@ def command_install(install_type: str = "all") -> None:
             for feature_name, selector in extra_features:
                 _install_extra_feature(feature_name, selector)
 
-        # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
+        # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
         # Can prevent that from happening.
         _ensure_cuda_torch()
 

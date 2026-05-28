@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import toml
+import tomllib
 import torch
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
@@ -250,8 +250,8 @@ class SimulationContext:
 
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
             if os.path.exists(preset_filename):
-                with open(preset_filename) as file:
-                    preset_dict = toml.load(file)
+                with open(preset_filename, "rb") as file:
+                    preset_dict = tomllib.load(file)
 
                 def _apply_nested(data: dict[str, Any], path: str = "") -> None:
                     for key, value in data.items():

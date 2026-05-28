@@ -122,7 +122,7 @@ class TestInstallConstants:
 
     def test_optional_submodules_contains_expected_packages(self):
         assert set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) == {"mimic", "teleop"}
-        assert OPTIONAL_ISAACLAB_SUBMODULES["mimic"] == ("isaaclab_mimic",)
+        assert OPTIONAL_ISAACLAB_SUBMODULES["mimic"] == ("isaaclab_teleop", "isaaclab_mimic")
         assert OPTIONAL_ISAACLAB_SUBMODULES["teleop"] == ("isaaclab_teleop",)
 
     def test_valid_extra_features(self):
