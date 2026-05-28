@@ -18,15 +18,11 @@ import warp as wp
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import path_source_path
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.sim.utils.queries import find_first_matching_prim, find_matching_prims
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from .asset_base_cfg import AssetBaseCfg
 
 
@@ -447,57 +443,3 @@ class AssetBase(ABC):
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
         else:
             self._debug_vis_handle = None
-
-    @staticmethod
-    def _resolve_matching_prims(
-        path_expr: str,
-        *,
-        predicate: Callable[[Usd.Prim], bool] | None = None,
-    ) -> list[tuple[Usd.Prim, str]]:
-        """Resolve prims matching ``path_expr`` (regex) under the first asset instance.
-
-        Plays the regex game: identify the env-id segment, concretize it to the
-        *first instance* (the authored source template in clone-plan mode, env-0
-        in legacy mode), then evaluate the remainder of ``path_expr`` as a
-        path-segment regex via
-        :func:`~isaaclab.sim.utils.queries.find_matching_prims`. Downstream
-        regex tokens (e.g. ``LF_.*``, ``.*_foot``) are preserved verbatim and
-        matched by ``find_matching_prims``.
-
-        Args:
-            path_expr: Destination-side path expression (e.g.,
-                :attr:`AssetBaseCfg.prim_path`), which may contain regex
-                wildcards in the env-id and/or asset-relative segments.
-            predicate: Optional callable accepting a :class:`Usd.Prim` and
-                returning ``True`` for prims to keep. ``None`` keeps every
-                match.
-
-        Returns:
-            List of ``(matched_prim, destination_expr)`` pairs.
-
-        Raises:
-            RuntimeError: When the env-id segment cannot be resolved in legacy
-                mode.
-        """
-        plan = SimulationContext.instance().get_clone_plan()
-        if plan is not None:
-            source_path, dest_glob, asset_suffix = path_source_path(path_expr, plan)
-            walk_root = source_path + asset_suffix
-            results = [
-                (prim, dest_glob + prim.GetPath().pathString[len(source_path) :])
-                for prim in find_matching_prims(walk_root)
-            ]
-        else:
-            match = re.match(r"^(/World/envs/[^/]+)(.*)$", path_expr)
-            if match is None:
-                walk_root = path_expr
-            else:
-                env_prefix_expr, tail = match.group(1), match.group(2)
-                first_env = find_first_matching_prim(env_prefix_expr)
-                if first_env is None:
-                    raise RuntimeError(f"No env matches '{env_prefix_expr}' (from '{path_expr}').")
-                walk_root = first_env.GetPath().pathString + tail
-            results = [(prim, prim.GetPath().pathString) for prim in find_matching_prims(walk_root)]
-        if predicate is not None:
-            results = [(prim, dest) for prim, dest in results if predicate(prim)]
-        return results

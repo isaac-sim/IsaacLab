@@ -19,7 +19,6 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
@@ -324,7 +323,7 @@ class VisuoTactileSensor(SensorBase):
         # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
         # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
         elastomer_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        matches = AssetBase._resolve_matching_prims(elastomer_expr)
+        matches = sim_utils.resolve_matching_prims_from_source(elastomer_expr)
         if not matches:
             raise RuntimeError(f"No prim found at '{elastomer_expr}'.")
         elastomer_dest_expr = matches[0][1]
@@ -429,7 +428,7 @@ class VisuoTactileSensor(SensorBase):
         # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
         # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
         elastomer_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        matches = AssetBase._resolve_matching_prims(elastomer_expr)
+        matches = sim_utils.resolve_matching_prims_from_source(elastomer_expr)
         if not matches:
             raise RuntimeError(f"No prim found at '{elastomer_expr}'.")
         elastomer_prim_path = matches[0][0].GetPath().pathString

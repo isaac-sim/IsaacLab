@@ -132,8 +132,9 @@ class _NewtonRayCasterMixin:
     def _resolve_target_owner_exprs(self, prim_expr: str) -> list[str]:
         """Resolve mesh target expressions to owning rigid-body expressions."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        if plan is not None:
-            source_path, dest_glob, asset_suffix = path_source_path(prim_expr, plan)
+        resolved = path_source_path(prim_expr, plan) if plan is not None else None
+        if resolved is not None:
+            source_path, dest_glob, asset_suffix = resolved
             walk_root = source_path + asset_suffix
             source_prims = sim_utils.find_matching_prims(walk_root)
             if not source_prims:
@@ -151,7 +152,7 @@ class _NewtonRayCasterMixin:
                 owner_exprs.append(dest_glob + owner_prim_path[len(source_path) :])
             return list(dict.fromkeys(owner_exprs))
 
-        # Legacy fallback for stages without a clone plan.
+        # Legacy fallback: no clone plan, or the target is not owned by any plan row.
         prims = sim_utils.find_matching_prims(prim_expr)
         if len(prims) == 0:
             return [_newton_body_pattern(prim_expr)]

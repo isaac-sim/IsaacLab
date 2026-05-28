@@ -20,7 +20,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -1082,7 +1081,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         root_prim_path_exprs: list[str] = []
 
         for name, rigid_body_cfg in self.cfg.rigid_objects.items():
-            matches = AssetBase._resolve_matching_prims(rigid_body_cfg.prim_path)
+            matches = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)
             if not matches:
                 raise RuntimeError(f"No prim found at '{rigid_body_cfg.prim_path}'.")
             asset_prim, root_expr = matches[0]

@@ -26,8 +26,7 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.asset_base import AssetBase
-from isaaclab.sim.utils.queries import get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
@@ -3500,7 +3499,7 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            matches = AssetBase._resolve_matching_prims(self.cfg.prim_path)
+            matches = resolve_matching_prims_from_source(self.cfg.prim_path)
             if not matches:
                 raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
             asset_prim, root_expr = matches[0]

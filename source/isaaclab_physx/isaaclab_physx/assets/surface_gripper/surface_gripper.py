@@ -456,7 +456,7 @@ class SurfaceGripper(AssetBase):
         def is_surface_gripper(prim) -> bool:
             return prim.GetTypeName() == "IsaacSurfaceGripper"
 
-        matches = AssetBase._resolve_matching_prims(self._cfg.prim_path)
+        matches = sim_utils.resolve_matching_prims_from_source(self._cfg.prim_path)
         if not matches:
             raise RuntimeError(f"No prim found at '{self._cfg.prim_path}'.")
         asset_prim, root_expr = matches[0]

@@ -16,9 +16,9 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-from isaaclab.assets import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -188,7 +188,7 @@ class FrameTransformer(BaseFrameTransformer):
             def has_rigid_body_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-            matches = AssetBase._resolve_matching_prims(prim_path, predicate=has_rigid_body_api)
+            matches = resolve_matching_prims_from_source(prim_path, predicate=has_rigid_body_api)
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."

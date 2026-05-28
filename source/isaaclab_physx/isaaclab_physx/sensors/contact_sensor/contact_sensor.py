@@ -18,10 +18,9 @@ import warp as wp
 import omni.physics.tensors.api as physx
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.assets import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -301,7 +300,7 @@ class ContactSensor(BaseContactSensor):
             )
 
         # Resolve the asset subtree (clone-plan aware) and collect contact-reporting descendants.
-        matches = AssetBase._resolve_matching_prims(parent_expr)
+        matches = resolve_matching_prims_from_source(parent_expr)
         if not matches:
             raise RuntimeError(f"No prim found at '{parent_expr}'.")
         asset_prim, body_parent = matches[0]

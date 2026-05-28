@@ -17,7 +17,6 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -1046,7 +1045,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         for name, obj_cfg in self.cfg.rigid_objects.items():
             # Resolve the rigid body root expression.
-            matches = AssetBase._resolve_matching_prims(obj_cfg.prim_path)
+            matches = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path)
             if not matches:
                 raise RuntimeError(f"No prim found at '{obj_cfg.prim_path}'.")
             asset_prim, root_expr = matches[0]

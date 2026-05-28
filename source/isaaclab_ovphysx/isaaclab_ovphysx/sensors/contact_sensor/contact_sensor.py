@@ -16,9 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from isaaclab.assets import AssetBase
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
@@ -199,7 +198,7 @@ class ContactSensor(BaseContactSensor):
                 "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
             )
 
-        matches = AssetBase._resolve_matching_prims(parent_expr)
+        matches = resolve_matching_prims_from_source(parent_expr)
         if not matches:
             raise RuntimeError(f"No prim found at '{parent_expr}'.")
         asset_prim, body_parent = matches[0]

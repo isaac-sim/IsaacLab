@@ -21,7 +21,7 @@ from .clone_plan import ClonePlan
 logger = logging.getLogger(__name__)
 
 
-def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str]:
+def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
     """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
 
     Finds the rows whose destination template owns ``path_expr`` (same matching
@@ -39,10 +39,13 @@ def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str]:
         Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)``. The
         ``asset_suffix`` is the part of ``path_expr`` beyond the matching row's
         destination template (empty when ``path_expr`` equals the row's template).
+        Returns ``None`` when ``path_expr`` matches no row in the plan, letting
+        callers fall back to direct stage resolution (e.g. for sensor frames
+        mounted at the env root rather than under a planned asset).
 
     Raises:
-        ValueError: When ``path_expr`` matches no row in the plan, or its matching
-            rows span multiple distinct destination templates.
+        ValueError: When ``path_expr``'s matching rows span multiple distinct
+            destination templates.
         NotImplementedError: When the union of matching rows' clone masks does not
             cover every env (partial-env heterogeneous coverage is unsupported).
     """
@@ -76,7 +79,7 @@ def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str]:
             )
         matching_rows.append(source_index)
     if matching_template is None:
-        raise ValueError(f"path_expr {path_expr!r}: no matching destination row in clone plan.")
+        return None
     if not plan.clone_mask[matching_rows].any(dim=0).all():
         raise NotImplementedError(
             f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"

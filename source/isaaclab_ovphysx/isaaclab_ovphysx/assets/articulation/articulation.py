@@ -23,7 +23,6 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -3483,7 +3482,7 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            matches = AssetBase._resolve_matching_prims(self.cfg.prim_path)
+            matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
             if not matches:
                 raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
             asset_prim, root_expr = matches[0]

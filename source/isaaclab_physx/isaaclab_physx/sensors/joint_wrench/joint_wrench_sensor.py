@@ -16,9 +16,8 @@ import warp as wp
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -127,7 +126,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-        matches = AssetBase._resolve_matching_prims(self.cfg.prim_path)
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
         if not matches:
             raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
         asset_prim, root_expr = matches[0]
@@ -162,7 +161,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         joint_quat_b = np.zeros((self._num_bodies, 4), dtype=np.float32)
         joint_quat_b[:, 3] = 1.0
 
-        matches = AssetBase._resolve_matching_prims(self.cfg.prim_path)
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
         if not matches:
             raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
         first_env_matching_prim = matches[0][0]

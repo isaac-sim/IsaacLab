@@ -18,10 +18,9 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.sim.utils.queries import get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -855,7 +854,7 @@ class RigidObject(BaseRigidObject):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        matches = AssetBase._resolve_matching_prims(self.cfg.prim_path)
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
         if not matches:
             raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
         asset_prim, root_expr = matches[0]

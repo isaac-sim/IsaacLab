@@ -24,7 +24,6 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBase
 from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
@@ -523,7 +522,7 @@ class SensorBase(ABC):
               quaternion ``(x, y, z, w)``, or ``None`` when the sensor is
               mounted directly at the body origin.
         """
-        matches = AssetBase._resolve_matching_prims(self.cfg.prim_path)
+        matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
         if not matches:
             raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
         prim, target_expr = matches[0]
