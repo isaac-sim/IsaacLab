@@ -141,10 +141,8 @@ buffer (typically the scene) avoids duplicating tensors.
     sources      = [source_0, source_1, ...]
     destinations = [destination_0, destination_1, ...]
     clone_mask   = bool tensor, shape [len(sources), num_envs]
-    env_pose     = float tensor, shape [num_envs, 7]  (xyz position + xyzw quaternion)
 
 ``clone_mask[i, j]`` is ``True`` when environment ``j`` should receive source row ``i``.
-``env_pose[j]`` is the per-environment world pose used to place the cloned destinations.
 The same plan can be passed to USD replication, physics replication, and scene-data
 providers.
 

@@ -231,9 +231,7 @@ def make_clone_plan(
     Enumerates all combinations of prototypes, selects a combination per environment using
     ``clone_strategy``, and builds the boolean masking matrix that indicates which prototype
     populates each environment slot. The caller composes the returned tuple into a
-    :class:`ClonePlan` together with the per-environment pose buffer it owns
-    (see :attr:`ClonePlan.env_pose`); this keeps pose authority with the scene and avoids
-    allocating a duplicate pose tensor here.
+    :class:`ClonePlan`.
 
     Args:
         sources: Prototype prim paths grouped by asset type (e.g., ``[[robot_a, robot_b], [obj_x]]``).

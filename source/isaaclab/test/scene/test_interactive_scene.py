@@ -161,7 +161,6 @@ def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: p
         sources=(scene.env_fmt.format(0),),
         destinations=(scene.env_fmt,),
         clone_mask=torch.ones((1, scene.num_envs), dtype=torch.bool),
-        env_pose=scene._default_env_pose,
     )
     # Avoid binding this unit test to global SimulationContext singleton state.
     monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
@@ -251,7 +250,6 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
         clone_mask=torch.tensor([[True, False], [False, True]], dtype=torch.bool),
-        env_pose=scene._default_env_pose,
     )
 
     set_plan_calls: list = []

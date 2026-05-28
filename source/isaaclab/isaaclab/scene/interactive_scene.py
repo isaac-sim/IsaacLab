@@ -195,8 +195,11 @@ class InteractiveScene:
             self.sim.set_clone_plan(self._clone_plan)
             self._add_entities_from_cfg()
         else:
-            clone_plan = cloner.ClonePlan((self.env_fmt.format(0),), (self.env_fmt,), homo_mask, self._default_env_pose)
-            self._clone_plan = clone_plan
+            self._clone_plan = cloner.ClonePlan(
+                sources=(self.env_fmt.format(0),),
+                destinations=(self.env_fmt,),
+                clone_mask=homo_mask,
+            )
             self.sim.set_clone_plan(self._clone_plan)
 
         # Aggregate scene-data requirements from declared visualizers and constructed sensors,
@@ -257,7 +260,11 @@ class InteractiveScene:
             for _, spawn_cfg, destination, _ in groups:
                 set_spawn_paths(spawn_cfg, [destination.format(0)])
             clone_mask = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-            return cloner.ClonePlan((self.env_fmt.format(0),), (self.env_fmt,), clone_mask, self._default_env_pose)
+            return cloner.ClonePlan(
+                sources=(self.env_fmt.format(0),),
+                destinations=(self.env_fmt,),
+                clone_mask=clone_mask,
+            )
 
         sources, destinations, clone_mask = cloner.make_clone_plan(
             sources=[[destination.format(i) for i in range(count)] for _, _, destination, count in groups],
@@ -282,7 +289,7 @@ class InteractiveScene:
             source_start += count
 
         logger.debug("Built heterogeneous ClonePlan with %d source entries.", len(sources))
-        return cloner.ClonePlan(tuple(sources), destinations, clone_mask, self._default_env_pose)
+        return cloner.ClonePlan(sources=tuple(sources), destinations=destinations, clone_mask=clone_mask)
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
