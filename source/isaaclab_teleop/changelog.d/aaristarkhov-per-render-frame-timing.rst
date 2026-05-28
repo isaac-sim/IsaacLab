@@ -1,17 +1,18 @@
-Changed
-^^^^^^^
+Fixed
+^^^^^
 
-* Changed ``teleop_replay_agent.py``'s ``cpu_frame_time_ms`` and ``fps``
-  blocks to derive from honest per-rendered-frame samples. The agent
-  wraps :meth:`~isaaclab.sim.SimulationContext.render` and records the
+* Fixed ``teleop_replay_agent.py``'s ``cpu_frame_time_ms`` and ``fps``
+  percentiles, which previously projected per-``env.step`` CPU samples
+  onto per-render units by dividing by ``decimation / render_interval``.
+  Because each ``env.step`` folds multiple physics substeps and rendered
+  frames into a single measurement, those sums are CLT-smoothed and
+  underreport per-frame hitches the headset wearer / spectator actually
+  sees. The agent now wraps
+  :meth:`~isaaclab.sim.SimulationContext.render` and records the
   wall-clock interval between successive calls produced from inside
-  ``env.step`` during the active window, replacing the prior
-  ``env.step``-CPU-time-divided-by-``decimation / render_interval``
-  projection. Percentiles now reflect the actual per-frame distribution
-  rather than the sum-of-frames smoothing that ``env.step`` totals
-  averaged over. The run dict's ``active_iterations`` field now counts
-  ``env.step`` calls via a dedicated counter rather than the length of
-  the (now per-render) sample list. The agent terminates with a
-  ``RuntimeError`` when a run records active ``env.step`` iterations
-  but produces no per-render samples (e.g. when the sim is not
-  rendering).
+  ``env.step`` during the active window; that per-rendered-frame series
+  is the new source for ``cpu_frame_time_ms`` and ``fps``. The run
+  dict's ``active_iterations`` field is backed by a dedicated counter.
+  The agent raises ``RuntimeError`` when a run records active
+  ``env.step`` iterations but produces no per-render samples (e.g.
+  when the sim is not rendering).
