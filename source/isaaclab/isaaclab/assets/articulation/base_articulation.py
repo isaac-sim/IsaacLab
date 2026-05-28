@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from ...sim import SimulationContext
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
 
@@ -96,6 +95,8 @@ class BaseArticulation(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        from ...sim import SimulationContext
+
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
 
