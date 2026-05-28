@@ -6,10 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Pure-Python unit tests for proxy-coupled MJWarp+VBD partitioning logic.
+"""Pure-Python unit tests for the coupled-solver manager partitioning logic.
 
 These tests intentionally do NOT launch :class:`isaaclab.app.AppLauncher`.
-:class:`NewtonProxyCoupledMJWarpVBDManager`'s body/joint/shape partitioning and
+:class:`NewtonCoupledSolverManager`'s body/joint/shape partitioning and
 proxy-body resolution are static class methods that operate on a Newton
 :class:`newton.Model` and an :class:`isaaclab.scene.InteractiveSceneCfg`, so
 they can be tested against minimal fakes without spinning up Isaac Sim.
@@ -29,7 +29,7 @@ from newton import ShapeFlags
 
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_contrib.deformable.proxy_coupled_mjwarp_vbd_manager import NewtonProxyCoupledMJWarpVBDManager
+from isaaclab_contrib.coupling.coupled_manager import NewtonCoupledSolverManager
 
 ##
 # Fakes
@@ -143,11 +143,11 @@ def _robot_scene() -> _FakeSceneCfg:
 
 def test_resolve_entity_no_body_names_returns_all_under_asset():
     model = _model_with_two_bodies()
-    body_ids = NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
         model,
         SceneEntityCfg("robot"),
         _robot_scene(),
-        field="mjwarp_bodies",
+        field="src_bodies",
     )
     assert body_ids == [0, 1]
 
@@ -155,7 +155,7 @@ def test_resolve_entity_no_body_names_returns_all_under_asset():
 def test_resolve_entity_body_names_filter_by_regex():
     """Patterns full-match against the short name (segment after last ``/``)."""
     model = _model_with_two_bodies()
-    body_ids = NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
         model,
         SceneEntityCfg("robot", body_names=["panda_hand"]),
         _robot_scene(),
@@ -167,18 +167,18 @@ def test_resolve_entity_body_names_filter_by_regex():
 def test_resolve_entity_asset_missing_on_scene_cfg_raises():
     model = _model_with_two_bodies()
     with pytest.raises(ValueError, match="not on the attached scene cfg"):
-        NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
             model,
             SceneEntityCfg("missing_asset"),
             _robot_scene(),
-            field="mjwarp_bodies",
+            field="src_bodies",
         )
 
 
 def test_resolve_entity_unmatched_body_names_raises():
     model = _model_with_two_bodies()
     with pytest.raises(ValueError, match="no bodies matching"):
-        NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
             model,
             SceneEntityCfg("robot", body_names=["nonexistent_link"]),
             _robot_scene(),
@@ -199,21 +199,21 @@ def test_partition_splits_bodies_joints_shapes():
         other=_FakeAsset(prim_path="/World/envs/env_.*/Robot"),
     )
 
-    mjc_b, vbd_b, mjc_j, vbd_j, mjc_s, vbd_s = NewtonProxyCoupledMJWarpVBDManager._partition_model_by_entities(
+    src_b, dst_b, src_j, dst_j, src_s, dst_s = NewtonCoupledSolverManager._partition_model_by_entities(
         model,
-        mjwarp_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
-        vbd_bodies=[SceneEntityCfg("other", body_names=["panda_hand"])],
+        src_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
+        dst_bodies=[SceneEntityCfg("other", body_names=["panda_hand"])],
         scene_cfg=scene,
     )
 
-    assert mjc_b == [0]
-    assert vbd_b == [1]
-    # Joint 0's child is body 1 (VBD partition) → the joint index lands in VBD.
-    assert mjc_j == []
-    assert vbd_j == [0]
-    # Shape 0 → body 0 (MJC). Shape 1 → body 1 (VBD). Shape 2 → body -1 (static, → VBD).
-    assert mjc_s == [0]
-    assert vbd_s == [1, 2]
+    assert src_b == [0]
+    assert dst_b == [1]
+    # Joint 0's child is body 1 (dst partition) → the joint index lands in dst.
+    assert src_j == []
+    assert dst_j == [0]
+    # Shape 0 → body 0 (src). Shape 1 → body 1 (dst). Shape 2 → body -1 (static, → dst).
+    assert src_s == [0]
+    assert dst_s == [1, 2]
 
 
 def test_partition_overlapping_bodies_raises():
@@ -223,10 +223,10 @@ def test_partition_overlapping_bodies_raises():
         other=_FakeAsset(prim_path="/World/envs/env_.*/Robot"),
     )
     with pytest.raises(ValueError, match="match both"):
-        NewtonProxyCoupledMJWarpVBDManager._partition_model_by_entities(
+        NewtonCoupledSolverManager._partition_model_by_entities(
             model,
-            mjwarp_bodies=[SceneEntityCfg("robot")],
-            vbd_bodies=[SceneEntityCfg("other", body_names=["panda_hand"])],
+            src_bodies=[SceneEntityCfg("robot")],
+            dst_bodies=[SceneEntityCfg("other", body_names=["panda_hand"])],
             scene_cfg=scene,
         )
 
@@ -234,10 +234,10 @@ def test_partition_overlapping_bodies_raises():
 def test_partition_unclaimed_bodies_raises():
     model = _model_with_two_bodies()
     with pytest.raises(ValueError, match="unclaimed"):
-        NewtonProxyCoupledMJWarpVBDManager._partition_model_by_entities(
+        NewtonCoupledSolverManager._partition_model_by_entities(
             model,
-            mjwarp_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
-            vbd_bodies=[],
+            src_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
+            dst_bodies=[],
             scene_cfg=_robot_scene(),
         )
 
@@ -253,7 +253,7 @@ def test_select_proxy_bodies_filters_to_collide_shapes():
     # Knock out body 0's collide flag — only body 1 should remain.
     model.shape_flags = _FakeArray(np.asarray([0, int(ShapeFlags.COLLIDE_SHAPES)], dtype=np.int32))
 
-    proxy_ids = NewtonProxyCoupledMJWarpVBDManager._select_proxy_bodies(
+    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
         model,
         proxy_bodies=[SceneEntityCfg("robot", body_names=["panda_link0", "panda_hand"])],
         scene_cfg=_robot_scene(),
@@ -265,7 +265,7 @@ def test_select_proxy_bodies_requires_body_names():
     """For ``SceneEntityCfg`` entries — proxies must be a subset, not the whole asset."""
     model = _model_with_two_bodies(with_shapes=True)
     with pytest.raises(ValueError, match="requires `body_names`"):
-        NewtonProxyCoupledMJWarpVBDManager._select_proxy_bodies(
+        NewtonCoupledSolverManager._select_proxy_bodies(
             model,
             proxy_bodies=[SceneEntityCfg("robot")],
             scene_cfg=_robot_scene(),
@@ -274,7 +274,7 @@ def test_select_proxy_bodies_requires_body_names():
 
 def test_select_proxy_bodies_empty_input_returns_empty():
     """No ``proxy_bodies`` entries → no proxies (short-circuit before model lookups)."""
-    proxy_ids = NewtonProxyCoupledMJWarpVBDManager._select_proxy_bodies(
+    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
         model=_FakeModel(body_count=0, body_label=[]),
         proxy_bodies=[],
         scene_cfg=None,
@@ -285,7 +285,7 @@ def test_select_proxy_bodies_empty_input_returns_empty():
 def test_select_proxy_bodies_deduplicates_across_entries():
     """Multiple entries matching the same body produce a single proxy entry."""
     model = _model_with_two_bodies(with_shapes=True)
-    proxy_ids = NewtonProxyCoupledMJWarpVBDManager._select_proxy_bodies(
+    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
         model,
         proxy_bodies=[
             SceneEntityCfg("robot", body_names=["panda_hand"]),
@@ -305,11 +305,11 @@ def test_resolve_string_prefix_claims_all_bodies_under_path():
     """A raw prim-path string claims every body whose label matches ``^<string>(/|$)``."""
     model = _model_with_two_bodies()
     # Asset-prefix regex over the whole robot.
-    body_ids = NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
         model,
         spec="/World/envs/env_.*/Robot",
         scene_cfg=None,
-        field="mjwarp_bodies",
+        field="src_bodies",
     )
     assert body_ids == [0, 1]
 
@@ -317,7 +317,7 @@ def test_resolve_string_prefix_claims_all_bodies_under_path():
 def test_resolve_string_narrows_to_a_single_body():
     """A specific prim-path string claims only the body with that exact label."""
     model = _model_with_two_bodies()
-    body_ids = NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
         model,
         spec="/World/envs/env_.*/Robot/panda_hand",
         scene_cfg=None,
@@ -330,31 +330,31 @@ def test_resolve_string_no_matches_raises():
     """A raw prim-path string with zero matches is treated as a typo."""
     model = _model_with_two_bodies()
     with pytest.raises(ValueError, match="matched no bodies"):
-        NewtonProxyCoupledMJWarpVBDManager._resolve_entity_to_body_ids(
+        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
             model,
             spec="/World/envs/env_.*/Nonexistent",
             scene_cfg=None,
-            field="mjwarp_bodies",
+            field="src_bodies",
         )
 
 
 def test_partition_accepts_mixed_string_and_scene_entity():
-    """``mjwarp_bodies`` / ``vbd_bodies`` accept a mix of strings and ``SceneEntityCfg``."""
+    """``src_bodies`` / ``dst_bodies`` accept a mix of strings and ``SceneEntityCfg``."""
     model = _model_with_two_bodies(with_shapes=True, with_joints=True)
-    mjc_b, vbd_b, _, _, _, _ = NewtonProxyCoupledMJWarpVBDManager._partition_model_by_entities(
+    src_b, dst_b, _, _, _, _ = NewtonCoupledSolverManager._partition_model_by_entities(
         model,
-        mjwarp_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
-        vbd_bodies=["/World/envs/env_.*/Robot/panda_hand"],
+        src_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
+        dst_bodies=["/World/envs/env_.*/Robot/panda_hand"],
         scene_cfg=_robot_scene(),
     )
-    assert mjc_b == [0]
-    assert vbd_b == [1]
+    assert src_b == [0]
+    assert dst_b == [1]
 
 
 def test_select_proxy_bodies_accepts_string_without_body_names():
     """A raw prim-path string in ``proxy_bodies`` bypasses the ``body_names`` requirement."""
     model = _model_with_two_bodies(with_shapes=True)
-    proxy_ids = NewtonProxyCoupledMJWarpVBDManager._select_proxy_bodies(
+    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
         model,
         proxy_bodies=["/World/envs/env_.*/Robot/panda_hand"],
         scene_cfg=None,

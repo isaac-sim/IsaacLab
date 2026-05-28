@@ -36,6 +36,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_contrib.coupling import CoupledProxySolverCfg
 from isaaclab_contrib.deformable.newton_manager_cfg import (
     ProxyCoupledMJWarpVBDSolverCfg,
     CoupledMJWarpVBDSolverCfg,
@@ -142,17 +143,18 @@ class PhysicsCfg(PresetCfg):
     )
 
     newton_mjwarp_vbd_proxy: CoupledNewtonCfg = CoupledNewtonCfg(
-        solver_cfg=ProxyCoupledMJWarpVBDSolverCfg(
-            mjwarp_cfg=MJWarpSolverCfg(
+        solver_cfg=CoupledProxySolverCfg(
+            src_solver_cfg=MJWarpSolverCfg(
                 cone="elliptic",
                 ls_parallel=True,
                 ls_iterations=20,
                 integrator="implicitfast",
             ),
-            vbd_cfg=VBDSolverCfg(
+            dst_solver_cfg=VBDSolverCfg(
                 iterations=10,
+                integrate_with_external_rigid_solver=True,
             ),
-            mjwarp_bodies=["/World/envs/env_.*/Robot"],
+            src_bodies=["/World/envs/env_.*/Robot"],
             proxy_bodies=[
                 "/World/envs/env_.*/Robot/panda_hand",
                 "/World/envs/env_.*/Robot/panda_(left|right)finger",

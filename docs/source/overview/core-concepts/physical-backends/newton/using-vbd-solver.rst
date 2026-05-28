@@ -23,11 +23,11 @@ rigid bodies and VBD advances deformable particles:
 * :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` — alternates
   the rigid (MJWarp) and VBD substeps. Use it when the same robot should both
   contact and feel the deformable.
-* :class:`~isaaclab_contrib.deformable.ProxyCoupledMJWarpVBDSolverCfg` —
-  partitions the model between an MJWarp entry and a VBD entry, exposing
-  selected rigid bodies as *proxies* in the VBD view via lagged impulses (see
-  :ref:`newton-vbd-proxy-coupling` below). Use it when only a few rigid bodies
-  (e.g. a gripper) need to interact with the deformable.
+* :class:`~isaaclab_contrib.coupling.CoupledProxySolverCfg` —
+  partitions the model between a source entry and a destination entry, exposing
+  selected source bodies as *proxies* in the destination view via lagged
+  impulses (see :ref:`newton-vbd-proxy-coupling` below). Use it when only a few
+  rigid bodies (e.g. a gripper) need to interact with the deformable.
 * :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` —
   alternates Featherstone and VBD; supports kinematic one-way coupling.
 
@@ -221,16 +221,18 @@ The rigid solver parameters still matter. For example, MJWarp's ``nconmax`` and
 Proxy-Coupled MJWarp + VBD
 --------------------------
 
-:class:`~isaaclab_contrib.deformable.ProxyCoupledMJWarpVBDSolverCfg` is an
-alternative MJWarp + VBD coupling that wraps Newton's
-:class:`newton.solvers.SolverCoupledProxy`. Instead of alternating two
-full-model substeps, the model is **partitioned** between an MJWarp entry and a
-VBD entry, and selected rigid bodies are exposed to VBD as *proxies* — virtual
-copies that VBD collides against. Contact feedback is returned to MJWarp as
-lagged impulses. This typically scales better than the alternating coupling
-when only a small set of rigid bodies (e.g. the fingers of a gripper) actually
-needs to touch the deformable, since the bulk of the articulation is solved
-purely by MJWarp without seeing the particle contacts.
+:class:`~isaaclab_contrib.coupling.CoupledProxySolverCfg` is an alternative
+MJWarp + VBD coupling that wraps Newton's
+:class:`newton.solvers.experimental.coupled.SolverCoupledProxy`. Instead of
+alternating two full-model substeps, the model is **partitioned** between a
+source (rigid, e.g. MJWarp) entry and a destination (soft, e.g. VBD) entry,
+and selected source bodies are exposed to the destination solver as *proxies* —
+virtual copies that the destination collides against. Contact feedback is
+returned to the source solver as lagged impulses. This typically scales better
+than the alternating coupling when only a small set of rigid bodies (e.g. the
+fingers of a gripper) actually needs to touch the deformable, since the bulk of
+the articulation is solved purely by MJWarp without seeing the particle
+contacts.
 
 The Franka soft-body task ships a ``newton_mjwarp_vbd_proxy`` preset (the new
 default for ``Isaac-Lift-Soft-Franka-v0``) that demonstrates the typical
@@ -244,16 +246,16 @@ configuration:
 
 What the selectors do:
 
-* ``mjwarp_bodies`` and ``vbd_bodies`` partition every body in the model. Each
+* ``src_bodies`` and ``dst_bodies`` partition every body in the model. Each
   entry is either a :class:`~isaaclab.managers.SceneEntityCfg` (resolved
   against the scene's ``prim_path``, optionally narrowed by ``body_names``) or
   a raw prim-path regex string matched against ``model.body_label`` (e.g.
   ``"/World/envs/env_.*/Robot"``). Joints inherit their child body's owner;
   shapes inherit their body's owner. Static shapes (world geometry) always go
-  to VBD so the proxy collision pipeline can test against the ground. A body
-  matching both partitions, or matching neither, is an error.
-* ``proxy_bodies`` selects the (rigid) MJWarp bodies that VBD should collide
-  against. Only bodies that own at least one
+  to the destination entry so the proxy collision pipeline can test against the
+  ground. A body matching both partitions, or matching neither, is an error.
+* ``proxy_bodies`` selects the (rigid) source bodies that the destination solver
+  should collide against. Only bodies that own at least one
   ``newton.ShapeFlags.COLLIDE_SHAPES`` shape are kept. For
   :class:`~isaaclab.managers.SceneEntityCfg` entries, ``body_names`` is
   **required** here since proxies must be a strict subset of the asset.

@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg
 
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
@@ -105,72 +104,6 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     - ``"one_way"``: Rigid -> soft only.
     - ``"two_way"``: Same-substep two-way coupling with normal + Coulomb friction.
     """
-
-
-@configclass
-class ProxyCoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
-    """Configuration for the proxy-coupled MJWarp + VBD solver.
-
-    Wraps Newton's :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`
-    (lagged-impulse virtual-proxy coupling) with MuJoCo Warp as the rigid sub-solver and VBD as
-    the soft sub-solver. Selected MuJoCo bodies are exposed as proxy bodies in
-    the VBD view so VBD detects contacts against them and returns feedback
-    wrenches to MuJoCo via lagged impulses.
-
-    Body selectors are either :class:`~isaaclab.managers.SceneEntityCfg`
-    (scoped by the asset's ``prim_path``, optionally narrowed by ``body_names``
-    full-matched against body short names) or raw prim-path regex strings
-    (e.g. ``"/World/envs/env_.*/MyCube"``) matched against ``model.body_label``
-    via ``^<string>(/|$)``.
-    """
-
-    class_type: type[NewtonManager] | str = "{DIR}.proxy_coupled_mjwarp_vbd_manager:NewtonProxyCoupledMJWarpVBDManager"
-    """Manager class for the proxy-coupled MJWarp + VBD solver."""
-
-    requires_graph_coloring: bool = True
-
-    mjwarp_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
-    """MuJoCo Warp sub-solver configuration."""
-
-    vbd_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
-    """VBD sub-solver configuration; defaults to external rigid integration since
-    rigid bodies live in the MuJoCo entry."""
-
-    mjwarp_bodies: list[SceneEntityCfg | str] = []
-    """Selectors whose bodies/joints/shapes go to the MuJoCo entry.
-
-    Joints inherit their child body's owner; shapes inherit their body's
-    owner; static shapes (``body == -1``) always go to the VBD entry.
-    """
-
-    vbd_bodies: list[SceneEntityCfg | str] = []
-    """Selectors routed to the VBD entry (see :attr:`mjwarp_bodies`)."""
-
-    proxy_bodies: list[SceneEntityCfg | str] = []
-    """Selectors naming MuJoCo bodies to expose as proxies in the VBD view.
-
-    For :class:`SceneEntityCfg` entries, ``body_names`` is **required**
-    (proxies are a subset, not the whole asset); raw strings are accepted
-    as-is. Matched bodies are filtered to those owning at least one
-    ``newton.ShapeFlags.COLLIDE_SHAPES`` shape. Empty list = no proxies.
-    """
-
-    proxy_mode: str = "lagged"
-    """Proxy transfer mode passed to :class:`newton.solvers.experimental.coupled.SolverCoupledProxy.Proxy`.
-
-    - ``"lagged"``: syncs source begin poses and end velocities, then rewinds
-      lagged feedback before the destination solve.
-    - ``"staggered"``: syncs source end poses and end velocities directly.
-    """
-
-    proxy_iterations: int = 1
-    """Number of relaxation iterations per coupled substep."""
-
-    proxy_collide_interval: int = 1
-    """Collision-detection refresh interval (in proxy passes)."""
-
-    proxy_mass_scale: float = 1.0
-    """Mass / inertia scale applied to destination proxy bodies (virtual inertia)."""
 
 
 @configclass
