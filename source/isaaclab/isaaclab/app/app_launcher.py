@@ -1227,24 +1227,20 @@ class AppLauncher:
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
     def _log_kit_version_info(self):
-        """Log Kit and runtime version information for CI diagnostics."""
-        try:
-            import carb
-            import omni.kit.app
+        """Log Kit and runtime version information."""
+        import carb
+        import omni.kit.app
 
-            app = omni.kit.app.get_app()
-            tokens = carb.tokens.get_tokens_interface()
+        app = omni.kit.app.get_app()
+        tokens = carb.tokens.get_tokens_interface()
 
-            kit_version = app.get_kit_version()
-            kernel_version = app.get_kernel_version()
-            kit_git_hash = tokens.resolve("${kit_git_hash}")
+        kit_version = app.get_kit_version()
+        kernel_version = app.get_kernel_version()
+        kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
 
-            print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
-            print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
-            print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
-        except Exception:
-            # Non-fatal: version logging is best-effort diagnostics.
-            pass
+        print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
+        print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
+        print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
 
     def _abort_signal_handle_callback(self, signal, frame):
         """Handle the abort/segmentation/kill signals."""
