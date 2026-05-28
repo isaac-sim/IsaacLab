@@ -13,3 +13,10 @@ isaaclab.visualizers. Import a specific backend only when needed:
   from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
   from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 """
+
+import importlib.metadata
+
+try:
+    __version__ = importlib.metadata.version("isaaclab_visualizers")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"

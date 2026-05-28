@@ -1,3 +1,109 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab"
+version = "6.1.0"
+description = "Extension providing main framework interfaces and abstractions for robot learning."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+keywords = ["kit", "robotics", "learning", "ai"]
+requires-python = ">=3.12"
+dependencies = [
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "onnx>=1.18.0",
+    "prettytable>=3.3.0",
+    # devices
+    "hidapi>=0.14.0",
+    # reinforcement learning
+    "gymnasium>=1.2.0",
+    # procedural-generation
+    "trimesh",
+    "pyglet>=2.1.6,<3",
+    # pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on
+    # aarch64 (CMake hardcodes -m64). Gate it on x86_64 so ARM64 docker builds are
+    # not blocked; tetrahedralize callers degrade gracefully via ImportError when missing.
+    # Pinned to ==0.2.3: >=0.3 unconditionally imports pyvista at package import time.
+    "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
+    # image processing
+    "transformers==4.57.6",
+    "einops",
+    "warp-lang==1.13.0",
+    "matplotlib>=3.10.3",
+    # keep consistent with isaac sim version
+    "pillow==12.1.1",
+    # required by omni.replicator.core S3 backend
+    "botocore",
+    # livestream (range chosen to coexist with isaacsim 6.0)
+    "starlette>=0.46.0,<0.50",
+    "omniverseclient==2.71.1.7015",
+    # cross-platform file locking
+    "filelock",
+    "lazy_loader>=0.4",
+    # IK controller (Linux x86_64 + ARM64)
+    "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "pin-pink>=3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "daqp>=0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    # OpenUSD (kit-less mode)
+    "usd-core>=25.0.0 ; platform_machine in 'x86_64 AMD64'",
+    "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
+    "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+]
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[project.scripts]
+isaaclab = "isaaclab.cli:cli"
+play = "isaaclab.cli:play"
+train = "isaaclab.cli:train"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flatdict>=4.1.0",
+    "flaky",
+    # coverage>=7.6.1 restored coverage.types.Tracer as a shim; required for
+    # numba compatibility (numba subclasses Tracer at import time)
+    "coverage>=7.6.1",
+]
+isaacsim = ["isaacsim[all,extscache]>=6.0.0"]
+all = [
+    "isaacsim[all,extscache]>=6.0.0",
+    "isaaclab_assets",
+    "isaaclab_contrib",
+    "isaaclab_experimental",
+    "isaaclab_mimic",
+    "isaaclab_newton[all]",
+    "isaaclab_ov",
+    "isaaclab_ovphysx",
+    "isaaclab_physx[newton]",
+    "isaaclab_rl[all]",
+    "isaaclab_tasks",
+    "isaaclab_tasks_experimental",
+    "isaaclab_teleop",
+    "isaaclab_visualizers[all]",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab", "isaaclab.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

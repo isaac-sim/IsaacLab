@@ -14,8 +14,17 @@ import sys
 from pathlib import Path
 
 import pytest
-import utils as _utils
-from utils import find_isaaclab_root, run_cmd  # noqa: F401 – re-exported for tests
+
+# Make ``utils`` (sibling of this conftest) importable from tests living in
+# subdirectories (``cli/``, ``misc/``).  Required because ``pytest.ini`` uses
+# ``--import-mode=importlib``, which does NOT add the conftest's directory to
+# ``sys.path``.
+_THIS_DIR = str(Path(__file__).resolve().parent)
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
+
+import utils as _utils  # noqa: E402
+from utils import find_isaaclab_root, run_cmd  # noqa: E402, F401 – re-exported for tests
 
 _CYAN_BRIGHT = "\033[96m"
 _RESET = "\033[0m"
@@ -78,6 +87,18 @@ def wheel_path() -> Path | None:
 # Markers
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--noskip",
+        "--force",
+        "--dontskip",
+        action="store_true",
+        default=False,
+        dest="noskip",
+        help="Strip all @pytest.mark.skip markers for this run (does not affect skipif). Alias: --force.",
+    )
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "bug: bug-regression tests (use bug id as argument)")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
@@ -111,10 +132,14 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Map dynamic bug markers and skip items with mismatched env markers.
+    """Map dynamic bug markers and deselect items with mismatched env markers.
 
-    This allows filtering by bug ID natively in pytest: `-m "nvbugs_5968136"`
-    instead of the (unsupported natively) `-m "bug('nvbugs_5968136')"`.
+    This allows filtering by bug ID natively in pytest: `-m "<bug-id>"`
+    instead of the (unsupported natively) `-m "bug('<bug-id>')"`.
+
+    Tests whose ``docker``/``native`` marker doesn't match the current
+    execution environment are *deselected* (removed from collection) so they
+    don't appear in ``--collect-only`` output or skew skipped-count metrics.
     """
     execution_environment = config.stash[_EXECUTION_ENVIRONMENT_KEY]
     known_bugs = set()
@@ -127,6 +152,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for bug in known_bugs:
         config.addinivalue_line("markers", f"{bug}: dynamically generated bug marker")
 
+    remaining: list[pytest.Item] = []
+    deselected: list[pytest.Item] = []
     for item in items:
         for mark in item.iter_markers(name="bug"):
             for arg in mark.args:
@@ -140,4 +167,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             raise pytest.UsageError(f"{item.nodeid}: {exc}") from exc
 
         if skip_reason:
-            item.add_marker(pytest.mark.skip(reason=skip_reason))
+            deselected.append(item)
+        else:
+            remaining.append(item)
+
+    if deselected:
+        items[:] = remaining
+        config.hook.pytest_deselected(items=deselected)
+
+    if config.getoption("--noskip"):
+        for item in items:
+            item.own_markers = [m for m in item.own_markers if m.name != "skip"]

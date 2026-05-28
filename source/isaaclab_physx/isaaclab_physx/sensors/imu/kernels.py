@@ -22,12 +22,19 @@ def imu_update_kernel(
     prev_lin_vel_w: wp.array(dtype=wp.vec3f),
     # scalar
     inv_dt: wp.float32,
+    # timestamp guard (see #4970): skip envs not stepped since reset.
+    timestamp: wp.array(dtype=wp.float32),
     # outputs (written in-place)
     out_ang_vel_b: wp.array(dtype=wp.vec3f),
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
 ):
     idx = wp.tid()
     if not env_mask[idx]:
+        return
+
+    # Skip envs that have not been stepped since their last reset: PhysX's velocities still
+    # hold pre-reset values, so the finite-difference acceleration would be spurious (#4970).
+    if timestamp[idx] == 0.0:
         return
 
     # 1. Extract body orientation
