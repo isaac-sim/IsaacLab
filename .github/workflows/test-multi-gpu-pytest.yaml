@@ -5,23 +5,14 @@
 
 # Multi-GPU unit-test workflow
 #
-# Auto-discovers test files that opt in to multi-GPU coverage by calling
-# :func:`isaaclab.testing.cuda_test_devices` in a ``parametrize`` decorator,
-# and runs them on the multi-GPU runner pool with
-# ``ISAACLAB_TEST_DEVICES=001`` (cuda:1 only).
+# Runs the cuda:1-parameterized subset of unit tests on the multi-GPU
+# runner pool. Uses the same ECR-pulled isaac-lab image as the single-GPU
+# CI; only diffs are the runner label, the env vars that pin Kit and the
+# test parametrize to cuda:1, and the include-files list of opt-in tests.
 #
-# Adding a new test to the multi-GPU CI scope requires no workflow edits:
-# migrate the test file to use ``cuda_test_devices()`` and the next run of
-# this workflow picks it up.
-#
-# Kit-bound files (those that start ``SimulationApp`` at module import)
-# each get their own pytest invocation because Kit is a process-wide
-# singleton.  Pure-Python files share one pytest session.
-#
-# Uses the same docker image as the rest of CI (``nvcr.io/nvidian/isaac-lab``,
-# pulled from ECR via the EC2 runner's IAM role), so dep matrices match
-# the single-GPU CI exactly.  No nvcr.io credentials required at PR-time
-# (only at nightly build time).
+# Adding a new test to multi-GPU coverage: migrate its device parametrize
+# to call ``isaaclab.testing.cuda_test_devices()`` and add the file's
+# basename to ``include-files`` below.
 
 name: Multi-GPU pytest
 
@@ -29,8 +20,12 @@ on:
   pull_request:
     paths:
       - "source/isaaclab/isaaclab/testing/**"
+      - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/**/test/**/test_*.py"
       - ".github/workflows/test-multi-gpu-pytest.yaml"
+      - ".github/actions/run-package-tests/**"
+      - ".github/actions/run-tests/**"
+      - ".github/actions/ecr-build-push-pull/**"
   workflow_dispatch:
 
 concurrency:
@@ -38,8 +33,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Matches build.yaml's CI_IMAGE_TAG so the multi-GPU job can pull the
-  # exact per-commit image the regular CI built for this SHA.
   CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
@@ -70,6 +63,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
 
       - name: Verify multi-GPU availability
         run: |
@@ -80,191 +76,32 @@ jobs:
             exit 1
           fi
 
-      - name: Pull image from ECR
-        # Auths to ECR via the runner EC2 instance's IAM role + SSM
-        # parameter ``/github-runner/<instance-id>/ecr-cache-url`` (set by
-        # the AMI, same mechanism the [self-hosted, gpu] pool uses).
-        # Sets ECR_IMAGE in env so the explicit ``docker pull`` step below
-        # can fetch the image locally.
-        uses: ./.github/actions/ecr-build-push-pull
+      - uses: ./.github/actions/run-package-tests
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         with:
           image-tag: ${{ env.CI_IMAGE_TAG }}
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-          dockerfile-path: docker/Dockerfile.base
-          cache-tag: cache-base
-
-      - name: Ensure image is local
-        # ecr-build-push-pull only pulls locally on the exact-cache-hit
-        # path; deps-cache-hit creates an ECR registry-side alias but
-        # leaves nothing in local docker.  The action's final "Cleanup
-        # docker config" step removes its temp DOCKER_CONFIG, so we
-        # create our own with credsStore disabled (the runner's default
-        # credential helper is broken: ``not implemented``) and
-        # re-authenticate to ECR via the EC2 IAM role.
-        run: |
-          set -e
-          DOCKER_CONFIG_DIR=$(mktemp -d)
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-          export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
-          echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
-
-          REGISTRY=$(echo "$ECR_URL" | cut -d'/' -f1)
-          AWS_REGION=$(echo "$REGISTRY" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
-          aws ecr get-login-password --region "$AWS_REGION" | \
-            docker login --username AWS --password-stdin "$REGISTRY"
-          docker pull "$ECR_IMAGE"
-          docker tag "$ECR_IMAGE" "${{ env.CI_IMAGE_TAG }}"
-
-      - name: Discover and run multi-GPU tests in container
-        # Runs the discovery + Kit-singleton loop inside the isaac-lab
-        # docker image.  Workspace is volume-mounted so the in-image source
-        # is replaced by the PR's checkout (test files migrated for
-        # ``cuda_test_devices()``), while the image's pre-installed deps
-        # (Isaac Sim, Newton, Warp, mujoco_warp, etc.) supply the runtime.
-        run: |
-          set +e
-
-          # Files excluded from multi-GPU CI.  All still keep their
-          # ``cuda_test_devices()`` parametrize so single-GPU CI runs them
-          # on cpu+cuda:0 — only the cuda:1 path on the multi-GPU runner
-          # is gated here.
-          #
-          # Categories:
-          # 1. Upstream Kit limit: FabricFrameView usdrt SelectPrims only
-          #    supports cuda:0.
-          # 2. Newton on cuda:1 — Warp allocator failure inside
-          #    ``mujoco_warp.collision_driver``.  Tracked in
-          #    isaac-sim/IsaacLab#5132.
-          # 3. PhysX on cuda:1 — hangs at ``test_initialization[cuda:1-2]``
-          #    only on the AWS L40 runner.  Passes locally on Horde MIG
-          #    slices with the same code.
-          # 4. ovphysx — module-level ``pytest.mark.skipif`` collects 0
-          #    items + 1 skip; isaaclab.sh's CLI wrapper translates that
-          #    to exit 1 (the wrapper doesn't distinguish pytest's
-          #    "no tests collected" from a real failure). Skip until
-          #    either the wrapper propagates 5 or the gate is removed.
-          SKIP=$(cat <<'EOF'
-          source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
-          source/isaaclab_newton/test/assets/test_articulation.py
-          source/isaaclab_newton/test/assets/test_rigid_object.py
-          source/isaaclab_newton/test/assets/test_rigid_object_collection.py
-          source/isaaclab_newton/test/sim/test_views_xform_prim_newton.py
-          source/isaaclab_physx/test/assets/test_articulation.py
-          source/isaaclab_physx/test/assets/test_rigid_object.py
-          source/isaaclab_physx/test/assets/test_rigid_object_collection.py
-          source/isaaclab_ovphysx/test/assets/test_articulation.py
-          source/isaaclab_ovphysx/test/assets/test_rigid_object.py
-          source/isaaclab_ovphysx/test/assets/test_rigid_object_collection.py
-          EOF
-          )
-
-          # Discover opt-in files on the host (checkout is here).
-          mapfile -t MIGRATED < <(grep -rl 'cuda_test_devices()' source/ --include='test_*.py' | sort -u)
-
-          if [ ${#MIGRATED[@]} -eq 0 ]; then
-            echo "::error::No migrated tests discovered (grep for cuda_test_devices)"
-            exit 1
-          fi
-
-          # Filter SKIP list.
-          FILTERED=()
-          for f in "${MIGRATED[@]}"; do
-            if echo "$SKIP" | grep -qFx "$f"; then
-              echo "::notice file=$f::skipping (in SKIP list)"
-              continue
-            fi
-            FILTERED+=("$f")
-          done
-
-          # Split into pure-Python vs Kit-bound (Kit detected by import of
-          # AppLauncher / SimulationApp at module level).
-          PURE=()
-          KIT=()
-          for f in "${FILTERED[@]}"; do
-            if grep -qE 'AppLauncher|simulation_app\s*=' "$f"; then
-              KIT+=("$f")
-            else
-              PURE+=("$f")
-            fi
-          done
-
-          echo "::notice::discovered ${#MIGRATED[@]} migrated, ${#FILTERED[@]} after skip"
-          echo "::notice::pure-python: ${#PURE[@]} files"
-          echo "::notice::kit-bound:   ${#KIT[@]} files"
-
-          # Build the in-container script.  ``isaaclab.sh -p -m pytest`` runs
-          # against the image's installed environment; the volume mount
-          # provides the PR's source.
-          PURE_FILES="${PURE[*]}"
-          KIT_FILES="${KIT[*]}"
-
-          # ``--entrypoint bash`` overrides the isaac-sim base image's
-          # default ENTRYPOINT (which would launch Kit and swallow our
-          # script as Kit-argv).  ``--ignore=tools/conftest.py`` is the
-          # same flag the regular CI's run-tests action uses, because
-          # tools/conftest.py's ``pytest_ignore_collect`` returns True
-          # for every file (it spawns each test in a subprocess); without
-          # the ignore, pytest collects 0 items and exits.
-          # Match the host uid:gid so the container can write into the
-          # volume-mounted workspace (the image's default USER is
-          # ``isaaclab`` uid 1000, which can't write to a mount owned by
-          # the runner's github-runner user). With a custom uid:gid the
-          # image's $HOME (=/root) is not writable, so we point HOME and
-          # XDG_CACHE_HOME at a fresh tmp dir for Warp/numpy/pip caches.
-          DOCKER_HOME="${RUNNER_TEMP:-/tmp}/isaaclab-ci-home"
-          mkdir -p "$DOCKER_HOME/.cache"
-          docker run --rm --gpus all --network=host \
-            --entrypoint bash \
-            --user "$(id -u):$(id -g)" \
-            -v "$PWD:/workspace/isaaclab" \
-            -v "$DOCKER_HOME:/tmp/isaaclab-ci-home" \
-            -w /workspace/isaaclab \
-            -e HOME=/tmp/isaaclab-ci-home \
-            -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
-            -e OMNI_KIT_ACCEPT_EULA=yes \
-            -e ACCEPT_EULA=Y \
-            -e ISAAC_SIM_HEADLESS=1 \
-            -e ISAACLAB_TEST_DEVICES=001 \
-            -e ISAACLAB_SIM_DEVICE=cuda:1 \
-            -e PURE_FILES="$PURE_FILES" \
-            -e KIT_FILES="$KIT_FILES" \
-            "${{ env.CI_IMAGE_TAG }}" \
-            -c '
-              set +e
-              cd /workspace/isaaclab
-              rm -f _isaac_sim
-              ln -s /isaac-sim _isaac_sim
-
-              fail=0
-              ignore_args="--ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci"
-
-              # pytest exit code 5 = no tests collected; treat as success.
-              is_ok() { [ "$1" = "0" ] || [ "$1" = "5" ]; }
-
-              if [ -n "$PURE_FILES" ]; then
-                echo "::group::pytest (pure-python, single session)"
-                ./isaaclab.sh -p -m pytest $ignore_args -v $PURE_FILES
-                rc=$?
-                echo "::endgroup::"
-                if ! is_ok $rc; then
-                  echo "::error::pure-python pytest exit $rc"
-                  fail=1
-                fi
-              fi
-
-              for f in $KIT_FILES; do
-                echo "::group::pytest $f"
-                timeout 600 ./isaaclab.sh -p -m pytest $ignore_args "$f" -v
-                rc=$?
-                echo "::endgroup::"
-                if ! is_ok $rc; then
-                  echo "::error file=$f::pytest exit $rc"
-                  fail=1
-                fi
-              done
-
-              exit $fail
-            '
+          container-name: isaac-lab-multi-gpu-pytest
+          # Opt-in subset that calls ``cuda_test_devices()`` and has a
+          # known-working cuda:1 path. Test files with cuda:1 hangs or
+          # backend-skipif issues are intentionally omitted; see PR 5823
+          # description for the catalogued failures and tracking issues.
+          include-files: >
+            test_math.py,
+            test_wrench_composer.py,
+            test_episode_data.py,
+            test_modifiers.py,
+            test_noise.py,
+            test_newton_model_utils.py,
+            test_simulation_context.py,
+            test_views_xform_prim.py,
+            test_contact_sensor.py
+          # ISAACLAB_TEST_DEVICES drives the parametrize helper at
+          # collection time; ISAACLAB_SIM_DEVICE makes AppLauncher boot
+          # Kit with active_gpu=1, so PhysX and Warp pin to cuda:1 from
+          # process start.
+          extra-env-vars: |
+            ISAACLAB_TEST_DEVICES=001
+            ISAACLAB_SIM_DEVICE=cuda:1
