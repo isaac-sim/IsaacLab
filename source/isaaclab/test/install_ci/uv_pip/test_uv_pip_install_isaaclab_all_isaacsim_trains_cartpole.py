@@ -45,6 +45,7 @@ def _assert_training_passed(result) -> None:
     assert "Training time:" in output, f"Training did not report completion:\n{output}"
 
 
+@pytest.mark.install_path_uv_pip
 class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
     """Build the wheel, ``uv pip install <wheel>[all]``, verify cartpole training."""
 

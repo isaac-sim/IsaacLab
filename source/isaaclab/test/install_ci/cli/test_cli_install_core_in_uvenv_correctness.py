@@ -51,7 +51,7 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
@@ -71,7 +71,7 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
@@ -95,7 +95,7 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow

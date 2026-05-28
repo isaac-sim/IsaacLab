@@ -57,7 +57,7 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu
@@ -89,7 +89,7 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
             self.destroy_uv_env()
 
     # regression for NVBug 5968136 (Cartpole training fails in MuJoCo stiffness conversion)
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu

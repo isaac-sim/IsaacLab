@@ -41,7 +41,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.timeout(10)
     def test_uv_env_uses_python_312(self, isaaclab_root):
@@ -55,7 +55,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.timeout(200)
     def test_install_core_makes_assets_importable(self, isaaclab_root):
@@ -81,7 +81,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.timeout(300)
     def test_install_newton_pulls_newton_sim(self, isaaclab_root):
@@ -106,7 +106,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
@@ -126,7 +126,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
@@ -146,7 +146,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
@@ -169,7 +169,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow

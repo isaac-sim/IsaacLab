@@ -27,7 +27,7 @@ class Test_Cli_Install_In_Globalenv_Smoke:
         if os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX"):
             pytest.skip("test requires no active uv/conda environment")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.docker
     @pytest.mark.slow
     @pytest.mark.timeout(1800)

@@ -57,7 +57,7 @@ class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
         if not shutil.which("conda"):
             pytest.skip("conda is not available")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu
@@ -82,7 +82,7 @@ class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
         finally:
             self.destroy_conda_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu

@@ -254,7 +254,8 @@ The `Setup:` block must mirror the install commands a user would run from the of
 - `@pytest.mark.uv` / `@pytest.mark.conda` — gate on the package manager when required.
 - `@pytest.mark.gpu` — requires a GPU.
 - `@pytest.mark.slow` — long-running (use whenever an install runs).
-- `@pytest.mark.cli` — exercises `./isaaclab.sh -i`.
+- `@pytest.mark.install_path_cli` — test exercises the `./isaaclab.sh -i` install path. Apply to every test under `cli/`.
+- `@pytest.mark.install_path_uv_pip` — test exercises the `uv pip install <wheel>` install path. Apply to every test under `uv_pip/` (class-level decorator is cleanest).
 - `@pytest.mark.timeout(<seconds>)` — set explicitly per test, sized to the slowest valid run.
 
 #### isaacsim availability gating
