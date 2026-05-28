@@ -188,3 +188,56 @@ class TestStackedImage:
         torch.testing.assert_close(out[..., :CHANNELS], expected_old)
         torch.testing.assert_close(out[..., CHANNELS:], expected_new)
 
+    def test_consecutive_rgb_calls_return_independent_storage(self):
+        """Two consecutive RGB-normalize-deferred calls must return tensors with distinct storage.
+
+        Regression: a prior implementation reused a single pre-allocated normalize-output
+        buffer across calls, so the trainer's previous-iteration ``observations`` (held by
+        reference across the next ``env.step``) would be overwritten before
+        ``record_transition`` could read it. This test mimics the trainer's
+        two-references-alive pattern; under the bug both returns share storage.
+        """
+        env = _make_env()
+        term = stacked_image(_make_cfg(frame_stack=2), env)
+        f1 = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+        f2 = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+        with mock.patch("isaaclab.envs.mdp.observations.image") as patched:
+            patched.return_value = f1
+            out_a = term(env, normalize=True, data_type="rgb")
+            # Keep ``out_a`` alive across the next call — this is what the RL trainer does.
+            patched.return_value = f2
+            out_b = term(env, normalize=True, data_type="rgb")
+        assert out_a.data_ptr() != out_b.data_ptr(), (
+            "Consecutive calls returned aliased storage; previous-iteration obs would be overwritten."
+        )
+
+
+def _make_image_env_with_sensor(camera_buf: torch.Tensor) -> SimpleNamespace:
+    """Mock env exposing ``env.scene.sensors[name].data.output[type]`` = ``camera_buf``."""
+    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": camera_buf}))
+    scene = SimpleNamespace(sensors={"tiled_camera": sensor})
+    return SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device="cpu")
+
+
+class TestImageFunctionCloneKwarg:
+    """The ``image()`` function's ``clone`` kwarg controls whether the camera buffer is copied."""
+
+    def test_clone_false_returns_camera_buffer_view(self):
+        """With ``clone=False, normalize=False`` the returned tensor shares storage with the camera buffer."""
+        from isaaclab.envs.mdp.observations import image
+
+        camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+        env = _make_image_env_with_sensor(camera_buf)
+        cfg = SimpleNamespace(name="tiled_camera")
+        out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=False)
+        assert out.data_ptr() == camera_buf.data_ptr()
+
+    def test_clone_true_returns_independent_copy(self):
+        """The default ``clone=True`` path returns a fresh tensor independent of the camera buffer."""
+        from isaaclab.envs.mdp.observations import image
+
+        camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+        env = _make_image_env_with_sensor(camera_buf)
+        cfg = SimpleNamespace(name="tiled_camera")
+        out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=True)
+        assert out.data_ptr() != camera_buf.data_ptr()

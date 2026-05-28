@@ -178,6 +178,36 @@ def test_return_buffer_prop(circular_buffer):
 # ---------------------------------------------------------------------------
 
 
+def test_reset_subset_zeroes_buffer_storage_default_mode():
+    """reset(batch_ids=[i]) must zero the buffer slots for the reset rows (default mode).
+
+    Regression: a prior implementation used ``self._buffer[:, ids].zero_()`` which is
+    getitem-then-inplace; advanced indexing with a list/tensor returns a copy, so
+    ``.zero_()`` zeroed the temporary and left the original buffer untouched.
+    """
+    buf = CircularBuffer(max_len=3, batch_size=4, device="cpu")
+    buf.append(torch.full((4, 2), 5.0))
+    buf.append(torch.full((4, 2), 5.0))
+    buf.reset(batch_ids=[1, 3])
+    # Reset rows must read as zero in the raw buffer; non-reset rows must still hold 5.0.
+    torch.testing.assert_close(buf._buffer[:, [1, 3]], torch.zeros((3, 2, 2)))
+    torch.testing.assert_close(buf._buffer[:, [0, 2]], torch.full((3, 2, 2), 5.0))
+
+
+def test_reset_subset_zeroes_buffer_storage_stack_dim_mode():
+    """reset(batch_ids=[i]) must zero the buffer slots for the reset rows (stack_dim mode).
+
+    Same regression as :func:`test_reset_subset_zeroes_buffer_storage_default_mode` but for
+    the stack_dim layout where the batch dim is dim 0 of the internal storage.
+    """
+    buf = CircularBuffer(max_len=2, batch_size=4, device="cpu", stack_dim=-1)
+    buf.append(torch.full((4, 8, 8, 3), 5.0))
+    buf.append(torch.full((4, 8, 8, 3), 5.0))
+    buf.reset(batch_ids=[1, 3])
+    torch.testing.assert_close(buf._buffer[[1, 3]], torch.zeros((2, 8, 8, 2, 3)))
+    torch.testing.assert_close(buf._buffer[[0, 2]], torch.full((2, 8, 8, 2, 3), 5.0))
+
+
 def test_stack_dim_zero_rejected():
     """stack_dim=0 (batch dim) must be rejected at construction."""
     with pytest.raises(ValueError, match="stack_dim must not be 0"):

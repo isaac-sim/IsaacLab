@@ -114,17 +114,13 @@ class CircularBuffer:
             View of shape ``(batch_size, *frame_shape)`` with ``frame_shape[stack_dim]`` multiplied by ``max_length``.
 
         Raises:
-            RuntimeError: If ``stack_dim`` was not set at construction or no data has been appended.
+            RuntimeError: If ``stack_dim`` was not set at construction.
         """
         if self._stack_dim_internal is None:
-            raise RuntimeError(
-                "stacked is only available when CircularBuffer was created with stack_dim set."
-            )
-        if self._buffer is None:
-            raise RuntimeError("The buffer is empty. Please append data before retrieving.")
+            raise RuntimeError("stacked is only available when CircularBuffer was created with stack_dim set.")
         k_pos = self._stack_dim_internal
         s = self._buffer.shape
-        return self._buffer.reshape(*s[:k_pos], s[k_pos] * s[k_pos + 1], *s[k_pos + 2:])
+        return self._buffer.reshape(*s[:k_pos], s[k_pos] * s[k_pos + 1], *s[k_pos + 2 :])
 
     """
     Operations.
@@ -145,9 +141,9 @@ class CircularBuffer:
         self._need_reset = True
         if self._buffer is not None:
             if self._stack_dim_internal is None:
-                self._buffer[:, batch_ids_resolved].zero_()
+                self._buffer[:, batch_ids_resolved] = 0.0
             else:
-                self._buffer[batch_ids_resolved].zero_()
+                self._buffer[batch_ids_resolved] = 0.0
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -197,9 +193,7 @@ class CircularBuffer:
     def _allocate_buffer(self, data: torch.Tensor) -> None:
         """Allocate the internal buffer and finalize the storage layout on first append."""
         if self._stack_dim_arg is None:
-            self._buffer = torch.empty(
-                (self._max_len_int, *data.shape), dtype=data.dtype, device=self._device
-            )
+            self._buffer = torch.empty((self._max_len_int, *data.shape), dtype=data.dtype, device=self._device)
             return
 
         ndim = data.ndim
@@ -238,8 +232,7 @@ class CircularBuffer:
         """
         if self._stack_dim_internal is not None:
             raise NotImplementedError(
-                "Indexing via __getitem__ is not supported in stacked-output mode."
-                " Use .stacked or .buffer instead."
+                "Indexing via __getitem__ is not supported in stacked-output mode. Use .stacked or .buffer instead."
             )
         # check the batch size
         if len(key) != self.batch_size:

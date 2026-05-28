@@ -75,8 +75,6 @@ class CartpoleCameraEnv(CartpoleEnv):
             )
 
         self._stack: CircularBuffer | None = None
-        # Reused across steps to avoid allocating a fresh output every call.
-        self._normalized_output: torch.Tensor | None = None
         if frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
@@ -128,9 +126,17 @@ class CartpoleCameraEnv(CartpoleEnv):
             obs = self._stack.stacked
 
         if defer_normalize:
-            if self._normalized_output is None:
-                self._normalized_output = torch.empty(obs.shape, dtype=torch.float32, device=self.device)
-            obs = normalize_camera_image(obs, data_type, out=self._normalized_output, channel_dim=1)
+            # No ``out=`` -- a fresh float32 tensor is allocated per call. The caching
+            # allocator returns a different block than the previous step's (still
+            # referenced by the trainer), so the previous-iteration ``observations``
+            # is not overwritten before ``record_transition`` reads it. See
+            # :func:`isaaclab.utils.warp.ops.normalize_image_uint8` for the aliasing
+            # hazard documentation.
+            obs = normalize_camera_image(obs, data_type, channel_dim=1)
+        elif self._stack is not None:
+            # ``stacked`` is a view of the ring buffer storage which is overwritten on
+            # the next ``env.step``; clone so the returned tensor outlives the next step.
+            obs = obs.clone()
 
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")

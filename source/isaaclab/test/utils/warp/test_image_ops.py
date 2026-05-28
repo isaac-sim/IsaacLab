@@ -264,11 +264,11 @@ class TestNormalizeImageUint8:
 
         warp_ops.normalize_image_uint8(src_a)
         size_after_first = len(warp_ops._uint8_sum_partials_cache)
-        first_scratch_ptr = warp_ops._uint8_sum_partials_cache[(shape, device, 3)][0].data_ptr()
+        first_scratch_ptr = warp_ops._uint8_sum_partials_cache[(shape, device, 3)].data_ptr()
 
         warp_ops.normalize_image_uint8(src_b)
         size_after_second = len(warp_ops._uint8_sum_partials_cache)
-        second_scratch_ptr = warp_ops._uint8_sum_partials_cache[(shape, device, 3)][0].data_ptr()
+        second_scratch_ptr = warp_ops._uint8_sum_partials_cache[(shape, device, 3)].data_ptr()
 
         assert size_after_first == 1
         assert size_after_second == size_after_first

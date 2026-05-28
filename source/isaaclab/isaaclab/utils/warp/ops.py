@@ -27,9 +27,10 @@ _all_env_mask_cache: dict[tuple[int, str], wp.array] = {}
 # Tile size for the spatial-axis split in :func:`_uint8_spatial_mean`.
 _UINT8_SUM_TILE_HW: int = 32
 
-# Cache of int32 partials scratch tensors keyed by (src.shape, device). Avoids per-call
-# allocation in :func:`_uint8_spatial_mean`.
-_uint8_sum_partials_cache: dict[tuple[tuple[int, ...], str], tuple[torch.Tensor, int]] = {}
+# Cache of int32 partials scratch tensors keyed by (src.shape, device, channel_dim). Avoids
+# per-call allocation in :func:`_uint8_spatial_mean`. channel_dim is part of the key so
+# BCHW and BHWC inputs with otherwise-identical shape get separate scratch slots.
+_uint8_sum_partials_cache: dict[tuple[tuple[int, ...], str, int], torch.Tensor] = {}
 
 
 def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -> torch.Tensor:
@@ -55,20 +56,18 @@ def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -
         b, h, _, c = src.shape
     device_str = str(src.device)
     cache_key = (src.shape, device_str, channel_dim)
-    cached = _uint8_sum_partials_cache.get(cache_key)
-    if cached is None:
+    partials = _uint8_sum_partials_cache.get(cache_key)
+    if partials is None:
         num_tiles = (h + _UINT8_SUM_TILE_HW - 1) // _UINT8_SUM_TILE_HW
         # C innermost: adjacent threads stride-1 along src's contiguous trailing dim (BHWC fast path).
         partials = torch.empty((b, num_tiles, c), dtype=torch.int32, device=src.device)
-        _uint8_sum_partials_cache[cache_key] = (partials, num_tiles)
-    else:
-        partials, num_tiles = cached
+        _uint8_sum_partials_cache[cache_key] = partials
 
     src_wp = wp.from_torch(src, dtype=wp.uint8)
     partials_wp = wp.from_torch(partials, dtype=wp.int32)
     wp.launch(
         kernel=kernels.spatial_sum_uint8_tiled,
-        dim=(b, num_tiles, c),
+        dim=partials.shape,
         inputs=[src_wp, partials_wp, _UINT8_SUM_TILE_HW, channel_dim],
         device=device_str,
     )
@@ -483,6 +482,16 @@ def normalize_image_uint8(
             Negative values are supported (``-1`` == BHWC, ``-3`` == BCHW). Defaults to ``-1``.
         out: Optional pre-allocated float32 output. Same shape as ``src``, contiguous, on the
             same device. If omitted, a fresh tensor is allocated. Defaults to None.
+
+            .. warning::
+
+                If you pass the same ``out`` tensor across calls that happen on either
+                side of an environment-step boundary (i.e., the result of one call is
+                still being read by the RL trainer when the next call is made), the
+                returned observation will alias the latest call's output and the
+                trainer will see overwritten data. Use a ping-pong of two ``out``
+                buffers, or omit ``out`` entirely, when the result lifetime crosses
+                ``env.step()`` boundaries.
 
     Returns:
         The normalized float32 tensor. Same object as ``out`` when provided.

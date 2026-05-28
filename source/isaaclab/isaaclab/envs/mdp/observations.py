@@ -690,8 +690,6 @@ class stacked_image(ManagerTermBase):
 
         # K=1 is a documented passthrough; no buffer needed.
         self._buffer: CircularBuffer | None = None
-        # Reused across steps to avoid allocating a fresh output every call.
-        self._normalized_output: torch.Tensor | None = None
         if frame_stack > 1:
             # Channel-stack: K frames concatenated along C; .stacked is a free contiguous view.
             self._buffer = CircularBuffer(
@@ -738,10 +736,16 @@ class stacked_image(ManagerTermBase):
         stacked = self._buffer.stacked
 
         if defer_normalize:
-            if self._normalized_output is None:
-                self._normalized_output = torch.empty(stacked.shape, dtype=torch.float32, device=env.device)
-            return normalize_camera_image(stacked, data_type, out=self._normalized_output)
-        return stacked
+            # No ``out=`` -- a fresh float32 tensor is allocated per call. The caching
+            # allocator returns a different block than the previous step's (still
+            # referenced by the trainer), so the previous-iteration ``observations``
+            # is not overwritten before ``record_transition`` reads it. See
+            # :func:`isaaclab.utils.warp.ops.normalize_image_uint8` for the aliasing
+            # hazard documentation.
+            return normalize_camera_image(stacked, data_type)
+        # ``stacked`` is a view of the ring buffer storage which is overwritten on the next
+        # ``env.step``; clone so the returned tensor outlives the next step.
+        return stacked.clone()
 
 
 """
