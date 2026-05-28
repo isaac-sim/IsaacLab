@@ -1,0 +1,2 @@
+Test-only: replaced the "fire every step" interval helper with a
+"fire once at reset" mechanism.
