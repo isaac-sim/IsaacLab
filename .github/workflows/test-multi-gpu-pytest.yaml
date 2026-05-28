@@ -141,6 +141,11 @@ jobs:
           # 3. PhysX on cuda:1 — hangs at ``test_initialization[cuda:1-2]``
           #    only on the AWS L40 runner.  Passes locally on Horde MIG
           #    slices with the same code.
+          # 4. ovphysx — module-level ``pytest.mark.skipif`` collects 0
+          #    items + 1 skip; isaaclab.sh's CLI wrapper translates that
+          #    to exit 1 (the wrapper doesn't distinguish pytest's
+          #    "no tests collected" from a real failure). Skip until
+          #    either the wrapper propagates 5 or the gate is removed.
           SKIP=$(cat <<'EOF'
           source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
           source/isaaclab_newton/test/assets/test_articulation.py
@@ -150,6 +155,9 @@ jobs:
           source/isaaclab_physx/test/assets/test_articulation.py
           source/isaaclab_physx/test/assets/test_rigid_object.py
           source/isaaclab_physx/test/assets/test_rigid_object_collection.py
+          source/isaaclab_ovphysx/test/assets/test_articulation.py
+          source/isaaclab_ovphysx/test/assets/test_rigid_object.py
+          source/isaaclab_ovphysx/test/assets/test_rigid_object_collection.py
           EOF
           )
 
