@@ -18,7 +18,7 @@ import pytest
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 
 pytestmark = pytest.mark.integration
 
@@ -179,10 +179,8 @@ def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene
     sim_utils.create_prim("/World")
-    sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
-    sim_utils.create_prim(
-        "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
-    )
+    sim_utils.create_prim("/World/ANYmal", usd_path=f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda")
+    sim_utils.create_prim("/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     if "4.5" in ISAAC_NUCLEUS_DIR:
         franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
     else:

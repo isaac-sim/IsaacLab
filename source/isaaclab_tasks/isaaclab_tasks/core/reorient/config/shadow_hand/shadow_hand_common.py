@@ -16,7 +16,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -27,7 +26,7 @@ from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.robots.shadow_hand import MENAGERIE_SHADOW_FINGERS_ACTUATOR_BASE, SHADOW_HAND_CFG
 
 
 @configclass
@@ -155,8 +154,8 @@ class ShadowHandRobotCfg(PresetCfg):
     newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            # newton/mujoco have separate usd schema
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandNewton/shadow_hand_instanceable.usda",
+            # newton requires implicitactuators be specified in usd and there's a bug with physx tendons
+            usd_path=f"{MUJOCO_MENAGERIE_DIR}/shadow_hand/right_hand/right_hand.usda",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -179,36 +178,7 @@ class ShadowHandRobotCfg(PresetCfg):
             joint_pos={".*": 0.0},
         ),
         actuators={
-            "fingers": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-                effort_limit_sim={
-                    "robot0_WRJ1": 4.785,
-                    "robot0_WRJ0": 2.175,
-                    "robot0_(FF|MF|RF|LF)J1": 0.7245,
-                    "robot0_FFJ(3|2)": 0.9,
-                    "robot0_MFJ(3|2)": 0.9,
-                    "robot0_RFJ(3|2)": 0.9,
-                    "robot0_LFJ(4|3|2)": 0.9,
-                    "robot0_THJ4": 2.3722,
-                    "robot0_THJ3": 1.45,
-                    "robot0_THJ(2|1)": 0.99,
-                    "robot0_THJ0": 0.81,
-                },
-                stiffness={
-                    "robot0_WRJ.*": 5.0,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 1.0,
-                    "robot0_(LF|TH)J4": 1.0,
-                    "robot0_THJ0": 1.0,
-                },
-                damping={
-                    "robot0_WRJ.*": 0.5,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 0.1,
-                    "robot0_(LF|TH)J4": 0.1,
-                    "robot0_THJ0": 0.1,
-                },
-                friction=1e-2,
-                armature=2e-3,
-            ),
+            "fingers": MENAGERIE_SHADOW_FINGERS_ACTUATOR_BASE.replace(friction=1e-2, armature=2e-3),
         },
         soft_joint_pos_limit_factor=1.0,
     )

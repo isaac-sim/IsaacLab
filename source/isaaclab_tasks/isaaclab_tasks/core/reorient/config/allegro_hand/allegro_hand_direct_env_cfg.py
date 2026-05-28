@@ -43,8 +43,31 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     # robot
     robot_cfg: ArticulationCfg = ROBOT_CFG
 
-    actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
-    fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
+    # Order matches the prior Isaac Allegro layout (per-knuckle across fingers); names follow MuJoCo Menagerie MJCF.
+    actuated_joint_names = [
+        "ffj0",
+        "mfj0",
+        "rfj0",
+        "thj0",
+        "ffj1",
+        "mfj1",
+        "rfj1",
+        "thj1",
+        "ffj2",
+        "mfj2",
+        "rfj2",
+        "thj2",
+        "ffj3",
+        "mfj3",
+        "rfj3",
+        "thj3",
+    ]
+    fingertip_body_names = [
+        "ff_tip",
+        "mf_tip",
+        "rf_tip",
+        "th_tip",
+    ]
 
     # in-hand object
     object_cfg: ObjectCfg = OBJECT_CFG

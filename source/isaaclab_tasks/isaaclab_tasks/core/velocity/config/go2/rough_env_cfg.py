@@ -32,8 +32,8 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # reduce action scale
         self.actions.joint_pos.scale = 0.25
 
-        # rewards
-        self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*_foot"
+        # rewards — MuJoCo Menagerie Go2 uses *_{hip,thigh,calf} bodies (no *_foot).
+        self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*_calf"
         self.rewards.feet_air_time.weight = 0.01
         self.rewards.undesired_contacts = None
         self.rewards.dof_torques_l2.weight = -0.0002

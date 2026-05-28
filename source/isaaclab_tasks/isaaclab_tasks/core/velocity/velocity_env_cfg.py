@@ -111,6 +111,8 @@ class MySceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/ground"],
         global_world_only=True,
     )
+    # Core cfg + factory ContactSensor: backend follows active physics (avoids global ``presets=newton``
+    # replacing this with Newton-only cfg while sim stays PhysX).
     contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     # lights
     sky_light = AssetBaseCfg(
@@ -184,6 +186,13 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class StartupEventsCfg:
+    """Startup event mixin for task-specific event presets."""
+
+    pass
 
 
 @configclass

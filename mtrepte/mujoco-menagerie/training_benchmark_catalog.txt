@@ -1,0 +1,64 @@
+# Training benchmark catalog - MuJoCo Menagerie asset swap
+
+Purpose
+  Matrix for comparing:
+    A) develop Docker image + original IsaacLab robot USDs
+    B) this branch + Menagerie assets + Physics=mujoco / Newton backend
+    C) this branch + Menagerie assets + Physics=physx / PhysX backend
+
+  Menagerie assets resolve through MUJOCO_MENAGERIE_DIR under Samples/Mujoco_Menagerie.
+  The benchmark should use explicit --sim-backend values so the chosen physics variant is clear.
+
+Workflow column lists gym *_cfg_entry_point keys.
+
+Columns
+  task_id | workflows | Menagerie asset / cfg | notes
+
+--- Locomotion / velocity (Menagerie-backed on this branch) ---
+Isaac-Velocity-Rough-Anymal-B-v0 | rsl_rl, skrl | ANYMAL_B_CFG / anymal_b.usda |
+Isaac-Velocity-Rough-Anymal-C-v0 | rsl_rl, rl_games, skrl | ANYMAL_C_CFG / anymal_c.usda |
+Isaac-Velocity-Flat-Spot-v0 | rsl_rl, skrl | SPOT_CFG / spot.usda | no rough task registered
+Isaac-Velocity-Rough-Unitree-Go2-v0 | rsl_rl, skrl | UNITREE_GO2_CFG / go2.usda |
+Isaac-Velocity-Rough-H1-v0 | rsl_rl, skrl | H1_MINIMAL_CFG -> h1.usda | full H1_CFG also Menagerie
+Isaac-Velocity-Rough-G1-v0 | rsl_rl, skrl | G1_MINIMAL_CFG -> g1.usda |
+
+--- Manipulation / in-hand (Menagerie-backed) ---
+Isaac-Repose-Cube-Allegro-v0 | rsl_rl, rl_games, skrl | ALLEGRO_HAND_CFG / wonik_allegro right hand |
+Isaac-Repose-Cube-Allegro-Direct-v0 | rsl_rl, rl_games, skrl | same as Allegro manager task |
+Isaac-Repose-Cube-Shadow-Direct-v0 | rsl_rl, rl_games, skrl | SHADOW_HAND_CFG / shadow_hand right hand |
+Isaac-PickPlace-Locomanipulation-G1-Abs-v0 | robomimic_bc | G1_29DOF_CFG -> g1_29dof_rev usdc |
+
+--- Not in Menagerie swap matrix ---
+Isaac-Dexsuite-Kuka-Allegro-* | various | KUKA + kuka.usd bundle, not Wonik Menagerie Allegro |
+Isaac-Velocity-*-Unitree-A1-v0 | various | UNITREE_A1_CFG still IsaacLab nucleus a1.usd |
+Isaac-Velocity-*-Anymal-D-v0 | various | ANYMAL_D_CFG still IsaacLab nucleus ANYmal-D USD |
+
+Pytest smoke command
+  ./isaaclab.sh -p -m pytest -s -x \
+    source/isaaclab_tasks/test/benchmarking/test_environments_training.py \
+    --config_path mujoco_configs.yaml \
+    --mode test \
+    --workflows rsl_rl \
+    --sim-backend physx \
+    --save_kpi_payload
+
+Newton / MuJoCo variant
+  Replace --sim-backend physx with --sim-backend newton.
+
+Longer KPI benchmark
+  Replace --mode test with --mode benchmark.
+
+Single-task example
+  ./isaaclab.sh -p -m pytest -s -x \
+    source/isaaclab_tasks/test/benchmarking/test_environments_training.py \
+    --config_path mujoco_configs.yaml \
+    --mode test \
+    --workflows rsl_rl \
+    --sim-backend physx \
+    --save_kpi_payload \
+    -k "Isaac-Velocity-Flat-Anymal-B-v0"
+
+Related
+  asset_mapping.txt - robot config to Menagerie path mapping
+  asset_tasks.txt - representative task per Menagerie-backed robot asset
+  source/isaaclab_tasks/test/benchmarking/mujoco_configs.yaml - automated benchmark config

@@ -70,6 +70,9 @@ ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the `Isaac/IsaacLab` directory on the NVIDIA Nucleus Server."""
 
+MUJOCO_MENAGERIE_DIR = f"{ISAAC_NUCLEUS_DIR}/Samples/Mujoco_Menagerie"
+"""Path to MuJoCo Menagerie USD samples under the Isaac Nucleus tree."""
+
 
 """
 Classes
@@ -82,7 +85,7 @@ class AnymalArticulation:
     def __init__(self):
         """Initialize the Anymal articulation class."""
         # resolve asset
-        usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+        usd_path = f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda"
         # add asset
         print("Loading robot from: ", usd_path)
         prim_utils.create_prim("/World/Robot", usd_path=usd_path, translation=(0.0, 0.0, 0.6))

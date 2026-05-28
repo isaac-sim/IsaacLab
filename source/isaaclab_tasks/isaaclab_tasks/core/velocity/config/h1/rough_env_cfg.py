@@ -39,7 +39,8 @@ class H1Rewards(RewardsCfg):
         weight=0.25,
         params={
             "command_name": "base_velocity",
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+            # Rigid-body names are ``left_ankle_link`` / ``right_ankle_link`` (joints stay ``*_ankle``).
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_link"),
             "threshold": 0.4,
         },
     )
@@ -47,8 +48,8 @@ class H1Rewards(RewardsCfg):
         func=mdp.feet_slide,
         weight=-0.25,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_link"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_link"),
         },
     )
     # Penalize ankle joint limits
@@ -67,7 +68,9 @@ class H1Rewards(RewardsCfg):
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*", ".*_elbow"])},
     )
     joint_deviation_torso = RewTerm(
-        func=mdp.joint_deviation_l1, weight=-0.1, params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso")}
+        func=mdp.joint_deviation_l1,
+        weight=-0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_1")},
     )
 
 

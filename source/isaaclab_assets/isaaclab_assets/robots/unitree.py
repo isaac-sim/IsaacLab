@@ -23,7 +23,7 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 
 HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
 
@@ -141,7 +141,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
 
 UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/unitree_go2/go2.usda",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -185,7 +185,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
 
 H1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/unitree_h1/h1/h1.usda",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -208,7 +208,7 @@ H1_CFG = ArticulationCfg(
             ".*_hip_pitch": -0.28,  # -16 degrees
             ".*_knee": 0.79,  # 45 degrees
             ".*_ankle": -0.52,  # -30 degrees
-            "torso": 0.0,
+            "torso_1": 0.0,  # MuJoCo Menagerie H1 names this joint ``torso_1``, not ``torso``.
             ".*_shoulder_pitch": 0.28,
             ".*_shoulder_roll": 0.0,
             ".*_shoulder_yaw": 0.0,
@@ -219,21 +219,21 @@ H1_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=0.9,
     actuators={
         "legs": ImplicitActuatorCfg(
-            joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso"],
+            joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso_1"],
             effort_limit_sim=300,
             stiffness={
                 ".*_hip_yaw": 150.0,
                 ".*_hip_roll": 150.0,
                 ".*_hip_pitch": 200.0,
                 ".*_knee": 200.0,
-                "torso": 200.0,
+                "torso_1": 200.0,
             },
             damping={
                 ".*_hip_yaw": 5.0,
                 ".*_hip_roll": 5.0,
                 ".*_hip_pitch": 5.0,
                 ".*_knee": 5.0,
-                "torso": 5.0,
+                "torso_1": 5.0,
             },
         ),
         "feet": ImplicitActuatorCfg(
@@ -264,16 +264,17 @@ H1_CFG = ArticulationCfg(
 
 
 H1_MINIMAL_CFG = H1_CFG.copy()
-H1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1_minimal.usd"
+H1_MINIMAL_CFG.spawn.usd_path = f"{MUJOCO_MENAGERIE_DIR}/unitree_h1/h1/h1.usda"
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
-This configuration removes most collision meshes to speed up simulation.
+The class name is kept for task compatibility. The USD path matches :obj:`H1_CFG` (MuJoCo Menagerie
+``h1.usda``); there is no separate minimal Menagerie file wired here yet.
 """
 
 
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/unitree_g1/g1/g1.usda",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -294,15 +295,20 @@ G1_CFG = ArticulationCfg(
             ".*_hip_pitch_joint": -0.20,
             ".*_knee_joint": 0.42,
             ".*_ankle_pitch_joint": -0.23,
-            ".*_elbow_pitch_joint": 0.87,
+            # Menagerie G1 uses ``left_elbow_joint`` / ``right_elbow_joint`` (no ``_elbow_pitch_joint``).
+            ".*_elbow_joint": 0.87,
             "left_shoulder_roll_joint": 0.16,
             "left_shoulder_pitch_joint": 0.35,
             "right_shoulder_roll_joint": -0.16,
             "right_shoulder_pitch_joint": 0.35,
-            "left_one_joint": 1.0,
-            "right_one_joint": -1.0,
-            "left_two_joint": 0.52,
-            "right_two_joint": -0.52,
+            # Waist DOFs replace a single ``torso_joint`` on the reduced hand model.
+            "waist_yaw_joint": 0.0,
+            "waist_roll_joint": 0.0,
+            "waist_pitch_joint": 0.0,
+            # Dexterous hand joints (``*_one_joint``, …) are absent on Menagerie G1; wrists default to neutral.
+            ".*_wrist_roll_joint": 0.0,
+            ".*_wrist_pitch_joint": 0.0,
+            ".*_wrist_yaw_joint": 0.0,
         },
         joint_vel={".*": 0.0},
     ),
@@ -314,7 +320,9 @@ G1_CFG = ArticulationCfg(
                 ".*_hip_roll_joint",
                 ".*_hip_pitch_joint",
                 ".*_knee_joint",
-                "torso_joint",
+                "waist_yaw_joint",
+                "waist_roll_joint",
+                "waist_pitch_joint",
             ],
             effort_limit_sim=300,
             stiffness={
@@ -322,19 +330,25 @@ G1_CFG = ArticulationCfg(
                 ".*_hip_roll_joint": 150.0,
                 ".*_hip_pitch_joint": 200.0,
                 ".*_knee_joint": 200.0,
-                "torso_joint": 200.0,
+                "waist_yaw_joint": 200.0,
+                "waist_roll_joint": 200.0,
+                "waist_pitch_joint": 200.0,
             },
             damping={
                 ".*_hip_yaw_joint": 5.0,
                 ".*_hip_roll_joint": 5.0,
                 ".*_hip_pitch_joint": 5.0,
                 ".*_knee_joint": 5.0,
-                "torso_joint": 5.0,
+                "waist_yaw_joint": 5.0,
+                "waist_roll_joint": 5.0,
+                "waist_pitch_joint": 5.0,
             },
             armature={
                 ".*_hip_.*": 0.01,
                 ".*_knee_joint": 0.01,
-                "torso_joint": 0.01,
+                "waist_yaw_joint": 0.01,
+                "waist_roll_joint": 0.01,
+                "waist_pitch_joint": 0.01,
             },
         ),
         "feet": ImplicitActuatorCfg(
@@ -349,29 +363,18 @@ G1_CFG = ArticulationCfg(
                 ".*_shoulder_pitch_joint",
                 ".*_shoulder_roll_joint",
                 ".*_shoulder_yaw_joint",
-                ".*_elbow_pitch_joint",
-                ".*_elbow_roll_joint",
-                ".*_five_joint",
-                ".*_three_joint",
-                ".*_six_joint",
-                ".*_four_joint",
-                ".*_zero_joint",
-                ".*_one_joint",
-                ".*_two_joint",
+                ".*_elbow_joint",
+                ".*_wrist_roll_joint",
+                ".*_wrist_pitch_joint",
+                ".*_wrist_yaw_joint",
             ],
             effort_limit_sim=300,
             stiffness=40.0,
             damping=10.0,
             armature={
                 ".*_shoulder_.*": 0.01,
-                ".*_elbow_.*": 0.01,
-                ".*_five_joint": 0.001,
-                ".*_three_joint": 0.001,
-                ".*_six_joint": 0.001,
-                ".*_four_joint": 0.001,
-                ".*_zero_joint": 0.001,
-                ".*_one_joint": 0.001,
-                ".*_two_joint": 0.001,
+                ".*_elbow_joint": 0.01,
+                ".*_wrist_.*": 0.001,
             },
         ),
     },
@@ -380,16 +383,17 @@ G1_CFG = ArticulationCfg(
 
 
 G1_MINIMAL_CFG = G1_CFG.copy()
-G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
+G1_MINIMAL_CFG.spawn.usd_path = f"{MUJOCO_MENAGERIE_DIR}/unitree_g1/g1/g1.usda"
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
-This configuration removes most collision meshes to speed up simulation.
+The class name is kept for task compatibility. The USD path matches :obj:`G1_CFG` (MuJoCo Menagerie
+``g1.usda``); there is no separate minimal Menagerie file wired here yet.
 """
 
 
 G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/unitree_g1/usdex/g1_29dof_rev_1_0.usdc",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

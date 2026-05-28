@@ -270,9 +270,9 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     decimation = 2
     episode_length_s = 7.5
     possible_agents = ["right_hand", "left_hand"]
-    action_spaces = {"right_hand": 20, "left_hand": 20}
-    observation_spaces = {"right_hand": 157, "left_hand": 157}
-    state_space = 290
+    action_spaces = {"right_hand": 24, "left_hand": 24}
+    observation_spaces = {"right_hand": 161, "left_hand": 161}
+    state_space = 298
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -296,33 +296,37 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         init_rot=(0.0, 0.0, 1.0, 0.0),
     )
     actuated_joint_names = [
-        "robot0_WRJ1",
-        "robot0_WRJ0",
-        "robot0_FFJ3",
-        "robot0_FFJ2",
-        "robot0_FFJ1",
-        "robot0_MFJ3",
-        "robot0_MFJ2",
-        "robot0_MFJ1",
-        "robot0_RFJ3",
-        "robot0_RFJ2",
-        "robot0_RFJ1",
-        "robot0_LFJ4",
-        "robot0_LFJ3",
-        "robot0_LFJ2",
-        "robot0_LFJ1",
-        "robot0_THJ4",
-        "robot0_THJ3",
-        "robot0_THJ2",
-        "robot0_THJ1",
-        "robot0_THJ0",
+        "rh_WRJ1",
+        "rh_WRJ2",
+        "rh_FFJ4",
+        "rh_FFJ3",
+        "rh_FFJ2",
+        "rh_FFJ1",
+        "rh_MFJ4",
+        "rh_MFJ3",
+        "rh_MFJ2",
+        "rh_MFJ1",
+        "rh_RFJ4",
+        "rh_RFJ3",
+        "rh_RFJ2",
+        "rh_RFJ1",
+        "rh_LFJ5",
+        "rh_LFJ4",
+        "rh_LFJ3",
+        "rh_LFJ2",
+        "rh_LFJ1",
+        "rh_THJ5",
+        "rh_THJ4",
+        "rh_THJ3",
+        "rh_THJ2",
+        "rh_THJ1",
     ]
     fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
+        "rh_ffdistal",
+        "rh_mfdistal",
+        "rh_rfdistal",
+        "rh_lfdistal",
+        "rh_thdistal",
     ]
 
     # in-hand object
