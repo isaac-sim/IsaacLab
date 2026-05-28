@@ -76,6 +76,7 @@ def train_job(
     env_config,
     num_gpus,
     *,
+    sim_backend: str = "physx",
     video: bool = False,
     video_length: int = 200,
     video_interval: int = 2000,
@@ -89,6 +90,12 @@ def train_job(
         "--task",
         task,
     ]
+
+    # MuJoCo Menagerie USD ``Physics`` variant + physics stack (Hydra global presets)
+    if sim_backend == "newton":
+        cmd.extend(["--menagerie-physics-variant", "mujoco"])
+    else:
+        cmd.extend(["--menagerie-physics-variant", "physx"])
 
     if video:
         cmd.extend(["--video", "--video_length", str(video_length), "--video_interval", str(video_interval)])
@@ -111,6 +118,9 @@ def train_job(
     workflow_experiment_name_variable = WORKFLOW_EXPERIMENT_NAME_VARIABLE.get(workflow)
     if workflow_experiment_name_variable:
         cmd.append(f"{workflow_experiment_name_variable}={task}")
+
+    if sim_backend == "newton":
+        cmd.append("presets=newton_mjwarp")
 
     print("Running : " + " ".join(cmd))
 
@@ -143,7 +153,7 @@ def train_job(
 
 @pytest.mark.parametrize("task_spec", setup_environment())
 def test_train_environments(
-    workflow, task_spec, config_path, mode, num_gpus, video, video_length, video_interval, kpi_store
+    workflow, task_spec, config_path, mode, num_gpus, sim_backend, video, video_length, video_interval, kpi_store
 ):
     """Train environments provided in the config file, save KPIs, and evaluate against thresholds"""
     # Skip if workflow not supported for this task
@@ -171,6 +181,7 @@ def test_train_environments(
         task,
         env_config,
         num_gpus,
+        sim_backend=sim_backend,
         video=video,
         video_length=video_length,
         video_interval=video_interval,

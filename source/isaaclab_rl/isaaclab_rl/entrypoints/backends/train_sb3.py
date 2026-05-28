@@ -94,6 +94,7 @@ def run(argv: list[str]) -> None:
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     from isaaclab_tasks.utils import resolve_task_config
+    from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
     signal.signal(signal.SIGINT, _cleanup_pbar)
 
@@ -133,6 +134,8 @@ def run(argv: list[str]) -> None:
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
+
+        log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
 
         env = create_isaaclab_env(
             args_cli.task,
@@ -185,21 +188,24 @@ def run(argv: list[str]) -> None:
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
         callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
 
-        with contextlib.suppress(KeyboardInterrupt):
-            agent.learn(
-                total_timesteps=n_timesteps,
-                callback=callbacks,
-                progress_bar=True,
-                log_interval=None,
-            )
+        try:
+            with contextlib.suppress(KeyboardInterrupt):
+                agent.learn(
+                    total_timesteps=n_timesteps,
+                    callback=callbacks,
+                    progress_bar=True,
+                    log_interval=None,
+                )
 
-        agent.save(os.path.join(log_dir, "model"))
-        print("Saving to:")
-        print(os.path.join(log_dir, "model.zip"))
+            agent.save(os.path.join(log_dir, "model"))
+            print("Saving to:")
+            print(os.path.join(log_dir, "model.zip"))
 
-        if isinstance(env, VecNormalize):
-            print("Saving normalization")
-            env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
+            if isinstance(env, VecNormalize):
+                print("Saving normalization")
+                env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
 
-        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-        env.close()
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+        finally:
+            log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+            env.close()

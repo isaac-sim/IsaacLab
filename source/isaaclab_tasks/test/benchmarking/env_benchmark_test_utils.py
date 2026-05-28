@@ -109,14 +109,19 @@ def evaluate_job(workflow, task, env_config, train_result):
     if not log_data:
         kpi_payload["success"] = False
         kpi_payload["failure_kind"] = "did_not_finish"
+        rc = int(train_result.get("returncode", 0))
         base = os.path.join(_repo_path_for_logs(), "logs", workflow, task)
         parts = []
+        if rc != 0:
+            parts.append(f"training subprocess exited with code {rc}")
+        stderr = (train_result.get("stderr") or "").strip()
+        stdout = (train_result.get("stdout") or "").strip()
         if stderr:
             parts.append(f"stderr_tail={stderr[-3500:]}")
         if stdout:
             parts.append(f"stdout_tail={stdout[-2500:]}")
         parts.append(
-            f"no tensorboard files matched *.tfevents.* under {base} (recursive search; dir_exists={os.path.isdir(base)})"  # noqa: E501
+            f"no tensorboard files matched *.tfevents.* under {base} (recursive search; dir_exists={os.path.isdir(base)})"
         )
         kpi_payload["msg"] = " | ".join(parts)
         return kpi_payload
@@ -186,7 +191,9 @@ def process_kpi_data(kpi_payloads, tag, timestamp):
             successes[workflow] += 1
         else:
             fk = kpi_payload.get("failure_kind")
-            if fk == "did_not_finish" or (fk is None and kpi_payload["msg"] == "error: training did not finish!"):
+            if fk == "did_not_finish" or (
+                fk is None and kpi_payload["msg"] == "error: training did not finish!"
+            ):
                 failures_did_not_finish[workflow] += 1
             else:
                 failures_did_not_pass_thresholds[workflow] += 1

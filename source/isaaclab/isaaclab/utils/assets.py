@@ -13,12 +13,16 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
+from __future__ import annotations
+
+import argparse
 import io
 import logging
 import os
 import posixpath
 import re
 import subprocess
+import sys
 import tempfile
 from typing import Literal
 from urllib.parse import urlparse
@@ -246,6 +250,108 @@ def _resolve_git_asset_source_path(local_path: str, git_asset_dir: str) -> str:
     except ValueError as exc:
         raise ValueError(f"Git asset path resolves outside git repository: {local_path}") from exc
     return source_path
+
+
+MUJOCO_MENAGERIE_DIR: str = f"{ISAAC_NUCLEUS_DIR}/Samples/Mujoco_Menagerie"
+"""Path to MuJoCo Menagerie USD samples under the Isaac Nucleus ``Isaac`` tree."""
+
+# MuJoCo Menagerie USDA roots expose a USD variant set (name ``Physics``) with selections
+# ``physx`` and ``mujoco``, aligned with Isaac Sim importers and Newton UI wiring.
+MUJOCO_MENAGERIE_PHYSICS_VARIANT_SET: str = "Physics"
+"""Variant set name on Menagerie root prims for backend-specific physics composition."""
+
+MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX: str = "physx"
+"""Physics variant selection for PhysX-backed simulation."""
+
+MUJOCO_MENAGERIE_PHYSICS_VARIANT_MUJOCO: str = "mujoco"
+"""Physics variant selection for Newton / MuJoCo-style simulation."""
+
+ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT_ENV: str = "ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT"
+"""Environment variable overriding Menagerie ``Physics`` variant selection.
+
+Values:
+
+* ``auto`` (default when unset): ``mujoco`` if ``presets=`` in ``sys.argv`` lists ``newton``, else ``physx``.
+* ``physx`` / ``mujoco``: force that selection on every Menagerie spawn.
+* ``none``: do not set the variant (USD default applies).
+
+The training CLI ``--menagerie-physics-variant`` sets this variable inside :func:`launch_simulation`.
+"""
+
+
+def is_mujoco_menagerie_usd_path(usd_path: str) -> bool:
+    """True if *usd_path* points at assets under the MuJoCo Menagerie tree (Nucleus or downloaded)."""
+    norm = usd_path.replace("\\", "/")
+    return "Mujoco_Menagerie" in norm
+
+
+def infer_menagerie_physics_variant_from_argv(argv: list[str] | None = None) -> str:
+    """Map global Hydra ``presets=`` tokens to a Menagerie ``Physics`` variant selection.
+
+    If any global preset name is ``newton``, returns :data:`MUJOCO_MENAGERIE_PHYSICS_VARIANT_MUJOCO`;
+    otherwise returns :data:`MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX`.
+    """
+    if argv is None:
+        argv = sys.argv
+    global_presets: list[str] = []
+    for arg in argv:
+        if arg.startswith("presets="):
+            _, val = arg.split("=", 1)
+            global_presets.extend(p.strip() for p in val.split(",") if p.strip())
+    if "newton" in global_presets:
+        return MUJOCO_MENAGERIE_PHYSICS_VARIANT_MUJOCO
+    return MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX
+
+
+def resolve_mujoco_menagerie_physics_variant_selection() -> str | None:
+    """Resolve the ``Physics`` variant selection string, or None to skip variant application."""
+    raw = os.environ.get(ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT_ENV, "auto")
+    mode = raw.strip().lower()
+    if mode in ("", "auto"):
+        return infer_menagerie_physics_variant_from_argv()
+    if mode == "none":
+        return None
+    if mode in (MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX, MUJOCO_MENAGERIE_PHYSICS_VARIANT_MUJOCO):
+        return mode
+    raise ValueError(
+        f"Invalid {ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT_ENV}={raw!r}. "
+        f"Expected 'auto', 'none', '{MUJOCO_MENAGERIE_PHYSICS_VARIANT_PHYSX}', or "
+        f"'{MUJOCO_MENAGERIE_PHYSICS_VARIANT_MUJOCO}'."
+    )
+
+
+def _spawn_variants_as_dict(variants: object | dict | None) -> dict[str, str]:
+    if variants is None:
+        return {}
+    if isinstance(variants, dict):
+        return dict(variants)
+    return variants.to_dict()  # type: ignore[union-attr]
+
+
+def merge_mujoco_menagerie_spawn_variants(usd_path: str, cfg_variants: object | dict | None) -> object | dict | None:
+    """If *usd_path* is Menagerie, ensure ``Physics`` variant is set unless disabled or already overridden."""
+    if not is_mujoco_menagerie_usd_path(usd_path):
+        return cfg_variants
+    selection = resolve_mujoco_menagerie_physics_variant_selection()
+    if selection is None:
+        return cfg_variants
+    merged = _spawn_variants_as_dict(cfg_variants)
+    if MUJOCO_MENAGERIE_PHYSICS_VARIANT_SET in merged:
+        return cfg_variants
+    merged[MUJOCO_MENAGERIE_PHYSICS_VARIANT_SET] = selection
+    return merged
+
+
+def apply_menagerie_physics_variant_from_launcher_args(launcher_args: argparse.Namespace | dict | None) -> None:
+    """Copy ``--menagerie-physics-variant`` into :data:`ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT_ENV` if set."""
+    if launcher_args is None:
+        return
+    if isinstance(launcher_args, argparse.Namespace):
+        value = getattr(launcher_args, "menagerie_physics_variant", None)
+    else:
+        value = launcher_args.get("menagerie_physics_variant")
+    if value is not None:
+        os.environ[ISAACLAB_MUJOCO_MENAGERIE_PHYSICS_VARIANT_ENV] = str(value)
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:

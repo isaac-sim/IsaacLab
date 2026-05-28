@@ -1,0 +1,158 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Training benchmarks for environments whose robot USD moved to MuJoCo Menagerie (see mtrepte/mujoco-menagerie/).
+# One workflow per task (rsl_rl only) so each env runs once when using e.g. --workflows rsl_rl.
+# Thresholds and max_iterations match configs.yaml ``full`` for the same task / closest matching rule.
+#
+# Optional per-task keys (read by test_environments_training.train_job):
+#   num_envs — if set, ``--num_envs`` is passed to train.py; if omitted, train.py uses its default.
+#
+# Run (KPI benchmark): pytest ... --config_path mujoco_configs.yaml --mode benchmark --workflows rsl_rl
+# Run (smoke / wiring):  pytest ... --config_path mujoco_configs.yaml --mode test --workflows rsl_rl
+# Physics / Menagerie USD (pytest): add ``--sim-backend physx`` (default) or ``--sim-backend newton``
+#   (passes ``--menagerie-physics-variant mujoco`` + ``presets=newton`` to train.py; see conftest.py).
+#
+# ``test`` mode: same env list as ``benchmark``, max_iterations=10, num_envs=2, thresholds chosen so KPI checks do not gate
+# (see env_benchmark_test_utils.evaluate_job). Lower metrics must be *above* the floor, so floors are -9999; duration
+# must stay *below* the cap, so the cap is 9999. Using +9999 for lowers and -9999 for duration would fail every job.
+#
+# --- Menagerie-related envs not covered by this file (missing from automated RL benchmark harness) ---
+#
+# Isaac-PickPlace-Locomanipulation-G1-Abs-v0
+#   Uses G1_29DOF Menagerie USD (distinct from velocity G1 minimal). Only robomimic_bc is registered;
+#   test/benchmarking/env_benchmark_test_utils.py parses rsl_rl / rl_games / sb3 / skrl logs only, so no row here.
+#   Exercise the asset via: scripts/imitation_learning/robomimic/train.py, play.py, robust_eval.py;
+#   demos: scripts/tools/record_demos.py (see isaaclab_teleop docs). Catalog: mtrepte/mujoco-menagerie/asset_tasks.txt.
+#
+# Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
+#   Same G1_29DOF Menagerie role; gym registry has env_cfg only (no robomimic_bc_cfg_entry_point), so no stock robomimic
+#   train/play path. Smoke / controller coverage: source/isaaclab/test/controllers/test_pink_ik.py lists this task.
+#   Add a workflow entry point + agent JSON if you need imitation-learning benchmarks comparable to Locomanipulation-G1.
+
+benchmark:
+  # Velocity-Flat thresholds align with configs.yaml ``full`` (Flat-* / per-task overrides).
+  rsl_rl:Isaac-Velocity-Flat-Anymal-B-v0:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 15
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-Anymal-C-v0:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 15
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-Spot-v0:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 150
+      episode_length: 700
+    upper_thresholds:
+      duration: 6000
+  rsl_rl:Isaac-Velocity-Flat-Unitree-Go2-v0:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 15
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-H1-v0:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 15
+      episode_length: 700
+    upper_thresholds:
+      duration: 3000
+  rsl_rl:Isaac-Velocity-Flat-G1-v0:
+    max_iterations: 1000
+    lower_thresholds:
+      reward: 10
+      episode_length: 700
+    upper_thresholds:
+      duration: 3500
+  rsl_rl:Isaac-Repose-Cube-Allegro-Direct-v0:
+    max_iterations: 500
+    lower_thresholds:
+      reward: 200
+      episode_length: 150
+    upper_thresholds:
+      duration: 1500
+  rsl_rl:Isaac-Repose-Cube-Shadow-Direct-v0:
+    max_iterations: 3000
+    lower_thresholds:
+      reward: 1000
+      episode_length: 300
+    upper_thresholds:
+      duration: 10000
+
+test:
+  rsl_rl:Isaac-Velocity-Flat-Anymal-B-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-Anymal-C-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-Spot-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-Unitree-Go2-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-H1-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Velocity-Flat-G1-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Repose-Cube-Allegro-Direct-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
+  rsl_rl:Isaac-Repose-Cube-Shadow-Direct-v0: # supports --sim-backend newton
+    num_envs: 2
+    max_iterations: 10
+    lower_thresholds:
+      reward: -9999
+      episode_length: -9999
+    upper_thresholds:
+      duration: 9999
