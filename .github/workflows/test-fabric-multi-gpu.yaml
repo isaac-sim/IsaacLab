@@ -85,15 +85,11 @@ jobs:
           fi
 
       - name: Run FabricFrameView multi-GPU unit tests
-        # ``ISAACLAB_TEST_MULTI_GPU=1`` enables the three cuda:1-parameterised
-        # tests in test_views_xform_prim_fabric.py added by PR #5514.  These
-        # tests target FabricFrameView's SelectPrims path on non-zero CUDA
-        # devices and currently hang indefinitely on real multi-GPU hardware
-        # (reproduced locally on 3x RTX 6000 Pro Blackwell and on the
-        # [self-hosted, ..., multi-gpu] runner pool).  The 60-min workflow
-        # timeout will cancel the job and surface the regression in CI for
-        # the FabricFrameView maintainers.  Land this PR once the hang is
-        # fixed in source/isaaclab_physx/.../fabric_frame_view.py.
+        # ``ISAACLAB_TEST_MULTI_GPU=1`` enables the focused cuda:1 repro in
+        # test_views_xform_prim_fabric.py.  The world-pose roundtrip test is
+        # the hanging case on real multi-GPU hardware, so keep the PR pipeline
+        # narrowed to this single node id while debugging the FabricFrameView
+        # SelectPrims path on non-zero CUDA devices.
         env:
           OMNI_KIT_ACCEPT_EULA: "yes"
           ACCEPT_EULA: "Y"
@@ -101,4 +97,5 @@ jobs:
           ISAACLAB_TEST_MULTI_GPU: "1"
         run: |
           ./isaaclab.sh -p -m pytest \
-            source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v
+            "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py::test_fabric_cuda1_world_pose_roundtrip[cuda:1]" \
+            -v
