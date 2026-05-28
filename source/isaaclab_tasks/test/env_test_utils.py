@@ -232,7 +232,7 @@ def _fire_all_interval_events_once(env) -> None:
     Args:
         env: A constructed env instance.
     """
-    event_manager = getattr(env, "event_manager", None)
+    event_manager = getattr(env.unwrapped, "event_manager", None)
     if event_manager is None:
         return
     if "interval" not in event_manager.available_modes:
