@@ -10,8 +10,10 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
+import faulthandler
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
@@ -35,22 +37,34 @@ pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
 
 
+def _diag(message: str) -> None:
+    print(f"[fabric-mgpu-test {time.monotonic():.6f}] {message}", flush=True)
+
+
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
+    _diag("fixture setup: create_new_stage start")
     sim_utils.create_new_stage()
+    _diag("fixture setup: update_stage start")
     sim_utils.update_stage()
+    _diag("fixture setup: yield")
     yield
+    _diag("fixture teardown: clear_stage start")
     sim_utils.clear_stage()
+    _diag("fixture teardown: clear SimulationContext start")
     sim_utils.SimulationContext.clear_instance()
+    _diag("fixture teardown: done")
 
 
 def _skip_if_unavailable(device: str):
+    _diag(f"skip check start: device={device}")
     if not device.startswith("cuda"):
         return
     if not torch.cuda.is_available():
         pytest.skip("CUDA not available")
     idx = int(device.split(":")[1]) if ":" in device else 0
     n = torch.cuda.device_count()
+    _diag(f"skip check CUDA state: is_available=True device_count={n} requested_index={idx}")
     if idx >= n:
         # Always skip rather than fail: the dedicated multi-GPU workflow does its own
         # pre-flight ``torch.cuda.device_count() >= 2`` check before invoking pytest, so
@@ -98,15 +112,22 @@ def view_factory():
     """Fabric factory: Camera child at CHILD_OFFSET under parent Xforms, with Fabric enabled."""
 
     def factory(num_envs: int, device: str) -> ViewBundle:
+        _diag(f"view_factory start: num_envs={num_envs} device={device}")
         _skip_if_unavailable(device)
 
+        _diag("view_factory: get_current_stage start")
         stage = sim_utils.get_current_stage()
         for i in range(num_envs):
+            _diag(f"view_factory: create parent {i} start")
             sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
+            _diag(f"view_factory: create child {i} start")
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage)
 
+        _diag("view_factory: SimulationContext start")
         sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+        _diag("view_factory: FrameView init start")
         view = FrameView("/World/Parent_.*/Child", device=device)
+        _diag(f"view_factory: FrameView init done count={view.count} prim_paths={view.prim_paths}")
         return ViewBundle(
             view=view,
             get_parent_pos=_get_parent_positions,
@@ -263,17 +284,38 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     Verifies that FabricFrameView operates correctly on a non-primary CUDA
     device without falling back to the USD path.
     """
-    bundle = view_factory(2, device)
-    view = bundle.view
+    faulthandler.dump_traceback_later(120, repeat=True)
+    try:
+        _diag("test start: cuda1 world pose roundtrip")
+        _diag("test: view_factory call start")
+        bundle = view_factory(2, device)
+        _diag("test: view_factory call done")
+        view = bundle.view
 
-    new_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=2, inputs=[new_pos, 10.0, 20.0, 30.0], device=device)
-    view.set_world_poses(positions=new_pos)
+        _diag("test: wp.zeros new_pos start")
+        new_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
+        _diag(f"test: wp.zeros new_pos done shape={new_pos.shape} device={new_pos.device}")
+        _diag("test: fill_position launch start")
+        wp.launch(kernel=_fill_position, dim=2, inputs=[new_pos, 10.0, 20.0, 30.0], device=device)
+        _diag("test: fill_position launch returned; synchronize start")
+        wp.synchronize()
+        _diag("test: fill_position synchronize done")
+        _diag("test: set_world_poses start")
+        view.set_world_poses(positions=new_pos)
+        _diag("test: set_world_poses done")
 
-    ret_pos, _ = view.get_world_poses()
-    pos_torch = torch.as_tensor(ret_pos, device=device)
-    expected = torch.tensor([[10.0, 20.0, 30.0], [10.0, 20.0, 30.0]], device=device)
-    assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
+        _diag("test: get_world_poses start")
+        ret_pos, _ = view.get_world_poses()
+        _diag(f"test: get_world_poses done ret_pos_type={type(ret_pos)}")
+        _diag("test: torch.as_tensor start")
+        pos_torch = torch.as_tensor(ret_pos, device=device)
+        _diag(f"test: torch.as_tensor done shape={pos_torch.shape} device={pos_torch.device}")
+        expected = torch.tensor([[10.0, 20.0, 30.0], [10.0, 20.0, 30.0]], device=device)
+        _diag("test: allclose assertion start")
+        assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
+        _diag("test: allclose assertion done")
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
 @pytest.mark.skipif(

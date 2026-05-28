@@ -98,4 +98,4 @@ jobs:
         run: |
           ./isaaclab.sh -p -m pytest \
             "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py::test_fabric_cuda1_world_pose_roundtrip[cuda:1]" \
-            -v
+            -v -s --tb=short

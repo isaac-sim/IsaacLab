@@ -24,6 +24,11 @@ from isaaclab.utils.warp import fabric as fabric_utils
 logger = logging.getLogger(__name__)
 
 
+def _fabric_diag(message: str) -> None:
+    """Emit flush-safe diagnostics for Fabric multi-GPU CI debugging."""
+    print(f"[FabricFrameView] {message}", flush=True)
+
+
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
     """Ensure array is compatible with Fabric kernels (2-D float32).
 
@@ -139,18 +144,32 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_world_poses(self, positions=None, orientations=None, indices=None):
+        _fabric_diag(
+            f"set_world_poses enter use_fabric={self._use_fabric} device={self._device} "
+            f"initialized={self._fabric_initialized} positions_type={type(positions)} "
+            f"orientations_type={type(orientations)} indices_type={type(indices)}"
+        )
         if not self._use_fabric:
+            _fabric_diag("set_world_poses: USD fallback start")
             self._usd_view.set_world_poses(positions, orientations, indices)
+            _fabric_diag("set_world_poses: USD fallback done")
             return
 
         if not self._fabric_initialized:
+            _fabric_diag("set_world_poses: initialize_fabric start")
             self._initialize_fabric()
+            _fabric_diag("set_world_poses: initialize_fabric done")
 
+        _fabric_diag("set_world_poses: prepare_for_reuse start")
         self._prepare_for_reuse()
+        _fabric_diag("set_world_poses: prepare_for_reuse done")
 
+        _fabric_diag("set_world_poses: resolve_indices start")
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
+        _fabric_diag(f"set_world_poses: resolve_indices done count={count} indices_device={indices_wp.device}")
 
+        _fabric_diag("set_world_poses: allocate/convert inputs start")
         dummy = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
         positions_wp = _to_float32_2d(positions) if positions is not None else dummy
         orientations_wp = (
@@ -158,7 +177,15 @@ class FabricFrameView(BaseFrameView):
             if orientations is not None
             else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
         )
+        _fabric_diag(
+            f"set_world_poses: allocate/convert inputs done dummy_device={dummy.device} "
+            f"positions_shape={getattr(positions_wp, 'shape', None)} "
+            f"positions_device={getattr(positions_wp, 'device', None)} "
+            f"orientations_shape={getattr(orientations_wp, 'shape', None)} "
+            f"orientations_device={getattr(orientations_wp, 'device', None)} fabric_device={self._fabric_device}"
+        )
 
+        _fabric_diag("set_world_poses: compose kernel launch start")
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
@@ -175,24 +202,42 @@ class FabricFrameView(BaseFrameView):
             ],
             device=self._fabric_device,
         )
+        _fabric_diag("set_world_poses: compose kernel launch returned; synchronize start")
         wp.synchronize()
+        _fabric_diag("set_world_poses: synchronize done")
 
+        _fabric_diag("set_world_poses: update_world_xforms start")
         self._fabric_hierarchy.update_world_xforms()
+        _fabric_diag("set_world_poses: update_world_xforms done")
         self._fabric_usd_sync_done = True
+        _fabric_diag("set_world_poses exit")
 
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        _fabric_diag(
+            f"get_world_poses enter use_fabric={self._use_fabric} device={self._device} "
+            f"initialized={self._fabric_initialized} sync_done={self._fabric_usd_sync_done} "
+            f"indices_type={type(indices)}"
+        )
         if not self._use_fabric:
+            _fabric_diag("get_world_poses: USD fallback start")
             return self._usd_view.get_world_poses(indices)
 
         if not self._fabric_initialized:
+            _fabric_diag("get_world_poses: initialize_fabric start")
             self._initialize_fabric()
+            _fabric_diag("get_world_poses: initialize_fabric done")
         if not self._fabric_usd_sync_done:
+            _fabric_diag("get_world_poses: sync_fabric_from_usd_once start")
             self._sync_fabric_from_usd_once()
+            _fabric_diag("get_world_poses: sync_fabric_from_usd_once done")
 
+        _fabric_diag("get_world_poses: resolve_indices start")
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
+        _fabric_diag(f"get_world_poses: resolve_indices done count={count} indices_device={indices_wp.device}")
 
         use_cached = indices is None or indices == slice(None)
+        _fabric_diag(f"get_world_poses: use_cached={use_cached}")
         if use_cached:
             positions_wp = self._fabric_positions_buf
             orientations_wp = self._fabric_orientations_buf
@@ -200,6 +245,10 @@ class FabricFrameView(BaseFrameView):
             positions_wp = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32, device=self._device)
 
+        _fabric_diag(
+            f"get_world_poses: decompose kernel launch start positions_device={positions_wp.device} "
+            f"orientations_device={orientations_wp.device} fabric_device={self._fabric_device}"
+        )
         wp.launch(
             kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
             dim=count,
@@ -213,10 +262,14 @@ class FabricFrameView(BaseFrameView):
             ],
             device=self._fabric_device,
         )
+        _fabric_diag("get_world_poses: decompose kernel launch returned")
 
         if use_cached:
+            _fabric_diag("get_world_poses: synchronize start")
             wp.synchronize()
+            _fabric_diag("get_world_poses: synchronize done; returning cached proxy arrays")
             return self._fabric_positions_ta, self._fabric_orientations_ta
+        _fabric_diag("get_world_poses: returning uncached proxy arrays")
         return ProxyArray(positions_wp), ProxyArray(orientations_wp)
 
     # ------------------------------------------------------------------
@@ -325,12 +378,17 @@ class FabricFrameView(BaseFrameView):
            must be rebuilt.
         """
         if self._fabric_selection is None:
+            _fabric_diag("_prepare_for_reuse: no selection; return")
             return
 
+        _fabric_diag("_prepare_for_reuse: PrepareForReuse call start")
         topology_changed = self._fabric_selection.PrepareForReuse()
+        _fabric_diag(f"_prepare_for_reuse: PrepareForReuse done topology_changed={topology_changed}")
         if topology_changed:
             logger.info("Fabric topology changed — rebuilding view-to-fabric index mapping.")
+            _fabric_diag("_prepare_for_reuse: rebuild start")
             self._rebuild_fabric_arrays()
+            _fabric_diag("_prepare_for_reuse: rebuild done")
 
     def _rebuild_fabric_arrays(self) -> None:
         """Rebuild fabricarray and view↔fabric mappings after a topology change.
@@ -344,18 +402,25 @@ class FabricFrameView(BaseFrameView):
             f"Prim count changed ({self.count} vs {self._default_view_indices.shape[0]}). "
             "Fabric topology change added/removed tracked prims — full re-initialization required."
         )
+        _fabric_diag("_rebuild_fabric_arrays: allocate view_to_fabric start")
         self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._fabric_device)
+        _fabric_diag("_rebuild_fabric_arrays: fabric_to_view fabricarray start")
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
 
+        _fabric_diag("_rebuild_fabric_arrays: set_view_to_fabric kernel start")
         wp.launch(
             kernel=fabric_utils.set_view_to_fabric_array,
             dim=self._fabric_to_view.shape[0],
             inputs=[self._fabric_to_view, self._view_to_fabric],
             device=self._fabric_device,
         )
+        _fabric_diag("_rebuild_fabric_arrays: set_view_to_fabric kernel returned; synchronize start")
         wp.synchronize()
+        _fabric_diag("_rebuild_fabric_arrays: synchronize done")
 
+        _fabric_diag("_rebuild_fabric_arrays: world_matrices fabricarray start")
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+        _fabric_diag("_rebuild_fabric_arrays: world_matrices fabricarray done")
 
     # ------------------------------------------------------------------
     # Internal — Fabric initialization
@@ -366,37 +431,59 @@ class FabricFrameView(BaseFrameView):
         import usdrt  # noqa: PLC0415
         from usdrt import Rt  # noqa: PLC0415
 
+        _fabric_diag(f"_initialize_fabric enter count={self.count} device={self._device} prim_paths={self.prim_paths}")
         stage_id = sim_utils.get_current_stage_id()
+        _fabric_diag(f"_initialize_fabric: stage_id={stage_id}; attach start")
         fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
+        _fabric_diag("_initialize_fabric: attach done")
 
         for i in range(self.count):
+            _fabric_diag(f"_initialize_fabric: prim {i} GetPrimAtPath start path={self.prim_paths[i]}")
             rt_prim = fabric_stage.GetPrimAtPath(self.prim_paths[i])
+            _fabric_diag(f"_initialize_fabric: prim {i} Rt.Xformable start")
             rt_xformable = Rt.Xformable(rt_prim)
 
+            _fabric_diag(f"_initialize_fabric: prim {i} HasFabricHierarchyWorldMatrixAttr start")
             has_attr = (
                 rt_xformable.HasFabricHierarchyWorldMatrixAttr()
                 if hasattr(rt_xformable, "HasFabricHierarchyWorldMatrixAttr")
                 else False
             )
+            _fabric_diag(f"_initialize_fabric: prim {i} has_attr={has_attr}")
             if not has_attr:
+                _fabric_diag(f"_initialize_fabric: prim {i} CreateFabricHierarchyWorldMatrixAttr start")
                 rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
+                _fabric_diag(f"_initialize_fabric: prim {i} CreateFabricHierarchyWorldMatrixAttr done")
 
+            _fabric_diag(f"_initialize_fabric: prim {i} SetWorldXformFromUsd start")
             rt_xformable.SetWorldXformFromUsd()
+            _fabric_diag(f"_initialize_fabric: prim {i} SetWorldXformFromUsd done")
 
+            _fabric_diag(f"_initialize_fabric: prim {i} CreateAttribute view_index start")
             rt_prim.CreateAttribute(self._view_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
+            _fabric_diag(f"_initialize_fabric: prim {i} Set view_index start")
             rt_prim.GetAttribute(self._view_index_attr).Set(i)
+            _fabric_diag(f"_initialize_fabric: prim {i} Set view_index done")
 
+        _fabric_diag("_initialize_fabric: get_fabric_hierarchy start")
         self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
             fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
         )
+        _fabric_diag("_initialize_fabric: update_world_xforms start")
         self._fabric_hierarchy.update_world_xforms()
+        _fabric_diag("_initialize_fabric: update_world_xforms done")
 
+        _fabric_diag("_initialize_fabric: default_view_indices zeros start")
         self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
+        _fabric_diag("_initialize_fabric: arange kernel start")
         wp.launch(
             kernel=fabric_utils.arange_k, dim=self.count, inputs=[self._default_view_indices], device=self._device
         )
+        _fabric_diag("_initialize_fabric: arange kernel returned; synchronize start")
         wp.synchronize()
+        _fabric_diag("_initialize_fabric: arange synchronize done")
 
+        _fabric_diag("_initialize_fabric: SelectPrims start")
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
@@ -404,30 +491,41 @@ class FabricFrameView(BaseFrameView):
             ],
             device=self._device,
         )
+        _fabric_diag(f"_initialize_fabric: SelectPrims done selection={self._fabric_selection}")
 
+        _fabric_diag("_initialize_fabric: view_to_fabric zeros start")
         self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
+        _fabric_diag("_initialize_fabric: fabric_to_view fabricarray start")
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
+        _fabric_diag(f"_initialize_fabric: fabric_to_view fabricarray done shape={self._fabric_to_view.shape}")
 
+        _fabric_diag("_initialize_fabric: set_view_to_fabric kernel start")
         wp.launch(
             kernel=fabric_utils.set_view_to_fabric_array,
             dim=self._fabric_to_view.shape[0],
             inputs=[self._fabric_to_view, self._view_to_fabric],
             device=self._device,
         )
+        _fabric_diag("_initialize_fabric: set_view_to_fabric kernel returned; synchronize start")
         wp.synchronize()
+        _fabric_diag("_initialize_fabric: set_view_to_fabric synchronize done")
 
+        _fabric_diag("_initialize_fabric: allocate buffers start")
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
         self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
         self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
         self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        _fabric_diag("_initialize_fabric: world_matrices fabricarray start")
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+        _fabric_diag("_initialize_fabric: world_matrices fabricarray done")
         self._fabric_stage = fabric_stage
         self._fabric_device = self._device
 
         self._fabric_initialized = True
         self._fabric_usd_sync_done = False
+        _fabric_diag("_initialize_fabric exit")
 
     def _sync_fabric_from_usd_once(self) -> None:
         """Sync Fabric world matrices from USD once, on the first read.
