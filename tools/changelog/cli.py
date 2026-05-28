@@ -578,6 +578,14 @@ class Package:
 
     def write_changelog_entry(self, entry: str, *, dry_run: bool) -> None:
         text = self.changelog_path.read_text(encoding="utf-8")
+        # Self-heal a header that lacks the trailing blank line. The compile
+        # regex needs ``Changelog\n---+\n\n`` as an anchor; a contributor who
+        # ships ``Changelog\n---+\n`` (the isaaclab_ppisp shape PR #5748
+        # introduced) would otherwise wedge the nightly. Insert the missing
+        # ``\n`` in-memory and write it back so the on-disk file ends up
+        # canonical on first compile. No-op when the blank line is already
+        # there (negative lookahead).
+        text = re.sub(r"^(Changelog\n-+)\n(?!\n)", r"\1\n\n", text, count=1, flags=re.MULTILINE)
         m = CHANGELOG_HEADER_RE.search(text)
         if not m:
             raise ValueError(f"Could not locate changelog header in {self.changelog_path}")
@@ -930,7 +938,12 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
     else:
         packages = Package.discover()
 
+    # Per-package isolation: one package's failure must not abort the batch.
+    # The nightly workflow commits and pushes whatever compiled successfully,
+    # so a malformed file in one package only loses that package's release
+    # notes for this cycle — the rest still ships.
     any_compiled = False
+    failures: list[tuple[str, str]] = []
     for pkg in packages:
         try:
             compiled = pkg.compile(
@@ -939,9 +952,17 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
                 dry_run=args.dry_run,
             )
         except (FileNotFoundError, ValueError) as e:
-            print(f"  ERROR: {e}", file=sys.stderr)
-            return 1
+            print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
+            failures.append((pkg.name, str(e)))
+            continue
         any_compiled = any_compiled or compiled
+
+    if failures:
+        print(file=sys.stderr)
+        print(f"::error::{len(failures)} package(s) failed to compile:", file=sys.stderr)
+        for name, reason in failures:
+            print(f"  • {name}: {reason}", file=sys.stderr)
+        return 1
 
     if not any_compiled:
         print("No fragments found in any package.")
@@ -957,13 +978,17 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
 
     packages = Package.discover()
 
-    # Header invariant — every managed package's ``CHANGELOG.rst`` must contain
-    # a parseable header. Without this the nightly ``compile`` raises and the
-    # whole batch is lost (run 26494922179 — ``isaaclab_ppisp`` shipped with a
-    # 20-byte stub that the regex couldn't anchor to).
+    # Header invariant — every managed package's ``CHANGELOG.rst`` must
+    # contain a parseable header. ``write_changelog_entry`` self-heals the
+    # narrow "missing trailing blank line" case, but every other broken
+    # shape (no ``Changelog`` header, no underline, wrong underline char,
+    # leading whitespace, etc.) still raises at compile time and would
+    # wedge the next nightly. Block those at PR time with a clear error.
     malformed_headers: list[str] = []
     for pkg in packages:
         text = pkg.changelog_path.read_text(encoding="utf-8")
+        # Apply the same normalization compile would apply, then check.
+        text = re.sub(r"^(Changelog\n-+)\n(?!\n)", r"\1\n\n", text, count=1, flags=re.MULTILINE)
         if CHANGELOG_HEADER_RE.search(text) is None:
             malformed_headers.append(str(pkg.changelog_path.relative_to(REPO_ROOT)))
 
