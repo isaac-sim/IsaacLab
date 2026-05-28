@@ -48,7 +48,7 @@ class Test_Wheel_UV_Install_Trains_Cartpole(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(3600)
-    def test_uv_pip_install_isaaclab_all_trains_cartpole(self, isaaclab_root):
+    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root):
         """Build wheel, install with ``[all]`` extras via ``uv pip``, run cartpole training."""
         try:
             build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
