@@ -7,7 +7,8 @@
 Setup:
     - bash tools/wheel_builder/build.sh
     - ./isaaclab.sh -u
-    - uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+    - uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+        (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst)
     - uv pip install <wheel>[all,isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
@@ -22,7 +23,7 @@ import glob
 import shutil
 
 import pytest
-from utils import UV_Mixin, aarch64_isaacsim_env, run_cmd
+from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url, run_cmd
 
 _TRAIN_CMD = [
     "train",
@@ -78,7 +79,8 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
 
             self.create_uv_env(isaaclab_root)
 
-            # pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+            # uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+            #   cu128 on x86_64, cu130 on aarch64 (e.g. GB10 / DGX Spark with CUDA capability 12.x).
             result = self.run_in_uv_env(
                 [
                     "uv",
@@ -88,7 +90,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                     "torch==2.10.0",
                     "torchvision==0.25.0",
                     "--index-url",
-                    "https://download.pytorch.org/whl/cu128",
+                    cuda_torch_index_url(),
                 ],
                 cwd=isaaclab_root,
                 timeout=1800,

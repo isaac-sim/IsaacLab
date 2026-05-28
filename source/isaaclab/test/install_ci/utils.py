@@ -186,6 +186,18 @@ def run_cmd(
 _IS_WINDOWS = platform.system() == "Windows"
 
 
+def cuda_torch_index_url() -> str:
+    """Return the documented CUDA-matched torch wheel index URL for the current platform.
+
+    Mirrors ``docs/source/setup/installation/pip_installation.rst``:
+    ``cu130`` on aarch64 (e.g. GB10 / DGX Spark, which expose CUDA capability 12.x),
+    ``cu128`` on x86_64.
+    """
+    if platform.machine().lower() in ("aarch64", "arm64"):
+        return "https://download.pytorch.org/whl/cu130"
+    return "https://download.pytorch.org/whl/cu128"
+
+
 def aarch64_isaacsim_env() -> dict[str, str]:
     """Return env vars required to import ``isaacsim`` from a ``uv pip`` install on aarch64.
 
