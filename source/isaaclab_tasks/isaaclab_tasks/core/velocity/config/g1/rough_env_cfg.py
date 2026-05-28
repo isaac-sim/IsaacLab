@@ -12,9 +12,7 @@ import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
-    StartupEventsCfg,
 )
-from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -109,44 +107,9 @@ class G1Rewards(RewardsCfg):
 
 
 @configclass
-class G1NewtonEventsCfg(EventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.push_robot = None
-        self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.base_external_force_torque.params["asset_cfg"].body_names = ["pelvis"]
-        self.reset_base.params = {
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-        }
-
-
-@configclass
-class G1PhysxEventsCfg(G1NewtonEventsCfg, StartupEventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_base_mass = None
-        self.base_com = None
-
-
-@configclass
-class G1EventsCfg(PresetCfg):
-    default = G1PhysxEventsCfg()
-    newton_mjwarp = G1NewtonEventsCfg()
-    physx = default
-
-
-@configclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: G1Rewards = G1Rewards()
-    events: G1EventsCfg = G1EventsCfg()
+    events: EventsCfg = EventsCfg()
 
     def __post_init__(self):
         # post init of parent
@@ -159,11 +122,11 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
-        # G1 uses "torso_link" as base body — disable mass randomization for bipeds
+        # G1 uses "pelvis" as the root body — disable generic base mass randomization for bipeds.
         self.events.add_base_mass = None
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "pelvis"
-        # G1 has precise initial pose — don't scale joint defaults randomly on reset
+        # G1 has precise initial pose — don't scale joint defaults randomly on reset.
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
         # Rewards
