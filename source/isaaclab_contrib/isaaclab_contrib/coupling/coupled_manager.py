@@ -111,16 +111,17 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
 
         if isinstance(solver_cfg, CoupledProxySolverCfg):
             NewtonManager._solver = cls._build_proxy_coupled_solver(model, entries, solver_cfg, scene_cfg)
+            NewtonManager._use_single_state = False
+            NewtonManager._needs_collision_pipeline = False
         elif isinstance(solver_cfg, CoupledAdmmSolverCfg):
             NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg)
+            NewtonManager._use_single_state = False
+            NewtonManager._needs_collision_pipeline = True
         else:
             raise TypeError(
                 f"CoupledSolverCfg subclass {type(solver_cfg).__name__!r} is not supported by "
                 "`NewtonCoupledSolverManager`. Use `CoupledProxySolverCfg` or `CoupledAdmmSolverCfg`."
             )
-
-        NewtonManager._use_single_state = False
-        NewtonManager._needs_collision_pipeline = False
 
     @classmethod
     def _build_proxy_coupled_solver(
