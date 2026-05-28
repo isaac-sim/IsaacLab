@@ -311,6 +311,7 @@ class Articulation(BaseArticulation):
             # Standard Lab actuator path
             self._apply_actuator_model()
             self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
+            self.data._sim_bind_joint_act.assign(self._joint_act_target_sim)
             if self._has_implicit_actuators:
                 self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
                 self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
@@ -3486,6 +3487,7 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
         self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
         self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_act_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
@@ -3889,6 +3891,9 @@ class Articulation(BaseArticulation):
                 gear_ratio = actuator.gear_ratio
             else:
                 gear_ratio = None
+            target_torque_buf = (
+                self._joint_act_target_sim if actuator.route_torque_to == "joint_act" else self._joint_effort_target_sim
+            )
             wp.launch(
                 articulation_kernels.update_targets,
                 dim=(self.num_instances, joint_indices.shape[0]),
@@ -3901,7 +3906,7 @@ class Articulation(BaseArticulation):
                 outputs=[
                     self._joint_pos_target_sim,
                     self._joint_vel_target_sim,
-                    self._joint_effort_target_sim,
+                    target_torque_buf,
                 ],
                 device=self.device,
             )
