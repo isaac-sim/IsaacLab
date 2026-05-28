@@ -10,7 +10,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app

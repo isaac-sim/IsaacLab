@@ -9,7 +9,7 @@ import pytest
 import torch
 
 import isaaclab.utils.modifiers as modifiers
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 from isaaclab.utils.configclass import configclass
 
 

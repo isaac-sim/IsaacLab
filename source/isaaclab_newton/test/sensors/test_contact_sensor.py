@@ -20,7 +20,7 @@ teleporting objects into interpenetrating states.
 import sys
 from pathlib import Path
 
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

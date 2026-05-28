@@ -7,7 +7,7 @@ import pytest
 import torch
 
 import isaaclab.utils.noise as noise
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 
 @pytest.mark.parametrize("device", cuda_test_devices())

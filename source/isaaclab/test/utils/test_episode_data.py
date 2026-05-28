@@ -5,7 +5,7 @@
 import pytest
 import torch
 
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 from isaaclab.utils.datasets import EpisodeData
 
 

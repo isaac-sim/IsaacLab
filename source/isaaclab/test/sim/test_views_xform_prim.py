@@ -11,7 +11,7 @@ prim ordering, xformOp standardization, and Isaac Sim comparison.
 """
 
 from isaaclab.app import AppLauncher
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 simulation_app = AppLauncher(headless=True).app
 

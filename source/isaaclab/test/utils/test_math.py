@@ -13,7 +13,7 @@ import torch
 import torch.utils.benchmark as benchmark
 
 import isaaclab.utils.math as math_utils
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 DECIMAL_PRECISION = 5
 """Precision of the test.

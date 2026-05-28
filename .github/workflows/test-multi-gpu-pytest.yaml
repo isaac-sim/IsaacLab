@@ -11,7 +11,7 @@
 # test parametrize to cuda:1, and the include-files list of opt-in tests.
 #
 # Adding a new test to multi-GPU coverage: migrate its device parametrize
-# to call ``isaaclab.testing.cuda_test_devices()`` and add the file's
+# to call ``isaaclab.test.utils.cuda_test_devices()`` and add the file's
 # basename to ``include-files`` below.
 
 name: Multi-GPU pytest
@@ -19,7 +19,7 @@ name: Multi-GPU pytest
 on:
   pull_request:
     paths:
-      - "source/isaaclab/isaaclab/testing/**"
+      - "source/isaaclab/isaaclab/test/utils/**"
       - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/**/test/**/test_*.py"
       - ".github/workflows/test-multi-gpu-pytest.yaml"

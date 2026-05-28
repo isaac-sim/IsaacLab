@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added :func:`isaaclab.testing.cuda_test_devices` for env-driven device
+* Added :func:`isaaclab.test.utils.cuda_test_devices` for env-driven device
   parametrize in unit tests. ``ISAACLAB_TEST_DEVICES=001`` selects
   ``[cuda:1]`` for the multi-GPU CI runner; the default mask ``110``
   resolves to ``[cpu, cuda:0]`` and is a no-op on the single-GPU CI.

@@ -27,7 +27,7 @@ from isaaclab.sim.utils.newton_model_utils import (
     _scatter_shape_color_rows_kernel,
     replace_newton_shape_colors,
 )
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 _WARNING_MESSAGE = "Newton shape color replacement is enabled; this workaround will be deprecated in a future release."
 

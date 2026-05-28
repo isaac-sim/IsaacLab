@@ -9,7 +9,7 @@ import torch
 import warp as wp
 
 from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 

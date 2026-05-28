@@ -7,7 +7,7 @@
 
 Intended use:
 
-    from isaaclab.testing import cuda_test_devices
+    from isaaclab.test.utils import cuda_test_devices
 
     @pytest.mark.parametrize("device", cuda_test_devices())
     def test_foo(device): ...

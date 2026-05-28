@@ -28,7 +28,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.testing import cuda_test_devices
+from isaaclab.test.utils import cuda_test_devices
 
 # The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
 # but the ovphysx wheel is not installed in that environment. Skip gracefully
