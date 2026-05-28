@@ -98,13 +98,18 @@ jobs:
 
       - name: Ensure image is local
         # ecr-build-push-pull only pulls locally on the exact-cache-hit
-        # path. On deps-cache-hit (where ECR has a registry-side alias
-        # only) or full-build path the image is already local, but a
-        # ``docker pull`` against the ECR URL covers both: it's a no-op
-        # if already local, otherwise pulls from ECR (auth still in effect
-        # from the action's docker login).
+        # path; deps-cache-hit creates an ECR registry-side alias but
+        # leaves nothing in local docker.  The action's final "Cleanup
+        # docker config" step removes its temp DOCKER_CONFIG, so we
+        # re-authenticate with ECR here (the runner's IAM role still
+        # has ``ecr:GetAuthorizationToken`` from the instance profile).
         run: |
           set -e
+          unset DOCKER_CONFIG
+          REGISTRY=$(echo "$ECR_URL" | cut -d'/' -f1)
+          AWS_REGION=$(echo "$REGISTRY" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
+          aws ecr get-login-password --region "$AWS_REGION" | \
+            docker login --username AWS --password-stdin "$REGISTRY"
           docker pull "$ECR_IMAGE"
           docker tag "$ECR_IMAGE" "${{ env.CI_IMAGE_TAG }}"
 
