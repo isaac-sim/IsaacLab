@@ -16,10 +16,15 @@ import cProfile
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 from isaaclab.app import AppLauncher
 
 from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+
+# Wall-clock start of the entire script, captured as early as possible so the
+# startup bundle can report a total duration that covers all phases.
+_SCRIPT_START_DT = datetime.now(timezone.utc)
 
 # -- CLI arguments -----------------------------------------------------------
 
@@ -56,6 +61,24 @@ parser.add_argument(
     default=None,
     help="Path to YAML file with per-phase function whitelist patterns. Overrides --top_n for listed phases.",
 )
+parser.add_argument(
+    "--schema_v1_output",
+    type=str,
+    default=None,
+    help="If set, write a schema-v1 startup.json to this path.",
+)
+parser.add_argument(
+    "--backend",
+    choices=["physx", "newton"],
+    default=None,
+    help="Physics backend tag recorded in the bundle. Defaults to 'physx' if omitted.",
+)
+parser.add_argument(
+    "--run_id",
+    type=str,
+    default=None,
+    help="Run identity string to embed in the bundle. If omitted, a synthetic run_id is generated.",
+)
 
 # append AppLauncher cli args (provides --device, --headless, etc.)
 AppLauncher.add_app_launcher_args(parser)
@@ -68,6 +91,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils.timer import Timer, TimerError
 
+from scripts.benchmarks._schema_helpers import capture_hardware, capture_versions, synth_run_id
 from scripts.benchmarks.utils import (
     get_backend_type,
     get_preset_string,
@@ -81,12 +105,13 @@ imports_time_begin = time.perf_counter_ns()
 imports_profile.enable()
 
 import gymnasium as gym  # noqa: E402
-import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg  # noqa: E402
 
 from isaaclab_tasks.utils import launch_simulation, resolve_task_config  # noqa: E402
+
+from scripts.benchmarks._action_sampling import sample_random_actions  # noqa: E402
 
 imports_profile.disable()
 
@@ -185,6 +210,86 @@ benchmark = BaseIsaacLabBenchmark(
 )
 
 
+# -- Schema v1 helpers ------------------------------------------------------
+
+
+def _build_startup_bundle(
+    phases_data: dict,
+    run_start_dt: datetime,
+    run_end_dt: datetime,
+    status: str,
+    versions,
+    hardware,
+):
+    """Build a schema-v1 StartupBundle from the collected phase data.
+
+    Args:
+        phases_data: The same ``phases`` dict ``main()`` builds for legacy logging.
+        run_start_dt: UTC timestamp when the whole script started.
+        run_end_dt: UTC timestamp when the whole script finished.
+        status: Completion status of the run (``"completed"`` or ``"crashed"``).
+        versions: Pre-captured :class:`Versions` (must be captured before
+            ``benchmark._finalize_impl()`` which clears the recorders).
+        hardware: Pre-captured :class:`Hardware`.
+
+    Returns:
+        A :class:`StartupBundle` ready to be passed to :func:`write_bundle_file`.
+    """
+    from isaaclab.benchmark.schema import (
+        CProfileFunction,
+        StartupBundle,
+        StartupConfig,
+        StartupPhase,
+        StartupRunIdentity,
+    )
+
+    # Startup profiling is framework-agnostic; callers that wrap multiple
+    # framework runs pass the real framework via --run_id. We record "rsl_rl"
+    # as a schema placeholder when invoked standalone (the field is required).
+    framework = "rsl_rl"
+    backend = args_cli.backend or "physx"
+
+    phases_out: dict[str, StartupPhase] = {}
+    for name, data in phases_data.items():
+        top_funcs: list[CProfileFunction] = []
+        for label, tottime_ms, cumtime_ms, ncalls in parse_cprofile_stats(
+            data["profile"], _ISAACLAB_PREFIXES, top_n=args_cli.top_n, whitelist=_WHITELIST.get(name)
+        ):
+            top_funcs.append(
+                CProfileFunction(
+                    name=label,
+                    own_time_s=tottime_ms / 1000.0,
+                    cum_time_s=cumtime_ms / 1000.0,
+                    calls=ncalls,
+                )
+            )
+        phases_out[name] = StartupPhase(
+            total_time_s=data["wall_clock_ms"] / 1000.0,
+            top_functions=top_funcs,
+        )
+
+    seed = args_cli.seed if args_cli.seed is not None else 0
+    run_id = args_cli.run_id or synth_run_id(framework, backend, args_cli.task, seed)
+
+    return StartupBundle(
+        run=StartupRunIdentity(
+            run_id=run_id,
+            framework=framework,
+            backend=backend,
+            task=args_cli.task,
+            seed=seed,
+            start_time_utc=run_start_dt.isoformat().replace("+00:00", "Z"),
+            end_time_utc=run_end_dt.isoformat().replace("+00:00", "Z"),
+            duration_s=(run_end_dt - run_start_dt).total_seconds(),
+            status=status,
+        ),
+        versions=versions,
+        hardware=hardware,
+        phases=phases_out,
+        config=StartupConfig(top_n=args_cli.top_n, whitelist=args_cli.whitelist_config),
+    )
+
+
 # -- Main profiling logic ---------------------------------------------------
 
 
@@ -224,10 +329,10 @@ def main(
         env_creation_time_end = time.perf_counter_ns()
         # -- First step profiled ------------------------------------------------
 
-        # Sample random actions from the action space directly to support
-        # Box, Discrete, MultiDiscrete, and Dict spaces.
-        np_actions = np.stack([env.unwrapped.single_action_space.sample() for _ in range(env.unwrapped.num_envs)])
-        actions = torch.as_tensor(np_actions, dtype=torch.float32, device=env.unwrapped.device)
+        # Sample random actions from the action space(s). Returns a tensor for
+        # single-agent envs and a per-agent dict for multi-agent (DirectMARLEnv)
+        # envs — env.step accepts the matching shape.
+        actions = sample_random_actions(env)
 
         first_step_profile = cProfile.Profile()
         first_step_time_begin = time.perf_counter_ns()
@@ -317,7 +422,7 @@ def main(
                 )
 
             # Log per-function measurements (tottime + cumtime)
-            for label, tottime_ms, cumtime_ms in functions:
+            for label, tottime_ms, cumtime_ms, _ncalls in functions:
                 benchmark.add_measurement(
                     phase_name, measurement=SingleMeasurement(name=label, value=round(tottime_ms, 2), unit="ms")
                 )
@@ -326,9 +431,30 @@ def main(
                     measurement=SingleMeasurement(name=f"{label} (cumtime)", value=round(cumtime_ms, 2), unit="ms"),
                 )
 
-        # Finalize benchmark output
+        # Capture versions/hardware BEFORE finalize, which clears the recorders.
+        versions_v1 = None
+        hardware_v1 = None
+        if args_cli.schema_v1_output is not None:
+            benchmark.update_manual_recorders()
+            versions_v1 = capture_versions(benchmark)
+            hardware_v1 = capture_hardware(benchmark)
+
+        # Finalize benchmark output (nulls out _manual_recorders).
         benchmark.update_manual_recorders()
         benchmark._finalize_impl()
+
+        if args_cli.schema_v1_output is not None:
+            from isaaclab.benchmark.schema import write_bundle_file
+
+            bundle = _build_startup_bundle(
+                phases,
+                _SCRIPT_START_DT,
+                datetime.now(timezone.utc),
+                status="completed",
+                versions=versions_v1,
+                hardware=hardware_v1,
+            )
+            write_bundle_file(bundle, args_cli.schema_v1_output)
     finally:
         if env is not None:
             env.close()

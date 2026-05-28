@@ -3,23 +3,44 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Per-phase function whitelist for benchmark_startup.py. Patterns are
+# fnmatch-style; patterns matching no function emit a placeholder row
+# (tottime=0, cumtime=0, ncalls=0) so downstream dashboards always receive
+# consistent keys.
+#
+# A phase MAY be absent from this file — in that case benchmark_startup
+# falls back to top_n selection (default: 30). Phases documented below
+# that intentionally fall through say so explicitly in a comment rather
+# than listing patterns.
+#
+# python_imports: intentional top_n fallback — all top-30 functions have
+#   own_time < 7.1 ms; dominant entries are import-machinery internals
+#   (<frozen importlib._bootstrap>:_find_and_load) and generic builtins,
+#   not stable IsaacLab symbols worth tracking on a dashboard.
+#
+# first_step: intentional top_n fallback — total wall-time is only 0.19 s;
+#   the single function above 10 ms is task-specific
+#   (locomotion_env:_get_rewards at 15 ms) and will differ across tasks,
+#   making a fixed whitelist fragile.
+
 app_launch:
   - "isaaclab.utils.configclass:_wrap_resolvable_strings"
   - "isaaclab.utils.configclass:_custom_post_init"
   - "isaaclab.utils.configclass:_field_module_dir"
+  - "lib.python3.12.copy:deepcopy"
+
+task_config:
+  - "isaaclab.utils.configclass:configclass"
+  - "isaaclab.utils.configclass:_custom_post_init"
+  - "isaaclab.utils.configclass:_wrap_resolvable_strings"
+  - "isaaclab.utils.configclass:_process_mutable_types"
+  - "lib.python3.12.copy:deepcopy"
 
 env_creation:
-  - "isaaclab.cloner.*:usd_replicate"
-  - "isaaclab.cloner.*:filter_collisions"
-  - "isaaclab_physx.cloner.*:attach_end_fn"
-  - "isaaclab.scene.*:_init_scene"
-  - "isaaclab.envs.mdp.observations:*"
+  - "isaaclab.sim.utils.prims:wrapper"
+  - "isaaclab.cloner.cloner_utils:usd_replicate"
+  - "isaaclab_physx.cloner.physx_replicate:attach_end_fn"
+  - "isaaclab_physx.cloner.physx_replicate:physx_replicate"
+  - "isaaclab.cloner.cloner_utils:grid_transforms"
+  - "isaaclab.sim.utils.queries:find_matching_prims"
   - "isaaclab.utils.assets:_find_usd_dependencies"
-
-first_step:
-  - "isaaclab.envs.mdp.rewards:*"
-  - "isaaclab.envs.mdp.terminations:*"
-  - "isaaclab.envs.mdp.observations:*"
-  - "isaaclab.actuators.*:compute"
-  - "warp.*:launch"
-  - "warp.*:to_torch"

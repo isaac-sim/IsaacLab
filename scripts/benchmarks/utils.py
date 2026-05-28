@@ -346,7 +346,7 @@ def parse_cprofile_stats(
     isaaclab_prefixes: list[str],
     top_n: int = 30,
     whitelist: list[str] | None = None,
-) -> list[tuple[str, float, float]]:
+) -> list[tuple[str, float, float, int]]:
     """Parse cProfile stats, filtering to IsaacLab + first-level external calls.
 
     Walks the pstats data and keeps functions that are either (a) inside an
@@ -368,8 +368,10 @@ def parse_cprofile_stats(
             functions (e.g. ``["isaaclab.cloner.*:usd_replicate"]``).
 
     Returns:
-        List of (function_label, tottime_ms, cumtime_ms) tuples sorted by
-        tottime descending.
+        List of ``(function_label, tottime_ms, cumtime_ms, ncalls)`` tuples
+        sorted by tottime descending. ``ncalls`` is the primitive (non-recursive)
+        call count reported by ``pstats.Stats.stats``. Whitelist placeholder
+        rows carry ``ncalls=0``.
     """
     import fnmatch
     import io
@@ -409,18 +411,18 @@ def parse_cprofile_stats(
     # stats.stats: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime, callers)
     # callers: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime)
     results = []
-    for func_key, (_, _, tottime, cumtime, callers) in stats.stats.items():
+    for func_key, (_, ncalls, tottime, cumtime, callers) in stats.stats.items():
         filename, _, funcname = func_key
         if _is_isaaclab(filename):
             label = _make_label(filename, funcname)
-            results.append((label, tottime * 1000.0, cumtime * 1000.0))
+            results.append((label, tottime * 1000.0, cumtime * 1000.0, ncalls))
         else:
             # Check if any direct caller is an IsaacLab function
             for caller_key in callers:
                 caller_filename = caller_key[0]
                 if _is_isaaclab(caller_filename):
                     label = _make_label(filename, funcname)
-                    results.append((label, tottime * 1000.0, cumtime * 1000.0))
+                    results.append((label, tottime * 1000.0, cumtime * 1000.0, ncalls))
                     break
 
     # Sort by tottime (own-time) descending
@@ -430,23 +432,25 @@ def parse_cprofile_stats(
         return results[:top_n]
 
     # Whitelist mode: filter by fnmatch patterns, emit placeholders for unmatched patterns
-    matched: dict[str, tuple[str, float, float]] = {}
+    matched: dict[str, tuple[str, float, float, int]] = {}
     matched_patterns: set[str] = set()
-    for label, tottime, cumtime in results:
+    for label, tottime, cumtime, ncalls in results:
         for pattern in whitelist:
             if fnmatch.fnmatch(label, pattern):
                 if label not in matched:
-                    matched[label] = (label, tottime, cumtime)
+                    matched[label] = (label, tottime, cumtime, ncalls)
                 matched_patterns.add(pattern)
 
-    # Add 0.0 placeholders for patterns that matched nothing
+    # Add 0.0 placeholders for patterns that matched nothing. Placeholder rows
+    # keep the schema shape (still a 4-tuple) and carry ncalls=0 — semantically
+    # "this pattern matched nothing, so no call count is meaningful."
     for pattern in whitelist:
         if pattern not in matched_patterns:
             print(
                 f"[WARNING] Whitelist pattern '{pattern}' matched no profiled functions. "
                 "Check for typos or verify the function ran during this phase."
             )
-            matched[pattern] = (pattern, 0.0, 0.0)
+            matched[pattern] = (pattern, 0.0, 0.0, 0)
 
     filtered = list(matched.values())
     filtered.sort(key=lambda x: x[1], reverse=True)
