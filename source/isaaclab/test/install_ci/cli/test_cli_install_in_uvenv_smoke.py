@@ -45,7 +45,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.timeout(10)
     def test_uv_env_uses_python_312(self, isaaclab_root):
-        """Run ./isaaclab.x -u and verify the created env has Python 3.12."""
+        """Run ./isaaclab.sh -u and verify the created env has Python 3.12."""
 
         try:
             self.create_uv_env(isaaclab_root)
@@ -59,7 +59,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.timeout(200)
     def test_install_core_makes_assets_importable(self, isaaclab_root):
-        """Run ./isaaclab.x -i core and verify the core set (incl. assets) is importable.
+        """Run ./isaaclab.sh -i core and verify the core set (incl. assets) is importable.
 
         Under the new install model, ``isaaclab_assets`` is always installed as
         part of the core set.  Passing ``core`` installs the full core set without
@@ -69,7 +69,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         try:
             self.create_uv_env(isaaclab_root)
 
-            # ./isaaclab.x -i core — core set only, no optional extras
+            # ./isaaclab.sh -i core — core set only, no optional extras
             result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
 
@@ -85,7 +85,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
     @pytest.mark.uv
     @pytest.mark.timeout(300)
     def test_install_newton_pulls_newton_sim(self, isaaclab_root):
-        """Run ./isaaclab.x -i newton and verify the newton[sim] extra is installed.
+        """Run ./isaaclab.sh -i newton and verify the newton[sim] extra is installed.
 
         ``newton`` is an extra feature selector: it reinstalls the already-present
         core packages (``isaaclab_newton``, ``isaaclab_physx``, ``isaaclab_visualizers``)
@@ -95,7 +95,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
         try:
             self.create_uv_env(isaaclab_root)
 
-            # ./isaaclab.x -i newton — installs core + newton extras
+            # ./isaaclab.sh -i newton — installs core + newton extras
             result = self.run_in_uv_env([str(self.cli_script), "-i", "newton"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i newton failed:\n{result.stdout}\n{result.stderr}"
 
@@ -190,6 +190,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
             result = self.run_in_uv_env(
                 ["python", "-m", "pytest", test_dir, "-sv", "--tb=short"],
                 cwd=isaaclab_root,
+                timeout=3200,
             )
             output = result.stdout + result.stderr
             assert result.returncode == 0, f"isaaclab_newton tests failed (rc={result.returncode}):\n{output}"

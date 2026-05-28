@@ -76,6 +76,7 @@ class Test_Uv_Pip_Install_Isaaclab_Imports_Isaaclab(UV_Mixin):
     def test_install_makes_isaaclab_version_match_wheel(self):
         """``isaaclab.__version__`` equals the version segment in the wheel filename."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab import __version__; print(__version__)"])
+        assert result.returncode == 0, f"import __version__ failed:\n{result.stdout}\n{result.stderr}"
         imported_version = result.stdout.strip()
         expected_version = self._wheel.split("/")[-1].split("-")[1]
         assert imported_version == expected_version, (

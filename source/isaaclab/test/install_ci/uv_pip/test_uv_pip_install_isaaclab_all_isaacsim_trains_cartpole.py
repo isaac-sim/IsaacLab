@@ -47,7 +47,7 @@ def _assert_training_passed(result) -> None:
 
 @pytest.mark.install_path_uv_pip
 class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
-    """Build the wheel, ``uv pip install <wheel>[all]``, verify cartpole training."""
+    """Build the wheel, ``uv pip install <wheel>[all,isaacsim]``, verify cartpole training."""
 
     @classmethod
     def setup_class(cls):

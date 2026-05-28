@@ -113,6 +113,7 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
             result = self.run_in_uv_env(
                 ["python", "-m", "pytest", test_dir, "-sv", "--tb=short"],
                 cwd=isaaclab_root,
+                timeout=3200,
             )
             output = result.stdout + result.stderr
             assert result.returncode == 0, f"isaaclab_physx tests failed (rc={result.returncode}):\n{output}"
