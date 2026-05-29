@@ -156,6 +156,28 @@ Quick Start
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+Checkpoints
+-----------
+
+Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
+
+   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-Isaac-Assemble-Trocar-G129-Dex3-v0/<experiment_name>/checkpoints/global_step_<N>/
+
+The placeholders are configurable in the task YAML
+(``source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):
+
+- ``<experiment_name>`` — ``runner.logger.experiment_name`` (default: ``test_gr00t``)
+- ``<N>`` — increments every ``runner.save_interval`` epochs
+
+The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume,
+pass the ``global_step_<N>`` directory via ``--resume_dir``.
+
+.. tip::
+
+   Training throughput scales with the number of parallel environments. If your
+   GPU has spare memory, increase ``env.train.total_num_envs`` (default: ``4``)
+   in the task YAML.
+
 Configuration
 -------------
 
