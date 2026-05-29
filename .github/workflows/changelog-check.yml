@@ -46,3 +46,20 @@ jobs:
 
       - name: Verify changelog fragments
         run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}
+
+      - name: Run changelog tool unit tests
+        # Gates tools/changelog/cli.py itself: regression tests for the
+        # filename rules, fragment parsing, CHANGELOG_HEADER_RE invariant,
+        # and cmd_check / cmd_compile orchestration. Without this, a cli.py
+        # refactor could silently break the gate above.
+        #
+        # Skipped when the PR doesn't touch tools/changelog/ — fragment-only
+        # PRs are already covered by the content gate above, so paying for a
+        # pytest install + run on every PR is wasted.
+        run: |
+          if ! git diff --name-only origin/${{ steps.base.outputs.ref }}...HEAD | grep -qE '^tools/changelog/'; then
+            echo "PR does not touch tools/changelog/ — skipping unit tests."
+            exit 0
+          fi
+          pip install pytest
+          python3 -m pytest tools/changelog/test/ -q
