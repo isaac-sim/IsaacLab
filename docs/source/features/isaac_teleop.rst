@@ -1038,7 +1038,7 @@ Optimize XR Performance
              prim_path="/World/light",
              spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
              init_state=AssetBaseCfg.InitialStateCfg(
-                 rot=(x, y, z, w),  # quaternion (x, y, z, w); identity is (0, 0, 0, 1)
+                 rot=(0.0, 0.0, 0.0, 1.0),  # quaternion (x, y, z, w); adjust to reduce shadow overlap
              ),
          )
 
