@@ -3,9 +3,16 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.
+Isaac Lab offers several lightweight visualizers for real-time simulation
+inspection and debugging. Unlike renderers that process sensor data,
+visualizers are meant for fast, interactive feedback.
 
-You can use any visualizer regardless of your chosen physics engine or rendering backend.
+Most visualizers can be combined with any physics engine or rendering backend.
+The exception is the Kit visualizer with kit-less OV backends:
+``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
+``ovrtx_renderer`` in the same process. Use ``--visualizer newton``,
+``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
+for headless execution.
 
 
 Overview
@@ -190,16 +197,18 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
 Camera Modes
 ~~~~~~~~~~~~
 
+To configure camera modes, including launching a tiled camera view, edit the fields described below in the
+``VisualizerCfg`` config class.
+
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
 Kit and Newton visualizers can also run additional tiled camera image panels.
-If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
-a non-interactive tiled camera image view.
 
-Kit and Newton cap tiled camera views at 100 tiles.
+If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
+a non-interactive tiled camera image view. Number of tiles is capped at 100.
 
 Note, Kit tiled camera views require launching with ``--enable_cameras``.
 
-.. list-table:: Camera configuration modes
+.. list-table:: Camera Modes
    :header-rows: 1
    :widths: 24 30 46
 
@@ -215,6 +224,15 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
    * - Existing tiled camera sensors
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
      - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
+
+**How to Access the Tiled Camera View in the UI**
+
+- **Kit Visualizer:**
+  To display the tiled camera panel, select the "Visualizer Tiled Camera" viewport from the viewport selection menu.
+
+- **Newton Visualizer:**
+  To enable or disable the tiled camera panel, use the "Visualizer Tiled Camera" option found in the Tiled Camera View dropdown menu on the left sidebar.
+
 
 Video Recording
 ---------------

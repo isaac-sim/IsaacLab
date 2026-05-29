@@ -579,30 +579,24 @@ class DeformableObject(AssetBase):
     def _initialize_impl(self):
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
 
-        # find deformable root prims
+        def has_deformable_body_api(prim) -> bool:
+            return "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas()
+
+        matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+        asset_prim, root_expr = matches[0]
+        walk_root = asset_prim.GetPath().pathString
         root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas(),
-            traverse_instance_prims=False,
+            walk_root, predicate=has_deformable_body_api, traverse_instance_prims=False
         )
-        if len(root_prims) == 0:
+        if len(root_prims) != 1:
+            matched = [p.GetPath().pathString for p in root_prims]
             raise RuntimeError(
-                f"Failed to find a deformable body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'OmniPhysicsDeformableBodyAPI' applied."
+                f"Expected exactly one OmniPhysicsDeformableBodyAPI prim under '{walk_root}'"
+                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
             )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single deformable body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one deformable body in the prim path tree."
-            )
-        # we only need the first one from the list
         root_prim = root_prims[0]
 
         # find deformable material prims
@@ -655,10 +649,8 @@ class DeformableObject(AssetBase):
                 if has_mesh:
                     self._deformable_type = "surface"
 
-        # resolve root path back into regex expression
-        # -- root prim expression
-        root_prim_path = root_prim.GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        # resolve root path back into the destination glob expression
+        root_prim_path_expr = root_expr + root_prim.GetPath().pathString[len(walk_root) :]
         # -- object view
         if self._deformable_type == "surface":
             # surface deformable
@@ -690,8 +682,8 @@ class DeformableObject(AssetBase):
             material_prim_path = material_prim.GetPath().pathString
             # check if the material prim is under the template prim
             # if not then we are assuming that the single material prim is used for all the deformable bodies
-            if template_prim_path in material_prim_path:
-                material_prim_path_expr = self.cfg.prim_path + material_prim_path[len(template_prim_path) :]
+            if walk_root in material_prim_path:
+                material_prim_path_expr = root_expr + material_prim_path[len(walk_root) :]
             else:
                 material_prim_path_expr = material_prim_path
             # -- material view

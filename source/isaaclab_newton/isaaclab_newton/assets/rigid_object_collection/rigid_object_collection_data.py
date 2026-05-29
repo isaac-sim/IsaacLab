@@ -9,12 +9,11 @@ import warnings
 import weakref
 from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -70,21 +69,11 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._sim_timestamp = 0.0
         self._is_primed = False
 
-        # Convert gravity to direction vector
-        gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-
-        # Initialize constants
-        self.GRAVITY_VEC_W = ProxyArray(
-            wp.from_torch(gravity_dir.repeat(self.num_instances, self.num_bodies, 1), dtype=wp.vec3f)
-        )
-        self.FORWARD_VEC_B = ProxyArray(
-            wp.from_torch(
-                torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, self.num_bodies, 1),
-                dtype=wp.vec3f,
-            )
-        )
+        # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2); the
+        # projected_gravity_b kernel broadcasts each env's vector across its bodies.
+        self.GRAVITY_VEC_W = ProxyArray(SimulationManager.get_model().gravity)
+        forward_vec = np.full((self.num_instances, self.num_bodies, 3), (1.0, 0.0, 0.0), dtype=np.float32)
+        self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
 
         self._create_simulation_bindings()
         self._create_buffers()
@@ -357,7 +346,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             wp.launch(
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                shared_kernels.projected_gravity_b_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.GRAVITY_VEC_W.warp, self.body_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],

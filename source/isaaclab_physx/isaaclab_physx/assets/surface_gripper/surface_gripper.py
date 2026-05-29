@@ -453,36 +453,25 @@ class SurfaceGripper(AssetBase):
         enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self._cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self._cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
+        def is_surface_gripper(prim) -> bool:
+            return prim.GetTypeName() == "IsaacSurfaceGripper"
 
-        # find surface gripper prims
+        matches = sim_utils.resolve_matching_prims_from_source(self._cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self._cfg.prim_path}'.")
+        asset_prim, root_expr = matches[0]
+        walk_root = asset_prim.GetPath().pathString
         gripper_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.GetTypeName() == "IsaacSurfaceGripper",
-            traverse_instance_prims=False,
+            walk_root, predicate=is_surface_gripper, traverse_instance_prims=False
         )
-        if len(gripper_prims) == 0:
+        if len(gripper_prims) != 1:
+            matched = [p.GetPath().pathString for p in gripper_prims]
             raise RuntimeError(
-                f"Failed to find a surface gripper when resolving '{self._cfg.prim_path}'."
-                " Please ensure that the prim has type 'IsaacSurfaceGripper'."
+                f"Expected exactly one IsaacSurfaceGripper prim under '{walk_root}'"
+                f" (resolved from '{self._cfg.prim_path}'), found {len(gripper_prims)}: {matched}."
             )
-        if len(gripper_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single surface gripper when resolving '{self._cfg.prim_path}'."
-                f" Found multiple '{gripper_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one surface gripper in the prim path tree."
-            )
-
-        # resolve gripper prim back into regex expression
-        gripper_prim_path = gripper_prims[0].GetPath().pathString
-        gripper_prim_path_expr = self._cfg.prim_path + gripper_prim_path[len(template_prim_path) :]
-
-        # Count number of environments
-        self._prim_expr = gripper_prim_path_expr
+        gripper_prim = gripper_prims[0]
+        self._prim_expr = root_expr + gripper_prim.GetPath().pathString[len(walk_root) :]
         env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
@@ -505,7 +494,7 @@ class SurfaceGripper(AssetBase):
         )
 
         # log information about the surface gripper
-        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
+        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{self._prim_expr}'.")
         logger.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers

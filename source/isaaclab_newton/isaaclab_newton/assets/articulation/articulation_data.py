@@ -9,12 +9,11 @@ import warnings
 import weakref
 from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -75,16 +74,11 @@ class ArticulationData(BaseArticulationData):
         self._is_primed = False
         self._fk_timestamp = 0.0
 
-        # Convert to direction vector
-        gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        gravity_dir = gravity_dir.repeat(self._root_view.count, 1)
-        forward_vec = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
-
-        # Initialize constants
-        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir, dtype=wp.vec3f))
-        self.FORWARD_VEC_B = ProxyArray(wp.from_torch(forward_vec, dtype=wp.vec3f))
+        # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
+        # per-env gravity randomization stays live; consumers normalize on read.
+        self.GRAVITY_VEC_W = ProxyArray(SimulationManager.get_model().gravity)
+        forward_vec = np.full((self._root_view.count, 3), (1.0, 0.0, 0.0), dtype=np.float32)
+        self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
 
         self._create_simulation_bindings()
         self._create_buffers()
@@ -480,7 +474,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_stiffness_ta
 
     @property
     def fixed_tendon_damping(self) -> ProxyArray:
@@ -489,7 +483,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_damping_ta
 
     @property
     def fixed_tendon_limit_stiffness(self) -> ProxyArray:
@@ -525,7 +519,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons, 2), dtype = wp.vec2f. In torch this resolves to
         (num_instances, num_fixed_tendons, 2).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_pos_limits_ta
 
     """
     Spatial tendon properties.
@@ -1008,7 +1002,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             wp.launch(
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],
@@ -1431,8 +1425,8 @@ class ArticulationData(BaseArticulationData):
         self._num_instances = self._root_view.count
         self._num_joints = self._root_view.joint_dof_count
         self._num_bodies = self._root_view.link_count
-        self._num_fixed_tendons = 0  # self._root_view.max_fixed_tendons
-        self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
+        self._num_fixed_tendons = self._root_view.tendon_count
+        self._num_spatial_tendons = 0  # spatial tendons not supported
 
         # -- root properties
         self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
@@ -1547,6 +1541,23 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
 
+        # assumes all tendons are fixed and only one arti in scene
+        if self._root_view.tendon_count > 0:
+            self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute(
+                "mujoco.tendon_stiffness", SimulationManager.get_model()
+            )[:, 0]
+            self._sim_bind_fixed_tendon_damping = self._root_view.get_attribute(
+                "mujoco.tendon_damping",
+                SimulationManager.get_model(),
+            )[:, 0]
+        else:
+            self._sim_bind_fixed_tendon_stiffness = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_fixed_tendon_damping = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+
         # Re-pin ProxyArray wrappers to the newly created sim bindings.
         # On first init, _create_buffers() handles this after all buffers exist.
         if hasattr(self, "_root_link_pose_w_ta"):
@@ -1619,6 +1630,14 @@ class ArticulationData(BaseArticulationData):
         else:
             self._previous_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
+
+        # staging buffers to write all tendon params to sim at once
+        if self._num_fixed_tendons > 0:
+            self._fixed_tendon_stiffness = wp.clone(self._sim_bind_fixed_tendon_stiffness)
+            self._fixed_tendon_damping = wp.clone(self._sim_bind_fixed_tendon_damping)
+        else:
+            self._fixed_tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._fixed_tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
@@ -1824,6 +1843,8 @@ class ArticulationData(BaseArticulationData):
             self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
             self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
             self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
+            self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
+            self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
 
             # Category 2: TimestampedBuffer properties
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)

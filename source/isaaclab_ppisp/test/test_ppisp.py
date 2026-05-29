@@ -6,7 +6,7 @@
 """Tests for PPISP USD parsing helpers."""
 
 import pytest
-from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg, ppisp_cfg_from_usd_shader
+from isaaclab_ppisp import PpispCfg, auto_camera_ppisp_cfg, normalize_ppisp_cfg, ppisp_cfg_from_usd_shader
 
 from pxr import Gf, Sdf, Usd, UsdShade
 
@@ -59,3 +59,30 @@ def test_normalize_ppisp_cfg_applies_explicit_overrides_after_shader_import():
 
     assert cfg.inputs["exposureOffset"] == 2.0
     assert cfg.inputs["colorLatentRed"] == pytest.approx((0.25, -0.5))
+
+
+def test_auto_camera_ppisp_cfg_skips_matching_render_product_without_ppisp():
+    """Camera-bound discovery skips generated RenderProducts that lack PPISP.
+
+    Isaac RTX can create a transient RenderProduct that targets the same camera
+    as an authored scene RenderProduct. If the transient prim has no ``PPISP``
+    child, discovery must keep scanning instead of concluding the camera has no
+    camera-bound PPISP shader.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    camera = "/World/Camera"
+    stage.DefinePrim(camera, "Camera")
+
+    plain_rp = stage.DefinePrim("/Render/GeneratedRenderProduct", "RenderProduct")
+    plain_rp.CreateRelationship("camera").SetTargets([Sdf.Path(camera)])
+
+    authored_rp = stage.DefinePrim("/World/Render/RenderProduct", "RenderProduct")
+    authored_rp.CreateRelationship("camera").SetTargets([Sdf.Path(camera)])
+    shader = UsdShade.Shader.Define(stage, "/World/Render/RenderProduct/PPISP")
+    shader.CreateInput("exposureOffset", Sdf.ValueTypeNames.Float).Set(1.5)
+
+    cfg = auto_camera_ppisp_cfg(stage, camera)
+
+    assert cfg is not None
+    assert cfg.shader_prim_path == "/World/Render/RenderProduct/PPISP"
+    assert cfg.inputs["exposureOffset"] == 1.5

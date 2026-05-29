@@ -882,23 +882,31 @@ def modify_fixed_tendon_properties(
 
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has fixed tendon applied on it
+    # check if prim has fixed tendon applied on it or if the mjc tendon prim exiss
     applied_schemas = tendon_prim.GetAppliedSchemas()
-    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas):
+    prim_type = tendon_prim.GetTypeName()
+    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
         return False
 
     # resolve all available instances of the schema since it is multi-instance
     cfg = cfg.to_dict()
-    for schema_name in applied_schemas:
-        if "PhysxTendonAxisRootAPI" not in schema_name:
-            continue
-        # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
+    if prim_type != "MjcTendon":
+        for schema_name in applied_schemas:
+            if "PhysxTendonAxisRootAPI" not in schema_name:
+                continue
+            # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
+            for attr_name, value in cfg.items():
+                safe_set_attribute_on_usd_prim(
+                    tendon_prim,
+                    f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
+                    value,
+                    camel_case=False,
+                )
+    else:
+        # only stiffness and damping in the cfg map to mjc attributes
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
-                tendon_prim,
-                f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                value,
-                camel_case=False,
+                tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
             )
     # success
     return True

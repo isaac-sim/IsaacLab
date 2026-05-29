@@ -24,14 +24,11 @@ DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
     "Dockerfile.installci": "isaaclab",
-    "Dockerfile.installci-conda": "isaaclab",
     "Dockerfile.ros2": "isaaclab",
 }
 
 # Dockerfiles that are expected to *create* the non-root runtime user
-# (i.e. contain groupadd/useradd/USER isaaclab).  Inherited-user images
-# (like Dockerfile.installci-conda which builds on top of Dockerfile.installci)
-# are excluded here.
+# (i.e. contain groupadd/useradd/USER isaaclab).
 DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo", "Dockerfile.installci"}
 
 USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")

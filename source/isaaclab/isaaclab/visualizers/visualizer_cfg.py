@@ -25,15 +25,7 @@ class VisualizerCfg:
         RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
     """
 
-    visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
-
-    enable_markers: bool = True
-    """Enable visualization markers (debug drawing)."""
-
-    enable_live_plots: bool = True
-    """Enable live plotting of data."""
-
+    # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Interactive visualizer camera eye position in world coordinates."""
 
@@ -43,6 +35,7 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
+    # Tiled camera settings
     tiled_cam_view: bool = False
     """Enable a non-interactive tiled camera image view."""
 
@@ -63,11 +56,18 @@ class VisualizerCfg:
     """
 
     tiled_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Eye offset from tiled_cam_target_prim_path for generated tiled cameras."""
+    """Offset of the camera eye from tiled_cam_target_prim_path for generated tiled cameras.
 
-    tiled_cam_target_prim_path: str = "/World/envs/*/Robot/base"
-    """Prim path that generated tiled cameras follow and look at."""
+    The camera follows the target prim and always maintains this fixed offset relative to it.
+    """
 
+    tiled_cam_target_prim_path: str = "/World/envs/*/Robot"
+    """Prim path that generated tiled cameras follow and look at.
+
+    For example, ``"/World/envs/*/Robot"``.
+    """
+
+    # Partial visualization settings
     max_visible_envs: int | None = None
     """Upper bound on how many envs are shown.
 
@@ -84,6 +84,18 @@ class VisualizerCfg:
 
     * Note: ``visible_env_indices`` overrides this field.
     """
+
+    # Visualization Markers
+    enable_markers: bool = True
+    """Enable visualization markers (debug drawing)."""
+
+    # Live Plots
+    enable_live_plots: bool = True
+    """Enable live plotting of data."""
+
+    # Internal
+    visualizer_type: str | None = None
+    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.
