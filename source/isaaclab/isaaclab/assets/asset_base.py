@@ -17,6 +17,8 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -79,7 +81,7 @@ class AssetBase(ABC):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # get stage handle
-        self.stage: Usd.Stage = sim_utils.get_current_stage()
+        self.stage: Usd.Stage = get_current_stage()
 
         # spawn the asset
         # determine path where prims should exist after spawn
@@ -206,11 +208,11 @@ class AssetBase(ABC):
         # toggle debug visualization handles (Kit/omni only for PhysX backend)
         if debug_vis:
             if self._debug_vis_handle is None:
-                sim_ctx = sim_utils.SimulationContext.instance()
+                sim_ctx = SimulationContext.instance()
                 if sim_ctx is not None:
                     self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            sim_ctx = sim_utils.SimulationContext.instance()
+            sim_ctx = SimulationContext.instance()
             if sim_ctx is not None:
                 sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
             else:
@@ -351,7 +353,7 @@ class AssetBase(ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
+        physics_mgr_cls = SimulationContext.instance().physics_manager
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
@@ -395,15 +397,15 @@ class AssetBase(ABC):
             :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            self._backend = sim_utils.SimulationContext.instance().physics_manager.get_backend()
-            self._device = sim_utils.SimulationContext.instance().physics_manager.get_device()
+            self._backend = SimulationContext.instance().physics_manager.get_backend()
+            self._device = SimulationContext.instance().physics_manager.get_device()
             self._initialize_impl()
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        sim_ctx = sim_utils.SimulationContext.instance()
+        sim_ctx = SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
         else:
@@ -436,7 +438,7 @@ class AssetBase(ABC):
         if self._prim_deletion_handle is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
-        sim_ctx = sim_utils.SimulationContext.instance()
+        sim_ctx = SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
         else:

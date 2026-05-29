@@ -18,6 +18,7 @@ import toml
 import torch
 
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
@@ -29,6 +30,7 @@ from isaaclab.physics.scene_data_requirements import (
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sim.service_locator import ServiceLocator
+from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -111,15 +113,13 @@ class SimulationContext:
 
         from pxr import UsdUtils  # noqa: PLC0415
 
-        from isaaclab.sim.utils import stage as stage_utils  # noqa: PLC0415
-
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
-            self.stage = sim_utils.create_new_stage()
+            self.stage = create_new_stage()
         else:
             # Prefer the thread-local current stage (set by create_new_stage / test fixtures)
             # over cache lookup, since the cache may contain stale stages from prior tests.
@@ -128,7 +128,7 @@ class SimulationContext:
                 self.stage = current
             else:
                 all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
-                self.stage = all_stages[0] if all_stages else sim_utils.create_new_stage()
+                self.stage = all_stages[0] if all_stages else create_new_stage()
 
         # Ensure stage is in the USD cache
         stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
@@ -917,7 +917,7 @@ class SimulationContext:
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
-            sim_utils.close_stage()
+            stage_utils.close_stage()
 
             # Discard cached name-resolution data from destroyed assets
             clear_resolve_matching_names_cache()
@@ -988,7 +988,7 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
-            sim_utils.create_new_stage()
+            create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
