@@ -13,9 +13,10 @@ from collections.abc import Callable
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from .stage import get_current_stage
 from isaaclab.cloner.cloner_utils import resolve_clone_plan_source
 from isaaclab.sim.simulation_context import SimulationContext
+
+from .stage import get_current_stage
 
 # import logger
 logger = logging.getLogger(__name__)

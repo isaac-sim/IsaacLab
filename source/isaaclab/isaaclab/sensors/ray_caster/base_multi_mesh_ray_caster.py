@@ -206,7 +206,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         records_per_env = [[] for _ in range(self._num_envs)]
         target_in_plan = False
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
-        has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)
+        has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
         if plan is not None and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
@@ -286,7 +286,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     if reference_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                         break
                     reference_prim = reference_prim.GetParent()
-                if (reference_prim is None or not reference_prim.IsValid() or not has_rigid_body_api(reference_prim)):
+                if reference_prim is None or not reference_prim.IsValid() or not has_rigid_body_api(reference_prim):
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_cfg.prim_expr}'. "
                         "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
