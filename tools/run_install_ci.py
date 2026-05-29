@@ -149,23 +149,34 @@ def _find_repo_root() -> Path:
     raise FileNotFoundError("Could not locate IsaacLab repository root")
 
 
-def _build_isaaclab_wheel(repo_root: Path) -> Path:
+def _build_isaaclab_wheel(repo_root: Path, debug: bool = False) -> Path:
     """Build the isaaclab wheel via ``tools/wheel_builder/build.sh`` and return its path.
 
     Used by ``--build-wheel`` so callers (CI or local dev) don't have to pre-build the
     wheel out-of-band before invoking the install_ci runner. Tests consume the wheel
     via the existing ``ISAACLAB_WHEEL`` env var / ``wheel_path`` session fixture.
+
+    Output is captured and discarded by default to avoid spamming CI logs with thousands of
+    setuptools / pip lines. Pass ``debug=True`` (via the runner's ``--debug`` flag) to stream
+    the build output live. On failure the captured output is dumped regardless.
     """
     build_script = repo_root / "tools" / "wheel_builder" / "build.sh"
     dist_dir = repo_root / "tools" / "wheel_builder" / "build" / "dist"
-    print(f"{_MAGENTA}[BUILD-WHEEL] running {build_script}{_RESET}")
-    result = run_cmd(["bash", str(build_script)], cwd=repo_root, timeout=900, check=False, stream=True)
+    mode = "verbose" if debug else "quiet; pass --debug for full output"
+    print(f"{_MAGENTA}[BUILD-WHEEL] running {build_script} ({mode}){_RESET}")
+    t0 = time.monotonic()
+    result = run_cmd(["bash", str(build_script)], cwd=repo_root, timeout=900, check=False, stream=debug)
     if result.returncode != 0:
+        if not debug:
+            sys.stdout.write(result.stdout or "")
+            if result.stderr:
+                sys.stderr.write(result.stderr)
         raise RuntimeError(f"tools/wheel_builder/build.sh failed (rc={result.returncode})")
     wheels = sorted(dist_dir.glob("isaaclab-*.whl"))
     if len(wheels) != 1:
         raise RuntimeError(f"Expected exactly 1 wheel in {dist_dir}, found: {wheels}")
-    print(f"{_MAGENTA}[BUILD-WHEEL] built {wheels[0]}{_RESET}")
+    elapsed = time.monotonic() - t0
+    print(f"{_MAGENTA}[BUILD-WHEEL] built {wheels[0]} ({elapsed:.1f}s){_RESET}")
     return wheels[0]
 
 
@@ -253,7 +264,7 @@ def _maybe_build_wheel(args: argparse.Namespace, repo_root: Path) -> None:
         return
     if args.wheel:
         raise SystemExit("--build-wheel is mutually exclusive with --wheel")
-    args.wheel = str(_build_isaaclab_wheel(repo_root))
+    args.wheel = str(_build_isaaclab_wheel(repo_root, debug=getattr(args, "debug", False)))
 
 
 def _cmd_docker(args: argparse.Namespace) -> int:
@@ -399,10 +410,12 @@ docker options:
   --results-dir DIR    Host directory for test results (auto-adds --junitxml)
   --wheel PATH         Path to pre-built isaaclab wheel file
   --build-wheel        Build the isaaclab wheel and pass it to tests (mutually exclusive with --wheel)
+  --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
 
 native options:
   --wheel PATH         Path to pre-built isaaclab wheel file
   --build-wheel        Build the isaaclab wheel and pass it to tests (mutually exclusive with --wheel)
+  --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
 
 pytest arguments:
   Pass pytest options after '--'. Without '--', defaults to '-sv --tb=short'.
@@ -446,6 +459,11 @@ pytest arguments:
         action="store_true",
         help="Build the isaaclab wheel via tools/wheel_builder/build.sh and pass it to tests (sets --wheel)",
     )
+    docker_p.add_argument(
+        "--debug",
+        action="store_true",
+        help="Stream wheel-build output live instead of capturing it silently (default: quiet)",
+    )
     docker_p.add_argument("pytest_args", nargs="*", help="Arguments forwarded to pytest (use -- to separate)")
 
     # native subcommand
@@ -455,6 +473,11 @@ pytest arguments:
         "--build-wheel",
         action="store_true",
         help="Build the isaaclab wheel via tools/wheel_builder/build.sh and pass it to tests (sets --wheel)",
+    )
+    native_p.add_argument(
+        "--debug",
+        action="store_true",
+        help="Stream wheel-build output live instead of capturing it silently (default: quiet)",
     )
     native_p.add_argument("pytest_args", nargs="*", help="Arguments forwarded to pytest (use -- to separate)")
 
