@@ -52,8 +52,8 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 
 # Debugging mode configs.
 
-_WRITE_VIS_DEBUG_FRAMES = False
-"""Whether to emit visualizer debug PNGs during integration tests.  Disabled by default."""
+_WRITE_VIS_DEBUG_FRAMES = True
+"""Whether to emit visualizer debug PNGs during integration tests."""
 
 _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 """Directory for opt-in visualizer debug images emitted by integration tests."""
@@ -98,8 +98,14 @@ _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
 _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 """Cartpole articulation root prim followed by generated visualizer tiled cameras."""
 
-_START_BUFFER_STEPS = 5
+_START_BUFFER_STEPS = 20
 """Warmup physics steps before capturing the first debug frame."""
+
+_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS = 20
+"""Render/app updates after creating a Kit RTX render product before sampling RGB."""
+
+_NEWTON_VIEWER_WARMUP_FRAMES = 20
+"""Viewer-only updates after physics warmup before sampling Newton RGB."""
 
 PLAY_VIZ_N_STEP = 20
 """Steps to run for each motion or resumed-play segment."""
@@ -809,6 +815,14 @@ def _newton_camera_front(camera) -> tuple[float, float, float]:
     return tuple(float(v) for v in front)
 
 
+def _warm_newton_viewer(visualizer: NewtonVisualizer, viewer) -> None:
+    """Pump Newton viewer frames before sampling ``get_frame()`` after cold starts."""
+    for _ in range(_NEWTON_VIEWER_WARMUP_FRAMES):
+        visualizer.step(0.0)
+        with contextlib.suppress(Exception):
+            viewer.get_frame()
+
+
 def _run_newton_viewer_frame_motion_test(
     env,
     viewer,
@@ -828,6 +842,7 @@ def _run_newton_viewer_frame_motion_test(
     )
     for _ in range(_START_BUFFER_STEPS):
         step_hook()
+    _warm_newton_viewer(visualizer, viewer)
 
     motion_start_frame = viewer.get_frame()
     for _ in range(PLAY_VIZ_N_STEP):
@@ -1058,6 +1073,15 @@ def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
     _update_active_simulation_app()
 
 
+def _warm_kit_rtx_render_product(env, annotator) -> None:
+    """Pump Kit/RTX render-product updates before sampling the annotator after cold starts."""
+    for _ in range(_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS):
+        env.sim.render()
+        _update_active_simulation_app()
+        with contextlib.suppress(Exception):
+            annotator.get_data()
+
+
 def _run_kit_viewport_frame_motion_test(
     env,
     kit_visualizer: KitVisualizer,
@@ -1085,6 +1109,7 @@ def _run_kit_viewport_frame_motion_test(
     try:
         _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/before_render_product")
         annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
+        _warm_kit_rtx_render_product(env, annotator)
         _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/after_render_product")
         # TODO: Remove this workaround step during the Visualizer class refactor
         if viz_kind == "kit" and physics_kind == "newton":
