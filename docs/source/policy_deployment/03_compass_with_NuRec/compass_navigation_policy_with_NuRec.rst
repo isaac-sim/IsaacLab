@@ -206,18 +206,13 @@ Download the pre-packaged COMPASS USD assets using the Hugging Face CLI:
 Alternatively, you can download it manually from:
 https://huggingface.co/nvidia/COMPASS/blob/main/compass_usds.zip
 
-Extract the downloaded ``compass_usds.zip`` file. Then move/copy the ``usd`` folder from the extracted location:
+Extract the downloaded ``compass_usds.zip`` file and move the ``usd`` folder into the COMPASS extension directory:
 
 .. code-block:: bash
 
-    <download_path>/compass_usds/groot_mobility_rl_es_usds/usd
-
-into the COMPASS extension directory:
-
-.. code-block:: bash
-
-    # Ensure that you are in COMPASS root directory
-    compass/rl_env/exts/mobility_es/mobility_es/
+    cd <compass-nurec>/COMPASS
+    unzip compass_usds.zip
+    mv groot_mobility_rl_es_usds/usd compass/rl_env/exts/mobility_es/mobility_es/
 
 **3. NuRec Real2Sim Assets**
 
@@ -226,6 +221,39 @@ Download the NuRec Real2Sim assets from the `PhysicalAI-Robotics-NuRec dataset`_
 .. code-block:: bash
 
     hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec
+
+.. tip::
+
+   The full dataset is large. To download only the environment(s) you need, use the ``--include`` and
+   ``--exclude`` glob filters supported by ``hf download``. Quote the patterns so your shell does not
+   expand them, and the original folder structure is preserved under ``--local-dir``.
+
+   .. code-block:: bash
+
+       # Download a single environment
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/*"
+
+       # Download multiple environments at once
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/*" "nova_carter-cafe/*"
+
+       # Recursively include sub-folders
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/**"
+
+       # Pull only specific files within an environment
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/stage.usdz" "nova_carter-galileo/3dgrt/**"
+
+       # Download everything except the large mesh files
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --exclude "**/*.usdz"
 
 Alternatively, you can download them manually from the `PhysicalAI-Robotics-NuRec dataset`_ on Hugging Face:
 
@@ -241,7 +269,16 @@ The dataset provides several environments. For COMPASS, download the environment
     # Ensure that you are in COMPASS root directory
     compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/
 
-For example, for the Galileo environment (nova_carter-galileo):
+For example, for the Galileo environment (nova_carter-galileo), move the downloaded folder into
+the COMPASS extension directory:
+
+.. code-block:: bash
+
+    # Run from the COMPASS root directory
+    mv <compass-nurec>/PhysicalAI-Robotics-NuRec/nova_carter-galileo \
+       compass/rl_env/exts/mobility_es/mobility_es/usd/
+
+The resulting layout should look like:
 
 .. code-block:: bash
 
