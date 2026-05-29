@@ -295,7 +295,7 @@ runs:
                 esac
               fi
               echo 'Starting pytest with path: $test_path'
-              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
+              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
           # Stream container logs in background.

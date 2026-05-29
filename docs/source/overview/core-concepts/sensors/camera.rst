@@ -322,6 +322,24 @@ backend allocates its own HDR scratch buffer when the user did not request
 ``"rgb_hdr"`` in :attr:`~sensors.CameraCfg.data_types`, and dispatches the
 PPISP kernel into ``rgb`` / ``rgba`` after every render tick.
 
+Usage example
+^^^^^^^^^^^^^
+
+For a runnable usage example, see ``scripts/demos/sensors/ppisp_camera.py``.
+It loads a PPISP-authored USD or USDZ Gaussian scene, creates baseline and
+PPISP camera sensors for the selected camera, and saves baseline, PPISP, and
+absolute-difference images.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+       --renderer newton --visualizer none --max_steps 60
+
+Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
+``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
+contains multiple PPISP-bound cameras. Images are written to
+``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
+
 Known limitations
 ^^^^^^^^^^^^^^^^^
 

@@ -39,7 +39,7 @@ Repository = "https://github.com/isaac-sim/IsaacLab"
 
 [project.optional-dependencies]
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
-skrl = ["skrl>=2.0.0"]
+skrl = ["skrl>=2.1.0"]
 rl-games = [
     "aiohttp==3.13.3",
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
@@ -49,7 +49,7 @@ rl-games = [
 rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
 all = [
     "stable-baselines3>=2.6", "tqdm", "rich",
-    "skrl>=2.0.0",
+    "skrl>=2.1.0",
     "aiohttp==3.13.3",
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
     "gym",
