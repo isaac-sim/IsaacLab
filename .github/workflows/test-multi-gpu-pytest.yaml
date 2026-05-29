@@ -241,6 +241,11 @@ jobs:
                 set +e
                 cd /workspace/isaaclab
                 unset HUB__ARGS__DETECT_ONLY
+                # Install test-only deps that are NOT in the image build
+                # (mirrors the hardcoded line in run-tests action.yml).
+                # junitparser is imported at tools/conftest.py load time,
+                # so it must be present before pytest fires.
+                ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky "coverage>=7.6.1"
                 ./isaaclab.sh -p -m pytest \
                   --ignore=tools/conftest.py \
                   --ignore=source/isaaclab/test/install_ci \
