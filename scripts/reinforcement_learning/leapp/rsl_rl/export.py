@@ -15,7 +15,7 @@ import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.app import AppLauncher
 
@@ -113,14 +113,6 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
-
-
-def parse_prelaunch_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse enough CLI state to launch Isaac Sim before task utilities are imported."""
-    parser = create_arg_parser()
-    args_cli, _ = parser.parse_known_args(argv)
-    args_cli.headless = True
-    return args_cli
 
 
 def _load_runtime_dependencies() -> None:
@@ -239,7 +231,7 @@ def export_rsl_rl_agent(
     args_cli: argparse.Namespace,
     env_cfg,
     agent_cfg,
-    simulation_app,
+    simulation_app=None,
 ) -> bool:
     """Export a RSL-RL agent."""
     _load_runtime_dependencies()
@@ -324,8 +316,9 @@ def export_rsl_rl_agent(
         leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
         leapp_started = True
         obs = env.reset()[0]
-        while not simulation_app.is_running():
-            time.sleep(0.5)
+        if simulation_app is not None:
+            while not simulation_app.is_running():
+                time.sleep(0.5)
 
         for _ in range(max(args_cli.validation_steps, 2)):
             with torch.inference_mode():
@@ -380,10 +373,13 @@ def prepare_cli_export_runtime() -> None:
     settings_manager.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
 
-def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], simulation_app) -> bool:
+def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
-    _load_runtime_dependencies()
     from isaaclab_tasks.utils import fold_preset_tokens
+    from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_import
+    from isaaclab_tasks.utils.sim_launcher import launch_simulation
+
+    hydra_task_config_fn: Any = hydra_task_config_import
 
     original_argv = sys.argv
     # Fold typed preset selectors into a single ``presets=<csv>`` token before
@@ -393,13 +389,15 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
 
     try:
 
-        @hydra_task_config(args_cli.task, args_cli.agent)
+        @hydra_task_config_fn(args_cli.task, args_cli.agent)
         def _main(env_cfg, agent_cfg) -> None:
             nonlocal exported
-            prepare_cli_export_runtime()
-            exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg, simulation_app)
+            with launch_simulation(env_cfg, args_cli):
+                prepare_cli_export_runtime()
+                exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg)
 
-        _main()
+        main_fn: Any = _main
+        main_fn()
     finally:
         sys.argv = original_argv
 
@@ -408,15 +406,8 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
 
 def main_cli(argv: list[str] | None = None) -> bool:
     """Run the command-line export flow."""
-    prelaunch_args = parse_prelaunch_args(argv)
-    app_launcher = AppLauncher(prelaunch_args)
-    simulation_app = app_launcher.app
-
-    try:
-        args_cli, hydra_args = parse_export_args(argv)
-        return run_export_with_hydra(args_cli, hydra_args, simulation_app)
-    finally:
-        simulation_app.close()
+    args_cli, hydra_args = parse_export_args(argv)
+    return run_export_with_hydra(args_cli, hydra_args)
 
 
 if __name__ == "__main__":
