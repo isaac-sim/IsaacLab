@@ -16,7 +16,7 @@ from newton.selection import ArticulationView
 from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -37,10 +37,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     (child-side joint frame, child-side joint anchor as reference point)
     before storing it in per-joint force / torque buffers.
 
-    :attr:`~isaaclab.sensors.SensorBaseCfg.prim_path` must point at either
-    the articulation root prim or a parent prim containing a single
-    articulation root in every environment. ``FREE`` and ``FIXED`` joints are
-    excluded — neither has a meaningful joint anchor.
+    :attr:`~isaaclab.sensors.SensorBaseCfg.prim_path` may point at either an
+    articulation root expression or an env-scoped parent prefix. Newton label
+    matching selects the articulations owned by that prefix. ``FREE`` and
+    ``FIXED`` joints are excluded because neither has a meaningful joint
+    anchor.
     """
 
     cfg: JointWrenchSensorCfg
@@ -127,7 +128,24 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         model = NewtonManager.get_model()
         state_0 = NewtonManager.get_state_0()
 
-        root_prim_path_expr = self._resolve_articulation_root_prim_path()
+        def has_articulation_root_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+        asset_prim, root_expr = matches[0]
+        walk_root = asset_prim.GetPath().pathString
+        root_prims = get_all_matching_child_prims(
+            walk_root, predicate=has_articulation_root_api, traverse_instance_prims=False
+        )
+        if len(root_prims) != 1:
+            matched = [p.GetPath().pathString for p in root_prims]
+            raise RuntimeError(
+                f"Expected exactly one ArticulationRootAPI prim under '{walk_root}'"
+                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
+            )
+        root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         self._root_view = ArticulationView(
             model,
             root_prim_path_expr.replace(".*", "*"),
@@ -169,35 +187,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data.create_buffers(num_envs=self._num_envs, num_joints=self._num_joints, device=self._device)
 
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_joints} joints")
-
-    def _resolve_articulation_root_prim_path(self) -> str:
-        """Resolve the articulation root prim path expression from the configured asset prim path."""
-        first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-        if first_env_matching_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
-
-        first_env_root_prims = get_all_matching_child_prims(
-            first_env_matching_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-            and prim.GetAttribute("physxArticulation:articulationEnabled").Get() is not False,
-            traverse_instance_prims=False,
-        )
-        if len(first_env_root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
-                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
-            )
-        if len(first_env_root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
-                f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
-                " Please ensure that there is only one articulation in the prim path tree."
-            )
-
-        first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
-        root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
-        return self.cfg.prim_path + root_prim_path_relative_to_prim_path
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Convert Newton's body_parent_f into INCOMING_JOINT_FRAME force and torque buffers.

@@ -20,27 +20,8 @@ from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_ke
 from isaaclab_physx.physics import PhysxManager
 
 
-def _find_physics_ancestor(prim):
-    """Return the nearest rigid-body ancestor for a sensor or target prim."""
-    ancestor = prim
-    while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
-        if ancestor.HasAPI(UsdPhysics.RigidBodyAPI):
-            return ancestor
-        ancestor = ancestor.GetParent()
-    return None
-
-
-def _body_expr_from_sensor_expr(sensor_expr: str, first_sensor_prim, first_body_prim) -> str:
-    """Convert a sensor/target expression to the matching rigid-body expression."""
-    sensor_path = first_sensor_prim.GetPath().pathString
-    body_path = first_body_prim.GetPath().pathString
-    if sensor_path == body_path:
-        return sensor_expr
-    # Example: ``.../Robot/base/sensor`` target -> ``.../Robot/base`` body view.
-    suffix = sensor_path[len(body_path) :]
-    if suffix and sensor_expr.endswith(suffix):
-        return sensor_expr[: -len(suffix)]
-    return body_path
+def _has_rigid_body_api(prim) -> bool:
+    return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
 
 def _physx_body_glob(body_expr: str) -> str:
@@ -62,40 +43,40 @@ class _PhysXRayCasterMixin:
         return self._view_count
 
     def _initialize_pose_tracking(self: Any) -> None:
-        """Initialize direct PhysX body tracking or a cached static pose table."""
-        prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-        if len(prims) == 0:
+        """Track the sensor frame through its PhysX rigid-body ancestor, else cache static poses."""
+        # One clone-plan-/stage-aware resolution yields the sensor frame(s) and their
+        # multi-instance destination expressions; the rigid-body view is the frame's ancestor.
+        matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
             raise RuntimeError(f"No sensor prims matched: {self.cfg.prim_path}")
-
-        # The base classes still use ``self._view.count`` in a few generic
-        # places. Point it at the sensor instead of constructing an adapter.
+        # Base classes read ``self._view.count``; the sensor doubles as its own view.
         self._view = self
-        body = _find_physics_ancestor(prims[0])
+        prims = [prim for prim, _ in matches]
+        sensor_prim, sensor_expr = matches[0]
+        body = sim_utils.get_first_matching_ancestor_prim(sensor_prim.GetPath(), predicate=_has_rigid_body_api)
         if body is None:
-            self._initialize_static_pose_tracking(prims)
+            # No rigid-body ancestor: nothing spans envs, so cache every concrete env frame.
+            self._initialize_static_pose_tracking(sim_utils.find_matching_prims(self.cfg.prim_path))
             return
 
-        requested_prim_path = getattr(self, "_requested_prim_path", self.cfg.prim_path)
-        # When the public prim path pointed at a rigid body, BaseRayCaster
-        # spawned a child sensor prim and preserved the original body path.
-        body_expr = (
-            requested_prim_path
-            if self.cfg.prim_path != requested_prim_path
-            else _body_expr_from_sensor_expr(self.cfg.prim_path, prims[0], body)
-        )
+        # The body view is ``sensor_expr`` with the sensor-relative suffix trimmed off.
+        sensor_path, body_path = sensor_prim.GetPath(), body.GetPath()
+        relative = sensor_path.MakeRelativePath(body_path).pathString
+        body_expr = sensor_expr if sensor_path == body_path else sensor_expr[: -(len(relative) + 1)]
+
         physics_sim_view = PhysxManager.get_physics_sim_view()
         if physics_sim_view is None:
             raise RuntimeError("PhysX simulation view is not initialized.")
-        self._physx_body_view = physics_sim_view.create_rigid_body_view(body_expr.replace(".*", "*"))
+        self._physx_body_view = physics_sim_view.create_rigid_body_view(_physx_body_glob(body_expr))
         self._view_count = self._physx_body_view.count
 
-        offset_pos = []
-        offset_quat = []
+        # Sensor-to-body offset per resolved frame; a lone frame broadcasts across all envs.
+        offset_pos, offset_quat = [], []
         for prim in prims:
-            body_prim = _find_physics_ancestor(prim)
-            p, q = sim_utils.resolve_prim_pose(prim, body_prim)
-            offset_pos.append(p)
-            offset_quat.append(q)
+            prim_body = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), predicate=_has_rigid_body_api)
+            pos, quat = sim_utils.resolve_prim_pose(prim, prim_body)
+            offset_pos.append(pos)
+            offset_quat.append(quat)
         if len(offset_pos) == 1 and self._view_count > 1:
             offset_pos = offset_pos * self._view_count
             offset_quat = offset_quat * self._view_count
@@ -152,7 +133,7 @@ class _PhysXRayCasterMixin:
                 body_paths.append(target_prim_path)
                 continue
             for prim in prims:
-                body = _find_physics_ancestor(prim)
+                body = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), predicate=_has_rigid_body_api)
                 if body is None:
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_prim_path}' with PhysX. "

@@ -3474,61 +3474,43 @@ class Articulation(BaseArticulation):
         self._ovphysx = physx_instance
         self._device = OvPhysxManager.get_device()
 
-        # IsaacLab uses two conventions for env-glob prim paths:
-        #   /World/envs/env_.*/Robot       -- regex dot-star for "any env index"
-        #   /World/envs/{ENV_REGEX_NS}/... -- explicit placeholder
-        # ovphysx ``create_tensor_binding`` expects fnmatch-style globs, so both map to '*'.
-        prim_path = self.cfg.prim_path
-        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
-        pattern = re.sub(r"\.\*", "*", pattern)
-
-        # ``PhysicsArticulationRootAPI`` may live on a CHILD prim rather than on
-        # the cfg prim itself. ``create_tensor_binding`` only matches prims that
-        # have the API applied, so the pattern must be extended to the actual
-        # articulation root.
-        stage = PhysicsManager._sim.stage
+        # Resolve the articulation root expression.
         if self.cfg.articulation_root_prim_path is not None:
-            # explicit subpath: skip auto-discovery but validate the prim exists
-            root_relative = self.cfg.articulation_root_prim_path
-            self._articulation_root_path = prim_path + root_relative
-            if sim_utils.find_first_matching_prim(self._articulation_root_path, stage=stage) is None:
-                raise RuntimeError(
-                    f"Failed to find articulation root prim at '{self._articulation_root_path}'."
-                    " Check that ``cfg.articulation_root_prim_path`` points at a prim that exists"
-                    " in the USD stage."
-                )
-            pattern = pattern + root_relative
-            logger.info("OvPhysxManager: explicit articulation root '%s' (pattern '%s')", root_relative, pattern)
+            root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
         else:
-            first_prim = sim_utils.find_first_matching_prim(prim_path, stage=stage)
-            if first_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{prim_path}'.")
-            first_prim_path = first_prim.GetPath().pathString
 
+            def has_articulation_root_api(prim) -> bool:
+                return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+            matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
+            if not matches:
+                raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+            asset_prim, root_expr = matches[0]
+            walk_root = asset_prim.GetPath().pathString
             root_prims = sim_utils.get_all_matching_child_prims(
-                first_prim_path,
-                predicate=lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI),
-                traverse_instance_prims=False,
+                walk_root, predicate=has_articulation_root_api, traverse_instance_prims=False
             )
-            if len(root_prims) == 0:
+            if len(root_prims) != 1:
+                matched = [p.GetPath().pathString for p in root_prims]
                 raise RuntimeError(
-                    f"Failed to find an articulation root when resolving '{prim_path}'."
-                    " Ensure the prim has 'USD ArticulationRootAPI' applied."
+                    f"Expected exactly one ArticulationRootAPI prim under '{walk_root}'"
+                    f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
                 )
-            if len(root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single articulation root when resolving '{prim_path}'."
-                    f" Found multiple under '{first_prim_path}'."
-                )
+            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+        # Validate the prim exists on the live stage -- ``create_tensor_binding`` silently
+        # returns a 0-count binding when the pattern matches nothing, surfacing as obscure
+        # AttributeErrors deep in property accessors. Also stash the concrete source-side
+        # root path for tendon discovery downstream.
+        stage = PhysicsManager._sim.stage
+        first_match = sim_utils.find_first_matching_prim(root_prim_path_expr, stage=stage)
+        if first_match is None:
+            raise RuntimeError(f"Failed to find articulation root prim at '{root_prim_path_expr}'.")
+        self._articulation_root_path = first_match.GetPath().pathString
 
-            self._articulation_root_path = root_prims[0].GetPath().pathString
-            root_relative = self._articulation_root_path[len(first_prim_path) :]
-            if root_relative:
-                pattern = pattern + root_relative
-                logger.info(
-                    "OvPhysxManager: articulation root at '%s' (pattern extended to '%s')", root_relative, pattern
-                )
-
+        # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
+        # ``create_tensor_binding`` expects fnmatch globs.
+        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
+        pattern = re.sub(r"\.\*", "*", pattern)
         self._binding_pattern = pattern
 
         # eagerly create every binding the data container reads at init, so
@@ -3562,7 +3544,7 @@ class Articulation(BaseArticulation):
         if not self._bindings:
             raise RuntimeError(
                 f"OVPhysX could not create any articulation bindings for pattern {pattern!r}. "
-                f"Check that prim_path={prim_path!r} matches at least one "
+                f"Check that prim_path={self.cfg.prim_path!r} matches at least one "
                 "UsdPhysics.ArticulationRootAPI prim."
             )
 

@@ -17,7 +17,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -122,7 +122,25 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         super()._initialize_impl()
 
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        root_prim_path_expr = self._resolve_articulation_root_prim_path()
+
+        def has_articulation_root_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+        asset_prim, root_expr = matches[0]
+        walk_root = asset_prim.GetPath().pathString
+        root_prims = get_all_matching_child_prims(
+            walk_root, predicate=has_articulation_root_api, traverse_instance_prims=False
+        )
+        if len(root_prims) != 1:
+            matched = [p.GetPath().pathString for p in root_prims]
+            raise RuntimeError(
+                f"Expected exactly one ArticulationRootAPI prim under '{walk_root}'"
+                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
+            )
+        root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
         if self._root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation view at: {root_prim_path_expr}. Check PhysX logs.")
@@ -137,44 +155,16 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_bodies} bodies")
 
-    def _resolve_articulation_root_prim_path(self) -> str:
-        """Resolve the articulation root prim path expression from the configured asset prim path."""
-        first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-        if first_env_matching_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
-
-        first_env_root_prims = get_all_matching_child_prims(
-            first_env_matching_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-            and prim.GetAttribute("physxArticulation:articulationEnabled").Get() is not False,
-            traverse_instance_prims=False,
-        )
-        if len(first_env_root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
-                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
-            )
-        if len(first_env_root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
-                f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
-                " Please ensure that there is only one articulation in the prim path tree."
-            )
-
-        first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
-        root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
-        return self.cfg.prim_path + root_prim_path_relative_to_prim_path
-
     def _create_joint_frame_buffers(self) -> None:
         """Create child-side joint frame transforms indexed by PhysX link order."""
         joint_pos_b = np.zeros((self._num_bodies, 3), dtype=np.float32)
         joint_quat_b = np.zeros((self._num_bodies, 4), dtype=np.float32)
         joint_quat_b[:, 3] = 1.0
 
-        first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-        if first_env_matching_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+        first_env_matching_prim = matches[0][0]
         link_name_to_index = {name: index for index, name in enumerate(self._data._body_names)}
 
         for prim in Usd.PrimRange(first_env_matching_prim):

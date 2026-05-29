@@ -11,9 +11,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from pxr import UsdPhysics
-
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.imu import BaseImu
 
@@ -125,24 +122,8 @@ class Imu(BaseImu):
         """
         super()._initialize_impl()
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if prim is None:
-            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
 
-        ancestor_prim = sim_utils.get_first_matching_ancestor_prim(
-            prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
-        )
-        if ancestor_prim is None:
-            raise RuntimeError(f"Failed to find a rigid body ancestor prim at path expression: {self.cfg.prim_path}")
-
-        if ancestor_prim == prim:
-            self._rigid_parent_expr = self.cfg.prim_path
-            fixed_pos_b, fixed_quat_b = None, None
-        else:
-            relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
-            self._rigid_parent_expr = self.cfg.prim_path.replace("/" + relative_path, "")
-            fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
-
+        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
 
         # Query world gravity and compute accelerometer bias (real IMUs always measure gravity)
