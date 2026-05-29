@@ -46,8 +46,9 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
         dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
 
-        # Build the wheel
-        result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root)
+        # Build the wheel (capture output silently to avoid spamming the test log with 10k+
+        # setuptools/pip lines; the captured output is included in the assertion if it fails).
+        result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, stream=False)
         assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
 
         # Find the built wheel
