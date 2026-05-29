@@ -12,7 +12,7 @@ import numpy as np
 import trimesh
 import warp as wp
 
-from pxr import Sdf, UsdPhysics
+from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
@@ -222,20 +222,20 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 mesh_ids: list[int] = []
                 row_tracked_target_exprs: list[str] = []
                 for source_prim in source_prims:
-                    source_prim_path = source_prim.GetPath()
-                    # Unless the matched prim is the articulation root itself, track the nearest
-                    # rigid-body ancestor (bounded by the ClonePlan source root) as the owner.
+                    source_prim_path = str(source_prim.GetPath())
+                    # Use a bounded rigid-body ancestor when the match is below a body; otherwise
+                    # enumerate rigid bodies under the match, including the matched prim itself.
                     owner_prim = None
+                    rigid_body_records: list[tuple[Usd.Prim, Usd.Prim]]
                     if not source_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                         owner_prim = sim_utils.get_first_matching_ancestor_prim(source_prim_path, has_rigid_body_api)
-                    if owner_prim is not None and owner_prim.GetPath().HasPrefix(Sdf.Path(source_root)):
+                    owner_path = None if owner_prim is None else str(owner_prim.GetPath())
+                    if owner_path is not None and (owner_path == source_root or owner_path.startswith(source_root + "/")):
                         rigid_body_records = [(source_prim, owner_prim)]
                     else:
-                        # Otherwise enumerate the rigid-body descendants (e.g. the articulation's links).
-                        rigid_body_records = []
-                        for prim in sim_utils.get_all_matching_child_prims(source_prim_path, has_rigid_body_api):
-                            if prim.GetPath() != source_prim_path:
-                                rigid_body_records.append((prim, prim))
+                        rigid_body_records = [
+                            (p, p) for p in sim_utils.get_all_matching_child_prims(source_prim_path, has_rigid_body_api)
+                        ]
                     if not rigid_body_records:
                         raise RuntimeError(
                             f"Cannot track ClonePlan target '{target_cfg.prim_expr}' because source prim "
