@@ -13,18 +13,18 @@ The following provides a high-level overview of the complete workflow:
 1. **Create workspace**: Create the ``compass-nurec`` workspace directory
 2. **Install Isaac Sim & Isaac Lab** (Terminal 1): Follow installation steps for Isaac Sim 6.0 and Isaac Lab 3.0
 3. **Install COMPASS Repository** (Terminal 2): Clone and set up the COMPASS repository
-4. **Test setup**: Verify installation using ``play.py``
-5. **Authenticate with Hugging Face**: Generate access token and run ``hf auth login --token <token>``
-6. **Download assets** (can be done in parallel):
+4. **Authenticate with Hugging Face**: Generate access token and run ``hf auth login --token <token>``
+5. **Download assets** (can be done in parallel):
 
    - Download X-Mobility checkpoint: ``hf download nvidia/X-Mobility x_mobility-nav2-semantic_action_path.ckpt``
    - Download COMPASS USD assets: ``hf download nvidia/COMPASS compass_usds.zip``
    - Download NuRec Real2Sim assets: ``hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset``
 
-7. **Prepare assets**:
+6. **Prepare assets**:
 
    - Extract and place ``usd/`` folder into ``compass/rl_env/exts/mobility_es/mobility_es/``
    - Place environment files (e.g., ``nova_carter-galileo/``) in the appropriate location
+7. **Test setup**: Verify installation using ``play.py``
 8. **Train Residual RL Policy**: Run training with ``run.py`` and ``train_config_real2sim.gin``
 9. **Evaluate Trained Policy**: Run evaluation with ``run.py`` and ``eval_config_real2sim.gin``
 10. **Export to ONNX / TensorRT**: Convert the trained model for deployment
@@ -157,17 +157,6 @@ Open a second terminal and follow these steps to install the COMPASS repository.
 
     cd compass/rl_env
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install -e exts/mobility_es
-    cd -
-
-Testing the Setup
-~~~~~~~~~~~~~~~~~
-
-Run the following command from the ``COMPASS`` directory to verify the setup:
-
-.. code-block:: bash
-
-    cd compass/rl_env
-    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
     cd -
 
 Downloading Assets & Checkpoints
@@ -325,6 +314,19 @@ The resulting layout should look like:
       * - ``hand_hold-voyager-babyboom-2``
         - Conference room in NVIDIA Voyager building
         - Yes
+
+Testing the Setup
+~~~~~~~~~~~~~~~~~
+
+Once the COMPASS USD assets have been downloaded and placed under
+``compass/rl_env/exts/mobility_es/mobility_es/usd/``, run the following command from the ``COMPASS``
+directory to verify the setup:
+
+.. code-block:: bash
+
+    cd compass/rl_env
+    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
+    cd -
 
 Training the Policy
 -------------------
