@@ -106,20 +106,11 @@ jobs:
           cache-tag: cache-base
 
   test-multi-gpu-pytest:
-    name: Multi-GPU unit tests [cuda:${{ matrix.cuda }}]
+    name: Multi-GPU unit tests
     needs: [config, build]
     if: needs.build.result == 'success'
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 30
-    strategy:
-      # Matrix shards pinned to each non-default cuda:N on the runner
-      # (cuda:0 is covered by single-GPU CI). Shard list comes from the
-      # build job's GPU detection, so the matrix auto-adapts to whatever
-      # the multi-GPU pool exposes (4 GPUs today, could be 2 or 8 later).
-      # fail-fast off so one shard's failure doesn't mask the others.
-      fail-fast: false
-      matrix:
-        cuda: ${{ fromJSON(needs.build.outputs.cuda_shards) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -146,38 +137,91 @@ jobs:
           echo "::notice::Discovered ${#discovered[@]} opt-in test files"
           printf '  %s\n' "${discovered[@]}"
 
-      - name: Compute shard env for this cuda device
-        # ``matrix.cuda`` is the single source of truth.  ``cuda_test_devices``
-        # reads ISAACLAB_TEST_DEVICES as a positional bitmask (pos 0=cpu,
-        # pos k+1=cuda:k), so for cuda:N the mask is ``'0' * (N+1) + '1'``.
-        # The shard-index for tools/conftest.py's ``paths[idx::3]`` slice is
-        # ``cuda - 1`` (matrix.cuda runs 1..3, shard-index runs 0..2).
-        id: shard
-        run: |
-          N="${{ matrix.cuda }}"
-          mask=$(python3 -c "print('0' * ($N + 1) + '1')")
-          echo "test_devices=$mask" >> "$GITHUB_OUTPUT"
-          echo "sim_device=cuda:$N" >> "$GITHUB_OUTPUT"
-          echo "shard_index=$((N - 1))" >> "$GITHUB_OUTPUT"
-          echo "::notice::cuda:$N → mask=$mask, shard-index=$((N - 1))"
-
-      - uses: ./.github/actions/run-package-tests
+      - name: Pull image from ECR
+        # Pulls the per-commit image the build job pushed. ecr-build-push-pull
+        # handles ECR auth via the EC2 IAM role, and on exact-cache-hit (which
+        # the build job's deps-cache-hit registry-tag created for this SHA)
+        # it pulls the image locally and tags it as ``$CI_IMAGE_TAG`` for our
+        # parallel ``docker run`` block below.
+        uses: ./.github/actions/ecr-build-push-pull
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         with:
           image-tag: ${{ env.CI_IMAGE_TAG }}
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-          container-name: isaac-lab-multi-gpu-pytest-cuda${{ matrix.cuda }}
-          # Auto-discovered from the ``Discover opt-in test files`` step:
-          # every test that calls ``cuda_test_devices()`` is in scope.
-          include-files: ${{ steps.discover.outputs.include }}
-          # File-level shard split via tools/conftest.py:
-          # ``test_files[shard_index::shard_count]`` after a stable sort.
-          shard-index: ${{ steps.shard.outputs.shard_index }}
-          shard-count: ${{ needs.build.outputs.shard_count }}
-          # Pin Kit's active_gpu and the parametrize device to cuda:N so
-          # the booted SimulationApp and per-test parametrize agree.
-          extra-env-vars: |
-            ISAACLAB_TEST_DEVICES=${{ steps.shard.outputs.test_devices }}
-            ISAACLAB_SIM_DEVICE=${{ steps.shard.outputs.sim_device }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
+      - name: Run shards in parallel on local GPUs
+        # Single job, one container per non-default cuda:N, all launched in
+        # parallel on the SAME runner — uses the 4 GPUs the multi-gpu
+        # instance exposes without burning N separate runners from the pool.
+        # tools/conftest.py picks up TEST_INCLUDE_FILES, TEST_SHARD_INDEX,
+        # TEST_SHARD_COUNT from env per the existing run-tests contract.
+        env:
+          IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
+          CUDA_SHARDS: ${{ needs.build.outputs.cuda_shards }}
+          SHARD_COUNT: ${{ needs.build.outputs.shard_count }}
+          INCLUDE_FILES: ${{ steps.discover.outputs.include }}
+        run: |
+          set +e
+          runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mgpu-runtime.XXXXXX")"
+          mkdir -p "$runtime_dir"
+
+          declare -A pids logfiles results
+          for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
+            mask=$(python3 -c "print('0' * ($cuda + 1) + '1')")
+            idx=$((cuda - 1))
+            home_dir="$runtime_dir/home-cuda-$cuda"
+            mkdir -p "$home_dir/.cache"
+            logfiles[$cuda]="$runtime_dir/shard-cuda-$cuda.log"
+
+            docker run --rm --gpus all --network=host \
+              --entrypoint bash \
+              --user "$(id -u):$(id -g)" \
+              --name "isaac-lab-mgpu-cuda${cuda}-${{ github.run_id }}-${{ github.run_attempt }}" \
+              -v "$PWD:/workspace/isaaclab" \
+              -v "$home_dir:/tmp/isaaclab-ci-home" \
+              -e HOME=/tmp/isaaclab-ci-home \
+              -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
+              -e OMNI_KIT_ACCEPT_EULA=yes \
+              -e ACCEPT_EULA=Y \
+              -e ISAAC_SIM_HEADLESS=1 \
+              -e ISAACLAB_TEST_DEVICES="$mask" \
+              -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
+              -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
+              -e TEST_SHARD_INDEX="$idx" \
+              -e TEST_SHARD_COUNT="$SHARD_COUNT" \
+              "$IMAGE_TAG" \
+              -c '
+                set +e
+                cd /workspace/isaaclab
+                mkdir -p tests
+                rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
+                ./isaaclab.sh -p -m pytest \
+                  --ignore=tools/conftest.py \
+                  --ignore=source/isaaclab/test/install_ci \
+                  tools -v
+              ' > "${logfiles[$cuda]}" 2>&1 &
+            pids[$cuda]=$!
+            echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, mask=$mask)"
+          done
+
+          # Wait for every shard before aggregating, so a fast failure
+          # doesn't tear down still-running siblings.
+          for cuda in "${!pids[@]}"; do
+            wait "${pids[$cuda]}"
+            results[$cuda]=$?
+          done
+
+          fail=0
+          for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
+            rc="${results[$cuda]}"
+            echo "::group::shard cuda:$cuda — exit $rc"
+            cat "${logfiles[$cuda]}"
+            echo "::endgroup::"
+            [ "$rc" -eq 0 ] || fail=1
+          done
+
+          exit $fail
