@@ -988,7 +988,8 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
-            create_new_stage()
+            # ``create_new_stage`` is shadowed here by the bool parameter, so call via the namespace.
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
