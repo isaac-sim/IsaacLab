@@ -5,6 +5,7 @@
 
 import contextlib
 import os
+import re
 import select
 import signal
 import subprocess
@@ -771,14 +772,17 @@ def pytest_sessionstart(session):
     summary_str += f"Total Wall Time: {total_wall // 3600:.0f}h{total_wall // 60 % 60:.0f}m{total_wall % 60:.2f}s\n"
     summary_str += f"Total Test Time: {total_test // 3600:.0f}h{total_test // 60 % 60:.0f}m{total_test % 60:.2f}s"
 
+    # GPU this run used (the shard's boot device); ``cuda:0`` when unset.
+    run_device = os.environ.get("ISAACLAB_SIM_DEVICE") or "cuda:0"
+
     summary_str += "\n\n=======================\n"
-    summary_str += "Per Test Result Summary\n"
+    summary_str += "Per File Result Summary\n"
     summary_str += "=======================\n"
 
-    per_test_result_table = PrettyTable(field_names=["Test Path", "Result", "Test (s)", "Wall (s)", "# Tests"])
-    per_test_result_table.align["Test Path"] = "l"
-    per_test_result_table.align["Test (s)"] = "r"
-    per_test_result_table.align["Wall (s)"] = "r"
+    per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    per_file_result_table.align["Test Path"] = "l"
+    per_file_result_table.align["Test (s)"] = "r"
+    per_file_result_table.align["Wall (s)"] = "r"
     for test_path in test_files:
         num_tests_passed = (
             test_status[test_path]["tests"]
@@ -786,9 +790,10 @@ def pytest_sessionstart(session):
             - test_status[test_path]["errors"]
             - test_status[test_path]["skipped"]
         )
-        per_test_result_table.add_row(
+        per_file_result_table.add_row(
             [
                 test_path,
+                run_device,
                 test_status[test_path]["result"],
                 f"{test_status[test_path]['time_elapsed']:0.2f}",
                 f"{test_status[test_path]['wall_time']:0.2f}",
@@ -796,7 +801,34 @@ def pytest_sessionstart(session):
             ]
         )
 
-    summary_str += per_test_result_table.get_string()
+    summary_str += per_file_result_table.get_string()
+
+    # Per-test run times, slowest first, from the merged JUnit report. The
+    # device is read from the test id params (e.g. ``...[size0-cuda:1]``),
+    # falling back to the run's boot device.
+    summary_str += "\n\n=================\n"
+    summary_str += "Per Test Run Time\n"
+    summary_str += "=================\n"
+
+    per_test_time_table = PrettyTable(field_names=["Test", "Device", "Time (s)"])
+    per_test_time_table.align["Test"] = "l"
+    per_test_time_table.align["Time (s)"] = "r"
+    test_times = []
+    for suite in full_report:
+        for case in suite:
+            full_name = f"{case.classname}::{case.name}" if case.classname else case.name
+            device = run_device
+            bracket = re.search(r"\[(.*)\]", full_name)
+            if bracket:
+                dev_match = re.search(r"cuda:\d+|\bcpu\b", bracket.group(1))
+                if dev_match:
+                    device = dev_match.group(0)
+            elapsed = float(case.time) if case.time is not None else 0.0
+            test_times.append((full_name, device, elapsed))
+    for full_name, device, elapsed in sorted(test_times, key=lambda row: row[2], reverse=True):
+        per_test_time_table.add_row([full_name, device, f"{elapsed:0.3f}"])
+
+    summary_str += per_test_time_table.get_string()
 
     # Print summary to console and log file
     print(summary_str)
