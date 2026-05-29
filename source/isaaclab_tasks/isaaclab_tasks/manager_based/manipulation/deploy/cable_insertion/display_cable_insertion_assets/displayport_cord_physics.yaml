@@ -1,0 +1,113 @@
+project:
+  name: "displayport_cord_physics_assignment"
+  session_id: "displayport_cord_physics"
+  working_dir: ".displayport_cord_physics"
+  description: "Assign physics properties to the material-assigned McMaster-Carr 2584N111 DisplayPort cord USD."
+
+input:
+  usd_path: "/home/horde/cad2simready_runs/displayport_cord_20260513/content_agent_configs/.displayport_cord_material/output/output.usd"
+  reference_images: []
+
+steps:
+  optimize_usd:
+    enabled: false
+
+  identify_asset:
+    enabled: true
+    renderer:
+      backend: ovrtx
+      image_width: 512
+      image_height: 512
+      cameras: ["+x+y+z", "-x+y+z", "-x-y+z", "+x-y+z"]
+
+  build_dataset_usd:
+    enabled: true
+    renderer:
+      backend: ovrtx
+      image_width: 512
+      image_height: 512
+      log_level: warn
+      camera_view_type: corner
+      rendering_modes:
+        prim_only:
+          margin: 1.2
+          cameras: ["+x+y+z", "-x-y-z"]
+          camera_focus_mode: prim
+          use_original_materials: true
+      should_highlight_prim: false
+      should_assign_random_colors: true
+    prim_filters:
+      types: ["UsdGeom.Mesh"]
+      skip_instances: false
+      skip_prototypes: false
+    extract_hierarchy: true
+    extract_metadata: true
+    skip_existing: true
+    batch_size: 64
+    num_workers: 1
+
+  build_dataset_prepare_dataset:
+    enabled: true
+    include_prim_path_context: true
+    include_geometric_context: true
+    prompts:
+      system: |
+        You are an expert 3D asset analyst assigning physical simulation properties to USD components.
+        The overall asset is a McMaster-Carr 2584N111 DisplayPort cord/cable: flexible black cable jacket, molded connector housings, and metal connector shells/pins.
+        Use geometry, component function, and dimensions to estimate conservative physical properties suitable for simulation.
+
+        Physical properties to estimate:
+        - density in kg/m^3
+        - estimated_mass_kg using density, component bounding-box volume, and realistic fill factor
+        - static_friction from 0.0 to 1.0
+        - dynamic_friction from 0.0 to 1.0
+        - restitution from 0.0 to 1.0
+
+        Flexible cable sections should generally be rubber/plastic-like with low mass, high friction, and low to moderate restitution.
+        Metal connector shells or contacts should generally be metal with higher density, medium friction, and low restitution.
+
+        Respond with JSON nested under the exact key "classification":
+        {{
+          "classification": {{
+            "asset_type": "cable assembly",
+            "component_type": "electrical",
+            "component_name": "descriptive component name",
+            "material": "material type",
+            "physical_properties": {{
+              "density": 0,
+              "estimated_mass_kg": 0,
+              "static_friction": 0,
+              "dynamic_friction": 0,
+              "restitution": 0
+            }},
+            "confidence": "high/medium/low",
+            "reasoning": "brief explanation"
+          }}
+        }}
+      user: |
+        Classify this component of the DisplayPort cord and estimate physics properties for simulation.
+      vlm_image_prompts:
+        composition: "This is an orthographic view of the complete 3D model with the component highlighted."
+        prim_only_original: "This is a rendered view of the isolated component with its original materials preserved."
+
+  predict:
+    enabled: true
+    vlm:
+      backend: nim
+      model: qwen/qwen3.5-397b-a17b
+      temperature: 0.3
+      max_tokens: 2048
+    max_workers: 2
+    output_key: "classification"
+    report:
+      image_max_size: 256
+      image_format: jpeg
+      image_quality: 75
+
+  apply_physics:
+    enabled: true
+    collision_approx: convexHull
+
+advanced:
+  keep_temp_files: true
+  log_level: INFO
