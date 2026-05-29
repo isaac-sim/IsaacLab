@@ -160,9 +160,9 @@ jobs:
       - name: Run shards in parallel on local GPUs
         # Single job, one container per non-default cuda:N, all launched in
         # parallel on the SAME runner — uses the GPUs the multi-gpu instance
-        # exposes without burning N separate runners from the pool.
-        # tools/conftest.py picks up TEST_INCLUDE_FILES, TEST_SHARD_INDEX,
-        # TEST_SHARD_COUNT from env per the existing run-tests contract.
+        # exposes without burning N separate runners from the pool.  Each
+        # shard receives its own slice of the file list via TEST_INCLUDE_FILES
+        # (round-robin partition below), so every file runs on exactly one GPU.
         env:
           IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
           CUDA_SHARDS: ${{ needs.build.outputs.cuda_shards }}
@@ -184,10 +184,27 @@ jobs:
           runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mgpu-runtime.XXXXXX")"
           mkdir -p "$runtime_dir"
 
+          # Deterministic round-robin partition of the discovered files across
+          # shards: shard idx gets files at positions idx, idx+N, idx+2N, ...
+          # of the sorted basename list.  Each file therefore runs on exactly
+          # one shard (fixing the earlier broadcast where every shard ran the
+          # full set).  This split is correct but not balanced — duration-aware
+          # / work-stealing balancing is tracked as a follow-up.
+          IFS=',' read -ra ALL_FILES <<< "$INCLUDE_FILES"
+
           declare -A pids logfiles results
           for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
             mask=$(python3 -c "print('0' * ($cuda + 1) + '1')")
             idx=$((cuda - 1))
+
+            # This shard's slice of the file list (round-robin by position).
+            shard_files=()
+            for i in "${!ALL_FILES[@]}"; do
+              if [ $((i % SHARD_COUNT)) -eq "$idx" ]; then
+                shard_files+=("${ALL_FILES[$i]}")
+              fi
+            done
+            shard_include=$(IFS=,; echo "${shard_files[*]}")
 
             # Per-shard writable runtime tree mirroring run-tests action
             # (HOME, Kit cache/data/logs, isaac-sim writable subdirs).
@@ -242,9 +259,7 @@ jobs:
               -e PYTHONIOENCODING=utf-8 \
               -e ISAACLAB_TEST_DEVICES="$mask" \
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
-              -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
-              -e TEST_SHARD_INDEX="$idx" \
-              -e TEST_SHARD_COUNT="$SHARD_COUNT" \
+              -e TEST_INCLUDE_FILES="$shard_include" \
               "$IMAGE_TAG" \
               -c '
                 set +e
