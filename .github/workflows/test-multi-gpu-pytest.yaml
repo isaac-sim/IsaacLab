@@ -155,8 +155,8 @@ jobs:
 
       - name: Run shards in parallel on local GPUs
         # Single job, one container per non-default cuda:N, all launched in
-        # parallel on the SAME runner — uses the 4 GPUs the multi-gpu
-        # instance exposes without burning N separate runners from the pool.
+        # parallel on the SAME runner — uses the GPUs the multi-gpu instance
+        # exposes without burning N separate runners from the pool.
         # tools/conftest.py picks up TEST_INCLUDE_FILES, TEST_SHARD_INDEX,
         # TEST_SHARD_COUNT from env per the existing run-tests contract.
         env:
@@ -166,6 +166,17 @@ jobs:
           INCLUDE_FILES: ${{ steps.discover.outputs.include }}
         run: |
           set +e
+          host_uid="$(id -u)"
+          host_gid="$(id -g)"
+          host_user="$(id -un)"
+
+          # Pre-create the ``_isaac_sim`` symlink on the host once so the
+          # parallel containers don't race rm/ln on the shared workspace
+          # mount.  The host has no /isaac-sim path, so the symlink is
+          # dangling locally; inside each container it resolves to
+          # /isaac-sim correctly.
+          rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
+
           runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mgpu-runtime.XXXXXX")"
           mkdir -p "$runtime_dir"
 
@@ -173,21 +184,53 @@ jobs:
           for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
             mask=$(python3 -c "print('0' * ($cuda + 1) + '1')")
             idx=$((cuda - 1))
-            home_dir="$runtime_dir/home-cuda-$cuda"
-            mkdir -p "$home_dir/.cache"
+
+            # Per-shard writable runtime tree mirroring run-tests action
+            # (HOME, Kit cache/data/logs, isaac-sim writable subdirs).
+            shard_runtime="$runtime_dir/cuda-$cuda"
+            mkdir -p \
+              "$shard_runtime/home/.cache" \
+              "$shard_runtime/home/.local/share" \
+              "$shard_runtime/home/.nvidia-omniverse/config" \
+              "$shard_runtime/home/.nvidia-omniverse/logs" \
+              "$shard_runtime/isaac-sim/kit/cache" \
+              "$shard_runtime/isaac-sim/kit/data" \
+              "$shard_runtime/isaac-sim/kit/logs" \
+              "$shard_runtime/isaac-sim/cache" \
+              "$shard_runtime/isaac-sim/computecache" \
+              "$shard_runtime/isaac-sim/config" \
+              "$shard_runtime/isaac-sim/data" \
+              "$shard_runtime/isaac-sim/logs" \
+              "$shard_runtime/isaac-sim/pkg"
             logfiles[$cuda]="$runtime_dir/shard-cuda-$cuda.log"
 
             docker run --rm --gpus all --network=host \
               --entrypoint bash \
-              --user "$(id -u):$(id -g)" \
+              --user "${host_uid}:${host_gid}" \
               --name "isaac-lab-mgpu-cuda${cuda}-${{ github.run_id }}-${{ github.run_attempt }}" \
-              -v "$PWD:/workspace/isaaclab" \
-              -v "$home_dir:/tmp/isaaclab-ci-home" \
+              -v "$PWD:/workspace/isaaclab:rw" \
+              -v "$shard_runtime/home:/tmp/isaaclab-ci-home:rw" \
+              -v "$shard_runtime/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw" \
+              -v "$shard_runtime/isaac-sim/kit/data:/isaac-sim/kit/data:rw" \
+              -v "$shard_runtime/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw" \
+              -v "$shard_runtime/isaac-sim/cache:/isaac-sim/.cache:rw" \
+              -v "$shard_runtime/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw" \
+              -v "$shard_runtime/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw" \
+              -v "$shard_runtime/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw" \
+              -v "$shard_runtime/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw" \
+              -v "$shard_runtime/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw" \
               -e HOME=/tmp/isaaclab-ci-home \
               -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
+              -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share \
+              -e USER="${host_user}" \
+              -e LOGNAME="${host_user}" \
               -e OMNI_KIT_ACCEPT_EULA=yes \
               -e ACCEPT_EULA=Y \
+              -e OMNI_KIT_DISABLE_CUP=1 \
               -e ISAAC_SIM_HEADLESS=1 \
+              -e ISAAC_SIM_LOW_MEMORY=1 \
+              -e PYTHONUNBUFFERED=1 \
+              -e PYTHONIOENCODING=utf-8 \
               -e ISAACLAB_TEST_DEVICES="$mask" \
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
@@ -197,8 +240,7 @@ jobs:
               -c '
                 set +e
                 cd /workspace/isaaclab
-                mkdir -p tests
-                rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
+                unset HUB__ARGS__DETECT_ONLY
                 ./isaaclab.sh -p -m pytest \
                   --ignore=tools/conftest.py \
                   --ignore=source/isaaclab/test/install_ci \
