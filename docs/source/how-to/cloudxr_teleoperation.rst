@@ -120,6 +120,23 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
        --visualizer kit \
        --xr
 
+.. attention::
+
+   **First run — EULA acceptance required.**
+   On the first launch, Isaac Sim will prompt you to accept the NVIDIA Omniverse License
+   Agreement before the simulation starts:
+
+   .. code-block:: text
+
+      By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT
+      in https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
+
+      Do you accept the EULA? (Yes/No):
+
+   Type ``Yes`` and press **Enter** to continue. If this prompt goes unnoticed the script
+   will appear to hang — check your terminal output if Isaac Sim does not start within a
+   few seconds.
+
 .. tip::
 
    The ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` task above uses **hand tracking** as its
