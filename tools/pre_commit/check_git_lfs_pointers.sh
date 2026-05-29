@@ -41,9 +41,7 @@ index_blob_is_valid_lfs_pointer() {
 # would false-positive on .gitkeep and other zero-byte paths.
 index_blob_has_lfs_pointer_header() {
     local path="$1"
-    local first_line
-    first_line="$(git show ":${path}" 2>/dev/null | head -n1 || true)"
-    [[ "${first_line}" == "version https://git-lfs.github.com/spec/v1" ]]
+    git show ":${path}" 2>/dev/null | head -n1 | grep -qxF 'version https://git-lfs.github.com/spec/v1'
 }
 
 # --- User-facing errors ------------------------------------------------------
