@@ -41,7 +41,9 @@ runs:
               -- --tb=short -sv)
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         # Make `python3` resolve to the uv-managed 3.12 for build.sh's gen_pyproject.py.
-        uv venv --python 3.12 "${RUNNER_TEMP}/venv-runner"
+        # --seed installs pip/setuptools/wheel into the venv so build.sh's `python3 -m pip install`
+        # works (uv venv is otherwise pip-free).
+        uv venv --seed --python 3.12 "${RUNNER_TEMP}/venv-runner"
         source "${RUNNER_TEMP}/venv-runner/bin/activate"
         tools/run_install_ci.py "${args[@]}"
     - name: Upload JUnit XML report
