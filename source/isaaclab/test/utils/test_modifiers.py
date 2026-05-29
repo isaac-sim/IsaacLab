@@ -9,7 +9,7 @@ import pytest
 import torch
 
 import isaaclab.utils.modifiers as modifiers
-from isaaclab.test.utils import cuda_test_devices
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.configclass import configclass
 
 
@@ -143,7 +143,7 @@ def test_torch_relu_modifier():
         assert torch.allclose(output, test_cfg.result)
 
 
-@pytest.mark.parametrize("device", cuda_test_devices())
+@pytest.mark.parametrize("device", test_devices("11X"))
 def test_digital_filter(device):
     """Test digital filter modifier."""
     # create test data
@@ -179,7 +179,7 @@ def test_digital_filter(device):
         torch.testing.assert_close(processed_data, test_cfg.result)
 
 
-@pytest.mark.parametrize("device", cuda_test_devices())
+@pytest.mark.parametrize("device", test_devices("11X"))
 def test_integral(device):
     """Test integral modifier."""
     # create test data

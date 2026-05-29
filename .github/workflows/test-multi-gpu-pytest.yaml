@@ -5,14 +5,14 @@
 
 # Multi-GPU unit-test workflow
 #
-# Runs the cuda:1-parameterized subset of unit tests on the multi-GPU
-# runner pool. Uses the same ECR-pulled isaac-lab image as the single-GPU
-# CI; only diffs are the runner label, the env vars that pin Kit and the
-# test parametrize to cuda:1, and the include-files list of opt-in tests.
+# Runs the non-default-GPU subset of unit tests across the multi-GPU runner
+# pool's GPUs in parallel. Uses the same ECR-pulled isaac-lab image as the
+# single-GPU CI; only diffs are the runner label and the env vars that pin
+# Kit and the test parametrize to the shard's non-default GPU.
 #
-# Adding a new test to multi-GPU coverage: migrate its device parametrize
-# to call ``isaaclab.test.utils.cuda_test_devices()`` and add the file's
-# basename to ``include-files`` below.
+# Adding a new test to multi-GPU coverage: give its device parametrize a
+# non-default-capable scope, ``isaaclab.test.utils.test_devices("11X")``
+# (cpu + cuda:0 + any one non-default GPU). The workflow auto-discovers it.
 
 name: Multi-GPU pytest
 
@@ -123,17 +123,16 @@ jobs:
           lfs: true
 
       - name: Discover opt-in test files
-        # Auto-discovery: any test_*.py that calls ``cuda_test_devices`` is
-        # in scope.  Adding a new test to multi-GPU CI requires no workflow
-        # edit — migrate the file to use the helper and the next run picks
-        # it up.  Per-device skips (e.g. cuda:1 is known broken for a file)
-        # are declared inside the file via ``cuda_test_devices(skip={...})``
-        # so the workflow stays opt-in/opt-out-free.
+        # Auto-discovery: any test_*.py with a non-default-capable scope — a
+        # ``test_devices("..X")`` mask, where the trailing ``X`` means "any one
+        # non-default GPU" — is in scope.  Adding a test to multi-GPU CI needs
+        # no workflow edit; opting a file out is just narrowing its scope (drop
+        # the ``X``), so the workflow stays opt-in/opt-out-free.
         id: discover
         run: |
-          mapfile -t discovered < <(grep -rl 'cuda_test_devices' source/ --include='test_*.py' | sort -u)
+          mapfile -t discovered < <(grep -rlE 'test_devices\("[^"]*X"\)' source/ --include='test_*.py' | sort -u)
           if [ ${#discovered[@]} -eq 0 ]; then
-            echo "::error::No opt-in tests discovered (grep for cuda_test_devices)"
+            echo "::error::No opt-in tests discovered (grep for test_devices with an X scope)"
             exit 1
           fi
           basenames=$(printf '%s\n' "${discovered[@]}" | xargs -n1 basename | sort -u | paste -sd,)
@@ -194,7 +193,9 @@ jobs:
 
           declare -A pids logfiles results
           for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
-            mask=$(python3 -c "print('0' * ($cuda + 1) + '1')")
+            # Uniform budget across shards: "00X" = "any one non-default GPU".
+            # ISAACLAB_SIM_DEVICE below pins which one, so no per-shard mask.
+            budget="00X"
             idx=$((cuda - 1))
 
             # This shard's slice of the file list (round-robin by position).
@@ -257,7 +258,7 @@ jobs:
               -e ISAAC_SIM_LOW_MEMORY=1 \
               -e PYTHONUNBUFFERED=1 \
               -e PYTHONIOENCODING=utf-8 \
-              -e ISAACLAB_TEST_DEVICES="$mask" \
+              -e ISAACLAB_TEST_DEVICES="$budget" \
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e TEST_INCLUDE_FILES="$shard_include" \
               "$IMAGE_TAG" \
@@ -280,7 +281,7 @@ jobs:
               exit "${PIPESTATUS[0]}"
             ) &
             pids[$cuda]=$!
-            echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, mask=$mask)"
+            echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, budget=$budget)"
           done
 
           # Wait for every shard before aggregating, so a fast failure
