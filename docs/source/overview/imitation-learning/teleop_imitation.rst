@@ -216,17 +216,52 @@ Make a new folder in the ``IsaacLab`` root directory to store datasets:
 
    mkdir -p datasets
 
-Change ``<teleop_device>`` to the teleoperation device you want to use (e.g. ``spacemouse``, ``keyboard``) and
-run the record demos script to collect a set of 10 human demonstrations for the cube stacking task.
+Run the record demos script to collect a set of 10 human demonstrations for the cube stacking task.
+Select the tab that matches your input device:
 
-.. code:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
-   --viz kit \
-   --dataset_file ./datasets/dataset.hdf5 \
-   --num_demos 10 \
-   --teleop_device <teleop_device>
+   .. tab-item:: Keyboard
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --viz kit \
+         --dataset_file ./datasets/dataset.hdf5 \
+         --num_demos 10 \
+         --teleop_device keyboard
+
+   .. tab-item:: SpaceMouse
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --viz kit \
+         --dataset_file ./datasets/dataset.hdf5 \
+         --num_demos 10 \
+         --teleop_device spacemouse
+
+   .. tab-item:: XR Headset (Meta Quest / Pico)
+
+      When using hand tracking via an XR headset, use the absolute action space
+      variant of the task and omit ``--teleop_device``. The IsaacTeleop pipeline
+      is activated automatically via the ``--xr`` flag.
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         --task Isaac-Stack-Cube-Franka-IK-Abs-v0 \
+         --viz kit \
+         --dataset_file ./datasets/dataset.hdf5 \
+         --num_demos 10 \
+         --xr
+
+      .. note::
+
+         Ensure CloudXR is configured and the headset is connected before running.
+         See :ref:`cloudxr-teleoperation` for setup instructions.
 
 .. important::
    The order of the stacked cubes should be blue (bottom), red (middle), green (top).

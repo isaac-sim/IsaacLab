@@ -122,7 +122,7 @@ and Isaac Lab. It composes three collaborators:
 
 .. dropdown:: Session lifecycle details
 
-   The session uses **deferred creation**: if the user has not yet clicked "Start AR" in the Isaac
+   The session uses **deferred creation**: if the user has not yet clicked "Start XR" in the Isaac
    Sim UI, the session is not created immediately. Instead, each call to ``advance()`` retries
    session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
    flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
