@@ -724,35 +724,19 @@ def _extract_env_perf_cfg(env_cfg) -> dict:
 
 
 def _assert_run_measured(stats: _RunStats, run_index: int) -> None:
-    """Per-run gate: abort with ``RuntimeError`` if ``stats`` carries
-    no usable per-render interval samples.
-
-    A run is unmeasured when it stepped the env at least once but the
-    ``env.sim.render`` shim recorded no intervals, i.e.
-    ``active_iterations > 0`` and ``active_frame_times_ms`` is empty.
-    Each interval is the wall-clock delta between successive renders,
-    so at least two ``env.sim.render`` calls are required during the
-    active window; runs with 0 or 1 calls cannot contribute.
-
-    Called at the end of :func:`_run_single_replay` so the batch
-    aborts on the first bad run -- the remaining replays are never
-    started, ``env`` is closed by ``main``'s ``finally`` block, and
-    the exception propagates out before any stdout summary or JSON
-    report is produced. This makes "no JSON output" an unambiguous
-    measurement-failure signal for CI: a partial report covering only
-    the runs that happened to render twice would erode that signal.
+    """Raise ``RuntimeError`` if ``stats`` produced no usable per-render
+    interval samples. See the module docstring for the no-partial-reports
+    rationale; called at the end of :func:`_run_single_replay`.
     """
-    if not stats.active_iterations or stats.active_frame_times_ms:
-        return
-    raise RuntimeError(
-        f"Per-render frame interval measurement failed for run {run_index}: "
-        f"{stats.active_iterations} env.step iterations, {stats.active_render_calls} "
-        "env.sim.render call(s), 0 usable intervals. Each interval is the wall-clock delta "
-        "between successive env.sim.render calls, so at least 2 calls are required per run. "
-        "Check that the sim is rendering (headless mode with rendering disabled is unsupported) "
-        "and that the active window is long enough for multiple frames. Aborting the batch "
-        "without writing a report."
-    )
+    if stats.active_iterations and not stats.active_frame_times_ms:
+        raise RuntimeError(
+            f"Run {run_index} produced no usable frame intervals: "
+            f"{stats.active_iterations} env.step iterations and "
+            f"{stats.active_render_calls} env.sim.render call(s) -- at least 2 "
+            "renders are required per run. Check that the sim is rendering "
+            "(headless mode with rendering disabled is unsupported). Aborting "
+            "the batch without writing a report."
+        )
 
 
 def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
@@ -1241,19 +1225,11 @@ def _run_single_replay(
     if run_index == 0:
         print(f"Using teleop device: {teleop_interface}")
 
-    # Wrap ``env.sim.render`` so any call that fires while
-    # ``sampling_active`` is set records its wall-clock interval since
-    # the previous gated render. ``sampling_active`` is toggled around
-    # each ``env.step`` call below, so the wrapper captures every
-    # render produced from inside ``env.step`` during the active window
-    # -- including reset-cycle rerenders -- and ignores everything else.
     # The first gated render seeds ``last_gated_render_ts`` and emits
-    # no sample, so N gated renders produce N-1 intervals.
-    # ``_patched_sim_render`` restores the original method on the way
-    # out, including on uncaught exceptions from inside the
-    # ``teleop_interface`` block; ``env`` is shared across the
-    # multi-run batch so leaving the wrapper installed would corrupt
-    # subsequent runs.
+    # no sample, so N gated renders during the active window yield N-1
+    # intervals. Mutable single-element cells are used for the closure
+    # writes; ``_patched_sim_render`` restores the original method even
+    # on exceptions, since ``env`` is shared across the multi-run batch.
     sampling_active: list[bool] = [False]
     last_gated_render_ts: list[float | None] = [None]
     _orig_sim_render = env.sim.render
@@ -1387,12 +1363,9 @@ def _run_single_replay(
                         env.sim.render()
                         continue
 
-                    # ``sampling_active`` is flipped on for the duration
-                    # of the env.step call so the wrapped
-                    # ``env.sim.render`` records intervals only for
-                    # renders fired from within this step. The
-                    # active-window timestamps bracket the same call
-                    # for ``active_duration_s``.
+                    # Gate the render shim to this env.step call so
+                    # only renders fired from within it contribute
+                    # interval samples.
                     iter_start_s = time.perf_counter()
                     if active_start_s is None:
                         active_start_s = iter_start_s
