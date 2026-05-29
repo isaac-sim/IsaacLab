@@ -243,6 +243,20 @@ def _get_diagnostics(pre_kill_diag=""):
     return diag
 
 
+def _case_result_status(case):
+    """Return the summary status for a JUnit test case."""
+    case_results = list(case.result) if case.result else []
+    if not case_results:
+        return "passed"
+    if any(isinstance(r, Failure) for r in case_results):
+        return "FAILED"
+    if any(isinstance(r, Error) for r in case_results):
+        return "ERROR"
+    if any(isinstance(r, Skipped) for r in case_results):
+        return "skipped"
+    return "passed"
+
+
 def _capture_system_diagnostics():
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
@@ -515,23 +529,15 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                 if suite.name == "pytest":
                     suite.name = os.path.splitext(file_name)[0]
                 for case in suite:
-                    case_results = list(case.result) if case.result else []
-                    if not case_results:
-                        case_status = "passed"
-                    elif any(isinstance(r, Failure) for r in case_results):
-                        case_status = "FAILED"
-                    elif any(isinstance(r, Error) for r in case_results):
-                        case_status = "ERROR"
-                    elif any(isinstance(r, Skipped) for r in case_results):
-                        case_status = "skipped"
-                    else:
-                        case_status = "passed"
-                    cases.append({
-                        "name": case.name or "",
-                        "classname": case.classname or "",
-                        "time": float(case.time or 0.0),
-                        "result": case_status,
-                    })
+                    case_status = _case_result_status(case)
+                    cases.append(
+                        {
+                            "name": case.name or "",
+                            "classname": case.classname or "",
+                            "time": float(case.time or 0.0),
+                            "result": case_status,
+                        }
+                    )
             report.write(report_file)
             xml_reports.append(report)
 
