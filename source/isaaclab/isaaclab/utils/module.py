@@ -259,6 +259,13 @@ class _LazyModule:
 
     Constructed by :func:`lazy_imports`; not meant to be instantiated by
     hand.
+
+    Note:
+        Attribute assignment on the proxy (e.g. ``module.Sdf = mock`` to
+        monkeypatch in a test) is not supported before first access —
+        ``__slots__`` blocks writes.  Either access an attribute first (which
+        self-replaces the proxy with the real module, after which the write
+        succeeds normally), or patch ``sys.modules[fully_qualified_name]``.
     """
 
     __slots__ = ("_full_name", "_local_name", "_owner_mod_name")
@@ -270,7 +277,13 @@ class _LazyModule:
 
     def __getattr__(self, attr: str):
         real = importlib.import_module(self._full_name)
-        setattr(sys.modules[self._owner_mod_name], self._local_name, real)
+        # If the owner module was evicted from sys.modules (e.g. importlib.reload
+        # or a test using sys.modules.pop), skip the self-replace optimisation.
+        # The proxy still returns the correct attribute via __getattr__ on every
+        # subsequent call — just without the native-lookup speedup.
+        owner = sys.modules.get(self._owner_mod_name)
+        if owner is not None:
+            setattr(owner, self._local_name, real)
         return getattr(real, attr)
 
     def __repr__(self) -> str:
@@ -310,10 +323,10 @@ def lazy_imports(package: str, names: list[str]) -> None:
 
             from isaaclab.utils.module import lazy_imports
 
+            lazy_imports("pxr", ["Sdf", "Usd", "UsdGeom"])
+
             if TYPE_CHECKING:
                 from pxr import Sdf, Usd, UsdGeom  # noqa: F401
-
-            lazy_imports("pxr", ["Sdf", "Usd", "UsdGeom"])
 
             # ``Sdf.Path``, ``Usd.Stage``, ``UsdGeom.Xformable`` are now
             # usable in function bodies as if imported at module top.

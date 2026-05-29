@@ -91,6 +91,21 @@ def test_lazy_module_post_load_attribute_is_native():
     _drop_module(owner_name)
 
 
+def test_lazy_module_owner_evicted_before_first_access():
+    """If owner module is dropped from sys.modules before first access, the
+    proxy still resolves attributes correctly — it just skips the self-replace
+    optimisation instead of crashing with ``KeyError``."""
+    owner_name = "__test_owner_evicted__"
+    _make_owner_module(owner_name)
+    proxy = _LazyModule("pxr.Sdf", "Sdf", owner_name)
+    # Evict the owner between construction and first access — simulates a test
+    # or importlib.reload that wiped sys.modules.
+    _drop_module(owner_name)
+    # Must NOT raise KeyError; must still return the real attribute.
+    value = proxy.ValueTypeNames
+    assert value is sys.modules["pxr.Sdf"].ValueTypeNames
+
+
 # ---------------------------------------------------------------------------
 # lazy_imports — exercises the side-effect API and sys._getframe caller lookup
 # via exec() so we can use a synthetic owner module without touching the test
