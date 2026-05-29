@@ -126,6 +126,8 @@ def main():
         # Override checkpoint if provided via CLI
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
+        if args_cli.rl_model_path:
+            cfg.rollout.model.rl_model_path = args_cli.rl_model_path
 
         # Enable video saving if requested
         if args_cli.video:
