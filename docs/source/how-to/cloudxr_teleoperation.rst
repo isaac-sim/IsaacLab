@@ -144,7 +144,7 @@ For details on the shipped ``.env`` profiles and how to customise them, see
 
 Then in the Isaac Sim UI:
 
-#. Locate the panel named **AR** and choose the following options:
+#. Locate the panel named **XR** and choose the following options:
 
    * Selected Output Plugin: **OpenXR**
    * OpenXR Runtime: **System OpenXR Runtime**
@@ -152,9 +152,9 @@ Then in the Isaac Sim UI:
    .. figure:: ../_static/setup/cloudxr_ar_panel.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaac Sim UI: AR Panel
+      :alt: Isaac Sim UI: XR Panel
 
-#. Click **Start AR**.
+#. Click **Start XR**.
 
 You should see "Waiting for connection" displayed in the status bar at the bottom of the viewport.
 The dual-eye stereo render only becomes active once a headset connects and playback begins on the device.
@@ -162,7 +162,7 @@ The dual-eye stereo render only becomes active once a headset connects and playb
 .. figure:: ../_static/setup/cloudxr_viewport.jpg
    :align: center
    :figwidth: 100%
-   :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start AR
+   :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start XR
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
 
@@ -409,7 +409,7 @@ For plugin configuration details, see the `Manus plugin documentation
 
 The recommended workflow:
 
-#. Start Isaac Lab and click **Start AR**.
+#. Start Isaac Lab and click **Start XR**.
 #. Put on the Manus gloves and headset.
 #. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
 
@@ -434,7 +434,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
      --dataset_file ./datasets/dataset.hdf5 \
      --xr --visualizer kit
 
-Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
+Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
 For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` and the XR
 teleop session will run automatically.
