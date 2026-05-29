@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import UsdGeom
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
@@ -155,7 +155,22 @@ class Camera(SensorBase):
         rot_offset = rot_offset.squeeze(0).cpu().numpy()
         if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
             self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
-        self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
+        # Resolve the camera prim path and spawn it, redirecting to a child if prim_path is a physics body.
+        spawn = self.cfg.spawn
+        if spawn is not None:
+            probe_path = (spawn.spawn_path or self.cfg.prim_path) if spawn is not None else self.cfg.prim_path
+            probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path)
+            probe_prim = probe_matches[0][0] if probe_matches else None
+            if probe_prim is not None and probe_prim.IsValid():
+                if probe_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or probe_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
+                    self.cfg.prim_path = spawn.spawn_path = f"{self.cfg.prim_path}/camera"
+
+                spawn_target = spawn.spawn_path or self.cfg.prim_path
+                if sim_utils.find_first_matching_prim(spawn_target) is None:
+                    spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
+                if not sim_utils.find_matching_prims(spawn_target):
+                    raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the

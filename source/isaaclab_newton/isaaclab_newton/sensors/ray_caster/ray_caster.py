@@ -107,10 +107,6 @@ class _NewtonRayCasterMixin:
                 labels = self._register_target_sites_for_exprs(owner_exprs)
                 self._tracked_site_labels_by_target[tuple(owner_exprs)] = labels
 
-    def _resolve_and_spawn(self, _sensor_name: str, **_spawn_kwargs) -> None:
-        """Skip USD sensor prim spawning for Newton ray casters."""
-        pass
-
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression and return site labels."""
         identity = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat(0.0, 0.0, 0.0, 1.0))

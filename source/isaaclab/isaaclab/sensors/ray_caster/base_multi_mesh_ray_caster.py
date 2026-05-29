@@ -47,28 +47,6 @@ def _matrix_from_quat_xyzw(quat: np.ndarray) -> np.ndarray:
     )
 
 
-def _iter_rigid_body_records(source_prim, source_root: str):
-    """Yield ``(geometry_prim, owner_prim)`` pairs for ClonePlan-backed tracked targets."""
-    source_path = source_prim.GetPath()
-    source_root_path = Sdf.Path(source_root)
-
-    ancestor_prim = source_prim
-    while ancestor_prim and ancestor_prim.IsValid() and ancestor_prim.GetPath() != Sdf.Path.absoluteRootPath:
-        ancestor_path = ancestor_prim.GetPath()
-        if ancestor_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            if source_path != source_root_path or not ancestor_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                yield source_prim, ancestor_prim
-                return
-            break
-        if ancestor_path == source_root_path:
-            break
-        ancestor_prim = ancestor_prim.GetParent()
-
-    for prim in sim_utils.get_all_matching_child_prims(source_path, lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)):
-        if prim.GetPath() != source_path:
-            yield prim, prim
-
-
 class BaseMultiMeshRayCaster(BaseRayCaster):
     """A multi-mesh ray-casting sensor.
 
@@ -228,7 +206,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         records_per_env = [[] for _ in range(self._num_envs)]
         target_in_plan = False
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
-
+        has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
         if plan is not None and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
@@ -244,7 +222,20 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 mesh_ids: list[int] = []
                 row_tracked_target_exprs: list[str] = []
                 for source_prim in source_prims:
-                    rigid_body_records = list(_iter_rigid_body_records(source_prim, source_root))
+                    source_prim_path = source_prim.GetPath()
+                    # Unless the matched prim is the articulation root itself, track the nearest
+                    # rigid-body ancestor (bounded by the ClonePlan source root) as the owner.
+                    owner_prim = None
+                    if not source_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                        owner_prim = sim_utils.get_first_matching_ancestor_prim(source_prim_path, has_rigid_body_api)
+                    if owner_prim is not None and owner_prim.GetPath().HasPrefix(Sdf.Path(source_root)):
+                        rigid_body_records = [(source_prim, owner_prim)]
+                    else:
+                        # Otherwise enumerate the rigid-body descendants (e.g. the articulation's links).
+                        rigid_body_records = []
+                        for prim in sim_utils.get_all_matching_child_prims(source_prim_path, has_rigid_body_api):
+                            if prim.GetPath() != source_prim_path:
+                                rigid_body_records.append((prim, prim))
                     if not rigid_body_records:
                         raise RuntimeError(
                             f"Cannot track ClonePlan target '{target_cfg.prim_expr}' because source prim "
@@ -295,11 +286,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     if reference_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                         break
                     reference_prim = reference_prim.GetParent()
-                if (
-                    reference_prim is None
-                    or not reference_prim.IsValid()
-                    or not reference_prim.HasAPI(UsdPhysics.RigidBodyAPI)
-                ):
+                if (reference_prim is None or not reference_prim.IsValid() or not has_rigid_body_api(reference_prim)):
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_cfg.prim_expr}'. "
                         "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
@@ -308,10 +295,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
 
             mesh_id = self._load_target_prim_warp_mesh(target_prim, target_cfg, reference_prim=reference_prim)
             dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
-            pos, quat = sim_utils.resolve_prim_pose(reference_prim)
-            pos = (float(pos[0]), float(pos[1]), float(pos[2]))
-            quat = (float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
-            records.append((mesh_id, pos, quat))
+            records.append((mesh_id, *sim_utils.resolve_prim_pose(reference_prim)))
 
         if len(records) == 1:
             return [list(records) for _ in range(self._num_envs)], dummy_mesh_id, tracked_target_exprs
