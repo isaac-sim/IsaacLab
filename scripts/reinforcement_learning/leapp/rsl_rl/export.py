@@ -15,22 +15,12 @@ import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-
-import torch
-
-try:
-    import leapp
-    from leapp import annotate
-except ImportError as e:
-    raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
-
-# Disable TorchScript before importing task/environment modules so any
-# @torch.jit.script helpers resolve to plain Python functions during export.
-torch.jit._state.disable()
+from typing import TYPE_CHECKING
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+if TYPE_CHECKING:
+    import torch as torch_type
 
 _RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
 if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
@@ -40,6 +30,9 @@ import cli_args  # isort: skip
 
 _RUNTIME_IMPORTS_LOADED = False
 
+torch = None
+leapp = None
+annotate = None
 gym = None
 DistillationRunner = None
 OnPolicyRunner = None
@@ -111,6 +104,8 @@ def create_arg_parser() -> argparse.ArgumentParser:
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
+    from isaaclab_tasks.utils import setup_preset_cli
+
     parser = create_arg_parser()
     # setup_preset_cli attaches the preset-selection help group then parses;
     # remainder still carries typed selectors (physics=/renderer=/presets=)
@@ -120,9 +115,18 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     return args_cli, hydra_args
 
 
+def parse_prelaunch_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse enough CLI state to launch Isaac Sim before task utilities are imported."""
+    parser = create_arg_parser()
+    args_cli, _ = parser.parse_known_args(argv)
+    args_cli.headless = True
+    return args_cli
+
+
 def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
+    global annotate, leapp, torch
     global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
     global ensure_env_spec_id, get_published_pretrained_checkpoint, handle_deprecated_rsl_rl_cfg, hydra_task_config
     global patch_env_for_export, retrieve_file_path
@@ -130,9 +134,20 @@ def _load_runtime_dependencies() -> None:
     if _RUNTIME_IMPORTS_LOADED:
         return
 
+    try:
+        import leapp as leapp_module
+    except ImportError as e:
+        raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
+    annotate_module = getattr(leapp_module, "annotate")
+
     import gymnasium as gym_module
+    import torch as torch_module
     from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
     from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
+
+    # Disable TorchScript before importing task/environment modules so any
+    # @torch.jit.script helpers resolve to plain Python functions during export.
+    torch_module.jit._state.disable()
 
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
@@ -149,6 +164,9 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
 
+    torch = torch_module
+    leapp = leapp_module
+    annotate = annotate_module
     gym = gym_module
     DistillationRunner = DistillationRunnerCls
     OnPolicyRunner = OnPolicyRunnerCls
@@ -176,7 +194,9 @@ def get_actor_memory_module(policy_nn):
     return None
 
 
-def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: torch.device, dtype: torch.dtype):
+def ensure_actor_hidden_state_initialized(
+    policy_nn, batch_size: int, device: torch_type.device, dtype: torch_type.dtype
+):
     """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
     actor_state, _ = policy_nn.get_hidden_states()
     if actor_state is not None:
@@ -349,9 +369,21 @@ def export_rsl_rl_agent(
     return True
 
 
+def prepare_cli_export_runtime() -> None:
+    """Apply CLI runtime setup that batched export tests perform per task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    sim_utils.create_new_stage()
+    settings_manager = get_settings_manager()
+    settings_manager.set_bool("/isaaclab/render/rtx_sensors", False)
+    settings_manager.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+
+
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], simulation_app) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
     _load_runtime_dependencies()
+    from isaaclab_tasks.utils import fold_preset_tokens
 
     original_argv = sys.argv
     # Fold typed preset selectors into a single ``presets=<csv>`` token before
@@ -364,6 +396,7 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
         @hydra_task_config(args_cli.task, args_cli.agent)
         def _main(env_cfg, agent_cfg) -> None:
             nonlocal exported
+            prepare_cli_export_runtime()
             exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg, simulation_app)
 
         _main()
@@ -375,12 +408,12 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
 
 def main_cli(argv: list[str] | None = None) -> bool:
     """Run the command-line export flow."""
-    args_cli, hydra_args = parse_export_args(argv)
-
-    app_launcher = AppLauncher(args_cli)
+    prelaunch_args = parse_prelaunch_args(argv)
+    app_launcher = AppLauncher(prelaunch_args)
     simulation_app = app_launcher.app
 
     try:
+        args_cli, hydra_args = parse_export_args(argv)
         return run_export_with_hydra(args_cli, hydra_args, simulation_app)
     finally:
         simulation_app.close()
