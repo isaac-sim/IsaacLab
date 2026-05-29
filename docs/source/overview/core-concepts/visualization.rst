@@ -3,9 +3,16 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.
+Isaac Lab offers several lightweight visualizers for real-time simulation
+inspection and debugging. Unlike renderers that process sensor data,
+visualizers are meant for fast, interactive feedback.
 
-You can use any visualizer regardless of your chosen physics engine or rendering backend.
+Most visualizers can be combined with any physics engine or rendering backend.
+The exception is the Kit visualizer with kit-less OV backends:
+``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
+``ovrtx_renderer`` in the same process. Use ``--visualizer newton``,
+``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
+for headless execution.
 
 
 Overview

@@ -79,6 +79,29 @@ def test_kit_visualizer_dict_args_plus_ovrtx_raises():
 
 
 # ---------------------------------------------------------------------------
+# Invalid: OvPhysX physics + Kit visualizer
+# ---------------------------------------------------------------------------
+
+
+def test_ovphysx_plus_kit_visualizer_raises():
+    """OvPhysX cannot share a process with the Kit visualizer."""
+    env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx_renderer")
+    launcher_args = argparse.Namespace(visualizer="kit")
+    with pytest.raises(ValueError) as excinfo:
+        validate_runtime_compatibility(env_cfg, launcher_args)
+    msg = str(excinfo.value)
+    assert "OvPhysX" in msg
+    assert "Kit visualizer" in msg
+
+
+def test_ovphysx_dict_args_plus_kit_visualizer_raises():
+    """The dict launcher-args form must also reject OvPhysX with Kit visualization."""
+    env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx_renderer")
+    with pytest.raises(ValueError, match=r"OvPhysX.*Kit visualizer"):
+        validate_runtime_compatibility(env_cfg, {"visualizer": "kit,newton"})
+
+
+# ---------------------------------------------------------------------------
 # Valid combinations: must NOT raise
 # ---------------------------------------------------------------------------
 
