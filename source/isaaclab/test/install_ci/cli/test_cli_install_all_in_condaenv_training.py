@@ -3,19 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end installation and training workflow tests (conda).
-
-Covers conda-based installation paths:
-  - conda × kitless (core-only, ``-i core``)
-  - conda × newton training (``-i newton,rl[rsl-rl]``)
-
-Tests in this file are intentionally slow and GPU-dependent.  They are
-gated behind pytest markers so they only run in the appropriate CI
-environment:
-
-  ``@pytest.mark.conda`` – routed to the conda-enabled Docker image
-  ``@pytest.mark.gpu``   – requires a GPU
-  ``@pytest.mark.slow``  – skipped in fast/smoke runs
+"""
+Setup:
+    - conda create -n <env> python=3.12
+Tests:
+    - ./isaaclab.sh -i core -> verify core submodules importable
+    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify cartpole training works
 """
 
 from __future__ import annotations
@@ -56,7 +49,7 @@ def _assert_training_passed(result) -> None:
 # ---------------------------------------------------------------------------
 
 
-class TestCondaWorkflow(Conda_Mixin):
+class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
     """Installation and training smoke tests using conda environments."""
 
     @classmethod
@@ -64,12 +57,12 @@ class TestCondaWorkflow(Conda_Mixin):
         if not shutil.which("conda"):
             pytest.skip("conda is not available")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(1200)
-    def test_conda_core_installs_core_submodules(self, isaaclab_root):
+    def test_install_core_makes_core_submodules_importable(self, isaaclab_root):
         """conda + ``./isaaclab.sh -i core`` installs all core submodules without extras."""
         try:
             self.create_conda_env(isaaclab_root)
@@ -89,12 +82,12 @@ class TestCondaWorkflow(Conda_Mixin):
         finally:
             self.destroy_conda_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(1800)
-    def test_conda_newton_rsl_rl_trains_cartpole(self, isaaclab_root):
+    def test_install_newton_rl_rsl_rl_trains_cartpole(self, isaaclab_root):
         """conda + ``./isaaclab.sh -i newton,rl[rsl-rl]`` + training completes successfully."""
         try:
             self.create_conda_env(isaaclab_root)

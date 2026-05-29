@@ -107,6 +107,10 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "slow: tests that take a long time")
     config.addinivalue_line("markers", "uv: tests that require the uv package manager")
     config.addinivalue_line("markers", "conda: tests that require the conda package manager")
+    config.addinivalue_line("markers", "install_path_cli: tests that exercise the ./isaaclab.sh -i install path")
+    config.addinivalue_line(
+        "markers", "install_path_uv_pip: tests that exercise the uv pip install <wheel> install path"
+    )
     config.addinivalue_line("markers", "timeout: per-test timeout in seconds")
 
     try:

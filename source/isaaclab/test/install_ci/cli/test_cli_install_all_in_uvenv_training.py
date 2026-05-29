@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end installation and training workflow tests (uv).
-
-Covers uv-emnv-based installation paths:
-  - uv env + kitless (core-only, ``-i core``)
-  - uv env + full install (``-i all``)
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i core -> verify core submodules importable
+    - ./isaaclab.sh -i all -> verify cartpole training works
 """
 
 from __future__ import annotations
@@ -48,7 +49,7 @@ def _assert_training_passed(result) -> None:
 # ---------------------------------------------------------------------------
 
 
-class TestUVWorkflow(UV_Mixin):
+class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
     """Installation and training smoke tests using uv environments."""
 
     @classmethod
@@ -56,12 +57,12 @@ class TestUVWorkflow(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(900)
-    def test_install_core_installs_core_submodules(self, isaaclab_root):
+    def test_install_core_makes_core_submodules_importable(self, isaaclab_root):
         """``./isaaclab.sh -i core`` installs all core submodules without extras."""
         try:
             self.create_uv_env(isaaclab_root)
@@ -88,7 +89,7 @@ class TestUVWorkflow(UV_Mixin):
             self.destroy_uv_env()
 
     # regression for NVBug 5968136 (Cartpole training fails in MuJoCo stiffness conversion)
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu

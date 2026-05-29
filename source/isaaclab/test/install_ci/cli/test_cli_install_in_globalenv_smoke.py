@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test ``./isaaclab.sh -i`` in a global system Python environment.
-
-Marked ``docker`` because installing isaaclab into the system Python is destructive.
+"""
+Setup:
+    - none (system Python, no uv/conda env active)
+Tests:
+    - ./isaaclab.sh -i -> verify isaaclab importable in system Python
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ import pytest
 from utils import run_cmd
 
 
-class Test_Install_Global:
+class Test_Cli_Install_In_Globalenv_Smoke:
     """./isaaclab.sh -i with no uv/conda env active (system Python)."""
 
     @classmethod
@@ -25,11 +27,11 @@ class Test_Install_Global:
         if os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX"):
             pytest.skip("test requires no active uv/conda environment")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.docker
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_install_global(self, isaaclab_root):
+    def test_install_makes_isaaclab_importable(self, isaaclab_root):
         """``./isaaclab.sh -i`` succeeds and installs into the system Python."""
 
         cli_script = isaaclab_root / "isaaclab.sh"

@@ -73,7 +73,7 @@ def _base_up_proj_kernel(
 ):
     """Project base up vector onto world up: -gravity_b[2]."""
     i = wp.tid()
-    out[i, 0] = -rotate_vec_to_body_frame(gravity_w[0], root_pose_w[i])[2]
+    out[i, 0] = -rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])[2]
 
 
 @generic_io_descriptor_warp(out_dim=1, observation_type="RootState")
