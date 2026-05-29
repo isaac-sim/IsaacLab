@@ -15,6 +15,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import tomllib
+from packaging.requirements import Requirement
+from packaging.version import Version
 from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.app import AppLauncher
@@ -25,6 +28,37 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def _load_tree(relative_path: str) -> ast.AST:
     source = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
     return ast.parse(source)
+
+
+def _module_string_constant(tree: ast.AST, name: str) -> str:
+    for node in ast.iter_child_nodes(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Constant):
+            continue
+        if not isinstance(node.value.value, str):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            return node.value.value
+
+    raise AssertionError(f"Could not find string constant {name}.")
+
+
+def _source_skrl_min_version() -> Version:
+    with (REPO_ROOT / "source/isaaclab_rl/pyproject.toml").open("rb") as f:
+        data = tomllib.load(f)
+
+    for dependency in data["project"]["optional-dependencies"]["skrl"]:
+        requirement = Requirement(dependency)
+        if requirement.name != "skrl":
+            continue
+        lower_bounds = [
+            Version(specifier.version)
+            for specifier in requirement.specifier
+            if specifier.operator in {">=", "==", "~="}
+        ]
+        if lower_bounds:
+            return max(lower_bounds)
+
+    raise AssertionError("Could not find skrl lower bound in source/isaaclab_rl/pyproject.toml")
 
 
 def _called_name(call: ast.Call) -> str | None:
@@ -55,6 +89,21 @@ def test_app_launcher_adds_deterministic_cli_flag():
     args = parser.parse_args(["--deterministic"])
     assert hasattr(args, "deterministic")
     assert args.deterministic is True
+
+
+def test_skrl_scripts_min_version_matches_source_package():
+    """skrl runtime guards must match the package metadata lower bound."""
+    expected_version = _source_skrl_min_version()
+    skrl_scripts = [
+        "scripts/reinforcement_learning/skrl/play.py",
+        "scripts/reinforcement_learning/skrl/play_skrl.py",
+        "scripts/reinforcement_learning/skrl/train.py",
+        "scripts/reinforcement_learning/skrl/train_skrl.py",
+    ]
+
+    for relative_path in skrl_scripts:
+        tree = _load_tree(relative_path)
+        assert Version(_module_string_constant(tree, "SKRL_VERSION")) == expected_version, relative_path
 
 
 def test_train_scripts_call_configure_seed_after_runner_or_agent_construction():
