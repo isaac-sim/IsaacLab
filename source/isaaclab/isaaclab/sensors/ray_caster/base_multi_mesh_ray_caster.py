@@ -230,7 +230,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     if not source_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                         owner_prim = sim_utils.get_first_matching_ancestor_prim(source_prim_path, has_rigid_body_api)
                     owner_path = None if owner_prim is None else str(owner_prim.GetPath())
-                    if owner_path is not None and (owner_path == source_root or owner_path.startswith(source_root + "/")):
+                    if owner_path and (owner_path == source_root or owner_path.startswith(f"{source_root}/")):
                         rigid_body_records = [(source_prim, owner_prim)]
                     else:
                         rigid_body_records = [
