@@ -208,9 +208,15 @@ jobs:
           # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+          # ``pyproject.toml`` is staged alongside ``extension.toml`` because
+          # ``Package.write_version`` bumps both when a ``[project]`` block
+          # exists. Missing it leaves the pyproject write unstaged, which
+          # makes the subsequent ``git pull --rebase`` refuse with
+          # ``cannot pull with rebase: You have unstaged changes``.
           git add source/*/changelog.d/ \
                   source/*/docs/CHANGELOG.rst \
-                  source/*/config/extension.toml
+                  source/*/config/extension.toml \
+                  source/*/pyproject.toml
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
