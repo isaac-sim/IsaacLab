@@ -154,6 +154,42 @@ Then relaunch the distributed training command as usual.
     required on all machines, and may change communication behavior or performance depending
     on the hardware topology.
 
+.. _multi-gpu-cuda-visible-devices-hang:
+
+Hangs When Restricting Visible GPUs with ``CUDA_VISIBLE_DEVICES``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When you restrict distributed training to a subset of a node's GPUs with
+``CUDA_VISIBLE_DEVICES`` (for example, ``CUDA_VISIBLE_DEVICES=0,1`` on a 4- or 8-GPU machine),
+training may hang during NCCL communicator initialization or on the first collective, with no
+error reported. On affected systems, disabling NCCL's peer-to-peer (P2P) transport resolves the
+hang:
+
+.. code-block:: shell
+
+    export NCCL_P2P_DISABLE=1
+
+Then relaunch training as usual.
+
+Why this is only needed when selecting a subset:
+
+* **All GPUs visible (no hang).** NCCL builds its transport topology over the full, multi-bridge
+  PCIe fabric. Paths between many GPU pairs cross host (PCIe) bridges and exceed NCCL's
+  P2P-eligibility threshold, so NCCL automatically falls back to a non-P2P transport — staging
+  through host/shared memory or a CPU-routed tree. Because no direct GPU-to-GPU P2P hop is used,
+  there is no hang.
+* **Subset visible (can hang).** ``CUDA_VISIBLE_DEVICES`` masks the fabric down to the selected
+  devices, so NCCL only sees that narrower topology. The remaining devices look P2P-eligible, so
+  NCCL selects the direct P2P transport. On systems where that P2P path is not fully functional,
+  the transport hangs. Setting ``NCCL_P2P_DISABLE=1`` forces the same non-P2P fallback that the
+  full-fabric case uses, avoiding the hang.
+
+.. note::
+
+    ``NCCL_P2P_DISABLE=1`` routes inter-GPU traffic through host/shared memory instead of a direct
+    P2P link, which can reduce communication bandwidth. Only set it when you observe a hang while
+    restricting visible devices.
+
 Multi-Node Training
 -------------------
 
