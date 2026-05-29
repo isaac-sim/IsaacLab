@@ -156,12 +156,13 @@ Then in the Isaac Sim UI:
 
 #. Click **Start AR**.
 
-The viewport should show two eyes being rendered and the status "AR profile is active".
+You should see "Waiting for connection" displayed in the status bar at the bottom of the viewport.
+The dual-eye stereo render only becomes active once a headset connects and playback begins on the device.
 
 .. figure:: ../_static/setup/cloudxr_viewport.jpg
    :align: center
    :figwidth: 100%
-   :alt: Isaac Lab viewport rendering two eyes
+   :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start AR
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
 
