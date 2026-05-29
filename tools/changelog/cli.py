@@ -62,6 +62,7 @@ import argparse
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
 from functools import cached_property
@@ -512,11 +513,11 @@ class FragmentBatch:
 class Package:
     """A source/<pkg>/ directory the changelog tool can manage.
 
-    A package is "managed" if it has both a ``config/extension.toml`` (the
-    version file the compiler bumps) and a ``docs/CHANGELOG.rst`` (the
-    file the compiler updates). :meth:`discover` returns only managed
-    packages; instances created directly may not be managed (use
-    :attr:`is_managed`).
+    A package is "managed" if it has both a version metadata file (see
+    :attr:`toml_path`, the file the compiler bumps) and a
+    ``docs/CHANGELOG.rst`` (the file the compiler updates).
+    :meth:`discover` returns only managed packages; instances created
+    directly may not be managed (use :attr:`is_managed`).
     """
 
     root: Path
@@ -554,7 +555,11 @@ class Package:
                     return Version(m.group(1))
         raise ValueError(f"{self.name}: no version field found under [project] in {self.toml_path}")
 
-    def write_changelog_entry(self, entry: str, *, dry_run: bool) -> None:
+    def write_changelog_entry(self, entry: str, *, dry_run: bool) -> list[Path]:
+        """Prepend ``entry`` to this package's CHANGELOG.rst. Returns the
+        list of paths written (empty in dry-run, so callers like
+        :class:`AutoBumpRun` get a single source of truth for "what just
+        changed on disk")."""
         text = self.changelog_path.read_text(encoding="utf-8")
         # Self-heal a header that lacks the trailing blank line. The compile
         # regex needs ``Changelog\n---+\n\n`` as an anchor; a contributor who
@@ -573,10 +578,19 @@ class Package:
             print(f"DRY RUN — would write to {_display_path(self.changelog_path)}")
             print(f"{'=' * 60}")
             print(entry)
-        else:
-            self.changelog_path.write_text(updated, encoding="utf-8")
+            return []
+        self.changelog_path.write_text(updated, encoding="utf-8")
+        return [self.changelog_path]
 
-    def write_version(self, new_version: Version, *, dry_run: bool) -> None:
+    def write_version(self, new_version: Version, *, dry_run: bool) -> list[Path]:
+        """Set ``version = "<new_version>"`` in this package's version metadata file.
+
+        Which file that is depends on the branch layout — :attr:`toml_path`
+        resolves it (``pyproject.toml`` here, ``config/extension.toml`` on
+        release branches that predate #6505). Returns the list of paths
+        written (empty in dry-run) so :class:`AutoBumpRun` has a single
+        source of truth for what changed on disk.
+        """
         text = self.toml_path.read_text(encoding="utf-8")
         in_project = False
         new_lines = []
@@ -590,8 +604,9 @@ class Package:
             new_lines.append(line)
         if dry_run:
             print(f'DRY RUN — would set version = "{new_version}" in {_display_path(self.toml_path)}')
-        else:
-            self.toml_path.write_text("".join(new_lines), encoding="utf-8")
+            return []
+        self.toml_path.write_text("".join(new_lines), encoding="utf-8")
+        return [self.toml_path]
 
     @classmethod
     def from_name(cls, name: str, packages_root: Path = PACKAGES_ROOT) -> Package:
@@ -613,8 +628,8 @@ class Package:
         fragments_dir: Path | None = None,
         explicit_version: Version | None = None,
         dry_run: bool = False,
-    ) -> bool:
-        """Compile fragments for this package. Returns True if any were compiled.
+    ) -> tuple[bool, list[Path]]:
+        """Compile fragments for this package.
 
         There are exactly two modes: ``dry_run=True`` previews and writes
         nothing; ``dry_run=False`` writes the new entry, bumps the version,
@@ -630,6 +645,14 @@ class Package:
             explicit_version: Pin the new version to this string (skips the
                 per-fragment bump inference).
             dry_run: Preview only — no files are written or deleted.
+
+        Returns:
+            ``(compiled, touched)`` where ``compiled`` is ``True`` if at
+            least one fragment was found and processed, and ``touched`` is
+            the list of paths actually written to disk (empty in dry-run
+            mode). The ``touched`` list is the in-process manifest
+            :class:`AutoBumpRun` stages — no out-of-band file or glob
+            needed.
         """
         batch = FragmentBatch.from_dir(self._resolve_fragments_dir(fragments_dir))
 
@@ -650,7 +673,7 @@ class Package:
                     print(f"  {self.name}: cleaned {n} stale skip file(s).")
             else:
                 print(f"  {self.name}: no fragments, skipping.")
-            return False
+            return False, []
 
         # Apply the same content-validation rules the PR gate uses, so a
         # malformed fragment that somehow reached this package (e.g. a
@@ -670,7 +693,7 @@ class Package:
         parsed_pairs = batch.parsed()
         if not parsed_pairs:
             print(f"  {self.name}: all fragments empty after parsing, skipping.")
-            return False
+            return False, []
 
         new_version, bump_label, entry = batch.compile_to_entry(
             self.current_version(), explicit_version=explicit_version
@@ -685,8 +708,9 @@ class Package:
                 f"{_display_path(self.changelog_path)} does not exist; "
                 f"package {self.name!r} is not managed (missing CHANGELOG.rst)."
             )
-        self.write_changelog_entry(entry, dry_run=dry_run)
-        self.write_version(new_version, dry_run=dry_run)
+        touched: list[Path] = []
+        touched.extend(self.write_changelog_entry(entry, dry_run=dry_run))
+        touched.extend(self.write_version(new_version, dry_run=dry_run))
 
         if not dry_run:
             n_frag, n_skip = batch.delete_all()
@@ -695,7 +719,7 @@ class Package:
                 msg += f" and {n_skip} skip file(s)"
             print(msg + ".")
 
-        return True
+        return True, touched
 
     def _resolve_fragments_dir(self, override: Path | None) -> Path:
         """Pick the directory ``compile`` should read fragments from.
@@ -908,7 +932,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
     failures: list[tuple[str, str]] = []
     for pkg in packages:
         try:
-            compiled = pkg.compile(
+            compiled, _ = pkg.compile(
                 fragments_dir=args.fragments_dir,
                 explicit_version=explicit_version,
                 dry_run=args.dry_run,
@@ -1016,6 +1040,253 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
 
 
 # ---------------------------------------------------------------------------
+# Nightly auto-bump: compile + stage + commit + push, all in-process
+# ---------------------------------------------------------------------------
+
+
+class GitError(Exception):
+    """Base class for failures raised by :class:`GitRepo`."""
+
+
+class GitRepo:
+    """Thin subprocess wrapper around the ``git`` CLI scoped to one working tree.
+
+    Owns only the working directory and the policy decisions that need
+    typed errors. All other behavior delegates straight to ``git``, so
+    the unit tests can run against a real tempdir repo + bare-repo remote
+    instead of mocking subprocess.
+    """
+
+    class NonFastForward(GitError):
+        """Raised when ``git push`` is rejected because the remote advanced."""
+
+    def __init__(self, cwd: Path):
+        self.cwd = cwd
+
+    def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=self.cwd,
+            text=True,
+            capture_output=True,
+            check=check,
+        )
+
+    def config(self, key: str, value: str) -> None:
+        self._run("config", key, value)
+
+    def add(self, paths: Iterable[Path | str]) -> None:
+        path_strs = [str(p) for p in paths]
+        if not path_strs:
+            return
+        self._run("add", "--", *path_strs)
+
+    def has_staged_changes(self) -> bool:
+        return self._run("diff", "--staged", "--quiet", check=False).returncode != 0
+
+    def staged_diff(self, path: Path | str) -> str:
+        return self._run("diff", "--staged", "--", str(path)).stdout
+
+    def commit(self, message: str) -> None:
+        self._run("commit", "-m", message)
+
+    def fetch(self, remote: str, ref: str) -> None:
+        self._run("fetch", remote, ref)
+
+    def rebase(self, onto: str) -> None:
+        self._run("rebase", onto)
+
+    def push(self, remote: str, refspec: str) -> None:
+        result = self._run("push", remote, refspec, check=False)
+        if result.returncode == 0:
+            return
+        stderr = (result.stderr or "") + (result.stdout or "")
+        # ``non-fast-forward`` is the git-side message; ``[rejected]`` covers
+        # the GitHub ruleset path. Either one means the remote tip moved or
+        # rejected the push for a recoverable reason; let the orchestrator
+        # decide whether to retry.
+        if "non-fast-forward" in stderr or "[rejected]" in stderr:
+            raise self.NonFastForward(stderr.strip())
+        raise GitError(f"git push failed: {stderr.strip()}")
+
+
+class AutoBumpRun:
+    """One-shot orchestrator for the nightly auto-commit lifecycle.
+
+    Compiles every managed package, stages whatever the compile actually
+    wrote (no external glob — the touched-paths list comes from each
+    :meth:`Package.compile` return value), builds a bot-attributed commit,
+    and pushes it to the target branch. Retries the push on
+    non-fast-forward by fetching and rebasing the auto-commit onto the new
+    tip, so a human commit landing mid-run doesn't waste the batch.
+
+    Identity is hardcoded — the bot's user name and email are deterministic
+    public values derived from the GitHub App registration (anyone reading
+    a nightly commit can see them). The App credential itself stays in repo
+    secrets and is consumed by the workflow, not this class.
+    """
+
+    AUTHOR_NAME = "isaaclab-bot[bot]"
+    AUTHOR_EMAIL = "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+    PUSH_RETRIES = 3
+    COMMIT_PREFIX = "[CI][Auto Version Bump]"
+
+    def __init__(
+        self,
+        *,
+        branch: str,
+        remote: str,
+        event_name: str = "manual",
+        dry_run: bool = False,
+        repo_root: Path = REPO_ROOT,
+    ):
+        self.branch = branch
+        self.remote = remote
+        self.event_name = event_name
+        self.dry_run = dry_run
+        self.repo_root = repo_root
+        self.repo = GitRepo(repo_root)
+        self.packages = Package.discover(packages_root=repo_root / "source")
+        self.touched: list[Path] = []
+        self.failures: list[tuple[str, str]] = []
+        self.any_compiled = False
+
+    def run(self) -> int:
+        self._compile_all()
+        if self.dry_run:
+            self._report_dry_run()
+            return self._exit_code()
+        if not self.touched:
+            if not self.any_compiled:
+                print("No fragments found in any package.")
+            else:
+                print("All compiles ran but produced no on-disk writes (already up to date).")
+            return self._exit_code()
+        self._stage_and_commit()
+        self._push_with_retry()
+        return self._exit_code()
+
+    def _compile_all(self) -> None:
+        for pkg in self.packages:
+            try:
+                compiled, touched = pkg.compile(dry_run=self.dry_run)
+            except (FileNotFoundError, ValueError) as e:
+                print(f"  ERROR ({pkg.name}): {e}", file=sys.stderr)
+                self.failures.append((pkg.name, str(e)))
+                continue
+            self.any_compiled = self.any_compiled or compiled
+            self.touched.extend(touched)
+
+    def _report_dry_run(self) -> None:
+        if self.any_compiled:
+            print(f"DRY RUN — compile complete; would commit/push to {self.branch}.")
+        else:
+            print("DRY RUN — no fragments found in any package.")
+
+    def _stage_and_commit(self) -> None:
+        # Author identity belongs in-process: the workflow YAML stops
+        # carrying changelog-tool knowledge so cli.py-only PRs don't need
+        # paired YAML edits to stay consistent.
+        self.repo.config("user.name", self.AUTHOR_NAME)
+        self.repo.config("user.email", self.AUTHOR_EMAIL)
+        self.repo.add(self.touched)
+        if not self.repo.has_staged_changes():
+            print("Nothing actually staged after compile — skipping commit.")
+            return
+        self.repo.commit(self._build_commit_message())
+        print(f"Committed bump for {len(self.touched)} file(s).")
+
+    def _relative(self, path: Path) -> Path:
+        """``path`` relative to the repo root, or unchanged if it lies outside."""
+        try:
+            return path.relative_to(self.repo_root)
+        except ValueError:
+            return path
+
+    def _build_commit_message(self) -> str:
+        # Derive the per-package "old → new" lines from the staged version
+        # metadata diffs. The set of version files is taken from the packages
+        # themselves (:attr:`Package.toml_path`) rather than a hardcoded
+        # filename, so this produces a correct message both here — where
+        # versions live in ``pyproject.toml`` — and on release branches that
+        # still keep them in ``config/extension.toml``. Files touched by a
+        # future write site that carries no ``version`` line (``uv.lock``,
+        # ``CHANGELOG.rst``) are staged but not enumerated here.
+        lines = [
+            f"{self.COMMIT_PREFIX} Compile changelog fragments ({self.event_name})",
+            "",
+            "Bumped packages:",
+        ]
+        version_files = {pkg.toml_path: pkg.name for pkg in self.packages}
+        for path in sorted(p for p in self.touched if p in version_files):
+            diff = self.repo.staged_diff(self._relative(path))
+            old = _extract_version_from_diff(diff, "-")
+            new = _extract_version_from_diff(diff, "+")
+            lines.append(f"- {version_files[path]}: {old} → {new}")
+        return "\n".join(lines) + "\n"
+
+    def _push_with_retry(self) -> None:
+        refspec = f"HEAD:refs/heads/{self.branch}"
+        last_err: GitRepo.NonFastForward | None = None
+        for attempt in range(self.PUSH_RETRIES):
+            try:
+                self.repo.push(self.remote, refspec)
+                if attempt > 0:
+                    print(f"Push succeeded on attempt {attempt + 1}.")
+                else:
+                    print(f"Push succeeded → {self.remote} {refspec}.")
+                return
+            except GitRepo.NonFastForward as e:
+                last_err = e
+                if attempt + 1 == self.PUSH_RETRIES:
+                    break
+                print(
+                    f"  push rejected (attempt {attempt + 1}/{self.PUSH_RETRIES}); "
+                    f"fetching and rebasing onto {self.branch}: {e}",
+                    file=sys.stderr,
+                )
+                self.repo.fetch(self.remote, self.branch)
+                self.repo.rebase("FETCH_HEAD")
+        # All retries exhausted.
+        assert last_err is not None  # the loop only exits here when it raised at least once
+        raise GitError(f"push failed after {self.PUSH_RETRIES} attempts; last error: {last_err}")
+
+    def _exit_code(self) -> int:
+        if self.failures:
+            print(file=sys.stderr)
+            print(f"::error::{len(self.failures)} package(s) failed to compile:", file=sys.stderr)
+            for name, reason in self.failures:
+                print(f"  • {name}: {reason}", file=sys.stderr)
+            return 1
+        return 0
+
+
+def _extract_version_from_diff(diff_text: str, prefix: str) -> str:
+    """Pull the version string out of a staged version-metadata diff line.
+
+    The diff contains lines like ``-version = "1.2.3"`` (old) and
+    ``+version = "1.3.0"`` (new). ``prefix`` selects which side to read.
+    Returns ``"?"`` if no match — the commit message is informational, not
+    machine-parsed, so a missing value shouldn't fail the run.
+    """
+    for line in diff_text.splitlines():
+        if line.startswith(f"{prefix}version"):
+            m = re.search(r'"([^"]+)"', line)
+            if m:
+                return m.group(1)
+    return "?"
+
+
+def cmd_auto_bump(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    return AutoBumpRun(
+        branch=args.branch,
+        remote=args.remote,
+        event_name=args.event_name,
+        dry_run=args.dry_run,
+    ).run()
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -1028,7 +1299,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    sub = parser.add_subparsers(dest="cmd", required=True, metavar="{compile,check}")
+    sub = parser.add_subparsers(dest="cmd", required=True, metavar="{compile,check,auto-bump}")
 
     p_compile = sub.add_parser(
         "compile",
@@ -1096,6 +1367,46 @@ def _build_parser() -> argparse.ArgumentParser:
             "Base branch to diff against (e.g. 'main' or 'develop'). "
             "The diff is taken against ``origin/<base_ref>...HEAD``."
         ),
+    )
+
+    p_auto_bump = sub.add_parser(
+        "auto-bump",
+        help="Compile + commit + push for the nightly cron (replaces the inline workflow shell).",
+        description=(
+            "End-to-end nightly auto-bump: compile every managed package's fragments, stage the "
+            "files cli.py actually wrote, build a bot-attributed commit, and push to the target "
+            "branch with retry-on-conflict. Replaces the inline shell in nightly-changelog.yml so "
+            "the workflow stays free of changelog-tooling knowledge."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_auto_bump.set_defaults(func=cmd_auto_bump)
+    p_auto_bump.add_argument(
+        "--branch",
+        required=True,
+        metavar="REF",
+        help="Target branch to push the auto-commit to (e.g. develop, release/3.0.0-beta2).",
+    )
+    p_auto_bump.add_argument(
+        "--remote",
+        default="origin",
+        metavar="NAME",
+        help="Remote to push to. Default: origin.",
+    )
+    p_auto_bump.add_argument(
+        "--event-name",
+        default="manual",
+        metavar="NAME",
+        help=(
+            "GitHub event that triggered this run (e.g. 'schedule', 'workflow_dispatch'). "
+            "Surfaces in the commit message's parenthetical suffix; defaults to 'manual' for "
+            "local invocations."
+        ),
+    )
+    p_auto_bump.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview only — compile in dry-run mode and skip commit/push entirely.",
     )
 
     return parser
