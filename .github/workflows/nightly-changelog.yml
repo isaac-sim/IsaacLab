@@ -189,12 +189,14 @@ jobs:
           python3 tools/changelog/cli.py compile $ARGS
 
       - name: Commit and push if fragments were compiled
-        # ``always()`` lets this step run even when the compile step above
-        # reported partial failure (one package's malformed file fails, the
-        # rest still wrote their CHANGELOG.rst / deleted fragments / bumped
-        # extension.toml). The staged-diff check below short-circuits cleanly
-        # if the failed package was the only one with pending work.
-        if: ${{ always() && !inputs.dry_run }}
+        # Fires when compile succeeded cleanly OR raised on at least one
+        # package (``continue-on-error: true`` above turned that conclusion
+        # to success while preserving the outcome — the surviving packages
+        # still ship). Explicitly NOT ``always()``: cancellation (timeout /
+        # maintainer cancel) leaves a partial on-disk state and the
+        # re-propagate step below wouldn't fire on ``outcome == 'cancelled'``,
+        # so this guard skips the commit/push entirely on cancel.
+        if: ${{ (success() || steps.compile.outcome == 'failure') && !inputs.dry_run }}
         env:
           # Pass the matrix branch through an env var rather than
           # interpolating ``${{ matrix.branch }}`` directly into ``run:``.
