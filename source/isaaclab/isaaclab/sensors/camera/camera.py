@@ -166,11 +166,11 @@ class Camera(SensorBase):
                     logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
                     self.cfg.prim_path = spawn.spawn_path = f"{self.cfg.prim_path}/camera"
 
-                spawn_target = spawn.spawn_path or self.cfg.prim_path
-                if sim_utils.find_first_matching_prim(spawn_target) is None:
-                    spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
-                if not sim_utils.find_matching_prims(spawn_target):
-                    raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
+            spawn_target = spawn.spawn_path or self.cfg.prim_path
+            if sim_utils.find_first_matching_prim(spawn_target) is None:
+                spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
+            if not sim_utils.find_matching_prims(spawn_target):
+                raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
