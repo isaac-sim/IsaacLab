@@ -14,12 +14,13 @@ Intended use::
 
 Two masks, two roles
 --------------------
-The set a test actually runs on is ``scope ∩ budget``:
+The set a test actually runs on is ``scope ∩ runtime_devices``:
 
 * **scope** — passed at the call site, fixed. The devices the *test* is valid
   on. The author owns this.
-* **budget** — the ``ISAACLAB_TEST_DEVICES`` env var, per run. The devices the
-  *run* is allowed to use. The operator / CI owns this; defaults to ``"110"``.
+* **runtime_devices** — the ``ISAACLAB_TEST_DEVICES`` env var, per run. The
+  devices the *run* is allowed to use. The operator / CI owns this; defaults
+  to ``"110"``.
 
 A test author never has to know which device a shard holds; the operator never
 has to know which devices a test supports. The helper intersects the two.
@@ -42,7 +43,7 @@ Common masks
 ======  ===================================================================
 Mask    Meaning
 ======  ===================================================================
-``110`` cpu + cuda:0 (the default scope and the default budget)
+``110`` cpu + cuda:0 (the default scope and the default runtime devices)
 ``11X`` cpu + cuda:0 + any one non-default GPU (device-agnostic test)
 ``00X`` a non-default GPU only (validates non-default-device behavior)
 ``100`` cpu only (pure logic)
@@ -51,8 +52,8 @@ Mask    Meaning
 
 Worked example — a ``scope="11X"`` test:
 
-* single-GPU CI (budget unset ⇒ ``"110"``) ⇒ ``[cpu, cuda:0]``.
-* a multi-GPU shard (budget ``"00X"``, ``ISAACLAB_SIM_DEVICE=cuda:2``)
+* single-GPU CI (runtime devices unset ⇒ ``"110"``) ⇒ ``[cpu, cuda:0]``.
+* a multi-GPU shard (runtime devices ``"00X"``, ``ISAACLAB_SIM_DEVICE=cuda:2``)
   ⇒ ``[cuda:2]``.
 
 An empty result means the test is cleanly skipped for this run (e.g. a
@@ -60,7 +61,7 @@ An empty result means the test is cleanly skipped for this run (e.g. a
 
 Local runs
 ----------
-Set the budget from the shell to opt a run into non-default GPUs::
+Set the runtime devices from the shell to opt a run into non-default GPUs::
 
     ISAACLAB_TEST_DEVICES=11X ISAACLAB_SIM_DEVICE=cuda:1 \\
         ./isaaclab.sh -p -m pytest path/to/test.py
@@ -72,18 +73,20 @@ import os
 
 import torch
 
-_ENV_VAR = "ISAACLAB_TEST_DEVICES"
-_DEFAULT_BUDGET = "110"
-"""Budget when ``ISAACLAB_TEST_DEVICES`` is unset: cpu + cuda:0, i.e. the
-historical single-GPU device set, so non-default GPUs are opt-in per run."""
+_RUNTIME_DEVICES_ENV_VAR = "ISAACLAB_TEST_DEVICES"
+"""Env var naming the run's devices: the devices a run may use (see module docstring)."""
+
+_DEFAULT_RUNTIME_DEVICES = "110"
+"""Runtime devices when :data:`_RUNTIME_DEVICES_ENV_VAR` is unset: cpu + cuda:0,
+i.e. the historical single-GPU device set, so non-default GPUs are opt-in per run."""
 
 
 def test_devices(scope: str | list[str] = "110", *, require_available: bool = False) -> list[str]:
     """Resolve the device list to parametrize a test over.
 
-    The result is ``scope ∩ budget``, where ``scope`` is this argument and
-    ``budget`` comes from the ``ISAACLAB_TEST_DEVICES`` env var (see the module
-    docstring for the grammar and the scope/budget split).
+    The result is ``scope ∩ runtime_devices``, where ``scope`` is this argument
+    and the runtime devices come from the ``ISAACLAB_TEST_DEVICES`` env var (see
+    the module docstring for the grammar and the scope / runtime-devices split).
 
     Args:
         scope: Device mask (e.g. ``"11X"``) or an explicit device list (e.g.
@@ -107,10 +110,10 @@ def test_devices(scope: str | list[str] = "110", *, require_available: bool = Fa
     available = _list_available_devices()
     target = _target_nondefault(available)
     scope_set = _select(scope, available, target)
-    budget_set = _select(os.environ.get(_ENV_VAR, _DEFAULT_BUDGET), available, target)
-    devices = [d for d in available if d in scope_set and d in budget_set]
+    runtime_set = _select(os.environ.get(_RUNTIME_DEVICES_ENV_VAR, _DEFAULT_RUNTIME_DEVICES), available, target)
+    devices = [d for d in available if d in scope_set and d in runtime_set]
     if require_available and not devices:
-        raise ValueError(f"scope {scope!r} ∩ budget resolves to no device (available: {available})")
+        raise ValueError(f"scope {scope!r} ∩ runtime devices resolves to no device (available: {available})")
     return devices
 
 

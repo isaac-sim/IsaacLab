@@ -193,9 +193,9 @@ jobs:
 
           declare -A pids logfiles results
           for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
-            # Uniform budget across shards: "00X" = "any one non-default GPU".
+            # Uniform runtime devices across shards: "00X" = "any one non-default GPU".
             # ISAACLAB_SIM_DEVICE below pins which one, so no per-shard mask.
-            budget="00X"
+            runtime_devices="00X"
             idx=$((cuda - 1))
 
             # This shard's slice of the file list (round-robin by position).
@@ -258,7 +258,7 @@ jobs:
               -e ISAAC_SIM_LOW_MEMORY=1 \
               -e PYTHONUNBUFFERED=1 \
               -e PYTHONIOENCODING=utf-8 \
-              -e ISAACLAB_TEST_DEVICES="$budget" \
+              -e ISAACLAB_TEST_DEVICES="$runtime_devices" \
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e TEST_INCLUDE_FILES="$shard_include" \
               "$IMAGE_TAG" \
@@ -281,7 +281,7 @@ jobs:
               exit "${PIPESTATUS[0]}"
             ) &
             pids[$cuda]=$!
-            echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, budget=$budget)"
+            echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, runtime_devices=$runtime_devices)"
           done
 
           # Wait for every shard before aggregating, so a fast failure
