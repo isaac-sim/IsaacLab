@@ -76,6 +76,11 @@ def _is_kit_physics(node) -> bool:
     return isinstance(node, PhysicsCfg) and type(node).__name__ == "PhysxCfg"
 
 
+def _is_ovphysx_physics(node) -> bool:
+    """True when the node is an OvPhysX physics config."""
+    return isinstance(node, PhysicsCfg) and type(node).__name__ == "OvPhysxCfg"
+
+
 def _is_ovrtx_renderer(node) -> bool:
     """True when the node is an OVRTX renderer config."""
     return isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"
@@ -178,8 +183,8 @@ def validate_runtime_compatibility(
     renderer that runs without Isaac Sim / Omniverse Kit. Combining it with Kit-based
     runtimes — Isaac Sim PhysX physics (``PhysxCfg``) or the Kit visualizer
     (``--visualizer kit`` / a ``visualizer_cfgs`` entry with ``visualizer_type="kit"``) —
-    is unsupported. When such a combination is detected this function raises with a
-    message that points the user at the correct ``isaacsim_rtx_renderer`` preset.
+    is unsupported. OvPhysX physics (``OvPhysxCfg``) also cannot share a process with
+    the Kit visualizer.
 
     Args:
         env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
@@ -187,15 +192,25 @@ def validate_runtime_compatibility(
 
     Raises:
         ValueError: If the OVRTX renderer is combined with Kit-based physics or the
-            Kit visualizer.
+            Kit visualizer, or if OvPhysX physics is combined with the Kit visualizer.
     """
-    has_kit_physics, has_ovrtx_renderer = _scan_config(env_cfg, [_is_kit_physics, _is_ovrtx_renderer])
-    if not has_ovrtx_renderer:
-        return
-
+    has_kit_physics, has_ovrtx_renderer, has_ovphysx_physics = _scan_config(
+        env_cfg, [_is_kit_physics, _is_ovrtx_renderer, _is_ovphysx_physics]
+    )
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     visualizer_types = _get_visualizer_types(launcher_args)
     has_kit_visualizer = "kit" in visualizer_types or visualizer_intent.get("has_kit_visualizer", False)
+
+    if has_ovphysx_physics and has_kit_visualizer:
+        raise ValueError(
+            "Invalid backend combination: OvPhysX physics (`OvPhysxCfg`) is kitless and cannot be used together "
+            'with the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`). Use a kitless visualizer '
+            "such as `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit the visualizer "
+            "argument for headless execution."
+        )
+
+    if not has_ovrtx_renderer:
+        return
 
     if not has_kit_physics and not has_kit_visualizer:
         return

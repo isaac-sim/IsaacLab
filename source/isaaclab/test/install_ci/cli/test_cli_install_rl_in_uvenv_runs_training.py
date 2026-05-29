@@ -3,18 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration tests for RL framework extra-feature installs.
-
-Each test installs the core set + a specific RL framework via
-``./isaaclab.sh -i 'rl[<framework>]'`` and then verifies that
-(a) the framework is importable and (b) a short training run succeeds.
-
-Valid selectors for the ``rl`` feature:
-  - ``rsl-rl``  → rsl-rl-lib
-  - ``skrl``    → skrl
-  - ``sb3``     → stable-baselines3
-  - ``rl-games`` → rl-games (git dep)
-  - (no selector / ``all``) → all frameworks
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i rl[rsl-rl] -> verify rsl_rl importable
+    - ./isaaclab.sh -i rl[skrl] -> verify skrl importable
+    - ./isaaclab.sh -i rl[sb3] -> verify stable_baselines3 importable
+    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify cartpole training with rsl_rl works
+    - ./isaaclab.sh -i newton,rl[skrl] -> verify cartpole training with skrl works
+    - ./isaaclab.sh -i newton,rl[sb3] -> verify cartpole training with sb3 works
+    - ./isaaclab.sh -i rl -> verify all RL frameworks installed
 """
 
 from __future__ import annotations
@@ -34,7 +33,7 @@ _RL_CONFIGS = [
 ]
 
 
-class Test_Install_RL_Frameworks(UV_Mixin):
+class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
     """./isaaclab.sh -i 'rl[<framework>]' installs the RL framework extras."""
 
     @classmethod
@@ -48,12 +47,12 @@ class Test_Install_RL_Frameworks(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
     @pytest.mark.parametrize("selector,import_pkg,_train_dir,_train_args", _RL_CONFIGS)
-    def test_rl_framework_importable_after_install(self, isaaclab_root, selector, import_pkg, _train_dir, _train_args):
+    def test_install_rl_makes_framework_importable(self, isaaclab_root, selector, import_pkg, _train_dir, _train_args):
         """./isaaclab.sh -i 'rl[<selector>]' makes the framework importable."""
 
         try:
@@ -70,12 +69,12 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_cartpole_rsl_rl(self, isaaclab_root):
+    def test_install_newton_rl_rsl_rl_trains_cartpole(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[rsl-rl]' then train Isaac-Cartpole-Direct-v0 with rsl_rl."""
 
         try:
@@ -107,12 +106,12 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_cartpole_skrl(self, isaaclab_root):
+    def test_install_newton_rl_skrl_trains_cartpole(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[skrl]' then train Isaac-Cartpole-Direct-v0 with skrl."""
 
         try:
@@ -144,12 +143,12 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_train_cartpole_sb3(self, isaaclab_root):
+    def test_install_newton_rl_sb3_trains_cartpole(self, isaaclab_root):
         """./isaaclab.sh -i 'newton,rl[sb3]' then train Isaac-Cartpole-Direct-v0 with sb3."""
 
         try:
@@ -181,11 +180,11 @@ class Test_Install_RL_Frameworks(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_rl_all_installs_all_frameworks(self, isaaclab_root):
+    def test_install_rl_pulls_all_frameworks(self, isaaclab_root):
         """./isaaclab.sh -i 'rl' (no selector) installs all RL frameworks."""
 
         try:

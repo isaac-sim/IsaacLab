@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test the core install (./isaaclab.sh -i core).
-
-``./isaaclab.sh -i core`` installs the always-on core set of submodules without
-any optional submodules (mimic, teleop) or optional extra dependencies
-(newton physics library, RL frameworks, visualizer backends, OV wheels).  All core
-packages must be importable after this install, and training with the default physics
-preset must succeed.
+"""
+Setup:
+    - ./isaaclab.sh -u
+Tests:
+    - ./isaaclab.sh -i core -> verify all core packages importable
+    - ./isaaclab.sh -i core -> verify optional submodules (mimic, teleop, ovrtx, ovphysx) NOT installed
+    - ./isaaclab.sh -i core -> verify isaaclab_physx test suite passes
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ _CORE_PACKAGES = [
 ]
 
 
-class Test_Install_Core(UV_Mixin):
+class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
     """./isaaclab.sh -i core: core set installed, no optional extras."""
 
     @classmethod
@@ -51,11 +51,11 @@ class Test_Install_Core(UV_Mixin):
             if not (find_isaaclab_root() / "_isaac_sim").exists():
                 pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_core_install_all_packages_importable(self, isaaclab_root):
+    def test_install_core_makes_all_core_packages_importable(self, isaaclab_root):
         """All core packages are importable after ./isaaclab.sh -i core."""
 
         try:
@@ -71,11 +71,11 @@ class Test_Install_Core(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_core_install_optional_submodules_not_installed(self, isaaclab_root):
+    def test_install_core_omits_optional_submodules(self, isaaclab_root):
         """Optional submodules (mimic, teleop) are absent after -i core."""
 
         try:
@@ -95,12 +95,12 @@ class Test_Install_Core(UV_Mixin):
         finally:
             self.destroy_uv_env()
 
-    @pytest.mark.cli
+    @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
-    def test_core_install_physx_tests_pass(self, isaaclab_root):
+    def test_install_core_passes_isaaclab_physx_test_suite(self, isaaclab_root):
         """isaaclab_physx tests pass after core install (physx is always in the core set)."""
 
         try:
@@ -113,6 +113,7 @@ class Test_Install_Core(UV_Mixin):
             result = self.run_in_uv_env(
                 ["python", "-m", "pytest", test_dir, "-sv", "--tb=short"],
                 cwd=isaaclab_root,
+                timeout=3200,
             )
             output = result.stdout + result.stderr
             assert result.returncode == 0, f"isaaclab_physx tests failed (rc={result.returncode}):\n{output}"

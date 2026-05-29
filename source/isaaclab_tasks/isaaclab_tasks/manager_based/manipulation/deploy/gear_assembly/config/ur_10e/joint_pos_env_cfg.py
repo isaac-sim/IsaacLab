@@ -240,6 +240,8 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        self.scene.num_envs = 2048
+
         # Robot-specific parameters (can be overridden for other robots)
         self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks
         self.num_arm_joints = 6  # Number of arm joints (excluding gripper)
