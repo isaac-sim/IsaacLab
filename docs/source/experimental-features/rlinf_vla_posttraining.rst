@@ -73,6 +73,8 @@ From the Isaac Lab root directory:
    export OMNI_KIT_ACCEPT_EULA=yes
 
    # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   # NOTE: On DGX Spark / aarch64 systems, build decord from source first
+   # (see "Building decord on DGX Spark / aarch64" below), then run this step.
    uv pip install -e "source/isaaclab_contrib[rlinf]"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
@@ -102,6 +104,32 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
+
+.. _rlinf-decord-aarch64:
+
+Building decord on DGX Spark / aarch64
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``decord`` package only publishes pre-built wheels for ``manylinux2010_x86_64`` and ``win_amd64``.
+on aarch64 hosts (e.g. DGX Spark / Grace). Build decord from source **before** Step 1, and preload the right OpenMP library:
+
+.. code-block:: bash
+
+   # Build decord from source
+   git clone --recursive https://github.com/jasontitus/decord
+   cd decord && mkdir -p build && cd build
+   cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
+   make -j$(nproc)
+   cd ../python && pip install -e .
+
+Preload the right OpenMP library base on IsaacLab installation [documentation](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies).
+.. code-block:: bash:
+   unset LD_PRELOAD
+   export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
+
+
+Now re-run Step 1; the resolver will see the locally-installed decord and stop trying to fetch a wheel.
+
 
 Quick Start
 -----------
