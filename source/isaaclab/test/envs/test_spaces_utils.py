@@ -12,7 +12,13 @@ import numpy as np
 import torch
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
-from isaaclab.envs.utils.spaces import deserialize_space, sample_space, serialize_space, spec_to_gym_space
+from isaaclab.envs.utils.spaces import (
+    deserialize_space,
+    replace_strings_with_env_cfg_spaces,
+    sample_space,
+    serialize_space,
+    spec_to_gym_space,
+)
 
 
 def test_spec_to_gym_space():
@@ -140,6 +146,19 @@ def test_space_serialization_deserialization():
     assert len(output) == 2
     assert isinstance(output["box"], Box)
     assert isinstance(output["discrete"], Discrete)
+
+
+def test_replace_strings_with_env_cfg_spaces_preserves_unserialized_marl_spaces():
+    """Test per-agent space dictionaries keep entries that Hydra did not serialize."""
+
+    class EnvCfg:
+        observation_spaces = {"cart": 4, "pendulum": serialize_space(3)}
+        action_spaces = {"cart": 1, "pendulum": serialize_space(1)}
+
+    env_cfg = replace_strings_with_env_cfg_spaces(EnvCfg())
+
+    assert env_cfg.observation_spaces == {"cart": 4, "pendulum": 3}
+    assert env_cfg.action_spaces == {"cart": 1, "pendulum": 1}
 
 
 def _check_tensorized(sample, batch_size):

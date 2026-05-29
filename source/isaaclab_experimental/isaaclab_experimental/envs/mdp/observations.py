@@ -168,7 +168,7 @@ def _projected_gravity_kernel(
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
     i = wp.tid()
-    g = rotate_vec_to_body_frame(gravity_w[0], root_pose_w[i])
+    g = rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])
     out[i, 0] = g[0]
     out[i, 1] = g[1]
     out[i, 2] = g[2]
