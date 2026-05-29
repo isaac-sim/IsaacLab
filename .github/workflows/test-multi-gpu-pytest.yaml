@@ -110,7 +110,11 @@ jobs:
     needs: [config, build]
     if: needs.build.result == 'success'
     runs-on: [self-hosted, linux, x64, multi-gpu]
-    timeout-minutes: 30
+    # DIAGNOSTIC: 45 min (target is 30). The first buffered parallel run hit
+    # the 30-min wall without finishing or printing anything. Raised so a
+    # slow-but-completing run yields real per-shard durations; tighten back
+    # to 30 once the split is balanced and the contention picture is clear.
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -204,6 +208,11 @@ jobs:
               "$shard_runtime/isaac-sim/pkg"
             logfiles[$cuda]="$runtime_dir/shard-cuda-$cuda.log"
 
+            # Subshell: stream tagged output live AND keep a clean per-shard
+            # logfile (tee writes the unprefixed stream for the end-of-job
+            # grouped re-print; sed prefixes the live copy so the three
+            # concurrent shards stay followable in the workflow log).
+            (
             docker run --rm --gpus all --network=host \
               --entrypoint bash \
               --user "${host_uid}:${host_gid}" \
@@ -250,7 +259,11 @@ jobs:
                   --ignore=tools/conftest.py \
                   --ignore=source/isaaclab/test/install_ci \
                   tools -v
-              ' > "${logfiles[$cuda]}" 2>&1 &
+              ' 2>&1 | tee "${logfiles[$cuda]}" | stdbuf -oL sed "s/^/[cuda:$cuda] /"
+              # Propagate docker's exit (PIPESTATUS[0]), not sed's, so a
+              # passing tail doesn't mask a failing shard.
+              exit "${PIPESTATUS[0]}"
+            ) &
             pids[$cuda]=$!
             echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, mask=$mask)"
           done
