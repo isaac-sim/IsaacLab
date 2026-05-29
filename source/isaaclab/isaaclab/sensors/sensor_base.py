@@ -427,7 +427,7 @@ class SensorBase(ABC):
 
         1. When an active :class:`~isaaclab.cloner.ClonePlan` exists, the
            source-side env path is taken from the plan via
-           :func:`~isaaclab.cloner.path_source_path`, the rigid-body ancestor
+           :func:`~isaaclab.cloner.resolve_clone_plan_source`, the rigid-body ancestor
            is located on that source env, and the destination expression is
            reconstructed by trimming the sensor-relative suffix from the plan's
            destination glob.

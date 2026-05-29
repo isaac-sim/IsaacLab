@@ -9,6 +9,7 @@ import contextlib
 import itertools
 import logging
 import math
+import re
 from collections.abc import Iterator, Sequence
 
 import torch
@@ -21,7 +22,36 @@ from .clone_plan import ClonePlan
 logger = logging.getLogger(__name__)
 
 
-def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
+def get_suffix(path_expr: str, destination_template: str) -> str | None:
+    """Return the part of ``path_expr`` below a destination template's env-instance root.
+
+    The template's ``"{}"`` slot matches exactly one path segment (a concrete id like ``env_3``
+    or a wildcard like ``env_.*``).
+
+    Example:
+        >>> tmpl = "/World/scenes/{}/Robot"
+        >>> get_suffix("/World/scenes/env_3/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/.*/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/env_3/Robot", tmpl)
+        ''
+        >>> get_suffix("/World/scenes/env_3/Sensor", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/RobotArm", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/sub/Robot/base", tmpl) is None
+        True
+    """
+    pattern = re.compile(r"[^/]+".join(re.escape(part) for part in destination_template.split("{}")))
+    match = pattern.match(path_expr)
+    if match is None:
+        return None
+    suffix = path_expr[match.end() :]
+    return None if suffix and not suffix.startswith("/") else suffix
+
+
+def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
     """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
 
     Finds the rows whose destination template owns ``path_expr`` (same matching
@@ -55,19 +85,8 @@ def path_source_path(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | 
     for source_index, destination_template in enumerate(plan.destinations):
         if "{}" not in destination_template:
             continue
-        destination_prefix, destination_suffix = destination_template.split("{}", 1)
-        if not path_expr.startswith(destination_prefix):
-            continue
-        if destination_suffix:
-            suffix_start = path_expr.find(destination_suffix, len(destination_prefix))
-            if suffix_start < 0:
-                continue
-            suffix = path_expr[suffix_start + len(destination_suffix) :]
-        else:
-            slot_and_suffix = path_expr[len(destination_prefix) :]
-            slash = slot_and_suffix.find("/")
-            suffix = "" if slash < 0 else slot_and_suffix[slash:]
-        if suffix and not suffix.startswith("/"):
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
             continue
         if matching_template is None:
             matching_template = destination_template
@@ -121,19 +140,8 @@ def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[s
         source_root = source_root.rstrip("/") or "/"
         destination_template = destination_template.rstrip("/") or "/"
 
-        destination_prefix, destination_suffix = destination_template.split("{}", 1)
-        if not path_expr.startswith(destination_prefix):
-            continue
-        if destination_suffix:
-            target_suffix_start = path_expr.find(destination_suffix, len(destination_prefix))
-            if target_suffix_start < 0:
-                continue
-            suffix = path_expr[target_suffix_start + len(destination_suffix) :]
-        else:
-            target_slot_and_suffix = path_expr[len(destination_prefix) :]
-            suffix_start = target_slot_and_suffix.find("/")
-            suffix = "" if suffix_start < 0 else target_slot_and_suffix[suffix_start:]
-        if suffix and not suffix.startswith("/"):
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
             continue
         source_path = source_root + suffix if source_root != "/" else suffix or "/"
 

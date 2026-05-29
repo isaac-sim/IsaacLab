@@ -14,6 +14,8 @@ from collections.abc import Callable
 from pxr import Sdf, Usd, UsdPhysics
 
 from .stage import get_current_stage
+from isaaclab.cloner.cloner_utils import resolve_clone_plan_source
+from isaaclab.sim.simulation_context import SimulationContext
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -386,13 +388,8 @@ def resolve_matching_prims_from_source(
         multi-instance path expression (not a single concrete instance) so callers can build
         views spanning every instance. Empty when ``path_expr`` matches no prim.
     """
-    # Imported lazily: ``queries`` is a low-level util that the ``SimulationContext`` and
-    # ``cloner`` import chains depend on, so module-level imports here would cycle.
-    from isaaclab.cloner.cloner_utils import path_source_path  # noqa: PLC0415
-    from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
-
     plan = SimulationContext.instance().get_clone_plan()
-    resolved = path_source_path(path_expr, plan) if plan is not None else None
+    resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
     if resolved is not None:
         source_path, dest_glob, asset_suffix = resolved
         walk_root = source_path + asset_suffix
