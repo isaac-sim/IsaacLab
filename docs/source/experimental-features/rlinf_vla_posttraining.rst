@@ -191,6 +191,12 @@ pass the ``global_step_<N>`` directory via ``--resume_dir``.
    GPU has spare memory, increase ``env.train.total_num_envs`` (default: ``4``)
    in the task YAML.
 
+.. tip::
+
+   Each checkpoint can be several gigabytes. To avoid filling up disk space,
+   increase ``save_interval`` in the task YAML so that fewer
+   intermediate checkpoints are saved during training.
+
 Configuration
 -------------
 
