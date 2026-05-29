@@ -155,14 +155,30 @@ Quick Start
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/checkpoint
 
-**Evaluation** — Evaluate a trained checkpoint with video recording:
+**Evaluation** — Evaluate a pretrained (base) model with video recording:
 
 .. code-block:: bash
 
    python scripts/reinforcement_learning/rlinf/play.py \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint \
+       --model_path /path/to/base_model \
        --video
+
+**Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
+
+.. code-block:: bash
+
+   python scripts/reinforcement_learning/rlinf/play.py \
+       --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/base_model \
+       --rl_model_path /path/to/checkpoints/global_step_N \
+       --video
+
+Here ``--model_path`` points to the HuggingFace-format base model (with
+``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint
+directory (the ``global_step_<N>`` folder). The script loads the model
+architecture from the base model and overlays the RL-finetuned weights
+(``full_weights.pt``) from the checkpoint.
 
 .. note::
 
