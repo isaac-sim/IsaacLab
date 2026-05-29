@@ -711,24 +711,29 @@ These are bundled inside the ``isaaclab_teleop`` package and can be referenced v
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 25 25 20
+   :widths: 28 24 20 18 20
 
    * - Constant
      - File
      - ``NV_DEVICE_PROFILE``
      - ``NV_CXR_ENABLE_PUSH_DEVICES``
+     - ``NV_ENABLE_POSE_WAIT``
    * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
      - ``cloudxrjs-cloudxr.env``
      - ``auto-webrtc``
+     - ``0``
      - ``0``
    * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
      - ``avp-cloudxr.env``
      - ``auto-native``
      - ``0``
+     - ``0``
 
 Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
 tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
 this to ``1`` in a custom profile (see below).
+They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
+times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 
 Override at launch time
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1111,15 +1116,15 @@ Optimize XR Performance
 .. dropdown:: Check CloudXR frame pacing
    :open:
 
-   The CloudXR runtime frame pacer attempts to keep the client experience smooth. If the
+   The CloudXR Runtime frame pacer attempts to keep the client experience smooth. If the
    application has repeated frame-time spikes, the pacer may settle at a lower stable frame
    rate instead of oscillating between rates. This can make a connected client appear slower
    even when Isaac Lab profiling does not show a proportional simulation-side regression.
 
-   To diagnose or mitigate this case, override CloudXR settings such as
-   ``NV_ENABLE_POSE_WAIT=false`` via a custom ``.env`` file, then point
-   ``teleop_se3_agent.py`` or ``record_demos.py`` at it with ``--cloudxr_env``.
-   See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
+   The shipped CloudXR profiles set ``NV_ENABLE_POSE_WAIT=0`` to mitigate this case, favoring lower
+   latency over pose-wait smoothing. If you use a custom ``.env`` file, copy that setting into the
+   custom profile, then point ``teleop_se3_agent.py`` or ``record_demos.py`` at it with
+   ``--cloudxr_env``. See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
 
 
 .. _isaac-teleop-known-issues:
