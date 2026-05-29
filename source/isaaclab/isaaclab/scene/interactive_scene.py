@@ -36,9 +36,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.sim.views import FrameView
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab.utils.module import lazy_imports
-
-lazy_imports("pxr", ["Sdf"])
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
@@ -322,6 +319,8 @@ class InteractiveScene:
         # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
         # Intentionally matches both physx and ovphysx (both are PhysX-based)
         if self.cfg.replicate_physics and "physx" in self.physics_backend:
+            from pxr import Sdf  # noqa: PLC0415
+
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 

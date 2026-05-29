@@ -10,10 +10,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.module import lazy_imports
-
-lazy_imports("pxr", ["Usd", "UsdGeom", "UsdSemantics"])
-
 from .stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -36,6 +32,8 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
         overwrite: Whether to overwrite existing labels for this instance. If False,
           the new labels are appended to existing ones (if any). Defaults to True.
     """
+    from pxr import UsdSemantics  # noqa: PLC0415
+
     labels_api = UsdSemantics.LabelsAPI.Apply(prim, instance_name)
     labels_attr = labels_api.CreateLabelsAttr()
     if overwrite:
@@ -59,6 +57,8 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
         A dictionary mapping instance names to a list of labels.
         If no labels are found, it returns an empty dictionary.
     """
+    from pxr import UsdSemantics  # noqa: PLC0415
+
     result = {}
     for schema_name in prim.GetAppliedSchemas():
         if schema_name.startswith("SemanticsLabelsAPI:"):
@@ -83,6 +83,7 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
         include_descendants: Whether to also traverse children and remove labels recursively.
             Defaults to False.
     """
+    from pxr import Usd, UsdSemantics  # noqa: PLC0415
 
     def _remove_single_prim_labels(target_prim: Usd.Prim):
         """Helper function to remove labels from a single prim."""
@@ -117,6 +118,8 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     Returns:
         A list containing prim paths to prims with no labels applied.
     """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
     # check if stage is valid
     stage = stage if stage else get_current_stage()
 
@@ -157,6 +160,8 @@ def count_total_labels(prim_path: str | None = None, stage: Usd.Stage | None = N
         A dictionary mapping individual labels to their total count across all instances.
         The dictionary includes a 'missing_labels' count for prims with no labels.
     """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
     stage = stage if stage else get_current_stage()
 
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()

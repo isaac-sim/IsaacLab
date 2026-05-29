@@ -12,10 +12,6 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.module import lazy_imports
-
-lazy_imports("pxr", ["Sdf", "Usd", "UsdPhysics"])
-
 from .stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -49,6 +45,8 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
         >>> sim_utils.get_next_free_prim_path("/World/Cube")
         /World/Cube_02
     """
+    from pxr import Sdf  # noqa: PLC0415
+
     # get current stage
     stage = get_current_stage() if stage is None else stage
 
@@ -166,6 +164,8 @@ def get_first_matching_child_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -233,6 +233,8 @@ def get_all_matching_child_prims(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -407,6 +409,8 @@ def find_global_fixed_joint_prim(
         ValueError: If the prim path is not global (i.e: does not start with '/').
         ValueError: If the prim path does not exist on the stage.
     """
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()

@@ -1,10 +1,3 @@
-Added
-^^^^^
-
-* Added :func:`isaaclab.utils.module.lazy_imports` — companion to
-  :func:`~isaaclab.utils.module.lazy_export` for deferring foreign-package
-  imports (``pxr``, ``omni``, …) until first attribute access in a leaf module.
-
 Fixed
 ^^^^^
 
@@ -18,4 +11,6 @@ Fixed
   which broke Kit's USD binding registration with a cascade of
   ``TfNotice`` / ``UsdAPISchemaBase`` / ``GfVec3f`` converter errors during
   ``SimulationApp.startup``.  Kit-less env-cfg parsing followed by ``--visualizer kit``
-  now succeeds without any pxr modules preloaded.
+  now succeeds without any pxr modules preloaded.  Each affected module keeps its
+  type hints under ``TYPE_CHECKING`` and defers the runtime ``from pxr import …`` into
+  the function bodies that use it.
