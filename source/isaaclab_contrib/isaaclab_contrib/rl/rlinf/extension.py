@@ -225,6 +225,9 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
         if not model_path.exists():
             raise FileNotFoundError(f"Model path does not exist: {model_path}")
 
+        # rl_model_path: optional path to an RLinf checkpoint with full_weights.pt
+        rl_model_path = getattr(model_cfg, "rl_model_path", None)
+
         model = GR00T_N1_5_ForRLActionPrediction.from_pretrained(
             model_path,
             torch_dtype=torch_dtype,
@@ -238,6 +241,18 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             tune_llm=False,
             rl_head_config=model_cfg.rl_head_config,
         )
+
+        if rl_model_path:
+            rl_weights = Path(rl_model_path) / "actor" / "model_state_dict" / "full_weights.pt"
+            if not rl_weights.exists():
+                raise FileNotFoundError(
+                    f"rl_model_path={rl_model_path}: cannot find full_weights.pt "
+                    f"(tried directly and under actor/model_state_dict/)"
+                )
+            logger.info(f"Loading RL finetuned weights from {rl_weights}")
+            state_dict = torch.load(rl_weights, map_location="cpu", weights_only=True)
+            model.load_state_dict(state_dict, strict=False)
+
         model.to(torch_dtype)
         if model_cfg.rl_head_config.add_value_head:
             model.action_head.value_head._init_weights()
