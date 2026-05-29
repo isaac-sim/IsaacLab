@@ -379,8 +379,27 @@ Videos will be saved in ``<output_dir>/videos/``.
 
 .. note::
 
-   The GPU memory usage is proportional to the number of environments. For example, 64 environments will use around 30-40GB memory.
-   Reduce ``--num_envs`` if you have limited GPU memory.
+   GPU memory scales approximately linearly with ``--num_envs``. With NuRec Real2Sim assets,
+   the per-environment cost is roughly **2× higher** than the default COMPASS training scene
+   (heavier USDs).
+
+   Empirical fit measured on an RTX A6000 (Carter + ``nova_carter-galileo``):
+
+   .. code-block:: text
+
+       VRAM ≈ 9 GB (fixed) + 1.3 GB × num_envs
+
+   Rough safe ``--num_envs`` ceiling (with ~15% headroom for allocator and PPO update spikes):
+
+   ===================  ========  =========================
+   GPU                  VRAM      Safe ``--num_envs`` (NuRec)
+   ===================  ========  =========================
+   RTX 5090             32 GB     ~14
+   RTX A6000 / L40      48 GB     ~24
+   ===================  ========  =========================
+
+   Reduce ``--num_envs`` if you hit OOM, or lower the camera resolution in
+   ``scene_assets.camera`` to shrink the per-env cost.
 
    For Real2Sim environments, it's recommended to use ``--precompute_valid_poses`` flag to precompute valid pose locations,
    which significantly speeds up pose sampling in constrained environments.
