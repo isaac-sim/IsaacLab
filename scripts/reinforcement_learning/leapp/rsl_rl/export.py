@@ -15,12 +15,10 @@ import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 
 from isaaclab.app import AppLauncher
 
-if TYPE_CHECKING:
-    import torch as torch_type
+from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
 
 _RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
 if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
@@ -104,8 +102,6 @@ def create_arg_parser() -> argparse.ArgumentParser:
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    from isaaclab_tasks.utils import setup_preset_cli
-
     parser = create_arg_parser()
     # setup_preset_cli attaches the preset-selection help group then parses;
     # remainder still carries typed selectors (physics=/renderer=/presets=)
@@ -186,9 +182,7 @@ def get_actor_memory_module(policy_nn):
     return None
 
 
-def ensure_actor_hidden_state_initialized(
-    policy_nn, batch_size: int, device: torch_type.device, dtype: torch_type.dtype
-):
+def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dtype):
     """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
     actor_state, _ = policy_nn.get_hidden_states()
     if actor_state is not None:
@@ -357,24 +351,10 @@ def export_rsl_rl_agent(
     return True
 
 
-def prepare_cli_export_runtime() -> None:
-    """Apply CLI runtime setup that batched export tests perform per task."""
-    import isaaclab.sim as sim_utils
-    from isaaclab.app.settings_manager import get_settings_manager
-
-    sim_utils.create_new_stage()
-    settings_manager = get_settings_manager()
-    settings_manager.set_bool("/isaaclab/render/rtx_sensors", False)
-    settings_manager.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-
-
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
-    from isaaclab_tasks.utils import fold_preset_tokens
-    from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_import
+    from isaaclab_tasks.utils.hydra import hydra_task_config
     from isaaclab_tasks.utils.sim_launcher import launch_simulation
-
-    hydra_task_config_fn: Any = hydra_task_config_import
 
     original_argv = sys.argv
     # Fold typed preset selectors into a single ``presets=<csv>`` token before
@@ -384,15 +364,13 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -
 
     try:
 
-        @hydra_task_config_fn(args_cli.task, args_cli.agent)
+        @hydra_task_config(args_cli.task, args_cli.agent)
         def _main(env_cfg, agent_cfg) -> None:
             nonlocal exported
             with launch_simulation(env_cfg, args_cli):
-                prepare_cli_export_runtime()
                 exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg)
 
-        main_fn: Any = _main
-        main_fn()
+        _main()
     finally:
         sys.argv = original_argv
 
