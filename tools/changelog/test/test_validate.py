@@ -307,6 +307,185 @@ def test_compile_guard_nonexistent_package_errors():
         cli.cmd_compile(args, parser)
 
 
+def test_changelog_header_re_accepts_minimum_stub():
+    """The minimum-valid stub ``Changelog\\n---------\\n\\n`` is accepted.
+
+    This is the smallest seed a new package needs to start receiving
+    bot-written entries. Anything shorter (e.g. ``Changelog\\n---------\\n``
+    without a trailing blank line) leaves no anchor for the prepend and
+    must be rejected.
+    """
+    assert cli.CHANGELOG_HEADER_RE.search("Changelog\n---------\n\n") is not None
+
+
+def test_changelog_header_re_rejects_unterminated_stub():
+    """A header missing the trailing blank line cannot anchor an insert.
+
+    Regression: ``isaaclab_ppisp`` landed on develop with this exact
+    20-byte shape, wedging the nightly compile job (run
+    https://github.com/isaac-sim/IsaacLab/actions/runs/26494922179).
+    """
+    assert cli.CHANGELOG_HEADER_RE.search("Changelog\n---------\n") is None
+
+
+def test_every_managed_package_has_parseable_changelog_header():
+    """Lock the compile precondition: every managed package on disk must
+    have a ``CHANGELOG.rst`` whose header is parseable AFTER the same
+    self-healing normalization compile applies.
+
+    Mirrors what ``cmd_check`` does on every PR: self-heal the narrow
+    "missing trailing blank line" case, then require the strict regex to
+    match. A file that passes self-healing but not the regex is genuinely
+    malformed (no ``Changelog`` line, no underline, etc.) and would wedge
+    the nightly.
+    """
+    import re
+
+    self_heal = re.compile(r"^(Changelog\n-+)\n(?!\n)", re.MULTILINE)
+    bad: list[tuple[str, str]] = []
+    for pkg in cli.Package.discover():
+        text = pkg.changelog_path.read_text(encoding="utf-8")
+        text = self_heal.sub(r"\1\n\n", text, count=1)
+        if cli.CHANGELOG_HEADER_RE.search(text) is None:
+            bad.append((pkg.name, str(pkg.changelog_path)))
+    assert not bad, (
+        "Malformed CHANGELOG.rst — each file must contain "
+        "'Changelog\\n---------\\n\\n' (header + underline + blank line) "
+        "so the nightly compile has a place to prepend the next version block. "
+        f"Bad files: {bad}"
+    )
+
+
+def test_write_changelog_entry_self_heals_missing_blank_line(tmp_path):
+    """Compile against a ``Changelog\\n---------\\n`` stub auto-inserts the
+    missing blank line and writes a well-formed file.
+
+    Regression: ``isaaclab_ppisp`` shipped with this exact 20-byte shape
+    (PR #5748); the nightly compile raised before this self-heal landed.
+    """
+    pkg_root = tmp_path / "pkg"
+    (pkg_root / "config").mkdir(parents=True)
+    (pkg_root / "docs").mkdir(parents=True)
+    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    # The exact malformed shape that wedged the nightly.
+    (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n", encoding="utf-8")
+    pkg = cli.Package(pkg_root)
+    pkg.write_changelog_entry("0.2.0 (2026-05-28)\n~~~~~~~~~~~~~~~~~~\n", dry_run=False)
+    out = (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
+    assert out.startswith("Changelog\n---------\n\n0.2.0 (2026-05-28)")
+
+
+def test_write_changelog_entry_self_heal_is_noop_on_well_formed(tmp_path):
+    """Self-heal must not alter files that already have the blank line.
+
+    Idempotence is the whole point of the negative-lookahead in the
+    self-heal regex; this test locks it.
+    """
+    pkg_root = tmp_path / "pkg"
+    (pkg_root / "config").mkdir(parents=True)
+    (pkg_root / "docs").mkdir(parents=True)
+    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    original = "Changelog\n---------\n\n0.1.0 (2026-05-20)\n~~~~~~~~~~~~~~~~~~\n\nAdded\n^^^^^\n\n* Initial.\n"
+    (pkg_root / "docs" / "CHANGELOG.rst").write_text(original, encoding="utf-8")
+    pkg = cli.Package(pkg_root)
+    pkg.write_changelog_entry("0.2.0 (2026-05-28)\n~~~~~~~~~~~~~~~~~~\n", dry_run=False)
+    out = (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
+    # New entry on top; the original 0.1.0 block still ends in a single ``\n``
+    # before its content (no double-blank artifact from over-eager self-heal).
+    assert "0.2.0 (2026-05-28)" in out
+    assert "Changelog\n---------\n\n0.2.0" in out
+    assert "\n\n\n0.1.0" not in out  # no extra blank line inserted
+
+
+def test_compile_failure_preserves_fragments_and_version(tmp_path):
+    """A package whose ``CHANGELOG.rst`` is genuinely malformed must not
+    have its fragments deleted or its version bumped.
+
+    Locks the "fail before any write" guarantee for the failure modes
+    per-package isolation defends against. Fragment deletion (step 6 of
+    ``Package.compile``) runs strictly after both writes succeed, so a
+    header-regex raise in step 4 short-circuits before any side effect
+    reaches disk. Without this guarantee, per-package isolation would
+    silently lose work on the failed package each cycle.
+    """
+    pkg_root = tmp_path / "pkg"
+    (pkg_root / "config").mkdir(parents=True)
+    (pkg_root / "docs").mkdir(parents=True)
+    (pkg_root / "changelog.d").mkdir()
+    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    # Unrecoverable shape: no ``Changelog`` header at all — self-heal can't
+    # do anything and the strict regex raises ValueError.
+    (pkg_root / "docs" / "CHANGELOG.rst").write_text("No header at all\n", encoding="utf-8")
+    fragment = pkg_root / "changelog.d" / "test.rst"
+    fragment.write_text("Added\n^^^^^\n\n* Did a thing.\n", encoding="utf-8")
+
+    pkg = cli.Package(pkg_root)
+    with pytest.raises(ValueError, match="Could not locate changelog header"):
+        pkg.compile(dry_run=False)
+
+    # Fragment survived the failed compile.
+    assert fragment.exists(), "fragment must be preserved when compile raises"
+    assert fragment.read_text(encoding="utf-8") == "Added\n^^^^^\n\n* Did a thing.\n"
+    # Version unchanged.
+    assert 'version = "0.1.0"' in (pkg_root / "config" / "extension.toml").read_text(encoding="utf-8")
+    # CHANGELOG.rst unchanged (no entry prepended).
+    assert (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8") == "No header at all\n"
+
+
+def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, capsys):
+    """One package's compile failure must not abort the batch.
+
+    Defense-in-depth for future failure modes (version mismatch between
+    extension.toml and pyproject.toml, filesystem permission, direct push
+    bypassing PR gate). The healthy package still ships; the broken one
+    is named in the failure summary.
+    """
+    packages_root = tmp_path / "source"
+    packages_root.mkdir()
+
+    def _mk(name: str, changelog_text: str) -> None:
+        root = packages_root / name
+        (root / "config").mkdir(parents=True)
+        (root / "docs").mkdir(parents=True)
+        (root / "changelog.d").mkdir()
+        (root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+        (root / "docs" / "CHANGELOG.rst").write_text(changelog_text, encoding="utf-8")
+        (root / "changelog.d" / "test.rst").write_text("Added\n^^^^^\n\n* Did a thing.\n", encoding="utf-8")
+
+    # ``good_pkg`` has a canonical CHANGELOG.rst and will compile fine.
+    _mk("good_pkg", "Changelog\n---------\n\n")
+    # ``bad_pkg`` has a genuinely unrecoverable CHANGELOG.rst (no header at
+    # all) — self-heal doesn't apply, strict regex fails, compile raises.
+    _mk("bad_pkg", "Some other content with no header\n")
+
+    # ``Package.discover`` evaluates ``PACKAGES_ROOT`` at class-definition
+    # time (default arg), so a monkeypatch of the module constant alone
+    # wouldn't redirect it. Patch the classmethod to return our two packages.
+    monkeypatch.setattr(
+        cli.Package,
+        "discover",
+        classmethod(
+            lambda cls: sorted([cls(packages_root / "good_pkg"), cls(packages_root / "bad_pkg")], key=lambda p: p.name)
+        ),
+    )
+    parser, args = _parse_compile(["compile", "--all"])
+    rc = cli.cmd_compile(args, parser)
+    captured = capsys.readouterr()
+
+    assert rc == 1
+    # Good package compiled — its CHANGELOG.rst now carries the new entry
+    # and its fragment was deleted.
+    assert "Added" in (packages_root / "good_pkg" / "docs" / "CHANGELOG.rst").read_text()
+    assert not (packages_root / "good_pkg" / "changelog.d" / "test.rst").exists()
+    # Bad package's fragment is preserved — per-package isolation does not
+    # discard work on the failed package; the next compile gets another try
+    # against the same fragment after the human fixes the CHANGELOG.rst.
+    assert (packages_root / "bad_pkg" / "changelog.d" / "test.rst").exists()
+    # Bad package surfaces in the failure summary.
+    assert "bad_pkg" in captured.err
+    assert "1 package(s) failed to compile" in captured.err
+
+
 def test_compile_rejects_fragments_that_check_would_reject(tmp_path):
     """``compile`` must enforce the same content rules as ``check``.
 

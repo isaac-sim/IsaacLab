@@ -8,6 +8,15 @@ OvPhysX Backend
     development. Expect feature coverage and test commands to change between
     Isaac Lab 3.0 beta releases.
 
+.. warning::
+
+    Do not combine OvPhysX with the Kit visualizer. Commands such as
+    ``presets=ovphysx --visualizer kit`` are unsupported because OvPhysX
+    loads USD-dependent PhysX plugins from its own package, while Kit already
+    owns a separate USD/plugin stack in the same process. Use
+    ``--visualizer newton``, ``--visualizer rerun``, ``--visualizer viser``,
+    or omit ``--visualizer`` for headless execution.
+
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
 (without the Omniverse Kit runtime) and reads scene-level solver parameters
 from the USD ``PhysicsScene`` prim rather than from a Python config. The Python

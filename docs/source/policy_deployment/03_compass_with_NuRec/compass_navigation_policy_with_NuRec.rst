@@ -13,18 +13,18 @@ The following provides a high-level overview of the complete workflow:
 1. **Create workspace**: Create the ``compass-nurec`` workspace directory
 2. **Install Isaac Sim & Isaac Lab** (Terminal 1): Follow installation steps for Isaac Sim 6.0 and Isaac Lab 3.0
 3. **Install COMPASS Repository** (Terminal 2): Clone and set up the COMPASS repository
-4. **Test setup**: Verify installation using ``play.py``
-5. **Authenticate with Hugging Face**: Generate access token and run ``hf auth login --token <token>``
-6. **Download assets** (can be done in parallel):
+4. **Authenticate with Hugging Face**: Generate access token and run ``hf auth login --token <token>``
+5. **Download assets** (can be done in parallel):
 
    - Download X-Mobility checkpoint: ``hf download nvidia/X-Mobility x_mobility-nav2-semantic_action_path.ckpt``
    - Download COMPASS USD assets: ``hf download nvidia/COMPASS compass_usds.zip``
    - Download NuRec Real2Sim assets: ``hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset``
 
-7. **Prepare assets**:
+6. **Prepare assets**:
 
    - Extract and place ``usd/`` folder into ``compass/rl_env/exts/mobility_es/mobility_es/``
    - Place environment files (e.g., ``nova_carter-galileo/``) in the appropriate location
+7. **Test setup**: Verify installation using ``play.py``
 8. **Train Residual RL Policy**: Run training with ``run.py`` and ``train_config_real2sim.gin``
 9. **Evaluate Trained Policy**: Run evaluation with ``run.py`` and ``eval_config_real2sim.gin``
 10. **Export to ONNX / TensorRT**: Convert the trained model for deployment
@@ -159,17 +159,6 @@ Open a second terminal and follow these steps to install the COMPASS repository.
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install -e exts/mobility_es
     cd -
 
-Testing the Setup
-~~~~~~~~~~~~~~~~~
-
-Run the following command from the ``COMPASS`` directory to verify the setup:
-
-.. code-block:: bash
-
-    cd compass/rl_env
-    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
-    cd -
-
 Downloading Assets & Checkpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -206,18 +195,13 @@ Download the pre-packaged COMPASS USD assets using the Hugging Face CLI:
 Alternatively, you can download it manually from:
 https://huggingface.co/nvidia/COMPASS/blob/main/compass_usds.zip
 
-Extract the downloaded ``compass_usds.zip`` file. Then move/copy the ``usd`` folder from the extracted location:
+Extract the downloaded ``compass_usds.zip`` file and move the ``usd`` folder into the COMPASS extension directory:
 
 .. code-block:: bash
 
-    <download_path>/compass_usds/groot_mobility_rl_es_usds/usd
-
-into the COMPASS extension directory:
-
-.. code-block:: bash
-
-    # Ensure that you are in COMPASS root directory
-    compass/rl_env/exts/mobility_es/mobility_es/
+    cd <compass-nurec>/COMPASS
+    unzip compass_usds.zip
+    mv groot_mobility_rl_es_usds/usd compass/rl_env/exts/mobility_es/mobility_es/
 
 **3. NuRec Real2Sim Assets**
 
@@ -226,6 +210,39 @@ Download the NuRec Real2Sim assets from the `PhysicalAI-Robotics-NuRec dataset`_
 .. code-block:: bash
 
     hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec
+
+.. tip::
+
+   The full dataset is large. To download only the environment(s) you need, use the ``--include`` and
+   ``--exclude`` glob filters supported by ``hf download``. Quote the patterns so your shell does not
+   expand them, and the original folder structure is preserved under ``--local-dir``.
+
+   .. code-block:: bash
+
+       # Download a single environment
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/*"
+
+       # Download multiple environments at once
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/*" "nova_carter-cafe/*"
+
+       # Recursively include sub-folders
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/**"
+
+       # Pull only specific files within an environment
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --include "nova_carter-galileo/stage.usdz" "nova_carter-galileo/3dgrt/**"
+
+       # Download everything except the large mesh files
+       hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset \
+           --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec \
+           --exclude "**/*.usdz"
 
 Alternatively, you can download them manually from the `PhysicalAI-Robotics-NuRec dataset`_ on Hugging Face:
 
@@ -241,7 +258,16 @@ The dataset provides several environments. For COMPASS, download the environment
     # Ensure that you are in COMPASS root directory
     compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/
 
-For example, for the Galileo environment (nova_carter-galileo):
+For example, for the Galileo environment (nova_carter-galileo), move the downloaded folder into
+the COMPASS extension directory:
+
+.. code-block:: bash
+
+    # Run from the COMPASS root directory
+    mv <compass-nurec>/PhysicalAI-Robotics-NuRec/nova_carter-galileo \
+       compass/rl_env/exts/mobility_es/mobility_es/usd/
+
+The resulting layout should look like:
 
 .. code-block:: bash
 
@@ -288,6 +314,19 @@ For example, for the Galileo environment (nova_carter-galileo):
       * - ``hand_hold-voyager-babyboom-2``
         - Conference room in NVIDIA Voyager building
         - Yes
+
+Testing the Setup
+~~~~~~~~~~~~~~~~~
+
+Once the COMPASS USD assets have been downloaded and placed under
+``compass/rl_env/exts/mobility_es/mobility_es/usd/``, run the following command from the ``COMPASS``
+directory to verify the setup:
+
+.. code-block:: bash
+
+    cd compass/rl_env
+    ${ISAACLAB_PATH}/isaaclab.sh -p scripts/play.py --enable_cameras --visualizer kit
+    cd -
 
 Training the Policy
 -------------------
@@ -340,8 +379,27 @@ Videos will be saved in ``<output_dir>/videos/``.
 
 .. note::
 
-   The GPU memory usage is proportional to the number of environments. For example, 64 environments will use around 30-40GB memory.
-   Reduce ``--num_envs`` if you have limited GPU memory.
+   GPU memory scales approximately linearly with ``--num_envs``. With NuRec Real2Sim assets,
+   the per-environment cost is roughly **2× higher** than the default COMPASS training scene
+   (heavier USDs).
+
+   Empirical fit measured on an RTX A6000 (Carter + ``nova_carter-galileo``):
+
+   .. code-block:: text
+
+       VRAM ≈ 9 GB (fixed) + 1.3 GB × num_envs
+
+   Rough safe ``--num_envs`` ceiling (with ~15% headroom for allocator and PPO update spikes):
+
+   ===================  ========  =========================
+   GPU                  VRAM      Safe ``--num_envs`` (NuRec)
+   ===================  ========  =========================
+   RTX 5090             32 GB     ~14
+   RTX A6000 / L40      48 GB     ~24
+   ===================  ========  =========================
+
+   Reduce ``--num_envs`` if you hit OOM, or lower the camera resolution in
+   ``scene_assets.camera`` to shrink the per-env cost.
 
    For Real2Sim environments, it's recommended to use ``--precompute_valid_poses`` flag to precompute valid pose locations,
    which significantly speeds up pose sampling in constrained environments.
