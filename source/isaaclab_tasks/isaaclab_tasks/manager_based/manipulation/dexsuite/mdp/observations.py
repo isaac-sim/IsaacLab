@@ -234,15 +234,15 @@ class vision_camera(ManagerTermBase):
         return images
 
     def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
+        import matplotlib
         import numpy as np
-        from matplotlib import cm
         from PIL import Image
 
         a = images.detach().cpu().numpy()
         n, h, w, c = a.shape
         s = int(np.ceil(np.sqrt(n)))
         canvas = np.full((s * h, s * w, 3), 255, np.uint8)
-        turbo = cm.get_cmap("turbo")
+        turbo = matplotlib.colormaps["turbo"]
         for i in range(n):
             r, col = divmod(i, s)
             img = a[i]

@@ -18,9 +18,9 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-import isaaclab.sim as sim_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -849,56 +849,32 @@ class RigidObject(BaseRigidObject):
         # raise AttributeError (masked by hasattr) and fall back to "cuda:0" even when the
         # simulation is running on CPU, causing a device mismatch in binding.read().
         self._device = OvPhysxManager.get_device()
-        # Convert IsaacLab prim-path notation to the glob patterns ovphysx expects.
-        # IsaacLab uses two conventions:
-        #   /World/envs/env_.*/object       -- regex dot-star for "any env index"
-        #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
-        # ovphysx ``create_tensor_binding`` uses fnmatch-style globs, so both map to ``*``.
-        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", self.cfg.prim_path)
+
+        # Resolve the rigid body root expression.
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+        asset_prim, root_expr = matches[0]
+        walk_root = asset_prim.GetPath().pathString
+        root_prims = get_all_matching_child_prims(
+            walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
+        )
+        if len(root_prims) != 1:
+            matched = [p.GetPath().pathString for p in root_prims]
+            raise RuntimeError(
+                f"Expected exactly one RigidBodyAPI prim under '{walk_root}'"
+                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
+            )
+        root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+
+        # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
+        # ``create_tensor_binding`` expects fnmatch globs.
+        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
         pattern = re.sub(r"\.\*", "*", pattern)
         self._binding_pattern = pattern
-
-        # Validate the prim tree before creating tensor bindings -- the wheel silently
-        # produces a 0-prim binding when the pattern matches nothing, which surfaces as an
-        # obscure ``TypeError`` deep in property accessors.
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
-
-        # find rigid root prims
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-            traverse_instance_prims=False,
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one rigid body in the prim path tree."
-            )
-        articulation_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-            traverse_instance_prims=False,
-        )
-        if len(articulation_prims) != 0:
-            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                raise RuntimeError(
-                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid"
-                    f" objects. These are located at: '{articulation_prims}' under"
-                    f" '{template_prim_path}'. Please disable the articulation root in the USD"
-                    " or from code by setting the parameter"
-                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn"
-                    " configuration."
-                )
 
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception

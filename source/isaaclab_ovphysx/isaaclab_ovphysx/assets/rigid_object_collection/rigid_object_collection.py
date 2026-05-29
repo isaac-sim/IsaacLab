@@ -1040,60 +1040,30 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._prim_paths: list[str] = []
         self._body_names_list: list[str] = []
 
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
         for name, obj_cfg in self.cfg.rigid_objects.items():
-            # Convert IsaacLab prim-path notation to the fnmatch-style glob that
-            # OVPhysX create_tensor_binding expects.  Two conventions are in use:
-            #   /World/envs/env_.*/object   -- regex dot-star for any env index
-            #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
-            pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", obj_cfg.prim_path)
-            pattern = re.sub(r"\.\*", "*", pattern)
-
-            # Validate the prim tree before creating tensor bindings.
-            # OVPhysX silently returns a zero-count binding when the pattern
-            # matches nothing; fail fast here with a clear message instead.
-            template_prim = sim_utils.find_first_matching_prim(obj_cfg.prim_path)
-            if template_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{obj_cfg.prim_path}' (body '{name}').")
-            template_prim_path = template_prim.GetPath().pathString
-
+            # Resolve the rigid body root expression.
+            matches = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path)
+            if not matches:
+                raise RuntimeError(f"No prim found at '{obj_cfg.prim_path}'.")
+            asset_prim, root_expr = matches[0]
+            walk_root = asset_prim.GetPath().pathString
             root_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-                traverse_instance_prims=False,
+                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
             )
-            if len(root_prims) == 0:
+            if len(root_prims) != 1:
+                matched = [p.GetPath().pathString for p in root_prims]
                 raise RuntimeError(
-                    f"Failed to find a rigid body when resolving '{obj_cfg.prim_path}' (body '{name}')."
-                    " Please ensure that the prim has 'USD RigidBodyAPI' applied."
+                    f"Expected exactly one RigidBodyAPI prim under '{walk_root}'"
+                    f" (resolved from '{obj_cfg.prim_path}'), found {len(root_prims)}: {matched}."
                 )
-            if len(root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single rigid body when resolving '{obj_cfg.prim_path}' (body '{name}')."
-                    f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                    " Please ensure that there is only one rigid body in the prim path tree."
-                )
-
-            articulation_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-                traverse_instance_prims=False,
-            )
-            if len(articulation_prims) != 0:
-                if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                    raise RuntimeError(
-                        f"Found an articulation root when resolving '{obj_cfg.prim_path}' (body '{name}') in the"
-                        f" rigid object collection. These are located at: '{articulation_prims}' under"
-                        f" '{template_prim_path}'. Please disable the articulation root in the USD or from code by"
-                        " setting the parameter 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the"
-                        " spawn configuration."
-                    )
-
-            # resolve root prim back into the regex expression
-            root_prim_path = root_prims[0].GetPath().pathString
-            suffix = root_prim_path[len(template_prim_path) :]
-            if suffix:
-                pattern = pattern + suffix
-
+            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+            # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
+            # ``create_tensor_binding`` expects fnmatch globs.
+            pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
+            pattern = re.sub(r"\.\*", "*", pattern)
             self._prim_paths.append(pattern)
             self._body_names_list.append(name)
 

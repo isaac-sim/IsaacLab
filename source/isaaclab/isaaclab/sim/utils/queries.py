@@ -13,6 +13,9 @@ from collections.abc import Callable
 
 from pxr import Sdf, Usd, UsdPhysics
 
+from isaaclab.cloner.cloner_utils import resolve_clone_plan_source
+from isaaclab.sim.simulation_context import SimulationContext
+
 from .stage import get_current_stage
 
 # import logger
@@ -352,6 +355,90 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
             all_prims = output_prims
             output_prims = []
     return output_prims
+
+
+def resolve_matching_prims_from_source(
+    path_expr: str,
+    *,
+    predicate: Callable[[Usd.Prim], bool] | None = None,
+    env_regex_ns: str = "/World/envs/env_.*",
+) -> list[tuple[Usd.Prim, str]]:
+    """Resolve prims matching ``path_expr`` (regex) under the first instance.
+
+    Identify the env-id segment, concretize it to the *first instance* (the authored source
+    template in clone-plan mode, env-0 in legacy mode), then evaluate the remainder of
+    ``path_expr`` as a path-segment regex via :func:`find_matching_prims`. Downstream regex
+    tokens (e.g. ``LF_.*``, ``.*_foot``) are preserved verbatim and matched there.
+
+    Args:
+        path_expr: Destination-side path expression (e.g. a ``prim_path``), which may contain
+            regex wildcards in the env-id and/or asset-relative segments.
+        predicate: Optional callable accepting a :class:`Usd.Prim` and returning ``True`` for
+            prims to keep. ``None`` keeps every match.
+        env_regex_ns: Instance-root namespace regex, defaulting to the standard
+            ``"/World/envs/env_.*"``. In legacy (no-clone-plan) resolution, when ``path_expr``
+            sits under this namespace its path depth fixes the per-instance ("env") boundary.
+            Otherwise the boundary falls back to the first regex segment of ``path_expr`` (the
+            first ``.*`` is treated as the env id), which covers ad-hoc roots such as
+            ``"/World/Table_.*/Object"``. Layouts the fallback would mis-split (e.g. more than
+            one wildcard level) must pass an explicit namespace here. Ignored when a clone plan
+            owns ``path_expr``.
+
+    Returns:
+        List of ``(matched_prim, destination_expr)`` pairs, where ``destination_expr`` is the
+        multi-instance path expression (not a single concrete instance) so callers can build
+        views spanning every instance. Empty when ``path_expr`` matches no prim.
+    """
+    plan = SimulationContext.instance().get_clone_plan()
+    resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
+    if resolved is not None:
+        source_path, dest_glob, asset_suffix = resolved
+        walk_root = source_path + asset_suffix
+        results = [
+            (prim, dest_glob + prim.GetPath().pathString[len(source_path) :]) for prim in find_matching_prims(walk_root)
+        ]
+    else:
+        # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage
+        # in two phases (mirroring the clone-plan branch above): (1) locate ONE instance root to
+        # search from, (2) collect the bodies of interest within just that instance and map each
+        # back to the multi-instance pattern. Phase 1 stops at the first match and phase 2 walks
+        # under a concrete instance prefix, so only a single instance subtree is traversed.
+        segments = path_expr.strip("/").split("/")
+        ns_segments = env_regex_ns.strip("/").split("/")
+        # Instance ("env") boundary. Assume the standard namespace ``env_regex_ns`` and put the
+        # boundary at its depth when ``path_expr`` sits under it -- literal ns segments must
+        # match, wildcard ns segments (e.g. ``env_.*``) accept any segment. Otherwise fall back
+        # to the first regex segment of ``path_expr`` (treat the first ``.*`` as the env id),
+        # covering ad-hoc roots like ``/World/Table_.*/Object``. A layout the fallback would
+        # mis-split (e.g. multiple wildcard levels) must pass ``env_regex_ns``.
+        under_ns = len(segments) >= len(ns_segments) and all(
+            ns_seg == seg or not ns_seg.isidentifier() for ns_seg, seg in zip(ns_segments, segments)
+        )
+        if under_ns:
+            instance_seg = len(ns_segments) - 1
+        else:
+            instance_seg = next((i for i, seg in enumerate(segments) if not seg.isidentifier()), None)
+        first = find_first_matching_prim(path_expr)
+        if first is None:
+            results = []
+        elif instance_seg is None:
+            # Fully concrete path: a single instance, mapped to itself.
+            results = [(first, first.GetPath().pathString)]
+        else:
+            instance_expr = "/" + "/".join(segments[: instance_seg + 1])
+            match_segments = first.GetPath().pathString.strip("/").split("/")
+            instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
+            trailing = segments[instance_seg + 1 :]
+            walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
+            results = [
+                (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
+                for prim in find_matching_prims(walk_root)
+                if prim.GetPath().pathString == instance_root
+                or prim.GetPath().pathString.startswith(instance_root + "/")
+            ]
+    if predicate is not None:
+        results = [(prim, dest) for prim, dest in results if predicate(prim)]
+    return results
 
 
 def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[str]:

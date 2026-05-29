@@ -20,7 +20,7 @@ from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
-from isaaclab.sim.utils import find_matching_prims
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -330,8 +330,21 @@ class OperationalSpaceControllerAction(ActionTerm):
         # is provided.
         if self.cfg.task_frame_rel_path is not None:
             # The source RigidObject can be any child of the articulation asset (we will not use it),
-            # hence, we will use the first RigidObject child.
-            root_rigidbody_path = self._first_RigidObject_child_path()
+            # hence, we will use the first RigidObject descendant.
+            def has_rigid_body_api(prim) -> bool:
+                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+            matches = resolve_matching_prims_from_source(self._asset.cfg.prim_path)
+            if not matches:
+                raise ValueError(f"No prim found at '{self._asset.cfg.prim_path}'.")
+            asset_prim, root_expr = matches[0]
+            walk_root = asset_prim.GetPath().pathString
+            rigid_prims = get_all_matching_child_prims(
+                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
+            )
+            if not rigid_prims:
+                raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
+            root_rigidbody_path = root_expr + rigid_prims[0].GetPath().pathString[len(walk_root) :]
             task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,
@@ -553,29 +566,6 @@ class OperationalSpaceControllerAction(ActionTerm):
     Helper functions.
 
     """
-
-    def _first_RigidObject_child_path(self):
-        """Finds the first ``RigidObject`` child under the articulation asset.
-
-        Raises:
-            ValueError: If no child ``RigidObject`` is found under the articulation asset.
-
-        Returns:
-            str: The path to the first ``RigidObject`` child under the articulation asset.
-        """
-        child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
-        rigid_child_prim = None
-        # Loop through the list and stop at the first RigidObject found
-        for prim in child_prims:
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                rigid_child_prim = prim
-                break
-        if rigid_child_prim is None:
-            raise ValueError("No child rigid body found under the expression: '{self._asset.cfg.prim_path}'/.")
-        rigid_child_prim_path = rigid_child_prim.GetPath().pathString
-        # Remove the specific env index from the path string
-        rigid_child_prim_path = self._asset.cfg.prim_path + "/" + rigid_child_prim_path.split("/")[-1]
-        return rigid_child_prim_path
 
     def _resolve_command_indexes(self):
         """Resolves the indexes for the various command elements within the command tensor.

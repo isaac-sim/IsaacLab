@@ -69,9 +69,6 @@ class BaseRayCaster(SensorBase):
         """
         BaseRayCaster._instance_count += 1
         super().__init__(cfg)
-        # Resolve physics-body paths and spawn the sensor Xform child if needed.
-        self._requested_prim_path = self.cfg.prim_path
-        self._resolve_and_spawn("raycaster")
         self._data = RayCasterData()
 
     def __str__(self) -> str:
