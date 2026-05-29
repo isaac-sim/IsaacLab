@@ -96,7 +96,7 @@ pyproject.optional-dependencies.all = [
     # ================================================================================
     # RL libraries
     { "sb3" = ["stable-baselines3>=2.6", "tqdm", "rich"] },
-    { "skrl" = ["skrl>=1.4.3"] },
+    { "skrl" = ["skrl>=2.1.0"] },
     # { "rl-games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
     # { "rl_games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
     { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
@@ -112,7 +112,7 @@ pyproject.optional-dependencies.all = [
         "stable-baselines3>=2.6",
         "tqdm",
         "rich",
-        "skrl>=1.4.3",
+        "skrl>=2.1.0",
         # "rl-games==1.6.1",  # TODO: re-enable when rl-games Python package supports Python 3.11
         "rsl-rl-lib==5.0.1",
         "onnxscript>=0.5",

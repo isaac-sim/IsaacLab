@@ -33,7 +33,7 @@ import isaaclab_tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-SKRL_VERSION = "2.0.0"
+SKRL_VERSION = "2.1.0"
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
