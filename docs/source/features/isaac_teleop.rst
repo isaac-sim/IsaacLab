@@ -1024,6 +1024,28 @@ Optimize XR Performance
              spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
          )
 
+      Depending on your environment, the default ``DistantLight`` orientation may cast shadows
+      that overlap the robot and reduce visibility during teleoperation. If you encounter this,
+      adjust the light's orientation via ``init_state`` on :class:`~isaaclab.assets.AssetBaseCfg`
+      to position the light source at an angle that gives clear visibility:
+
+      .. code-block:: python
+
+         import isaaclab.sim as sim_utils
+         from isaaclab.assets import AssetBaseCfg
+
+         light = AssetBaseCfg(
+             prim_path="/World/light",
+             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+             init_state=AssetBaseCfg.InitialStateCfg(
+                 rot=(x, y, z, w),  # quaternion (x, y, z, w); identity is (0, 0, 0, 1)
+             ),
+         )
+
+      Experiment with different orientations in your scene to find an angle that avoids
+      shadow overlap on the robot. A slight tilt away from the camera viewpoint is a good
+      starting point.
+
 .. dropdown:: Lower the XR render resolution
    :open:
 
