@@ -69,9 +69,10 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  |                             |                                                                         | ``segmentation``,            |
     |                  |                             |                                                                         | ``simple_shading_*``         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
-    | |cartpole|       | |cartpole-resnet-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton_mjwarp``, ``physx`` |
-    |                  |                             | based off of features extracted from perceptive inputs with pre-trained |                              |
-    |                  | |cartpole-theia-link|       | frozen vision encoders. Requires running with ``--enable_cameras``.     |                              |
+    | |cartpole|       | |cartpole-camera-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton_mjwarp``, ``physx`` |
+    |                  |                             | from raw RGB/depth observations or features extracted by pre-trained    | ``rgb``, ``depth``,          |
+    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``. Requires      | ``resnet18``,                |
+    |                  |                             | running with ``--enable_cameras``.                                      | ``theia_tiny``               |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
@@ -81,9 +82,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |humanoid-link| replace:: `Isaac-Humanoid-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/humanoid/humanoid_env_cfg.py>`__
 .. |ant-link| replace:: `Isaac-Ant-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py>`__
 .. |cartpole-link| replace:: `Isaac-Cartpole-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py>`__
-.. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Presets-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_presets_env_cfg.py>`__
-.. |cartpole-resnet-link| replace:: `Isaac-Cartpole-RGB-ResNet18-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
-.. |cartpole-theia-link| replace:: `Isaac-Cartpole-RGB-TheiaTiny-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
+.. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_presets_env_cfg.py>`__
+.. |cartpole-camera-link| replace:: `Isaac-Cartpole-Camera-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
 
 
 .. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/direct/humanoid/humanoid_env.py>`__
@@ -783,146 +783,31 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
       -
-    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Camera-Presets-Direct-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Cartpole-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
       - ``newton_mjwarp``, ``physx``, ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``, ``rgb``, ``depth``, ``albedo``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+    * - Isaac-Cartpole-Camera-Showcase-Direct-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Direct
+      - **skrl** (PPO)
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``, ``box_box``, ``box_discrete``, ``box_multidiscrete``, ``dict_box``, ``dict_discrete``, ``dict_multidiscrete``, ``tuple_box``, ``tuple_discrete``, ``tuple_multidiscrete``
+    * - Isaac-Cartpole-Camera-v0 (Requires running with ``--enable_cameras``)
+      -
+      - Manager Based
+      - **rl_games** (PPO)
+      - ``newton_mjwarp``, ``physx``, ``rgb``, ``depth``, ``resnet18``, ``theia_tiny``
     * - Isaac-Cartpole-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Manager Based
-      - **rl_games** (PPO)
-      - ``newton_mjwarp``, ``physx``
-    * - Isaac-Cartpole-RGB-TheiaTiny-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Manager Based
-      - **rl_games** (PPO)
-      - ``newton_mjwarp``, ``physx``
-    * - Isaac-Cartpole-Showcase-Box-Box-Direct-v0
+    * - Isaac-Cartpole-Showcase-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
-      -
-      - Direct
-      - **skrl** (PPO)
-      - ``newton_mjwarp``, ``physx``, ``ovphysx``
+      - ``newton_mjwarp``, ``physx``, ``ovphysx``, ``box_box``, ``box_discrete``, ``box_multidiscrete``, ``discrete_box``, ``discrete_discrete``, ``discrete_multidiscrete``, ``multidiscrete_box``, ``multidiscrete_discrete``, ``multidiscrete_multidiscrete``, ``dict_box``, ``dict_discrete``, ``dict_multidiscrete``, ``tuple_box``, ``tuple_discrete``, ``tuple_multidiscrete``
     * - Isaac-Cartpole-v0
       -
       - Manager Based

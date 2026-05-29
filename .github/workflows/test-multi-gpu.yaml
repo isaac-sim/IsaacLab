@@ -47,14 +47,14 @@ jobs:
           # PhysX + Isaac RTX renderer
           - physics: physx
             renderer: isaac-rtx
-            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            task: Isaac-Cartpole-Camera-Direct-v0
             extra_args: ""
             trainer: skrl
 
           # PhysX + Newton Warp renderer (hybrid)
           - physics: physx
             renderer: newton-warp
-            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            task: Isaac-Cartpole-Camera-Direct-v0
             extra_args: "env.tiled_camera.renderer_cfg=newton_renderer"
             trainer: skrl
 
@@ -67,14 +67,14 @@ jobs:
           # Newton + Newton Warp renderer
           - physics: newton
             renderer: newton-warp
-            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            task: Isaac-Cartpole-Camera-Direct-v0
             extra_args: "+sim=newton env.tiled_camera.renderer_cfg=newton_renderer"
             trainer: skrl
 
           # Newton + Isaac RTX renderer (hybrid)
           - physics: newton
             renderer: isaac-rtx
-            task: Isaac-Cartpole-Camera-Presets-Direct-v0
+            task: Isaac-Cartpole-Camera-Direct-v0
             extra_args: "+sim=newton"
             trainer: skrl
 

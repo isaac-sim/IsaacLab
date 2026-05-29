@@ -33,7 +33,7 @@ fast:
       episode_length: 900
     upper_thresholds:
       duration: 1200 #750
-  skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
+  skrl:Isaac-Cartpole-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:
       reward: 190
@@ -144,42 +144,14 @@ full:
     upper_thresholds:
       duration: 1500
   # Vision-based cartpole tasks
-  Isaac-Cartpole-Depth-Camera-Direct-v0:
+  Isaac-Cartpole-Camera-Direct-v0:
     max_iterations: 300
     lower_thresholds:
       reward: 200
       episode_length: 150
     upper_thresholds:
       duration: 3000
-  Isaac-Cartpole-Depth-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 1
-      episode_length: 150
-    upper_thresholds:
-      duration: 3000
-  Isaac-Cartpole-RGB-Camera-Direct-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 200
-      episode_length: 150
-    upper_thresholds:
-      duration: 3000
-  Isaac-Cartpole-RGB-ResNet18-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 1
-      episode_length: 100
-    upper_thresholds:
-      duration: 4000
-  Isaac-Cartpole-RGB-TheiaTiny-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 1
-      episode_length: 150
-    upper_thresholds:
-      duration: 4000
-  Isaac-Cartpole-RGB-v0:
+  Isaac-Cartpole-Camera-v0:
     max_iterations: 300
     lower_thresholds:
       reward: -2

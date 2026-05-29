@@ -197,12 +197,8 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
 
     Each variant is one of the existing per-pipeline subclasses above. The
     framework resolver pins the selected variant at ``gym.make`` time when
-    the user passes ``presets=<name>``.
-
-    Used by the canonical :obj:`Isaac-Cartpole-Camera-v0` task. The retired
-    per-variant task IDs (:obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`)
-    return the same per-variant subclasses directly via the deprecation
-    shims in the sibling ``__init__.py``.
+    the user passes ``presets=<name>``. Used by the canonical
+    :obj:`Isaac-Cartpole-Camera-v0` task.
     """
 
     rgb: CartpoleRGBCameraEnvCfg = CartpoleRGBCameraEnvCfg()
