@@ -160,7 +160,9 @@ Use this table to decide:
 | Full Source Build   | |:floppy_disk:| source (git) | |:floppy_disk:| source (git) | Developers modifying both     | Advanced   |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Pip Only            | |:package:| pip install      | |:package:| pip install      | External extensions only      | Special    |
-|                     |                              |                              | (no training/examples)        | case       |
+|                     |                              |                              | (no training/examples).       | case       |
+|                     |                              |                              | Use ``[kitless]`` or          |            |
+|                     |                              |                              | ``[isaacsim,all]`` extras.    |            |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Docker              | |:whale:| Docker             | |:floppy_disk:| source (git) | Docker users                  | Advanced   |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
@@ -196,6 +198,8 @@ Once you've reviewed the installation methods, continue with the guide that matc
 - :doc:`isaaclab_pip_installation`
 
   - Install Isaac Sim and Isaac Lab as pip packages.
+  - Use ``isaaclab[kitless]`` for kit-less use or ``isaaclab[isaacsim,all]`` for
+    the full workflow.
   - Best for advanced users building **external extensions** with custom runner scripts.
   - Note: This does **not** include training or example scripts.
 

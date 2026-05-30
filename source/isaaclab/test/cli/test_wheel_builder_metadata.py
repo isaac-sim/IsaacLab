@@ -43,6 +43,6 @@ def test_wheel_builder_rsl_rl_pin_matches_source_package():
     optional_dependencies = packages["isaaclab"]["pyproject"]["optional-dependencies"]["all"]
     dependencies_by_extra = {name: deps for entry in optional_dependencies for name, deps in entry.items()}
 
-    for extra_name in ("rsl-rl", "all"):
+    for extra_name in ("rsl-rl", "all", "kitless"):
         rsl_rl_pins = [dep for dep in dependencies_by_extra[extra_name] if dep.startswith("rsl-rl-lib==")]
         assert rsl_rl_pins == [expected_pin]
