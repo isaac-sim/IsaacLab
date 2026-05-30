@@ -11,12 +11,10 @@
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import test_devices
 
-# File-level opt-out from concurrent multi-GPU CI. The multi-GPU workflow's
-# discover step skips any test file declaring this module-level constant. Used
-# for files known to trigger Kit/Isaac-Sim process-lifecycle failures under
-# concurrent multi-GPU execution (SIGHUP / shutdown-hang); the file still runs
-# in single-GPU CI. Drop this line once the upstream Kit issue is fixed.
-MULTI_GPU_SKIP_REASON = "Kit lifecycle bug: shutdown hangs after tests under concurrent multi-GPU"
+# TEMP CI EXPERIMENT: marker disabled to test whether `--ulimit nofile=65535`
+# in the workflow's docker run fixes the Kit lifecycle shutdown-hang.
+# Restore the line below if CI still fails on this commit.
+# MULTI_GPU_SKIP_REASON = "Kit lifecycle bug: shutdown hangs after tests under concurrent multi-GPU"
 
 HEADLESS = True
 
