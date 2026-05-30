@@ -43,7 +43,6 @@ Install with ``isaaclab[isaacsim,all]`` for the full workflow.
       .. code-block:: bash
 
          uv pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
-         uv pip install "isaaclab[isaacsim,all]==3.0.0" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
    .. tab-item:: pip
 
