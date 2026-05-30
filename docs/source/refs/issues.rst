@@ -93,6 +93,8 @@ message and continue with terminating the process. On Windows systems, please us
 ``Ctrl+Break`` or ``Ctrl+fn+B`` to terminate the process.
 
 
+.. _known-issues-closed-loop-newton:
+
 Closed-loop articulations on Newton (e.g. Agility Digit)
 --------------------------------------------------------
 
