@@ -2,13 +2,12 @@ Added
 ^^^^^
 
 * Added :func:`isaaclab.test.utils.test_devices` to parametrize unit tests over
-  a device set resolved as ``scope ∩ runtime_devices``: ``scope`` is the
-  call-site mask (the devices a test is valid on, e.g. ``"11X"`` for cpu +
-  cuda:0 + any one non-default GPU), the runtime devices are the
-  ``ISAACLAB_TEST_DEVICES`` env var (the devices a run may use, default
-  ``"110"`` ⇒ cpu + cuda:0). A trailing ``X`` means "any one non-default GPU",
-  resolved to ``ISAACLAB_SIM_DEVICE`` when set. Single-GPU CI is unchanged;
-  multi-GPU CI sets the runtime devices to a non-default GPU.
+  a device set resolved as ``scope ∩ runtime``: ``scope`` is the call-site mask
+  of devices a test is valid on (default ``"11X"`` ⇒ cpu + cuda:0 + the
+  non-default GPUs), and the runtime is the ``ISAACLAB_TEST_DEVICES`` env var of
+  devices a run may use (default ``"110"`` ⇒ cpu + cuda:0). A trailing ``X``
+  includes the remaining devices. Single-GPU CI is unchanged; multi-GPU CI sets
+  the runtime to one non-default GPU per shard.
 
 * Added ``ISAACLAB_SIM_DEVICE`` env var honored by
   :class:`isaaclab.app.AppLauncher` as the implicit-default device when

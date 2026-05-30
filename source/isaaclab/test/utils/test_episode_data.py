@@ -9,7 +9,7 @@ from isaaclab.test.utils import test_devices
 from isaaclab.utils.datasets import EpisodeData
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_is_empty(device):
     """Test checking whether the episode is empty."""
     episode = EpisodeData()
@@ -19,7 +19,7 @@ def test_is_empty(device):
     assert not episode.is_empty()
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_add_tensors(device):
     """Test appending tensor data to the episode."""
     dummy_data_0 = torch.tensor([0], device=device)
@@ -56,7 +56,7 @@ def test_add_tensors(device):
     assert torch.equal(second_data, expected_added_data)
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_add_dict_tensors(device):
     """Test appending dict data to the episode."""
     dummy_dict_data_0 = {
@@ -103,7 +103,7 @@ def test_add_dict_tensors(device):
     assert torch.equal(key_1_1_data, torch.tensor([[2], [5]], device=device))
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_get_initial_state(device):
     """Test getting the initial state of the episode."""
     dummy_initial_state = torch.tensor([1, 2, 3], device=device)
@@ -115,7 +115,7 @@ def test_get_initial_state(device):
     assert torch.equal(initial_state, dummy_initial_state.unsqueeze(0))
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_get_next_action(device):
     """Test getting next actions."""
     # dummy actions

@@ -143,7 +143,7 @@ def test_torch_relu_modifier():
         assert torch.allclose(output, test_cfg.result)
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_digital_filter(device):
     """Test digital filter modifier."""
     # create test data
@@ -179,7 +179,7 @@ def test_digital_filter(device):
         torch.testing.assert_close(processed_data, test_cfg.result)
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices("110"))
 def test_integral(device):
     """Test integral modifier."""
     # create test data

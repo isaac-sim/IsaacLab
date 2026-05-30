@@ -44,7 +44,7 @@ Basic Configuration Tests
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices())
 def test_init(device):
     """Test the simulation context initialization."""
     from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg

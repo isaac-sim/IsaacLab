@@ -9,31 +9,28 @@ Intended use::
 
     from isaaclab.test.utils import test_devices
 
-    @pytest.mark.parametrize("device", test_devices("11X"))
+    @pytest.mark.parametrize("device", test_devices())        # cpu + cuda:0 + a non-default GPU
     def test_foo(device): ...
 
 Two masks, two roles
 --------------------
-The set a test actually runs on is ``scope ∩ runtime_devices``:
+A test runs on ``scope ∩ runtime``:
 
-* **scope** — passed at the call site, fixed. The devices the *test* is valid
-  on. The author owns this.
-* **runtime_devices** — the ``ISAACLAB_TEST_DEVICES`` env var, per run. The
-  devices the *run* is allowed to use. The operator / CI owns this; defaults
-  to ``"110"``.
+* **scope** — the call-site mask: the devices the *test* is valid on. The
+  author owns this; defaults to ``"11X"`` (device-agnostic).
+* **runtime** — the ``ISAACLAB_TEST_DEVICES`` env var: the devices the *run*
+  may use. The operator / CI owns this; defaults to ``"110"`` (cpu + cuda:0).
+  The multi-GPU workflow sets it to one device per shard, matching
+  ``ISAACLAB_SIM_DEVICE`` (AppLauncher's boot device — not read here).
 
-A test author never has to know which device a shard holds; the operator never
-has to know which devices a test supports. The helper intersects the two.
+A test author never names the shard's GPU; the operator never inspects a
+test's device support. The helper intersects the two.
 
 Mask grammar
 ------------
 Positions left to right: ``0`` = cpu, ``1`` = cuda:0 (the default GPU),
 ``2`` = cuda:1, ``3`` = cuda:2, ... Each position is ``0`` (exclude) or ``1``
-(include). An optional trailing ``X`` means "any **one** of the remaining
-non-default GPUs" and resolves to a single device — the one named by
-``ISAACLAB_SIM_DEVICE`` if it is a non-default GPU, else the lowest-index
-available non-default GPU. (``X`` is *any one*, not *all*; exhaustive
-"every non-default GPU" coverage is intentionally not supported yet.)
+(include). A trailing ``X`` means "include all the remaining devices".
 
 cpu, cuda:0, and a non-default GPU stay distinct by position — running on
 cuda:0 says nothing about cuda:1+, which is the whole reason this exists.
@@ -43,27 +40,32 @@ Common masks
 ======  ===================================================================
 Mask    Meaning
 ======  ===================================================================
-``110`` cpu + cuda:0 (the default scope and the default runtime devices)
-``11X`` cpu + cuda:0 + any one non-default GPU (device-agnostic test)
-``00X`` a non-default GPU only (validates non-default-device behavior)
+``11X`` cpu + cuda:0 + every non-default GPU (default scope; device-agnostic)
+``110`` cpu + cuda:0 (pure-math / backend tests: cuda:0 == cuda:N)
+``00X`` non-default GPUs only (validates non-default-device behavior)
 ``100`` cpu only (pure logic)
-``001`` cuda:1 specifically (only when a device must be pinned, rare)
 ======  ===================================================================
 
-Worked example — a ``scope="11X"`` test:
+Worked example — a ``scope="11X"`` (default) test:
 
-* single-GPU CI (runtime devices unset ⇒ ``"110"``) ⇒ ``[cpu, cuda:0]``.
-* a multi-GPU shard (runtime devices ``"00X"``, ``ISAACLAB_SIM_DEVICE=cuda:2``)
-  ⇒ ``[cuda:2]``.
+* single-GPU CI (runtime unset ⇒ ``"110"``) ⇒ ``[cpu, cuda:0]``.
+* a multi-GPU shard (runtime ``"0001"``, one device) ⇒ ``[cuda:2]``.
+
+So argless tests run on cpu + cuda:0 in single-GPU CI and on exactly one
+non-default GPU per shard in multi-GPU CI (run-once is a property of the
+one-device-per-shard runtime plus round-robin file assignment).
 
 An empty result means the test is cleanly skipped for this run (e.g. a
-``"00X"`` test on a single-GPU host).
+``"00X"`` test on a single-GPU host, or a ``"110"`` test on a non-default-GPU
+shard). But if the run *explicitly* set ``ISAACLAB_TEST_DEVICES`` to devices
+the host does not have, that is a misconfigured run and raises instead of
+skipping everything and reporting a vacuous green.
 
 Local runs
 ----------
-Set the runtime devices from the shell to opt a run into non-default GPUs::
+Set the runtime from the shell to opt a run into non-default GPUs::
 
-    ISAACLAB_TEST_DEVICES=11X ISAACLAB_SIM_DEVICE=cuda:1 \\
+    ISAACLAB_TEST_DEVICES=0001 ISAACLAB_SIM_DEVICE=cuda:2 \\
         ./isaaclab.sh -p -m pytest path/to/test.py
 """
 
@@ -76,45 +78,78 @@ import torch
 _RUNTIME_DEVICES_ENV_VAR = "ISAACLAB_TEST_DEVICES"
 """Env var naming the run's devices: the devices a run may use (see module docstring)."""
 
-_DEFAULT_RUNTIME_DEVICES = "110"
+_DEFAULT_RUNTIME = "110"
 """Runtime devices when :data:`_RUNTIME_DEVICES_ENV_VAR` is unset: cpu + cuda:0,
 i.e. the historical single-GPU device set, so non-default GPUs are opt-in per run."""
 
 
-def test_devices(scope: str | list[str] = "110", *, require_available: bool = False) -> list[str]:
-    """Resolve the device list to parametrize a test over.
+def test_devices(scope: str = "11X", *, skip: dict[str, str] | None = None) -> list:
+    """Resolve the device list to parametrize a test over, as ``scope ∩ runtime``.
 
-    The result is ``scope ∩ runtime_devices``, where ``scope`` is this argument
-    and the runtime devices come from the ``ISAACLAB_TEST_DEVICES`` env var (see
-    the module docstring for the grammar and the scope / runtime-devices split).
+    ``scope`` is this argument; the runtime comes from the
+    ``ISAACLAB_TEST_DEVICES`` env var (see the module docstring for the grammar
+    and the scope / runtime split).
 
     Args:
-        scope: Device mask (e.g. ``"11X"``) or an explicit device list (e.g.
-            ``["cpu", "cuda:0"]``) the test is valid on. A list is treated as
-            those exact devices, with no ``X`` wildcard.
-        require_available: When ``True``, raise ``ValueError`` if the resolved
-            list is empty (the run cannot satisfy the test on any in-scope
-            device) instead of letting pytest skip it. Use for CI calls that
-            must hard-fail when a runner has fewer GPUs than expected.
+        scope: Device mask (e.g. ``"11X"``) the test is valid on. Defaults to
+            ``"11X"`` (cpu + cuda:0 + every non-default GPU): the device-agnostic
+            common case, so most call sites can use ``test_devices()`` with no
+            argument.
+        skip: Optional ``{device: reason}``; in-scope devices listed here are
+            wrapped in :func:`pytest.mark.skip` so they collect as SKIPPED with
+            the reason instead of being dropped. Use to gate a device variant
+            that is known broken while keeping it visible.
 
     Returns:
-        Ordered list of device strings (``"cpu"`` and/or ``"cuda:N"``) suitable
-        as the second argument to :func:`pytest.mark.parametrize`. Empty means
-        the test is skipped for this run.
+        Ordered device entries (``"cpu"`` / ``"cuda:N"`` strings, or
+        :func:`pytest.param` for skipped ones) for the second argument to
+        :func:`pytest.mark.parametrize`. Empty means the test is skipped for
+        this run.
 
     Raises:
-        ValueError: When a mask is syntactically invalid (``X`` not trailing,
-            or a character outside ``{0, 1, X}``), or when ``require_available``
-            is set and the resolved list is empty.
+        ValueError: When the run explicitly set ``ISAACLAB_TEST_DEVICES`` to
+            devices that are not available on this host (a misconfigured run that
+            would otherwise skip everything and pass vacuously). A scope that
+            merely does not intersect this run's devices skips, it does not raise.
     """
+    requested = os.environ.get(_RUNTIME_DEVICES_ENV_VAR)
     available = _list_available_devices()
-    target = _target_nondefault(available)
-    scope_set = _select(scope, available, target)
-    runtime_set = _select(os.environ.get(_RUNTIME_DEVICES_ENV_VAR, _DEFAULT_RUNTIME_DEVICES), available, target)
-    devices = [d for d in available if d in scope_set and d in runtime_set]
-    if require_available and not devices:
-        raise ValueError(f"scope {scope!r} ∩ runtime devices resolves to no device (available: {available})")
-    return devices
+    runtime_keep = _expand(requested or _DEFAULT_RUNTIME, len(available))
+    # A run that explicitly named devices the host cannot provide (e.g. a shard
+    # pinned to cuda:2 on a 2-GPU host) is misconfigured: fail loudly rather than
+    # skip every test and report a vacuous green. A scope that simply does not
+    # intersect this run's devices (a "110" test on a non-default-GPU shard) is
+    # not an error — it skips.
+    if requested is not None and not any(runtime_keep):
+        raise ValueError(
+            f"{_RUNTIME_DEVICES_ENV_VAR}={requested!r} names no device available on this host (available: {available})"
+        )
+    scope_keep = _expand(scope, len(available))
+    devices = [
+        device for device, in_scope, in_runtime in zip(available, scope_keep, runtime_keep) if in_scope and in_runtime
+    ]
+    if not skip:
+        return devices
+    import pytest
+
+    return [
+        pytest.param(device, marks=pytest.mark.skip(reason=skip[device])) if device in skip else device
+        for device in devices
+    ]
+
+
+def _expand(mask: str, count: int) -> list[bool]:
+    """Expand a mask to ``count`` include-flags; a trailing ``X`` fills the rest with ``True``.
+
+    Args:
+        mask: A mask string (positions plus an optional trailing ``X``).
+        count: The number of available devices to expand to.
+
+    Returns:
+        A list of ``count`` booleans, one per device position.
+    """
+    body, fill = (mask[:-1], True) if mask.endswith("X") else (mask, False)
+    return ([char == "1" for char in body] + [fill] * count)[:count]
 
 
 def _list_available_devices() -> list[str]:
@@ -132,54 +167,3 @@ def _list_available_devices() -> list[str]:
     if torch.cuda.is_available():
         devices.extend(f"cuda:{i}" for i in range(torch.cuda.device_count()))
     return devices
-
-
-def _target_nondefault(available: list[str]) -> str | None:
-    """Pick the single non-default GPU that a trailing ``X`` resolves to.
-
-    Prefers the device named by ``ISAACLAB_SIM_DEVICE`` when it is a visible
-    non-default GPU (so a shard's ``X`` lands on the device Kit booted on),
-    otherwise the lowest-index available non-default GPU (deterministic).
-
-    Returns:
-        A ``"cuda:N"`` (N >= 1) string, or ``None`` when the host has no
-        non-default GPU.
-    """
-    nondefault = [d for d in available if d.startswith("cuda:") and d != "cuda:0"]
-    if not nondefault:
-        return None
-    env_device = os.environ.get("ISAACLAB_SIM_DEVICE", "")
-    return env_device if env_device in nondefault else nondefault[0]
-
-
-def _select(mask: str | list[str], available: list[str], target: str | None) -> set[str]:
-    """Resolve one mask (or explicit list) to the set of devices it selects.
-
-    Args:
-        mask: A mask string (positions plus optional trailing ``X``) or an
-            explicit device list.
-        available: The host's visible devices, in mask order.
-        target: The single non-default GPU a trailing ``X`` resolves to (from
-            :func:`_target_nondefault`), or ``None`` if the host has none.
-
-    Returns:
-        The subset of ``available`` the mask selects.
-
-    Raises:
-        ValueError: When ``X`` is not the trailing character, or a character is
-            outside ``{0, 1, X}``.
-    """
-    if isinstance(mask, (list, tuple)):
-        return {d for d in mask if d in available}
-
-    body, wildcard = (mask[:-1], True) if mask.endswith("X") else (mask, False)
-    if "X" in body:
-        raise ValueError(f"Invalid mask {mask!r}: 'X' must be the trailing character")
-    for c in body:
-        if c not in "01":
-            raise ValueError(f"Invalid mask {mask!r}: char {c!r} not in {{0, 1, X}}")
-
-    selected = {available[i] for i, c in enumerate(body) if c == "1" and i < len(available)}
-    if wildcard and target is not None:
-        selected.add(target)  # "any one" non-default GPU for this run
-    return selected

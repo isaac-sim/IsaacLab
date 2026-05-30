@@ -126,7 +126,7 @@ def view_factory():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.xfail(
     reason=(
         "Issue #5: FabricFrameView.set_world_poses writes to Fabric worldMatrix only. "
@@ -155,7 +155,7 @@ def _fill_position(out: wp.array(dtype=wp.float32, ndim=2), x: float, y: float, 
     out[i, 2] = wp.float32(z)
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     """Verify that set_world_poses in Fabric mode does NOT sync back to USD.
 
@@ -199,7 +199,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     )
 
 
-@pytest.mark.parametrize("device", test_devices("11X"))
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch):
     """Forcing the topology-changed branch on a write triggers
     :meth:`_rebuild_fabric_arrays` and leaves the view in a state where

@@ -11,8 +11,9 @@
 # Kit and the test parametrize to the shard's non-default GPU.
 #
 # Adding a new test to multi-GPU coverage: give its device parametrize a
-# non-default-capable scope, ``isaaclab.test.utils.test_devices("11X")``
-# (cpu + cuda:0 + any one non-default GPU). The workflow auto-discovers it.
+# non-default-capable scope — argless ``isaaclab.test.utils.test_devices()``
+# (cpu + cuda:0 + non-default GPUs) or any ``"..X"`` mask. The workflow
+# auto-discovers it.
 
 name: Multi-GPU pytest
 
@@ -123,14 +124,15 @@ jobs:
           lfs: true
 
       - name: Discover opt-in test files
-        # Auto-discovery: any test_*.py with a non-default-capable scope — a
-        # ``test_devices("..X")`` mask, where the trailing ``X`` means "any one
-        # non-default GPU" — is in scope.  Adding a test to multi-GPU CI needs
+        # Auto-discovery: any test_*.py with a non-default-capable scope — an
+        # argless ``test_devices()`` (defaults to "11X") or any
+        # ``test_devices("..X")`` mask, whose trailing ``X`` spans the
+        # non-default GPUs — is in scope.  Adding a test to multi-GPU CI needs
         # no workflow edit; opting a file out is just narrowing its scope (drop
-        # the ``X``), so the workflow stays opt-in/opt-out-free.
+        # the ``X``, e.g. "110"), so the workflow stays opt-in/opt-out-free.
         id: discover
         run: |
-          mapfile -t discovered < <(grep -rlE 'test_devices\("[^"]*X"\)' source/ --include='test_*.py' | sort -u)
+          mapfile -t discovered < <(grep -rlE 'test_devices\(\)|test_devices\("[^"]*X"\)' source/ --include='test_*.py' | sort -u)
           if [ ${#discovered[@]} -eq 0 ]; then
             echo "::error::No opt-in tests discovered (grep for test_devices with an X scope)"
             exit 1
@@ -193,9 +195,12 @@ jobs:
 
           declare -A pids logfiles results
           for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
-            # Uniform runtime devices across shards: "00X" = "any one non-default GPU".
-            # ISAACLAB_SIM_DEVICE below pins which one, so no per-shard mask.
-            runtime_devices="00X"
+            # Per-shard runtime mask naming exactly this shard's GPU: position
+            # cuda+1 is set (position 0 = cpu, 1 = cuda:0, 2 = cuda:1, ...), so
+            # cuda:1 -> "001", cuda:2 -> "0001".  scope ∩ runtime then resolves
+            # to this one non-default GPU, and ISAACLAB_SIM_DEVICE boots Kit on
+            # the same one.  Each file runs once on one non-default GPU.
+            runtime_devices=$(python3 -c "print('0' * ($cuda + 1) + '1')")
             idx=$((cuda - 1))
 
             # This shard's slice of the file list (round-robin by position).
