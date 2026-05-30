@@ -97,8 +97,18 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
     process = None
 
     try:
-        # Each test gets its own session so orphaned Kit/Isaac Sim child
-        # processes cannot send SIGHUP to the next test's process group.
+
+        def _isolate_child():
+            # Own session (no controlling terminal) so orphaned Kit/Isaac Sim
+            # children can't SIGHUP sibling test process groups. Additionally
+            # ignore SIGHUP in the test process itself: under concurrent
+            # multi-GPU load a spurious orphan/cleanup SIGHUP was killing a
+            # long-running, otherwise-passing file mid-run. The conftest uses
+            # SIGKILL (uncatchable) for its own timeout/cleanup, so ignoring
+            # SIGHUP only blocks the spurious signal, not legitimate teardown.
+            os.setsid()
+            signal.signal(signal.SIGHUP, signal.SIG_IGN)
+
         process = subprocess.Popen(
             cmd,
             env=env,
@@ -106,7 +116,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             stderr=subprocess.PIPE,
             bufsize=0,
             universal_newlines=False,
-            start_new_session=True,
+            preexec_fn=_isolate_child,
         )
         pgid = os.getpgid(process.pid)
 
