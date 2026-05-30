@@ -247,7 +247,6 @@ SKRL
             Visit the **skrl** `installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`_ page for more details.
             Note that JAX GPU support is only available on Linux x86_64 and Linux aarch64.
             Use the CUDA 12 wheel on Linux x86_64 and the CUDA 13 wheel on Linux aarch64 systems such as DGX Spark.
-            Use ``jax<0.6.0`` and ``flax<0.10.7`` for compatibility.
 
          .. hint::
 
@@ -267,7 +266,7 @@ SKRL
                   # install python module (for skrl)
                   ./isaaclab.sh -i skrl
                   # install JAX for CUDA 12
-                  ./isaaclab.sh -p -m pip install -U "jax[cuda12]<0.6.0" "flax<0.10.7"
+                  ./isaaclab.sh -p -m pip install -U "jax[cuda12]"
                   # install skrl dependencies for JAX
                   ./isaaclab.sh -p -m pip install "skrl[jax]"
 
@@ -279,7 +278,7 @@ SKRL
                   # install python module (for skrl)
                   ./isaaclab.sh -i skrl
                   # install JAX for CUDA 13
-                  ./isaaclab.sh -p -m pip install -U "jax[cuda13]<0.6.0" "flax<0.10.7"
+                  ./isaaclab.sh -p -m pip install -U "jax[cuda13]"
                   # install skrl dependencies for JAX
                   ./isaaclab.sh -p -m pip install "skrl[jax]"
 
