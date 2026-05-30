@@ -13,7 +13,7 @@ owners:
 
 Use this skill when a user wants to create a new Isaac Lab environment, choose the right task workflow, or adapt an existing task example.
 
-Do not use this skill for migrating Isaac Gym tasks. Use the `isaaclab-migrating-from-isaac-gym` skill when the source is an Isaac Gym or IsaacGymEnvs task.
+Do not use this skill for migrating Isaac Gym tasks. Use the `isaaclab-migrating-from-isaac-gym` skill when the source is an Isaac Gym or IsaacGymEnvs task. For contact-rich manipulation task staging, pair this with `isaaclab-planning-manipulation-tasks`.
 
 ## Workflow
 
@@ -52,6 +52,7 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/task_workf
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
+- [Manipulation planning skill](../plan-manipulation-tasks/SKILL.md)
 - [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
 - [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
 - [Modify direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/modify_direct_rl_env.rst)

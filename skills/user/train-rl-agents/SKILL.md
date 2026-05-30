@@ -13,7 +13,7 @@ owners:
 
 Use this skill when a user wants to train, resume, evaluate, or configure reinforcement learning for an Isaac Lab task.
 
-Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/create-environments/`) for environment construction first.
+Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/create-environments/`) for environment construction first, and use `isaaclab-debugging-rl-training` when training behavior or reward metrics are already failing.
 
 ## Workflow
 
@@ -51,6 +51,7 @@ Keep this skill synchronized with `docs/source/overview/reinforcement-learning/t
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
+- [Debug RL training skill](../debug-rl-training/SKILL.md)
 - [RL training guide](../../../docs/source/overview/reinforcement-learning/training_guide.rst)
 - [Configure RL training tutorial](../../../docs/source/tutorials/03_envs/configuring_rl_training.rst)
 - [Run RL training tutorial](../../../docs/source/tutorials/03_envs/run_rl_training.rst)

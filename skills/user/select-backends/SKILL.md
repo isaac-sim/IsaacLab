@@ -13,7 +13,7 @@ owners:
 
 Use this skill when a user needs to choose, configure, compare, or debug Isaac Lab physical backends or renderer-related behavior.
 
-Do not use this skill to duplicate backend reference material. Link to the multi-backend docs, schema cfg docs, and source examples for current configuration details.
+Do not use this skill to duplicate backend reference material. Link to the multi-backend docs, schema cfg docs, and source examples for current configuration details. If the user is converting or validating a specific USD asset for Newton, use `isaaclab-preparing-assets-for-newton`.
 
 ## Workflow
 
@@ -51,6 +51,7 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/multi_back
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
+- [Prepare assets for Newton skill](../prepare-assets-for-newton/SKILL.md)
 - [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)
 - [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
 - [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)

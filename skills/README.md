@@ -17,9 +17,13 @@ User skills:
 - `user/domain-randomization-events/`: implement domain randomization through Isaac Lab event terms.
 - `user/create-environments/`: create direct and manager-based Isaac Lab environments from task requirements.
 - `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
+- `user/debug-rl-training/`: diagnose RL rewards, task metrics, checkpoint compatibility, and training experiments.
+- `user/plan-manipulation-tasks/`: stage manipulation tasks through scene, reset, action, reward, and behavior gates.
 - `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
+- `user/diagnose-joint-poses/`: measure and correct robot initial joint poses from semantic or visual pose requests.
 - `user/select-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.
 - `user/use-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
+- `user/prepare-assets-for-newton/`: validate and prepare PhysX-compatible USD assets for Newton task workflows.
 - `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
 Planned user skills:
