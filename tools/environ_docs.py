@@ -14,6 +14,7 @@ are used by :mod:`tools.update_environments_rst` to keep
 from __future__ import annotations
 
 import collections
+import contextlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -148,8 +149,10 @@ def _infer_implicit_physics_names(task_name: str) -> set[str]:
     alias. The preset CLI excludes ``default`` from help listings, but users
     still select PhysX via ``physics=physx`` (or by falling back to default).
     """
-    from isaaclab.physics import PhysicsCfg
     from isaaclab_physx.physics import PhysxCfg
+
+    from isaaclab.physics import PhysicsCfg
+
     from isaaclab_tasks.utils.hydra import collect_presets
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -159,9 +162,7 @@ def _infer_implicit_physics_names(task_name: str) -> set[str]:
         default = fields.get("default")
         if default is None or not isinstance(default, PhysxCfg):
             continue
-        has_physics_variant = any(
-            name != "default" and isinstance(value, PhysicsCfg) for name, value in fields.items()
-        )
+        has_physics_variant = any(name != "default" and isinstance(value, PhysicsCfg) for name, value in fields.items())
         if has_physics_variant:
             names.add("physx")
     return names
@@ -172,10 +173,8 @@ def _physics_names_for_docs(task_name: str, preset_map: dict[PresetTarget, list[
     if preset_map is None:
         return []
     names = set(preset_map.get(PresetTarget.PHYSICS, []))
-    try:
+    with contextlib.suppress(Exception):
         names |= _infer_implicit_physics_names(task_name)
-    except Exception:
-        pass
     return sorted(names)
 
 

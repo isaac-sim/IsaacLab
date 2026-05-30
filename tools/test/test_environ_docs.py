@@ -39,6 +39,7 @@ from environ_docs import (  # noqa: E402
     COMPREHENSIVE_LIST_END_MARKER,
     COMPREHENSIVE_LIST_START_MARKER,
     EnvironmentDocRow,
+    _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_doc_rows,
     find_inference_task_name,
@@ -48,7 +49,6 @@ from environ_docs import (  # noqa: E402
     parse_rl_libraries_from_kwargs,
     patch_environments_rst,
     render_comprehensive_list_table,
-    _physics_names_for_docs,
 )
 
 import isaaclab_tasks  # noqa: E402, F401
