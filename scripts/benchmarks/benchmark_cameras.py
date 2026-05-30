@@ -287,19 +287,10 @@ def create_camera_base(
     instantiate: bool = True,
 ) -> Camera | CameraCfg | None:
     """Generalized function to create a camera or tiled camera sensor."""
-    # Determine prim prefix based on the camera class
-    name = camera_cfg.class_type.__name__
-
-    if instantiate:
-        # Create the necessary prims
-        for idx in range(num_cams):
-            sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
-    if prim_path is None:
-        prim_path = f"/World/{name}_.*/{name}"
     # If valid camera settings are provided, create the camera
     if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
         cfg = camera_cfg(
-            prim_path=prim_path,
+            prim_path=prim_path if prim_path is not None else "",
             update_period=0,
             height=height,
             width=width,
@@ -308,8 +299,16 @@ def create_camera_base(
                 focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
             ),
         )
+        # Determine prim prefix based on the resolved camera class.
+        name = cfg.class_type.__name__
         if instantiate:
-            return camera_cfg.class_type(cfg=cfg)
+            # Create the necessary prims
+            for idx in range(num_cams):
+                sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
+        if prim_path is None:
+            cfg.prim_path = f"/World/{name}_.*/{name}"
+        if instantiate:
+            return cfg.class_type(cfg=cfg)
         else:
             return cfg
     else:

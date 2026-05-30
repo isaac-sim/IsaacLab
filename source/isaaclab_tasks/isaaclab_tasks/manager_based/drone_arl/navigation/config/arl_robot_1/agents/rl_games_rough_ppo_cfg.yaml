@@ -47,7 +47,7 @@ params:
     device: 'cuda:0'
     device_name: 'cuda:0'
     env_config:
-      num_envs: 8192
+      num_envs: 1024
 
     reward_shaper:
       # min_val: -1
