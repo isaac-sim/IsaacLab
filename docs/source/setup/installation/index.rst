@@ -8,7 +8,7 @@ Local Installation
    :alt: IsaacSim 6.0.0
 
 .. image:: https://img.shields.io/badge/python-3.12-blue.svg
-   :target: https://www.python.org/downloads/release/python-31013/
+   :target: https://www.python.org/downloads/release/python-3120/
    :alt: Python 3.12
 
 .. image:: https://img.shields.io/badge/platform-linux--64-orange.svg
@@ -20,8 +20,6 @@ Local Installation
    :alt: Windows 11
 
 
-Isaac Lab installation is available for Windows and Linux. This guide explains the recommended
-installation methods.
 
 .. note::
 
@@ -113,6 +111,10 @@ Other notable limitations with respect to Isaac Lab include...
 #. Livestream and Hub Workstation Cache are not supported on the DGX spark.
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
+
+#. Newton VBD deformable support is limited on DGX Spark due to the availability of the
+   ``pytetwild`` library on ARM (aarch64). ``pytetwild`` is required for automatic
+   tetrahedral mesh generation of volume deformables.
 
 .. note::
 
