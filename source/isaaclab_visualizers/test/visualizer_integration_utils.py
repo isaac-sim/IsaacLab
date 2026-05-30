@@ -23,11 +23,12 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import gc
 import logging
-import math
 import os
 import re
 import socket
+import time
 from pathlib import Path
 
 import numpy as np
@@ -37,11 +38,9 @@ import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 
-from pxr import UsdGeom
-
 import isaaclab.sim as sim_utils
 from isaaclab.app import AppLauncher
-from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor, prim_world_positions
+from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
@@ -53,7 +52,7 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 # Debugging mode configs.
 
 _WRITE_VIS_DEBUG_FRAMES = False
-"""Whether to emit visualizer debug PNGs during integration tests.  Disabled by default."""
+"""Whether to emit visualizer debug PNGs during integration tests."""
 
 _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 """Directory for opt-in visualizer debug images emitted by integration tests."""
@@ -98,8 +97,23 @@ _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
 _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 """Cartpole articulation root prim followed by generated visualizer tiled cameras."""
 
-_START_BUFFER_STEPS = 5
+_START_BUFFER_STEPS = 20
 """Warmup physics steps before capturing the first debug frame."""
+
+_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS = 20
+"""Render/app updates after creating a Kit RTX render product before sampling RGB."""
+
+_NEWTON_VIEWER_WARMUP_FRAMES = 20
+"""Viewer-only updates after physics warmup before sampling Newton RGB."""
+
+_VISUALIZER_STARTUP_DRAIN_UPDATES = 5
+"""Kit app updates before each flaky retry creates a fresh stage/env."""
+
+_VISUALIZER_SHUTDOWN_DRAIN_UPDATES = 10
+"""Kit app updates after each flaky retry closes visualizer resources."""
+
+_KIT_APP_DRAIN_SLEEP_SECONDS = 0.01
+"""Short sleep between app updates while draining startup/shutdown work."""
 
 PLAY_VIZ_N_STEP = 20
 """Steps to run for each motion or resumed-play segment."""
@@ -433,159 +447,6 @@ def _save_visualizer_debug_image(frame, file_name: str, *, tiled: bool = False) 
     Image.fromarray(rgb).save(debug_dir / file_name)
 
 
-def _log_camera_debug(message: str) -> None:
-    """Print camera debug information when visualizer debug capture is enabled."""
-    if _WRITE_VIS_DEBUG_FRAMES:
-        print(f"[visualizer-debug] {message}", flush=True)
-
-
-def _matrix_to_xyz_euler_degrees(rotation_matrix: np.ndarray) -> tuple[float, float, float]:
-    """Convert a 3x3 rotation matrix to XYZ Euler angles in degrees for debug output."""
-    sy = math.sqrt(rotation_matrix[0, 0] * rotation_matrix[0, 0] + rotation_matrix[1, 0] * rotation_matrix[1, 0])
-    if sy > 1.0e-6:
-        x = math.atan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
-        y = math.atan2(-rotation_matrix[2, 0], sy)
-        z = math.atan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
-    else:
-        x = math.atan2(-rotation_matrix[1, 2], rotation_matrix[1, 1])
-        y = math.atan2(-rotation_matrix[2, 0], sy)
-        z = 0.0
-    return tuple(round(math.degrees(v), 4) for v in (x, y, z))
-
-
-def _log_usd_camera_pose(stage, camera_path: str, *, viz_kind: str, physics_kind: str, label: str) -> None:
-    """Print USD camera world transform when visualizer debug capture is enabled."""
-    if not _WRITE_VIS_DEBUG_FRAMES:
-        return
-    if stage is None or not stage:
-        import omni.usd
-
-        stage = omni.usd.get_context().get_stage()
-    if stage is None or not stage:
-        _log_camera_debug(f"{viz_kind}/{physics_kind}: {label} camera stage unavailable")
-        return
-    prim = stage.GetPrimAtPath(camera_path)
-    if not prim.IsValid():
-        _log_camera_debug(f"{viz_kind}/{physics_kind}: {label} camera prim invalid at {camera_path}")
-        return
-    matrix = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0.0)
-    translation = matrix.ExtractTranslation()
-    rotation_quat = matrix.ExtractRotationQuat()
-    rotation_matrix = np.array(matrix.ExtractRotationMatrix(), dtype=np.float64)
-    rotation_rows = tuple(tuple(round(float(v), 4) for v in row) for row in rotation_matrix)
-    _log_camera_debug(
-        f"{viz_kind}/{physics_kind}: {label} camera world translation={tuple(round(float(v), 4) for v in translation)}"
-    )
-    _log_camera_debug(
-        f"{viz_kind}/{physics_kind}: {label} camera world rotation="
-        f"(real={round(float(rotation_quat.GetReal()), 4)}, "
-        f"imaginary={tuple(round(float(v), 4) for v in rotation_quat.GetImaginary())})"
-    )
-    _log_camera_debug(f"{viz_kind}/{physics_kind}: {label} camera world rotation matrix={rotation_rows}")
-    _log_camera_debug(
-        f"{viz_kind}/{physics_kind}: {label} camera world rotation xyz_euler_deg="
-        f"{_matrix_to_xyz_euler_degrees(rotation_matrix)}"
-    )
-
-
-def _log_frame_stats(frame, *, label: str) -> None:
-    """Print basic image stats for a captured viewport frame."""
-    if not _WRITE_VIS_DEBUG_FRAMES:
-        return
-    rgb = _frame_rgb_255_space(frame)
-    per_bg_delta = np.max(np.abs(rgb - 238.0), axis=-1)
-    _log_camera_debug(
-        f"{label}: frame shape={rgb.shape} min={float(np.min(rgb)):.3f} max={float(np.max(rgb)):.3f} "
-        f"mean={float(np.mean(rgb)):.3f} range={float(np.max(rgb) - np.min(rgb)):.3f} "
-        f"std={float(np.std(rgb)):.3f} non_bg>=5={int(np.count_nonzero(per_bg_delta >= 5))}"
-    )
-
-
-def _log_frame_pair_delta(frame_a, frame_b, *, label: str) -> None:
-    """Print per-frame-pair motion stats for debug captures."""
-    if not _WRITE_VIS_DEBUG_FRAMES:
-        return
-    a = _frame_rgb_255_space(frame_a)
-    b = _frame_rgb_255_space(frame_b)
-    if a.shape != b.shape:
-        _log_camera_debug(f"{label}: frame shape mismatch {a.shape} vs {b.shape}")
-        return
-    delta = np.max(np.abs(a - b), axis=-1)
-    _log_camera_debug(
-        f"{label}: diff_pixels>=5={int(np.count_nonzero(delta >= 5))} "
-        f"diff_pixels>=50={int(np.count_nonzero(delta >= 50))} max_delta={float(np.max(delta)):.3f} "
-        f"mean_delta={float(np.mean(delta)):.3f}"
-    )
-
-
-def _log_kit_viewport_state(env, kit_visualizer: KitVisualizer, camera_path: str, *, label: str) -> None:
-    """Print Kit viewport camera/path state around render-product capture."""
-    if not _WRITE_VIS_DEBUG_FRAMES:
-        return
-    active_camera = None
-    with contextlib.suppress(Exception):
-        if getattr(kit_visualizer, "_viewport_api", None) is not None:
-            active_camera = kit_visualizer._viewport_api.get_active_camera()
-    play_flag = None
-    with contextlib.suppress(Exception):
-        from isaaclab.app.settings_manager import get_settings_manager
-
-        play_flag = get_settings_manager().get("/app/player/playSimulations")
-    _log_camera_debug(
-        f"kit/{label}: requested_camera_path={camera_path} active_camera={active_camera} "
-        f"playSimulations={play_flag} physics_step_count={getattr(env.sim, '_physics_step_count', None)}"
-    )
-    _log_usd_camera_pose(
-        kit_visualizer._scene_data_provider.usd_stage,
-        camera_path,
-        viz_kind="kit",
-        physics_kind=label,
-        label="viewport",
-    )
-
-
-def _log_usd_prim_pose(stage, prim_path: str, *, label: str) -> None:
-    """Print one USD prim transform if it exists."""
-    if not _WRITE_VIS_DEBUG_FRAMES:
-        return
-    prim = stage.GetPrimAtPath(prim_path) if stage is not None else None
-    if prim is None or not prim.IsValid():
-        _log_camera_debug(f"{label}: prim invalid at {prim_path}")
-        return
-    matrix = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0.0)
-    translation = matrix.ExtractTranslation()
-    _log_camera_debug(f"{label}: {prim_path} usd_translation={tuple(round(float(v), 4) for v in translation)}")
-
-
-def _log_cartpole_runtime_state(env, *, label: str) -> None:
-    """Print cartpole sim data and USD transforms to diagnose render staleness."""
-    if not _WRITE_VIS_DEBUG_FRAMES:
-        return
-    cartpole = env.scene.articulations["cartpole"]
-    try:
-        joint_pos = cartpole.data.joint_pos.torch[0].detach().cpu().tolist()
-        joint_vel = cartpole.data.joint_vel.torch[0].detach().cpu().tolist()
-        body_pos = cartpole.data.body_pos_w.torch[0].detach().cpu()
-        body_names = list(cartpole.body_names)
-        body_summary = {
-            name: tuple(round(float(v), 4) for v in body_pos[idx].tolist()) for idx, name in enumerate(body_names[:4])
-        }
-        _log_camera_debug(
-            f"{label}: joint_pos={tuple(round(float(v), 5) for v in joint_pos)} "
-            f"joint_vel={tuple(round(float(v), 5) for v in joint_vel)} body_pos={body_summary}"
-        )
-    except Exception as exc:
-        _log_camera_debug(f"{label}: failed to read cartpole runtime state: {exc}")
-
-    stage = sim_utils.get_current_stage()
-    for prim_path in (
-        "/World/envs/env_0/Robot",
-        "/World/envs/env_0/Robot/cart",
-        "/World/envs/env_0/Robot/pole",
-    ):
-        _log_usd_prim_pose(stage, prim_path, label=label)
-
-
 def _save_visualizer_debug_delta(frame_a, frame_b, file_name: str, *, tiled: bool = False) -> None:
     """Save an amplified absolute-difference image for a start/end frame pair."""
     if not _WRITE_VIS_DEBUG_FRAMES:
@@ -803,10 +664,12 @@ def _set_newton_rendering_paused(viewer, paused: bool) -> None:
         _select_newton_pause_rendering_button(viewer)
 
 
-def _newton_camera_front(camera) -> tuple[float, float, float]:
-    """Return Newton camera front vector."""
-    front = camera.get_front()
-    return tuple(float(v) for v in front)
+def _warm_newton_viewer(visualizer: NewtonVisualizer, viewer) -> None:
+    """Pump Newton viewer frames before sampling ``get_frame()`` after cold starts."""
+    for _ in range(_NEWTON_VIEWER_WARMUP_FRAMES):
+        visualizer.step(0.0)
+        with contextlib.suppress(Exception):
+            viewer.get_frame()
 
 
 def _run_newton_viewer_frame_motion_test(
@@ -822,12 +685,9 @@ def _run_newton_viewer_frame_motion_test(
     """Check Newton viewer motion, rendering pause, simulation pause, and resumed motion."""
     _clear_visualizer_debug_frames()
     case_label = _visualizer_case_label(viz_kind, physics_kind)
-    _log_camera_debug(
-        f"{viz_kind}/{physics_kind}: viewer camera pos={tuple(float(v) for v in viewer.camera.pos)} "
-        f"dir={_newton_camera_front(viewer.camera)}"
-    )
     for _ in range(_START_BUFFER_STEPS):
         step_hook()
+    _warm_newton_viewer(visualizer, viewer)
 
     motion_start_frame = viewer.get_frame()
     for _ in range(PLAY_VIZ_N_STEP):
@@ -1047,15 +907,52 @@ def _update_active_simulation_app() -> None:
     sim_app.update()
 
 
+def _drain_kit_app_updates(num_updates: int) -> None:
+    """Let Kit process pending renderer/extension work between retry attempts."""
+    for _ in range(max(0, int(num_updates))):
+        with contextlib.suppress(Exception):
+            _update_active_simulation_app()
+        time.sleep(_KIT_APP_DRAIN_SLEEP_SECONDS)
+
+
+def _prepare_visualizer_test_process() -> None:
+    """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
+    with contextlib.suppress(Exception):
+        SimulationContext.clear_instance()
+    _drain_kit_app_updates(_VISUALIZER_STARTUP_DRAIN_UPDATES)
+
+
+def _cleanup_visualizer_test_process(env) -> None:
+    """Close per-test resources and drain Kit so state does not leak into retries."""
+    try:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+    finally:
+        with contextlib.suppress(Exception):
+            SimulationContext.clear_instance()
+        gc.collect()
+        if torch.cuda.is_available():
+            with contextlib.suppress(Exception):
+                torch.cuda.empty_cache()
+        _drain_kit_app_updates(_VISUALIZER_SHUTDOWN_DRAIN_UPDATES)
+
+
 def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
     """Re-apply Kit camera pose after Newton MJWarp stage/render-product setup settles."""
-    _log_camera_debug(
-        f"kit/reapply: cfg eye={tuple(float(v) for v in kit_visualizer.cfg.eye)} "
-        f"lookat={tuple(float(v) for v in kit_visualizer.cfg.lookat)}"
-    )
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     env.sim.render()
     _update_active_simulation_app()
+
+
+def _warm_kit_rtx_render_product(env, annotator) -> None:
+    """Pump Kit/RTX render-product updates before sampling the annotator after cold starts."""
+    for _ in range(_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS):
+        env.sim.render()
+        _update_active_simulation_app()
+        with contextlib.suppress(Exception):
+            annotator.get_data()
 
 
 def _run_kit_viewport_frame_motion_test(
@@ -1070,50 +967,23 @@ def _run_kit_viewport_frame_motion_test(
     case_label = _visualizer_case_label(viz_kind, physics_kind)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
     assert camera_path, "Kit visualizer does not expose a controlled viewport camera path."
-    _log_camera_debug(f"{viz_kind}/{physics_kind}: controlled camera path={camera_path}")
-    _log_camera_debug(f"{viz_kind}/{physics_kind}: cfg eye={kit_visualizer.cfg.eye} lookat={kit_visualizer.cfg.lookat}")
-    _log_usd_camera_pose(
-        kit_visualizer._scene_data_provider.usd_stage,
-        camera_path,
-        viz_kind=viz_kind,
-        physics_kind=physics_kind,
-        label="initial",
-    )
 
     annotator = None
     render_product = None
     try:
-        _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/before_render_product")
         annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
-        _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/after_render_product")
+        _warm_kit_rtx_render_product(env, annotator)
         # TODO: Remove this workaround step during the Visualizer class refactor
         if viz_kind == "kit" and physics_kind == "newton":
             _reapply_kit_camera_pose(env, kit_visualizer)
-            _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/after_reapply")
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
         for _ in range(_START_BUFFER_STEPS):
             env.step(action=actions)
-        _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/after_warmup")
-        warmup_body_state = _cartpole_body_state(env)
-        _log_cartpole_runtime_state(env, label=f"kit/{physics_kind}/after_warmup")
         motion_start_frame = _capture_kit_viewport_rgb(annotator)
-        _log_frame_stats(motion_start_frame, label=f"kit/{physics_kind}/1a_playing_frame_00")
         for _ in range(PLAY_VIZ_N_STEP):
             env.step(action=actions)
         play_end_idx = PLAY_VIZ_N_STEP
-        _log_kit_viewport_state(env, kit_visualizer, camera_path, label=f"{physics_kind}/after_play")
-        play_body_state = _cartpole_body_state(env)
-        _log_cartpole_runtime_state(env, label=f"kit/{physics_kind}/after_play")
-        _log_camera_debug(
-            f"kit/{physics_kind}/playing_body_delta={_body_state_delta(warmup_body_state, play_body_state):.6g}"
-        )
         motion_end_frame = _capture_kit_viewport_rgb(annotator)
-        _log_frame_stats(motion_end_frame, label=f"kit/{physics_kind}/1b_playing_frame_20")
-        _log_frame_pair_delta(
-            motion_start_frame,
-            motion_end_frame,
-            label=f"kit/{physics_kind}/1a_to_1b",
-        )
         _save_visualizer_debug_phase_images(
             motion_start_frame,
             motion_end_frame,
@@ -1137,11 +1007,9 @@ def _run_kit_viewport_frame_motion_test(
         def _attempt_kit_pause():
             _set_kit_simulation_paused(env, True)
             paused_start_frame = _capture_kit_viewport_rgb(annotator)
-            _log_frame_stats(paused_start_frame, label=f"kit/{physics_kind}/2a_pausing_frame_20")
             for _ in range(PAUSE_VIZ_N_STEP):
                 env.sim.render()
             paused_end_frame = _capture_kit_viewport_rgb(annotator)
-            _log_frame_stats(paused_end_frame, label=f"kit/{physics_kind}/2b_pausing_frame_25")
             _save_visualizer_debug_phase_images(
                 paused_start_frame,
                 paused_end_frame,
@@ -1169,18 +1037,9 @@ def _run_kit_viewport_frame_motion_test(
         def _attempt_kit_replay():
             _set_kit_simulation_paused(env, False)
             play_start_frame = _capture_kit_viewport_rgb(annotator)
-            _log_frame_stats(play_start_frame, label=f"kit/{physics_kind}/3a_playing_frame_25")
             for _ in range(PLAY_VIZ_N_STEP):
                 env.step(action=actions)
             play_end_frame = _capture_kit_viewport_rgb(annotator)
-            _log_frame_stats(play_end_frame, label=f"kit/{physics_kind}/3b_playing_frame_45")
-            _log_usd_camera_pose(
-                kit_visualizer._scene_data_provider.usd_stage,
-                camera_path,
-                viz_kind=viz_kind,
-                physics_kind=physics_kind,
-                label="final",
-            )
             _save_visualizer_debug_phase_images(
                 play_start_frame,
                 play_end_frame,
@@ -1227,133 +1086,10 @@ def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") 
             _update_active_simulation_app()
         camera_sensor.update(dt=0.0, force_recompute=True)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
-    if _WRITE_VIS_DEBUG_FRAMES:
-        _log_visualizer_tiled_camera_state(visualizer, camera_indices, rgb_batch, label=label)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()
     assert frame.ndim == 3, f"Expected tiled camera RGB frame to be HxWxC, got shape {frame.shape}."
     assert frame.shape[-1] >= 3, f"Expected tiled camera RGB frame to have at least 3 channels, got {frame.shape}."
     return frame[..., :3]
-
-
-def _log_visualizer_tiled_camera_state(
-    visualizer, camera_indices: list[int], rgb_batch: torch.Tensor, *, label: str
-) -> None:
-    """Print generated tiled-camera pose and image-buffer diagnostics."""
-    cfg = visualizer.cfg
-    _log_camera_debug(
-        f"{visualizer.__class__.__name__}/{label}: tiled cfg env_indices={camera_indices} "
-        f"target={cfg.tiled_cam_target_prim_path!r} eye_offset={cfg.tiled_cam_eye}"
-    )
-    _log_camera_debug(
-        f"{visualizer.__class__.__name__}/{label}: "
-        f"camera_sensor_indices={visualizer._camera_sensor_indices} "
-        f"camera_env_indices={visualizer._camera_env_indices} "
-        f"generated_paths={visualizer._generated_camera_prim_paths}"
-    )
-
-    try:
-        stage = visualizer._scene_data_provider.get_usd_stage()
-        scene = visualizer._scene_data_provider.get_interactive_scene()
-    except Exception as exc:
-        _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: scene data provider unavailable: {exc}")
-        stage = None
-        scene = None
-    try:
-        target_positions = prim_world_positions(stage, cfg.tiled_cam_target_prim_path, camera_indices, scene=scene)
-        rounded_targets = [
-            tuple(round(float(value), 4) for value in row) for row in target_positions.detach().cpu().tolist()
-        ]
-        _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: resolved target positions={rounded_targets}")
-    except Exception as exc:
-        _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: failed to resolve target positions: {exc}")
-
-    _log_camera_sensor_pose_buffers(visualizer, camera_indices, label=label)
-    _log_scene_tiled_camera_rgb(visualizer, camera_indices, label=label)
-
-    for local_idx, env_id in enumerate(camera_indices):
-        if 0 <= local_idx < len(visualizer._generated_camera_prim_paths):
-            camera_path = visualizer._generated_camera_prim_paths[local_idx]
-        else:
-            camera_path = f"/World/envs/env_{int(env_id)}/VisualizerCamera"
-        _log_usd_camera_pose(
-            stage,
-            camera_path,
-            viz_kind=visualizer.__class__.__name__,
-            physics_kind=label,
-            label=f"env_{int(env_id)} tiled",
-        )
-
-    rgb_cpu = rgb_batch.detach().cpu()
-    _log_camera_debug(
-        f"{visualizer.__class__.__name__}/{label}: rgb_batch shape={tuple(rgb_cpu.shape)} "
-        f"dtype={rgb_cpu.dtype} min={float(rgb_cpu.min()):.3f} max={float(rgb_cpu.max()):.3f} "
-        f"mean={float(rgb_cpu.float().mean()):.3f}"
-    )
-    per_tile_rgb = rgb_cpu[..., :3].float()
-    if per_tile_rgb.ndim == 3:
-        per_tile_rgb = per_tile_rgb.unsqueeze(0)
-    per_tile_max_delta = torch.max(torch.abs(per_tile_rgb - 238.0), dim=-1).values
-    logged_indices = camera_indices[: per_tile_rgb.shape[0]]
-    if per_tile_rgb.shape[0] != len(camera_indices):
-        _log_camera_debug(
-            f"{visualizer.__class__.__name__}/{label}: tile count mismatch "
-            f"rgb_tiles={per_tile_rgb.shape[0]} camera_indices={camera_indices}"
-        )
-    for tile_idx, env_id in enumerate(logged_indices):
-        tile = per_tile_rgb[tile_idx]
-        _log_camera_debug(
-            f"{visualizer.__class__.__name__}/{label}: tile[{tile_idx}] env={int(env_id)} "
-            f"range={float(tile.max() - tile.min()):.3f} "
-            f"std={float(tile.std()):.3f} "
-            f"non_bg>=5={int(torch.count_nonzero(per_tile_max_delta[tile_idx] >= 5).item())}"
-        )
-
-
-def _camera_debug_tensor(value) -> torch.Tensor:
-    """Convert Camera/ProxyArray diagnostics to a CPU tensor for logging."""
-    if isinstance(value, wp.array):
-        return wp.to_torch(value).detach().cpu()
-    if hasattr(value, "torch"):
-        return value.torch.detach().cpu()
-    if isinstance(value, torch.Tensor):
-        return value.detach().cpu()
-    return torch.as_tensor(value).detach().cpu()
-
-
-def _log_camera_sensor_pose_buffers(visualizer, camera_indices: list[int], *, label: str) -> None:
-    """Print the Camera sensor's own pose buffers for the selected tiles."""
-    camera_sensor = visualizer._camera_sensor
-    try:
-        pos_w = _camera_debug_tensor(camera_sensor.data.pos_w)[camera_indices]
-        quat_w_world = _camera_debug_tensor(camera_sensor.data.quat_w_world)[camera_indices]
-        quat_w_opengl = _camera_debug_tensor(camera_sensor.data.quat_w_opengl)[camera_indices]
-    except Exception as exc:
-        _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: failed to read camera data poses: {exc}")
-        return
-    rounded_positions = [tuple(round(float(value), 4) for value in row) for row in pos_w.tolist()]
-    rounded_world_quats = [tuple(round(float(value), 4) for value in row) for row in quat_w_world.tolist()]
-    rounded_opengl_quats = [tuple(round(float(value), 4) for value in row) for row in quat_w_opengl.tolist()]
-    _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: sensor data pos_w={rounded_positions}")
-    _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: sensor data quat_w_world={rounded_world_quats}")
-    _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: sensor data quat_w_opengl={rounded_opengl_quats}")
-
-
-def _log_scene_tiled_camera_rgb(visualizer, camera_indices: list[int], *, label: str) -> None:
-    """Print stats for the env-owned tiled camera, when present, as a renderer sanity check."""
-    try:
-        scene = visualizer._scene_data_provider.get_interactive_scene()
-        scene_camera = scene.sensors.get("tiled_camera")
-        if scene_camera is None:
-            return
-        scene_camera.update(dt=0.0, force_recompute=True)
-        rgb = camera_rgb_batch(scene_camera, camera_indices).detach().cpu()
-    except Exception as exc:
-        _log_camera_debug(f"{visualizer.__class__.__name__}/{label}: failed to sample scene tiled camera: {exc}")
-        return
-    _log_camera_debug(
-        f"{visualizer.__class__.__name__}/{label}: scene tiled_camera rgb shape={tuple(rgb.shape)} "
-        f"min={float(rgb.min()):.3f} max={float(rgb.max()):.3f} mean={float(rgb.float().mean()):.3f}"
-    )
 
 
 def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: str, viz_kind: str) -> None:
@@ -1485,6 +1221,7 @@ def run_cartpole_env_visualizers_motion_with_play_pause(backend_kind: str, caplo
     """Cartpole env + all non-tiled visualizers: frame checks and no visualizer log errors."""
     env = None
     try:
+        _prepare_visualizer_test_process()
         sim_utils.create_new_stage()
         env = _make_cartpole_camera_env(
             visualizer_kind=("kit", "newton", "rerun", "viser"),
@@ -1531,16 +1268,14 @@ def run_cartpole_env_visualizers_motion_with_play_pause(backend_kind: str, caplo
             _step_env_without_frame_check(env, actions, max_steps=_MAX_FRAME_CHECK_STEPS)
         _assert_no_visualizer_log_issues(caplog)
     finally:
-        if env is not None:
-            env.close()
-        else:
-            SimulationContext.clear_instance()
+        _cleanup_visualizer_test_process(env)
 
 
 def run_cartpole_env_visualizers_tiled_camera_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Cartpole env + tiled Kit/Newton visualizers: RGB moves, pauses, and resumes without log errors."""
     env = None
     try:
+        _prepare_visualizer_test_process()
         sim_utils.create_new_stage()
         env = _make_cartpole_camera_env(
             visualizer_kind=("kit", "newton"),
@@ -1565,7 +1300,4 @@ def run_cartpole_env_visualizers_tiled_camera_motion(backend_kind: str, caplog: 
                 )
         _assert_no_visualizer_log_issues(caplog)
     finally:
-        if env is not None:
-            env.close()
-        else:
-            SimulationContext.clear_instance()
+        _cleanup_visualizer_test_process(env)

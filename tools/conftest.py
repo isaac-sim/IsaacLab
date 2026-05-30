@@ -51,6 +51,14 @@ STARTUP_HANG_RETRIES = 2
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
+PROCESS_FAILURE_RETRIES_BY_FILE = {
+    "test_visualizer_integration_physx.py": 4,
+    "test_visualizer_integration_newton.py": 4,
+    "test_visualizer_tiled_integration_physx.py": 4,
+    "test_visualizer_tiled_integration_newton.py": 4,
+}
+"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
+
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
 
@@ -304,6 +312,94 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
+def _read_test_report(report_file, file_name):
+    """Read a pytest JUnit report and return its summary fields."""
+    report = JUnitXml.fromfile(report_file)
+    for suite in report:
+        if suite.name == "pytest":
+            suite.name = os.path.splitext(file_name)[0]
+    report.write(report_file)
+
+    errors = int(report.errors) if report.errors is not None else 0
+    failures = int(report.failures) if report.failures is not None else 0
+    skipped = int(report.skipped) if report.skipped is not None else 0
+    tests = int(report.tests) if report.tests is not None else 0
+    time_elapsed = float(report.time) if report.time is not None else 0.0
+    return report, errors, failures, skipped, tests, time_elapsed
+
+
+def _retry_failed_test_in_fresh_process(
+    *,
+    test_file,
+    file_name,
+    cmd,
+    timeout,
+    env,
+    startup_deadline,
+    report_file,
+    report,
+    errors,
+    failures,
+    skipped,
+    tests,
+    time_elapsed,
+    returncode,
+    stdout_data,
+    stderr_data,
+    kill_reason,
+    wall_time,
+    pre_kill_diag,
+):
+    """Retry selected failed test files in a fresh subprocess."""
+    has_test_failures = errors > 0 or failures > 0
+    process_failure_attempts = 0
+    max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
+
+    while has_test_failures and process_failure_attempts < max_process_failure_retries:
+        process_failure_attempts += 1
+        print(
+            f"⚠️  {test_file}: failed in subprocess"
+            f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
+        )
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(report_file)
+
+        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
+        )
+        if not os.path.exists(report_file):
+            break
+
+        try:
+            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
+            has_test_failures = errors > 0 or failures > 0
+        except Exception as e:
+            print(f"Error reading retry test report {report_file}: {e}")
+            has_test_failures = True
+            errors = 1
+            failures = 0
+            skipped = 0
+            tests = 0
+            time_elapsed = 0.0
+            break
+
+    return (
+        report,
+        errors,
+        failures,
+        skipped,
+        tests,
+        time_elapsed,
+        returncode,
+        stdout_data,
+        stderr_data,
+        kill_reason,
+        wall_time,
+        pre_kill_diag,
+        has_test_failures,
+    )
+
+
 def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
@@ -506,18 +602,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             print(f"⚠️  {test_file}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)")
 
         try:
-            report = JUnitXml.fromfile(report_file)
-            for suite in report:
-                if suite.name == "pytest":
-                    suite.name = os.path.splitext(file_name)[0]
-            report.write(report_file)
-            xml_reports.append(report)
-
-            errors = int(report.errors) if report.errors is not None else 0
-            failures = int(report.failures) if report.failures is not None else 0
-            skipped = int(report.skipped) if report.skipped is not None else 0
-            tests = int(report.tests) if report.tests is not None else 0
-            time_elapsed = float(report.time) if report.time is not None else 0.0
+            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
         except Exception as e:
             print(f"Error reading test report {report_file}: {e}")
             failed_tests.append(test_file)
@@ -533,6 +618,43 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             continue
 
         has_test_failures = errors > 0 or failures > 0
+        (
+            report,
+            errors,
+            failures,
+            skipped,
+            tests,
+            time_elapsed,
+            returncode,
+            stdout_data,
+            stderr_data,
+            kill_reason,
+            wall_time,
+            pre_kill_diag,
+            has_test_failures,
+        ) = _retry_failed_test_in_fresh_process(
+            test_file=test_file,
+            file_name=file_name,
+            cmd=cmd,
+            timeout=timeout,
+            env=env,
+            startup_deadline=startup_deadline,
+            report_file=report_file,
+            report=report,
+            errors=errors,
+            failures=failures,
+            skipped=skipped,
+            tests=tests,
+            time_elapsed=time_elapsed,
+            returncode=returncode,
+            stdout_data=stdout_data,
+            stderr_data=stderr_data,
+            kill_reason=kill_reason,
+            wall_time=wall_time,
+            pre_kill_diag=pre_kill_diag,
+        )
+
+        xml_reports.append(report)
         shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
 
         if has_test_failures or (returncode != 0 and not shutdown_hanged):

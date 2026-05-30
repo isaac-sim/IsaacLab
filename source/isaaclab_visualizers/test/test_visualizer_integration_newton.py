@@ -25,7 +25,7 @@ _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
 run_cartpole_env_visualizers_motion_with_play_pause = _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.flaky(max_runs=5, min_passes=1)]
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.flaky(max_runs=2, min_passes=1)]
 
 
 def test_cartpole_env_visualizers_motion_with_play_pause_newton(caplog: pytest.LogCaptureFixture) -> None:
