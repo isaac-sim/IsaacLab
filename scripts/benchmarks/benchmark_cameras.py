@@ -25,6 +25,7 @@ through the auto-tune functionality.
 
 import argparse
 from collections.abc import Callable
+from dataclasses import MISSING
 
 from isaaclab.app import AppLauncher
 
@@ -277,6 +278,21 @@ Camera Creation
 """
 
 
+def _get_camera_class_name(camera_cfg: type[CameraCfg]) -> str:
+    """Return the configured camera sensor class name."""
+    class_type_field = camera_cfg.__dataclass_fields__["class_type"]
+    if class_type_field.default is not MISSING:
+        class_type = class_type_field.default
+    elif class_type_field.default_factory is not MISSING:
+        class_type = class_type_field.default_factory()
+    else:
+        raise AttributeError(f"{camera_cfg.__name__} has no default class_type.")
+
+    if hasattr(class_type, "__name__"):
+        return class_type.__name__
+    return str(class_type).rsplit(":", maxsplit=1)[-1]
+
+
 def create_camera_base(
     camera_cfg: type[CameraCfg],
     num_cams: int,
@@ -288,31 +304,27 @@ def create_camera_base(
 ) -> Camera | CameraCfg | None:
     """Generalized function to create a camera or tiled camera sensor."""
     # If valid camera settings are provided, create the camera
-    if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
-        cfg = camera_cfg(
-            prim_path=prim_path if prim_path is not None else "",
-            update_period=0,
-            height=height,
-            width=width,
-            data_types=data_types,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
-            ),
-        )
-        # Determine prim prefix based on the resolved camera class.
-        name = cfg.class_type.__name__
-        if instantiate:
-            # Create the necessary prims
-            for idx in range(num_cams):
-                sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
-        if prim_path is None:
-            cfg.prim_path = f"/World/{name}_.*/{name}"
-        if instantiate:
-            return cfg.class_type(cfg=cfg)
-        else:
-            return cfg
-    else:
+    if num_cams <= 0 or len(data_types) <= 0 or height <= 0 or width <= 0:
         return None
+
+    name = _get_camera_class_name(camera_cfg)
+    cfg = camera_cfg(
+        prim_path=prim_path if prim_path is not None else f"/World/{name}_.*/{name}",
+        update_period=0,
+        height=height,
+        width=width,
+        data_types=data_types,
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
+        ),
+    )
+    if instantiate:
+        # Create the necessary prims
+        for idx in range(num_cams):
+            sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
+        return cfg.class_type(cfg=cfg)
+
+    return cfg
 
 
 def create_tiled_cameras(
