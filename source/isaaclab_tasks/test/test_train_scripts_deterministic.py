@@ -15,7 +15,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import tomllib
 from packaging.requirements import Requirement
 from packaging.version import Version
 from tensorboard.backend.event_processing import event_accumulator
@@ -43,22 +42,29 @@ def _module_string_constant(tree: ast.AST, name: str) -> str:
 
 
 def _source_skrl_min_version() -> Version:
-    with (REPO_ROOT / "source/isaaclab_rl/pyproject.toml").open("rb") as f:
-        data = tomllib.load(f)
+    """Return the skrl lower bound declared by ``source/isaaclab_rl/setup.py``."""
+    setup_path = REPO_ROOT / "source/isaaclab_rl/setup.py"
+    module = ast.parse(setup_path.read_text(encoding="utf-8"))
 
-    for dependency in data["project"]["optional-dependencies"]["skrl"]:
-        requirement = Requirement(dependency)
-        if requirement.name != "skrl":
+    for node in module.body:
+        if not isinstance(node, ast.Assign):
             continue
-        lower_bounds = [
-            Version(specifier.version)
-            for specifier in requirement.specifier
-            if specifier.operator in {">=", "==", "~="}
-        ]
-        if lower_bounds:
-            return max(lower_bounds)
+        if not any(isinstance(target, ast.Name) and target.id == "EXTRAS_REQUIRE" for target in node.targets):
+            continue
+        extras_require = ast.literal_eval(node.value)
+        for dependency in extras_require["skrl"]:
+            requirement = Requirement(dependency)
+            if requirement.name != "skrl":
+                continue
+            lower_bounds = [
+                Version(specifier.version)
+                for specifier in requirement.specifier
+                if specifier.operator in {">=", "==", "~="}
+            ]
+            if lower_bounds:
+                return max(lower_bounds)
 
-    raise AssertionError("Could not find skrl lower bound in source/isaaclab_rl/pyproject.toml")
+    raise AssertionError("Could not find skrl lower bound in source/isaaclab_rl/setup.py")
 
 
 def _called_name(call: ast.Call) -> str | None:
