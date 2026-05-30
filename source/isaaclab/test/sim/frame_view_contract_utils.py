@@ -409,3 +409,107 @@ def test_return_types_are_torcharray(device, view_factory):
         )
     finally:
         bundle.teardown()
+
+
+# ==================================================================
+# Contract: Scales
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_local_scales_default_identity(device, view_factory):
+    """Local scales are (1, 1, 1) by default (no authored scale transforms)."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        scales = _t(bundle.view.get_local_scales())
+        expected = torch.ones(2, 3, device=device)
+        torch.testing.assert_close(scales, expected, atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_world_scales_default_identity(device, view_factory):
+    """World scales are (1, 1, 1) by default (no authored scale transforms)."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        scales = _t(bundle.view.get_world_scales())
+        expected = torch.ones(2, 3, device=device)
+        torch.testing.assert_close(scales, expected, atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_set_local_scales_roundtrip(device, view_factory):
+    """set_local_scales -> get_local_scales returns the same values."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        new_scales = _wp_vec3f([[2.0, 3.0, 4.0], [0.5, 1.5, 2.5]], device=device)
+        bundle.view.set_local_scales(new_scales)
+
+        ret_scales = _t(bundle.view.get_local_scales())
+        torch.testing.assert_close(ret_scales, _t(new_scales), atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_set_world_scales_roundtrip(device, view_factory):
+    """set_world_scales -> get_world_scales returns the same values."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        new_scales = _wp_vec3f([[2.0, 3.0, 4.0], [0.5, 1.5, 2.5]], device=device)
+        bundle.view.set_world_scales(new_scales)
+
+        ret_scales = _t(bundle.view.get_world_scales())
+        torch.testing.assert_close(ret_scales, _t(new_scales), atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_local_scales_do_not_affect_local_poses(device, view_factory):
+    """Changing scales does not change local pose translations/orientations."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        local_pos_before = _t(bundle.view.get_local_poses()[0]).clone()
+        local_ori_before = _t(bundle.view.get_local_poses()[1]).clone()
+
+        new_scales = _wp_vec3f([[3.0, 3.0, 3.0], [5.0, 5.0, 5.0]], device=device)
+        bundle.view.set_local_scales(new_scales)
+
+        local_pos_after = _t(bundle.view.get_local_poses()[0])
+        local_ori_after = _t(bundle.view.get_local_poses()[1])
+
+        torch.testing.assert_close(local_pos_after, local_pos_before, atol=ATOL, rtol=0)
+        torch.testing.assert_close(local_ori_after, local_ori_before, atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_scale_getters_return_proxyarray(device, view_factory):
+    """Public API contract -- scale getters return ProxyArray."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        local_scales = bundle.view.get_local_scales()
+        assert isinstance(local_scales, ProxyArray), (
+            f"get_local_scales() must return ProxyArray, got {type(local_scales).__name__}"
+        )
+        world_scales = bundle.view.get_world_scales()
+        assert isinstance(world_scales, ProxyArray), (
+            f"get_world_scales() must return ProxyArray, got {type(world_scales).__name__}"
+        )
+
+        indices = wp.array([0], dtype=wp.int32, device=bundle.view.device)
+        local_indexed = bundle.view.get_local_scales(indices)
+        assert isinstance(local_indexed, ProxyArray), (
+            f"get_local_scales(indices) must return ProxyArray, got {type(local_indexed).__name__}"
+        )
+        world_indexed = bundle.view.get_world_scales(indices)
+        assert isinstance(world_indexed, ProxyArray), (
+            f"get_world_scales(indices) must return ProxyArray, got {type(world_indexed).__name__}"
+        )
+    finally:
+        bundle.teardown()

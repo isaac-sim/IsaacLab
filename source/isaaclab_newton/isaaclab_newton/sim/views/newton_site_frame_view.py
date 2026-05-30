@@ -884,7 +884,7 @@ class NewtonSiteFrameView(BaseFrameView):
     # Scales
     # ------------------------------------------------------------------
 
-    def get_local_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get local-space scales.
 
         .. note::
@@ -892,11 +892,11 @@ class NewtonSiteFrameView(BaseFrameView):
             get_local_scales returns the same value since Newton does not
             decompose parent/child scale independently.
         """
-        return self._get_shape_scales(indices)
+        return ProxyArray(self._get_shape_scales(indices))
 
-    def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get world-space (composed) scales from Newton shape_scale."""
-        return self._get_shape_scales(indices)
+        return ProxyArray(self._get_shape_scales(indices))
 
     def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set local-space scales.
@@ -913,7 +913,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_scales_default(self, indices=None):
         """Newton default: get_scales returns shape_scale (world-like)."""
-        return self.get_world_scales(indices)
+        return self.get_world_scales(indices).warp
 
     def _set_scales_default(self, scales, indices=None):
         """Newton default: set_scales writes shape_scale (world-like)."""

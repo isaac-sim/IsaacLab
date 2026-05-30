@@ -99,7 +99,7 @@ class BaseFrameView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_local_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get local-space scales for prims in the view.
 
         Returns the per-prim scale as stored in local space (``xformOp:scale``
@@ -109,7 +109,7 @@ class BaseFrameView(abc.ABC):
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
         """
         ...
 
@@ -127,16 +127,23 @@ class BaseFrameView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get world-space (composed) scales for prims in the view.
 
         Returns the effective scale in world space (``parent_scale * local_scale``).
+
+        .. note::
+            Scale extraction uses TRS (Translation-Rotation-Scale) decomposition,
+            which assumes no shear/skew in the transform matrix.  If a prim's
+            world transform contains shear, the extracted scale values will be
+            approximate.  A warning is emitted at initialization time when sheared
+            parent transforms are detected.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
         """
         ...
 

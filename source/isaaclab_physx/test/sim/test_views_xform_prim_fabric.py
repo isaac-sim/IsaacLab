@@ -274,7 +274,7 @@ def test_get_scales_fabric_path(device, view_factory):
     view.get_world_poses()
 
     scales = view.get_world_scales()
-    scales_t = torch.as_tensor(scales, device=device)
+    scales_t = scales.torch
     # Default scale should be (1, 1, 1)
     expected = torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(scales_t, expected, atol=1e-4, rtol=0)
@@ -297,7 +297,7 @@ def test_local_scales_roundtrip(device, view_factory):
     assert view._dirty.name == "WORLD"
 
     ret_scales = view.get_local_scales()
-    scales_torch = torch.as_tensor(ret_scales, device=device)
+    scales_torch = ret_scales.torch
     expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
     torch.testing.assert_close(scales_torch, expected, atol=1e-5, rtol=0)
 
@@ -319,7 +319,7 @@ def test_world_scales_roundtrip(device, view_factory):
     assert view._dirty.name == "LOCAL"
 
     ret_scales = view.get_world_scales()
-    scales_torch = torch.as_tensor(ret_scales, device=device)
+    scales_torch = ret_scales.torch
     expected = torch.tensor([[5.0, 6.0, 7.0], [5.0, 6.0, 7.0]], device=device)
     torch.testing.assert_close(scales_torch, expected, atol=1e-5, rtol=0)
 
@@ -441,7 +441,7 @@ def test_initial_seed_with_scaled_parent(device):
         rtol=0,
     )
 
-    scales = torch.as_tensor(view.get_world_scales(), device=device)
+    scales = view.get_world_scales().torch
     torch.testing.assert_close(
         scales,
         torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device),
@@ -628,7 +628,7 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     view.set_world_scales(new_scales)
 
     ret_scales = view.get_world_scales()
-    scales_torch = torch.as_tensor(ret_scales, device=device)
+    scales_torch = ret_scales.torch
     expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
     assert torch.allclose(scales_torch, expected, atol=1e-7), f"Scales roundtrip failed on {device}: {scales_torch}"
 

@@ -834,7 +834,7 @@ class OvPhysxFrameView(BaseFrameView):
             )
         return self._usd_view
 
-    def get_local_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get local-space scales (xformOp:scale) via the USD view.
 
         .. note::
@@ -849,11 +849,11 @@ class OvPhysxFrameView(BaseFrameView):
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
         """
         return self._ensure_usd_view().get_local_scales(indices)
 
-    def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get world-space (composed) scales via the USD view."""
         return self._ensure_usd_view().get_world_scales(indices)
 
@@ -878,7 +878,7 @@ class OvPhysxFrameView(BaseFrameView):
 
     def _get_scales_default(self, indices=None):
         """OvPhysX default: get_scales returns local scales (same as USD)."""
-        return self.get_local_scales(indices)
+        return self.get_local_scales(indices).warp
 
     def _set_scales_default(self, scales, indices=None):
         """OvPhysX default: set_scales writes local scales (same as USD)."""

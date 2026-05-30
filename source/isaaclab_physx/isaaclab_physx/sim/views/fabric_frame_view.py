@@ -467,6 +467,7 @@ class FabricFrameView(BaseFrameView):
 
         if use_cached:
             wp.synchronize()
+            return self._fabric_scales_ta
         return ProxyArray(scales_wp)
 
     def set_local_scales(self, scales, indices=None):
@@ -546,11 +547,12 @@ class FabricFrameView(BaseFrameView):
 
         if use_cached:
             wp.synchronize()
-        return scales_wp
+            return self._fabric_scales_ta
+        return ProxyArray(scales_wp)
 
     def _get_scales_default(self, indices=None):
         """Fabric default: get_scales returns world scales (backwards compat)."""
-        return self.get_world_scales(indices)
+        return self.get_world_scales(indices).warp
 
     def _set_scales_default(self, scales, indices=None):
         """Fabric default: set_scales writes world scales (backwards compat)."""
@@ -774,6 +776,7 @@ class FabricFrameView(BaseFrameView):
 
         self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
         self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
+        self._fabric_scales_ta = ProxyArray(self._fabric_scales_buf)
         self._fabric_local_translations_ta = ProxyArray(self._fabric_local_translations_buf)
         self._fabric_local_orientations_ta = ProxyArray(self._fabric_local_orientations_buf)
 
@@ -799,14 +802,7 @@ class FabricFrameView(BaseFrameView):
         # by ``_recompute_world_from_local()`` at the end of this method as
         # ``child_world = child_local * parent_world``, which naturally
         # composes scales through the matrix multiplication.
-        scales_obj = self._usd_view.get_local_scales()
-        scales_wp = (
-            scales_obj.warp
-            if hasattr(scales_obj, "warp")
-            else scales_obj
-            if isinstance(scales_obj, wp.array)
-            else self._fabric_empty_2d_array_sentinel
-        )
+        scales_wp = _to_float32_2d(self._usd_view.get_local_scales().warp)
         local_pos_ta, local_ori_ta = self._usd_view.get_local_poses()
         wp.launch(
             kernel=fabric_utils.compose_indexed_fabric_transforms,
@@ -835,12 +831,31 @@ class FabricFrameView(BaseFrameView):
             world_ori_rows: list[list[float]] = []
             world_scale_rows: list[list[float]] = []
             decomposer = Gf.Transform()
+            warned_shear = False
             for path in unique_parent_paths:
                 prim = usd_stage.GetPrimAtPath(path)
                 tf = xform_cache.GetLocalToWorldTransform(prim)
                 # Extract scale before ``Orthonormalize`` strips it from the rows.
                 decomposer.SetMatrix(tf)
                 s = decomposer.GetScale()
+                # Check for shear/skew: after removing scale, rows should be orthogonal.
+                if not warned_shear:
+                    row0 = Gf.Vec3d(tf[0][0], tf[0][1], tf[0][2]).GetNormalized()
+                    row1 = Gf.Vec3d(tf[1][0], tf[1][1], tf[1][2]).GetNormalized()
+                    row2 = Gf.Vec3d(tf[2][0], tf[2][1], tf[2][2]).GetNormalized()
+                    if (
+                        abs(Gf.Dot(row0, row1)) > 1e-3
+                        or abs(Gf.Dot(row0, row2)) > 1e-3
+                        or abs(Gf.Dot(row1, row2)) > 1e-3
+                    ):
+                        warned_shear = True
+                        logger.warning(
+                            "FabricFrameView: parent prim '%s' has a sheared/skewed world "
+                            "transform. TRS decomposition (used by scale getters and world↔local "
+                            "propagation) does not support shear -- extracted scales and rotations "
+                            "will be approximate. Avoid shear in parent transforms for correct results.",
+                            path,
+                        )
                 tf.Orthonormalize()
                 t = tf.ExtractTranslation()
                 q = tf.ExtractRotationQuat()

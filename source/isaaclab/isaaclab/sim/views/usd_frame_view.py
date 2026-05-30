@@ -264,7 +264,7 @@ class UsdFrameView(BaseFrameView):
 
     def _get_scales_default(self, indices: wp.array | None = None) -> wp.array:
         """USD default: get_scales returns local scales."""
-        return self.get_local_scales(indices)
+        return self.get_local_scales(indices).warp
 
     def _set_scales_default(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """USD default: set_scales writes local scales."""
@@ -350,14 +350,14 @@ class UsdFrameView(BaseFrameView):
         quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
         return ProxyArray(pos_wp), ProxyArray(quat_wp)
 
-    def get_local_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get local-space scales (xformOp:scale) for prims in the view.
 
         Args:
             indices: Indices of prims to get scales for. Defaults to None (all prims).
 
         Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
         """
         indices_list = self._resolve_indices(indices)
 
@@ -366,10 +366,9 @@ class UsdFrameView(BaseFrameView):
             prim = self._prims[prim_idx]
             scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
-        scales_wp = wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device)
-        return ProxyArray(scales_wp)
+        return ProxyArray(wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device))
 
-    def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get world-space (composed) scales for prims in the view.
 
         Computes the effective world-space scale by extracting row lengths
@@ -380,7 +379,7 @@ class UsdFrameView(BaseFrameView):
             indices: Indices of prims to get scales for. Defaults to None (all prims).
 
         Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
         """
         indices_list = self._resolve_indices(indices)
         xf_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
@@ -393,7 +392,7 @@ class UsdFrameView(BaseFrameView):
             scales[idx, 1] = Gf.Vec3d(world_mtx[1][0], world_mtx[1][1], world_mtx[1][2]).GetLength()
             scales[idx, 2] = Gf.Vec3d(world_mtx[2][0], world_mtx[2][1], world_mtx[2][2]).GetLength()
 
-        return wp.array(scales, dtype=wp.float32, device=self._device)
+        return ProxyArray(wp.array(scales, dtype=wp.float32, device=self._device))
 
     def get_visibility(self, indices: wp.array | None = None) -> torch.Tensor:
         """Get visibility for prims in the view.
