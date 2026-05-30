@@ -85,11 +85,8 @@ jobs:
             echo "::error::Need at least 2 GPUs (cuda:0 + at least 1 non-default); found $N"
             exit 1
           fi
-          # TEMP EXPERIMENT: cap shards at 2 to test concurrency-threshold workaround for
-          # the Kit lifecycle bug (SIGHUP/shutdown-hang fires at >=3 concurrent Kit
-          # instances; 2 is below the threshold per local 2-MIG cross-GPU repro).
-          shards=$(python3 -c "import json; cap=2; print(json.dumps(list(range(1, min($N, cap+1)))))")
-          count=$(python3 -c "cap=2; print(min($N-1, cap))")
+          shards=$(python3 -c "import json; print(json.dumps(list(range(1, $N))))")
+          count=$((N - 1))
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "::notice::$N GPUs → shards=$shards (shard_count=$count)"

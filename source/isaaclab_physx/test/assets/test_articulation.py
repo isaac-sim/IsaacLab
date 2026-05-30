@@ -11,10 +11,12 @@
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import test_devices
 
-# TEMP EXPERIMENT: marker disabled to test 2-shard cap workaround for Kit
-# lifecycle bug. Restore if CI still fails (the bug needs >=3 concurrent Kit
-# instances per local 2/3/4-MIG threshold sweep).
-# MULTI_GPU_SKIP_REASON = "Kit lifecycle bug: shutdown hangs after tests under concurrent multi-GPU"
+# File-level opt-out from concurrent multi-GPU CI. The multi-GPU workflow's
+# discover step skips any test file declaring this module-level constant. Used
+# for files known to trigger Kit/Isaac-Sim process-lifecycle failures under
+# concurrent multi-GPU execution (SIGHUP / shutdown-hang); the file still runs
+# in single-GPU CI. Drop this line once the upstream Kit issue is fixed.
+MULTI_GPU_SKIP_REASON = "Kit lifecycle bug: shutdown hangs after tests under concurrent multi-GPU"
 
 HEADLESS = True
 
