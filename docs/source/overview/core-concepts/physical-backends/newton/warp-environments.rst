@@ -228,7 +228,7 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
   ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
-  the cfg with a Newton physics block (or ``presets=newton_mjwarp``).
+  the cfg with a Newton physics block (or ``physics=newton_mjwarp``).
 
 **MDP coverage**
 

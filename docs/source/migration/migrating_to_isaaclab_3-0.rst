@@ -599,18 +599,19 @@ when no CLI override is given. Other fields are named presets selectable with
    @configclass
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton_mjwarp
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
+The legacy ``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
+   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
