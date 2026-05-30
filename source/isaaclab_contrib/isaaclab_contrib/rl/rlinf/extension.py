@@ -406,6 +406,12 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
         short_key = key.split(".", 1)[1] if key.startswith("action.") else f"action.{key}"
         if short_key in action_chunk:
             action_parts.append(action_chunk[short_key][:, :chunk_size, :])
+            continue
+        logger.warning(
+            f"GR00T action key '{key}' (also tried '{short_key}') not found in action chunk "
+            f"(available: {list(action_chunk)}); this entry will be skipped and the action tensor "
+            "will be narrower than expected."
+        )
     if not action_parts:
         raise KeyError(f"No configured GR00T action keys found in action chunk: keys={list(action_chunk)}")
     action_concat = np.concatenate(action_parts, axis=-1)
