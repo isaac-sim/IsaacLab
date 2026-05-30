@@ -3,11 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for Newton and MuJoCo schema cfg classes in isaaclab_newton.
+"""Tests for Newton and MuJoCo schema cfg classes in isaaclab_newton."""
 
-Kitless: no AppLauncher boot. See isaaclab_newton/test/assets/test_articulation.py
-for rationale.
-"""
+from isaaclab.app import AppLauncher
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
+
+"""Rest everything follows."""
 
 import pytest
 from isaaclab_newton.sim.schemas import (
