@@ -60,7 +60,7 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
     version = ".".join(full_version.split(".")[:3])
 
 # Latest release branch referenced by installation documentation.
-isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "release/3.0.0-beta2")
+isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "develop")
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
