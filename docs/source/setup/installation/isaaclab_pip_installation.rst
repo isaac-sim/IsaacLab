@@ -30,11 +30,11 @@ extras are supported:
    * - Extra
      - What it installs
    * - ``kitless``
-     - Kit-less dependencies: Newton physics backend and RL frameworks (SB3, SKRL, RSL-RL). Does **not** include Isaac Sim.
+     - Kit-less dependencies: Newton physics backend and RL frameworks (SB3, SKRL, RL-Games, RSL-RL). Does **not** include Isaac Sim.
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]==6.0.0.*``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
    * - ``all``
-     - RL frameworks only (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install
+     - RL frameworks only (SB3, SKRL, RL-Games, RSL-RL). Combine with ``isaacsim`` for a full install
 
 Combine ``isaacsim`` and ``all`` for the full workflow: ``isaaclab[isaacsim,all]``.
 Do **not** combine ``kitless`` with ``isaacsim`` — the two Newton sources conflict.
@@ -144,13 +144,6 @@ Installing dependencies
             When using ``./isaaclab.sh -p``, this is handled automatically.
             When using a conda environment,
             the preload is set up via the conda activation hook.
-
--  ``rl_games`` is not included in ``[all]`` or ``[kitless]``. To use it, install its Python 3.11+
-   enabled fork manually:
-
-   .. code-block:: none
-
-      pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
 
 .. include:: include/pip_verify_isaacsim.rst
 
