@@ -20,30 +20,17 @@ def _repo_root() -> Path:
     raise RuntimeError("Could not find Isaac Lab repository root.")
 
 
-def _isaaclab_rl_optional_dependencies() -> dict[str, list[str]]:
-    """Return optional dependency groups from ``source/isaaclab_rl/pyproject.toml``."""
+def _rsl_rl_pin_from_pyproject() -> str:
+    """Return the ``rsl-rl-lib`` pin declared by ``source/isaaclab_rl/pyproject.toml``."""
     pyproject_path = _repo_root() / "source/isaaclab_rl/pyproject.toml"
     with pyproject_path.open("rb") as f:
         data = tomllib.load(f)
 
-    return data.get("project", {}).get("optional-dependencies", {})
-
-
-def _rsl_rl_pin_from_pyproject() -> str:
-    """Return the ``rsl-rl-lib`` pin declared by ``source/isaaclab_rl/pyproject.toml``."""
-    for dependency in _isaaclab_rl_optional_dependencies().get("rsl-rl", []):
+    for dependency in data.get("project", {}).get("optional-dependencies", {}).get("rsl-rl", []):
         if dependency.startswith("rsl-rl-lib=="):
             return dependency
 
     raise AssertionError("Could not find rsl-rl-lib pin in source/isaaclab_rl/pyproject.toml")
-
-
-def _rl_games_dependencies_from_pyproject() -> list[str]:
-    """Return the ``rl-games`` extra declared by ``source/isaaclab_rl/pyproject.toml``."""
-    dependencies = _isaaclab_rl_optional_dependencies().get("rl-games")
-    if not dependencies:
-        raise AssertionError("Could not find rl-games extra in source/isaaclab_rl/pyproject.toml")
-    return dependencies
 
 
 def test_wheel_builder_rsl_rl_pin_matches_source_package():
@@ -56,23 +43,6 @@ def test_wheel_builder_rsl_rl_pin_matches_source_package():
     optional_dependencies = packages["isaaclab"]["pyproject"]["optional-dependencies"]["all"]
     dependencies_by_extra = {name: deps for entry in optional_dependencies for name, deps in entry.items()}
 
-    for extra_name in ("rsl-rl", "all", "kitless"):
+    for extra_name in ("rsl-rl", "all"):
         rsl_rl_pins = [dep for dep in dependencies_by_extra[extra_name] if dep.startswith("rsl-rl-lib==")]
         assert rsl_rl_pins == [expected_pin]
-
-
-def test_wheel_builder_rl_games_extra_matches_source_package():
-    """The bundled wheel metadata must install the same RL-Games fork as the source package."""
-    expected_dependencies = _rl_games_dependencies_from_pyproject()
-    packages_path = _repo_root() / "tools/wheel_builder/res/python_packages.toml"
-    with packages_path.open("rb") as f:
-        packages = tomllib.load(f)
-
-    optional_dependencies = packages["isaaclab"]["pyproject"]["optional-dependencies"]["all"]
-    dependencies_by_extra = {name: deps for entry in optional_dependencies for name, deps in entry.items()}
-
-    assert dependencies_by_extra["rl-games"] == expected_dependencies
-
-    for extra_name in ("all", "kitless"):
-        for dependency in expected_dependencies:
-            assert dependency in dependencies_by_extra[extra_name]

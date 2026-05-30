@@ -97,12 +97,8 @@ pyproject.optional-dependencies.all = [
     # RL libraries
     { "sb3" = ["stable-baselines3>=2.6", "tqdm", "rich"] },
     { "skrl" = ["skrl>=2.1.0"] },
-    { "rl-games" = [
-        "aiohttp==3.13.3",
-        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-        "gym",
-        "standard-distutils",
-    ] },
+    # { "rl-games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
+    # { "rl_games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
     { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     # ================================================================================
@@ -118,26 +114,7 @@ pyproject.optional-dependencies.all = [
         "tqdm",
         "rich",
         "skrl>=2.1.0",
-        "aiohttp==3.13.3",
-        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-        "gym",
-        "standard-distutils",
-        "rsl-rl-lib==5.0.1",
-        "onnxscript>=0.5",
-    ] },
-    # Kit-less bundle: git Newton + RL frameworks (no Isaac Sim).
-    { "kitless" = [
-        "warp-lang==1.13.0",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
-        "PyOpenGL-accelerate==3.1.10",
-        "stable-baselines3>=2.6",
-        "tqdm",
-        "rich",
-        "skrl>=2.1.0",
-        "aiohttp==3.13.3",
-        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-        "gym",
-        "standard-distutils",
+        # "rl-games==1.6.1",  # TODO: re-enable when rl-games Python package supports Python 3.11
         "rsl-rl-lib==5.0.1",
         "onnxscript>=0.5",
     ] },

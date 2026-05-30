@@ -20,7 +20,7 @@ To learn about how to set up your own project on top of Isaac Lab, please see :r
 Installing Isaac Lab
 ~~~~~~~~~~~~~~~~~~~~
 
-The ``isaaclab`` pip wheel bundles all Isaac Lab extensions. Three optional pip
+The ``isaaclab`` pip wheel bundles all Isaac Lab extensions. Two optional pip
 extras are supported:
 
 .. list-table::
@@ -29,15 +29,12 @@ extras are supported:
 
    * - Extra
      - What it installs
-   * - ``kitless``
-     - Kit-less dependencies: Newton physics backend and RL frameworks (SB3, SKRL, RL-Games, RSL-RL). Does **not** include Isaac Sim.
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]==6.0.0.*``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
    * - ``all``
-     - RL frameworks only (SB3, SKRL, RL-Games, RSL-RL). Combine with ``isaacsim`` for a full install
+     - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install.
 
-Combine ``isaacsim`` and ``all`` for the full workflow: ``isaaclab[isaacsim,all]``.
-Do **not** combine ``kitless`` with ``isaacsim`` — the two Newton sources conflict.
+Install with ``isaaclab[isaacsim,all]`` for the full workflow.
 
 .. tab-set::
 
@@ -45,23 +42,15 @@ Do **not** combine ``kitless`` with ``isaacsim`` — the two Newton sources conf
 
       .. code-block:: bash
 
-         # Kit-less (Newton backend, no Isaac Sim)
-         uv pip install "isaaclab[kitless]" # latest version
-         uv pip install "isaaclab[kitless]==3.0.0" # specific version
-
-         # Full install (Isaac Sim + RL frameworks; Newton from Isaac Sim)
          uv pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+         uv pip install "isaaclab[isaacsim,all]==3.0.0" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
    .. tab-item:: pip
 
       .. code-block:: bash
 
-         # Kit-less (Newton backend, no Isaac Sim)
-         pip install "isaaclab[kitless]" # latest version
-         pip install "isaaclab[kitless]==3.0.0" # specific version
-
-         # Full install (Isaac Sim + RL frameworks; Newton from Isaac Sim)
          pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --pre
+         pip install "isaaclab[isaacsim,all]==3.0.0" --extra-index-url https://pypi.nvidia.com --pre
 
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -144,6 +133,13 @@ Installing dependencies
             When using ``./isaaclab.sh -p``, this is handled automatically.
             When using a conda environment,
             the preload is set up via the conda activation hook.
+
+-  ``rl_games`` is not included in ``[all]``. To use it, install its Python 3.11+
+   enabled fork manually:
+
+   .. code-block:: none
+
+      pip install git+https://github.com/isaac-sim/rl_games.git@python3.11
 
 .. include:: include/pip_verify_isaacsim.rst
 
