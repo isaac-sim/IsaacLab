@@ -430,8 +430,9 @@ class FabricFrameView(BaseFrameView):
 
         .. warning::
             When *indices* is None (all prims), the returned array is a **shared
-            pre-allocated buffer** that is overwritten on the next call.  Do not
-            hold references across calls -- copy if persistence is needed.
+            pre-allocated buffer** (shared with :meth:`get_local_scales`) that is
+            overwritten on the next call.  Do not hold references across calls --
+            copy if persistence is needed.
         """
         if not self._use_fabric:
             return self._usd_view.get_world_scales(indices)
@@ -508,8 +509,9 @@ class FabricFrameView(BaseFrameView):
 
         .. warning::
             When *indices* is None (all prims), the returned array is a **shared
-            pre-allocated buffer** that is overwritten on the next call.  Do not
-            hold references across calls -- copy if persistence is needed.
+            pre-allocated buffer** (shared with :meth:`get_world_scales`) that is
+            overwritten on the next call.  Do not hold references across calls --
+            copy if persistence is needed.
         """
         if not self._use_fabric:
             return self._usd_view.get_local_scales(indices)
@@ -792,7 +794,11 @@ class FabricFrameView(BaseFrameView):
         getters (which read from Fabric) would return wrong values.
         """
         # --- Children ---
-        pos_ta, ori_ta = self._usd_view.get_world_poses()
+        # Compose child localMatrix from USD-authored local transforms.
+        # The child world matrix is NOT composed here -- it will be computed
+        # by ``_recompute_world_from_local()`` at the end of this method as
+        # ``child_world = child_local * parent_world``, which naturally
+        # composes scales through the matrix multiplication.
         scales_obj = self._usd_view.get_local_scales()
         scales_wp = (
             scales_obj.warp
@@ -802,26 +808,6 @@ class FabricFrameView(BaseFrameView):
             else self._fabric_empty_2d_array_sentinel
         )
         local_pos_ta, local_ori_ta = self._usd_view.get_local_poses()
-        # Compose into child worldMatrix.
-        wp.launch(
-            kernel=fabric_utils.compose_indexed_fabric_transforms,
-            dim=self.count,
-            inputs=[
-                self._world_ifa,
-                _to_float32_2d(pos_ta.warp),
-                _to_float32_2d(ori_ta.warp),
-                _to_float32_2d(scales_wp),
-                False,
-                False,
-                False,
-                self._view_indices,
-            ],
-            device=self._device,
-        )
-        # Compose into child localMatrix.  Pass the locally-authored scale so
-        # that a subsequent ``_sync_world_from_local_if_dirty`` produces the
-        # right world-space scale (``world = parent_world * local`` carries
-        # ``local``'s scale through the multiply).
         wp.launch(
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=self.count,

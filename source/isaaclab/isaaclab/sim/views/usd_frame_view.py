@@ -246,7 +246,7 @@ class UsdFrameView(BaseFrameView):
             for idx, prim_idx in enumerate(indices_list):
                 prim = self._prims[prim_idx]
                 parent = prim.GetParent()
-                if parent and parent.IsValid():
+                if parent and parent.IsValid() and parent.GetPath() != Sdf.Path.absoluteRootPath:
                     parent_world = xf_cache.GetLocalToWorldTransform(parent)
                     parent_scale = Gf.Vec3d(
                         Gf.Vec3d(parent_world[0][0], parent_world[0][1], parent_world[0][2]).GetLength(),
@@ -372,8 +372,9 @@ class UsdFrameView(BaseFrameView):
     def get_world_scales(self, indices: wp.array | None = None) -> wp.array:
         """Get world-space (composed) scales for prims in the view.
 
-        Computes the effective world-space scale by extracting column lengths
-        from the world transform matrix.
+        Computes the effective world-space scale by extracting row lengths
+        from the world transform matrix (USD uses a row-vector convention
+        where each row of the 3x3 sub-matrix is a basis vector).
 
         Args:
             indices: Indices of prims to get scales for. Defaults to None (all prims).
