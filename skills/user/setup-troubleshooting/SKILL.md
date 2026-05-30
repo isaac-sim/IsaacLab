@@ -50,7 +50,7 @@ Keep this skill synchronized with installation docs under `docs/source/setup/ins
 
 - [Evaluations](evaluations.md)
 - [Reference](reference.md)
-- [Quick installation](../../../docs/source/setup/quick_installation.rst)
+- [Quickstart](../../../docs/source/setup/quickstart.rst)
 - [Source installation](../../../docs/source/setup/installation/source_installation.rst)
 - [Pip installation](../../../docs/source/setup/installation/pip_installation.rst)
 - [Isaac Lab pip installation](../../../docs/source/setup/installation/isaaclab_pip_installation.rst)
