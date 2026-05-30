@@ -305,14 +305,60 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
+def _claim_queued_file(queue_path):
+    """Atomically pop the first path from a shared work-queue file, or ``None`` when empty.
+
+    The sibling single-GPU shard containers share one queue file on the workspace
+    mount; ``flock`` serializes the read-and-truncate so each file is claimed by
+    exactly one container. This turns the static round-robin split into dynamic
+    work-stealing: a container that lands a slow file simply claims fewer.
+    """
+    import fcntl
+
+    lock_path = queue_path + ".lock"
+    with open(lock_path, "a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            try:
+                with open(queue_path) as queue_file:
+                    remaining = [line for line in (raw.strip() for raw in queue_file) if line]
+            except FileNotFoundError:
+                return None
+            if not remaining:
+                return None
+            claimed, rest = remaining[0], remaining[1:]
+            with open(queue_path, "w") as queue_file:
+                queue_file.write("".join(f"{path}\n" for path in rest))
+            return claimed
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def _queued_files(queue_path):
+    """Yield files claimed from the shared work queue until it is empty."""
+    while True:
+        claimed = _claim_queued_file(queue_path)
+        if claimed is None:
+            return
+        yield claimed
+
+
 def run_individual_tests(test_files, workspace_root, isaacsim_ci):
-    """Run each test file separately, ensuring one finishes before starting the next."""
+    """Run each test file separately, ensuring one finishes before starting the next.
+
+    When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue file, files are claimed
+    from it (work-stealing across sibling shard containers) instead of iterating
+    ``test_files``; each file still runs once, on this container's pinned GPU.
+    """
     failed_tests = []
     test_status = {}
     xml_reports = []
     cold_cache_applied = False
 
-    for test_file in test_files:
+    queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
+    file_source = _queued_files(queue_path) if queue_path else test_files
+
+    for test_file in file_source:
         print(f"\n\n🚀 Running {test_file} independently...\n")
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
@@ -717,6 +763,10 @@ def pytest_sessionstart(session):
 
     # Run all tests individually
     failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+
+    # In work-queue mode this container ran only the files it claimed; report on those.
+    if os.environ.get("ISAACLAB_TEST_QUEUE"):
+        test_files = list(test_status)
 
     print("failed tests:", failed_tests)
 
