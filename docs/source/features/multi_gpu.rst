@@ -146,13 +146,24 @@ If the issue persists, additional NCCL fallbacks that may help are:
     export NCCL_IB_DISABLE=1
     export NCCL_ALGO=Ring
 
+Separately, restricting training to a subset of a node's GPUs with ``CUDA_VISIBLE_DEVICES``
+(for example, ``CUDA_VISIBLE_DEVICES=0,1`` on a larger machine) can cause training to hang during
+communicator initialization or on the first collective, with no error reported. On affected
+systems, disabling NCCL's peer-to-peer (P2P) transport resolves the hang:
+
+.. code-block:: shell
+
+    export NCCL_P2P_DISABLE=1
+
 Then relaunch the distributed training command as usual.
 
 .. note::
 
     These variables are NCCL-level workarounds intended for affected systems. They are not
     required on all machines, and may change communication behavior or performance depending
-    on the hardware topology.
+    on the hardware topology. In particular, ``NCCL_P2P_DISABLE=1`` routes inter-GPU traffic
+    through host/shared memory instead of a direct P2P link, which can reduce communication
+    bandwidth, so only set it when you observe a hang while restricting visible devices.
 
 Multi-Node Training
 -------------------
