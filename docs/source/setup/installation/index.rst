@@ -104,10 +104,6 @@ Other notable limitations with respect to Isaac Lab include...
 #. Extended reality teleoperation tools such as :class:`OpenXR <isaaclab.devices.OpenXRDevice>` is not supported. This is due
    to encoding performance limitations that have not yet been fully investigated.
 
-#. SKRL training with `JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ has not been explicitly validated or tested in Isaac Lab on the DGX Spark.
-   JAX provides pre-built CUDA wheels only for Linux on x86_64, so on aarch64 systems (e.g., DGX Spark) it runs on CPU only by default.
-   GPU support requires building JAX from source, which has not been validated in Isaac Lab.
-
 #. Livestream and Hub Workstation Cache are not supported on the DGX spark.
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
