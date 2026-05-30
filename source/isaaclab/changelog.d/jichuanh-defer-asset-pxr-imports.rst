@@ -11,6 +11,6 @@ Fixed
   which broke Kit's USD binding registration with a cascade of
   ``TfNotice`` / ``UsdAPISchemaBase`` / ``GfVec3f`` converter errors during
   ``SimulationApp.startup``.  Kit-less env-cfg parsing followed by ``--visualizer kit``
-  now succeeds without any pxr modules preloaded.  Each affected module keeps its
-  type hints under ``TYPE_CHECKING`` and defers the runtime ``from pxr import …`` into
-  the function bodies that use it.
+  now succeeds without any pxr modules preloaded.  Type hints stay under
+  ``TYPE_CHECKING``; where pxr is used at runtime, the ``from pxr import …`` is deferred
+  into the function body that needs it.
