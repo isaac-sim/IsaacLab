@@ -83,9 +83,7 @@ _DEFAULT_RUNTIME = "110"
 i.e. the historical single-GPU device set, so non-default GPUs are opt-in per run."""
 
 
-def test_devices(
-    scope: str = "11X", *, skip: dict[str, str] | None = None, skip_non_default: str | None = None
-) -> list:
+def test_devices(scope: str = "11X", *, skip: dict[str, str] | None = None) -> list:
     """Resolve the device list to parametrize a test over, as ``scope ∩ runtime``.
 
     ``scope`` is this argument; the runtime comes from the
@@ -99,15 +97,8 @@ def test_devices(
             argument.
         skip: Optional ``{device: reason}``; in-scope devices listed here are
             wrapped in :func:`pytest.mark.skip` so they collect as SKIPPED with
-            the reason instead of being dropped. Use to gate a specific device
-            variant that is known broken while keeping it visible.
-        skip_non_default: Optional reason; when set, every non-default GPU
-            (``cuda:1`` and up) in the result is wrapped in
-            :func:`pytest.mark.skip` with this reason, while cpu and cuda:0 run
-            normally. Use for a test valid on cpu/cuda:0 but known broken on
-            non-default GPUs — it then collects as SKIPPED (with the reason) on
-            the multi-GPU shards instead of running and failing, and needs no
-            hardcoded device index (robust across pool sizes).
+            the reason instead of being dropped. Use to gate a device variant
+            that is known broken while keeping it visible.
 
     Returns:
         Ordered device entries (``"cpu"`` / ``"cuda:N"`` strings, or
@@ -137,17 +128,14 @@ def test_devices(
     devices = [
         device for device, in_scope, in_runtime in zip(available, scope_keep, runtime_keep) if in_scope and in_runtime
     ]
-    if not skip and not skip_non_default:
+    if not skip:
         return devices
     import pytest
 
-    def _maybe_skip(device):
-        reason = (skip or {}).get(device)
-        if reason is None and skip_non_default and device not in ("cpu", "cuda:0"):
-            reason = skip_non_default
-        return pytest.param(device, marks=pytest.mark.skip(reason=reason)) if reason else device
-
-    return [_maybe_skip(device) for device in devices]
+    return [
+        pytest.param(device, marks=pytest.mark.skip(reason=skip[device])) if device in skip else device
+        for device in devices
+    ]
 
 
 def _expand(mask: str, count: int) -> list[bool]:

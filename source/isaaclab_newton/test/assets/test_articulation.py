@@ -11,13 +11,6 @@
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import test_devices
 
-# Newton jacobian / body_q tests are unreliable under concurrent multi-GPU
-# execution (the jacobian comes out wrong); they run on cuda:0 in single-GPU CI
-# and are skipped (with a reason) on the non-default shards.
-_CONCURRENT_SKIP = (
-    "newton jacobian/body_q unreliable under concurrent multi-GPU execution; runs on cuda:0 in single-GPU CI"
-)
-
 HEADLESS = True
 
 # launch omniverse app
@@ -2402,7 +2395,7 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
 
 
 @pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices("01X", skip_non_default=_CONCURRENT_SKIP))
+@pytest.mark.parametrize("device", test_devices("01X"))
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_body_q_consistent_after_root_write(num_articulations, device, articulation_type):
     """Test that body_q is fresh when collide() runs after a root pose write.
@@ -2858,7 +2851,7 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
 
 
 @pytest.mark.parametrize("num_articulations", [4])
-@pytest.mark.parametrize("device", test_devices("01X", skip_non_default=_CONCURRENT_SKIP))
+@pytest.mark.parametrize("device", test_devices("01X"))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci

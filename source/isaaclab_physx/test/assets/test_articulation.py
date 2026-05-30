@@ -11,10 +11,6 @@
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import test_devices
 
-# PhysX jacobian test is unreliable under concurrent multi-GPU execution; it runs
-# on cuda:0 in single-GPU CI and is skipped (with a reason) on the non-default shards.
-_CONCURRENT_SKIP = "physx jacobian unreliable under concurrent multi-GPU execution; runs on cuda:0 in single-GPU CI"
-
 HEADLESS = True
 
 # launch omniverse app
@@ -2319,7 +2315,7 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
 
 
 @pytest.mark.parametrize("num_articulations", [4])
-@pytest.mark.parametrize("device", test_devices("01X", skip_non_default=_CONCURRENT_SKIP))
+@pytest.mark.parametrize("device", test_devices("01X"))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
