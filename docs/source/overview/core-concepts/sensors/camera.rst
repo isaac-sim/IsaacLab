@@ -144,15 +144,15 @@ For environments that need to support both backends, use
         renderer_cfg=MultiBackendRendererCfg(),  # selects RTX or Newton Warp via presets= CLI arg
     )
 
-The active preset is selected at launch via the ``presets=`` CLI argument:
+The active preset is selected at launch via ``physics=``, ``renderer=``, or ``presets=`` CLI arguments:
 
 .. code-block:: bash
 
    # Use Newton Warp renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=newton_renderer
+   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 renderer=ovrtx_renderer
 
    # Use default (Isaac RTX)
    python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0

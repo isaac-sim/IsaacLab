@@ -2,7 +2,7 @@
 
 ---
 
-# Isaac Lab
+# Isaac Lab 3.0.0 Beta 2
 
 [![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
@@ -12,19 +12,6 @@
 [![docs status](https://img.shields.io/github/actions/workflow/status/isaac-sim/IsaacLab/docs.yaml?label=docs&color=brightgreen)](https://github.com/isaac-sim/IsaacLab/actions/workflows/docs.yaml)
 [![License](https://img.shields.io/badge/license-BSD--3-yellow.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
-
-
-This branch is a development branch for Isaac Sim 6.0, which is currently only available through the Isaac Sim [GitHub repo](https://github.com/isaac-sim/IsaacSim).
-For installation, please refer to the Isaac Sim GitHub repo to build the latest Isaac Sim branch, and follow the binary installation method in the
-Isaac Lab documentation for Isaac Lab installation.
-
-> [!WARNING]
-> A recent breaking change on the Isaac Lab `develop` branch is not compatible with the `develop` branch of Isaac Sim on GitHub.
-> To run Isaac Lab with Isaac Sim's GitHub `develop` branch, use Isaac Lab commit [`f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa`](https://github.com/isaac-sim/IsaacLab/commit/f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa) or an earlier commit.
-> Alternatively, use the Isaac Lab [`v3.0.0-beta`](https://github.com/isaac-sim/IsaacLab/tree/v3.0.0-beta) tag.
-
-Note that this branch is currently under active development and may experience breaking changes or error messages.
-Performance issues and regressions may also be observed in some use cases.
 
 
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
@@ -76,6 +63,7 @@ dependency versions for Isaac Sim.
 
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
+| `release/3.0.0-beta` branch   | Isaac Sim 6.0             |
 | `develop` branch              | Isaac Sim 6.0             |
 | `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v3.0.0*`                     | Isaac Sim 6.0             |
@@ -83,11 +71,6 @@ dependency versions for Isaac Sim.
 | `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
 | `v2.1.X`                      | Isaac Sim 4.5             |
 | `v2.0.X`                      | Isaac Sim 4.5             |
-
-## Limitations
-
-The `develop` branch of Isaac Lab 3.0-Beta is currently available on Ubuntu. Windows
-support and Isaac Lab pip wheels will be available soon.
 
 ## Contributing to Isaac Lab
 
@@ -141,7 +124,10 @@ The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `isaacla
 corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its
 dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
 
-Note that Isaac Lab requires Isaac Sim, which includes components under proprietary licensing terms. Please see the [Isaac Sim license](docs/licenses/dependencies/isaacsim-license.txt) for information on Isaac Sim licensing.
+Note that full-featured workflows (PhysX, RTX rendering, ROS, URDF/MJCF importers) require
+[Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html), which includes
+components under proprietary licensing terms. Kit-less Newton workflows do not require Isaac Sim.
+Please see the [Isaac Sim license](docs/licenses/dependencies/isaacsim-license.txt) for details.
 
 Note that the `isaaclab_mimic` extension requires cuRobo, which has proprietary licensing terms that can be found in [`docs/licenses/dependencies/cuRobo-license.txt`](docs/licenses/dependencies/cuRobo-license.txt).
 
