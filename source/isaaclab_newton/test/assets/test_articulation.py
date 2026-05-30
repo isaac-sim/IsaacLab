@@ -354,9 +354,12 @@ def generate_articulation(
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
     if any(name in usd_path for name in _REVERSED_JOINT_USD_FILES):
-        import omni.usd
+        # Kitless: use IsaacLab's stage helper instead of ``omni.usd.get_context()``.
+        # ``get_current_stage`` falls back to the in-memory pxr.Usd stage when Kit
+        # isn't loaded.
+        from isaaclab.sim.utils.stage import get_current_stage
 
-        fix_reversed_joints(omni.usd.get_context().get_stage())
+        fix_reversed_joints(get_current_stage())
 
     return articulation, translations
 

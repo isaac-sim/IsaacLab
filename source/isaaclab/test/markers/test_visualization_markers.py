@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+"""Kitless newton-only test: no AppLauncher boot. See test_articulation.py
+for rationale (avoid Kit lifecycle SIGHUP/shutdown-hang under concurrent
+multi-GPU CI; SimulationContext's existing has_kit() gate carries the test)."""
 
 import isaaclab_visualizers.newton.newton_visualization_markers as newton_markers
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
