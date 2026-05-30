@@ -72,19 +72,49 @@ Exporting a Policy
 
 Use the RSL-RL export script to export a trained checkpoint:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-       --task <TASK_NAME> \
-       --checkpoint <PATH_TO_CHECKPOINT>
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+             --task <TASK_NAME> \
+             --checkpoint <PATH_TO_CHECKPOINT>
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+             --task <TASK_NAME> ^
+             --checkpoint <PATH_TO_CHECKPOINT>
 
 For example, to export a UR10 reach policy:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-       --task Isaac-Reach-UR10-v0 \
-       --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+             --task Isaac-Reach-UR10-v0 \
+             --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+             --task Isaac-Reach-UR10-v0 ^
+             --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.

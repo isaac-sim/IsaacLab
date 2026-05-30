@@ -271,22 +271,22 @@ def test_direct_clone_plan_multi_asset(sim):
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
-    plan = make_clone_plan(
+    sources, destinations, clone_mask = make_clone_plan(
         [[f"/World/envs/env_{i}/Object" for i in range(len(cfg.assets_cfg))]],
         ["/World/envs/env_{}/Object"],
         num_clones,
         sequential,
         sim.cfg.device,
     )
-    spawn_paths: list[str | None] = list(plan.sources)
+    spawn_paths: list[str | None] = list(sources)
     cfg.spawn_paths = spawn_paths
     prim = cfg.func("/World/unused", cfg)
     assert prim.IsValid()
 
     stage = sim_utils.get_current_stage()
     env_ids = torch.arange(num_clones, dtype=torch.long, device=sim.cfg.device)
-    physx_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask, device=sim.cfg.device)
-    usd_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask)
+    physx_replicate(stage, sources, destinations, env_ids, clone_mask, device=sim.cfg.device)
+    usd_replicate(stage, sources, destinations, env_ids, clone_mask)
 
     primitive_prims = sim_utils.get_all_matching_child_prims(
         "/World/envs", predicate=lambda prim: prim.GetTypeName() in ["Cone", "Cube", "Sphere"]
@@ -315,7 +315,7 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
 
     num_variants = len(asset_cfg.assets_cfg) if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg) else 1
-    plan = make_clone_plan(
+    sources, destinations, clone_mask = make_clone_plan(
         [[f"/World/envs/env_{i}/Object" for i in range(num_variants)]],
         ["/World/envs/env_{}/Object"],
         num_clones,
@@ -323,17 +323,17 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         sim.cfg.device,
     )
     if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg):
-        spawn_paths: list[str | None] = list(plan.sources)
+        spawn_paths: list[str | None] = list(sources)
         asset_cfg.spawn_paths = spawn_paths
         prim = asset_cfg.func("/World/unused", asset_cfg)
     else:
-        prim = asset_cfg.func(plan.sources[0], asset_cfg)
+        prim = asset_cfg.func(sources[0], asset_cfg)
     assert prim.IsValid()
 
     stage = sim_utils.get_current_stage()
     env_ids = torch.arange(num_clones, dtype=torch.long, device=sim.cfg.device)
-    physx_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask, device=sim.cfg.device)
-    usd_replicate(stage, plan.sources, plan.destinations, env_ids, plan.clone_mask)
+    physx_replicate(stage, sources, destinations, env_ids, clone_mask, device=sim.cfg.device)
+    usd_replicate(stage, sources, destinations, env_ids, clone_mask)
 
     primitive_prims = sim_utils.get_all_matching_child_prims(
         "/World/envs", predicate=lambda prim: prim.GetTypeName() in expected_types

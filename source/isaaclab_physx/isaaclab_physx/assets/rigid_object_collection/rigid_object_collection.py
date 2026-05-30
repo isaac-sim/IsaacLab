@@ -1216,52 +1216,28 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._body_names_list.clear()
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
+
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
         root_prim_path_exprs = []
         for name, rigid_body_cfg in self.cfg.rigid_objects.items():
-            # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-            template_prim = sim_utils.find_first_matching_prim(rigid_body_cfg.prim_path)
-            if template_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{rigid_body_cfg.prim_path}'.")
-            template_prim_path = template_prim.GetPath().pathString
-
-            # find rigid root prims
+            matches = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)
+            if not matches:
+                raise RuntimeError(f"No prim found at '{rigid_body_cfg.prim_path}'.")
+            asset_prim, root_expr = matches[0]
+            walk_root = asset_prim.GetPath().pathString
             root_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-                traverse_instance_prims=False,
+                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
             )
-            if len(root_prims) == 0:
+            if len(root_prims) != 1:
+                matched = [p.GetPath().pathString for p in root_prims]
                 raise RuntimeError(
-                    f"Failed to find a rigid body when resolving '{rigid_body_cfg.prim_path}'."
-                    " Please ensure that the prim has 'USD RigidBodyAPI' applied."
+                    f"Expected exactly one RigidBodyAPI prim under '{walk_root}'"
+                    f" (resolved from '{rigid_body_cfg.prim_path}'), found {len(root_prims)}: {matched}."
                 )
-            if len(root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single rigid body when resolving '{rigid_body_cfg.prim_path}'."
-                    f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                    " Please ensure that there is only one rigid body in the prim path tree."
-                )
-
-            # check that no rigid object has an articulation root API, which decreases simulation performance
-            articulation_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-                traverse_instance_prims=False,
-            )
-            if len(articulation_prims) != 0:
-                if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                    raise RuntimeError(
-                        f"Found an articulation root when resolving '{rigid_body_cfg.prim_path}' in the rigid object"
-                        f" collection. These are located at: '{articulation_prims}' under '{template_prim_path}'."
-                        " Please disable the articulation root in the USD or from code by setting the parameter"
-                        " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
-                    )
-
-            # resolve root prim back into regex expression
-            root_prim_path = root_prims[0].GetPath().pathString
-            root_prim_path_expr = rigid_body_cfg.prim_path + root_prim_path[len(template_prim_path) :]
+            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
             root_prim_path_exprs.append(root_prim_path_expr.replace(".*", "*"))
-
             self._body_names_list.append(name)
 
         # -- object view

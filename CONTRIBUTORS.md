@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Alexander Millane
 * Alice Zhou
 * Amr Mousa
+* Andrei Aristarkhov
 * Andrej Orsula
 * Anke Zhao
 * Anton Bjørndahl Mortensen

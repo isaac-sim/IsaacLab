@@ -243,7 +243,7 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
             )
 
             # Inject registered sites into the proto before replication
-            global_sites, proto_sites = cls._cl_inject_sites(builder, {proto_path: proto})
+            global_sites, proto_sites, world_sites = cls._cl_inject_sites(builder, {proto_path: proto})
             global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
             num_worlds = len(env_paths)
             local_site_map: dict[str, list[list[int]]] = {}
@@ -264,7 +264,13 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
                     rotation.GetImaginary()[2],
                     rotation.GetReal(),
                 )
-                builder.add_builder(proto, xform=wp.transform(pos, quat))
+                env_xform = wp.transform(pos, quat)
+                builder.add_builder(proto, xform=env_xform)
+                for label, xform in world_sites.items():
+                    if label not in local_site_map:
+                        local_site_map[label] = [[] for _ in range(num_worlds)]
+                    site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(env_xform, xform), label=label)
+                    local_site_map[label][col].append(site_idx)
                 for label, proto_shape_indices in site_entries.items():
                     if label not in local_site_map:
                         local_site_map[label] = [[] for _ in range(num_worlds)]

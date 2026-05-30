@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -16,10 +17,10 @@ import warp as wp
 
 import omni.physics.tensors.api as physx
 
-import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -288,26 +289,33 @@ class ContactSensor(BaseContactSensor):
         super()._initialize_impl()
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # check that only rigid bodies are selected
-        leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
-        template_prim_path = self._parent_prims[0].GetPath().pathString
-        body_names = list()
-        for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-            # check if prim has contact reporter API
-            if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
-                prim_path = prim.GetPath().pathString
-                body_names.append(prim_path.rsplit("/", 1)[-1])
-        # check that there is at least one body with contact reporter API
+
+        # Split the configured prim path into a parent expression and a leaf-name regex.
+        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        name_pattern = re.compile(leaf_pattern)
+
+        def has_contact_report(prim) -> bool:
+            return bool(name_pattern.fullmatch(prim.GetName())) and (
+                "PhysxContactReportAPI" in prim.GetAppliedSchemas()
+            )
+
+        # Resolve the asset subtree (clone-plan aware) and collect contact-reporting descendants.
+        matches = resolve_matching_prims_from_source(parent_expr)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{parent_expr}'.")
+        asset_prim, body_parent = matches[0]
+        walk_root = asset_prim.GetPath().pathString
+        prims = get_all_matching_child_prims(walk_root, predicate=has_contact_report, traverse_instance_prims=False)
+        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim in prims]
         if not body_names:
             raise RuntimeError(
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
                 "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
             )
 
-        # construct regex expression for the body names
+        # construct regex expression for the body names and convert to PhysX glob form
         body_names_regex = r"(" + "|".join(body_names) + r")"
-        body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
-        # convert regex expressions to glob expressions for PhysX
+        body_names_regex = f"{body_parent}/{body_names_regex}"
         body_names_glob = body_names_regex.replace(".*", "*")
         filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
 
@@ -325,7 +333,7 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError(
                 "Failed to initialize contact reporter for specified bodies."
                 f"\n\tInput prim path    : {self.cfg.prim_path}"
-                f"\n\tResolved prim paths: {body_names_regex}"
+                f"\n\tResolved prim paths: {body_names_glob}"
             )
 
         # check if filter paths are valid

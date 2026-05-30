@@ -54,4 +54,9 @@ if not hasattr(_wp, "torch"):
 del _sys, _types, _wp
 
 
-__version__ = "1.0.0"
+import importlib.metadata
+
+try:
+    __version__ = importlib.metadata.version("isaaclab_mimic")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"

@@ -132,8 +132,10 @@ def _flat_orientation_l2_kernel(
     gravity_w: wp.array(dtype=wp.vec3f),
     out: wp.array(dtype=wp.float32),
 ):
+    # ``gravity_w`` is per-env and may carry magnitude (Newton, m/s^2), so index
+    # per env and normalize before projecting.
     i = wp.tid()
-    g = rotate_vec_to_body_frame(gravity_w[0], root_pose_w[i])
+    g = rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])
     out[i] = g[0] * g[0] + g[1] * g[1]
 
 

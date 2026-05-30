@@ -122,7 +122,7 @@ and Isaac Lab. It composes three collaborators:
 
 .. dropdown:: Session lifecycle details
 
-   The session uses **deferred creation**: if the user has not yet clicked "Start AR" in the Isaac
+   The session uses **deferred creation**: if the user has not yet clicked "Start XR" in the Isaac
    Sim UI, the session is not created immediately. Instead, each call to ``advance()`` retries
    session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
    flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
@@ -711,24 +711,29 @@ These are bundled inside the ``isaaclab_teleop`` package and can be referenced v
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 25 25 20
+   :widths: 28 24 20 18 20
 
    * - Constant
      - File
      - ``NV_DEVICE_PROFILE``
      - ``NV_CXR_ENABLE_PUSH_DEVICES``
+     - ``NV_ENABLE_POSE_WAIT``
    * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
      - ``cloudxrjs-cloudxr.env``
      - ``auto-webrtc``
+     - ``0``
      - ``0``
    * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
      - ``avp-cloudxr.env``
      - ``auto-native``
      - ``0``
+     - ``0``
 
 Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
 tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
 this to ``1`` in a custom profile (see below).
+They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
+times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 
 Override at launch time
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1024,6 +1029,28 @@ Optimize XR Performance
              spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
          )
 
+      Depending on your environment, the default ``DistantLight`` orientation may cast shadows
+      that overlap the robot and reduce visibility during teleoperation. If you encounter this,
+      adjust the light's orientation via ``init_state`` on :class:`~isaaclab.assets.AssetBaseCfg`
+      to position the light source at an angle that gives clear visibility:
+
+      .. code-block:: python
+
+         import isaaclab.sim as sim_utils
+         from isaaclab.assets import AssetBaseCfg
+
+         light = AssetBaseCfg(
+             prim_path="/World/light",
+             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+             init_state=AssetBaseCfg.InitialStateCfg(
+                 rot=(0.0, 0.0, 0.0, 1.0),  # quaternion (x, y, z, w); adjust to reduce shadow overlap
+             ),
+         )
+
+      Experiment with different orientations in your scene to find an angle that avoids
+      shadow overlap on the robot. A slight tilt away from the camera viewpoint is a good
+      starting point.
+
 .. dropdown:: Lower the XR render resolution
    :open:
 
@@ -1089,15 +1116,15 @@ Optimize XR Performance
 .. dropdown:: Check CloudXR frame pacing
    :open:
 
-   The CloudXR runtime frame pacer attempts to keep the client experience smooth. If the
+   The CloudXR Runtime frame pacer attempts to keep the client experience smooth. If the
    application has repeated frame-time spikes, the pacer may settle at a lower stable frame
    rate instead of oscillating between rates. This can make a connected client appear slower
    even when Isaac Lab profiling does not show a proportional simulation-side regression.
 
-   To diagnose or mitigate this case, override CloudXR settings such as
-   ``NV_ENABLE_POSE_WAIT=false`` via a custom ``.env`` file, then point
-   ``teleop_se3_agent.py`` or ``record_demos.py`` at it with ``--cloudxr_env``.
-   See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
+   The shipped CloudXR profiles set ``NV_ENABLE_POSE_WAIT=0`` to mitigate this case, favoring lower
+   latency over pose-wait smoothing. If you use a custom ``.env`` file, copy that setting into the
+   custom profile, then point ``teleop_se3_agent.py`` or ``record_demos.py`` at it with
+   ``--cloudxr_env``. See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
 
 
 .. _isaac-teleop-known-issues:

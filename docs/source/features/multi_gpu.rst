@@ -146,13 +146,24 @@ If the issue persists, additional NCCL fallbacks that may help are:
     export NCCL_IB_DISABLE=1
     export NCCL_ALGO=Ring
 
+Separately, restricting training to a subset of a node's GPUs with ``CUDA_VISIBLE_DEVICES``
+(for example, ``CUDA_VISIBLE_DEVICES=0,1`` on a larger machine) can cause training to hang during
+communicator initialization or on the first collective, with no error reported. On affected
+systems, disabling NCCL's peer-to-peer (P2P) transport resolves the hang:
+
+.. code-block:: shell
+
+    export NCCL_P2P_DISABLE=1
+
 Then relaunch the distributed training command as usual.
 
 .. note::
 
     These variables are NCCL-level workarounds intended for affected systems. They are not
     required on all machines, and may change communication behavior or performance depending
-    on the hardware topology.
+    on the hardware topology. In particular, ``NCCL_P2P_DISABLE=1`` routes inter-GPU traffic
+    through host/shared memory instead of a direct P2P link, which can reduce communication
+    bandwidth, so only set it when you observe a hang while restricting visible devices.
 
 Multi-Node Training
 -------------------
@@ -250,3 +261,94 @@ For more details on multi-node training with JAX, please visit the
     As mentioned in the PyTorch documentation, "multi-node training is bottlenecked by inter-node communication
     latencies". When this latency is high, it is possible multi-node training will perform worse than running on
     a single node instance.
+
+.. _train-multigpu-command:
+
+``train_multigpu`` Command (Experimental)
+-----------------------------------------
+
+.. warning::
+
+   This command is experimental and subject to change in future releases.
+
+Isaac Lab provides a ``train_multigpu`` convenience script that wraps the distributed launchers,
+adds ``--distributed`` automatically, and forwards remaining arguments to the selected training library.
+It defaults to ``rsl_rl`` and uses ``torch.distributed.run`` for torch-based workflows.
+
+Single-node training (defaults to all available GPUs):
+
+.. tab-set::
+    :sync-group: launcher
+
+    .. tab-item:: isaaclab.sh
+        :sync: isaaclab
+
+        .. code-block:: bash
+
+            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --headless --num_envs 4096 --max_iterations 100
+
+    .. tab-item:: uv run
+        :sync: uv
+
+        .. code-block:: bash
+
+            uv run train_multigpu \
+               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --headless --num_envs 4096 --max_iterations 100
+
+Override the GPU count or torchrun settings when needed:
+
+.. tab-set::
+    :sync-group: launcher
+
+    .. tab-item:: isaaclab.sh
+        :sync: isaaclab
+
+        .. code-block:: bash
+
+            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+               --num_gpus 4 --master_port 29504 \
+               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --headless --num_envs 4096 --max_iterations 100
+
+    .. tab-item:: uv run
+        :sync: uv
+
+        .. code-block:: bash
+
+            uv run train_multigpu --num_gpus 4 --master_port 29504 \
+               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --headless --num_envs 4096 --max_iterations 100
+
+Use ``--rl_library`` to select other distributed-capable libraries (``rsl_rl``, ``rl_games``, or ``skrl``).
+For skrl JAX training, pass an integer GPU count and the ``--coordinator_address``:
+
+.. tab-set::
+    :sync-group: launcher
+
+    .. tab-item:: isaaclab.sh
+        :sync: isaaclab
+
+        .. code-block:: bash
+
+            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+               --rl_library skrl --ml_framework jax --num_gpus 4 \
+               --coordinator_address localhost:5000 \
+               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --headless --num_envs 4096 --max_iterations 100
+
+    .. tab-item:: uv run
+        :sync: uv
+
+        .. code-block:: bash
+
+            uv run train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
+               --coordinator_address localhost:5000 \
+               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --headless --num_envs 4096 --max_iterations 100
+
+For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,
+``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` before the training arguments. For
+skrl JAX multi-node jobs, pass ``--nnodes``, ``--node_rank``, and ``--coordinator_address``.
