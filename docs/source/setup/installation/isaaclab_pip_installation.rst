@@ -20,35 +20,22 @@ To learn about how to set up your own project on top of Isaac Lab, please see :r
 Installing Isaac Lab
 ~~~~~~~~~~~~~~~~~~~~
 
-The ``isaaclab`` package provides optional extras to install Isaac Sim and individual
-Isaac Lab sub-packages:
+The ``isaaclab`` pip wheel bundles all Isaac Lab extensions. Two optional extra
+sets are supported:
 
 .. list-table::
    :header-rows: 1
-   :widths: 15 55
+   :widths: 18 52
 
    * - Extra
      - What it installs
-   * - ``isaacsim``
-     - Isaac Sim (``isaacsim[all,extscache]==X.X.X``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
-   * - ``assets``
-     - ``isaaclab_assets``
-   * - ``physx``
-     - ``isaaclab_physx``
-   * - ``contrib``
-     - ``isaaclab_contrib``
-   * - ``mimic``
-     - ``isaaclab_mimic``
-   * - ``newton``
-     - ``isaaclab_newton``
-   * - ``rl``
-     - ``isaaclab_rl``
-   * - ``tasks``
-     - ``isaaclab_tasks``
-   * - ``teleop``
-     - ``isaaclab_teleop``
    * - ``all``
-     - All of the above sub-packages (does **not** include ``isaacsim``)
+     - Kit-less dependencies: Newton physics (``newton[sim]``, ``PyOpenGL-accelerate``)
+       and all RL frameworks (SB3, SKRL, RSL-RL). Does **not** include Isaac Sim.
+   * - ``isaacsim``
+     - Isaac Sim (``isaacsim[all,extscache]==6.0.0.*``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
+
+Combine both for the full Isaac Sim workflow: ``isaaclab[isaacsim,all]``.
 
 .. tab-set::
 
@@ -56,19 +43,11 @@ Isaac Lab sub-packages:
 
       .. code-block:: bash
 
-         # Isaac Lab only
-         uv pip install isaaclab # latest version
-         uv pip install isaaclab==3.0.0 # specific version
+         # Kit-less (Newton backend, no Isaac Sim)
+         uv pip install "isaaclab[all]" # latest version
+         uv pip install "isaaclab[all]==3.0.0" # specific version
 
-         # Isaac Lab + Isaac Sim
-         uv pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
-
-         # Isaac Lab + specific sub-package(s)
-         # Note: flags above are only needed when installing the isaacsim extra
-         uv pip install "isaaclab[assets]"
-         uv pip install "isaaclab[rl,tasks]"
-
-         # Isaac Lab + Isaac Sim + all sub-packages
+         # Full install (Isaac Sim + Newton + RL frameworks)
          uv pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
       .. include:: include/pip_extras_note.rst
@@ -77,19 +56,11 @@ Isaac Lab sub-packages:
 
       .. code-block:: bash
 
-         # Isaac Lab only
-         pip install isaaclab # latest version
-         pip install isaaclab==3.0.0 # specific version
+         # Kit-less (Newton backend, no Isaac Sim)
+         pip install "isaaclab[all]" # latest version
+         pip install "isaaclab[all]==3.0.0" # specific version
 
-         # Isaac Lab + Isaac Sim
-         pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com --pre
-
-         # Isaac Lab + specific sub-package(s)
-         # Note: flags above are only needed when installing the isaacsim extra
-         pip install "isaaclab[assets]"
-         pip install "isaaclab[rl,tasks]"
-
-         # Isaac Lab + Isaac Sim + all Isaac Lab sub-packages
+         # Full install (Isaac Sim + Newton + RL frameworks)
          pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --pre
 
       .. include:: include/pip_extras_note.rst
@@ -176,9 +147,8 @@ Installing dependencies
             When using a conda environment,
             the preload is set up via the conda activation hook.
 
--  If you want to use ``rl_games`` for training and inferencing **and did not
-   install the** ``rl`` **extra above**, install its Python 3.11+ enabled fork
-   manually:
+-  ``rl_games`` is not included in ``[all]``. To use it, install its Python 3.11+
+   enabled fork manually:
 
    .. code-block:: none
 
