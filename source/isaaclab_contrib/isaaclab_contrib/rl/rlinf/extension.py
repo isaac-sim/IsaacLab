@@ -419,15 +419,18 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
     # Apply padding
     if prefix_pad > 0 or suffix_pad > 0:
         action_concat = np.pad(
+    if "scale" in action_mapping:
+        action_concat = action_concat * np.asarray(action_mapping["scale"], dtype=action_concat.dtype)
+    if "offset" in action_mapping:
+        action_concat = action_concat + np.asarray(action_mapping["offset"], dtype=action_concat.dtype)
+    # Apply padding
+    if prefix_pad > 0 or suffix_pad > 0:
+        action_concat = np.pad(
             action_concat,
             ((0, 0), (0, 0), (prefix_pad, suffix_pad)),
             mode="constant",
             constant_values=0,
         )
-    if "scale" in action_mapping:
-        action_concat = action_concat * np.asarray(action_mapping["scale"], dtype=action_concat.dtype)
-    if "offset" in action_mapping:
-        action_concat = action_concat + np.asarray(action_mapping["offset"], dtype=action_concat.dtype)
     return action_concat
 
 
