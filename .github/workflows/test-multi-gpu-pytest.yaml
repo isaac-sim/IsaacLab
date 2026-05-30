@@ -263,6 +263,7 @@ jobs:
               -e ISAACLAB_TEST_DEVICES="$runtime_devices" \
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
+              -e ISAACLAB_SIGHUP_PROBE=1 \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
               "$IMAGE_TAG" \
               -c '

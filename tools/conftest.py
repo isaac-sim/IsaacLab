@@ -510,6 +510,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
         cmd.append(str(test_file))
 
+        # Temporary CI instrumentation (tools/_sighup_probe.py): wrap the test
+        # command to log the sender of the spurious SIGHUP seen under concurrent
+        # multi-GPU execution. Inert unless ISAACLAB_SIGHUP_PROBE is set.
+        if os.environ.get("ISAACLAB_SIGHUP_PROBE"):
+            cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "_sighup_probe.py")] + cmd
+
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 
         # -- Run with retry on startup hang or hard timeout -----------------
