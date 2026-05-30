@@ -97,20 +97,8 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
     process = None
 
     try:
-
-        def _isolate_child():
-            # Own session (no controlling terminal) so orphaned Kit/Isaac Sim
-            # children can't SIGHUP sibling test process groups. Under concurrent
-            # multi-GPU load a spurious orphan/cleanup SIGHUP was killing a
-            # long-running, otherwise-passing file mid-run. SIG_IGN alone did not
-            # survive Kit/carbonite startup (it resets the SIGHUP disposition), so
-            # also BLOCK SIGHUP via the signal mask: a disposition reset does not
-            # clear the mask, so the signal stays pending and is never delivered.
-            # The conftest uses SIGKILL (uncatchable) for its own teardown.
-            os.setsid()
-            signal.signal(signal.SIGHUP, signal.SIG_IGN)
-            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGHUP})
-
+        # Each test gets its own session so orphaned Kit/Isaac Sim child
+        # processes cannot send SIGHUP to the next test's process group.
         process = subprocess.Popen(
             cmd,
             env=env,
@@ -118,7 +106,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             stderr=subprocess.PIPE,
             bufsize=0,
             universal_newlines=False,
-            preexec_fn=_isolate_child,
+            start_new_session=True,
         )
         pgid = os.getpgid(process.pid)
 
@@ -509,12 +497,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             cmd.append("isaacsim_ci")
 
         cmd.append(str(test_file))
-
-        # Temporary CI instrumentation (tools/_sighup_probe.py): wrap the test
-        # command to log the sender of the spurious SIGHUP seen under concurrent
-        # multi-GPU execution. Inert unless ISAACLAB_SIGHUP_PROBE is set.
-        if os.environ.get("ISAACLAB_SIGHUP_PROBE"):
-            cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "_sighup_probe.py")] + cmd
 
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 

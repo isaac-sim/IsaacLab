@@ -132,7 +132,17 @@ jobs:
         # the ``X``, e.g. "110"), so the workflow stays opt-in/opt-out-free.
         id: discover
         run: |
-          mapfile -t discovered < <(grep -rlE 'test_devices\(\)|test_devices\("[^"]*X"\)' source/ --include='test_*.py' | sort -u)
+          # Known-fragile exclusion: newton + physx ``test_articulation`` trigger a
+          # Kit/Isaac-Sim process-lifecycle failure under concurrent multi-GPU
+          # execution on non-default GPUs (newton: SIGHUP ~80% into the file on
+          # cuda:2/3; physx: shutdown hang). It is not reproducible single-host and
+          # is not caused by the sharding (workflow/conftest/queue verified clean);
+          # the heavy file is the same one the Kit-integration pipeline disables.
+          # The file still runs in single-GPU CI. Tracked upstream as a Kit issue
+          # (see PR description); re-include by dropping this grep filter once fixed.
+          mapfile -t discovered < <(grep -rlE 'test_devices\(\)|test_devices\("[^"]*X"\)' source/ --include='test_*.py' \
+            | grep -vE 'isaaclab_(newton|physx)/test/assets/test_articulation\.py' \
+            | sort -u)
           if [ ${#discovered[@]} -eq 0 ]; then
             echo "::error::No opt-in tests discovered (grep for test_devices with an X scope)"
             exit 1
@@ -263,7 +273,6 @@ jobs:
               -e ISAACLAB_TEST_DEVICES="$runtime_devices" \
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
-              -e ISAACLAB_SIGHUP_PROBE=1 \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
               "$IMAGE_TAG" \
               -c '
