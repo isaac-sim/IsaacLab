@@ -48,6 +48,7 @@ from environ_docs import (  # noqa: E402
     parse_rl_libraries_from_kwargs,
     patch_environments_rst,
     render_comprehensive_list_table,
+    _physics_names_for_docs,
 )
 
 import isaaclab_tasks  # noqa: E402, F401
@@ -137,6 +138,35 @@ def test_format_presets_rst_hides_domain_names_duplicated_by_physics():
     )
     assert formatted == "**physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``"
     assert "presets=" not in formatted
+
+
+def test_format_presets_rst_hides_physics_backend_mirrors_without_physics_preset():
+    formatted = format_presets_rst(
+        {
+            PresetTarget.PHYSICS: ["newton_mjwarp", "physx"],
+            PresetTarget.DOMAIN: ["newton_mjwarp", "ovphysx", "physx"],
+        }
+    )
+    assert formatted == "**physics=** ``newton_mjwarp``, ``physx``"
+    assert "ovphysx" not in formatted
+
+
+def test_format_presets_rst_keeps_ovphysx_on_physics():
+    formatted = format_presets_rst(
+        {
+            PresetTarget.PHYSICS: ["newton_kamino", "newton_mjwarp", "ovphysx", "physx"],
+            PresetTarget.DOMAIN: ["newton_mjwarp", "physx"],
+        }
+    )
+    assert formatted == "**physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``"
+
+
+def test_physics_names_for_docs_infers_physx_from_default():
+    names = _physics_names_for_docs(
+        "Isaac-Velocity-Flat-G1-v0",
+        {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
+    )
+    assert names == ["newton_mjwarp", "physx"]
 
 
 def test_collect_environment_doc_rows_from_mock_specs():

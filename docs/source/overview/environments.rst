@@ -99,24 +99,24 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
     |                  | |humanoid-direct-link|      |                                                                         | ``newton_mjwarp``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
     |                  | |ant-direct-link|           |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``newton_kamino``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
     |                  | |cartpole-direct-link|      |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``newton_kamino``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``physx``,                   |
     |                  |                             | running with ``--enable_cameras``.                                      | ``newton_mjwarp``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     |                  |                             |                                                                         | **renderer=**                |
     |                  |                             |                                                                         | ``isaacsim_rtx_renderer``,   |
     |                  |                             |                                                                         | ``newton_renderer``,         |
@@ -528,11 +528,14 @@ Environments based on legged locomotion tasks.
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
-    | |velocity-flat-digit|        | |velocity-flat-digit-link|                   | Track a velocity command on flat terrain with the Agility Digit robot        | **physics=** ``physx``       |
+    | |velocity-flat-digit|        | |velocity-flat-digit-link|                   | Track a velocity command on flat terrain with the Agility Digit robot        | **physics=** ``physx``,      |
+    |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
-    | |velocity-rough-digit|       | |velocity-rough-digit-link|                  | Track a velocity command on rough terrain with the Agility Digit robot       | **physics=** ``physx``       |
+    | |velocity-rough-digit|       | |velocity-rough-digit-link|                  | Track a velocity command on rough terrain with the Agility Digit robot       | **physics=** ``physx``,      |
+    |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
-    | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     | **physics=** ``physx``       |
+    | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     | **physics=** ``physx``,      |
+    |                              |                                              |                                                                              | ``newton_mjwarp``            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
@@ -1271,7 +1274,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **presets=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+      -
     * - Isaac-NutPour-GR1T2-Pink-IK-Abs-v0
       -
       - Manager Based
@@ -1281,17 +1284,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-      - **presets=** ``newton_mjwarp``, ``physx``
+      -
     * - Isaac-Open-Drawer-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-      - **presets=** ``newton_mjwarp``, ``physx``
+      -
     * - Isaac-Open-Drawer-Franka-v0
       - Isaac-Open-Drawer-Franka-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **presets=** ``newton_mjwarp``, ``physx``
+      -
     * - Isaac-Open-Drawer-OpenArm-v0
       - Isaac-Open-Drawer-OpenArm-Play-v0
       - Manager Based
@@ -1528,8 +1531,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Tracking-LocoManip-Digit-Play-v0
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Anymal-B-Warp-v0
       - Isaac-Velocity-Flat-Anymal-B-Warp-Play-v0
       - Manager Based
@@ -1539,8 +1541,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Anymal-C-Direct-v0
       -
       - Direct
@@ -1555,8 +1556,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Anymal-C-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Anymal-D-Warp-v0
       - Isaac-Velocity-Flat-Anymal-D-Warp-Play-v0
       - Manager Based
@@ -1576,14 +1576,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Digit-v0
       - Isaac-Velocity-Flat-Digit-Play-v0
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-G1-Warp-v0
       - Isaac-Velocity-Flat-G1-Warp-Play-v0
       - Manager Based
@@ -1593,8 +1591,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-G1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``
-          | **presets=** ``ovphysx``, ``physx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-H1-Warp-v0
       - Isaac-Velocity-Flat-H1-Warp-Play-v0
       - Manager Based
@@ -1604,14 +1601,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-H1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Spot-v0
       - Isaac-Velocity-Flat-Spot-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``
-          | **presets=** ``ovphysx``, ``physx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Unitree-A1-Warp-v0
       - Isaac-Velocity-Flat-Unitree-A1-Warp-Play-v0
       - Manager Based
@@ -1621,8 +1616,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Unitree-A1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Unitree-Go1-Warp-v0
       - Isaac-Velocity-Flat-Unitree-Go1-Warp-Play-v0
       - Manager Based
@@ -1632,8 +1626,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``
-          | **presets=** ``ovphysx``, ``physx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Unitree-Go2-Warp-v0
       - Isaac-Velocity-Flat-Unitree-Go2-Warp-Play-v0
       - Manager Based
@@ -1643,14 +1636,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Flat-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Anymal-B-v0
       - Isaac-Velocity-Rough-Anymal-B-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Anymal-C-Direct-v0
       -
       - Direct
@@ -1660,55 +1651,46 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Anymal-C-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Anymal-D-v0
       - Isaac-Velocity-Rough-Anymal-D-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Cassie-v0
       - Isaac-Velocity-Rough-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Digit-v0
       - Isaac-Velocity-Rough-Digit-Play-v0
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-G1-v0
       - Isaac-Velocity-Rough-G1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-H1-v0
       - Isaac-Velocity-Rough-H1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Unitree-A1-v0
       - Isaac-Velocity-Rough-Unitree-A1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Unitree-Go1-v0
       - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Unitree-Go2-v0
       - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
-          | **presets=** ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``physx``
 
 .. END-AUTO-GENERATED: comprehensive-environment-list

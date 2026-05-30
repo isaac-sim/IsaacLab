@@ -134,6 +134,8 @@ def _quickstart_kitless(branch: str, platform: str) -> str:
     return f"""\
 .. code-block:: batch
 
+   :: Install uv: https://docs.astral.sh/uv/getting-started/installation/
+
    git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
    cd IsaacLab
 
@@ -164,6 +166,8 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
 """
     return f"""\
 .. code-block:: batch
+
+   :: Install uv: https://docs.astral.sh/uv/getting-started/installation/
 
    git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
    cd IsaacLab
