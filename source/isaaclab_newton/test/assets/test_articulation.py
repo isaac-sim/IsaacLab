@@ -6,16 +6,16 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
+"""Kitless newton tests: run the newton physics backend without booting Kit.
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+``SimulationContext`` and :func:`~isaaclab.sim.build_simulation_context` gate
+all Kit-specific paths on :func:`~isaaclab.utils.version.has_kit`, so omitting
+the module-level ``AppLauncher(headless=True).app`` boot is sufficient — newton
+tests run in pure-python + warp without Isaac Sim's Kit runtime. This avoids
+the Kit/Isaac-Sim concurrency lifecycle bug (SIGHUP / shutdown-hang at >=3
+concurrent Kit instances on test_articulation under multi-GPU CI) and shaves
+~30s off per-file boot.
+"""
 
 import sys
 from copy import deepcopy
