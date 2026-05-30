@@ -4,15 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.devices.device_base import DeviceBase, DevicesCfg
+from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
-from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import (
-    GripperRetargeterCfg,
-)
-from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import (
-    Se3RelRetargeterCfg,
-)
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import (
     DifferentialInverseKinematicsActionCfg,
 )
@@ -59,26 +53,12 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
 
         self.teleop_devices = DevicesCfg(
             devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3RelRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            delta_pos_scale_factor=10.0,
-                            delta_rot_scale_factor=10.0,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
-                            sim_device=self.sim.device,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
                 "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
+                "spacemouse": Se3SpaceMouseCfg(
                     pos_sensitivity=0.05,
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
