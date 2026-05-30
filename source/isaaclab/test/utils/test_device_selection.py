@@ -128,6 +128,24 @@ def test_skip_ignores_out_of_result_devices(host):
     assert resolve_devices("11X", skip={"cuda:3": "n/a"}) == ["cpu", "cuda:0"]
 
 
+def test_skip_non_default_skips_every_non_default_gpu(host):
+    # On a non-default shard the device is skipped with the reason (visible),
+    # robust to which non-default GPU it is (no hardcoded index).
+    host(MULTI_GPU, "0001")  # cuda:2 shard
+    result = resolve_devices("01X", skip_non_default="frag")
+    assert len(result) == 1
+    assert result[0].values == ("cuda:2",)
+    assert result[0].marks[0].name == "skip"
+    assert result[0].marks[0].kwargs["reason"] == "frag"
+
+
+def test_skip_non_default_runs_cuda0_in_single_gpu(host):
+    # cpu / cuda:0 are untouched by skip_non_default, so single-GPU CI runs normally.
+    host(SINGLE_GPU, None)
+    assert resolve_devices("01X", skip_non_default="frag") == ["cuda:0"]
+    assert resolve_devices("11X", skip_non_default="frag") == ["cpu", "cuda:0"]
+
+
 # ---------------------------------------------------------------------------
 # _expand mask grammar
 # ---------------------------------------------------------------------------
