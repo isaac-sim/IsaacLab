@@ -7,6 +7,7 @@ import contextlib
 import os
 import re
 import select
+import shutil
 import signal
 import subprocess
 import sys
@@ -146,6 +147,14 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
 
             if kill_reason:
                 pre_kill_diag = _capture_system_diagnostics()
+                # Capture stack traces of the hung process group before SIGKILL
+                # erases them. py-spy gives Python frames; gdb gives C++ frames
+                # inside Kit/PhysX binaries. Critical for diagnosing the
+                # upstream-tracked Kit shutdown hang (IsaacLab #3475 / OMPE-43816)
+                # since we can't read those binaries' source.
+                stack_diag = _capture_hang_stacks(process.pid, pgid, kill_reason)
+                if stack_diag:
+                    pre_kill_diag = (pre_kill_diag + "\n\n" + stack_diag) if pre_kill_diag else stack_diag
 
                 # Kill the entire process group (test + any Kit children).
                 try:
@@ -250,6 +259,80 @@ def _get_diagnostics(pre_kill_diag=""):
     if len(diag) > 10000:
         diag = diag[:10000] + "\n... (truncated)"
     return diag
+
+
+def _capture_hang_stacks(pid: int, pgid: int, kill_reason: str) -> str:
+    """Capture Python and C++ stack traces of a hung process before SIGKILL.
+
+    Used by the kill path to record where Kit was stuck when the
+    ``shutdown_hang`` / ``startup_hang`` / ``timeout`` deadline tripped.
+    Without this, SIGKILL erases the evidence and the upstream Kit hang
+    (IsaacLab #3475 / OMPE-43816) is opaque.
+
+    Args:
+        pid: The hung test process pid.
+        pgid: Its process-group id; used to enumerate descendant pids
+            (Kit forks helper processes that may also be stuck).
+        kill_reason: Header to write into the captured block.
+
+    Returns:
+        A string block ready to be appended to the diagnostic report.
+        Empty when neither py-spy nor gdb is available.
+    """
+    sections = [f"--- hang stack capture ({kill_reason}, pid={pid}, pgid={pgid}) ---"]
+
+    # Enumerate all pids in the process group; Kit spawns extension subprocesses
+    # and any of them may be the actual culprit. Cap to avoid extreme dumps.
+    pids = [pid]
+    try:
+        r = subprocess.run(["ps", "-o", "pid=", "-g", str(pgid)], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            pids = [int(p) for p in r.stdout.split() if p.isdigit()][:8]
+    except Exception:
+        pass
+
+    py_spy = shutil.which("py-spy")
+    gdb = shutil.which("gdb")
+
+    for target_pid in pids:
+        sections.append(f"\n=== pid {target_pid} ===")
+
+        # py-spy: Python frames. Needs PTRACE permissions; YAMA may block.
+        if py_spy:
+            try:
+                r = subprocess.run(
+                    [py_spy, "dump", "--pid", str(target_pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                tag = "py-spy dump"
+                sections.append(f"-- {tag} --\n{r.stdout or r.stderr.strip() or '(no output)'}")
+            except Exception as e:
+                sections.append(f"-- py-spy --- FAILED: {e}")
+        else:
+            sections.append("-- py-spy -- (not installed; pip install py-spy)")
+
+        # gdb: C++ frames. Will print "thread apply all bt" for Kit/PhysX/CUDA
+        # threads. Needs the same PTRACE permissions.
+        if gdb:
+            try:
+                r = subprocess.run(
+                    [gdb, "-batch", "-ex", "set pagination off", "-ex", "thread apply all bt", "-p", str(target_pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                )
+                out = r.stdout.strip()
+                if len(out) > 8000:
+                    out = out[:8000] + "\n... (truncated)"
+                sections.append(f"-- gdb thread apply all bt --\n{out or r.stderr.strip() or '(no output)'}")
+            except Exception as e:
+                sections.append(f"-- gdb --- FAILED: {e}")
+        else:
+            sections.append("-- gdb -- (not installed; apt-get install gdb)")
+
+    return "\n".join(sections)
 
 
 def _capture_system_diagnostics():
