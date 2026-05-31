@@ -285,8 +285,8 @@ jobs:
               -e ISAAC_SIM_LOW_MEMORY=1 \
               -e PYTHONUNBUFFERED=1 \
               -e PYTHONIOENCODING=utf-8 \
-              -e ISAACLAB_TEST_DEVICES="01" \
-              -e ISAACLAB_SIM_DEVICE="cuda:0" \
+              -e ISAACLAB_TEST_DEVICES="$runtime_devices" \
+              -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
               "$IMAGE_TAG" \
