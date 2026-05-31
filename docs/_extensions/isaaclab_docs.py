@@ -186,7 +186,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
 
 def setup(app):
     """Register Isaac Lab documentation directives."""
-    app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaaclab_latest_branch", "release/3.0.0-beta2", "env")
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)

@@ -47,7 +47,7 @@ What works today
 
 The asset and sensor surface tracks PhysX, but only a subset is implemented and
 validated at the time of writing. The following pieces are available on
-``develop``:
+``release/3.0.0-beta2``:
 
 * RigidObject — merged via
   `PR #5426 <https://github.com/isaac-sim/IsaacLab/pull/5426>`_.
@@ -64,7 +64,7 @@ validated at the time of writing. The following pieces are available on
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
-until their implementations land on ``develop`` and pass the backend smoke
+until their implementations land on ``release/3.0.0-beta2`` and pass the backend smoke
 tests.
 
 Installation
