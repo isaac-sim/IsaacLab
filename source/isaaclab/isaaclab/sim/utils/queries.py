@@ -277,8 +277,11 @@ def get_all_matching_child_prims(
 
     if expected_num_matches is not None and len(output_prims) != expected_num_matches:
         matched = [prim.GetPath().pathString for prim in output_prims]
+        predicate_name = getattr(predicate, "__name__", None)
+        msg = "" if predicate_name is None or predicate_name == "<lambda>" else f" matching predicate '{predicate_name}'"
         raise RuntimeError(
-            f"Expected {expected_num_matches} prims under '{prim_path}', found {len(output_prims)}: {matched}."
+            f"Expected {expected_num_matches} prims under '{prim_path}'{msg},"
+            f" found {len(output_prims)}: {matched}."
         )
     return output_prims
 
