@@ -85,14 +85,8 @@ jobs:
             echo "::error::Need at least 2 GPUs (cuda:0 + at least 1 non-default); found $N"
             exit 1
           fi
-          # TEMP DIAGNOSTIC: cap to 2 shards to test whether the Kit lifecycle
-          # bug only manifests at 3+ concurrent Kit processes (IsaacLab #3475 /
-          # OMPE-43816). Revert after data is collected.
-          MAX_SHARDS=2
-          available=$((N - 1))
-          shard_count=$(( available < MAX_SHARDS ? available : MAX_SHARDS ))
-          shards=$(python3 -c "import json; print(json.dumps(list(range(1, 1 + $shard_count))))")
-          count=$shard_count
+          shards=$(python3 -c "import json; print(json.dumps(list(range(1, $N))))")
+          count=$((N - 1))
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "::notice::$N GPUs → shards=$shards (shard_count=$count)"
