@@ -85,14 +85,8 @@ jobs:
             echo "::error::Need at least 2 GPUs (cuda:0 + at least 1 non-default); found $N"
             exit 1
           fi
-          # TEMP DIAGNOSTIC: cap to 2 shards to test whether the Kit lifecycle
-          # bug only manifests at 3+ concurrent Kit processes (IsaacLab #3475 /
-          # OMPE-43816). Revert after data is collected.
-          MAX_SHARDS=2
-          available=$((N - 1))
-          shard_count=$(( available < MAX_SHARDS ? available : MAX_SHARDS ))
-          shards=$(python3 -c "import json; print(json.dumps(list(range(1, 1 + $shard_count))))")
-          count=$shard_count
+          shards=$(python3 -c "import json; print(json.dumps(list(range(1, $N))))")
+          count=$((N - 1))
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "::notice::$N GPUs → shards=$shards (shard_count=$count)"
@@ -256,7 +250,14 @@ jobs:
             # grouped re-print; sed prefixes the live copy so the three
             # concurrent shards stay followable in the workflow log).
             (
-            docker run --rm --gpus all --network=host \
+            # DIAGNOSTIC: isolate each shard to a single physical GPU via
+            # ``--gpus device=N``. Mirrors the hardware-level isolation MIG
+            # provides on Horde (where local 3-shard repro passes cleanly).
+            # On the multi-GPU CI runner we previously used ``--gpus all`` +
+            # ``--/renderer/activeGpu=N`` selection, which left all 3 Kit
+            # processes able to see each other's GPUs and apparently triggered
+            # the SIGHUP cascade + "Stage already attached" pattern.
+            docker run --rm --gpus "\"device=$cuda\"" --network=host \
               --entrypoint bash \
               --user "${host_uid}:${host_gid}" \
               --name "isaac-lab-mgpu-cuda${cuda}-${{ github.run_id }}-${{ github.run_attempt }}" \
