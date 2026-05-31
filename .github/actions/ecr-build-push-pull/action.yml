@@ -52,21 +52,8 @@ runs:
     - name: Setup docker config and login to nvcr.io
       shell: bash
       run: |
-        DOCKER_CONFIG_DIR=$(mktemp -d)
-        if [ -f "${HOME}/.docker/config.json" ]; then
-          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-        else
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-        fi
-        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
-        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
-
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
-          echo "🔵 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
-        else
-          echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
-        fi
+        # shellcheck source=/dev/null
+        . .github/actions/_lib/setup-docker-config.sh
 
     ##### 2: Resolve ECR URL #####
 
@@ -195,36 +182,13 @@ runs:
       id: deps-cache
       if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
       shell: bash
+      env:
+        DOCKERFILE_PATH: ${{ inputs.dockerfile-path }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
-        ##### Deps-hash configuration #####
-        # Exact files/dirs whose full content is hashed. The Dockerfile is first.
-        DEPS_FILES=(
-          "${{ inputs.dockerfile-path }}"
-          isaaclab.sh
-          environment.yml
-          source/isaaclab/isaaclab/cli
-        )
-        # Manifest files matched repo-wide via git ls-files.
-        DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
-
-        # Resolve the actual base image digest so a new push of a mutable tag
-        # (e.g. latest-develop) invalidates the deps cache automatically.
-        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
-        else
-          echo "🟠 Could not resolve base image digest, falling back to tag string"
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
-        fi
-
-        echo "🔵 Base image ID: ${BASE_IMAGE_UNIQ_ID}"
-
-        MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
-        FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
-          | sha256sum | cut -c1-16)
-        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
+        # shellcheck source=/dev/null
+        . .github/actions/_lib/compute-deps-hash.sh
         DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
         echo "🔵 Deps hash: ${DEPS_HASH}"
         echo "🔵 Checking if deps image ${DEPS_ECR_IMAGE} exists in ECR..."
@@ -260,7 +224,6 @@ runs:
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
-        skip-docker-config: 'true'
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
         extra-tags: ${{ steps.resolve-ecr.outputs.available == 'true' && env.ECR_IMAGE || '' }}

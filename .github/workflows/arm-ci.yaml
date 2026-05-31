@@ -51,7 +51,7 @@ jobs:
     outputs:
       run_arm_ci: ${{ steps.detect.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
           sparse-checkout: .github/actions/detect-changes
@@ -81,7 +81,7 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - id: load
@@ -108,7 +108,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           lfs: true

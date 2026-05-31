@@ -12,15 +12,18 @@ description: >
   `ecr-build-push-pull` delegates to once its registry-side checks miss.
 
   Pipeline:
-    1. Optional: setup docker config + login to nvcr.io (skipped when the
-       caller has already done it — `skip-docker-config: true`).
+    1. Setup docker config + login to nvcr.io via the shared
+       `_lib/setup-docker-config.sh` (idempotent — no-op if a caller
+       already ran it earlier in the job).
     2. Pre-build disk snapshot (df + docker system df + tag counts) into the
        step summary.
     3. Local exact-tag short-circuit: skip everything if `image-tag` is
        already in the host's docker store.
-    4. Local deps-tag short-circuit: compute a hash over Dockerfile +
-       setup.py / pyproject.toml / uv.lock + base image digest. If
-       `<repo>:deps-<hash>` exists locally, retag as `image-tag` (metadata-only).
+    4. Local deps-tag short-circuit: compute deps-hash via the shared
+       `_lib/compute-deps-hash.sh` (same hash `ecr-build-push-pull` uses,
+       so a local hit and a registry hit always agree on the deps tag).
+       If `<repo>:deps-<hash>` exists locally, retag as `image-tag`
+       (metadata-only).
     5. buildx build (only when neither short-circuit fired). Optional
        `--cache-from` / `--cache-to` flags for callers that want to layer
        in a registry-side build cache (e.g. ECR).
@@ -29,10 +32,6 @@ description: >
     7. Evict `isaac-lab*:deps-*` tags older than 14 days to bound disk
        growth on long-lived hosts.
     8. Post-build disk snapshot.
-
-  The deps-hash schema must stay identical to the one in
-  `ecr-build-push-pull`'s registry-side deps-cache (step 5 there) so a local
-  build and a registry retag converge on the same image identity.
 
 inputs:
   image-tag:
@@ -77,14 +76,6 @@ inputs:
       caller can rely on them being present.
     default: ''
     required: false
-  skip-docker-config:
-    description: >
-      Skip the docker config setup + nvcr.io login step. Set to "true" when
-      the caller has already configured docker auth (e.g. ecr-build-push-pull
-      does its own ECR + nvcr setup before delegating here).
-    default: 'false'
-    required: false
-
 outputs:
   local-hit:
     description: '"true" if the exact image-tag was already in local docker.'
@@ -103,24 +94,10 @@ runs:
     ##### 1: Setup docker config + login to nvcr.io (optional) #####
 
     - name: Setup docker config and login to nvcr.io
-      if: inputs.skip-docker-config != 'true'
       shell: bash
       run: |
-        DOCKER_CONFIG_DIR=$(mktemp -d)
-        if [ -f "${HOME}/.docker/config.json" ]; then
-          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-        else
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-        fi
-        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
-        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
-
-        if [ -n "${NGC_API_KEY:-}" ]; then
-          echo "🔵 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p "${NGC_API_KEY}" nvcr.io
-        else
-          echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
-        fi
+        # shellcheck source=/dev/null
+        . .github/actions/_lib/setup-docker-config.sh
 
     ##### 2: Host disk snapshot (pre) #####
 
@@ -170,29 +147,13 @@ runs:
       id: local-deps
       if: steps.local.outputs.hit != 'true'
       shell: bash
+      env:
+        DOCKERFILE_PATH: ${{ inputs.dockerfile-path }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
-        DEPS_FILES=(
-          "${{ inputs.dockerfile-path }}"
-          isaaclab.sh
-          environment.yml
-          source/isaaclab/isaaclab/cli
-        )
-        DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
-
-        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
-        else
-          echo "🟠 Could not resolve base image digest, falling back to tag string"
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
-        fi
-
-        MANIFEST_FILES=$(git ls-files | grep -E "${DEPS_MANIFEST_PATTERN}" || true)
-        FILE_HASH=$(git ls-files -s "${DEPS_FILES[@]}" ${MANIFEST_FILES} 2>/dev/null \
-          | sha256sum | cut -c1-16)
-        DEPS_HASH=$(printf '%s %s' "${FILE_HASH}" "${BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
+        # shellcheck source=/dev/null
+        . .github/actions/_lib/compute-deps-hash.sh
         LOCAL_DEPS_TAG="$(echo "${{ inputs.image-tag }}" | cut -d: -f1):deps-${DEPS_HASH}"
 
         echo "🔵 Local deps tag: ${LOCAL_DEPS_TAG}"
