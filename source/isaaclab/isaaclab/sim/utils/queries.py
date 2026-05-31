@@ -199,6 +199,7 @@ def get_all_matching_child_prims(
     depth: int | None = None,
     stage: Usd.Stage | None = None,
     traverse_instance_prims: bool = True,
+    expected_num_matches: int | None = None,
 ) -> list[Usd.Prim]:
     """Performs a search starting from the root and returns all the prims matching the predicate.
 
@@ -223,12 +224,16 @@ def get_all_matching_child_prims(
             Defaults to None (i.e: traversal happens till the end of the tree).
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
         traverse_instance_prims: Whether to traverse instance prims. Defaults to True.
+        expected_num_matches: Expected number of matching prims. If specified, a :class:`RuntimeError` is raised when
+            the number of matches differs. Defaults to None, which disables count validation.
 
     Returns:
         A list containing all the prims matching the predicate.
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
+        ValueError: If :attr:`expected_num_matches` is negative.
+        RuntimeError: If :attr:`expected_num_matches` is specified and the number of matches differs.
     """
     # get stage handle
     if stage is None:
@@ -247,6 +252,8 @@ def get_all_matching_child_prims(
     # check if depth is valid
     if depth is not None and depth <= 0:
         raise ValueError(f"Depth must be bigger than zero, got {depth}.")
+    if expected_num_matches is not None and expected_num_matches < 0:
+        raise ValueError(f"Expected number of matches must be non-negative, got {expected_num_matches}.")
 
     # iterate over all prims under prim-path
     # list of tuples (prim, current_depth)
@@ -268,6 +275,11 @@ def get_all_matching_child_prims(
             # add children to list
             all_prims_queue += [(child, current_depth + 1) for child in children]
 
+    if expected_num_matches is not None and len(output_prims) != expected_num_matches:
+        matched = [prim.GetPath().pathString for prim in output_prims]
+        raise RuntimeError(
+            f"Expected {expected_num_matches} prims under '{prim_path}', found {len(output_prims)}: {matched}."
+        )
     return output_prims
 
 
@@ -362,32 +374,25 @@ def resolve_matching_prims_from_source(
     *,
     predicate: Callable[[Usd.Prim], bool] | None = None,
     env_regex_ns: str = "/World/envs/env_.*",
+    raise_if_no_matches: bool = True,
 ) -> list[tuple[Usd.Prim, str]]:
-    """Resolve prims matching ``path_expr`` (regex) under the first instance.
+    """Resolve matching prims from a single(source) instance when multiple instances are present.
 
-    Identify the env-id segment, concretize it to the *first instance* (the authored source
-    template in clone-plan mode, env-0 in legacy mode), then evaluate the remainder of
-    ``path_expr`` as a path-segment regex via :func:`find_matching_prims`. Downstream regex
-    tokens (e.g. ``LF_.*``, ``.*_foot``) are preserved verbatim and matched there.
+    The returned prims come from the stage source instance, while each destination expression
+    keeps the multi-instance pattern that callers can pass to simulation views.
 
     Args:
-        path_expr: Destination-side path expression (e.g. a ``prim_path``), which may contain
-            regex wildcards in the env-id and/or asset-relative segments.
-        predicate: Optional callable accepting a :class:`Usd.Prim` and returning ``True`` for
-            prims to keep. ``None`` keeps every match.
-        env_regex_ns: Instance-root namespace regex, defaulting to the standard
-            ``"/World/envs/env_.*"``. In legacy (no-clone-plan) resolution, when ``path_expr``
-            sits under this namespace its path depth fixes the per-instance ("env") boundary.
-            Otherwise the boundary falls back to the first regex segment of ``path_expr`` (the
-            first ``.*`` is treated as the env id), which covers ad-hoc roots such as
-            ``"/World/Table_.*/Object"``. Layouts the fallback would mis-split (e.g. more than
-            one wildcard level) must pass an explicit namespace here. Ignored when a clone plan
-            owns ``path_expr``.
+        path_expr: Prim path expression to resolve. It may contain regex wildcards.
+        predicate: Optional filter applied to resolved prims.
+        env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
+        raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
 
     Returns:
-        List of ``(matched_prim, destination_expr)`` pairs, where ``destination_expr`` is the
-        multi-instance path expression (not a single concrete instance) so callers can build
-        views spanning every instance. Empty when ``path_expr`` matches no prim.
+        A list of ``(source_prim, destination_expr)`` pairs. Empty only when
+        ``raise_if_no_matches`` is False.
+
+    Raises:
+        RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
     resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
@@ -438,6 +443,8 @@ def resolve_matching_prims_from_source(
             ]
     if predicate is not None:
         results = [(prim, dest) for prim, dest in results if predicate(prim)]
+    if raise_if_no_matches and not results:
+        raise RuntimeError(f"No prim found at '{path_expr}'.")
     return results
 
 

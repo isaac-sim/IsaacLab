@@ -300,10 +300,7 @@ class ContactSensor(BaseContactSensor):
             )
 
         # Resolve the asset subtree (clone-plan aware) and collect contact-reporting descendants.
-        matches = resolve_matching_prims_from_source(parent_expr)
-        if not matches:
-            raise RuntimeError(f"No prim found at '{parent_expr}'.")
-        asset_prim, body_parent = matches[0]
+        asset_prim, body_parent = resolve_matching_prims_from_source(parent_expr)[0]
         walk_root = asset_prim.GetPath().pathString
         prims = get_all_matching_child_prims(walk_root, predicate=has_contact_report, traverse_instance_prims=False)
         body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim in prims]

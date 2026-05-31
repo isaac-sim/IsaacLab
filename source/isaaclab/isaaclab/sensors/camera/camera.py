@@ -159,7 +159,7 @@ class Camera(SensorBase):
         spawn = self.cfg.spawn
         if spawn is not None:
             probe_path = (spawn.spawn_path or self.cfg.prim_path) if spawn is not None else self.cfg.prim_path
-            probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path)
+            probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path, raise_if_no_matches=False)
             source_prim, _source_destination_expr = probe_matches[0] if probe_matches else (None, None)
             if source_prim is not None and source_prim.IsValid():
                 if source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI):

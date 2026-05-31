@@ -454,10 +454,7 @@ class SensorBase(ABC):
               quaternion ``(x, y, z, w)``, or ``None`` when the sensor is
               mounted directly at the body origin.
         """
-        matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
-        if not matches:
-            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
-        prim, target_expr = matches[0]
+        prim, target_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
 
         ancestor_prim = get_first_matching_ancestor_prim(
             prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)

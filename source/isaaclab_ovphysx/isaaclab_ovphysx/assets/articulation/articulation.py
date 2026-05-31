@@ -3482,20 +3482,11 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
-            if not matches:
-                raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
+            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
             walk_root = asset_prim.GetPath().pathString
             root_prims = sim_utils.get_all_matching_child_prims(
-                walk_root, predicate=has_articulation_root_api, traverse_instance_prims=False
+                walk_root, has_articulation_root_api, expected_num_matches=1
             )
-            if len(root_prims) != 1:
-                matched = [p.GetPath().pathString for p in root_prims]
-                raise RuntimeError(
-                    f"Expected exactly one ArticulationRootAPI prim under '{walk_root}'"
-                    f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
-                )
             root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         # Validate the prim exists on the live stage -- ``create_tensor_binding`` silently
         # returns a 0-count binding when the pattern matches nothing, surfacing as obscure

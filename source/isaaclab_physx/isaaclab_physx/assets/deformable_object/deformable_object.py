@@ -583,20 +583,9 @@ class DeformableObject(AssetBase):
         def has_deformable_body_api(prim) -> bool:
             return "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas()
 
-        matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
-        if not matches:
-            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
-        asset_prim, root_expr = matches[0]
+        asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
         walk_root = asset_prim.GetPath().pathString
-        root_prims = sim_utils.get_all_matching_child_prims(
-            walk_root, predicate=has_deformable_body_api, traverse_instance_prims=False
-        )
-        if len(root_prims) != 1:
-            matched = [p.GetPath().pathString for p in root_prims]
-            raise RuntimeError(
-                f"Expected exactly one OmniPhysicsDeformableBodyAPI prim under '{walk_root}'"
-                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
-            )
+        root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_deformable_body_api, expected_num_matches=1)
         root_prim = root_prims[0]
 
         # find deformable material prims

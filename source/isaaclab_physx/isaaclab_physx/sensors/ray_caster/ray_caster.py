@@ -47,8 +47,6 @@ class _PhysXRayCasterMixin:
         # One clone-plan-/stage-aware resolution yields the sensor frame(s) and their
         # multi-instance destination expressions; the rigid-body view is the frame's ancestor.
         matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
-        if not matches:
-            raise RuntimeError(f"No sensor prims matched: {self.cfg.prim_path}")
         # Base classes read ``self._view.count``; the sensor doubles as its own view.
         self._view = self
         prims = [prim for prim, _ in matches]

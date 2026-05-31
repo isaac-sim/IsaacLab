@@ -1222,20 +1222,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         root_prim_path_exprs = []
         for name, rigid_body_cfg in self.cfg.rigid_objects.items():
-            matches = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)
-            if not matches:
-                raise RuntimeError(f"No prim found at '{rigid_body_cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
+            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)[0]
             walk_root = asset_prim.GetPath().pathString
-            root_prims = sim_utils.get_all_matching_child_prims(
-                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
-            )
-            if len(root_prims) != 1:
-                matched = [p.GetPath().pathString for p in root_prims]
-                raise RuntimeError(
-                    f"Expected exactly one RigidBodyAPI prim under '{walk_root}'"
-                    f" (resolved from '{rigid_body_cfg.prim_path}'), found {len(root_prims)}: {matched}."
-                )
+            root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
             root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
             root_prim_path_exprs.append(root_prim_path_expr.replace(".*", "*"))
             self._body_names_list.append(name)
