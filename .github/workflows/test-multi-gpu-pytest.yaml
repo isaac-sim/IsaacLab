@@ -250,7 +250,13 @@ jobs:
             # grouped re-print; sed prefixes the live copy so the three
             # concurrent shards stay followable in the workflow log).
             (
+            # ``--cap-add=SYS_PTRACE`` lets ``tools/conftest.py`` invoke
+            # ``py-spy dump`` / ``gdb -p`` against the hung Kit process when
+            # ``shutdown_hang`` fires. Without it the diagnostic capture
+            # comes back as "Permission Denied" and we have no frames to
+            # localize the IsaacLab #3475 / OMPE-43816 Kit shutdown hang.
             docker run --rm --gpus all --network=host \
+              --cap-add=SYS_PTRACE \
               --entrypoint bash \
               --user "${host_uid}:${host_gid}" \
               --name "isaac-lab-mgpu-cuda${cuda}-${{ github.run_id }}-${{ github.run_attempt }}" \
@@ -291,7 +297,7 @@ jobs:
                 # (mirrors the hardcoded line in run-tests action.yml).
                 # junitparser is imported at tools/conftest.py load time,
                 # so it must be present before pytest fires.
-                ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky "coverage>=7.6.1"
+                ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky py-spy "coverage>=7.6.1"
                 ./isaaclab.sh -p -m pytest \
                   --ignore=tools/conftest.py \
                   --ignore=source/isaaclab/test/install_ci \
