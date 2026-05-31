@@ -79,7 +79,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.manager_based.manipulation.lift import mdp
+from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import parse_env_cfg
 
 logger = logging.getLogger(__name__)

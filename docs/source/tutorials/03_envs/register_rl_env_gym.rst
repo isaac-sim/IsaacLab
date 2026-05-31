@@ -74,9 +74,9 @@ Manager-Based Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For manager-based environments, the following shows the registration
-call for the cartpole environment in the ``isaaclab_tasks.manager_based.classic.cartpole`` sub-package:
+call for the cartpole environment in the ``isaaclab_tasks.core.manager_cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/__init__.py
    :language: python
    :lines: 10-
    :emphasize-lines: 4, 11, 12, 15
@@ -109,9 +109,9 @@ Additionally, we add the suffix ``-Direct`` to the environment name to different
 manager-based environments.
 
 As an example, the following shows the registration call for the cartpole environment in the
-``isaaclab_tasks.direct.cartpole`` sub-package:
+``isaaclab_tasks.core.direct_cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/__init__.py
    :language: python
    :lines: 10-31
    :emphasize-lines: 5, 12, 13, 16

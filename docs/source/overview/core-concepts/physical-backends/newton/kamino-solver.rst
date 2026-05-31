@@ -49,7 +49,7 @@ solver config types used by the presets:
 Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, and
 ``newton_mjwarp`` entries:
 
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/cartpole_env_cfg.py
     :language: python
     :start-at: class CartpolePhysicsCfg
     :end-at: ovphysx: OvPhysxCfg = OvPhysxCfg()

@@ -55,7 +55,7 @@ tutorial environment into the task package:
       .. code-block:: bash
 
          cp scripts/tutorials/06_deploy/anymal_c_env.py \
-            source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+            source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -63,7 +63,7 @@ tutorial environment into the task package:
       .. code-block:: batch
 
          copy scripts\tutorials\06_deploy\anymal_c_env.py ^
-            source\isaaclab_tasks\isaaclab_tasks\direct\anymal_c\anymal_c_env.py
+            source\isaaclab_tasks\isaaclab_tasks\contrib\anymal_c_direct\anymal_c_env.py
 
 After your environment includes the required LEAPP input, output, and state
 annotations, export a trained policy with:

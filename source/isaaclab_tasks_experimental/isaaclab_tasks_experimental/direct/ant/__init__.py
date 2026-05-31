@@ -13,7 +13,7 @@ import gymnasium as gym
 # Register Gym environments.
 ##
 
-stable_agents = "isaaclab_tasks.direct.ant.agents"
+stable_agents = "isaaclab_tasks.core.direct_ant.agents"
 
 gym.register(
     id="Isaac-Ant-Direct-Warp-v0",

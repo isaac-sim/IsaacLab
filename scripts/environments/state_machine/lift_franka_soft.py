@@ -63,8 +63,8 @@ import warp as wp
 from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.manager_based.manipulation.lift_franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
-from isaaclab_tasks.manager_based.manipulation.lift_franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift_franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
+from isaaclab_tasks.core.lift_franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp

@@ -106,7 +106,7 @@ Training Example
 ----------------
 
 We provide a reference PPO config here for task:
-`Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
+`Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
 For the best logging experience, we recommend using wandb for the logging in the script.
 
 Launch *N* workers, where *n* indicates each worker index:

@@ -55,7 +55,7 @@ source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
 **Task-specific config** (in `source/isaaclab_tasks/`):
 
 ```
-source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/
+source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/
 ├── config/
 │   └── isaaclab_ppo_gr00t_assemble_trocar.yaml   # Single YAML config (Hydra)
 └── g129_dex3_env_cfg.py                           # IsaacLab environment config

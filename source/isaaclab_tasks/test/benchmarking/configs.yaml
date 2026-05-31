@@ -47,13 +47,6 @@ fast:
       episode_length: 600 #700
     upper_thresholds:
       duration: 500
-  rl_games:Isaac-Quadcopter-Direct-v0:
-    max_iterations: 200
-    lower_thresholds:
-      reward: 100
-      episode_length: 400
-    upper_thresholds:
-      duration: 300 #250
   skrl:Isaac-Shadow-Hand-Over-Direct-v0:
     max_iterations: 300
     lower_thresholds:
@@ -382,14 +375,6 @@ full:
       episode_length: 130
     upper_thresholds:
       duration: 4000
-  # Aerial tasks
-  Isaac-Quadcopter-Direct-v0:
-    max_iterations: 500
-    lower_thresholds:
-      reward: 90
-      episode_length: 300
-    upper_thresholds:
-      duration: 500
   # Quadruped and humanoid locomotion - flat terrain
   Isaac-Velocity-Flat-*:
     max_iterations: 1000

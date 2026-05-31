@@ -7,8 +7,9 @@
 
 The package is structured as follows:
 
-- ``direct``: These include single-file implementations of tasks.
-- ``manager_based``: These include task implementations that use the manager-based API.
+- ``core``: Core task families maintained as part of Isaac Lab.
+- ``contrib``: Contributed task families. These may depend on ``core`` tasks, but
+  ``core`` tasks never depend on ``contrib`` tasks.
 - ``utils``: These include utility functions for the tasks.
 
 """
@@ -46,6 +47,6 @@ from .utils import import_packages
 # during that window, __init__ runs again and re-registers every gym env.
 # We stash a flag on builtins because it is never evicted from sys.modules.
 if not getattr(builtins, "_isaaclab_tasks_registered", False):
-    _BLACKLIST_PKGS = ["utils", ".mdp", "direct.humanoid_amp.motions"]
+    _BLACKLIST_PKGS = ["utils", ".mdp", "contrib.humanoid_amp.motions"]
     import_packages(__name__, _BLACKLIST_PKGS)
     builtins._isaaclab_tasks_registered = True
