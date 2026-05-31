@@ -1620,7 +1620,8 @@ automatically by the importer based on the robot name and cannot be overridden.
      /output/dir \
      --fix-base \
      --joint-stiffness 100.0 \
-     --joint-damping 1.0
+     --joint-damping 1.0 \
+     --viz kit
 
 .. note::
 
@@ -1774,7 +1775,8 @@ are no longer available.
      ../mujoco_menagerie/unitree_h1/h1.xml \
      source/isaaclab_assets/data/Robots/Unitree/h1.usd \
      --merge-mesh \
-     --self-collision
+     --self-collision \
+     --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 
