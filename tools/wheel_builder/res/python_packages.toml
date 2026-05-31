@@ -107,7 +107,8 @@ pyproject.optional-dependencies.all = [
     # Viser visualizer (opt-in: viser pulls websockets>=13.1 which collides with
     # isaacsim-kernel==6.0.0.0's websockets==12.0; do not include in [all]).
     { "viser" = ["viser>=1.0.16"] },
-    # RL libraries (all)
+    # RL libraries (all) — use with ``isaacsim`` for full installs; Newton comes from
+    # ``isaacsim-core``. Do not add git Newton here (conflicts with Isaac Sim pins).
     { "all" = [
         "stable-baselines3>=2.6",
         "tqdm",

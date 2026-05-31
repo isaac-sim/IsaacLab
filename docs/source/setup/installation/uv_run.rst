@@ -15,10 +15,9 @@ Install ``uv`` if you do not have it already:
 
 Clone the repo and start training immediately — no virtual environment setup required:
 
-.. code-block:: bash
+.. isaaclab-clone-commands::
 
-   git clone https://github.com/isaac-sim/IsaacLab.git
-   cd IsaacLab
+.. code-block:: bash
 
    # Newton backend training without Isaac Sim
    uv run train --rl_library rsl_rl \

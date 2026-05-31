@@ -24,11 +24,9 @@ Local Installation
 .. note::
 
    **Isaac Lab 3.0 supports kit-less installation.** You can install and use Isaac Lab with the
-   Newton physics backend *without* installing Isaac Sim. Simply clone Isaac Lab and run:
+   Newton physics backend *without* installing Isaac Sim. Clone Isaac Lab and run:
 
-   .. code-block:: bash
-
-      ./isaaclab.sh --install   # or ./isaaclab.sh -i
+   .. isaaclab-kitless-install-snippet::
 
    This installs the core Isaac Lab packages and the Newton physics backend. Isaac Sim is **not**
    required for this mode. See :doc:`kitless_installation` for which features are available
@@ -39,13 +37,6 @@ Local Installation
    :doc:`pip_installation` guide).
 
 .. caution::
-
-   **Compatibility warning for Isaac Sim GitHub develop:** A recent breaking change on the Isaac Lab
-   ``develop`` branch is not compatible with the ``develop`` branch of Isaac Sim on GitHub. To run
-   Isaac Lab with Isaac Sim's GitHub ``develop`` branch, use Isaac Lab commit
-   `f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa <https://github.com/isaac-sim/IsaacLab/commit/f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa>`__
-   or an earlier commit. Alternatively, use the Isaac Lab
-   `v3.0.0-beta <https://github.com/isaac-sim/IsaacLab/tree/v3.0.0-beta>`__ tag.
 
    We have dropped support for Isaac Sim versions 5.1.0 and below. We recommend using the latest
    Isaac Sim 6.0.0 release to benefit from the latest features and improvements.
@@ -98,7 +89,7 @@ The DGX spark is a standalone machine learning device with aarch64 architecture.
 features of Isaac Lab are not currently supported on the DGX spark. The most noteworthy is that the architecture *requires* CUDA ≥ 13, and thus the cu13 build of PyTorch or newer.
 Other notable limitations with respect to Isaac Lab include...
 
-#. `SkillGen <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html>`_ is not supported out of the box. This
+#. :doc:`SkillGen </source/overview/imitation-learning/skillgen>` is not supported out of the box. This
    is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which are not validated for use with DGX spark.
 
 #. Extended reality teleoperation tools such as :class:`OpenXR <isaaclab.devices.OpenXRDevice>` is not supported. This is due
@@ -165,7 +156,8 @@ Use this table to decide:
 | Full Source Build   | |:floppy_disk:| source (git) | |:floppy_disk:| source (git) | Developers modifying both     | Advanced   |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Pip Only            | |:package:| pip install      | |:package:| pip install      | External extensions only      | Special    |
-|                     |                              |                              | (no training/examples)        | case       |
+|                     |                              |                              | (no training/examples).       | case       |
+|                     |                              |                              | Use ``[isaacsim,all]``.       |            |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Docker              | |:whale:| Docker             | |:floppy_disk:| source (git) | Docker users                  | Advanced   |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
@@ -200,7 +192,7 @@ Once you've reviewed the installation methods, continue with the guide that matc
 
 - :doc:`isaaclab_pip_installation`
 
-  - Install Isaac Sim and Isaac Lab as pip packages.
+  - Install Isaac Sim and Isaac Lab as pip packages with ``isaaclab[isaacsim,all]``.
   - Best for advanced users building **external extensions** with custom runner scripts.
   - Note: This does **not** include training or example scripts.
 
