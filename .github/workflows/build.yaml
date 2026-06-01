@@ -68,9 +68,6 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  # Arch-suffixed tag so the arm64 build never collides with the amd64 image in
-  # the local docker store on shared runners.
-  CI_IMAGE_TAG_ARM64: isaac-lab-ci-arm64:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
   changes:
@@ -264,7 +261,7 @@ jobs:
     - name: Build base image (linux/arm64)
       uses: ./.github/actions/docker-build
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG_ARM64 }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
@@ -276,7 +273,7 @@ jobs:
         test-path: tools
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ env.CI_IMAGE_TAG_ARM64 }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 
