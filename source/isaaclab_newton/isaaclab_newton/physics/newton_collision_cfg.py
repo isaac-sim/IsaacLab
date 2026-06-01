@@ -69,6 +69,38 @@ class HydroelasticSDFCfg:
     Defaults to ``False`` (same as Newton's default).
     """
 
+    moment_matching: bool = False
+    """Whether to adjust reduced contact friction so net max moment matches unreduced.
+
+    Only active when ``reduce_contacts`` is True.
+
+    Defaults to ``False`` (same as Newton's default).
+    """
+
+    buffer_mult_broad: int = 1
+    """Multiplier for preallocated broadphase buffer.
+
+    Defaults to ``1`` (same as Newton's default).
+    """
+
+    buffer_mult_iso: int = 1
+    """Multiplier for iso-surface extraction buffers.
+
+    Defaults to ``1`` (same as Newton's default).
+    """
+
+    buffer_mult_contact: int = 1
+    """Multiplier for face contact buffer.
+
+    Defaults to ``1`` (same as Newton's default).
+    """
+
+    grid_size: int = 262144
+    """Grid size for hydroelastic contact handling (256 * 8 * 128).
+
+    Defaults to ``262144`` (same as Newton's default).
+    """
+
 
 @configclass
 class NewtonCollisionPipelineCfg:
@@ -184,3 +216,119 @@ class NewtonCollisionPipelineCfg:
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)
         return cfg_dict
+
+
+@configclass
+class SDFCfg:
+    """Configuration for SDF mesh collision shapes.
+
+    Specifies how SDF (Signed Distance Field) voxel grids are built and assigned
+    to bodies or shapes in a Newton model.  Bodies and shapes are selected by
+    regex patterns; the SDF resolution can be set globally or overridden
+    per-pattern.
+
+    Optional hydroelastic stiffness can be assigned to matched SDF shapes.
+    Pipeline-level hydroelastic parameters (contact reduction, buffer sizes,
+    etc.) are configured separately via
+    :attr:`NewtonCollisionPipelineCfg.sdf_hydroelastic_config`.
+
+    Note:
+        At least one of :attr:`body_patterns` or :attr:`shape_patterns` must be
+        set.  At least one of :attr:`max_resolution` or
+        :attr:`target_voxel_size` must be set.
+    """
+
+    max_resolution: int | None = None
+    """Maximum voxel dimension for the SDF grid.
+
+    Must be divisible by 8. Typical values: 128, 256, 512. When both this
+    and :attr:`target_voxel_size` are set, both are forwarded to Newton's
+    ``mesh.build_sdf()``; Newton uses :attr:`target_voxel_size` to derive
+    the actual resolution.
+
+    Defaults to ``None``.
+    """
+
+    target_voxel_size: float | None = None
+    """Target voxel size [m] for the SDF grid.
+
+    When both this and :attr:`max_resolution` are set, both are forwarded to
+    Newton and this value is used to derive the actual resolution.
+
+    Defaults to ``None``.
+    """
+
+    narrow_band_range: tuple[float, float] = (-0.1, 0.1)
+    """Narrow band distance range (inner, outer) [m].
+
+    Defines the signed-distance extent stored in the SDF voxel grid.
+    Negative values are inside the mesh, positive values outside.
+
+    Defaults to ``(-0.1, 0.1)``.
+    """
+
+    margin: float | None = None
+    """Collision margin [m] for SDF shapes.
+
+    When ``None``, the Newton builder default is used.
+
+    Defaults to ``None``.
+    """
+
+    body_patterns: list[str] | None = None
+    """Regex patterns for body labels.
+
+    Matched bodies receive SDF collision shapes on all their mesh geometries.
+    At least one of :attr:`body_patterns` or :attr:`shape_patterns` must be set.
+
+    Defaults to ``None``.
+    """
+
+    shape_patterns: list[str] | None = None
+    """Regex patterns for shape labels.
+
+    Matched shapes receive SDF collision geometry directly.
+    At least one of :attr:`body_patterns` or :attr:`shape_patterns` must be set.
+
+    Defaults to ``None``.
+    """
+
+    pattern_resolutions: dict[str, int] | None = None
+    """Per-pattern SDF resolution overrides.
+
+    Maps a regex string to a ``max_resolution`` value.  Patterns are evaluated
+    in insertion order; the first match wins.  Unmatched bodies or shapes fall
+    back to the global :attr:`max_resolution` or :attr:`target_voxel_size`.
+
+    Defaults to ``None``.
+    """
+
+    use_visual_meshes: bool = False
+    """Whether to create collision shapes from visual meshes.
+
+    When ``True``, matched bodies that lack explicit collision geometry have SDF
+    collision shapes built from their visual meshes instead.
+
+    Defaults to ``False``.
+    """
+
+    k_hydro: float | None = None
+    """Hydroelastic stiffness [Pa] assigned to matched SDF shapes.
+
+    When ``None``, no ``HYDROELASTIC`` flag is set and hydroelastic contacts are
+    disabled for these shapes.  When set, matched shapes receive the flag with
+    this stiffness value.
+
+    Defaults to ``None``.
+    """
+
+    hydroelastic_shape_patterns: list[str] | None = None
+    """Regex patterns restricting which SDF shapes receive hydroelastic stiffness.
+
+    Only relevant when :attr:`k_hydro` is set.  When ``None``, all SDF shapes
+    matched by :attr:`body_patterns` or :attr:`shape_patterns` get the
+    hydroelastic flag.  When set, only shapes whose labels match at least one
+    pattern here receive it.
+
+    Defaults to ``None``.
+    """

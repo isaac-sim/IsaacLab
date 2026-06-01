@@ -10,10 +10,12 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import logging
+import re
 from abc import abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 # Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
@@ -230,6 +232,10 @@ class NewtonManager(PhysicsManager):
     # Per-world reset masks (allocated in start_simulation, consumed in step)
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.int32 — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
+
+    # Per-world mask of NaN-divergent envs queued for sanitize at next reset.
+    # Populated by :meth:`sanitize_nan_envs`, drained by :meth:`sanitize_pending_nan_envs`.
+    _nan_env_mask_pending_reset: torch.Tensor | None = None
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
@@ -679,6 +685,7 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
+        NewtonManager._nan_env_mask_pending_reset = None
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._newton_stage_path = None
@@ -907,6 +914,212 @@ class NewtonManager(PhysicsManager):
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
+
+    @staticmethod
+    def _build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, label: str) -> bool:
+        """Build SDF on a mesh, resolving per-pattern resolution overrides.
+
+        Args:
+            mesh: Newton mesh object to build SDF on.
+            sdf_cfg: The active :class:`SDFCfg` instance.
+            res_overrides: Compiled ``(pattern, resolution)`` pairs, or ``None``.
+            label: Shape label used for pattern resolution matching.
+
+        Returns:
+            ``True`` if SDF was built, ``False`` if skipped (no mesh source).
+        """
+        if mesh is None:
+            logger.warning(f"SDF: shape '{label}' matched but has no mesh source. Skipping SDF build.")
+            return False
+        if mesh.sdf is not None:
+            mesh.clear_sdf()
+        resolution = sdf_cfg.max_resolution
+        if res_overrides is not None:
+            for pat, res in res_overrides:
+                if pat.search(label):
+                    resolution = res
+                    break
+        sdf_kwargs: dict = dict(narrow_band_range=sdf_cfg.narrow_band_range)
+        if resolution is not None:
+            sdf_kwargs["max_resolution"] = resolution
+        if sdf_cfg.target_voxel_size is not None:
+            sdf_kwargs["target_voxel_size"] = sdf_cfg.target_voxel_size
+        mesh.build_sdf(**sdf_kwargs)
+        return True
+
+    @classmethod
+    def _create_sdf_collision_from_visual(
+        cls, builder: ModelBuilder, sdf_shape_indices: set[int], sdf_cfg, res_overrides, hydro_patterns=None
+    ):
+        """Create collision shapes from visual meshes for matched bodies lacking collision geometry.
+
+        Args:
+            builder: Newton model builder to modify.
+            sdf_shape_indices: Shape indices that matched SDF patterns.
+            sdf_cfg: The active :class:`SDFCfg` instance.
+            res_overrides: Compiled ``(pattern, resolution)`` pairs, or ``None``.
+            hydro_patterns: Compiled hydroelastic shape patterns, or ``None``
+                (meaning all shapes get hydroelastic if ``k_hydro`` is set).
+
+        Returns:
+            Tuple of ``(num_added, num_hydro)`` counts.
+        """
+        from newton import ShapeFlags
+
+        matched_bodies: set[int] = {builder.shape_body[si] for si in sdf_shape_indices}
+        bodies_with_collision: set[int] = set()
+        for si in range(builder.shape_count):
+            if builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES and builder.shape_body[si] in matched_bodies:
+                bodies_with_collision.add(builder.shape_body[si])
+
+        num_added = 0
+        num_hydro = 0
+        for body_idx in matched_bodies - bodies_with_collision:
+            visual_si = None
+            for si in sdf_shape_indices:
+                if builder.shape_body[si] == body_idx and builder.shape_source[si] is not None:
+                    visual_si = si
+                    break
+            if visual_si is None:
+                body_lbl = builder.body_label[body_idx]
+                logger.warning(f"SDF: body '{body_lbl}' matched but has no visual mesh to create collision from.")
+                continue
+
+            mesh = builder.shape_source[visual_si]
+            cls._build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, builder.shape_label[visual_si])
+
+            shape_lbl = builder.shape_label[visual_si]
+            enable_hydro = False
+            if sdf_cfg.k_hydro is not None:
+                enable_hydro = hydro_patterns is None or any(p.search(shape_lbl) for p in hydro_patterns)
+
+            shape_cfg_kwargs: dict = dict(
+                density=0.0,
+                has_shape_collision=True,
+                has_particle_collision=True,
+                is_visible=False,
+            )
+            if sdf_cfg.margin is not None:
+                shape_cfg_kwargs["margin"] = sdf_cfg.margin
+            if enable_hydro:
+                shape_cfg_kwargs["is_hydroelastic"] = True
+                shape_cfg_kwargs["kh"] = sdf_cfg.k_hydro
+
+            body_lbl = builder.body_label[body_idx]
+            builder.add_shape_mesh(
+                body=body_idx,
+                xform=builder.shape_transform[visual_si],
+                mesh=mesh,
+                scale=builder.shape_scale[visual_si],
+                cfg=ModelBuilder.ShapeConfig(**shape_cfg_kwargs),
+                label=f"{body_lbl}/sdf_collision",
+            )
+            num_added += 1
+            if enable_hydro:
+                num_hydro += 1
+
+        return num_added, num_hydro
+
+    @classmethod
+    def _apply_sdf_config(cls, builder: ModelBuilder):
+        """Apply SDF collision and optional hydroelastic flags to matching mesh shapes.
+
+        Reads :class:`SDFCfg` from the active physics config. Collects shapes
+        matching body/shape regex patterns, builds SDF on their meshes, and
+        optionally sets the ``HYDROELASTIC`` flag with :attr:`SDFCfg.k_hydro`.
+
+        Args:
+            builder: Newton model builder to modify (before finalization).
+        """
+        from newton import GeoType, ShapeFlags
+
+        cfg = PhysicsManager._cfg
+        if cfg is None:
+            return
+        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        if sdf_cfg is None:
+            return
+
+        if sdf_cfg.max_resolution is None and sdf_cfg.target_voxel_size is None:
+            logger.warning("SDFCfg provided but neither max_resolution nor target_voxel_size is set. SDF disabled.")
+            return
+
+        def _compile(patterns: list[str] | None, field: str) -> list[re.Pattern] | None:
+            if not patterns:
+                return None
+            compiled = []
+            for i, p in enumerate(patterns):
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    raise ValueError(f"Invalid regex in SDFCfg.{field}[{i}]: {p!r} — {e}") from e
+            return compiled
+
+        body_patterns = _compile(sdf_cfg.body_patterns, "body_patterns")
+        shape_patterns = _compile(sdf_cfg.shape_patterns, "shape_patterns")
+        res_overrides = None
+        if sdf_cfg.pattern_resolutions:
+            res_overrides = []
+            for p, r in sdf_cfg.pattern_resolutions.items():
+                try:
+                    res_overrides.append((re.compile(p), r))
+                except re.error as e:
+                    raise ValueError(f"Invalid regex in SDFCfg.pattern_resolutions key {p!r} — {e}") from e
+        hydro_patterns = None
+        if sdf_cfg.k_hydro is not None:
+            hydro_patterns = _compile(sdf_cfg.hydroelastic_shape_patterns, "hydroelastic_shape_patterns")
+
+        if body_patterns is None and shape_patterns is None:
+            logger.warning("SDFCfg has no body_patterns or shape_patterns set. No shapes will receive SDF.")
+            return
+
+        body_to_shapes: dict[int, list[int]] = {}
+        for si in range(builder.shape_count):
+            if builder.shape_type[si] == GeoType.MESH:
+                body_to_shapes.setdefault(builder.shape_body[si], []).append(si)
+
+        sdf_shape_indices: set[int] = set()
+
+        if body_patterns is not None:
+            for body_idx in range(len(builder.body_label)):
+                if any(p.search(builder.body_label[body_idx]) for p in body_patterns):
+                    sdf_shape_indices.update(body_to_shapes.get(body_idx, []))
+
+        if shape_patterns is not None:
+            for shape_indices in body_to_shapes.values():
+                for si in shape_indices:
+                    if any(p.search(builder.shape_label[si]) for p in shape_patterns):
+                        sdf_shape_indices.add(si)
+
+        num_patched = 0
+        num_hydro = 0
+        for si in sdf_shape_indices:
+            if not (builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES):
+                continue
+            if not cls._build_sdf_on_mesh(builder.shape_source[si], sdf_cfg, res_overrides, builder.shape_label[si]):
+                continue
+            if sdf_cfg.margin is not None:
+                builder.shape_margin[si] = sdf_cfg.margin
+            if sdf_cfg.k_hydro is not None:
+                apply_hydro = hydro_patterns is None or any(p.search(builder.shape_label[si]) for p in hydro_patterns)
+                if apply_hydro:
+                    builder.shape_flags[si] |= ShapeFlags.HYDROELASTIC
+                    builder.shape_material_kh[si] = sdf_cfg.k_hydro
+                    num_hydro += 1
+            num_patched += 1
+
+        num_added = 0
+        if sdf_cfg.use_visual_meshes:
+            num_added, hydro_from_visual = cls._create_sdf_collision_from_visual(
+                builder, sdf_shape_indices, sdf_cfg, res_overrides, hydro_patterns
+            )
+            num_hydro += hydro_from_visual
+
+        hydro_msg = f", {num_hydro} hydroelastic shape(s)" if sdf_cfg.k_hydro is not None else ""
+        logger.info(
+            f"SDF config: {num_added} collision shape(s) added, {num_patched} existing shape(s) patched{hydro_msg}. "
+            f"(max_resolution={sdf_cfg.max_resolution}, narrow_band={sdf_cfg.narrow_band_range})"
+        )
 
     @classmethod
     def invalidate_fk(
@@ -1505,6 +1718,141 @@ class NewtonManager(PhysicsManager):
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls._state_0, eval_contacts)
+
+    # ------------------------------------------------------------------
+    # NaN recovery
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def sanitize_world_state(cls, env_ids) -> None:
+        """Reset solver internals + Newton State buffers for the given worlds.
+
+        Used by tasks that detect NaN-divergent worlds and want to recover
+        them in place (vs throwing the episode away).  Zeroes per-world
+        MJWarp solver scratch buffers (``qacc_warmstart``, ``qfrc_*``,
+        ``cacc``, ``cfrc_*``) and Newton State velocity/force buffers
+        (``joint_qd``, ``body_qd``, ``body_f``, ``body_qdd``,
+        ``body_parent_f``) at the indexed worlds, then runs
+        :func:`newton.eval_fk` to re-derive ``state.body_q`` from
+        ``joint_q``.
+
+        ``mjwarp.reset_data`` covers ``qacc_warmstart`` and the contact
+        arrays but leaves the derived ``qfrc_*`` family and the COM-frame
+        ``cfrc_int``/``cacc``/``cfrc_ext`` untouched.  Empirically those
+        latter buffers re-divergence the same world on the next solver
+        step (``cfrc_int`` is read-modify-written via ``wp.atomic_add`` in
+        ``mujoco_warp/_src/smooth.py:_cfrc_backward``, so a stale NaN
+        survives the next ``rne()`` call).  This implementation walks all
+        17 named MJWarp fields explicitly to close that gap.  See
+        ``newton-physics/newton#1266`` for the upstream discussion.
+
+        No-op for solvers without a ``mjw_data`` attribute (XPBD,
+        Featherstone, Kamino) — those solvers do not exhibit the MuJoCo
+        warm-start contamination pattern this addresses.
+
+        Args:
+            env_ids: 1-D ``int`` torch tensor of world IDs to sanitize, on
+                the simulation device.
+        """
+        import newton as _newton  # noqa: PLC0415
+
+        if cls._model is None or cls._solver is None or cls._num_envs is None:
+            return
+        if env_ids.numel() == 0:
+            return
+
+        mjw_data = getattr(cls._solver, "mjw_data", None)
+        if mjw_data is None:
+            return  # not the MJWarp backend; nothing to scrub
+
+        env_ids_list = env_ids.tolist()
+        for field_name in (
+            "qacc_warmstart",
+            "qacc",
+            "qacc_smooth",
+            "qfrc_applied",
+            "qfrc_bias",
+            "qfrc_spring",
+            "qfrc_damper",
+            "qfrc_gravcomp",
+            "qfrc_fluid",
+            "qfrc_passive",
+            "qfrc_actuator",
+            "qfrc_smooth",
+            "qfrc_constraint",
+            "qfrc_inverse",
+            "cacc",
+            "cfrc_int",
+            "cfrc_ext",
+        ):
+            arr = getattr(mjw_data, field_name, None)
+            if arr is None:
+                continue
+            t = wp.to_torch(arr)
+            for env_id in env_ids_list:
+                t[env_id] = 0.0
+
+        state = cls._state_0
+        model = cls._model
+        num_envs = cls._num_envs
+        nd_per_env = model.joint_dof_count // num_envs
+        nb_per_env = model.body_count // num_envs
+        for buf_name, per_env in (
+            ("joint_qd", nd_per_env),
+            ("body_qd", nb_per_env),
+            ("body_f", nb_per_env),
+            ("body_qdd", nb_per_env),
+            ("body_parent_f", nb_per_env),
+        ):
+            buf = getattr(state, buf_name, None)
+            if buf is None:
+                continue
+            wp.to_torch(buf).view(num_envs, per_env, -1)[env_ids] = 0.0
+
+        _newton.eval_fk(model, state.joint_q, state.joint_qd, state)
+        body_q_prev = getattr(state, "body_q_prev", None)
+        if body_q_prev is not None:
+            bq = wp.to_torch(state.body_q).view(num_envs, nb_per_env, -1)
+            wp.to_torch(body_q_prev).view(num_envs, nb_per_env, -1)[env_ids] = bq[env_ids]
+
+    @classmethod
+    def flag_nan_envs(cls, mask: torch.Tensor) -> None:
+        """Flag NaN-divergent envs for sanitization at the next episode reset.
+
+        Call from a task's per-step NaN detection (e.g. ``torch.isnan`` over
+        obs/state tensors).  Pure bookkeeping: the mask is ORed into
+        :attr:`_nan_env_mask_pending_reset`; no solver state is touched yet.
+        :meth:`sanitize_pending_nan_envs` drains the queue at the next reset.
+
+        Tasks that need to keep training between detection and reset should
+        ``torch.nan_to_num`` their obs/state/reward themselves — flagging is
+        the only side effect here.
+
+        No-op when ``mask.any()`` is False.
+
+        Args:
+            mask: 1-D ``bool`` torch tensor of shape ``(num_worlds,)``; True for
+                envs just detected as NaN-divergent.
+        """
+        if not mask.any():
+            return
+        if cls._nan_env_mask_pending_reset is None:
+            cls._nan_env_mask_pending_reset = torch.zeros_like(mask)
+        cls._nan_env_mask_pending_reset |= mask
+
+    @classmethod
+    def sanitize_pending_nan_envs(cls) -> None:
+        """Drain the pending-reset NaN queue and sanitize those envs.
+
+        Call from a task's reset hook (e.g. ``_reset_idx``) before re-init.
+        No-op when no envs were queued via :meth:`flag_nan_envs` since the
+        last call.
+        """
+        if cls._nan_env_mask_pending_reset is None or not cls._nan_env_mask_pending_reset.any():
+            return
+        nan_ids = cls._nan_env_mask_pending_reset.nonzero(as_tuple=False).squeeze(-1)
+        cls.sanitize_world_state(nan_ids)
+        cls._nan_env_mask_pending_reset.zero_()
 
     # ------------------------------------------------------------------
     # Composite stepping routines
