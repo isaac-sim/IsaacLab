@@ -199,7 +199,7 @@ def reset_object_collections(
     flat_velocities[view_ids] = new_velocities
 
     rigid_object_collection.write_body_link_pose_to_sim_index(body_poses=poses)
-    rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=vel)
+    rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=vels)
 
 
 def build_grocery_defaults(
@@ -276,8 +276,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     num_envs = scene.num_envs
     device = scene.device
     view_indices = torch.arange(num_envs * num_objects, device=device)
-    default_poses_w = groceries.data.default_body_pose.torch.clone()
-    default_poses_w[..., :3] = default_poses_w[..., :3] + scene.env_origins.unsqueeze(1)
+    default_pose_w = groceries.data.default_body_pose.torch.clone()
+    default_pose_w[..., :3] = default_pose_w[..., :3] + scene.env_origins.unsqueeze(1)
     default_vel_w = groceries.data.default_body_vel.torch.clone()
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -288,7 +288,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     # Offset poses into each environment's world frame.
     active_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
     cached_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
-    spawn_poses_w = default_poses_w.clone()
+    spawn_poses_w = default_pose_w.clone()
     spawn_vel_w = default_vel_w.clone()
 
     groceries_mask_helper = torch.arange(num_objects * num_envs, device=device) % num_objects
@@ -326,11 +326,11 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
         out_bound = torch.nonzero((~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).view(-1)).flatten()
         if out_bound.numel():
             # Teleport stray objects back into the active stack to keep the bin tidy.
-            body_poses_w = groceries.data.body_link_pose_w.torch.clone()
-            body_velocities_w = groceries.data.body_com_vel_w.torch.clone()
-            body_poses_w.view(-1, 7)[out_bound] = spawn_poses_w.view(-1, 7)[out_bound]
-            body_velocities_w.view(-1, 6)[out_bound] = spawn_vel_w.view(-1, 6)[out_bound]
-            reset_object_collections(scene, "groceries", body_poses_w, body_velocities_w, out_bound)
+            body_pose_w = groceries.data.body_link_pose_w.torch.clone()
+            body_vel_w = groceries.data.body_com_vel_w.torch.clone()
+            body_pose_w.view(-1, 7)[out_bound] = spawn_poses_w.view(-1, 7)[out_bound]
+            body_vel_w.view(-1, 6)[out_bound] = spawn_vel_w.view(-1, 6)[out_bound]
+            reset_object_collections(scene, "groceries", body_pose_w, body_vel_w, out_bound)
         # Increment counter
         count += 1
         # Update buffers
