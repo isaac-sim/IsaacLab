@@ -625,7 +625,7 @@ Multirotor
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
-.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/develop/source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
 
 .. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
 
@@ -678,7 +678,7 @@ Spaces showcase
 The |cartpole_showcase| folder contains showcase tasks (based on the *Cartpole* and *Cartpole-Camera* Direct tasks)
 for the definition/use of the various Gymnasium observation and action spaces supported in Isaac Lab.
 
-.. |cartpole_showcase| replace:: `cartpole_showcase <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_tasks/isaaclab_tasks/contrib/cartpole_showcase>`__
+.. |cartpole_showcase| replace:: `cartpole_showcase <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/cartpole_showcase>`__
 
 .. note::
 
