@@ -319,6 +319,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
             states_w = torch.cat([groceries.data.body_link_pose_w.torch, groceries.data.body_com_vel_w.torch], dim=-1)
             states_w.view(-1, 13)[out_bound] = spawn_w.view(-1, 13)[out_bound]
             reset_object_collections(scene, "groceries", states_w, out_bound)
+        # Increment counter
         count += 1
         # Update buffers
         scene.update(sim_dt)
