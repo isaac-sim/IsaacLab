@@ -262,6 +262,9 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         platform: linux/arm64
+        # The Spark runner is long-lived self-hosted with no ECR, so its local
+        # deps-cache tags accumulate; evict ones older than 14 days each run.
+        evict-stale-cache: "true"
 
     - name: Run arm_ci marker tests
       uses: ./.github/actions/run-tests
