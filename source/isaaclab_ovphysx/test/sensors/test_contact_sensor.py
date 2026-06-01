@@ -45,9 +45,8 @@ import torch
 import warp as wp
 from flaky import flaky
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
