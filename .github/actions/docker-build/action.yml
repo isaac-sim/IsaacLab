@@ -8,20 +8,20 @@ description: 'Builds a Docker image with IsaacSim and IsaacLab dependencies'
 
 inputs:
   image-tag:
-    description: 'Tag for the Docker image (e.g. my-image:latest).'
+    description: 'Docker image tag to use'
     required: true
   isaacsim-base-image:
-    description: 'IsaacSim base image (passed as ISAACSIM_BASE_IMAGE_ARG build-arg).'
+    description: 'IsaacSim base image'
     required: true
   isaacsim-version:
-    description: 'IsaacSim version (passed as ISAACSIM_VERSION_ARG build-arg).'
+    description: 'IsaacSim version'
     required: true
   dockerfile-path:
-    description: 'Path to Dockerfile, relative to the repository root.'
+    description: 'Path to Dockerfile'
     default: 'docker/Dockerfile.base'
     required: false
   context-path:
-    description: 'Build context path passed to `docker buildx build`.'
+    description: 'Build context path'
     default: '.'
     required: false
   platform:
