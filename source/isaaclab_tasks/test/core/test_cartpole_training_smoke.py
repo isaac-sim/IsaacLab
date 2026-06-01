@@ -27,7 +27,7 @@ import pytest
 
 pytestmark = pytest.mark.arm_ci
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _run_train(train_script: str, task_name: str, extra_args: list[str] | None = None, timeout: int = 600) -> None:
