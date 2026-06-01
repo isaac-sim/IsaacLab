@@ -12,8 +12,8 @@ Changed
   ``from isaaclab_tasks.core.lift.lift_env_cfg import LiftEnvCfg``, and
   ``from isaaclab_tasks.manager_based.manipulation.stack...`` to
   ``from isaaclab_tasks.contrib.stack...``. Tasks that exist in both workflows are now
-  disambiguated by a workflow prefix (e.g. :mod:`isaaclab_tasks.core.manager_ant` and
-  :mod:`isaaclab_tasks.core.direct_ant`).
+  disambiguated by a workflow prefix (e.g. :mod:`isaaclab_tasks.core.manager_cartpole` and
+  :mod:`isaaclab_tasks.core.direct_cartpole`).
 
 Removed
 ^^^^^^^
