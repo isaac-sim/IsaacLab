@@ -28,6 +28,29 @@ class SceneDataProvider:
         """
         self.backend = backend
         self._num_envs_cache: int | None = None
+        self._interactive_scene: Any | None = None
+
+    def set_interactive_scene(self, scene: Any) -> None:
+        """Attach the active interactive scene for scene-owned sensor discovery."""
+        self._interactive_scene = scene
+
+    def get_interactive_scene(self) -> Any | None:
+        """Return the registered interactive scene, if available."""
+        return self._interactive_scene
+
+    def get_camera_sensors(self) -> dict[str, Any]:
+        """Return Isaac Lab camera sensors keyed by scene sensor name."""
+        if self._interactive_scene is None:
+            return {}
+        try:
+            from isaaclab.sensors.camera import Camera
+        except ImportError:
+            return {}
+        return {
+            name: sensor
+            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
+            if isinstance(sensor, Camera)
+        }
 
     @property
     def transform_count(self) -> int:
@@ -55,6 +78,10 @@ class SceneDataProvider:
             return omni.usd.get_context().get_stage()
         except Exception:
             return None
+
+    def get_usd_stage(self) -> Usd.Stage | None:
+        """Return the USD stage for callers using the older method-style API."""
+        return self.usd_stage
 
     @property
     def num_envs(self) -> int:

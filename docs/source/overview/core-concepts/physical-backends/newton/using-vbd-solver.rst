@@ -1,7 +1,7 @@
 .. _newton-using-vbd:
 
-Using the VBD Solver
-====================
+VBD Solver
+==========
 
 Vertex Block Descent (VBD) is a Newton solver for cloth and soft-body
 simulation. In Isaac Lab, VBD is enabled by selecting a
@@ -91,7 +91,7 @@ You can select the deformable Newton preset globally:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Lift-Soft-Franka-v0 presets=newton_mjwarp_vbd
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Lift-Soft-Franka-v0 physics=newton_mjwarp_vbd
 
 or select the physics field directly:
 
@@ -100,7 +100,7 @@ or select the physics field directly:
     ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Lift-Soft-Franka-v0 env.sim.physics=newton_mjwarp_vbd
 
 Use the direct path override when only one task field should use the VBD preset.
-Use ``presets=newton_mjwarp_vbd`` when you want every matching preset field in
+Use ``physics=newton_mjwarp_vbd`` when you want every matching preset field in
 the task config to resolve to that preset. Isaac Lab training scripts accept
 these Hydra overrides after the regular command line flags; no separator is
 needed for the examples above.

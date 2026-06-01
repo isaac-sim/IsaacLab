@@ -98,7 +98,7 @@ def _build_newton_builder_from_mapping(
         protos[src_path] = p
 
     # Inject registered sites into prototypes (and global sites into main builder)
-    global_sites, proto_sites = NewtonManager._cl_inject_sites(builder, protos)
+    global_sites, proto_sites, world_sites = NewtonManager._cl_inject_sites(builder, protos)
 
     # Global sites: (int, None)
     global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
@@ -114,6 +114,12 @@ def _build_newton_builder_from_mapping(
         builder.begin_world()
         # add all active sources for this world
         delta_pos = (positions[col] - env0_pos).tolist()
+        env_xform = wp.transform(positions[col].tolist(), quaternions[col].tolist())
+        for label, xform in world_sites.items():
+            if label not in local_site_map:
+                local_site_map[label] = [[] for _ in range(num_worlds)]
+            site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(env_xform, xform), label=label)
+            local_site_map[label][col].append(site_idx)
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             proto = protos[sources[row]]
             offset = builder.shape_count
@@ -285,6 +291,12 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
+    if positions is None:
+        positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
+    if quaternions is None:
+        quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
+        quaternions[:, 3] = 1.0
+
     builder, stage_info, site_index_map = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
@@ -297,6 +309,9 @@ def newton_physics_replicate(
     )
     _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     NewtonManager._cl_site_index_map = site_index_map
+    NewtonManager._world_xforms = [
+        wp.transform(positions[col].tolist(), quaternions[col].tolist()) for col in range(mapping.size(1))
+    ]
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
     return builder, stage_info

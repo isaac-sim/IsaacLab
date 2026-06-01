@@ -34,8 +34,7 @@ from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.sim import SimulationContext
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -200,6 +199,7 @@ class NewtonManager(PhysicsManager):
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
     _decimation: int = 1
+    _collision_decimation: int = 0
     _num_envs: int | None = None
 
     # Newton model and state
@@ -275,15 +275,16 @@ class NewtonManager(PhysicsManager):
     # CL: Cloning / Replication logic
     # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
     # Pending site requests from sensors.
-    # Key: (body_pattern, xform_floats), Value: (label, wp.transform)
-    # identical (body_pattern, transform) reuses the same site.
-    _cl_pending_sites: dict[tuple[str | None, tuple[float, ...]], tuple[str, wp.transform]] = {}
+    # Key: (body_pattern, per_world, xform_floats), Value: (label, wp.transform)
+    # identical (body_pattern, per_world, transform) reuses the same site.
+    _cl_pending_sites: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
 
     # Maps each site label to its resolved global or local site entry.
     _GlobalSite = tuple[int, None]
     _LocalSite = tuple[None, list[list[int]]]
     _SiteEntry = _GlobalSite | _LocalSite
     _cl_site_index_map: dict[str, _SiteEntry] = {}
+    _world_xforms: list[wp.transform] | None = None
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -691,6 +692,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
         NewtonManager._cl_site_index_map = {}
+        NewtonManager._world_xforms = None
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
         NewtonManager._views = []
@@ -728,14 +730,14 @@ class NewtonManager(PhysicsManager):
         return builder
 
     @classmethod
-    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform) -> str:
+    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Register a site request for injection into prototypes before replication.
 
         Sensors call this during ``__init__``. Sites are injected into prototype
         builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
         before ``add_builder``, so they replicate correctly per-world.
 
-        Identical ``(body_pattern, transform)`` registrations share sites.
+        Identical ``(body_pattern, per_world, transform)`` registrations share sites.
 
         The *body_pattern* is matched against prototype-local body labels
         (e.g. ``"Robot/link.*"``) when replication is active, or against the
@@ -748,12 +750,16 @@ class NewtonManager(PhysicsManager):
                 for multi-body wildcards), or ``None`` for global sites
                 (world-origin reference, etc.).
             xform: Site transform relative to body.
+            per_world: When ``True``, ``body_pattern`` must be ``None`` and one
+                bodyless site is created in each cloned world's frame.
 
         Returns:
             Assigned site label suffix.
         """
+        if per_world and body_pattern is not None:
+            raise ValueError("per_world site registration requires body_pattern=None.")
         xform_key = tuple(xform)
-        key = (body_pattern, xform_key)
+        key = (body_pattern, per_world, xform_key)
         if key in cls._cl_pending_sites:
             return cls._cl_pending_sites[key][0]
         label = f"ft_{len(cls._cl_pending_sites)}"
@@ -791,7 +797,7 @@ class NewtonManager(PhysicsManager):
         cls,
         main_builder: ModelBuilder,
         proto_builders: dict[str, ModelBuilder],
-    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]]]:
+    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
         """Inject registered sites into prototype builders before replication.
 
         Non-global sites are matched against prototype body labels using
@@ -809,14 +815,20 @@ class NewtonManager(PhysicsManager):
             proto_builders: ``{src_path: ModelBuilder}`` prototype builders.
 
         Returns:
-            Tuple of ``(global_sites, proto_sites)`` where *global_sites* maps
-            ``{label: main_builder_shape_idx}`` and *proto_sites* maps
-            ``{id(proto): {label: [proto_local_shape_idx, ...]}}``.
+            Tuple of ``(global_sites, proto_sites, world_sites)`` where
+            *global_sites* maps ``{label: main_builder_shape_idx}``,
+            *proto_sites* maps ``{id(proto): {label: [proto_local_shape_idx, ...]}}``,
+            and *world_sites* maps ``{label: env_root_relative_transform}``.
         """
         global_sites: dict[str, int] = {}
         proto_sites: dict[int, dict[str, list[int]]] = {}
 
-        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+        world_sites: dict[str, wp.transform] = {}
+
+        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if per_world:
+                world_sites[label] = xform
+                continue
             if body_pattern is None:
                 site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
                 global_sites[label] = site_idx
@@ -849,7 +861,7 @@ class NewtonManager(PhysicsManager):
                 )
 
         cls._cl_pending_sites.clear()
-        return global_sites, proto_sites
+        return global_sites, proto_sites, world_sites
 
     @classmethod
     def _cl_inject_sites_fallback(cls) -> None:
@@ -858,12 +870,16 @@ class NewtonManager(PhysicsManager):
         Populates :attr:`_cl_site_index_map` with the unified per-world structure:
 
         - Global sites (``body_pattern is None``): ``(shape_idx, None)``
-        - Local sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
+        - Local and world sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
         """
         builder = cls._builder
         body_labels = list(builder.body_label)
 
-        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if per_world:
+                site_idx = builder.add_site(body=-1, xform=xform, label=label)
+                cls._cl_site_index_map[label] = (None, [[site_idx]])
+                continue
             if body_pattern is None:
                 site_idx = builder.add_site(body=-1, xform=xform, label=label)
                 cls._cl_site_index_map[label] = (site_idx, None)
@@ -1060,6 +1076,7 @@ class NewtonManager(PhysicsManager):
         if not env_paths:
             # No env Xforms — flat loading
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            NewtonManager._world_xforms = [wp.transform()]
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
@@ -1075,11 +1092,12 @@ class NewtonManager(PhysicsManager):
             )
 
             # Inject registered sites into the proto before replication
-            global_sites, proto_sites = cls._cl_inject_sites(builder, {proto_path: proto})
+            global_sites, proto_sites, world_sites = cls._cl_inject_sites(builder, {proto_path: proto})
             global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
             num_worlds = len(env_paths)
             local_site_map: dict[str, list[list[int]]] = {}
             site_entries = proto_sites.get(id(proto), {})
+            world_xforms: list[wp.transform] = []
 
             # Add each env as a separate Newton world
             xform_cache = UsdGeom.XformCache()
@@ -1096,7 +1114,14 @@ class NewtonManager(PhysicsManager):
                     rotation.GetImaginary()[2],
                     rotation.GetReal(),
                 )
-                builder.add_builder(proto, xform=wp.transform(pos, quat))
+                env_xform = wp.transform(pos, quat)
+                world_xforms.append(env_xform)
+                builder.add_builder(proto, xform=env_xform)
+                for label, xform in world_sites.items():
+                    if label not in local_site_map:
+                        local_site_map[label] = [[] for _ in range(num_worlds)]
+                    site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(env_xform, xform), label=label)
+                    local_site_map[label][col].append(site_idx)
                 for label, proto_shape_indices in site_entries.items():
                     if label not in local_site_map:
                         local_site_map[label] = [[] for _ in range(num_worlds)]
@@ -1108,6 +1133,7 @@ class NewtonManager(PhysicsManager):
                 **global_site_map,
                 **{label: (None, per_world) for label, per_world in local_site_map.items()},
             }
+            NewtonManager._world_xforms = world_xforms
             NewtonManager._num_envs = len(env_paths)
 
         cls.set_builder(builder)
@@ -1219,6 +1245,7 @@ class NewtonManager(PhysicsManager):
 
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:"):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
+            NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps
             NewtonManager._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 
@@ -1440,10 +1467,17 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
         """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
+        collide_every = cls._collision_decimation
+        # Last substep is skipped: its contact set would only feed the next tick's
+        # top-of-loop collide(), not this one.
+        collide_mid_loop = collide_every > 0 and cls._needs_collision_pipeline and contacts is not None
+
         if cls._use_single_state:
-            for _ in range(cls._num_substeps):
+            for i in range(cls._num_substeps):
                 cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
                 cls._state_0.clear_forces()
+                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
+                    cls._collision_pipeline.collide(cls._state_0, contacts)
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
@@ -1454,6 +1488,8 @@ class NewtonManager(PhysicsManager):
                 else:
                     NewtonManager._state_0, NewtonManager._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
+                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
+                    cls._collision_pipeline.collide(cls._state_0, contacts)
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
@@ -1534,7 +1570,7 @@ class NewtonManager(PhysicsManager):
         return cls._state_0
 
     @classmethod
-    def get_state(cls, scene_data_provider=None) -> State:
+    def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
         """Get the current Newton state for visualization.
 
         Use this method from visualizers/renderers/video recorders that need a
@@ -1553,14 +1589,11 @@ class NewtonManager(PhysicsManager):
         return cls._num_envs
 
     @classmethod
-    def _backend_is_newton(cls, scene_data_provider=None) -> bool:
+    def _backend_is_newton(cls, scene_data_provider: SceneDataProvider | None = None) -> bool:
         """Return ``True`` when the active sim backend is Newton."""
         if scene_data_provider is not None:
             return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
-        sim = PhysicsManager._sim
-        if sim is None:
-            return False
-        return isinstance(sim.get_scene_data_provider().backend, NewtonSceneDataBackend)
+        return isinstance(cls.get_scene_data_provider().backend, NewtonSceneDataBackend)
 
     @classmethod
     def _ensure_visualization_model(cls) -> None:
@@ -1762,7 +1795,23 @@ class NewtonManager(PhysicsManager):
         return builder
 
     @classmethod
-    def update_visualization_state(cls, scene_data_provider=None) -> None:
+    def get_scene_data_provider(cls) -> SceneDataProvider:
+        """Return the active scene data provider, or None if unavailable.
+
+        Prefers ``PhysicsManager._sim`` when set; otherwise falls back to
+        ``SimulationContext.instance()``.
+        """
+        sim = PhysicsManager._sim
+        if sim is None:
+            from isaaclab.sim import SimulationContext
+
+            sim = SimulationContext.instance()
+
+        assert sim is not None
+        return sim.get_scene_data_provider()
+
+    @classmethod
+    def update_visualization_state(cls, scene_data_provider: SceneDataProvider | None = None) -> None:
         """Refresh visualization state for the active sim backend.
 
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
@@ -1777,27 +1826,26 @@ class NewtonManager(PhysicsManager):
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
         """
+
+        if scene_data_provider is None:
+            scene_data_provider = cls.get_scene_data_provider()
+
+        assert scene_data_provider is not None
+
         if cls._backend_is_newton(scene_data_provider):
             return
         cls._ensure_visualization_model()
         if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
-            return
-        sdp = scene_data_provider
-        if sdp is None:
-            sim = SimulationContext.instance()
-            if sim is not None:
-                sdp = sim.get_scene_data_provider()
-        if sdp is None:
             return
 
         if cls._scene_data is None:
             cls._scene_data = SceneDataFormat.Transform()
         if cls._scene_data_mapping is None:
             body_paths = list(getattr(cls._model, "body_label", None) or [])
-            cls._scene_data_mapping = sdp.create_mapping(body_paths)
+            cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
         cls._scene_data.transforms = cls._state_0.body_q
-        sdp.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
+        scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
 
     @classmethod
     def get_state_1(cls) -> State:

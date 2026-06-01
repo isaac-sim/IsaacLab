@@ -312,7 +312,7 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: ArlNavigationSceneCfg = ArlNavigationSceneCfg(num_envs=4096, env_spacing=20.5)
+    scene: ArlNavigationSceneCfg = ArlNavigationSceneCfg(num_envs=1024, env_spacing=20.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

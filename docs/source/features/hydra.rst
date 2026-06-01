@@ -394,7 +394,8 @@ to make intent explicit on the command line.
    * - ``newton_kamino``
      - Newton physics with the Kamino solver (beta; limited tasks — see :ref:`hydra-backend-solver-presets`)
    * - ``ovphysx``
-     - OV PhysX backend (kit-less mode; select classic tasks only)
+     - OV PhysX backend (kit-less mode; select classic tasks only;
+       incompatible with ``--visualizer kit``)
 
 **Available renderer backends** (provided by :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`):
 

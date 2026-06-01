@@ -13,18 +13,25 @@ The package is structured as follows:
 
 """
 
+import importlib.metadata
 import os
-import toml
+import tomllib
 
-# Conveniences to other module directories via relative paths
 ISAACLAB_TASKS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 """Path to the extension source directory."""
 
-ISAACLAB_TASKS_METADATA = toml.load(os.path.join(ISAACLAB_TASKS_EXT_DIR, "config", "extension.toml"))
+_ext_toml = os.path.join(ISAACLAB_TASKS_EXT_DIR, "config", "extension.toml")
+if os.path.exists(_ext_toml):
+    with open(_ext_toml, "rb") as _f:
+        ISAACLAB_TASKS_METADATA = tomllib.load(_f)
+else:
+    ISAACLAB_TASKS_METADATA = {}
 """Extension metadata dictionary parsed from the extension.toml file."""
 
-# Configure the module-level variables
-__version__ = ISAACLAB_TASKS_METADATA["package"]["version"]
+try:
+    __version__ = importlib.metadata.version("isaaclab_tasks")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 ##
 # Register Gym environments.

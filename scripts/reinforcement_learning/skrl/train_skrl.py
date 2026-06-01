@@ -33,7 +33,7 @@ import isaaclab_tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-SKRL_VERSION = "2.0.0"
+SKRL_VERSION = "2.1.0"
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -66,10 +66,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         choices=["AMP", "PPO", "IPPO", "MAPPO"],
         help="The RL algorithm used for training the skrl agent.",
     )
+    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+
     add_isaaclab_launcher_args(parser)
-    args_cli, hydra_args = parser.parse_known_args(argv)
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args;
+    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse.
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
-    set_hydra_args(hydra_args)
+    set_hydra_args(fold_preset_tokens(hydra_args))
     return args_cli
 
 
@@ -82,6 +86,13 @@ def _resolve_agent_entry_point(args_cli: argparse.Namespace) -> tuple[str, str]:
         agent_cfg_entry_point = args_cli.agent
         algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
     return agent_cfg_entry_point, algorithm
+
+
+def _get_distributed_rank(args_cli: argparse.Namespace) -> int:
+    """Return the global distributed rank for the selected skrl ML framework."""
+    if args_cli.ml_framework.startswith("jax"):
+        return int(os.getenv("JAX_RANK", "0"))
+    return int(os.getenv("RANK", "0"))
 
 
 def run(argv: list[str]) -> None:
@@ -117,7 +128,7 @@ def run(argv: list[str]) -> None:
         validate_distributed_device(args_cli)
 
         if args_cli.distributed:
-            global_rank = int(os.getenv("RANK", "0"))
+            global_rank = _get_distributed_rank(args_cli)
 
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]

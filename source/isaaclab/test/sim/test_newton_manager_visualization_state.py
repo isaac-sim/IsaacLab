@@ -26,8 +26,8 @@ def _reset_newton_manager_state():
     NewtonManager._model = None
     NewtonManager._state_0 = None
     NewtonManager._num_envs = None
-    NewtonManager._visualization_scene_data = None
-    NewtonManager._visualization_mapping = None
+    NewtonManager._scene_data = None
+    NewtonManager._scene_data_mapping = None
 
 
 def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
@@ -153,6 +153,7 @@ def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
 
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
+    monkeypatch.setattr(NewtonManager, "get_scene_data_provider", classmethod(lambda cls: SimpleNamespace()))
 
     # Pre-set sentinel values to ensure update doesn't touch them.
     NewtonManager._model = "live-model"

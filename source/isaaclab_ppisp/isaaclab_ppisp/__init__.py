@@ -14,23 +14,13 @@ HDR scene-linear AOV to LDR RGBA at the end of a render tick. Renderer backends
 :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set.
 """
 
-import os
-
-import toml
+import importlib.metadata
 
 from isaaclab.utils.module import lazy_export
 
-ISAACLAB_PPISP_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-"""Path to the extension source directory."""
-
-_pkg_dir = os.path.dirname(os.path.abspath(__file__))
-_toml_path = os.path.join(_pkg_dir, "config", "extension.toml")
-if not os.path.isfile(_toml_path):
-    _toml_path = os.path.join(ISAACLAB_PPISP_EXT_DIR, "config", "extension.toml")
-
-ISAACLAB_PPISP_METADATA = toml.load(_toml_path)
-"""Extension metadata dictionary parsed from the extension.toml file."""
-
-__version__ = ISAACLAB_PPISP_METADATA["package"]["version"]
+try:
+    __version__ = importlib.metadata.version("isaaclab_ppisp")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 lazy_export()

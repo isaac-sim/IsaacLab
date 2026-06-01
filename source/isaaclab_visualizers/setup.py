@@ -31,6 +31,7 @@ EXTRAS_REQUIRE = {
     "rerun": [
         "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
         "rerun-sdk>=0.29.0",
+        "pyarrow==22.0.0",
     ],
     "viser": [
         "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",

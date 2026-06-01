@@ -9,10 +9,10 @@ Avoids dependencies on heavyweight Nucleus assets by authoring a few large
 opaque gaussians of known colors, bound to ``ParticleFieldEmissive.mdl`` with
 ``apply_inverse_tonemap=0`` and ``apply_srgb_linear=0`` so the wrapper PPISP is
 the sole ISP authority. Tests assert *semantic invariants* of the PPISP
-behavior (vignetting darkens corners, exposure offset increases mean, the CRF
-compresses highlights, etc.) instead of doing a fidelity-against-baked
-comparison — which sidesteps cross-renderer HDR-magnitude calibration drift
-entirely.
+behavior (non-degenerate LDR output from renderer HDR, vignetting darkens
+corners, the CRF keeps values bounded, etc.) instead of doing a
+fidelity-against-baked comparison — which sidesteps cross-renderer
+HDR-magnitude calibration drift entirely.
 """
 
 from __future__ import annotations
@@ -516,7 +516,7 @@ def render_synthetic_gaussian_scene(
     stabilisation_steps: int = 5,
     responsivity: float = 1.0,
 ) -> dict[str, torch.Tensor]:
-    """Render the synthesised gaussian asset with the aggressive wrapper ISP.
+    """Render the synthesised gaussian asset with the aggressive wrapper PPISP.
 
     Builds an :class:`~isaaclab.scene.InteractiveScene` via
     :func:`fresh_synthetic_gaussian_interactive_scene`, instantiates a

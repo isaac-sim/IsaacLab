@@ -73,8 +73,6 @@ Installing Isaac Lab
 
 .. include:: include/src_symlink_isaacsim.rst
 
-.. include:: include/src_python_virtual_env.rst
-
 .. include:: include/src_build_isaaclab.rst
 
 .. include:: include/src_verify_isaaclab.rst

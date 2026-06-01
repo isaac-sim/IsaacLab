@@ -66,6 +66,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RSL-RL training arguments."""
     from isaaclab.utils.string import list_intersection, string_to_callable
 
+    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+
     parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
     add_common_train_args(
         parser,
@@ -79,7 +81,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     CLI_ARGS.add_rsl_rl_args(parser)
     add_isaaclab_launcher_args(parser)
-    args_cli, remaining_args = parser.parse_known_args(argv)
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
 
     remaining_args_env_registration = None
@@ -87,7 +90,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
         remaining_args_env_registration = external_callback_function()
 
-    set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
+    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse
+    set_hydra_args(fold_preset_tokens(list_intersection(remaining_args, remaining_args_env_registration)))
     return args_cli
 
 

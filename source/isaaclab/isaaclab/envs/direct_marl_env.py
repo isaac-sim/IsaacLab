@@ -8,6 +8,7 @@ from __future__ import annotations
 import inspect
 import logging
 import math
+import sys
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -147,6 +148,7 @@ class DirectMARLEnv(gym.Env):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 self.scene.initialize_renderers()
+            self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
@@ -264,11 +266,9 @@ class DirectMARLEnv(gym.Env):
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
-    def __del__(self):
+    def __del__(self, _sys_is_finalizing=sys.is_finalizing):
         """Cleanup for the environment."""
-        import sys
-
-        if not sys.is_finalizing():
+        if not _sys_is_finalizing():
             self.close()
 
     """

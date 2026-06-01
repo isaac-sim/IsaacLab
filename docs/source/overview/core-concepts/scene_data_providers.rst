@@ -125,4 +125,4 @@ See Also
 --------
 
 - :doc:`renderers` — renderer backends that consume scene data
-- :doc:`/source/features/visualization` — visualizer backends that consume scene data
+- :doc:`/source/overview/core-concepts/visualization` — visualizer backends that consume scene data

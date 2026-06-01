@@ -151,7 +151,6 @@ class RerunVisualizer(BaseVisualizer):
         self._step_counter = 0
         self._model = None
         self._state = None
-        self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
 
@@ -165,10 +164,8 @@ class RerunVisualizer(BaseVisualizer):
 
         if self._is_initialized:
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         self._model = NewtonManager.get_model()
@@ -232,7 +229,6 @@ class RerunVisualizer(BaseVisualizer):
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
                 ("focal_length", f"{self.cfg.focal_length} (not applied: Rerun EyeControls3D has no FOV field)"),
-                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("endpoint", f"http://{viewer_host}:{web_port}"),
                 ("bind_address", bind_address),
@@ -259,9 +255,6 @@ class RerunVisualizer(BaseVisualizer):
 
         self._sim_time += dt
         self._step_counter += 1
-
-        if self.cfg.cam_source == "prim_path":
-            self._update_camera_from_usd_path()
 
         self._state = NewtonManager.get_state(self._scene_data_provider)
         num_envs = NewtonManager.get_num_envs()
@@ -313,15 +306,7 @@ class RerunVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.cam_source == "prim_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-            if pose is not None:
-                return pose
-            raise RuntimeError(
-                "[RerunVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
-                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
-            )
+        """Resolve initial camera pose from config."""
         return self._resolve_cfg_camera_pose("RerunVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
@@ -347,15 +332,6 @@ class RerunVisualizer(BaseVisualizer):
             )
         )
         self._last_camera_pose = (cam_pos, cam_target)
-
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-        if pose is None:
-            return
-        if self._last_camera_pose == pose:
-            return
-        self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
         """Rerun backend supports Isaac Lab markers through Newton viewer primitives."""

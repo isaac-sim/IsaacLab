@@ -170,9 +170,8 @@ class RenderData:
             first_focal_length = intrinsics.torch[:, 1, 1][0:1]
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
-                self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
-            )
+            fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
+            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(self.width, self.height, fov_warp)
 
     @wp.kernel
     def _update_transforms(
@@ -262,7 +261,7 @@ class NewtonWarpRenderer(BaseRenderer):
         owns the sentinel-resolution + cfg-normalization step. Newton has no
         USD-side overrides to author beyond this.
         """
-        if not spec.camera_prim_paths:
+        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
         from isaaclab_ppisp import resolve_and_normalize
 

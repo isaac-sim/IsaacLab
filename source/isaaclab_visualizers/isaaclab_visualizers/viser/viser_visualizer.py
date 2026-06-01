@@ -130,7 +130,6 @@ class ViserVisualizer(BaseVisualizer):
         self._model: Any | None = None
         self._state = None
         self._sim_time = 0.0
-        self._scene_data_provider = None
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -148,10 +147,8 @@ class ViserVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Viser visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -171,7 +168,6 @@ class ViserVisualizer(BaseVisualizer):
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
-                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("bind_address", self.cfg.bind_address),
                 ("display_address", self.cfg.display_address),
@@ -192,8 +188,6 @@ class ViserVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
-        if self.cfg.cam_source == "prim_path":
-            self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
         self._state = NewtonManager.get_state(self._scene_data_provider)
@@ -317,15 +311,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = None
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.cam_source == "prim_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-            if pose is not None:
-                return pose
-            raise RuntimeError(
-                "[ViserVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
-                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
-            )
+        """Resolve initial camera pose from config."""
         return self._resolve_cfg_camera_pose("ViserVisualizer")
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
@@ -383,12 +369,3 @@ class ViserVisualizer(BaseVisualizer):
         if self._try_apply_viser_camera_view(self._pending_camera_pose):
             self._last_camera_pose = self._pending_camera_pose
             self._pending_camera_pose = None
-
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-        if pose is None:
-            return
-        if self._last_camera_pose == pose or self._pending_camera_pose == pose:
-            return
-        self._set_viser_camera_view(pose)

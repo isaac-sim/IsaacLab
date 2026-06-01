@@ -217,11 +217,35 @@ def setup_environment(
     ]
 
 
+def _fire_all_interval_events_once(env) -> None:
+    """Force every interval-mode event term to fire once.
+
+    Invokes :meth:`~isaaclab.managers.EventManager.apply` with ``mode="interval"``
+    and a ``dt`` larger than any plausible ``interval_range_s`` upper bound, so the
+    trigger condition trips for every term in a single call. The manager re-samples
+    ``time_left`` from each term's original ``interval_range_s`` after firing, so
+    subsequent ``env.step()`` calls observe original interval timing.
+
+    No-op for envs without an :class:`~isaaclab.managers.EventManager` or
+    without any ``interval``-mode terms.
+
+    Args:
+        env: A constructed env instance.
+    """
+    event_manager = getattr(env.unwrapped, "event_manager", None)
+    if event_manager is None:
+        return
+    if "interval" not in event_manager.available_modes:
+        return
+    # Pass a very large dt for (time_left -= dt) to be less than 1e-6
+    event_manager.apply("interval", dt=1e9)
+
+
 def _run_environments(
     task_name,
     device,
     num_envs,
-    num_steps=100,
+    num_steps=20,
     multi_agent=False,
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
@@ -309,7 +333,7 @@ def _check_random_actions(
     task_name: str,
     device: str,
     num_envs: int,
-    num_steps: int = 100,
+    num_steps: int = 20,
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
@@ -388,6 +412,8 @@ def _check_random_actions(
 
         # check signal
         assert _check_valid_tensor(obs)
+
+        _fire_all_interval_events_once(env)
 
         # simulate environment for num_steps
         with torch.inference_mode():
