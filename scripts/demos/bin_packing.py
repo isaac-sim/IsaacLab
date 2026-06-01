@@ -159,7 +159,7 @@ def reset_object_collections(
         noise: If True, apply pose and velocity noise before writing.
 
     Returns:
-        None: This function updates ``states`` and the underlying PhysX view in-place.
+        None: This function updates ``view_states`` and the underlying PhysX view in-place.
     """
     rigid_object_collection: RigidObjectCollection = scene[asset_name]
     flat_states = view_states.view(-1, view_states.shape[-1])
@@ -283,7 +283,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     cached_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
     spawn_w = default_state_w.clone()
 
-    groceries_mask_helper = torch.arange(num_objects, device=device).view(1, num_objects)
+    groceries_mask_helper = torch.arange(num_objects * num_envs, device=device) % num_objects
     # Precompute a helper mask to toggle objects between active and cached sets.
     # Precompute XY bounds [[x_min,y_min],[x_max,y_max]]
     bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device, dtype=spawn_w.dtype)
@@ -295,7 +295,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
             count = 0
             # Randomly choose how many groceries stay active in each environment.
             num_active_groceries = torch.randint(MIN_OBJECTS_PER_BIN, num_objects, (num_envs, 1), device=device)
-            groceries_mask = (groceries_mask_helper < num_active_groceries).unsqueeze(-1)
+            groceries_mask = (groceries_mask_helper.view(num_envs, -1) < num_active_groceries).unsqueeze(-1)
             spawn_w[..., :7] = cached_spawn_poses * (~groceries_mask) + active_spawn_poses * groceries_mask
             # Retrieve positions
             with Timer("[INFO] Time to reset scene: "):
