@@ -375,7 +375,7 @@ _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
 )
 _reshape_3d_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "ovphysx") if backend in BACKENDS], indirect=False
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
 
