@@ -314,7 +314,6 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
-
 def _read_test_report(report_file, file_name):
     """Read a pytest JUnit report and return its summary fields."""
     report = JUnitXml.fromfile(report_file)
@@ -794,6 +793,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     print("~~~~~~~~~~~~ Finished running all tests")
 
     return failed_tests, test_status, xml_reports
+
 
 def _collect_test_files(
     source_dirs,
