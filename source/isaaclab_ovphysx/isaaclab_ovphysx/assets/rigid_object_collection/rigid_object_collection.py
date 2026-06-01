@@ -1212,7 +1212,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances,))
 
-    def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str | None = None) -> wp.array:
+    def reshape_data_to_view_3d(
+        self, data: wp.array | torch.Tensor, data_dim: int, device: str | None = None
+    ) -> wp.array | torch.Tensor:
         """Reshape instance-major ``(num_instances, num_bodies, data_dim)`` data to body-major view order.
 
         Companion of :meth:`reshape_data_to_view_2d` for 3D buffers (e.g. inertia
@@ -1220,12 +1222,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             data: Source buffer with shape ``(num_instances, num_bodies, data_dim)``.
+                Supports Warp arrays and torch tensors.
             data_dim: Trailing per-element dimension size.
-            device: Optional target device for the cloned output.  Defaults to ``data.device``.
+            device: Optional target device for the output. Defaults to ``data.device``.
 
         Returns:
             Contiguous body-major buffer with shape ``(num_bodies * num_instances, data_dim)``.
+            Torch inputs return torch tensors, and Warp inputs return Warp arrays.
         """
+        if isinstance(data, torch.Tensor):
+            if device is None:
+                device = data.device
+            return data.transpose(0, 1).reshape(self.num_bodies * self.num_instances, data_dim).to(device).contiguous()
+
         if device is None:
             device = str(data.device)
         element_size = wp.types.type_size_in_bytes(data.dtype)
