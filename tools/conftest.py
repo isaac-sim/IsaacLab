@@ -815,28 +815,6 @@ def pytest_sessionstart(session):
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print("=" * 50)
 
-    # When CI_MARKER is set, pre-scan the tree for files containing the marker
-    # token and add them as include_files so `_collect_test_files` does not
-    # silently drop them via TESTS_TO_SKIP.
-    if ci_marker:
-        marker_token = f"pytest.mark.{ci_marker}"
-        marker_include_files = set()
-        for source_dir in source_dirs:
-            for root, _, files in os.walk(source_dir):
-                for file in files:
-                    if not (file.startswith("test_") and file.endswith(".py")):
-                        continue
-                    try:
-                        with open(os.path.join(root, file)) as f:
-                            if marker_token in f.read():
-                                marker_include_files.add(file)
-                    except OSError as exc:
-                        print(f"::warning::ci_marker pre-scan could not read {os.path.join(root, file)}: {exc}")
-                        continue
-        if marker_include_files:
-            print(f"CI_MARKER={ci_marker}: marker-tagged files: {sorted(marker_include_files)}")
-            include_files = include_files | marker_include_files
-
     # Get all test files in the source directories
     test_files = _collect_test_files(
         source_dirs,

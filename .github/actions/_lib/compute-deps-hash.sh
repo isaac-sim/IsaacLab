@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -7,41 +8,43 @@
 # composite actions. Both invoke this script so a registry-side cache hit and
 # a local-store cache hit always agree on the same `deps-<hash>` tag.
 #
-# Source this script (do not exec) — it sets DEPS_HASH in the caller's
-# environment. Caller must export DOCKERFILE_PATH, ISAACSIM_BASE_IMAGE,
-# ISAACSIM_VERSION before sourcing. Diagnostic output goes to stderr so the
-# caller's stdout stays usable.
+# Usage: compute-deps-hash.sh <dockerfile-path> <isaacsim-base-image> <isaacsim-version>
+# Prints the 16-character deps-hash to stdout. Diagnostic output goes to stderr.
+set -euo pipefail
 
-: "${DOCKERFILE_PATH:?compute-deps-hash: DOCKERFILE_PATH must be set}"
-: "${ISAACSIM_BASE_IMAGE:?compute-deps-hash: ISAACSIM_BASE_IMAGE must be set}"
-: "${ISAACSIM_VERSION:?compute-deps-hash: ISAACSIM_VERSION must be set}"
+if [ "$#" -ne 3 ]; then
+  echo "compute-deps-hash: expected 3 args (dockerfile-path, isaacsim-base-image, isaacsim-version)" >&2
+  exit 2
+fi
+
+dockerfile_path="$1"
+isaacsim_base_image="$2"
+isaacsim_version="$3"
 
 # Exact files/dirs whose full content is hashed. The Dockerfile is first.
-_DEPS_FILES=(
-  "${DOCKERFILE_PATH}"
+deps_files=(
+  "${dockerfile_path}"
   isaaclab.sh
   environment.yml
   source/isaaclab/isaaclab/cli
 )
-# Manifest files matched repo-wide via git ls-files.
-_DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
+deps_manifest_pattern='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
 # Resolve the actual base image digest so a new push of a mutable tag
 # (e.g. latest-develop) invalidates the deps cache automatically.
-_BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
-  "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+base_image_digest=$(docker buildx imagetools inspect \
+  "${isaacsim_base_image}:${isaacsim_version}" \
   --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-if [ -n "${_BASE_IMAGE_DIGEST}" ]; then
-  _BASE_IMAGE_UNIQ_ID="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${_BASE_IMAGE_DIGEST}"
+if [ -n "${base_image_digest}" ]; then
+  base_image_uniq_id="${isaacsim_base_image}:${isaacsim_version}:${base_image_digest}"
 else
   echo "🟠 Could not resolve base image digest, falling back to tag string" >&2
-  _BASE_IMAGE_UNIQ_ID="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}"
+  base_image_uniq_id="${isaacsim_base_image}:${isaacsim_version}"
 fi
 
-_MANIFEST_FILES=$(git ls-files | grep -E "${_DEPS_MANIFEST_PATTERN}" || true)
-# shellcheck disable=SC2086  # word-splitting MANIFEST_FILES is intentional
-_FILE_HASH=$(git ls-files -s "${_DEPS_FILES[@]}" ${_MANIFEST_FILES} 2>/dev/null \
+mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
+file_hash=$(git ls-files -s "${deps_files[@]}" "${manifest_files[@]}" 2>/dev/null \
   | sha256sum | cut -c1-16)
-DEPS_HASH=$(printf '%s %s' "${_FILE_HASH}" "${_BASE_IMAGE_UNIQ_ID}" | sha256sum | cut -c1-16)
+deps_hash=$(printf '%s %s' "${file_hash}" "${base_image_uniq_id}" | sha256sum | cut -c1-16)
 
-unset _DEPS_FILES _DEPS_MANIFEST_PATTERN _BASE_IMAGE_DIGEST _BASE_IMAGE_UNIQ_ID _MANIFEST_FILES _FILE_HASH
+printf '%s\n' "${deps_hash}"

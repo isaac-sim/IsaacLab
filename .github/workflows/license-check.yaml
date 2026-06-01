@@ -16,9 +16,6 @@ concurrency:
 jobs:
   license-check:
     runs-on: ubuntu-24.04
-    # `ci-arm-only` PR label short-circuits this job for branch-local arm
-    # iteration; see build.yaml for the full convention.
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-arm-only') }}
 
     steps:
     - name: Checkout code

@@ -3,35 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: 'Docker Build (local-cache)'
-description: >
-  Build a Docker image with local-cache short-circuits and observability.
-  No ECR knowledge built in: the output stays in the host's local docker
-  store. Designed for self-hosted runners where ECR is not wired up (e.g.
-  the arm64 / Spark pool), and as the build primitive that
-  `ecr-build-push-pull` delegates to once its registry-side checks miss.
-
-  Pipeline:
-    1. Setup docker config + login to nvcr.io via the shared
-       `_lib/setup-docker-config.sh` (idempotent — no-op if a caller
-       already ran it earlier in the job).
-    2. Pre-build disk snapshot (df + docker system df + tag counts) into the
-       step summary.
-    3. Local exact-tag short-circuit: skip everything if `image-tag` is
-       already in the host's docker store.
-    4. Local deps-tag short-circuit: compute deps-hash via the shared
-       `_lib/compute-deps-hash.sh` (same hash `ecr-build-push-pull` uses,
-       so a local hit and a registry hit always agree on the deps tag).
-       If `<repo>:deps-<hash>` exists locally, retag as `image-tag`
-       (metadata-only).
-    5. buildx build (only when neither short-circuit fired). Optional
-       `--cache-from` / `--cache-to` flags for callers that want to layer
-       in a registry-side build cache (e.g. ECR).
-    6. Post-build: tag the result as `<repo>:deps-<hash>` so future builds
-       with identical deps short-circuit at step 4.
-    7. Evict `isaac-lab*:deps-*` tags older than 14 days to bound disk
-       growth on long-lived hosts.
-    8. Post-build disk snapshot.
+name: 'Build Docker Image'
+description: 'Builds a Docker image with IsaacSim and IsaacLab dependencies'
 
 inputs:
   image-tag:
@@ -68,13 +41,20 @@ inputs:
       `cache-from` for registry-backed layer cache writes.
     default: ''
     required: false
-  extra-tags:
+  deps-hash:
     description: >
-      Newline-separated additional tags to apply to the built image (e.g. an
-      ECR-prefixed tag for the caller to push). Each tag is materialized via
-      `docker tag` after a successful build or local short-circuit, so the
-      caller can rely on them being present.
+      Pre-computed deps-hash to use for the local deps-tag check. When empty,
+      this action computes the hash itself via `_lib/compute-deps-hash.sh`.
+      Set by callers (e.g. `ecr-build-push-pull`) that already compute the hash
+      for a registry-side check, to avoid recomputing here.
     default: ''
+    required: false
+  evict-stale-cache:
+    description: >
+      When 'true', evict `isaac-lab*:deps-*` tags older than 14 days at the
+      end of the build to bound disk growth on long-lived self-hosted
+      runners. Default 'false' — no implicit cleanup.
+    default: 'false'
     required: false
 
 runs:
@@ -137,13 +117,14 @@ runs:
       id: local-deps
       if: steps.local.outputs.hit != 'true'
       shell: bash
-      env:
-        DOCKERFILE_PATH: ${{ inputs.dockerfile-path }}
-        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
-        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
-        # shellcheck source=/dev/null
-        . .github/actions/_lib/compute-deps-hash.sh
+        DEPS_HASH="${{ inputs.deps-hash }}"
+        if [ -z "${DEPS_HASH}" ]; then
+          DEPS_HASH=$(.github/actions/_lib/compute-deps-hash.sh \
+            "${{ inputs.dockerfile-path }}" \
+            "${{ inputs.isaacsim-base-image }}" \
+            "${{ inputs.isaacsim-version }}")
+        fi
         LOCAL_DEPS_TAG="$(echo "${{ inputs.image-tag }}" | cut -d: -f1):deps-${DEPS_HASH}"
 
         echo "🔵 Local deps tag: ${LOCAL_DEPS_TAG}"
@@ -209,22 +190,10 @@ runs:
           echo "🟠 LOCAL_DEPS_TAG not set, skipping local deps-cache tag"
         fi
 
-    ##### 6b: Apply extra-tags (for callers that need additional names) #####
-
-    - name: Apply extra tags
-      if: inputs.extra-tags != ''
-      shell: bash
-      run: |
-        while IFS= read -r extra; do
-          [ -z "$extra" ] && continue
-          docker tag "${{ inputs.image-tag }}" "$extra"
-          echo "🟢 Tagged: $extra"
-        done <<< "${{ inputs.extra-tags }}"
-
-    ##### 7: Evict stale local deps-cache tags (>14d) #####
+    ##### 7: Evict stale local deps-cache tags (>14d) — opt-in #####
 
     - name: Evict stale local deps-cache tags (>14d)
-      if: always()
+      if: always() && inputs.evict-stale-cache == 'true'
       shell: bash
       run: |
         set +e

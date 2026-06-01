@@ -182,13 +182,12 @@ runs:
       id: deps-cache
       if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
       shell: bash
-      env:
-        DOCKERFILE_PATH: ${{ inputs.dockerfile-path }}
-        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
-        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
-        # shellcheck source=/dev/null
-        . .github/actions/_lib/compute-deps-hash.sh
+        DEPS_HASH=$(.github/actions/_lib/compute-deps-hash.sh \
+          "${{ inputs.dockerfile-path }}" \
+          "${{ inputs.isaacsim-base-image }}" \
+          "${{ inputs.isaacsim-version }}")
+        echo "deps_hash=${DEPS_HASH}" >> "$GITHUB_OUTPUT"
         DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
         echo "🔵 Deps hash: ${DEPS_HASH}"
         echo "🔵 Checking if deps image ${DEPS_ECR_IMAGE} exists in ECR..."
@@ -226,7 +225,17 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
-        extra-tags: ${{ steps.resolve-ecr.outputs.available == 'true' && env.ECR_IMAGE || '' }}
+        deps-hash: ${{ steps.deps-cache.outputs.deps_hash }}
+
+    - name: Tag built image with ECR-prefixed name
+      if: >
+        steps.resolve-ecr.outputs.available == 'true' &&
+        steps.pull-exact.outputs.hit != 'true' &&
+        steps.deps-cache.outputs.deps-cache-hit != 'true'
+      shell: bash
+      run: |
+        docker tag "${{ inputs.image-tag }}" "${ECR_IMAGE}"
+        echo "🟢 Tagged ${ECR_IMAGE}"
 
     ##### 7: Push to ECR #####
 

@@ -42,9 +42,8 @@ jobs:
     name: Build Latest Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type]
-    # `ci-arm-only` PR label short-circuits this job for branch-local arm
-    # iteration; see build.yaml for the full convention.
-    if: needs.doc-build-type.outputs.trigger-deploy != 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
+    # run on non-deploy branches to build current version docs only
+    if: needs.doc-build-type.outputs.trigger-deploy != 'true'
 
     steps:
     - name: Checkout code
@@ -74,7 +73,8 @@ jobs:
     name: Build Multi-Version Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type]
-    if: needs.doc-build-type.outputs.trigger-deploy == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
+    # run on deploy branches to create multi-version docs
+    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
     steps:
     - name: Checkout code

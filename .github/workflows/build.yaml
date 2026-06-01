@@ -101,7 +101,7 @@ jobs:
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
         )
-        triggered_jobs="Docker build jobs + all test-* matrix jobs (non-root verify is folded into test-isaaclab-ov and test-curobo)"
+        triggered_jobs="Docker build jobs + all test-* matrix jobs"
 
         render_table() {
           local files="$1" entry regex desc count sample shown
@@ -200,11 +200,7 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    # `ci-arm-only` PR label short-circuits the amd64 build (and therefore
-    # every downstream test job via `needs: build`). Use during branch-local
-    # iteration on aarch64 changes; remove the label to re-enable amd64 CI.
-    # Other workflows (docs, install-ci, license-check) honor the same label.
-    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
+    if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -225,7 +221,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
+    if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
