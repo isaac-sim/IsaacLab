@@ -9,11 +9,3 @@ Fixed
   ``KeyError: 'EXP_PATH'`` deep inside ``_resolve_experience_file``; now
   AppLauncher resolves the path from ``isaacsim.__file__`` and stores it back
   into the environment so subsequent code can rely on it.
-
-* Excluded ``pytetwild`` install on aarch64 platforms. The package has no
-  aarch64 wheel on PyPI and its source build fails (the ``geogram`` CMake dep
-  hardcodes ``-m64``). The single call site in :mod:`isaaclab.sim.schemas`
-  already raises a clear "install pytetwild manually or provide a
-  pre-tetrahedralized UsdGeom.TetMesh" message when the lazy import fails, so
-  aarch64 users keep everything except automatic volume-deformable
-  tetrahedralization.
