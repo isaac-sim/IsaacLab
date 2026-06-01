@@ -12,8 +12,9 @@ No Kit/GPU required — safe for CI and beginners.
 
 import sys
 
-import isaaclab_tasks  # noqa: F401
 from isaaclab.app.sim_launcher import _scan
+
+import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Presets-Direct-v0"

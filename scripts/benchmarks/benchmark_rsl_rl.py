@@ -99,6 +99,7 @@ import isaaclab_tasks  # noqa: F401
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab.app import launch_simulation
+
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()

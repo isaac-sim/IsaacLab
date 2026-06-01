@@ -77,12 +77,12 @@ def run(argv: list[str]) -> None:
     from rl_games.common.algo_observer import IsaacAlgoObserver
     from rl_games.torch_runner import Runner
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
 
     from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
-    from isaaclab.app import launch_simulation
     from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)

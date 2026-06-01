@@ -100,11 +100,11 @@ def run(argv: list[str]) -> None:
     import torch
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
-    from isaaclab.app import launch_simulation
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
     torch.backends.cuda.matmul.allow_tf32 = True

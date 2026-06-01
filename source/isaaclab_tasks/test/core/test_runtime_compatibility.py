@@ -17,8 +17,9 @@ import sys
 
 import pytest
 
-import isaaclab_tasks  # noqa: F401
 from isaaclab.app.sim_launcher import _scan, _validate_runtime
+
+import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Presets-Direct-v0"
