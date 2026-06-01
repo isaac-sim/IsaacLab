@@ -61,7 +61,7 @@ from isaaclab.utils.math import quat_apply
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
-from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
+from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
 
 TASK = "Isaac-Velocity-Rough-H1-v0"
 RL_LIBRARY = "rsl_rl"

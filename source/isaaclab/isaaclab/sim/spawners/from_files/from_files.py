@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-from pxr import Gf, Sdf, Usd, UsdGeom
-
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg, SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.utils import (
@@ -33,6 +31,8 @@ from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
+
     from . import from_files_cfg
 
 # import logger
@@ -236,6 +236,8 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
+        from pxr import Gf, Sdf  # noqa: PLC0415
+
         # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
@@ -247,6 +249,8 @@ def spawn_ground_plane(
     # It isn't bright enough and messes up with the user's lighting settings
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
     if light_prim.IsValid():
+        from pxr import UsdGeom  # noqa: PLC0415
+
         imageable = UsdGeom.Imageable(light_prim)
         imageable.MakeInvisible()
 

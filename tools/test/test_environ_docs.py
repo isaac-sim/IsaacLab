@@ -173,7 +173,7 @@ def test_collect_environment_doc_rows_from_mock_specs():
     specs = [
         EnvSpec(
             id="Isaac-Cartpole-Direct-v0",
-            entry_point="isaaclab_tasks.direct.cartpole.cartpole_env:CartpoleEnv",
+            entry_point="isaaclab_tasks.core.direct_cartpole.cartpole_env:CartpoleEnv",
             kwargs={
                 "env_cfg_entry_point": "cfg:CartpoleEnvCfg",
                 "rl_games_cfg_entry_point": "agents:rl_games_ppo_cfg.yaml",
@@ -184,7 +184,7 @@ def test_collect_environment_doc_rows_from_mock_specs():
         ),
         EnvSpec(
             id="Isaac-Cartpole-Direct-Play-v0",
-            entry_point="isaaclab_tasks.direct.cartpole.cartpole_env:CartpoleEnv",
+            entry_point="isaaclab_tasks.core.direct_cartpole.cartpole_env:CartpoleEnv",
             kwargs={"env_cfg_entry_point": "cfg:CartpoleEnvCfg_PLAY"},
         ),
     ]

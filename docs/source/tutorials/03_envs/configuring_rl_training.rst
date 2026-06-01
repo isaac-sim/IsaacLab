@@ -26,7 +26,7 @@ As an example, we will look at the configuration included for the task ``Isaac-C
 in the ``isaaclab_tasks`` package. This is the same task that we used in the
 :ref:`tutorial-run-rl-training` tutorial.
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/__init__.py
    :language: python
    :lines: 18-29
 

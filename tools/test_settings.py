@@ -21,6 +21,7 @@ PER_TEST_TIMEOUTS = {
     "test_stage_in_memory.py": 1000,
     "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
+    "test_contrib_environments_smoke.py": 10000,  # Smoke test running through contributed environments
     "test_environments_with_stage_in_memory.py": (
         10000
     ),  # Like the above, with stage in memory and with and without fabric cloning

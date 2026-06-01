@@ -67,7 +67,7 @@ Callables
 It is possible to modify functions and classes in the configuration files by using the syntax ``module:attribute_name``.
 For example, in the Cartpole environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/cartpole_env_cfg.py
     :language: python
     :start-at: class ObservationsCfg
     :end-at: policy: PolicyCfg = PolicyCfg()
@@ -87,7 +87,7 @@ Dictionaries
 ^^^^^^^^^^^^
 Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/cartpole_env_cfg.py
     :language: python
     :lines: 90-114
     :emphasize-lines: 11
@@ -108,7 +108,7 @@ are modified.
 
 For example, for the configuration of the Cartpole camera depth environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/cartpole_camera_env_cfg.py
     :language: python
     :start-at: class CartpoleDepthCameraEnvCfg
     :end-at: tiled_camera.width
@@ -120,7 +120,7 @@ If the user were to modify the width of the camera, i.e. ``env.tiled_camera.widt
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py
     :language: python
     :start-at: class LocomotionVelocityRoughEnvCfg
     :emphasize-lines: 23, 29, 31
@@ -493,7 +493,7 @@ Real-World Example
 The ANYmal-C locomotion environment shows both ``PresetCfg`` and ``preset()``
 working together:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_c/rough_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
     :lines: 21-42
 

@@ -17,8 +17,6 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
-from pxr import Sdf
-
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import (
@@ -45,6 +43,9 @@ from isaaclab.utils.version import has_kit
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
+
+if TYPE_CHECKING:
+    from pxr import Sdf  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -308,6 +309,8 @@ class InteractiveScene:
         # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
         # Intentionally matches both physx and ovphysx (both are PhysX-based)
         if self.cfg.replicate_physics and "physx" in self.physics_backend:
+            from pxr import Sdf  # noqa: PLC0415
+
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 

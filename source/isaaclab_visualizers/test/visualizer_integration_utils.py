@@ -43,9 +43,9 @@ from isaaclab.app import AppLauncher
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
 
-from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpolePhysicsCfg
+from isaaclab_tasks.core.direct_cartpole.cartpole_camera_env import CartpoleCameraEnv
+from isaaclab_tasks.core.direct_cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+from isaaclab_tasks.core.manager_cartpole.cartpole_env_cfg import CartpolePhysicsCfg
 
 # TODO: Several test cases currently show flakiness with frozen bodies. Remove the test-level retry once fixed.
 

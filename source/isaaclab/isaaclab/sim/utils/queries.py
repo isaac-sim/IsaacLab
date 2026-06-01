@@ -10,13 +10,15 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
-
-from pxr import Sdf, Usd, UsdPhysics
+from typing import TYPE_CHECKING
 
 from isaaclab.cloner.cloner_utils import resolve_clone_plan_source
 from isaaclab.sim.simulation_context import SimulationContext
 
 from .stage import get_current_stage
+
+if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdPhysics  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -46,6 +48,8 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
         >>> sim_utils.get_next_free_prim_path("/World/Cube")
         /World/Cube_02
     """
+    from pxr import Sdf  # noqa: PLC0415
+
     # get current stage
     stage = get_current_stage() if stage is None else stage
 
@@ -163,6 +167,8 @@ def get_first_matching_child_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -235,6 +241,8 @@ def get_all_matching_child_prims(
         ValueError: If :attr:`expected_num_matches` is negative.
         RuntimeError: If :attr:`expected_num_matches` is specified and the number of matches differs.
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -501,6 +509,8 @@ def find_global_fixed_joint_prim(
         ValueError: If the prim path is not global (i.e: does not start with '/').
         ValueError: If the prim path does not exist on the stage.
     """
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()

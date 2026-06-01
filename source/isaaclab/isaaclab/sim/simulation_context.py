@@ -17,8 +17,6 @@ from typing import TYPE_CHECKING, Any
 import tomllib
 import torch
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
-
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
@@ -38,6 +36,8 @@ from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from isaaclab.cloner.clone_plan import ClonePlan
 
 from .simulation_cfg import SimulationCfg
@@ -110,6 +110,8 @@ class SimulationContext:
         """
         if type(self)._instance is not None:
             return  # Already initialized
+
+        from pxr import UsdUtils  # noqa: PLC0415
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
@@ -322,6 +324,8 @@ class SimulationContext:
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
+        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+
         cfg = self.cfg
         with sim_utils.use_stage(self.stage):
             # Set stage conventions for metric units
@@ -984,6 +988,7 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
+            # ``create_new_stage`` is shadowed here by the bool parameter, so call via the namespace.
             sim_utils.create_new_stage()
 
         if sim_cfg is None:
