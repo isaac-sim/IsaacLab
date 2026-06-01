@@ -139,11 +139,8 @@ def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tenso
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
-    # Simulate physics
-    while True:
-        # exit when every visualizer window has been closed (works for kit and newton)
-        if sim.visualizers and not any(v.is_running() and not v.is_closed for v in sim.visualizers):
-            break
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while not sim.visualizers or any(v.is_running() and not v.is_closed for v in sim.visualizers):
         # reset
         if count % 200 == 0:
             # reset counters
