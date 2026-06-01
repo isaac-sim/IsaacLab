@@ -141,38 +141,23 @@ def _get_visualizer_intent(env_cfg) -> dict[str, bool]:
 
 @dataclass
 class _Scan:
-    """Signals gathered from one walk of the config tree (see :func:`_scan`)."""
+    """Signals gathered from one walk of the config tree (see :func:`_scan`).
 
-    physics_cfgs: list[PhysicsCfg]  # physics configs in walk order (post --physics override)
+    Every field is a plain snapshot computed during that single walk; nothing here
+    is recomputed or mutated afterwards. ``needs_kit`` is the headline decision: a
+    Kit-renderer camera or non-kitless physics requires Kit (the launcher additionally
+    forces Kit when ``--visualizer kit`` is requested).
+    """
+
+    resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
+    effective_cfg: Any  # env_cfg, or the replacement physics config when env_cfg itself was overridden
+    visualizer_intent: dict[str, bool]
     has_ovrtx: bool
     has_kit_camera: bool
-    visualizer_intent: dict[str, bool]
-    effective_cfg: Any  # env_cfg, or the new physics config when env_cfg was an overridden root
-    physics_cfg: PhysicsCfg | None  # config produced by the --physics override, else None
-
-    @property
-    def resolved_physics_cfg(self) -> PhysicsCfg | None:
-        return self.physics_cfgs[0] if self.physics_cfgs else None
-
-    @property
-    def has_kit_physics(self) -> bool:
-        return any(type(cfg).__name__ == "PhysxCfg" for cfg in self.physics_cfgs)
-
-    @property
-    def has_kitless_physics(self) -> bool:
-        return any(type(cfg).__name__ in _KITLESS_PHYSICS_CFGS for cfg in self.physics_cfgs)
-
-    @property
-    def has_ovphysx_physics(self) -> bool:
-        return any(type(cfg).__name__ == "OvPhysxCfg" for cfg in self.physics_cfgs)
-
-    @property
-    def needs_kit(self) -> bool:
-        """Whether the config requires Kit: a Kit-renderer camera or non-kitless physics.
-
-        The launcher additionally forces Kit when ``--visualizer kit`` is requested.
-        """
-        return self.has_kit_camera or not self.has_kitless_physics
+    has_kit_physics: bool  # PhysX (Kit-based)
+    has_kitless_physics: bool  # Newton or OvPhysX
+    has_ovphysx_physics: bool
+    needs_kit: bool
 
 
 def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
@@ -184,13 +169,12 @@ def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
     """
     physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = env_cfg
-    physics_cfg: PhysicsCfg | None = None
     has_ovrtx = False
     has_kit_camera = False
     visited: set[int] = set()
 
     def visit(node, parent, attr):
-        nonlocal effective_cfg, physics_cfg, has_ovrtx, has_kit_camera
+        nonlocal effective_cfg, has_ovrtx, has_kit_camera
         if id(node) in visited:
             return
         visited.add(id(node))
@@ -202,8 +186,6 @@ def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
                     setattr(parent, attr, node)
                 else:
                     effective_cfg = node
-                if physics_cfg is None:
-                    physics_cfg = node
             physics_cfgs.append(node)
         elif _is_ovrtx_renderer(node):
             has_ovrtx = True
@@ -220,13 +202,19 @@ def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
             visit(child, node, name)
 
     visit(env_cfg, None, None)
+
+    names = [type(cfg).__name__ for cfg in physics_cfgs]
+    has_kitless_physics = any(name in _KITLESS_PHYSICS_CFGS for name in names)
     return _Scan(
-        physics_cfgs=physics_cfgs,
+        resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
+        effective_cfg=effective_cfg,
+        visualizer_intent=_get_visualizer_intent(env_cfg),
         has_ovrtx=has_ovrtx,
         has_kit_camera=has_kit_camera,
-        visualizer_intent=_get_visualizer_intent(env_cfg),
-        effective_cfg=effective_cfg,
-        physics_cfg=physics_cfg,
+        has_kit_physics="PhysxCfg" in names,
+        has_kitless_physics=has_kitless_physics,
+        has_ovphysx_physics="OvPhysxCfg" in names,
+        needs_kit=has_kit_camera or not has_kitless_physics,
     )
 
 

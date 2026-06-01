@@ -55,6 +55,18 @@ def _make_distributed_args(**overrides) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
+def _force_kitless(monkeypatch):
+    """Wrap ``_scan`` so the resulting scan reports ``needs_kit=False``."""
+    real_scan = sim_launcher._scan
+
+    def fake_scan(*args, **kwargs):
+        scan = real_scan(*args, **kwargs)
+        scan.needs_kit = False
+        return scan
+
+    monkeypatch.setattr(sim_launcher, "_scan", fake_scan)
+
+
 def _make_env_vars(
     local_rank: int = 0,
     world_size: int = 2,
@@ -453,7 +465,7 @@ class TestLaunchSimulationDevicePropagation:
             resolved_devices.append("cuda:1")
 
         # Force the kitless path (needs_kit=False) without constructing a real backend cfg.
-        monkeypatch.setattr(sim_launcher._Scan, "needs_kit", property(lambda self: False))
+        _force_kitless(monkeypatch)
         monkeypatch.setattr(
             sim_launcher,
             "_resolve_distributed_device",
