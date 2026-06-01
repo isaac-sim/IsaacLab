@@ -341,6 +341,9 @@ class AppLauncher:
         # use __stderr__ which is never suppressed.
         print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
 
+        # Log Kit/runtime version information for diagnostics.
+        self._log_kit_version_info()
+
         # Ensure SimulationApp.close() is called on normal process exit so Kit
         # shuts down cleanly instead of relying on __del__ (which logs a warning
         # and can leave GPU resources in a bad state for the next test).
@@ -1373,6 +1376,22 @@ class AppLauncher:
             if play_button_group is not None:
                 play_button_group._play_button.visible = not flag  # type: ignore
                 play_button_group._play_button.enabled = not flag  # type: ignore
+
+    def _log_kit_version_info(self):
+        """Log Kit and runtime version information."""
+        import carb
+        import omni.kit.app
+
+        app = omni.kit.app.get_app()
+        tokens = carb.tokens.get_tokens_interface()
+
+        kit_version = app.get_kit_version()
+        kernel_version = app.get_kernel_version()
+        kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+
+        print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
+        print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
+        print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
 
     def _abort_signal_handle_callback(self, signal, frame):
         """Handle the abort/segmentation/kill signals."""
