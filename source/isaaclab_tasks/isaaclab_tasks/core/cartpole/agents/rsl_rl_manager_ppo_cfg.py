@@ -7,7 +7,7 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
 
-import isaaclab_tasks.core.manager_cartpole.mdp.symmetry as symmetry
+import isaaclab_tasks.core.cartpole.mdp.symmetry as symmetry
 
 
 @configclass

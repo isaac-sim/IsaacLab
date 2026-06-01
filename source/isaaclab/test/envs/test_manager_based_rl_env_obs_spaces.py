@@ -19,7 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
-from isaaclab_tasks.core.manager_cartpole.cartpole_camera_env_cfg import (
+from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import (
     CartpoleDepthCameraEnvCfg,
     CartpoleRGBCameraEnvCfg,
 )

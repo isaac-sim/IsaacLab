@@ -10,10 +10,10 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.core.manager_cartpole.mdp as mdp
+import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from .cartpole_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
+from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 ##
 # Scene definition
@@ -178,7 +178,7 @@ class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 
 
 ##
-# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera-v0)
+# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera-Manager)
 ##
 
 
@@ -199,7 +199,7 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
     framework resolver pins the selected variant at ``gym.make`` time when
     the user passes ``presets=<name>``.
 
-    Used by the canonical :obj:`Isaac-Cartpole-Camera-v0` task. The retired
+    Used by the canonical :obj:`Isaac-Cartpole-Camera-Manager` task. The retired
     per-variant task IDs (:obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`)
     return the same per-variant subclasses directly via the deprecation
     shims in the sibling ``__init__.py``.

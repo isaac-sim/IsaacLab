@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
 
-from .cartpole_camera_env import CartpoleCameraEnv
+from .cartpole_direct_camera_env import CartpoleCameraEnv
 
 if TYPE_CHECKING:
-    from .cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+    from .cartpole_direct_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
 
 class CartpoleCameraPresetsEnv(CartpoleCameraEnv):

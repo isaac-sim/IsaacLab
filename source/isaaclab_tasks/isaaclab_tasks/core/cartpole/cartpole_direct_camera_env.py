@@ -18,7 +18,7 @@ from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
-    from .cartpole_camera_env_cfg import (
+    from .cartpole_direct_camera_env_cfg import (
         CartpoleAlbedoCameraEnvCfg,
         CartpoleDepthCameraEnvCfg,
         CartpoleRGBCameraEnvCfg,
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         CartpoleSimpleShadingDiffuseCameraEnvCfg,
         CartpoleSimpleShadingFullCameraEnvCfg,
     )
-    from .cartpole_camera_env_preset_cfg import CartpoleCameraEnvCfg
+    from .cartpole_direct_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
 SIMPLE_SHADING_TYPES = {
     "simple_shading_constant_diffuse",
@@ -45,7 +45,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         | CartpoleSimpleShadingConstantCameraEnvCfg
         | CartpoleSimpleShadingDiffuseCameraEnvCfg
         | CartpoleSimpleShadingFullCameraEnvCfg
-        | CartpoleCameraEnvCfg
+        | CartpoleCameraPresetsEnvCfg
     )
 
     def __init__(

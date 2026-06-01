@@ -18,7 +18,7 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
-    from .cartpole_env_cfg import CartpoleEnvCfg
+    from .cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 class CartpoleEnv(DirectRLEnv):

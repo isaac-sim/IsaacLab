@@ -66,7 +66,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     # registered as a deprecation alias. The migration metadata lives in the
     # gym.register kwargs under the ``deprecated`` key as a dict whose
     # ``alias`` field is the equivalent CLI command, e.g.
-    # ``"deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb"}``.
+    # ``"deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct presets=rgb"}``.
     # FutureWarning (vs DeprecationWarning) matches the existing convention
     # for end-user-facing IsaacLab deprecations (cfg fields, preset-name
     # aliases) and is shown by Python's default filter regardless of which

@@ -20,7 +20,7 @@ import pytest
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, validate_runtime_compatibility
 
-_CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Presets-Direct-v0"
+_CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 
 def _resolve_with_presets(presets: str):

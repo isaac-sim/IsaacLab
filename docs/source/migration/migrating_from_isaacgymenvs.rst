@@ -487,7 +487,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
    ##
 
    gym.register(
-       id="Isaac-Cartpole-Direct-v0",
+       id="Isaac-Cartpole-Direct",
        entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
        disable_env_checker=True,
        kwargs={
@@ -916,7 +916,7 @@ To launch a training in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
+   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct --headless
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
@@ -925,7 +925,7 @@ To launch inferencing in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+   python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 Additional Resources

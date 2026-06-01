@@ -26,8 +26,8 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_presets_env import CartpoleCameraPresetsEnv  # noqa: E402
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_presets_env_cfg import (
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_presets_env import CartpoleCameraPresetsEnv  # noqa: E402
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_presets_env_cfg import (
     CartpoleCameraPresetsEnvCfg,  # noqa: E402
 )
 from isaaclab_tasks.utils.hydra import resolve_presets  # noqa: E402

@@ -75,7 +75,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
     def test_install_newton_rl_rsl_rl_trains_cartpole(self, isaaclab_root):
-        """./isaaclab.sh -i 'newton,rl[rsl-rl]' then train Isaac-Cartpole-Direct-v0 with rsl_rl."""
+        """./isaaclab.sh -i 'newton,rl[rsl-rl]' then train Isaac-Cartpole-Direct with rsl_rl."""
 
         try:
             self.create_uv_env(isaaclab_root)
@@ -89,7 +89,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                     "-p",
                     "scripts/reinforcement_learning/rsl_rl/train.py",
                     "--task",
-                    "Isaac-Cartpole-Direct-v0",
+                    "Isaac-Cartpole-Direct",
                     "--num_envs",
                     "64",
                     "presets=newton_mjwarp",
@@ -112,7 +112,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
     def test_install_newton_rl_skrl_trains_cartpole(self, isaaclab_root):
-        """./isaaclab.sh -i 'newton,rl[skrl]' then train Isaac-Cartpole-Direct-v0 with skrl."""
+        """./isaaclab.sh -i 'newton,rl[skrl]' then train Isaac-Cartpole-Direct with skrl."""
 
         try:
             self.create_uv_env(isaaclab_root)
@@ -126,7 +126,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                     "-p",
                     "scripts/reinforcement_learning/skrl/train.py",
                     "--task",
-                    "Isaac-Cartpole-Direct-v0",
+                    "Isaac-Cartpole-Direct",
                     "--num_envs",
                     "64",
                     "presets=newton_mjwarp",
@@ -149,7 +149,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(3600)
     def test_install_newton_rl_sb3_trains_cartpole(self, isaaclab_root):
-        """./isaaclab.sh -i 'newton,rl[sb3]' then train Isaac-Cartpole-Direct-v0 with sb3."""
+        """./isaaclab.sh -i 'newton,rl[sb3]' then train Isaac-Cartpole-Direct with sb3."""
 
         try:
             self.create_uv_env(isaaclab_root)
@@ -163,7 +163,7 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                     "-p",
                     "scripts/reinforcement_learning/sb3/train.py",
                     "--task",
-                    "Isaac-Cartpole-Direct-v0",
+                    "Isaac-Cartpole-Direct",
                     "--num_envs",
                     "64",
                     "presets=newton_mjwarp",
