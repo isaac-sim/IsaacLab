@@ -63,8 +63,6 @@ from isaaclab.utils.configclass import configclass  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
-
 # ---------------------------------------------------------------------------
 # Device-lock autouse fixture
 # ---------------------------------------------------------------------------
