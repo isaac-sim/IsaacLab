@@ -44,9 +44,9 @@ inputs:
   deps-hash:
     description: >
       Pre-computed deps-hash to use for the local deps-tag check. When empty,
-      this action computes the hash itself via `_lib/compute-deps-hash.sh`.
-      Set by callers (e.g. `ecr-build-push-pull`) that already compute the hash
-      for a registry-side check, to avoid recomputing here.
+      this action computes the hash itself via the `_lib/compute-deps-hash`
+      action. Set by callers (e.g. `ecr-build-push-pull`) that already compute
+      the hash for a registry-side check, to avoid recomputing here.
     default: ''
     required: false
   evict-stale-cache:
@@ -64,10 +64,7 @@ runs:
     ##### 1: Setup docker config + login to nvcr.io (optional) #####
 
     - name: Setup docker config and login to nvcr.io
-      shell: bash
-      run: |
-        # shellcheck source=/dev/null
-        . .github/actions/_lib/setup-docker-config.sh
+      uses: ./.github/actions/_lib/setup-docker-config
 
     ##### 2: Host disk snapshot (pre) #####
 
@@ -113,18 +110,21 @@ runs:
 
     ##### 4: Local deps-tag short-circuit #####
 
+    - name: Compute deps hash
+      id: deps-hash
+      if: steps.local.outputs.hit != 'true' && inputs.deps-hash == ''
+      uses: ./.github/actions/_lib/compute-deps-hash
+      with:
+        dockerfile-path: ${{ inputs.dockerfile-path }}
+        isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+
     - name: Check deps-tag locally
       id: local-deps
       if: steps.local.outputs.hit != 'true'
       shell: bash
       run: |
-        DEPS_HASH="${{ inputs.deps-hash }}"
-        if [ -z "${DEPS_HASH}" ]; then
-          DEPS_HASH=$(.github/actions/_lib/compute-deps-hash.sh \
-            "${{ inputs.dockerfile-path }}" \
-            "${{ inputs.isaacsim-base-image }}" \
-            "${{ inputs.isaacsim-version }}")
-        fi
+        DEPS_HASH="${{ inputs.deps-hash || steps.deps-hash.outputs.hash }}"
         LOCAL_DEPS_TAG="$(echo "${{ inputs.image-tag }}" | cut -d: -f1):deps-${DEPS_HASH}"
 
         echo "🔵 Local deps tag: ${LOCAL_DEPS_TAG}"

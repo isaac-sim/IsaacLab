@@ -50,10 +50,7 @@ runs:
     # (including ECR login in step 3) inherit it automatically.
 
     - name: Setup docker config and login to nvcr.io
-      shell: bash
-      run: |
-        # shellcheck source=/dev/null
-        . .github/actions/_lib/setup-docker-config.sh
+      uses: ./.github/actions/_lib/setup-docker-config
 
     ##### 2: Resolve ECR URL #####
 
@@ -178,16 +175,21 @@ runs:
     # Edit DEPS_FILES or DEPS_MANIFEST_PATTERN when install
     # inputs change (new packages, new manifests, etc.).
 
+    - name: Compute deps hash
+      id: deps-hash
+      if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
+      uses: ./.github/actions/_lib/compute-deps-hash
+      with:
+        dockerfile-path: ${{ inputs.dockerfile-path }}
+        isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+
     - name: Check deps cache
       id: deps-cache
       if: steps.resolve-ecr.outputs.available == 'true' && steps.pull-exact.outputs.hit != 'true'
       shell: bash
       run: |
-        DEPS_HASH=$(.github/actions/_lib/compute-deps-hash.sh \
-          "${{ inputs.dockerfile-path }}" \
-          "${{ inputs.isaacsim-base-image }}" \
-          "${{ inputs.isaacsim-version }}")
-        echo "deps_hash=${DEPS_HASH}" >> "$GITHUB_OUTPUT"
+        DEPS_HASH="${{ steps.deps-hash.outputs.hash }}"
         DEPS_ECR_IMAGE="${ECR_URL}:deps-${DEPS_HASH}"
         echo "🔵 Deps hash: ${DEPS_HASH}"
         echo "🔵 Checking if deps image ${DEPS_ECR_IMAGE} exists in ECR..."
@@ -225,7 +227,7 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
-        deps-hash: ${{ steps.deps-cache.outputs.deps_hash }}
+        deps-hash: ${{ steps.deps-hash.outputs.hash }}
 
     - name: Tag built image with ECR-prefixed name
       if: >
