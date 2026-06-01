@@ -125,10 +125,11 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    # `ci-skip-amd64` PR label short-circuits the amd64 build (and therefore
+    # `ci-arm-only` PR label short-circuits the amd64 build (and therefore
     # every downstream test job via `needs: build`). Use during branch-local
     # iteration on aarch64 changes; remove the label to re-enable amd64 CI.
-    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-skip-amd64')
+    # Other workflows (docs, install-ci, license-check) honor the same label.
+    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -149,7 +150,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-skip-amd64')
+    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6

@@ -126,7 +126,9 @@ jobs:
   install-tests-x86:
     name: Installation Tests (x86)
     needs: [changes]
-    if: needs.changes.outputs.run_install_tests == 'true'
+    # `ci-arm-only` PR label short-circuits this job for branch-local arm
+    # iteration; see build.yaml for the full convention.
+    if: needs.changes.outputs.run_install_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
@@ -145,7 +147,7 @@ jobs:
   install-tests-arm:
     name: Installation Tests (ARM)
     needs: [changes]
-    if: needs.changes.outputs.run_install_tests == 'true'
+    if: needs.changes.outputs.run_install_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-arm-only')
     runs-on: [self-hosted, aarch64]
     timeout-minutes: 90
     steps:
