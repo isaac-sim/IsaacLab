@@ -311,6 +311,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             del self.reward_manager
             del self.termination_manager
             del self.curriculum_manager
+            # Release gym.spaces.Box bounds arrays set in _configure_gym_env_spaces;
+            # without this they survive close via gymnasium's wrapper chain.
+            self.single_observation_space = None
+            self.single_action_space = None
+            self.observation_space = None
+            self.action_space = None
             # call the parent class to close the environment
             super().close()
 
