@@ -68,6 +68,9 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  # Arch-suffixed tag so the arm64 build never collides with the amd64 image in
+  # the local docker store on shared runners.
+  CI_IMAGE_TAG_ARM64: isaac-lab-ci-arm64:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
   changes:
@@ -122,7 +125,10 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    # `ci-skip-amd64` PR label short-circuits the amd64 build (and therefore
+    # every downstream test job via `needs: build`). Use during branch-local
+    # iteration on aarch64 changes; remove the label to re-enable amd64 CI.
+    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-skip-amd64')
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -143,7 +149,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: needs.changes.outputs.run_docker_tests == 'true' && !contains(github.event.pull_request.labels.*.name, 'ci-skip-amd64')
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -159,6 +165,49 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
+
+  # aarch64 build + marker-gated tests on NVIDIA DGX Spark self-hosted runners.
+  # Build and test must share one runner because ECR is not wired for arm64 —
+  # the locally-built image cannot be handed off across machines.
+  arm-ci:
+    name: arm-ci
+    runs-on: [self-hosted, arm64]
+    needs: [changes, config]
+    if: needs.changes.outputs.run_docker_tests == 'true'
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build base image (linux/arm64)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.CI_IMAGE_TAG_ARM64 }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        platform: linux/arm64
+
+    - name: Run arm_ci marker tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: tools
+        result-file: arm-ci-report.xml
+        container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ env.CI_IMAGE_TAG_ARM64 }}
+        ci-marker: arm_ci
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: arm-ci-reports
+        path: reports/
+        retention-days: 7
 
   #endregion
 
