@@ -144,14 +144,14 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
 def reset_object_collections(
     scene: InteractiveScene,
     asset_name: str,
-    body_poses: torch.Tensor,
-    body_velocities: torch.Tensor,
+    poses: torch.Tensor,
+    vel: torch.Tensor,
     view_ids: torch.Tensor,
     noise: bool = False,
 ) -> None:
     """Apply poses and velocities to a subset of a collection, with optional noise.
 
-    Updates ``body_poses`` and ``body_velocities`` in-place for ``view_ids`` and writes them
+    Updates ``poses`` and ``vel`` in-place for ``view_ids`` and writes them
     to the PhysX view for the collection ``asset_name``. When ``noise`` is True, adds
     uniform perturbations to pose (XYZ + Euler) and velocities using ``POSE_RANGE`` and
     ``VELOCITY_RANGE``.
@@ -159,17 +159,17 @@ def reset_object_collections(
     Args:
         scene: Interactive scene containing the collection.
         asset_name: Key in the scene (e.g., ``"groceries"``) for the RigidObjectCollection.
-        body_poses: Env-major body poses [m, rad], shape ``(num_envs, num_bodies, 7)``.
-        body_velocities: Env-major body velocities [m/s, rad/s], shape ``(num_envs, num_bodies, 6)``.
-        view_ids: 1D tensor of env-major flattened indices into ``body_poses`` and ``body_velocities`` to update.
+        poses: Env-major body poses [m, rad], shape ``(num_envs, num_bodies, 7)``.
+        vel: Env-major body velocities [m/s, rad/s], shape ``(num_envs, num_bodies, 6)``.
+        view_ids: 1D tensor of env-major flattened indices into ``poses`` and ``vel`` to update.
         noise: If True, apply pose and velocity noise before writing.
 
     Returns:
-        None: This function updates ``body_poses``, ``body_velocities``, and the underlying PhysX view in-place.
+        None: This function updates ``poses``, ``vel``, and the underlying PhysX view in-place.
     """
     rigid_object_collection: RigidObjectCollection = scene[asset_name]
-    flat_poses = body_poses.view(-1, body_poses.shape[-1])
-    flat_velocities = body_velocities.view(-1, body_velocities.shape[-1])
+    flat_poses = poses.view(-1, poses.shape[-1])
+    flat_velocities = vel.view(-1, vel.shape[-1])
     selected_poses = flat_poses[view_ids]
     positions = selected_poses[:, :3]
     orientations = selected_poses[:, 3:7]
@@ -198,8 +198,8 @@ def reset_object_collections(
     flat_poses[view_ids, 3:7] = orientations
     flat_velocities[view_ids] = new_velocities
 
-    rigid_object_collection.write_body_link_pose_to_sim_index(body_poses=body_poses)
-    rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=body_velocities)
+    rigid_object_collection.write_body_link_pose_to_sim_index(body_poses=poses)
+    rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=vel)
 
 
 def build_grocery_defaults(
@@ -276,9 +276,9 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     num_envs = scene.num_envs
     device = scene.device
     view_indices = torch.arange(num_envs * num_objects, device=device)
-    default_body_poses_w = groceries.data.default_body_pose.torch.clone()
-    default_body_poses_w[..., :3] = default_body_poses_w[..., :3] + scene.env_origins.unsqueeze(1)
-    default_body_velocities_w = groceries.data.default_body_vel.torch.clone()
+    default_poses_w = groceries.data.default_body_pose.torch.clone()
+    default_poses_w[..., :3] = default_poses_w[..., :3] + scene.env_origins.unsqueeze(1)
+    default_vel_w = groceries.data.default_body_vel.torch.clone()
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
@@ -288,8 +288,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     # Offset poses into each environment's world frame.
     active_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
     cached_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
-    spawn_poses_w = default_body_poses_w.clone()
-    spawn_vel_w = default_body_velocities_w.clone()
+    spawn_poses_w = default_poses_w.clone()
+    spawn_vel_w = default_vel_w.clone()
 
     groceries_mask_helper = torch.arange(num_objects * num_envs, device=device) % num_objects
     # Precompute a helper mask to toggle objects between active and cached sets.
