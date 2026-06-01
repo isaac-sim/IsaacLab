@@ -68,7 +68,9 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', or 'ovphysx').")
 
 
-# -- node predicates ---------------------------------------------------------
+"""
+Node Predicates.
+"""
 
 
 def _is_ovrtx_renderer(node) -> bool:
@@ -93,7 +95,9 @@ def _is_kit_camera(node) -> bool:
     return not isinstance(renderer_cfg, PresetCfg)
 
 
-# -- launcher-args helpers ---------------------------------------------------
+"""
+Launcher Argument Helpers.
+"""
 
 
 def _get_arg(launcher_args: argparse.Namespace | dict | None, key: str, default: Any = None) -> Any:
@@ -136,7 +140,9 @@ def _get_visualizer_intent(cfg) -> dict[str, bool]:
     }
 
 
-# -- the single scan ---------------------------------------------------------
+"""
+The Single Scan.
+"""
 
 
 @dataclass
@@ -218,7 +224,9 @@ def scan(cfg, physics_str: str | None = None) -> Scan:
     )
 
 
-# -- launch decisions (derived purely from a scan) ---------------------------
+"""
+Launch Decisions (derived purely from a scan).
+"""
 
 
 def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:
