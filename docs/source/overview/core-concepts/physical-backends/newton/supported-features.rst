@@ -25,7 +25,7 @@ preset to your own task.
 Supported APIs
 --------------
 
-The following capabilities are covered by the Newton backend on ``develop`` at
+The following capabilities are covered by the Newton backend on ``release/3.0.0-beta2`` at
 the time of writing. The list is non-exhaustive and continues to grow.
 
 isaaclab

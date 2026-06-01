@@ -18,6 +18,7 @@
 import os
 import sys
 
+sys.path.insert(0, os.path.abspath("_extensions"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
@@ -58,6 +59,16 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
     full_version = f.read().strip()
     version = ".".join(full_version.split(".")[:3])
 
+# Latest release branch referenced by installation documentation.
+isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "release/3.0.0-beta2")
+
+# Copy buttons on highlighted code blocks (including nested directive output).
+copybutton_selector = "div.highlight pre"
+
+rst_prolog = f"""
+.. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
+"""
+
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -81,6 +92,7 @@ extensions = [
     "sphinx_design",
     "sphinx_tabs.tabs",  # backwards compatibility for building docs on v1.0.0
     "sphinx_multiversion",
+    "isaaclab_docs",
 ]
 
 # mathjax hacks
@@ -157,7 +169,18 @@ templates_path = []
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store", "README.md", "licenses/*", "plans"]
+exclude_patterns = [
+    "_build",
+    "_redirect",
+    "_templates",
+    "Thumbs.db",
+    ".DS_Store",
+    "README.md",
+    "licenses/*",
+    "plans",
+    # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
+    "source/setup/installation/include/*",
+]
 
 # Mock out modules that are not available on RTD
 autodoc_mock_imports = [

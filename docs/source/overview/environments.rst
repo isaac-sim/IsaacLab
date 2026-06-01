@@ -51,6 +51,9 @@ To also see the available presets for each environment, pass ``--show_presets``:
          isaaclab.bat -p scripts\environments\list_envs.py --show_presets
 
 
+The **RL Library** and **Presets** columns in the :ref:`comprehensive-environment-list` below are
+generated automatically from the Gym registry.
+
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
 
@@ -96,24 +99,24 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
     |                  | |humanoid-direct-link|      |                                                                         | ``newton_mjwarp``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
     |                  | |ant-direct-link|           |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``newton_kamino``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             |                                                                         | ``physx``,                   |
     |                  | |cartpole-direct-link|      |                                                                         | ``newton_mjwarp``,           |
     |                  |                             |                                                                         | ``newton_kamino``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``physx``,                   |
     |                  |                             | running with ``--enable_cameras``.                                      | ``newton_mjwarp``,           |
-    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | ``ovphysx`` (direct only)    |
     |                  |                             |                                                                         | **renderer=**                |
     |                  |                             |                                                                         | ``isaacsim_rtx_renderer``,   |
     |                  |                             |                                                                         | ``newton_renderer``,         |
@@ -586,6 +589,12 @@ Environments based on legged locomotion tasks.
 .. |velocity-rough-digit| image:: ../_static/tasks/locomotion/agility_digit_rough.jpg
 .. |tracking-loco-manip-digit| image:: ../_static/tasks/locomotion/agility_digit_loco_manip.jpg
 
+.. note::
+
+   Agility Digit environments use closed-loop articulations (achilles rod, toe
+   push-rods) that do not run correctly on ``newton_mjwarp``. Use ``physx`` for
+   Digit-based tasks; see :ref:`known-issues-closed-loop-newton` for details.
+
 Navigation
 ~~~~~~~~~~
 
@@ -616,7 +625,7 @@ Multirotor
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
-.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/develop/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <https://github.com/isaac-sim/IsaacLab/blob/release/3.0.0-beta2/source/isaaclab_tasks/isaaclab_tasks/manager_based/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
 
 .. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
 
@@ -829,6 +838,8 @@ Environments based on fixed-arm manipulation tasks.
 
 |
 
+.. _comprehensive-environment-list:
+
 Comprehensive List of Environments
 ==================================
 
@@ -836,181 +847,322 @@ For environments that have a different task name listed under ``Inference Task N
 provided when running ``play.py`` or any inferencing workflows. These tasks provide more suitable configurations for
 inferencing, including reading from an already trained checkpoint and disabling runtime perturbations used for training.
 
+.. START-AUTO-GENERATED: comprehensive-environment-list
+
 .. list-table::
-    :widths: 28 20 13 22 17
+    :widths: 18 17 10 22 33
 
     * - **Task Name**
       - **Inference Task Name**
       - **Workflow**
       - **RL Library**
       - **Presets**
+    * - Isaac-Ant-Direct-Warp-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Ant-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+    * - Isaac-Ant-Warp-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      -
     * - Isaac-Ant-v0
       -
       - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Assemble-Trocar-G129-Dex3-v0
       - Isaac-Assemble-Trocar-G129-Dex3-Eval-v0
       - Manager Based
       - **rlinf** (PPO)
       -
+    * - Isaac-AutoMate-Assembly-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+      -
+    * - Isaac-AutoMate-Disassembly-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+      -
     * - Isaac-Cart-Double-Pendulum-Direct-v0
       -
       - Direct
-      - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
+      - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       -
-    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **skrl** (PPO)
-      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Cartpole-Camera-Presets-Direct-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Cartpole-Albedo-Camera-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-      - | **physics=** ``physx``, ``newton_mjwarp``, ``ovphysx``
-        | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-        | **presets=** ``rgb``, ``depth``, ``albedo``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+      -
+    * - Isaac-Cartpole-Camera-Presets-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+          | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
+          | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+    * - Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0
+      -
+      - Direct
+      - **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Depth-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Depth-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - Isaac-Cartpole-Direct-Warp-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      -
     * - Isaac-Cartpole-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
-    * - Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with ``--enable_cameras``)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+    * - Isaac-Cartpole-RGB-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+      - **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
+    * - Isaac-Cartpole-RGB-ResNet18-v0
       -
       - Manager Based
       - **rl_games** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
-    * - Isaac-Cartpole-RGB-TheiaTiny-v0 (Requires running with ``--enable_cameras``)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - Isaac-Cartpole-RGB-TheiaTiny-v0
       -
       - Manager Based
       - **rl_games** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - Isaac-Cartpole-RGB-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Cartpole-Showcase-Box-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``, ``ovphysx``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+    * - Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-Cartpole-Warp-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      -
     * - Isaac-Cartpole-v0
       -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``newton_kamino``
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-GearAssembly-Rizon4s-Grav-v0
+      - Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-GearAssembly-UR10e-2F140-v0
+      - Isaac-Deploy-GearAssembly-UR10e-2F140-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-GearAssembly-UR10e-2F85-v0
+      - Isaac-Deploy-GearAssembly-UR10e-2F85-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-Reach-Rizon4s-v0
+      - Isaac-Deploy-Reach-Rizon4s-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-Reach-UR10e-ROS-Inference-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Deploy-Reach-UR10e-v0
+      - Isaac-Deploy-Reach-UR10e-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
+      - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``newton_mjwarp``, ``physx``
+          | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
+          | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``, ``state``
+    * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
+      - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``newton_mjwarp``, ``physx``
+          | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
+          | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``, ``state``
+    * - Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      -
     * - Isaac-Factory-GearMesh-Direct-v0
       -
       - Direct
@@ -1025,16 +1177,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **rl_games** (PPO)
-      -
-    * - Isaac-AutoMate-Assembly-Direct-v0
-      -
-      - Direct
-      - **rl_games** (PPO)
-      -
-    * - Isaac-AutoMate-Disassembly-Direct-v0
-      -
-      - Direct
-      -
       -
     * - Isaac-Forge-GearMesh-Direct-v0
       -
@@ -1071,16 +1213,31 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **skrl** (AMP)
       -
+    * - Isaac-Humanoid-Direct-Warp-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Humanoid-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+    * - Isaac-Humanoid-Warp-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      -
     * - Isaac-Humanoid-v0
       -
       - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Lift-Cloth-Franka-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``newton_mjwarp_vdb``
     * - Isaac-Lift-Cube-Franka-IK-Abs-v0
       -
       - Manager Based
@@ -1094,43 +1251,38 @@ inferencing, including reading from an already trained checkpoint and disabling 
     * - Isaac-Lift-Cube-Franka-v0
       - Isaac-Lift-Cube-Franka-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO), **sb3** (PPO)
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      -
+    * - Isaac-Lift-Cube-OpenArm-v0
+      - Isaac-Lift-Cube-OpenArm-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
       -
     * - Isaac-Lift-Soft-Franka-v0
       -
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp_vbd``
-    * - Isaac-Lift-Cloth-Franka-v0
-      -
-      - Manager Based
-      - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vdb``
+      - **physics=** ``newton_mjwarp_vbd``, ``physx``
     * - Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0
       -
       - Manager Based
       -
       -
-    * - Isaac-Tracking-LocoManip-Digit-v0
-      - Isaac-Tracking-LocoManip-Digit-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO)
-      - **physics=** ``physx``
-    * - Isaac-Navigation-Flat-Anymal-C-v0
-      - Isaac-Navigation-Flat-Anymal-C-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
-    * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
-      - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``
     * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
       - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``
+      -
+    * - Isaac-Navigation-Flat-Anymal-C-v0
+      - Isaac-Navigation-Flat-Anymal-C-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-NutPour-GR1T2-Pink-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      -
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based
@@ -1144,8 +1296,48 @@ inferencing, including reading from an already trained checkpoint and disabling 
     * - Isaac-Open-Drawer-Franka-v0
       - Isaac-Open-Drawer-Franka-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-Open-Drawer-OpenArm-v0
+      - Isaac-Open-Drawer-OpenArm-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      -
+    * - Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-PickPlace-G1-InspireFTP-Abs-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-PickPlace-GR1T2-Abs-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-PickPlace-Locomanipulation-G1-Abs-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+      -
+      - Manager Based
+      -
+      -
     * - Isaac-Quadcopter-Direct-v0
       -
       - Direct
@@ -1155,75 +1347,100 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-      -
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Reach-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-      -
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Reach-Franka-OSC-v0
       - Isaac-Reach-Franka-OSC-Play-v0
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Reach-Franka-Warp-v0
+      - Isaac-Reach-Franka-Warp-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Reach-Franka-v0
       - Isaac-Reach-Franka-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Reach-OpenArm-Bi-v0
+      - Isaac-Reach-OpenArm-Bi-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      -
+    * - Isaac-Reach-OpenArm-v0
+      - Isaac-Reach-OpenArm-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Reach-UR10-v0
       - Isaac-Reach-UR10-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
-    * - Isaac-Deploy-Reach-UR10e-v0
-      - Isaac-Deploy-Reach-UR10e-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO)
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Repose-Cube-Allegro-Direct-Warp-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Repose-Cube-Allegro-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Repose-Cube-Allegro-NoVelObs-v0
       - Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Repose-Cube-Allegro-v0
       - Isaac-Repose-Cube-Allegro-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Repose-Cube-Shadow-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0
       -
       - Direct
-      - **rl_games** (FF), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0
       -
       - Direct
-      - **rl_games** (LSTM)
-      - **physics=** ``physx``, ``newton_mjwarp``
-    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0 (Requires running with ``--enable_cameras``)
-      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 (Requires running with ``--enable_cameras``)
+      - **rl_games** (PPO)
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0
+      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0
       - Direct
-      - **rsl_rl** (PPO), **rl_games** (VISION)
-      - | **physics=** ``physx``, ``newton_mjwarp``
-        | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-        | **presets=** ``rgb``, ``depth``, ``albedo``, ``full``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+      - **rl_games** (VISION), **rsl_rl** (PPO)
+      - | **physics=** ``newton_mjwarp``, ``physx``
+          | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Shadow-Hand-Over-Direct-v0
       -
       - Direct
-      - **rl_games** (PPO), **skrl** (IPPO, PPO, MAPPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
-    * - Isaac-Stack-Cube-Franka-IK-Rel-v0
+      - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0
       -
       - Manager Based
       -
@@ -1232,41 +1449,48 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-      - **physics=** ``physx``
-    * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
-
-        Camera variants (requires ``--enable_cameras``):
-
-        - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
-        - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
-
-        The same ``presets=`` flags must be passed to both the training and
-        play scripts.  There is no separately registered
-        ``Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0`` environment;
-        all observation-mode variants share the base task name and are
-        selected via the preset system.
-      - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
+      -
+    * - Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0
+      -
       - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``physx``, ``newton_mjwarp``
-        | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-        | **presets=** ``state``, ``single_camera``, ``duo_camera``, ``rgb64``, ``rgb128``, ``rgb256``, ``depth64``, ``depth128``, ``depth256``, ``albedo64``, ``albedo128``, ``albedo256``, ``semantic_segmentation64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``simple_shading_constant_diffuse64``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_full_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``
-    * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
-
-        Camera variants (requires ``--enable_cameras``):
-
-        - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
-        - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
-
-        The same ``presets=`` flags must be passed to both the training and
-        play scripts.
-      - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
+      -
+      -
+    * - Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0
+      -
       - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``physx``, ``newton_mjwarp``
-        | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-        | **presets=** ``state``, ``single_camera``, ``duo_camera``, ``rgb64``, ``rgb128``, ``rgb256``, ``depth64``, ``depth128``, ``depth256``, ``albedo64``, ``albedo128``, ``albedo256``, ``semantic_segmentation64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``simple_shading_constant_diffuse64``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_full_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``
+      -
+      -
+    * - Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+      -
     * - Isaac-Stack-Cube-Franka-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
+      -
+      - Manager Based
+      -
+      -
+    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
       -
       - Manager Based
       -
@@ -1281,41 +1505,16 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       -
-    * - Isaac-PickPlace-G1-InspireFTP-Abs-v0
+    * - Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-      - **physics=** ``physx``
-    * - Isaac-PickPlace-GR1T2-Abs-v0
+      -
+    * - Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0
       -
       - Manager Based
       -
-      - **physics=** ``physx``
-    * - Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0
       -
-      - Manager Based
-      -
-      - **physics=** ``physx``
-    * - Isaac-NutPour-GR1T2-Pink-IK-Abs-v0
-      -
-      - Manager Based
-      -
-      - **physics=** ``physx``
-    * - Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0
-      -
-      - Manager Based
-      -
-      - **physics=** ``physx``
-    * - Isaac-PickPlace-Locomanipulation-G1-Abs-v0
-      -
-      - Manager Based
-      -
-      - **physics=** ``physx``
-    * - Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
-      -
-      - Manager Based
-      -
-      - **physics=** ``physx``
     * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
       -
       - Manager Based
@@ -1326,97 +1525,126 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       -
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
-      -
+    * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
+      - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
       - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - Isaac-Tracking-LocoManip-Digit-v0
+      - Isaac-Tracking-LocoManip-Digit-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
       - **physics=** ``physx``
-    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
-      -
+    * - Isaac-Velocity-Flat-Anymal-B-Warp-v0
+      - Isaac-Velocity-Flat-Anymal-B-Warp-Play-v0
       - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
       -
-      - **physics=** ``physx``
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
-      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
-      - Manager Based
-      -
-      - **physics=** ``physx``
-    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-
     * - Isaac-Velocity-Flat-Anymal-B-v0
       - Isaac-Velocity-Flat-Anymal-B-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Anymal-C-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - Isaac-Velocity-Flat-Anymal-C-Warp-v0
+      - Isaac-Velocity-Flat-Anymal-C-Warp-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Velocity-Flat-Anymal-C-v0
       - Isaac-Velocity-Flat-Anymal-C-Play-v0
       - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Velocity-Flat-Anymal-D-Warp-v0
+      - Isaac-Velocity-Flat-Anymal-D-Warp-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Velocity-Flat-Anymal-D-v0
       - Isaac-Velocity-Flat-Anymal-D-Play-v0
       - Manager Based
+      - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)
+      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
+    * - Isaac-Velocity-Flat-Cassie-Warp-v0
+      - Isaac-Velocity-Flat-Cassie-Warp-Play-v0
+      - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``, ``ovphysx``
+      -
     * - Isaac-Velocity-Flat-Cassie-v0
       - Isaac-Velocity-Flat-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      -
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Digit-v0
       - Isaac-Velocity-Flat-Digit-Play-v0
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``physx``
+    * - Isaac-Velocity-Flat-G1-Warp-v0
+      - Isaac-Velocity-Flat-G1-Warp-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Velocity-Flat-G1-v0
       - Isaac-Velocity-Flat-G1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Velocity-Flat-H1-Warp-v0
+      - Isaac-Velocity-Flat-H1-Warp-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Velocity-Flat-H1-v0
       - Isaac-Velocity-Flat-H1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-Spot-v0
       - Isaac-Velocity-Flat-Spot-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Velocity-Flat-Unitree-A1-Warp-v0
+      - Isaac-Velocity-Flat-Unitree-A1-Warp-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      -
     * - Isaac-Velocity-Flat-Unitree-A1-v0
       - Isaac-Velocity-Flat-Unitree-A1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Velocity-Flat-Unitree-Go1-Warp-v0
+      - Isaac-Velocity-Flat-Unitree-Go1-Warp-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Velocity-Flat-Unitree-Go1-v0
       - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - Isaac-Velocity-Flat-Unitree-Go2-Warp-v0
+      - Isaac-Velocity-Flat-Unitree-Go2-Warp-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Velocity-Flat-Unitree-Go2-v0
       - Isaac-Velocity-Flat-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Anymal-B-v0
       - Isaac-Velocity-Rough-Anymal-B-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Anymal-C-Direct-v0
       -
       - Direct
@@ -1426,17 +1654,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-Anymal-C-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Anymal-D-v0
       - Isaac-Velocity-Rough-Anymal-D-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Cassie-v0
       - Isaac-Velocity-Rough-Cassie-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      -
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Digit-v0
       - Isaac-Velocity-Rough-Digit-Play-v0
       - Manager Based
@@ -1446,44 +1674,26 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Velocity-Rough-G1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-H1-v0
       - Isaac-Velocity-Rough-H1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Unitree-A1-v0
       - Isaac-Velocity-Rough-Unitree-A1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Unitree-Go1-v0
       - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
+      - **physics=** ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Rough-Unitree-Go2-v0
       - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``physx``, ``newton_mjwarp``
-    * - Isaac-Reach-OpenArm-Bi-v0
-      - Isaac-Reach-OpenArm-Bi-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO)
-      -
-    * - Isaac-Reach-OpenArm-v0
-      - Isaac-Reach-OpenArm-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO)
-      -
-    * - Isaac-Lift-Cube-OpenArm-v0
-      - Isaac-Lift-Cube-OpenArm-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO)
-      -
-    * - Isaac-Open-Drawer-OpenArm-v0
-      - Isaac-Open-Drawer-OpenArm-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO), **rl_games** (PPO)
-      -
+      - **physics=** ``newton_mjwarp``, ``physx``
+
+.. END-AUTO-GENERATED: comprehensive-environment-list

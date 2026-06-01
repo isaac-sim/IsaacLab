@@ -993,7 +993,7 @@ Run the tool to scan your code for potential quaternions:
    python scripts/tools/find_quaternions.py --path my_project/
 
    # Compare against a different branch
-   python scripts/tools/find_quaternions.py --base develop
+   python scripts/tools/find_quaternions.py --base release/3.0.0-beta2
 
 .. tip::
   We recommend always running the tool with a custom base branch *and* a specific path.
@@ -1620,7 +1620,8 @@ automatically by the importer based on the robot name and cannot be overridden.
      /output/dir \
      --fix-base \
      --joint-stiffness 100.0 \
-     --joint-damping 1.0
+     --joint-damping 1.0 \
+     --viz kit
 
 .. note::
 
@@ -1774,7 +1775,8 @@ are no longer available.
      ../mujoco_menagerie/unitree_h1/h1.xml \
      source/isaaclab_assets/data/Robots/Unitree/h1.usd \
      --merge-mesh \
-     --self-collision
+     --self-collision \
+     --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 

@@ -3,17 +3,17 @@ Installation
 
 Installing the Newton backend requires three things:
 
-1) The ``develop`` branch of Isaac Lab
+1) The ``release/3.0.0-beta2`` branch of Isaac Lab
 2) Ubuntu 22.04 or 24.04
 3) [Optional] Isaac Sim 6.0 (Isaac Sim is not required if the Omniverse visualizer is not used)
 
 To begin, navigate to the root directory of your local copy of the Isaac Lab repository and open a terminal.
 
-Make sure we are on the ``develop`` branch by running the following command:
+Make sure we are on the ``release/3.0.0-beta2`` branch by running the following command:
 
 .. code-block:: bash
 
-    git checkout develop
+    git checkout release/3.0.0-beta2
 
 
 Installation

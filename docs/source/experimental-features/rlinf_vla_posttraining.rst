@@ -134,7 +134,7 @@ Build decord from source **before** Step 1:
 
 Then preload the OpenMP library so it can be loaded into the Python process
 (see the IsaacLab `pip installation guide
-<https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies>`_):
+<https://isaac-sim.github.io/IsaacLab/release/3.0.0-beta2/source/setup/installation/pip_installation.html#installing-dependencies>`_):
 
 .. code-block:: bash
 

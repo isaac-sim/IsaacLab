@@ -243,12 +243,10 @@ SKRL
 
          .. warning::
 
-            It is recommended to `install JAX <https://jax.readthedocs.io/en/latest/installation.html>`_ manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default.
+            It is recommended to `install JAX <https://docs.jax.dev/en/latest/installation.html>`_ manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default.
             Visit the **skrl** `installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`_ page for more details.
-            Note that JAX GPU support is only available on Linux.
-
-            JAX 0.6.0 or higher (built on CuDNN v9.8) is incompatible with Isaac Lab's PyTorch 2.7 (built on CuDNN v9.7), and therefore not supported.
-            To install a compatible version of JAX for CUDA 12 use ``pip install "jax[cuda12]<0.6.0" "flax<0.10.7"``, for example.
+            Note that JAX GPU support is only available on Linux x86_64 and Linux aarch64.
+            Use the CUDA 12 wheel on Linux x86_64 and the CUDA 13 wheel on Linux aarch64 systems such as DGX Spark.
 
          .. hint::
 
@@ -257,15 +255,35 @@ SKRL
             pre-allocated memory by setting ``export XLA_PYTHON_CLIENT_MEM_FRACTION=0.5`` which will allocate 50% of the GPU memory for JAX.
             Any value between 0 and 1 can be set, where 0 will allocate no memory for JAX and 1 will allocate 100% of the GPU memory for JAX.
 
+         .. tab-set::
+            :sync-group: jax-cuda
+
+            .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64, CUDA 12)
+               :sync: linux-x86_64-jax-cuda12
+
+               .. code:: bash
+
+                  # install python module (for skrl)
+                  ./isaaclab.sh -i skrl
+                  # install JAX for CUDA 12
+                  ./isaaclab.sh -p -m pip install -U "jax[cuda12]"
+                  # install skrl dependencies for JAX
+                  ./isaaclab.sh -p -m pip install "skrl[jax]"
+
+            .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64, CUDA 13)
+               :sync: linux-aarch64-jax-cuda13
+
+               .. code:: bash
+
+                  # install python module (for skrl)
+                  ./isaaclab.sh -i skrl
+                  # install JAX for CUDA 13
+                  ./isaaclab.sh -p -m pip install -U "jax[cuda13]"
+                  # install skrl dependencies for JAX
+                  ./isaaclab.sh -p -m pip install "skrl[jax]"
 
          .. code:: bash
 
-            # install python module (for skrl)
-            ./isaaclab.sh -i skrl
-            # install jax<0.6.0 for torch 2.7
-            ./isaaclab.sh -p -m pip install "jax[cuda12]<0.6.0" "flax<0.10.7"
-            # install skrl dependencies for JAX
-            ./isaaclab.sh -p -m pip install skrl["jax"]
             # run script for training
             ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
             # run script for training with Newton backend

@@ -57,14 +57,9 @@ Follow these steps in your first terminal to install Isaac Sim and Isaac Lab.
    - **pip install** (recommended): Follow the `Isaac Sim pip Installation Guide`_.
    - **Binary download**: Download the pre-built binary from the `Isaac Sim Installation Guide`_.
 
-2. Clone the Isaac Lab repository and check out the ``v3.0`` tag (or the ``develop`` branch for testing):
+2. Clone the Isaac Lab repository and check out the latest release branch:
 
-.. code-block:: bash
-
-    git clone https://github.com/isaac-sim/IsaacLab.git
-    cd IsaacLab
-    git fetch origin
-    git checkout v3.0
+.. isaaclab-clone-https::
 
 3. Set the required environment variables:
 
