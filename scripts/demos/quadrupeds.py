@@ -133,7 +133,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim, entities: dict[str, Articulation], origins: torch.Tensor):
+def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tensor):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
