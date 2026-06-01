@@ -14,7 +14,8 @@ include them in every CI shape (Linux, ARM/Spark).
 
 The state case uses rsl_rl (matches Isaac-Cartpole-Direct-v0's registered
 config entry); the perception case uses rl_games because the camera-variant
-direct envs only register ``rl_games_cfg_entry_point``.
+direct envs register ``rl_games_cfg_entry_point`` and ``skrl_cfg_entry_point``
+but no ``rsl_rl_cfg_entry_point``.
 """
 
 from __future__ import annotations
@@ -72,6 +73,6 @@ def test_train_cartpole_perception():
     """RGB-camera cartpole trains for two rl_games PPO iterations without errors."""
     _run_train(
         "scripts/reinforcement_learning/rl_games/train.py",
-        "Isaac-Cartpole-RGB-Camera-Direct-v0",
+        "Isaac-Cartpole-Camera-Direct-v0",
         extra_args=["--enable_cameras"],
     )
