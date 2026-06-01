@@ -82,23 +82,27 @@ per-task support, see each backend's own ``limitations`` page.
     * - Articulation API
       - Yes
       - Yes
-      - In-flight (PR #5459)
+      - Yes
     * - Rigid Object API
+      - Yes
+      - Yes
+      - Yes
+    * - Rigid Object Collection API
       - Yes
       - Yes
       - Yes
     * - Contact Sensor
       - Yes
       - Yes
-      - In-flight (PR #5422)
+      - Yes
     * - IMU
       - Yes
       - Yes
-      - In-flight (PR #5421)
+      - In-flight
     * - Frame Transformer / Ray Caster / PVA / Joint-Wrench Sensor
       - Yes
       - Yes
-      - Not yet
+      - In-flight
     * - Camera / Tiled Rendering
       - Yes (RTX)
       - Yes (Newton-Warp renderer)

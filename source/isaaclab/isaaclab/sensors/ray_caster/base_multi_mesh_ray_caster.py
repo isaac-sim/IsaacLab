@@ -6,16 +6,16 @@
 from __future__ import annotations
 
 import logging
-import re
 from typing import TYPE_CHECKING
 
 import numpy as np
 import trimesh
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
@@ -206,62 +206,62 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         records_per_env = [[] for _ in range(self._num_envs)]
         target_in_plan = False
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
-
+        has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
         if plan is not None and target_cfg.track_mesh_transforms:
-            target_path = re.sub(r"env_\.\*", "env_0", target_cfg.prim_expr)
             plan_tracked_target_exprs: list[str] = []
-            for row, (source_root, destination_template) in enumerate(zip(plan.sources, plan.destinations)):
-                if "{}" not in destination_template:
-                    continue
-
-                dest_path = destination_template.format(0)
-                suffix = target_path.removeprefix(dest_path)
-                if suffix == target_path or (suffix and not suffix.startswith("/")):
-                    continue
-
+            prim_expr = target_cfg.prim_expr
+            for source_root, destination_template, source_path, env_ids in iter_clone_plan_matches(plan, prim_expr):
                 target_in_plan = True
-                env_ids = plan.clone_mask[row].nonzero(as_tuple=False).squeeze(-1)
-                if env_ids.numel() == 0:
-                    continue
 
-                # Load meshes from the authored source row.
-                source_prims = sim_utils.find_matching_prims(source_root + suffix)
+                # Load meshes from the authored source entry.
+                source_prims = sim_utils.find_matching_prims(source_path)
                 if not source_prims:
-                    raise RuntimeError(f"No ClonePlan source prims matched '{source_root + suffix}'.")
+                    raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
 
                 mesh_ids: list[int] = []
                 row_tracked_target_exprs: list[str] = []
                 for source_prim in source_prims:
-                    owner_prim = source_prim
-                    while owner_prim and owner_prim.IsValid() and str(owner_prim.GetPath()) != "/":
-                        if owner_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                            break
-                        owner_prim = owner_prim.GetParent()
-                    if owner_prim is None or not owner_prim.IsValid() or not owner_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    source_prim_path = str(source_prim.GetPath())
+                    # Use a bounded rigid-body ancestor when the match is below a body; otherwise
+                    # enumerate rigid bodies under the match, including the matched prim itself.
+                    owner_prim = None
+                    rigid_body_records: list[tuple[Usd.Prim, Usd.Prim]]
+                    if not source_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                        owner_prim = sim_utils.get_first_matching_ancestor_prim(source_prim_path, has_rigid_body_api)
+                    owner_path = None if owner_prim is None else str(owner_prim.GetPath())
+                    if owner_path and (owner_path == source_root or owner_path.startswith(f"{source_root}/")):
+                        rigid_body_records = [(source_prim, owner_prim)]
+                    else:
+                        rigid_body_records = [
+                            (p, p) for p in sim_utils.get_all_matching_child_prims(source_prim_path, has_rigid_body_api)
+                        ]
+                    if not rigid_body_records:
                         raise RuntimeError(
                             f"Cannot track ClonePlan target '{target_cfg.prim_expr}' because source prim "
-                            f"'{source_prim.GetPath()}' has no rigid-body ancestor."
+                            f"'{source_prim.GetPath()}' has no rigid-body ancestor or descendant."
                         )
-                    mesh_id = self._load_target_prim_warp_mesh(source_prim, target_cfg, reference_prim=owner_prim)
-                    dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
-                    mesh_ids.append(mesh_id)
-                    owner_path = str(owner_prim.GetPath())
-                    if owner_path == source_root:
-                        owner_suffix = ""
-                    elif owner_path.startswith(source_root + "/"):
-                        owner_suffix = owner_path[len(source_root) :]
-                    else:
-                        raise RuntimeError(
-                            f"Tracked target owner '{owner_path}' is not under ClonePlan source root '{source_root}'."
-                        )
-                    row_tracked_target_exprs.append(destination_template.replace("{}", ".*") + owner_suffix)
+                    for geometry_prim, owner_prim in rigid_body_records:
+                        mesh_id = self._load_target_prim_warp_mesh(geometry_prim, target_cfg, reference_prim=owner_prim)
+                        dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
+                        mesh_ids.append(mesh_id)
+                        owner_path = str(owner_prim.GetPath())
+                        if owner_path == source_root:
+                            owner_suffix = ""
+                        elif owner_path.startswith(source_root + "/"):
+                            owner_suffix = owner_path[len(source_root) :]
+                        else:
+                            raise RuntimeError(
+                                f"Tracked target owner '{owner_path}' is not under ClonePlan source root "
+                                f"'{source_root}'."
+                            )
+                        row_tracked_target_exprs.append(destination_template.format(".*") + owner_suffix)
 
                 if len(row_tracked_target_exprs) > len(plan_tracked_target_exprs):
                     plan_tracked_target_exprs = row_tracked_target_exprs
 
                 # Geometry is selected by ClonePlan; live pose is supplied by backend body/site views.
-                for env_id in env_ids.tolist():
+                for env_id in env_ids:
                     for mesh_id in mesh_ids:
                         records_per_env[env_id].append((mesh_id, (1.0e9, 1.0e9, 1.0e9), (0.0, 0.0, 0.0, 1.0)))
 
@@ -286,11 +286,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     if reference_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                         break
                     reference_prim = reference_prim.GetParent()
-                if (
-                    reference_prim is None
-                    or not reference_prim.IsValid()
-                    or not reference_prim.HasAPI(UsdPhysics.RigidBodyAPI)
-                ):
+                if reference_prim is None or not reference_prim.IsValid() or not has_rigid_body_api(reference_prim):
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_cfg.prim_expr}'. "
                         "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
@@ -299,10 +295,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
 
             mesh_id = self._load_target_prim_warp_mesh(target_prim, target_cfg, reference_prim=reference_prim)
             dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
-            pos, quat = sim_utils.resolve_prim_pose(reference_prim)
-            pos = (float(pos[0]), float(pos[1]), float(pos[2]))
-            quat = (float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
-            records.append((mesh_id, pos, quat))
+            records.append((mesh_id, *sim_utils.resolve_prim_pose(reference_prim)))
 
         if len(records) == 1:
             return [list(records) for _ in range(self._num_envs)], dummy_mesh_id, tracked_target_exprs

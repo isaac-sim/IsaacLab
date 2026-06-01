@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Alexander Millane
 * Alice Zhou
 * Amr Mousa
+* Andrei Aristarkhov
 * Andrej Orsula
 * Anke Zhao
 * Anton Bjørndahl Mortensen
@@ -194,6 +195,7 @@ Guidelines for modifications:
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yize Wang
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu

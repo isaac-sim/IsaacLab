@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import sys
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -242,7 +243,7 @@ class NewtonViewerGL(ViewerGL):
             # Newton's ImageLogger owns camera-output image windows. Since Isaac Lab overrides
             # ViewerGL's left panel, explicitly keep the logged-image selector and draw path.
             if self._image_logger is not None:
-                self._image_logger.draw_controls()
+                self._draw_tiled_camera_view_controls()
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
@@ -268,6 +269,27 @@ class NewtonViewerGL(ViewerGL):
             self._prime_image_logger_window_layout()
             self._image_logger.draw()
         return
+
+    def _draw_tiled_camera_view_controls(self) -> None:
+        """Render Newton ImageLogger controls with Isaac Lab-specific naming."""
+        image_logger = self._image_logger
+        if image_logger is None or not image_logger._images:
+            return
+
+        imgui = self.ui.imgui
+        if not imgui.collapsing_header("Tiled Camera View", imgui.TreeNodeFlags_.default_open.value):
+            return
+
+        names = list(image_logger._images.keys())
+        items = ["Hide", *names]
+        if image_logger._selected is not None and image_logger._selected in names:
+            current = names.index(image_logger._selected) + 1
+        else:
+            current = 0
+
+        changed, new_idx = imgui.combo("##tiled_camera_view", current, items)
+        if changed:
+            image_logger._selected = None if new_idx == 0 else names[new_idx - 1]
 
     def _prime_image_logger_window_layout(self) -> None:
         """Make first-open image windows use the available viewer space.
@@ -355,9 +377,11 @@ class NewtonVisualizer(BaseVisualizer):
         self._model = NewtonManager.get_model()
         self._state = NewtonManager.get_state(self._scene_data_provider)
 
-        runtime_headless = self.cfg.headless or not os.environ.get("DISPLAY")
+        runtime_headless = self.cfg.headless or (
+            sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
+        )
 
-        # Use pyglet's EGL headless backend when requested or when no X display is available.
+        # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
         # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
         # :class:`~pyglet.window.headless.HeadlessWindow`.
         if runtime_headless:

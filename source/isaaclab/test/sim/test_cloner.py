@@ -20,7 +20,8 @@ import torch
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import make_clone_plan, sequential, usd_replicate
+from isaaclab.cloner import ClonePlan, make_clone_plan, sequential, usd_replicate
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.sim import build_simulation_context
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -223,7 +224,7 @@ def test_clone_decorator_wildcard_patterns(
 
 def test_make_clone_plan_returns_flat_source_rows(sim):
     """make_clone_plan exposes the flat source-to-env mask used by scene cloning."""
-    plan = make_clone_plan(
+    sources, destinations, clone_mask = make_clone_plan(
         [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
         ["/World/envs/env_{}/Object"],
         num_clones=4,
@@ -231,10 +232,107 @@ def test_make_clone_plan_returns_flat_source_rows(sim):
         device=sim.cfg.device,
     )
 
-    assert plan.sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
-    assert plan.destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
-    assert plan.clone_mask.shape == (2, 4)
-    assert plan.clone_mask.dtype == torch.bool
-    assert torch.all(plan.clone_mask.sum(dim=0) == 1)
-    actual_source_idx = plan.clone_mask.to(torch.int).argmax(dim=0).cpu()
+    assert sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
+    assert destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
+    assert clone_mask.shape == (2, 4)
+    assert clone_mask.dtype == torch.bool
+    assert torch.all(clone_mask.sum(dim=0) == 1)
+    actual_source_idx = clone_mask.to(torch.int).argmax(dim=0).cpu()
     assert torch.equal(actual_source_idx, torch.tensor([0, 1, 0, 1]))
+
+
+def test_iter_clone_plan_matches(sim):
+    """ClonePlan entries can be matched by destination path expression."""
+    sources, destinations, clone_mask = make_clone_plan(
+        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
+        ["/World/envs/env_{}/Object"],
+        num_clones=4,
+        clone_strategy=sequential,
+        device=sim.cfg.device,
+    )
+    plan = ClonePlan(sources=sources, destinations=destinations, clone_mask=clone_mask)
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_0/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_0/Object/Body/Camera",
+            (0, 2),
+        ),
+        (
+            "/World/envs/env_1/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_1/Object/Body/Camera",
+            (1, 3),
+        ),
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_3/Object",),
+        destinations=("/World/envs/env_{}/Object",),
+        clone_mask=torch.tensor([[False, False, True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_3/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_3/Object/Body/Camera",
+            (2, 3),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/source/Object",),
+        destinations=("/World/scenes/{}/Object",),
+        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/source/Object",
+            "/World/scenes/{}/Object",
+            "/World/source/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/source",),
+        destinations=("/World/scenes/{}",),
+        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/source",
+            "/World/scenes/{}",
+            "/World/source/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_0", "/World/envs/env_0/Object"),
+        destinations=("/World/envs/env_{}", "/World/envs/env_{}/Object"),
+        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_0/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_0/Object/Body/Camera",
+            (0, 1),
+        )
+    ]

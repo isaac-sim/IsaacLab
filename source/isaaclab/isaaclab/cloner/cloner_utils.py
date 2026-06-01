@@ -9,6 +9,7 @@ import contextlib
 import itertools
 import logging
 import math
+import re
 from collections.abc import Iterator, Sequence
 
 import torch
@@ -19,6 +20,137 @@ from . import _fabric_notices
 from .clone_plan import ClonePlan
 
 logger = logging.getLogger(__name__)
+
+
+def get_suffix(path_expr: str, destination_template: str) -> str | None:
+    """Return the part of ``path_expr`` below a destination template's env-instance root.
+
+    The template's ``"{}"`` slot matches exactly one path segment (a concrete id like ``env_3``
+    or a wildcard like ``env_.*``).
+
+    Example:
+        >>> tmpl = "/World/scenes/{}/Robot"
+        >>> get_suffix("/World/scenes/env_3/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/.*/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/env_3/Robot", tmpl)
+        ''
+        >>> get_suffix("/World/scenes/env_3/Sensor", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/RobotArm", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/sub/Robot/base", tmpl) is None
+        True
+    """
+    pattern = re.compile(r"[^/]+".join(re.escape(part) for part in destination_template.split("{}")))
+    match = pattern.match(path_expr)
+    if match is None:
+        return None
+    suffix = path_expr[match.end() :]
+    return None if suffix and not suffix.startswith("/") else suffix
+
+
+def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
+    """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
+
+    Finds the rows whose destination template owns ``path_expr`` (same matching
+    logic as :func:`iter_clone_plan_matches`), OR-merges their
+    :attr:`~isaaclab.cloner.ClonePlan.clone_mask` rows, and splits the
+    expression at the row's destination template so the asset-relative suffix is
+    returned for downstream walks.
+
+    Args:
+        path_expr: Destination-side path expression (e.g., a sensor's ``prim_path``,
+            with ``.*`` env wildcard).
+        plan: Active clone plan.
+
+    Returns:
+        Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)``. The
+        ``asset_suffix`` is the part of ``path_expr`` beyond the matching row's
+        destination template (empty when ``path_expr`` equals the row's template).
+        Returns ``None`` when ``path_expr`` matches no row in the plan, letting
+        callers fall back to direct stage resolution (e.g. for sensor frames
+        mounted at the env root rather than under a planned asset).
+
+    Raises:
+        ValueError: When ``path_expr``'s matching rows span multiple distinct
+            destination templates.
+        NotImplementedError: When the union of matching rows' clone masks does not
+            cover every env (partial-env heterogeneous coverage is unsupported).
+    """
+    matching_template: str | None = None
+    matching_rows: list[int] = []
+    matching_suffix: str | None = None
+    for source_index, destination_template in enumerate(plan.destinations):
+        if "{}" not in destination_template:
+            continue
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
+            continue
+        if matching_template is None:
+            matching_template = destination_template
+            matching_suffix = suffix
+        elif destination_template != matching_template:
+            raise ValueError(
+                f"path_expr {path_expr!r}: matches multiple destination templates"
+                f" {matching_template!r} and {destination_template!r}."
+            )
+        matching_rows.append(source_index)
+    if matching_template is None:
+        return None
+    if not plan.clone_mask[matching_rows].any(dim=0).all():
+        raise NotImplementedError(
+            f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"
+            " matching rows must collectively cover all envs."
+        )
+    return plan.sources[matching_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
+
+
+def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
+    """Yield clone-plan entries whose destinations own a path expression.
+
+    Example:
+        For an entry with source root ``"/World/source/Robot"``, destination
+        template ``"/World/scenes/{}/Robot"``, and populated env ids
+        ``(0, 2)``, querying ``"/World/scenes/.*/Robot/base"`` yields
+        ``("/World/source/Robot", "/World/scenes/{}/Robot",
+        "/World/source/Robot/base", (0, 2))``.
+
+    Args:
+        plan: Clone plan to query.
+        path_expr: Destination prim path or path expression. Expressions are
+            matched against each clone-plan destination template by treating
+            the template's ``"{}"`` field as the populated environment slot.
+
+    Yields:
+        Tuples ``(source_root, destination_template, source_path, env_ids)``
+        for the nearest matching destination root. Multiple source variants
+        with the same destination root are preserved.
+    """
+    matches: list[tuple[str, str, str, tuple[int, ...]]] = []
+    for source_index, (source_root, destination_template) in enumerate(zip(plan.sources, plan.destinations)):
+        if "{}" not in destination_template:
+            continue
+
+        env_ids = tuple(int(i) for i in plan.clone_mask[source_index].nonzero(as_tuple=False).flatten().tolist())
+        if not env_ids:
+            continue
+
+        source_root = source_root.rstrip("/") or "/"
+        destination_template = destination_template.rstrip("/") or "/"
+
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
+            continue
+        source_path = source_root + suffix if source_root != "/" else suffix or "/"
+
+        matches.append((source_root, destination_template, source_path, env_ids))
+
+    matches.sort(key=lambda match: len(match[1].format(match[3][0])), reverse=True)
+    if matches:
+        owner_length = len(matches[0][1].format(matches[0][3][0]))
+        yield from (match for match in matches if len(match[1].format(match[3][0])) == owner_length)
 
 
 @contextlib.contextmanager
@@ -104,23 +236,26 @@ def make_clone_plan(
     num_clones: int,
     clone_strategy: callable,
     device: str = "cpu",
-) -> ClonePlan:
-    """Construct a cloning plan mapping prototype prims to per-environment destinations.
+) -> tuple[tuple[str, ...], tuple[str, ...], torch.Tensor]:
+    """Compute the flat source/destination/mask components of a clone plan.
 
-    The plan enumerates all combinations of prototypes, selects a combination per environment using ``clone_strategy``,
-    and builds a boolean masking matrix indicating which prototype populates each environment slot.
+    Enumerates all combinations of prototypes, selects a combination per environment using
+    ``clone_strategy``, and builds the boolean masking matrix that indicates which prototype
+    populates each environment slot. The caller composes the returned tuple into a
+    :class:`ClonePlan`.
 
     Args:
-        sources: Prototype prim paths grouped by asset type (e.g., [[robot_a, robot_b], [obj_x]]).
+        sources: Prototype prim paths grouped by asset type (e.g., ``[[robot_a, robot_b], [obj_x]]``).
         destinations: Destination path templates (one per group) with ``"{}"`` placeholder for env id.
         num_clones: Number of environments to populate.
         clone_strategy: Function that picks a prototype combo per environment; signature
             ``clone_strategy(combos: Tensor, num_clones: int, device: str) -> Tensor[num_clones, num_groups]``.
-        device: Torch device for tensors in the plan. Defaults to ``"cpu"``.
+        device: Torch device for the returned mask. Defaults to ``"cpu"``.
 
     Returns:
-        A :class:`ClonePlan` whose ``sources`` and ``destinations`` are flattened per-source rows and
-        whose ``clone_mask`` is a ``[num_src, num_clones]`` boolean tensor.
+        A tuple ``(sources, destinations, clone_mask)`` where ``sources`` and ``destinations``
+        are flattened per-source entries (one entry per prototype) and ``clone_mask`` is a
+        ``[num_src, num_clones]`` boolean tensor on ``device``.
     """
     if len(sources) != len(destinations):
         raise ValueError(f"Expected one destination per source group, got {len(destinations)} and {len(sources)}.")
@@ -150,7 +285,7 @@ def make_clone_plan(
 
     masking = torch.zeros((sum(group_sizes), num_clones), dtype=torch.bool, device=device)
     masking[rows, cols] = True
-    return ClonePlan(sources=src, destinations=dest, clone_mask=masking)
+    return src, dest, masking
 
 
 def usd_replicate(

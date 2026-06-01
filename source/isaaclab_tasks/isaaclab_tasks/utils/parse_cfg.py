@@ -12,12 +12,13 @@ import importlib
 import inspect
 import os
 import re
+import warnings
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import yaml
 
-from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.hydra import _user_stacklevel, resolve_presets
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -60,13 +61,32 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     Raises:
         ValueError: If the entry point key is not available in the gym registry for the task.
     """
+    spec = gym.spec(task_name.split(":")[-1])
+    # Emit a FutureWarning when loading the env cfg for a retired task
+    # registered as a deprecation alias. The migration metadata lives in the
+    # gym.register kwargs under the ``deprecated`` key as a dict whose
+    # ``alias`` field is the equivalent CLI command, e.g.
+    # ``"deprecated": {"alias": "--task=Isaac-Cartpole-Camera-Direct-v0 presets=rgb"}``.
+    # FutureWarning (vs DeprecationWarning) matches the existing convention
+    # for end-user-facing IsaacLab deprecations (cfg fields, preset-name
+    # aliases) and is shown by Python's default filter regardless of which
+    # frame the warning is attributed to.
+    if entry_point_key == "env_cfg_entry_point":
+        deprecation = spec.kwargs.get("deprecated") or {}
+        new_command = deprecation.get("alias")
+        if new_command:
+            warnings.warn(
+                f"Task '{spec.id}' is deprecated and will be removed in a future release. Use '{new_command}'.",
+                FutureWarning,
+                stacklevel=_user_stacklevel(),
+            )
     # obtain the configuration entry point
-    cfg_entry_point = gym.spec(task_name.split(":")[-1]).kwargs.get(entry_point_key)
+    cfg_entry_point = spec.kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
         # get existing agents and algorithms
         agents = collections.defaultdict(list)
-        for k in gym.spec(task_name.split(":")[-1]).kwargs:
+        for k in spec.kwargs:
             if k.endswith("_cfg_entry_point") and k != "env_cfg_entry_point":
                 spec = (
                     k.replace("_cfg_entry_point", "")

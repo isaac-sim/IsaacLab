@@ -14,6 +14,7 @@ from trimesh.sample import sample_surface
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 
 # ---- module-scope caches ----
 _PRIM_SAMPLE_CACHE: dict[tuple[str, int], np.ndarray] = {}  # (prim_hash, num_points) -> (N,3) in root frame
@@ -43,10 +44,12 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
     # Obtain stage handle
     stage = sim_utils.get_current_stage()
 
-    for i in range(num_envs):
-        # Resolve prim path
-        obj_path = prim_path.replace(".*", str(i))
+    sample_targets: list[tuple[str, tuple[int, ...]]] = []
+    clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
+    for _, _, source_path, env_ids in iter_clone_plan_matches(clone_plan, prim_path):
+        sample_targets.append((source_path, env_ids))
 
+    for obj_path, env_ids in sample_targets:
         # Gather prims
         prims = sim_utils.get_all_matching_child_prims(
             obj_path, predicate=lambda p: p.GetTypeName() in ("Mesh", "Cube", "Sphere", "Cylinder", "Capsule", "Cone")
@@ -108,7 +111,9 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
         # load from env-level in-memory cache
         if env_hash in _FINAL_SAMPLE_CACHE:
             arr = _FINAL_SAMPLE_CACHE[env_hash]  # (num_points,3) in root frame
-            points[i] = torch.from_numpy(arr).to(device) * base_scale.unsqueeze(0)
+            scaled_samples = torch.from_numpy(arr).to(device) * base_scale.unsqueeze(0)
+            for env_id in env_ids:
+                points[env_id] = scaled_samples
             continue
 
         # otherwise build per-prim samples (with per-prim cache)
@@ -164,7 +169,9 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
         _FINAL_SAMPLE_CACHE[env_hash] = samples_final.detach().cpu().numpy()
 
         # apply root scale and write out
-        points[i] = samples_final * base_scale.unsqueeze(0)
+        scaled_samples = samples_final * base_scale.unsqueeze(0)
+        for env_id in env_ids:
+            points[env_id] = scaled_samples
 
     return points
 

@@ -12,6 +12,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
+from isaaclab_tasks.utils import PresetCfg
 
 
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> CameraCfg:
@@ -373,3 +374,33 @@ class TupleMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
         )
     )  # or for simplicity: ([height, width, 3], 2)
     action_space = spaces.MultiDiscrete([3, 2])  # or for simplicity: [{3}, {2}]
+
+
+##
+# Consolidated PresetCfg
+##
+
+
+@configclass
+class CartpoleCameraShowcasePresetsEnvCfg(PresetCfg):
+    """Camera-based cartpole showcase with selectable observation container and action space.
+
+    Each variant attribute is an instance of an existing per-shape cfg class
+    declared above. The hydra resolver picks one based on ``presets=<name>``;
+    the default is ``box_box`` (matching the canonical cartpole camera shape).
+    The retired per-shape task IDs are registered in the sibling
+    ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg so
+    ``parse_cfg.load_cfg_from_registry`` emits a ``FutureWarning`` when
+    one of them is loaded.
+    """
+
+    box_box = BoxBoxEnvCfg()
+    box_discrete = BoxDiscreteEnvCfg()
+    box_multidiscrete = BoxMultiDiscreteEnvCfg()
+    dict_box = DictBoxEnvCfg()
+    dict_discrete = DictDiscreteEnvCfg()
+    dict_multidiscrete = DictMultiDiscreteEnvCfg()
+    tuple_box = TupleBoxEnvCfg()
+    tuple_discrete = TupleDiscreteEnvCfg()
+    tuple_multidiscrete = TupleMultiDiscreteEnvCfg()
+    default = box_box  # canonical Cartpole Camera shape: Box obs, Box action.

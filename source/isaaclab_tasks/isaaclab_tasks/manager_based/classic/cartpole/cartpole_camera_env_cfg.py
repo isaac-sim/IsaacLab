@@ -11,6 +11,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
 
 from .cartpole_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
@@ -174,3 +175,38 @@ class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     """Configuration for the cartpole environment with Theia-Tiny features as observations."""
 
     observations: TheiaTinyObservationCfg = TheiaTinyObservationCfg()
+
+
+##
+# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera-v0)
+##
+
+
+@configclass
+class CartpoleCameraPresetsEnvCfg(PresetCfg):
+    """Manager-based cartpole perception with selectable observation pipeline.
+
+    Variants selected via ``presets=<name>``:
+
+    * ``rgb`` / ``default`` -- raw RGB camera observations.
+    * ``depth`` -- depth (distance-to-camera) observations.
+    * ``resnet18`` -- features extracted by a frozen ResNet18 backbone from
+      the RGB camera.
+    * ``theia_tiny`` -- features extracted by a frozen Theia-Tiny transformer
+      backbone from the RGB camera.
+
+    Each variant is one of the existing per-pipeline subclasses above. The
+    framework resolver pins the selected variant at ``gym.make`` time when
+    the user passes ``presets=<name>``.
+
+    Used by the canonical :obj:`Isaac-Cartpole-Camera-v0` task. The retired
+    per-variant task IDs (:obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`)
+    return the same per-variant subclasses directly via the deprecation
+    shims in the sibling ``__init__.py``.
+    """
+
+    rgb: CartpoleRGBCameraEnvCfg = CartpoleRGBCameraEnvCfg()
+    depth: CartpoleDepthCameraEnvCfg = CartpoleDepthCameraEnvCfg()
+    resnet18: CartpoleResNet18CameraEnvCfg = CartpoleResNet18CameraEnvCfg()
+    theia_tiny: CartpoleTheiaTinyCameraEnvCfg = CartpoleTheiaTinyCameraEnvCfg()
+    default = rgb

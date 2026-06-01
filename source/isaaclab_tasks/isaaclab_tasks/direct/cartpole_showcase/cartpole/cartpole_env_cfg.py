@@ -10,6 +10,7 @@ from gymnasium import spaces
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.direct.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.utils import PresetCfg
 
 ###
 # Observation space as Box
@@ -605,3 +606,39 @@ class TupleMultiDiscreteEnvCfg(CartpoleEnvCfg):
         )
     )  # or for simplicity: (2, 2)
     action_space = spaces.MultiDiscrete([3, 2])  # or for simplicity: [{3}, {2}]
+
+
+##
+# Consolidated PresetCfg
+##
+
+
+@configclass
+class CartpoleShowcasePresetsEnvCfg(PresetCfg):
+    """Proprioceptive cartpole showcase with selectable observation/action space.
+
+    Each variant attribute is an instance of an existing per-shape cfg class
+    declared above. The hydra resolver picks one based on the
+    ``presets=<name>`` CLI token; the default is ``box_box`` (matching the
+    canonical cartpole shape). The retired per-shape task IDs are registered
+    in the sibling ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg
+    so ``parse_cfg.load_cfg_from_registry`` emits a ``FutureWarning`` when
+    one of them is loaded.
+    """
+
+    box_box = BoxBoxEnvCfg()
+    box_discrete = BoxDiscreteEnvCfg()
+    box_multidiscrete = BoxMultiDiscreteEnvCfg()
+    discrete_box = DiscreteBoxEnvCfg()
+    discrete_discrete = DiscreteDiscreteEnvCfg()
+    discrete_multidiscrete = DiscreteMultiDiscreteEnvCfg()
+    multidiscrete_box = MultiDiscreteBoxEnvCfg()
+    multidiscrete_discrete = MultiDiscreteDiscreteEnvCfg()
+    multidiscrete_multidiscrete = MultiDiscreteMultiDiscreteEnvCfg()
+    dict_box = DictBoxEnvCfg()
+    dict_discrete = DictDiscreteEnvCfg()
+    dict_multidiscrete = DictMultiDiscreteEnvCfg()
+    tuple_box = TupleBoxEnvCfg()
+    tuple_discrete = TupleDiscreteEnvCfg()
+    tuple_multidiscrete = TupleMultiDiscreteEnvCfg()
+    default = box_box  # canonical Cartpole shape: Box obs, Box action.
