@@ -11,6 +11,7 @@ Setup:
 Tests:
     - import isaaclab -> verify importable
     - from isaaclab import __version__ -> verify version matches wheel filename
+    - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
     - from isaaclab.envs import ViewerCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
@@ -90,6 +91,14 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
             f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
         )
 
+    # from isaaclab import _deprioritize_prebundle_paths
+    def test_isaaclab_prebundle_path_sanitizer_exported(self):
+        """Verify the wheel exports the prebundle path sanitizer used by AppLauncher."""
+        result = self.run_in_uv_env(
+            ["python", "-c", "from isaaclab import _deprioritize_prebundle_paths; _deprioritize_prebundle_paths()"]
+        )
+        assert result.returncode == 0, f"import path sanitizer failed:\n{result.stdout}\n{result.stderr}"
+
     # from isaaclab.app import AppLauncher
     def test_isaaclab_app_importable(self):
         """Verify isaaclab.app and AppLauncher are importable."""
@@ -144,14 +153,16 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         # ``config/extension.toml`` (the core ``isaaclab`` package is handled separately and is
         # not promoted, so it is intentionally excluded here).
         promoted = sorted(
-            {match.group(1) for name in names if (match := re.fullmatch(r"(isaaclab_[^/]+)/config/extension.toml", name))}
+            {
+                match.group(1)
+                for name in names
+                if (match := re.fullmatch(r"(isaaclab_[^/]+)/config/extension.toml", name))
+            }
         )
         assert promoted, f"No promoted extensions found in wheel {self._wheel}; namelist may have changed."
         assert "isaaclab_assets" in promoted, f"Expected isaaclab_assets among promoted extensions, got: {promoted}"
 
-        missing = [
-            ext for ext in promoted if f"isaaclab/source/{ext}/config/extension.toml" not in names
-        ]
+        missing = [ext for ext in promoted if f"isaaclab/source/{ext}/config/extension.toml" not in names]
         assert not missing, (
             "Promoted extensions are missing their Kit-discoverable config/extension.toml under "
             f"isaaclab/source/ (Kit dependency resolution will fail for these): {missing}"

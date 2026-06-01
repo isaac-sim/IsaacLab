@@ -22,7 +22,7 @@ from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.api as physx
+    import omni.physics.tensors as physx
 
 # import logger
 logger = logging.getLogger(__name__)
