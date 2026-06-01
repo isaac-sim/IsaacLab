@@ -86,7 +86,8 @@ import torch  # noqa: E402
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg  # noqa: E402
 
-from isaaclab_tasks.utils import launch_simulation, resolve_task_config  # noqa: E402
+from isaaclab.app import launch_simulation  # noqa: E402
+from isaaclab_tasks.utils import resolve_task_config  # noqa: E402
 
 imports_profile.disable()
 

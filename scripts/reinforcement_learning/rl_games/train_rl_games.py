@@ -82,7 +82,8 @@ def run(argv: list[str]) -> None:
 
     from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab.app import launch_simulation
+    from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)

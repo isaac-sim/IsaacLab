@@ -27,7 +27,7 @@ import sys
 import types
 from unittest.mock import patch
 
-import isaaclab_tasks.utils.sim_launcher as sim_launcher
+import isaaclab.app.sim_launcher as sim_launcher
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -429,12 +429,6 @@ class TestLaunchSimulationDevicePropagation:
             "importlib.util.find_spec",
             lambda name: object() if name == "omni.kit" else None,
         )
-        # Force needs_kit=True, no cameras
-        monkeypatch.setattr(
-            sim_launcher,
-            "compute_kit_requirements",
-            lambda env_cfg, launcher_args: (True, False, set()),
-        )
         # Mock _resolve_distributed_device to avoid torch.cuda calls
         monkeypatch.setattr(
             sim_launcher,
@@ -458,11 +452,8 @@ class TestLaunchSimulationDevicePropagation:
             env_cfg.sim.device = "cuda:1"
             resolved_devices.append("cuda:1")
 
-        monkeypatch.setattr(
-            sim_launcher,
-            "compute_kit_requirements",
-            lambda env_cfg, launcher_args: (False, False, set()),
-        )
+        # Force the kitless path (needs_kit=False) without constructing a real backend cfg.
+        monkeypatch.setattr(sim_launcher._Scan, "needs_kit", property(lambda self: False))
         monkeypatch.setattr(
             sim_launcher,
             "_resolve_distributed_device",

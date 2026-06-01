@@ -89,7 +89,8 @@ def run(argv: list[str]) -> None:
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab.app import launch_simulation
+    from isaaclab_tasks.utils import resolve_task_config
 
     signal.signal(signal.SIGINT, _cleanup_pbar)
 

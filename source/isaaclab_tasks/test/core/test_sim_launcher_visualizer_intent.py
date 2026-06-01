@@ -11,7 +11,7 @@ import argparse
 import sys
 import types
 
-import isaaclab_tasks.utils.sim_launcher as sim_launcher
+import isaaclab.app.sim_launcher as sim_launcher
 
 
 class _DummyVizCfg:
@@ -68,7 +68,7 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
             captured["explicit"] = launcher_args["visualizer_explicit"]
             captured["disable_all"] = launcher_args["visualizer_disable_all"]
 
-    monkeypatch.setattr(sim_launcher, "compute_kit_requirements", lambda env_cfg, launcher_args: (False, False, set()))
+    monkeypatch.setattr(sim_launcher._Scan, "needs_kit", property(lambda self: False))
     monkeypatch.setitem(sys.modules, "isaaclab.app", types.SimpleNamespace(AppLauncher=_FakeAppLauncher))
 
     env_cfg = _DummyEnvCfg(_DummySimCfg(None))

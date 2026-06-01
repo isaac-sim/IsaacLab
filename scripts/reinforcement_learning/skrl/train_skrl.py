@@ -104,7 +104,8 @@ def run(argv: list[str]) -> None:
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab.app import launch_simulation
+    from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)
 
