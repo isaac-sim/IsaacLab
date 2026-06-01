@@ -145,13 +145,13 @@ def reset_object_collections(
     scene: InteractiveScene,
     asset_name: str,
     poses: torch.Tensor,
-    vel: torch.Tensor,
+    vels: torch.Tensor,
     view_ids: torch.Tensor,
     noise: bool = False,
 ) -> None:
     """Apply poses and velocities to a subset of a collection, with optional noise.
 
-    Updates ``poses`` and ``vel`` in-place for ``view_ids`` and writes them
+    Updates ``poses`` and ``vels`` in-place for ``view_ids`` and writes them
     to the PhysX view for the collection ``asset_name``. When ``noise`` is True, adds
     uniform perturbations to pose (XYZ + Euler) and velocities using ``POSE_RANGE`` and
     ``VELOCITY_RANGE``.
@@ -160,16 +160,16 @@ def reset_object_collections(
         scene: Interactive scene containing the collection.
         asset_name: Key in the scene (e.g., ``"groceries"``) for the RigidObjectCollection.
         poses: Env-major body poses [m, rad], shape ``(num_envs, num_bodies, 7)``.
-        vel: Env-major body velocities [m/s, rad/s], shape ``(num_envs, num_bodies, 6)``.
-        view_ids: 1D tensor of env-major flattened indices into ``poses`` and ``vel`` to update.
+        vels: Env-major body velocities [m/s, rad/s], shape ``(num_envs, num_bodies, 6)``.
+        view_ids: 1D tensor of env-major flattened indices into ``poses`` and ``vels`` to update.
         noise: If True, apply pose and velocity noise before writing.
 
     Returns:
-        None: This function updates ``poses``, ``vel``, and the underlying PhysX view in-place.
+        None: This function updates ``poses``, ``vels``, and the underlying PhysX view in-place.
     """
     rigid_object_collection: RigidObjectCollection = scene[asset_name]
     flat_poses = poses.view(-1, poses.shape[-1])
-    flat_velocities = vel.view(-1, vel.shape[-1])
+    flat_velocities = vels.view(-1, vels.shape[-1])
     selected_poses = flat_poses[view_ids]
     positions = selected_poses[:, :3]
     orientations = selected_poses[:, 3:7]
