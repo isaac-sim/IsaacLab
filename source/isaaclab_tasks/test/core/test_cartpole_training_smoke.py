@@ -71,8 +71,11 @@ def test_train_cartpole_state():
 
 def test_train_cartpole_perception():
     """RGB-camera cartpole trains for two rl_games PPO iterations without errors."""
+    # The first camera-enabled run on a cold cache compiles shaders (~600 s)
+    # before training starts, so allow well beyond the state-case budget.
     _run_train(
         "scripts/reinforcement_learning/rl_games/train.py",
         "Isaac-Cartpole-Camera-Direct-v0",
         extra_args=["--enable_cameras"],
+        timeout=1800,
     )
