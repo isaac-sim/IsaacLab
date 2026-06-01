@@ -24,12 +24,14 @@ from . import kernels
 _all_env_mask_cache: dict[tuple[int, str], wp.array] = {}
 
 
-# Tile size for the spatial-axis split in :func:`_uint8_spatial_mean`.
+# Tile size for the spatial-axis split in :func:`_uint8_spatial_mean`. Tuned on L40;
+# robust across modern NVIDIA arches (Ampere/Ada/Hopper) at R256.
 _UINT8_SUM_TILE_HW: int = 32
 
 # Cache of int32 partials scratch tensors keyed by (src.shape, device, channel_dim). Avoids
 # per-call allocation in :func:`_uint8_spatial_mean`. channel_dim is part of the key so
-# BCHW and BHWC inputs with otherwise-identical shape get separate scratch slots.
+# BCHW and BHWC inputs with otherwise-identical shape get separate scratch slots. Typically
+# holds one entry per training run (camera resolution, device, and layout are all fixed).
 _uint8_sum_partials_cache: dict[tuple[tuple[int, ...], str, int], torch.Tensor] = {}
 
 

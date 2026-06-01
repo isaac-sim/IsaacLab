@@ -24,7 +24,7 @@ def is_rgb_like(data_type: str) -> bool:
     """Whether ``data_type`` is one of the RGB-like camera outputs (rgb, albedo, simple_shading_*).
 
     Args:
-        data_type: The camera data-type string from ``sensor.data.output`` / ``TiledCameraCfg``.
+        data_type: The camera data-type string from ``sensor.data.output`` / ``CameraCfg``.
 
     Returns:
         True if the data type should receive the ``(x / 255) - mean`` normalize.
@@ -86,7 +86,8 @@ def normalize_camera_image(
         resolved_channel_dim = channel_dim + images.ndim if channel_dim < 0 else channel_dim
         spatial_dims = tuple(d for d in range(1, images.ndim) if d != resolved_channel_dim)
         images = images.float() / 255.0
-        return images - torch.mean(images, dim=spatial_dims, keepdim=True)
+        images -= torch.mean(images, dim=spatial_dims, keepdim=True)
+        return images
     if is_depth_like(data_type):
         images[images == float("inf")] = 0
         return images

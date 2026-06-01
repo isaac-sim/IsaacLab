@@ -34,9 +34,12 @@ class CircularBuffer:
             device: The device used for processing.
             stack_dim: If set, the buffer arranges its internal storage so :attr:`stacked` returns
                 the K stored frames merged into ``data.shape[stack_dim]`` of the appended data
-                as a free contiguous view. Negative indexing supported; ``0`` is invalid (batch
-                dim). Validation against the actual data rank is deferred to the first
-                :meth:`append`. Defaults to ``None`` (legacy layout).
+                as a free contiguous view. Any non-zero dim index in the appended data is valid
+                (positive or negative); ``0`` (the batch dim) is invalid. Range validation against
+                the actual data rank is deferred to the first :meth:`append`. For example,
+                ``stack_dim=-1`` on a ``(B, H, W, C)`` input stacks K frames along the channel
+                dim, yielding :attr:`stacked` shape ``(B, H, W, K*C)``. Defaults to ``None``
+                (legacy layout).
 
         Raises:
             ValueError: If the buffer size is less than one, or ``stack_dim == 0``.
@@ -171,7 +174,7 @@ class CircularBuffer:
             self._allocate_buffer(data)
 
         # Shift slots so the newest write lands at the last K slot. Iterating front-to-back
-        # keeps adjacent-slot copies non-overlapping.
+        # keeps adjacent-slot copies non-overlapping. Cheap at the typical frame-stack K=2-4.
         if self._stack_dim_internal is None:
             for i in range(self._max_len_int - 1):
                 self._buffer[i].copy_(self._buffer[i + 1])
