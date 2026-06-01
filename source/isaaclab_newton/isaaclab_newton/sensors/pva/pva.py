@@ -182,6 +182,7 @@ class Pva(BasePva):
                 state.body_q,
                 state.body_qd,
                 state.body_qdd,
+                self._timestamp,
             ],
             outputs=[
                 self._data._pose_w,

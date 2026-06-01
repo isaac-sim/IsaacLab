@@ -26,7 +26,7 @@ You are running a script that requires Isaac Sim, but it is not installed.
 Either:
 
 - Install Isaac Sim: ``./isaaclab.sh -i isaacsim``, or
-- Use a Newton-based task with ``presets=newton_mjwarp --visualizer newton`` (Kit-less path)
+- Use a Newton-based task with ``physics=newton_mjwarp --visualizer newton`` (Kit-less path)
 
 ``ModuleNotFoundError: No module named 'isaaclab_physx'`` or ``'isaaclab_ov'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -53,8 +53,8 @@ Crash in ``libusd_tf`` / USD Symbol Collision with OVRTX
 If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
-1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` (see the
-   :ref:`OVRTX section <installation-ovrtx>` of the installation guide)
+1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
+   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`installation-selective-install`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import sys
 import warnings
 from collections.abc import Sequence
 from typing import Any
@@ -257,11 +258,9 @@ class ManagerBasedEnv:
             if self.cfg.num_rerenders_on_reset == 0:
                 self.cfg.num_rerenders_on_reset = 1
 
-    def __del__(self):
+    def __del__(self, _sys_is_finalizing=sys.is_finalizing):
         """Cleanup for the environment."""
-        import sys
-
-        if not sys.is_finalizing():
+        if not _sys_is_finalizing():
             self.close()
 
     """

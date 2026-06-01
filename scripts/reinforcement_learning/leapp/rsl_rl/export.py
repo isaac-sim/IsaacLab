@@ -16,18 +16,6 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
-import torch
-
-try:
-    import leapp
-    from leapp import annotate
-except ImportError as e:
-    raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
-
-# Disable TorchScript before importing task/environment modules so any
-# @torch.jit.script helpers resolve to plain Python functions during export.
-torch.jit._state.disable()
-
 from isaaclab.app import AppLauncher
 
 from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
@@ -40,6 +28,9 @@ import cli_args  # isort: skip
 
 _RUNTIME_IMPORTS_LOADED = False
 
+torch = None
+leapp = None
+annotate = None
 gym = None
 DistillationRunner = None
 OnPolicyRunner = None
@@ -56,7 +47,7 @@ hydra_task_config = None
 
 def create_arg_parser() -> argparse.ArgumentParser:
     """Create the command-line parser for RSL-RL policy export."""
-    parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
+    parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -123,6 +114,7 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
 def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
+    global annotate, leapp, torch
     global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
     global ensure_env_spec_id, get_published_pretrained_checkpoint, handle_deprecated_rsl_rl_cfg, hydra_task_config
     global patch_env_for_export, retrieve_file_path
@@ -130,9 +122,20 @@ def _load_runtime_dependencies() -> None:
     if _RUNTIME_IMPORTS_LOADED:
         return
 
+    try:
+        import leapp as leapp_module
+    except ImportError as e:
+        raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
+    annotate_module = getattr(leapp_module, "annotate")
+
     import gymnasium as gym_module
+    import torch as torch_module
     from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
     from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
+
+    # Disable TorchScript before importing task/environment modules so any
+    # @torch.jit.script helpers resolve to plain Python functions during export.
+    torch_module.jit._state.disable()
 
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
@@ -149,6 +152,9 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
 
+    torch = torch_module
+    leapp = leapp_module
+    annotate = annotate_module
     gym = gym_module
     DistillationRunner = DistillationRunnerCls
     OnPolicyRunner = OnPolicyRunnerCls
@@ -176,7 +182,7 @@ def get_actor_memory_module(policy_nn):
     return None
 
 
-def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: torch.device, dtype: torch.dtype):
+def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dtype):
     """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
     actor_state, _ = policy_nn.get_hidden_states()
     if actor_state is not None:
@@ -219,13 +225,13 @@ def export_rsl_rl_agent(
     args_cli: argparse.Namespace,
     env_cfg,
     agent_cfg,
-    simulation_app,
+    simulation_app=None,
 ) -> bool:
     """Export a RSL-RL agent."""
     _load_runtime_dependencies()
 
     task_name = args_cli.task.split(":")[-1]
-    train_task_name = task_name.replace("-Play", "")
+    checkpoint_task_name = task_name.replace("-Play", "")
 
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
@@ -238,9 +244,9 @@ def export_rsl_rl_agent(
 
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
-    print(f"[INFO] Loading experiment from directory: {log_root_path}")
+    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
     if args_cli.use_pretrained_checkpoint:
-        resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
+        resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False
@@ -249,12 +255,17 @@ def export_rsl_rl_agent(
     else:
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
+    if not resume_path:
+        print(f"[INFO] No checkpoint found for task: {checkpoint_task_name} in directory: {log_root_path}")
+        return False
+
     log_dir = os.path.dirname(resume_path)
 
     env_cfg.log_dir = log_dir
 
     env = None
     leapp_started = False
+
     try:
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
         policy_node_name = ensure_env_spec_id(env)
@@ -293,14 +304,15 @@ def export_rsl_rl_agent(
             save_path = args_cli.export_save_path
         elif args_cli.use_pretrained_checkpoint:
             # Use a predictable path independent of the Nucleus mirror directory structure.
-            save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
+            save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", checkpoint_task_name)
         else:
             save_path = log_dir
         leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
         leapp_started = True
         obs = env.reset()[0]
-        while not simulation_app.is_running():
-            time.sleep(0.5)
+        if simulation_app is not None:
+            while not simulation_app.is_running():
+                time.sleep(0.5)
 
         for _ in range(max(args_cli.validation_steps, 2)):
             with torch.inference_mode():
@@ -344,9 +356,10 @@ def export_rsl_rl_agent(
     return True
 
 
-def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], simulation_app) -> bool:
+def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
-    _load_runtime_dependencies()
+    from isaaclab_tasks.utils.hydra import hydra_task_config
+    from isaaclab_tasks.utils.sim_launcher import launch_simulation
 
     original_argv = sys.argv
     # Fold typed preset selectors into a single ``presets=<csv>`` token before
@@ -359,7 +372,8 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
         @hydra_task_config(args_cli.task, args_cli.agent)
         def _main(env_cfg, agent_cfg) -> None:
             nonlocal exported
-            exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg, simulation_app)
+            with launch_simulation(env_cfg, args_cli):
+                exported = export_rsl_rl_agent(args_cli, env_cfg, agent_cfg)
 
         _main()
     finally:
@@ -371,14 +385,7 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str], s
 def main_cli(argv: list[str] | None = None) -> bool:
     """Run the command-line export flow."""
     args_cli, hydra_args = parse_export_args(argv)
-
-    app_launcher = AppLauncher(args_cli)
-    simulation_app = app_launcher.app
-
-    try:
-        return run_export_with_hydra(args_cli, hydra_args, simulation_app)
-    finally:
-        simulation_app.close()
+    return run_export_with_hydra(args_cli, hydra_args)
 
 
 if __name__ == "__main__":

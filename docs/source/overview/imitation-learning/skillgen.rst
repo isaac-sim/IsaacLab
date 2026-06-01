@@ -39,7 +39,7 @@ SkillGen requires Isaac Lab, Isaac Sim, and cuRobo. Follow these steps in your I
 Step 1: Install and verify Isaac Sim and Isaac Lab
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Follow the official Isaac Sim and Isaac Lab installation guide `here <https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html#installing-isaac-lab>`__.
+Follow the official Isaac Sim and Isaac Lab installation guide :doc:`here </source/setup/installation/pip_installation>`.
 
 Step 2: Install cuRobo
 ^^^^^^^^^^^^^^^^^^^^^^

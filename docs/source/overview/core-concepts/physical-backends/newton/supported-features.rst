@@ -17,7 +17,7 @@ currently supports Newton:
 
     grep -rln "newton_mjwarp" source/isaaclab_tasks/
 
-Passing ``presets=newton_mjwarp`` to a task without that preset will raise an
+Passing ``physics=newton_mjwarp`` to a task without that preset will raise an
 error at launch. The :doc:`mjwarp-solver` page covers how to add a Newton
 preset to your own task.
 

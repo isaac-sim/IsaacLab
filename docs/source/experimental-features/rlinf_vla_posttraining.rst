@@ -53,7 +53,12 @@ Prerequisites
 
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format
+- A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
+  ``assemble_trocar`` is available and can be downloaded via:
+
+  .. code-block:: bash
+
+     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
 
 Installation
@@ -68,6 +73,8 @@ From the Isaac Lab root directory:
    export OMNI_KIT_ACCEPT_EULA=yes
 
    # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   # NOTE: On DGX Spark / aarch64 systems, build decord from source first
+   # (see "Building decord on DGX Spark / aarch64" below), then run this step.
    uv pip install -e "source/isaaclab_contrib[rlinf]"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
@@ -80,8 +87,62 @@ From the Isaac Lab root directory:
    uv pip install -e ".[base]" --no-deps
    cd ../
 
-   # Step 4: Install flash-attn (must be built against the installed PyTorch)
+   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
    pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+
+.. _rlinf-skipping-flash-attn:
+
+Skipping flash-attn
+~~~~~~~~~~~~~~~~~~~
+
+If Step 4 fails, skip installation of flash-attn and apply this patch instead:
+
+.. code-block:: bash
+
+   cd Isaac-GR00T
+   git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
+
+.. note::
+
+   **Windows 11**: If ``git apply`` fails with ``error: corrupt patch at line 41``,
+   use ``patch.exe`` (bundled with Git for Windows) instead:
+
+   .. code-block:: bash
+
+      cd Isaac-GR00T
+      "C:\Program Files\Git\usr\bin\patch.exe" -p1 < \path\to\IsaacLab\scripts\imitation_learning\locomanipulation_sdg\gr00t\no_flash_attn.patch
+
+The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
+The training and evaluation commands below work unchanged.
+
+.. _rlinf-decord-aarch64:
+
+Building decord on DGX Spark / aarch64
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``decord`` package only publishes pre-built wheels for ``manylinux2010_x86_64``
+and ``win_amd64``, so installation fails on aarch64 hosts (e.g. DGX Spark / Grace).
+Build decord from source **before** Step 1:
+
+.. code-block:: bash
+
+   git clone --recursive https://github.com/jasontitus/decord
+   cd decord && mkdir -p build && cd build
+   cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
+   make -j$(nproc)
+   cd ../python && pip install -e .
+
+Then preload the OpenMP library so it can be loaded into the Python process
+(see the IsaacLab `pip installation guide
+<https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies>`_):
+
+.. code-block:: bash
+
+   unset LD_PRELOAD
+   export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
+
+Now re-run Step 1; the resolver will see the locally-installed decord and stop trying to fetch a wheel.
+
 
 Quick Start
 -----------
@@ -94,19 +155,63 @@ Quick Start
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/checkpoint
 
-**Evaluation** — Evaluate a trained checkpoint with video recording:
+**Evaluation** — Evaluate a pretrained (base) model with video recording:
 
 .. code-block:: bash
 
    python scripts/reinforcement_learning/rlinf/play.py \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint \
+       --model_path /path/to/base_model \
        --video
+
+**Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
+
+.. code-block:: bash
+
+   python scripts/reinforcement_learning/rlinf/play.py \
+       --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/base_model \
+       --rl_model_path /path/to/checkpoints/global_step_N \
+       --video
+
+Here ``--model_path`` points to the HuggingFace-format base model (with
+``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint
+directory (the ``global_step_<N>`` folder). The script loads the model
+architecture from the base model and overlays the RL-finetuned weights
+(``full_weights.pt``) from the checkpoint.
 
 .. note::
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
+
+Checkpoints
+-----------
+
+Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
+
+   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-Isaac-Assemble-Trocar-G129-Dex3-v0/<experiment_name>/checkpoints/global_step_<N>/
+
+The placeholders are configurable in the task YAML
+(``source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):
+
+- ``<experiment_name>`` — ``runner.logger.experiment_name`` (default: ``test_gr00t``)
+- ``<N>`` — increments every ``runner.save_interval`` epochs
+
+The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume,
+pass the ``global_step_<N>`` directory via ``--resume_dir``.
+
+.. tip::
+
+   Training throughput scales with the number of parallel environments. If your
+   GPU has spare memory, increase ``env.train.total_num_envs`` (default: ``4``)
+   in the task YAML.
+
+.. tip::
+
+   Each checkpoint can be several gigabytes. To avoid filling up disk space,
+   increase ``save_interval`` in the task YAML so that fewer
+   intermediate checkpoints are saved during training.
 
 Configuration
 -------------

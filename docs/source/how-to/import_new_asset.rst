@@ -156,7 +156,8 @@ The following shows the steps to clone the repository and run the converter:
           --merge-joints \
           --joint-stiffness 0.0 \
           --joint-damping 0.0 \
-          --joint-target-type none
+          --joint-target-type none \
+          --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -175,7 +176,8 @@ The following shows the steps to clone the repository and run the converter:
           --merge-joints ^
           --joint-stiffness 0.0 ^
           --joint-damping 0.0 ^
-          --joint-target-type none
+          --joint-target-type none ^
+          --viz kit
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -192,8 +194,8 @@ is derived automatically from the robot name in the URDF):
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
-To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
-exit the script after the conversion is complete.
+The examples above pass ``--viz kit`` to open the GUI and inspect the converted asset.
+To run the script headless and exit after the conversion is complete, omit ``--viz kit``.
 
 You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
 
@@ -305,7 +307,8 @@ The following shows the steps to clone the repository and run the converter:
         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
           ../mujoco_menagerie/unitree_h1/h1.xml \
           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-          --merge-mesh
+          --merge-mesh \
+          --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -321,7 +324,8 @@ The following shows the steps to clone the repository and run the converter:
         isaaclab.bat -p scripts\tools\convert_mjcf.py ^
           ..\mujoco_menagerie\unitree_h1\h1.xml ^
           source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
-          --merge-mesh
+          --merge-mesh ^
+          --viz kit
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:

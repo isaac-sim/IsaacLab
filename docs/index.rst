@@ -100,7 +100,6 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
-   source/setup/quick_installation
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
