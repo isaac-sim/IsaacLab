@@ -56,7 +56,12 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+from isaaclab_rl.rsl_rl import (
+    RslRlOnPolicyRunnerCfg,
+    RslRlVecEnvWrapper,
+    handle_deprecated_rsl_rl_cfg,
+    handle_deprecated_rsl_rl_checkpoint,
+)
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
@@ -87,6 +92,8 @@ class H1RoughDemo:
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         # load the trained jit policy
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
+        # convert pre-5.0 published checkpoints to the layout expected by rsl-rl >= 5.0
+        checkpoint = handle_deprecated_rsl_rl_checkpoint(checkpoint, metadata.version("rsl-rl-lib"))
         # create envionrment
         env_cfg = H1RoughEnvCfg_PLAY()
         env_cfg.scene.num_envs = 25
