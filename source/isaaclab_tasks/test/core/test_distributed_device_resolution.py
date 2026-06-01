@@ -56,15 +56,15 @@ def _make_distributed_args(**overrides) -> argparse.Namespace:
 
 
 def _force_kitless(monkeypatch):
-    """Wrap ``_scan`` so the resulting scan reports ``needs_kit=False``."""
-    real_scan = sim_launcher._scan
+    """Wrap ``scan`` so the resulting scan reports ``needs_kit=False``."""
+    real_scan = sim_launcher.scan
 
     def fake_scan(*args, **kwargs):
-        scan = real_scan(*args, **kwargs)
-        scan.needs_kit = False
-        return scan
+        result = real_scan(*args, **kwargs)
+        result.needs_kit = False
+        return result
 
-    monkeypatch.setattr(sim_launcher, "_scan", fake_scan)
+    monkeypatch.setattr(sim_launcher, "scan", fake_scan)
 
 
 def _make_env_vars(

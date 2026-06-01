@@ -7,7 +7,7 @@
 
 The flow is intentionally simple: walk the config tree **once** to collect every
 signal we care about (physics backend, OVRTX renderer, Kit cameras, visualizer
-intent) into a :class:`_Scan`, then decide how to launch from that scan.
+intent) into a :class:`Scan`, then decide how to launch from that scan.
 """
 
 from __future__ import annotations
@@ -140,8 +140,8 @@ def _get_visualizer_intent(env_cfg) -> dict[str, bool]:
 
 
 @dataclass
-class _Scan:
-    """Signals gathered from one walk of the config tree (see :func:`_scan`).
+class Scan:
+    """Signals gathered from one walk of the config tree (see :func:`scan`).
 
     Every field is a plain snapshot computed during that single walk; nothing here
     is recomputed or mutated afterwards. ``needs_kit`` is the headline decision: a
@@ -160,12 +160,12 @@ class _Scan:
     needs_kit: bool
 
 
-def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
+def scan(env_cfg, physics_str: str | None = None) -> Scan:
     """Walk *env_cfg* once, collecting all launch signals and applying ``--physics``.
 
     When *physics_str* is set, every physics config is replaced by the requested
     backend (see :func:`make_physics_cfg`): nested configs in place, a root config
-    via :attr:`_Scan.effective_cfg` (it cannot be mutated in place).
+    via :attr:`Scan.effective_cfg` (it cannot be mutated in place).
     """
     physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = env_cfg
@@ -205,7 +205,7 @@ def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
 
     names = [type(cfg).__name__ for cfg in physics_cfgs]
     has_kitless_physics = any(name in _KITLESS_PHYSICS_CFGS for name in names)
-    return _Scan(
+    return Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
         visualizer_intent=_get_visualizer_intent(env_cfg),
@@ -221,7 +221,7 @@ def _scan(env_cfg, physics_str: str | None = None) -> _Scan:
 # -- launch decisions (derived purely from a scan) ---------------------------
 
 
-def _validate_runtime(scan: _Scan, launcher_args: argparse.Namespace | dict | None) -> None:
+def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:
     """Raise if *scan*'s physics/renderer/visualizer combination is unsupported.
 
     OVRTX is kitless and cannot share a process with Kit-based runtimes (PhysX physics
@@ -312,15 +312,15 @@ def launch_simulation(
     Callers that do not need the value simply omit ``as``.
     """
     # The single walk: collect every signal and apply the --physics override.
-    scan = _scan(env_cfg, _get_arg(launcher_args, "physics"))
-    effective_cfg = scan.effective_cfg
-    physics_cfg = scan.resolved_physics_cfg
+    config_scan = scan(env_cfg, _get_arg(launcher_args, "physics"))
+    effective_cfg = config_scan.effective_cfg
+    physics_cfg = config_scan.resolved_physics_cfg
     visualizer_types = _get_visualizer_types(launcher_args)
 
     # ovrtx + Kit visualizer share conflicting RTX hydra libraries under different USD
     # namespaces; loading both in one process crashes the dynamic linker. Fail early
     # with a targeted hint (_validate_runtime covers the broader ovrtx-vs-Kit cases).
-    if "kit" in visualizer_types and scan.has_ovrtx:
+    if "kit" in visualizer_types and config_scan.has_ovrtx:
         raise ValueError(
             "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
             "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
@@ -329,11 +329,11 @@ def launch_simulation(
             "Use '--visualizer newton' instead, which is fully compatible with ovrtx presets."
         )
 
-    _validate_runtime(scan, launcher_args)
-    needs_kit = scan.needs_kit or "kit" in visualizer_types
-    _set_arg(launcher_args, "visualizer_intent", scan.visualizer_intent)
+    _validate_runtime(config_scan, launcher_args)
+    needs_kit = config_scan.needs_kit or "kit" in visualizer_types
+    _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
 
-    if needs_kit and scan.has_kit_camera and launcher_args is not None:
+    if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
         if not _get_arg(launcher_args, "enable_cameras", False):
             logger.info("Auto-enabling cameras: scene contains camera sensors with a Kit renderer.")
             _set_arg(launcher_args, "enable_cameras", True)
