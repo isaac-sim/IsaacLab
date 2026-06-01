@@ -313,16 +313,12 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
 
         # Bring out-of-bounds objects back to the bin in one pass.
         xy = (groceries.data.body_link_pos_w.torch - scene.env_origins.unsqueeze(1))[..., :2]
-        out_bound_mask = ~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)
-        out_bound = torch.nonzero(out_bound_mask.view(-1), as_tuple=False).flatten()
+        out_bound = torch.nonzero((~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).view(-1)).flatten()
         if out_bound.numel():
             # Teleport stray objects back into the active stack to keep the bin tidy.
-            current_state_w = torch.cat(
-                [groceries.data.body_link_pose_w.torch, groceries.data.body_com_vel_w.torch], dim=-1
-            )
-            current_state_w.view(-1, 13)[out_bound] = spawn_w.view(-1, 13)[out_bound]
-            reset_object_collections(scene, "groceries", current_state_w, out_bound)
-        # Increment counter
+            states_w = torch.cat([groceries.data.body_link_pose_w.torch, groceries.data.body_com_vel_w.torch], dim=-1)
+            states_w.view(-1, 13)[out_bound] = spawn_w.view(-1, 13)[out_bound]
+            reset_object_collections(scene, "groceries", states_w, out_bound)  # Increment counter
         count += 1
         # Update buffers
         scene.update(sim_dt)
