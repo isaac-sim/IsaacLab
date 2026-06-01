@@ -49,7 +49,7 @@ the intersection first (both sides pre-fold, vocabulary matches), then fold::
     sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining)
 
 ``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
-explicitly via :func:`isaaclab_tasks.utils.add_launcher_args` before calling.
+explicitly via :func:`isaaclab.app.add_launcher_args` before calling.
 """
 
 from __future__ import annotations
