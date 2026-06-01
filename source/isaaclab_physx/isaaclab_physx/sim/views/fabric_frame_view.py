@@ -30,7 +30,7 @@ class _DirtyFlag(enum.Enum):
     NONE = 0
     #: World matrices are stale (a prior ``set_local_poses`` wrote new locals).
     WORLD = 1
-    #: Local matrices are stale (a prior ``set_world_poses``/``set_scales`` wrote new worlds).
+    #: Local matrices are stale (a prior ``set_world_poses``/``set_world_scales`` wrote new worlds).
     LOCAL = 2
 
 
@@ -75,14 +75,15 @@ class FabricFrameView(BaseFrameView):
       read the prim's USD attributes after a Fabric write will see stale
       values until the next USD-side sync.
     * **World ↔ local consistency (lazy).**  Getters are lazy: after
-      ``set_world_poses`` (or ``set_scales``), local matrices are only
-      recomputed when ``get_local_poses`` is called; after ``set_local_poses``,
-      world matrices are only recomputed when ``get_world_poses`` is called.
-      Both directions stay in sync without round-tripping through USD.
+      ``set_world_poses`` or ``set_world_scales``, local matrices are only
+      recomputed when ``get_local_poses`` (or ``get_local_scales``) is called;
+      after ``set_local_poses`` or ``set_local_scales``, world matrices are
+      only recomputed when ``get_world_poses`` (or ``get_world_scales``) is
+      called.  Both directions stay in sync without round-tripping through USD.
     * **Dirty-flag invariant.**  The ``_dirty`` enum is one of ``NONE``,
       ``WORLD``, or ``LOCAL`` -- mutually exclusive by construction.
-      ``set_world_poses`` / ``set_scales`` sets ``_dirty = LOCAL``;
-      ``set_local_poses`` sets ``_dirty = WORLD``.
+      ``set_world_poses`` / ``set_world_scales`` sets ``_dirty = LOCAL``;
+      ``set_local_poses`` / ``set_local_scales`` sets ``_dirty = WORLD``.
       If the user interleaves both setters on the same view within a single
       frame, the second setter flushes the first's stale data before writing.
       This is correct but incurs an extra kernel launch -- a one-time warning
@@ -139,7 +140,7 @@ class FabricFrameView(BaseFrameView):
 
         # TODO(pv): Misleading abstraction -- FabricFrameView can fall back to USD internally;
         # the concrete class should be determined by the factory instead. (PR #5673 pv/fabric-view-no-fallback)
-        # TODO(pv): Fuse set_world_poses/set_scales into single kernel launch (PR #5674 pv/fabric-fused-compose)
+        # TODO(pv): Fuse set_world_poses/set_world_scales into single kernel launch (PR #5674 pv/fabric-fused-compose)
 
         self._fabric_initialized = False
         self._stage = None
@@ -309,7 +310,7 @@ class FabricFrameView(BaseFrameView):
             self._warned_interleaved_set = True
             logger.warning(
                 "FabricFrameView: set_local_poses called while local matrices are stale from a "
-                "prior set_world_poses/set_scales. Flushing stale locals first. "
+                "prior set_world_poses/set_world_scales. Flushing stale locals first. "
                 "For best performance, avoid interleaving set_world_poses and set_local_poses "
                 "on the same view within a single frame -- use one or the other exclusively."
             )
@@ -354,7 +355,7 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # If a prior set_world_poses/set_scales left localMatrix stale, recompute.
+        # If a prior set_world_poses/set_world_scales left localMatrix stale, recompute.
         self._sync_local_from_world_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
@@ -551,11 +552,11 @@ class FabricFrameView(BaseFrameView):
         return ProxyArray(scales_wp)
 
     def _get_scales_impl(self, indices=None):
-        """Fabric default: get_scales returns world scales (backwards compat)."""
+        """Fabric: deprecated get_scales delegates to get_world_scales."""
         return self.get_world_scales(indices).warp
 
     def _set_scales_impl(self, scales, indices=None):
-        """Fabric default: set_scales writes world scales (backwards compat)."""
+        """Fabric: deprecated set_scales delegates to set_world_scales."""
         self.set_world_scales(scales, indices)
 
     # ------------------------------------------------------------------
