@@ -7,8 +7,6 @@ import pytest
 import torch
 import torch.utils.benchmark as benchmark
 
-pytestmark = [pytest.mark.windows_ci, pytest.mark.arm_ci]
-
 
 @pytest.mark.isaacsim_ci
 def test_array_slicing():
