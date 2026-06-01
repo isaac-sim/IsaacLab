@@ -144,7 +144,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
 def reset_object_collections(
     scene: InteractiveScene, asset_name: str, view_states: torch.Tensor, view_ids: torch.Tensor, noise: bool = False
 ) -> None:
-    """Apply view_states to a subset of a collection, with optional noise.
+    """Apply states to a subset of a collection, with optional noise.
 
     Updates ``view_states`` in-place for ``view_ids`` and writes transforms/velocities
     to the PhysX view for the collection ``asset_name``. When ``noise`` is True, adds
@@ -154,7 +154,7 @@ def reset_object_collections(
     Args:
         scene: Interactive scene containing the collection.
         asset_name: Key in the scene (e.g., ``"groceries"``) for the RigidObjectCollection.
-        view_states: Env-major tensor with shape ``(num_envs, num_bodies, 13)``.
+        view_states: Flat env-major tensor (N, 13) with [x, y, z, qx, qy, qz, qw, lin(3), ang(3)] in world frame.
         view_ids: 1D tensor of env-major flattened indices into ``view_states`` to update.
         noise: If True, apply pose and velocity noise before writing.
 
