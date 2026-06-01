@@ -550,11 +550,11 @@ class FabricFrameView(BaseFrameView):
             return self._fabric_scales_ta
         return ProxyArray(scales_wp)
 
-    def _get_scales_default(self, indices=None):
+    def _get_scales_impl(self, indices=None):
         """Fabric default: get_scales returns world scales (backwards compat)."""
         return self.get_world_scales(indices).warp
 
-    def _set_scales_default(self, scales, indices=None):
+    def _set_scales_impl(self, scales, indices=None):
         """Fabric default: set_scales writes world scales (backwards compat)."""
         self.set_world_scales(scales, indices)
 

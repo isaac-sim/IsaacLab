@@ -154,12 +154,15 @@ class BaseFrameView(abc.ABC):
     # Deprecated -- use get/set_local_scales or get/set_world_scales
     # ------------------------------------------------------------------
 
+    _get_scales_deprecated_warned: bool = False
+    _set_scales_deprecated_warned: bool = False
+
     def get_scales(self, indices: wp.array | None = None) -> wp.array:
         """Get scales for prims in the view.
 
         .. deprecated::
             Use :meth:`get_local_scales` or :meth:`get_world_scales` instead.
-            This method delegates to :meth:`_get_scales_default` which preserves
+            This method delegates to :meth:`_get_scales_impl` which preserves
             each backend's legacy behavior.
 
         Args:
@@ -168,38 +171,42 @@ class BaseFrameView(abc.ABC):
         Returns:
             A ``wp.array`` of shape ``(M, 3)``.
         """
-        warnings.warn(
-            "get_scales() is deprecated. Use get_local_scales() or get_world_scales() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._get_scales_default(indices)
+        if not BaseFrameView._get_scales_deprecated_warned:
+            BaseFrameView._get_scales_deprecated_warned = True
+            warnings.warn(
+                "get_scales() is deprecated. Use get_local_scales() or get_world_scales() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return self._get_scales_impl(indices)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set scales for prims in the view.
 
         .. deprecated::
             Use :meth:`set_local_scales` or :meth:`set_world_scales` instead.
-            This method delegates to :meth:`_set_scales_default` which preserves
+            This method delegates to :meth:`_set_scales_impl` which preserves
             each backend's legacy behavior.
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
             indices: Subset of prims to update.  ``None`` means all prims.
         """
-        warnings.warn(
-            "set_scales() is deprecated. Use set_local_scales() or set_world_scales() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self._set_scales_default(scales, indices)
+        if not BaseFrameView._set_scales_deprecated_warned:
+            BaseFrameView._set_scales_deprecated_warned = True
+            warnings.warn(
+                "set_scales() is deprecated. Use set_local_scales() or set_world_scales() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        self._set_scales_impl(scales, indices)
 
     @abc.abstractmethod
-    def _get_scales_default(self, indices: wp.array | None = None) -> wp.array:
-        """Backend-specific default for deprecated get_scales()."""
+    def _get_scales_impl(self, indices: wp.array | None = None) -> wp.array:
+        """Backend-specific implementation for deprecated get_scales()."""
         ...
 
     @abc.abstractmethod
-    def _set_scales_default(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Backend-specific default for deprecated set_scales()."""
+    def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Backend-specific implementation for deprecated set_scales()."""
         ...

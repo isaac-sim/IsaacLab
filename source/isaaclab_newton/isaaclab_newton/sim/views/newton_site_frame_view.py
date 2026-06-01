@@ -911,11 +911,11 @@ class NewtonSiteFrameView(BaseFrameView):
         """Set world-space (composed) scales to Newton shape_scale."""
         self._set_shape_scales(scales, indices)
 
-    def _get_scales_default(self, indices=None):
+    def _get_scales_impl(self, indices=None):
         """Newton default: get_scales returns shape_scale (world-like)."""
         return self.get_world_scales(indices).warp
 
-    def _set_scales_default(self, scales, indices=None):
+    def _set_scales_impl(self, scales, indices=None):
         """Newton default: set_scales writes shape_scale (world-like)."""
         self.set_world_scales(scales, indices)
 

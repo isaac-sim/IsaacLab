@@ -876,11 +876,11 @@ class OvPhysxFrameView(BaseFrameView):
         """Set world-space scales via the USD view."""
         self._ensure_usd_view().set_world_scales(scales, indices)
 
-    def _get_scales_default(self, indices=None):
+    def _get_scales_impl(self, indices=None):
         """OvPhysX default: get_scales returns local scales (same as USD)."""
         return self.get_local_scales(indices).warp
 
-    def _set_scales_default(self, scales, indices=None):
+    def _set_scales_impl(self, scales, indices=None):
         """OvPhysX default: set_scales writes local scales (same as USD)."""
         self.set_local_scales(scales, indices)
 
