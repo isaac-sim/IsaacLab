@@ -187,7 +187,7 @@ def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tenso
 
 def main():
     """Main function."""
-    with launch_simulation(env_cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         import isaaclab.sim as sim_utils
 
         dt = 1 / 200

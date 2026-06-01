@@ -123,9 +123,9 @@ def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> se
     return {str(v).strip().lower() for v in visualizers if str(v).strip()}
 
 
-def _get_visualizer_intent(env_cfg) -> dict[str, bool]:
-    """Compute upstream visualizer intent from ``env_cfg.sim.visualizer_cfgs``."""
-    visualizer_cfgs = getattr(getattr(env_cfg, "sim", None), "visualizer_cfgs", None)
+def _get_visualizer_intent(cfg) -> dict[str, bool]:
+    """Compute upstream visualizer intent from ``cfg.sim.visualizer_cfgs``."""
+    visualizer_cfgs = getattr(getattr(cfg, "sim", None), "visualizer_cfgs", None)
     if visualizer_cfgs is None:
         return {"has_any_visualizers": False, "has_kit_visualizer": False}
     cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
@@ -150,7 +150,7 @@ class Scan:
     """
 
     resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
-    effective_cfg: Any  # env_cfg, or the replacement physics config when env_cfg itself was overridden
+    effective_cfg: Any  # the input config, or its replacement when the config itself was an overridden physics config
     visualizer_intent: dict[str, bool]
     has_ovrtx: bool
     has_kit_camera: bool
@@ -160,15 +160,15 @@ class Scan:
     needs_kit: bool
 
 
-def scan(env_cfg, physics_str: str | None = None) -> Scan:
-    """Walk *env_cfg* once, collecting all launch signals and applying ``--physics``.
+def scan(cfg, physics_str: str | None = None) -> Scan:
+    """Walk *cfg* once, collecting all launch signals and applying ``--physics``.
 
     When *physics_str* is set, every physics config is replaced by the requested
     backend (see :func:`make_physics_cfg`): nested configs in place, a root config
     via :attr:`Scan.effective_cfg` (it cannot be mutated in place).
     """
     physics_cfgs: list[PhysicsCfg] = []
-    effective_cfg: Any = env_cfg
+    effective_cfg: Any = cfg
     has_ovrtx = False
     has_kit_camera = False
     visited: set[int] = set()
@@ -201,14 +201,14 @@ def scan(env_cfg, physics_str: str | None = None) -> Scan:
                 continue
             visit(child, node, name)
 
-    visit(env_cfg, None, None)
+    visit(cfg, None, None)
 
-    names = [type(cfg).__name__ for cfg in physics_cfgs]
+    names = [type(pcfg).__name__ for pcfg in physics_cfgs]
     has_kitless_physics = any(name in _KITLESS_PHYSICS_CFGS for name in names)
     return Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
-        visualizer_intent=_get_visualizer_intent(env_cfg),
+        visualizer_intent=_get_visualizer_intent(cfg),
         has_ovrtx=has_ovrtx,
         has_kit_camera=has_kit_camera,
         has_kit_physics="PhysxCfg" in names,
@@ -262,8 +262,8 @@ def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | Non
     )
 
 
-def _resolve_distributed_device(env_cfg, launcher_args: argparse.Namespace | dict | None) -> None:
-    """Set ``env_cfg.sim.device`` for distributed training, mirroring AppLauncher's fallback.
+def _resolve_distributed_device(cfg, launcher_args: argparse.Namespace | dict | None) -> None:
+    """Set ``cfg.sim.device`` for distributed training, mirroring AppLauncher's fallback.
 
     When ``--distributed`` restricts each process to one GPU, ``local_rank`` may exceed
     the visible device count. The Kit path later overwrites this with ``AppLauncher.device``;
@@ -279,7 +279,7 @@ def _resolve_distributed_device(env_cfg, launcher_args: argparse.Namespace | dic
     # Compare against the local device count (not WORLD_SIZE) so multi-node runs work.
     device_str = f"cuda:{local_rank}" if local_rank < num_visible_gpus else "cuda:0"
 
-    sim_cfg = getattr(env_cfg, "sim", None)
+    sim_cfg = getattr(cfg, "sim", None)
     if sim_cfg is not None:
         sim_cfg.device = device_str
     torch.cuda.set_device(device_str)
@@ -293,10 +293,10 @@ def _resolve_distributed_device(env_cfg, launcher_args: argparse.Namespace | dic
 
 @contextmanager
 def launch_simulation(
-    env_cfg,
+    cfg,
     launcher_args: argparse.Namespace | dict | None = None,
 ) -> Generator[PhysicsCfg | None, None, None]:
-    """Context manager that launches the appropriate simulation runtime for *env_cfg*.
+    """Context manager that launches the appropriate simulation runtime for *cfg*.
 
     Walks the config tree once (resolving ``--physics``, validating the
     physics/renderer/visualizer combination, and deciding whether Isaac Sim Kit is
@@ -312,7 +312,7 @@ def launch_simulation(
     Callers that do not need the value simply omit ``as``.
     """
     # The single walk: collect every signal and apply the --physics override.
-    config_scan = scan(env_cfg, _get_arg(launcher_args, "physics"))
+    config_scan = scan(cfg, _get_arg(launcher_args, "physics"))
     effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
     visualizer_types = _get_visualizer_types(launcher_args)
