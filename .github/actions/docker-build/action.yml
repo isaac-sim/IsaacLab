@@ -76,16 +76,6 @@ inputs:
       caller can rely on them being present.
     default: ''
     required: false
-outputs:
-  local-hit:
-    description: '"true" if the exact image-tag was already in local docker.'
-    value: ${{ steps.local.outputs.hit }}
-  local-deps-hit:
-    description: '"true" if a local deps-cache tag matched (and was retagged).'
-    value: ${{ steps.local-deps.outputs.hit }}
-  was-built:
-    description: '"true" if a full buildx build ran (no cache hit).'
-    value: ${{ steps.build.outputs.was-built }}
 
 runs:
   using: composite
