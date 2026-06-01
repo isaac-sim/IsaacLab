@@ -102,9 +102,6 @@ class BaseFrameView(abc.ABC):
     def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get local-space scales for prims in the view.
 
-        Returns the per-prim scale as stored in local space (``xformOp:scale``
-        for USD, decomposition of ``localMatrix`` for Fabric).
-
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
@@ -116,9 +113,6 @@ class BaseFrameView(abc.ABC):
     @abc.abstractmethod
     def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set local-space scales for prims in the view.
-
-        Writes the per-prim scale in local space.  For the Fabric backend this
-        marks the world matrix as dirty (will be re-propagated on next read).
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
@@ -136,8 +130,7 @@ class BaseFrameView(abc.ABC):
             Scale extraction uses TRS (Translation-Rotation-Scale) decomposition,
             which assumes no shear/skew in the transform matrix.  If a prim's
             world transform contains shear, the extracted scale values will be
-            approximate.  A warning is emitted at initialization time when sheared
-            parent transforms are detected.
+            approximate.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
@@ -150,9 +143,6 @@ class BaseFrameView(abc.ABC):
     @abc.abstractmethod
     def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set world-space (composed) scales for prims in the view.
-
-        Writes the effective scale in world space.  For the Fabric backend this
-        marks the local matrix as dirty (will be re-propagated on next read).
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
@@ -169,8 +159,8 @@ class BaseFrameView(abc.ABC):
 
         .. deprecated::
             Use :meth:`get_local_scales` or :meth:`get_world_scales` instead.
-            This method calls ``get_local_scales`` for USD backends and
-            ``get_world_scales`` for Fabric backends (preserving legacy behavior).
+            This method delegates to :meth:`_get_scales_default` which preserves
+            each backend's legacy behavior.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
@@ -190,8 +180,8 @@ class BaseFrameView(abc.ABC):
 
         .. deprecated::
             Use :meth:`set_local_scales` or :meth:`set_world_scales` instead.
-            This method calls ``set_local_scales`` for USD backends and
-            ``set_world_scales`` for Fabric backends (preserving legacy behavior).
+            This method delegates to :meth:`_set_scales_default` which preserves
+            each backend's legacy behavior.
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
