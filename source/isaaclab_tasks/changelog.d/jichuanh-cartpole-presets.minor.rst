@@ -3,9 +3,9 @@ Added
 
 * Added four consolidated Cartpole perception tasks that subsume 35
   per-variant task IDs via the typed preset CLI (#5587):
-  ``Isaac-Cartpole-Camera-Direct-v0``, ``Isaac-Cartpole-Camera-v0``,
-  ``Isaac-Cartpole-Showcase-Direct-v0``, and
-  ``Isaac-Cartpole-Camera-Showcase-Direct-v0``. Variant (data type,
+  ``Isaac-Cartpole-Camera-Direct``, ``Isaac-Cartpole-Camera``,
+  ``Isaac-Cartpole-Showcase-Direct``, and
+  ``Isaac-Cartpole-Camera-Showcase-Direct``. Variant (data type,
   observation pipeline, gym-space shape) selected at runtime via
   ``presets=<name>``; agent yaml selected via
   ``--agent=<entry_point_name>`` for the manager perception feature

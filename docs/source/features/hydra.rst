@@ -25,30 +25,30 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-Manager --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Manager --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-Manager --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole-Manager --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
-The above command will run the training script with the task ``Isaac-Cartpole-Manager`` in headless mode, and set the
+The above command will run the training script with the task ``Isaac-Cartpole`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
 
 .. note::
@@ -299,13 +299,13 @@ is currently beta.
 .. code-block:: bash
 
     # Select the Kamino solver preset everywhere it is defined
-    python train.py --task=Isaac-Cartpole-Manager presets=newton_kamino
+    python train.py --task=Isaac-Cartpole presets=newton_kamino
 
     # Select the Kamino solver preset for a specific physics config path
-    python train.py --task=Isaac-Cartpole-Manager env.sim.physics=newton_kamino
+    python train.py --task=Isaac-Cartpole env.sim.physics=newton_kamino
 
 The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct``,
-``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-Manager``, and ``Isaac-Ant-v0``. Passing
+``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole``, and ``Isaac-Ant-v0``. Passing
 ``presets=newton_kamino`` to a task without a ``newton_kamino`` preset does not enable Kamino;
 add and validate a task-specific preset first.
 

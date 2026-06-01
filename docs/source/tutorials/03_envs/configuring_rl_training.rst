@@ -22,7 +22,7 @@ the :ref:`tutorial-register-rl-env-gym` tutorial, you can register the learning 
 The Code
 --------
 
-As an example, we will look at the configuration included for the task ``Isaac-Cartpole-Manager``
+As an example, we will look at the configuration included for the task ``Isaac-Cartpole``
 in the ``isaaclab_tasks`` package. This is the same task that we used in the
 :ref:`tutorial-run-rl-training` tutorial.
 
@@ -53,7 +53,7 @@ are equivalent:
       from . import agents
 
       gym.register(
-         id="Isaac-Cartpole-Manager",
+         id="Isaac-Cartpole",
          entry_point="isaaclab.envs:ManagerBasedRLEnv",
          disable_env_checker=True,
          kwargs={
@@ -70,7 +70,7 @@ are equivalent:
       from . import agents
 
       gym.register(
-         id="Isaac-Cartpole-Manager",
+         id="Isaac-Cartpole",
          entry_point="isaaclab.envs:ManagerBasedRLEnv",
          disable_env_checker=True,
          kwargs={
@@ -113,7 +113,7 @@ we can use the ``--agent`` argument to specify the configuration instance to use
   .. code-block:: bash
 
     # standard PPO training
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Manager --headless \
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless \
       --run_name ppo
 
 * Training with the PPO configuration with symmetry augmentation:
@@ -121,12 +121,12 @@ we can use the ``--agent`` argument to specify the configuration instance to use
   .. code-block:: bash
 
     # PPO training with symmetry augmentation
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Manager --headless \
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless \
       --agent rsl_rl_with_symmetry_cfg_entry_point \
       --run_name ppo_with_symmetry_data_augmentation
 
     # you can use hydra to disable symmetry augmentation but enable mirror loss computation
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Manager --headless \
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless \
       --agent rsl_rl_with_symmetry_cfg_entry_point \
       --run_name ppo_without_symmetry_data_augmentation \
       agent.algorithm.symmetry_cfg.use_data_augmentation=false

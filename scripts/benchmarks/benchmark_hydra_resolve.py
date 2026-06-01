@@ -19,7 +19,7 @@ Usage::
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py \
-        --case cartpole:Isaac-Cartpole-Manager:: \
+        --case cartpole:Isaac-Cartpole:: \
         --case anymal:Isaac-Velocity-Rough-Anymal-C-v0::env.scene.num_envs=256
 
 Case format is ``name:task:agent_entry:arg[,arg...]``. Leave ``agent_entry`` or
@@ -62,7 +62,7 @@ class Case:
 
 
 QUICK_CASES = (
-    Case("cartpole_manager", "Isaac-Cartpole-Manager"),
+    Case("cartpole_manager", "Isaac-Cartpole"),
     Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
     Case("anymal_rough", "Isaac-Velocity-Rough-Anymal-C-v0"),
     Case("franka_lift_cube", "Isaac-Lift-Cube-Franka-v0"),

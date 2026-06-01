@@ -140,9 +140,9 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 
 .. |humanoid-link| replace:: `Isaac-Humanoid-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_humanoid/humanoid_env_cfg.py>`__
 .. |ant-link| replace:: `Isaac-Ant-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_ant/ant_env_cfg.py>`__
-.. |cartpole-link| replace:: `Isaac-Cartpole-Manager <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py>`__
+.. |cartpole-link| replace:: `Isaac-Cartpole <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py>`__
 .. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_presets_env_cfg.py>`__
-.. |cartpole-camera-link| replace:: `Isaac-Cartpole-Camera-Manager <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_camera_env_cfg.py>`__
+.. |cartpole-camera-link| replace:: `Isaac-Cartpole-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_camera_env_cfg.py>`__
 
 
 .. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_humanoid/humanoid_env.py>`__
@@ -895,6 +895,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       -
+    * - Isaac-Cartpole
+      -
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - Isaac-Cartpole-Camera
+      -
+      - Manager Based
+      - **rl_games** (PPO, FEATURE)
+      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+          | **presets=** ``depth``, ``resnet18``, ``rgb``, ``theia_tiny``
     * - Isaac-Cartpole-Camera-Direct
       -
       - Direct
@@ -902,12 +913,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
           | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
-    * - Isaac-Cartpole-Camera-Manager
-      -
-      - Manager Based
-      - **rl_games** (PPO, FEATURE)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-          | **presets=** ``depth``, ``resnet18``, ``rgb``, ``theia_tiny``
     * - Isaac-Cartpole-Camera-Showcase-Direct
       -
       - Direct
@@ -923,11 +928,6 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Cartpole-Manager
-      -
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Cartpole-Showcase-Direct
       -
       - Direct

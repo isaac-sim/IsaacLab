@@ -83,7 +83,7 @@ Limitations
     2.  Isaac-Ant-v0
     3.  Isaac-Cartpole-Direct
     4.  Isaac-Cartpole-Showcase-Direct
-    5.  Isaac-Cartpole-Manager
+    5.  Isaac-Cartpole
     20. Isaac-Factory-GearMesh-Direct-v0
     21. Isaac-Factory-NutThread-Direct-v0
     22. Isaac-Factory-PegInsert-Direct-v0

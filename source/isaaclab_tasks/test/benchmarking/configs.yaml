@@ -129,7 +129,7 @@ full:
       episode_length: 150
     upper_thresholds:
       duration: 500
-  Isaac-Cartpole-Manager:
+  Isaac-Cartpole:
     max_iterations: 1000
     lower_thresholds:
       reward: 3
@@ -144,7 +144,7 @@ full:
       episode_length: 150
     upper_thresholds:
       duration: 3000
-  Isaac-Cartpole-Camera-Manager:
+  Isaac-Cartpole-Camera:
     max_iterations: 300
     lower_thresholds:
       reward: -2

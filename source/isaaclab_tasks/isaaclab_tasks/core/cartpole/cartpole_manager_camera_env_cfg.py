@@ -178,7 +178,7 @@ class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 
 
 ##
-# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera-Manager)
+# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera)
 ##
 
 
@@ -199,7 +199,7 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
     framework resolver pins the selected variant at ``gym.make`` time when
     the user passes ``presets=<name>``.
 
-    Used by the canonical :obj:`Isaac-Cartpole-Camera-Manager` task. The retired
+    Used by the canonical :obj:`Isaac-Cartpole-Camera` task. The retired
     per-variant task IDs (:obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`)
     return the same per-variant subclasses directly via the deprecation
     shims in the sibling ``__init__.py``.

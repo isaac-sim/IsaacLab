@@ -48,7 +48,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Cartpole-Manager",
+    id="Isaac-Cartpole",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -69,7 +69,7 @@ gym.register(
 # pick via ``--agent rl_games_cfg_entry_point`` (image, default) or
 # ``--agent rl_games_feature_cfg_entry_point`` (pretrained-feature).
 gym.register(
-    id="Isaac-Cartpole-Camera-Manager",
+    id="Isaac-Cartpole-Camera",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
