@@ -22,7 +22,7 @@ from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.app import AppLauncher
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _load_tree(relative_path: str) -> ast.AST:
