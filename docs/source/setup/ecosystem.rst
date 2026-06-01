@@ -1,6 +1,7 @@
 .. _isaac-lab-ecosystem:
 
 Isaac Lab Ecosystem
+===================
 
 Isaac Lab is a modular, extensible framework for robot learning built on top of `Isaac Sim`_ and
 `Newton`_. It provides a unified interface for the most common workflows in robotics research —
@@ -208,6 +209,7 @@ contributing, please reach out to us.
 .. _AirSim: https://microsoft.github.io/AirSim/
 .. _DoorGym: https://github.com/PSVL/DoorGym/
 .. _ManiSkill: https://github.com/haosulab/ManiSkill
+.. _ThreeDWorld: https://github.com/threedworld-mit/tdw
 .. _RoboSuite: https://github.com/ARISE-Initiative/robosuite
 .. _MuJoCo: https://mujoco.org/
 .. _MuJoCo Playground: https://playground.mujoco.org/
