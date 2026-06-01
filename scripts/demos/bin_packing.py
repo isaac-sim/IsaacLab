@@ -154,7 +154,7 @@ def reset_object_collections(
     Args:
         scene: Interactive scene containing the collection.
         asset_name: Key in the scene (e.g., ``"groceries"``) for the RigidObjectCollection.
-        view_states: Flat env-major tensor (N, 13) with [x, y, z, qx, qy, qz, qw, lin(3), ang(3)] in world frame.
+        view_states: Env-major tensor (num_envs, num_bodies, 13) with [pos(3), quat(4), lin(3), ang(3)] in world frame.
         view_ids: 1D tensor of env-major flattened indices into ``view_states`` to update.
         noise: If True, apply pose and velocity noise before writing.
 
@@ -318,7 +318,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
             # Teleport stray objects back into the active stack to keep the bin tidy.
             states_w = torch.cat([groceries.data.body_link_pose_w.torch, groceries.data.body_com_vel_w.torch], dim=-1)
             states_w.view(-1, 13)[out_bound] = spawn_w.view(-1, 13)[out_bound]
-            reset_object_collections(scene, "groceries", states_w, out_bound)  # Increment counter
+            reset_object_collections(scene, "groceries", states_w, out_bound)
         count += 1
         # Update buffers
         scene.update(sim_dt)
