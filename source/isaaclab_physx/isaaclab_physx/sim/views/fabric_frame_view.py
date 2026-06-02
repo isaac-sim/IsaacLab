@@ -15,7 +15,6 @@ import warp as wp
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import ProxyArray
@@ -43,22 +42,20 @@ def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
 class FabricFrameView(BaseFrameView):
     """FrameView with Fabric GPU acceleration for the PhysX backend.
 
-    Uses composition: holds a :class:`UsdFrameView` internally for USD
-    fallback and non-accelerated operations (local poses, visibility, scales
-    when Fabric is disabled).
+    This class is only instantiated when Fabric is enabled and the device is
+    supported.  The :class:`~isaaclab.sim.views.FrameView` factory dispatches
+    to :class:`~isaaclab.sim.views.UsdFrameView` otherwise.
 
-    When Fabric is enabled, world-pose and scale operations use Warp kernels
-    operating on ``omni:fabric:worldMatrix``.  Fabric acceleration runs on
-    the same CUDA device the view was constructed with — ``cuda:0``,
-    ``cuda:1``, or any other available CUDA index — so this view is safe
-    to use from distributed-training workers pinned to non-primary GPUs.
-    All other operations delegate to the internal USD view.
+Uses composition: holds a :class:`UsdFrameView` internally for operations
+    that don't have a Fabric-accelerated path (local poses, visibility).
 
-    After every Fabric write (``set_world_poses``, ``set_scales``),
-    :meth:`PrepareForReuse` is called on the ``PrimSelection`` to notify
-    the FSD renderer that Fabric data has changed and to detect topology
-    changes that require rebuilding internal mappings.  Read operations
-    do not call PrepareForReuse to avoid unnecessary renderer invalidation.
+    World-pose and scale operations use Warp kernels operating on
+    ``omni:fabric:worldMatrix``.  After every Fabric write
+    (``set_world_poses``, ``set_scales``), :meth:`PrepareForReuse` is called
+    on the ``PrimSelection`` to notify the FSD renderer that Fabric data has
+    changed and to detect topology changes that require rebuilding internal
+    mappings.  Read operations do not call PrepareForReuse to avoid
+    unnecessary renderer invalidation.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
@@ -87,12 +84,6 @@ class FabricFrameView(BaseFrameView):
         """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
-
-        settings = SettingsManager.instance()
-        self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
-        # TODO(pv): Misleading abstraction — FabricFrameView can fall back to USD internally;
-        # the concrete class should be determined by the factory instead. (PR #5673 pv/fabric-view-no-fallback)
-        # TODO(pv): Fuse set_world_poses/set_scales into single kernel launch (PR #5674 pv/fabric-fused-compose)
 
         self._fabric_initialized = False
         self._fabric_usd_sync_done = False
@@ -139,10 +130,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_world_poses(self, positions=None, orientations=None, indices=None):
-        if not self._use_fabric:
-            self._usd_view.set_world_poses(positions, orientations, indices)
-            return
-
         if not self._fabric_initialized:
             self._initialize_fabric()
 
@@ -181,9 +168,6 @@ class FabricFrameView(BaseFrameView):
         self._fabric_usd_sync_done = True
 
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        if not self._use_fabric:
-            return self._usd_view.get_world_poses(indices)
-
         if not self._fabric_initialized:
             self._initialize_fabric()
         if not self._fabric_usd_sync_done:
@@ -234,10 +218,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def set_scales(self, scales, indices=None):
-        if not self._use_fabric:
-            self._usd_view.set_scales(scales, indices)
-            return
-
         if not self._fabric_initialized:
             self._initialize_fabric()
 
@@ -272,9 +252,6 @@ class FabricFrameView(BaseFrameView):
         self._fabric_usd_sync_done = True
 
     def get_scales(self, indices=None):
-        if not self._use_fabric:
-            return self._usd_view.get_scales(indices)
-
         if not self._fabric_initialized:
             self._initialize_fabric()
         if not self._fabric_usd_sync_done:
