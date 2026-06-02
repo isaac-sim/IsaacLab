@@ -10,12 +10,11 @@ This script demonstrates the visualizer tiled camera panel.
 
     # Kit visualizer tiled camera panel
     ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task Isaac-Velocity-Rough-Anymal-D-Play-v0 --num_envs 16 --viz kit
+        --task Isaac-Velocity-Rough-Anymal-D-v0 --num_envs 256 --viz kit
 
     # Newton visualizer tiled camera panel
     ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0 --num_envs 16 --viz newton \
-        presets=duo_camera,rgb128,newton_renderer
+        --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 --num_envs 25 --viz newton
 
 """
 
@@ -38,8 +37,8 @@ from isaaclab_tasks.utils import (
     setup_preset_cli,
 )
 
-KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-Anymal-D-Play-v0"
-NEWTON_DEFAULT_TASK = "Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0"
+KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-Anymal-D-v0"
+NEWTON_DEFAULT_TASK = "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0"
 SUPPORTED_TILED_VISUALIZERS = {"kit", "newton"}
 UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
 
@@ -47,15 +46,8 @@ UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
 def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
     """Return requested visualizers, defaulting to Kit for this tutorial."""
     visualizers = args_cli.visualizer or ["kit"]
-    return [str(visualizer).lower() for visualizer in visualizers]
+    visualizers = [str(visualizer).lower() for visualizer in visualizers]
 
-
-def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
-    """Attach tiled camera visualizer configs to the environment simulation config."""
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
-
-    visualizers = _requested_visualizers(args_cli)
     if "none" in visualizers:
         raise ValueError("This demo requires a tiled-camera visualizer. Use '--viz kit' or '--viz newton'.")
     unsupported = sorted(set(visualizers) & UNSUPPORTED_TILED_VISUALIZERS)
@@ -67,42 +59,51 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
     unknown = sorted(set(visualizers) - SUPPORTED_TILED_VISUALIZERS)
     if unknown:
         raise ValueError(f"Unknown visualizer selection for this demo: {unknown}.")
+    return visualizers
 
+
+def _make_kit_visualizer_cfg(args_cli: argparse.Namespace):
+    """Create generated tiled cameras that follow each Anymal-D base."""
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    # Generated Kit cameras are not found by the task config scan.
+    args_cli.enable_cameras = True
+
+    visualizer_cfg = KitVisualizerCfg()
+    visualizer_cfg.tiled_cam_view = True
+    visualizer_cfg.tiled_cam_num = 36
+    visualizer_cfg.tiled_cam_prim_path = None
+    # Here is an alternative eye position for a top down view
+    # visualizer_cfg.tiled_cam_eye = (0.0, 0.0, 5.0)
+    visualizer_cfg.tiled_cam_eye = (3.0, 3.0, 3.0)
+    visualizer_cfg.tiled_cam_target_prim_path = "/World/envs/*/Robot/base"
+    return visualizer_cfg
+
+
+def _make_newton_visualizer_cfg():
+    """Stream existing Galbot wrist cameras into the Newton tiled camera panel."""
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    visualizer_cfg = NewtonVisualizerCfg()
+    visualizer_cfg.tiled_cam_view = True
+    visualizer_cfg.tiled_cam_num = 12
+    # Here are other robot mounted camera options for this environment
+    # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/left_camera"
+    # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/right_camera"
+    visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/head_camera"
+    visualizer_cfg.tiled_cam_eye = None
+    visualizer_cfg.tiled_cam_target_prim_path = None
+    return visualizer_cfg
+
+
+def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
+    """Attach tiled camera visualizer configs to the environment simulation config."""
+    visualizers = _requested_visualizers(args_cli)
     args_cli.visualizer = visualizers
-    visualizer_cfgs = []
-    for visualizer in visualizers:
-        if visualizer == "kit":
-            # Generated Kit cameras are not found by the task config scan.
-            args_cli.enable_cameras = True
-            visualizer_cfg = KitVisualizerCfg()
-
-            # Edit these VisualizerCfg fields to customize the generated tiled cameras.
-            visualizer_cfg.tiled_cam_view = True
-            visualizer_cfg.tiled_cam_num = 64
-            visualizer_cfg.tiled_cam_prim_path = None
-            visualizer_cfg.tiled_cam_eye = (2.5, -3.0, 1.6)
-            visualizer_cfg.tiled_cam_target_prim_path = "/World/envs/*/Robot/base"
-        else:
-            visualizer_cfg = NewtonVisualizerCfg()
-
-            # Edit these VisualizerCfg fields to display a different existing camera.
-            visualizer_cfg.tiled_cam_view = True
-            visualizer_cfg.tiled_cam_num = 64
-            visualizer_cfg.tiled_cam_prim_path = None
-            visualizer_cfg.tiled_cam_eye = (2.5, -3.0, 1.6)
-            visualizer_cfg.tiled_cam_target_prim_path = "/World/envs/*/Robot/ee_link/palm_link"
-
-        visualizer_cfgs.append(visualizer_cfg)
-
-    env_cfg.sim.visualizer_cfgs = visualizer_cfgs
-
-    # TODO: Temporary workaround for Dexsuite duo_camera. The nested wrist camera
-    # path currently matches both the cloned Robot subtree and the cloned Camera
-    # template, so Camera construction fails before the visualizer initializes.
-    if "newton" in visualizers and getattr(getattr(env_cfg, "scene", None), "wrist_camera", None) is not None:
-        env_cfg.scene.wrist_camera = None
-        if hasattr(getattr(env_cfg, "observations", None), "wrist_image"):
-            env_cfg.observations.wrist_image = None
+    env_cfg.sim.visualizer_cfgs = [
+        _make_kit_visualizer_cfg(args_cli) if visualizer == "kit" else _make_newton_visualizer_cfg()
+        for visualizer in visualizers
+    ]
 
 
 def _resolve_task(args_cli: argparse.Namespace) -> str:
@@ -127,11 +128,6 @@ sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
 
 def main():
     """Run a random-action environment with a tiled camera visualizer."""
-    torch.manual_seed(42)
-    # TODO: Temporary workaround for Anymal-D ActuatorNetLSTM reset failures
-    # with CUDNN_STATUS_NOT_INITIALIZED in this demo path.
-    torch.backends.cudnn.enabled = False
-
     # parse configuration via Hydra (supports preset selection, e.g. presets=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     _configure_visualizers(env_cfg, args_cli)

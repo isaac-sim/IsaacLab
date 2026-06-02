@@ -11,81 +11,121 @@ This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in th
 For general visualizer documentation, see :doc:`/source/overview/core-concepts/visualization`.
 
 The visualizer tiled camera view is a live monitoring and debugging tool. It opens a
-non-interactive image panel in the Kit or Newton visualizer and shows one RGB tile per
-selected environment. This is separate from camera observations used by policies.
+non-interactive panel in the Kit or Newton visualizer and streams tiled camera views
+across all selected environments. Note, this is separate from tiled camera observations
+used by policies.
 
-This guide shows two tiled camera use cases: generated cameras following moving Anymal-D
-robots in Kit, and existing wrist-mounted robot cameras shown in Newton.
+The visualizer tiled cameras are currently supported by Kit and Newton visualizers.
+
+This guide shows two tiled camera use cases:
+
+- configured tiled cameras pointed at and following moving Anymal-D robots shown in Kit visualizer
+- streaming from existing wrist-mounted robot cameras shown in Newton visualizer
 
 .. dropdown:: Code for run_tiled_camera_visualizer.py
    :icon: code
 
    .. literalinclude:: ../../../scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py
       :language: python
-      :emphasize-lines: 79-91
+      :emphasize-lines: 65-77,81-90
       :linenos:
 
 
-Kit visualizer
---------------
+Example One: Following Anymal-D Robots in Kit Visualizer
+--------------------------------------------------------
 
-The Kit visualizer uses an Omniverse viewport for the tiled camera panel. The script
-automatically enables camera support when ``--viz kit`` is selected.
+The Kit Visualizer shows the tiled camera view in a separate tab inside the main
+Viewport window. The highlighted tab area in the figures below shows where to
+toggle between the interactive viewport and the visualizer tiled camera view.
+You can also display the main visualizer camera and the tiled camera view side by
+side for dual monitoring.
 
-.. code-block:: bash
-
-   ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-     --task Isaac-Velocity-Rough-Anymal-D-Play-v0 \
-     --num_envs 64 \
-     --viz kit \
-     --enable_cameras
-
-For this example, the script creates generated cameras that follow the base link of each
-Anymal-D robot. To change the number of tiles, followed prim, or camera offset, edit
-the highlighted ``KitVisualizerCfg`` fields in the script.
-
-To display the tiled camera panel, select the ``Visualizer Tiled Camera`` viewport from
-the viewport selection menu.
-
-.. figure:: ../_static/visualizers/tiled_camera_kit_anymal_activate.jpg
-   :width: 100%
-   :alt: Kit visualizer tiled camera panel for Anymal-D robots
-
-   Kit visualizer with generated tiled cameras following Anymal-D robots. The annotated
-   circle and arrow should highlight the viewport selection menu used to activate the
-   ``Visualizer Tiled Camera`` panel.
-
-
-Newton visualizer
------------------
-
-The Newton visualizer uses a lightweight OpenGL window. This example uses the Dexsuite
-Kuka-Allegro lift environment with its wrist-mounted camera, which gives a close-up view
-of the hand and object from each selected environment:
+To run the tutorial with the args for this example, use:
 
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-     --task Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0 \
-     --num_envs 64 \
-     --viz newton \
-     presets=duo_camera,rgb128,newton_renderer
+     --enable_cameras \
+     --task Isaac-Velocity-Rough-Anymal-D-v0 \
+     --num_envs 256 \
+     --viz kit
 
-For this example, the script maps the tiled camera panel to the existing wrist camera
-sensor at ``/World/envs/env_.*/Robot/ee_link/palm_link/Camera``. To change the number of
-tiles or use a different existing camera, edit the highlighted ``NewtonVisualizerCfg``
-fields in the script.
+Within the script, you’ll find the ``KitVisualizerCfg`` configuration used to
+generate this example. You can use this config as a template for your own use
+cases.
 
-To show or hide the tiled camera panel, use the ``Visualizer Tiled Camera`` entry in the
-Tiled Camera View dropdown in the left sidebar.
+In this example, a set of cameras is created to point toward each robot's base
+prim and follow its motion. The camera's position, relative to the prim, is set
+by the ``tiled_cam_eye`` field of ``KitVisualizerCfg``. For this demo, the
+camera is offset by ``(3.0, 3.0, 3.0)`` from each robot base. These cameras
+stream automatically to the tiled visualizer panel.
+If you change ``tiled_cam_eye`` (for example, to ``(0, 0, 5)``), the panel will
+show a top-down view instead.
 
-.. figure:: ../_static/visualizers/tiled_camera_newton_kuka_wrist_activate.jpg
+Note, there are 256 total environments and we randomly sample 36 to stream to the
+tiled camera view.
+
+Also note that the Kit visualizer tiled camera view requires the
+``--enable_cameras`` CLI arg.
+
+.. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.png
    :width: 100%
-   :alt: Newton visualizer tiled camera panel for Kuka-Allegro wrist cameras
+   :alt: Kit visualizer interactive viewport for Anymal-D robots
 
-   Newton visualizer with existing wrist-mounted Kuka-Allegro cameras in the tiled panel.
-   The annotated circle and arrow should highlight the Tiled Camera View dropdown used to
-   activate the ``Visualizer Tiled Camera`` panel.
+   Kit visualizer showing the interactive viewport. The highlighted tab area is
+   where you can switch to the visualizer tiled camera view.
+
+.. figure:: ../_static/visualizers/kit_viz_anymal_tiled_view.png
+   :width: 100%
+   :alt: Kit visualizer tiled camera view for Anymal-D robots
+
+   Kit visualizer showing the tiled camera view generated for selected Anymal-D
+   robots.
+
+
+Example Two: Streaming from Existing Robot-Mounted Cameras in Newton Visualizer
+-------------------------------------------------------------------------------
+
+The Newton visualizer provides a tiled camera view in a lightweight OpenGL window.
+In this example, we use the Galbot cube stacking environment, which comes with
+built-in wrist-mounted cameras. This setup provides an egocentric view of the
+gripper, table, and cubes in each selected environment.
+
+To launch this example, run:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+     --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 \
+     --num_envs 64 \
+     --viz newton
+
+Within the script, the ``NewtonVisualizerCfg`` is configured to stream images from the
+existing camera sensor located at
+``/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/right_camera``. This path
+points to the right-arm wrist camera, but you can edit the ``tiled_cam_prim_path``
+field of ``NewtonVisualizerCfg`` in the script to show a different existing camera if
+needed. To change how many environment tiles are displayed, adjust the
+``tiled_cam_num`` field.
+
+In this demo, 25 environments are simulated, and 12 camera feeds are shown in the tiled panel by default.
+
+To show or hide the tiled camera panel, use the highlighted ``Tiled Camera View``
+dropdown in the left-hand sidebar of the Newton visualizer window.
+
+.. figure:: ../_static/visualizers/newton_viz_galbot_interactive_view.png
+   :width: 100%
+   :alt: Newton visualizer interactive view for the Galbot cube stacking environment
+
+   Newton visualizer showing the interactive view. The highlighted dropdown is
+   where you can select the visualizer tiled camera panel.
+
+.. figure:: ../_static/visualizers/newton_viz_galbot_tiled_view.png
+   :width: 100%
+   :alt: Newton visualizer tiled camera view for Galbot wrist cameras
+
+   Newton visualizer showing the selected Galbot wrist-camera feeds in the tiled
+   camera panel.
 
 
 Configuration notes
