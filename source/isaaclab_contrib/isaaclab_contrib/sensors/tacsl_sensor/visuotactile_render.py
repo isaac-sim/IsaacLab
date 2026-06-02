@@ -175,7 +175,7 @@ class GelsightRender:
             Rendered image tensor. Shape is (N, H, W, 3).
         """
         height_map = height_map.clone()
-        height_map[torch.abs(height_map) < 1e-6] = 0  # remove minor artifact
+        height_map.masked_fill_(torch.abs(height_map) < 1e-6, 0)  # remove minor artifact
         height_map = height_map * -1000.0
         height_map /= self.cfg.mm_per_pixel
 
@@ -251,7 +251,7 @@ class GelsightRender:
         grad_mag_orig = torch.sqrt(dzdx**2 + dzdy**2)
         grad_mag = torch.arctan(grad_mag_orig)  # seems that arctan is used as a squashing function
         grad_dir = torch.arctan2(dzdx, dzdy)
-        grad_dir[grad_mag_orig == 0] = 0
+        grad_dir.masked_fill_(grad_mag_orig == 0, 0)
 
         # handle edges
         grad_mag = torch.nn.functional.pad(grad_mag[:, 1:-1, 1:-1], pad=(1, 1, 1, 1))

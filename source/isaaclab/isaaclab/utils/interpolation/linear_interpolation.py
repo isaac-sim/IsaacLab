@@ -75,7 +75,7 @@ class LinearInterpolation:
         # compute the weight as: (q_i - x_lb) / (x_ub - x_lb)
         weight = (q_1d - self._x[lower_bound]) / (self._x[upper_bound] - self._x[lower_bound])
         # If a point is out of bounds assign weight 0.0
-        weight[upper_bound == lower_bound] = 0.0
+        weight.masked_fill_(upper_bound == lower_bound, 0.0)
 
         # Perform linear interpolation
         fq = self._y[lower_bound] + weight * (self._y[upper_bound] - self._y[lower_bound])

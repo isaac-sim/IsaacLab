@@ -52,7 +52,7 @@ class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
             camera_data -= mean_tensor
         elif "depth" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type]
-            camera_data[camera_data == float("inf")] = 0
+            camera_data.masked_fill_(camera_data == float("inf"), 0)
 
         # fundamental spaces
         # - Box

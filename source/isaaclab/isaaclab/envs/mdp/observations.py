@@ -425,7 +425,7 @@ def image(
             mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
             images -= mean_tensor
         elif "distance_to" in data_type or "depth" in data_type:
-            images[images == float("inf")] = 0
+            images.masked_fill_(images == float("inf"), 0)
         elif "normals" in data_type:
             images = (images + 1.0) * 0.5
 

@@ -196,11 +196,11 @@ class ImageLatentObservation(ManagerTermBase):
 
         if self.normalize:
             if self.data_type == "distance_to_image_plane":
-                images[images == float("inf")] = 10.0
-                images[images == -float("inf")] = 10.0
-                images[images > 10.0] = 10.0
+                images.masked_fill_(images == float("inf"), 10.0)
+                images.masked_fill_(images == -float("inf"), 10.0)
+                images.masked_fill_(images > 10.0, 10.0)
                 images = images / 10.0
-                images[images < 0.02] = -1.0
+                images.masked_fill_(images < 0.02, -1.0)
             else:
                 raise ValueError(f"Image data type: {self.data_type} not supported")
 

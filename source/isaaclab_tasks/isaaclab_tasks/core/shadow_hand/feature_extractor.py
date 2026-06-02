@@ -231,7 +231,7 @@ class FeatureExtractor:
             if dt == "rgb":
                 img = img / 255.0
             elif dt == "depth":
-                img[img == float("inf")] = 0
+                img.masked_fill_(img == float("inf"), 0)
                 img /= 5.0
                 max_val = img.max()
                 if max_val > 0:
@@ -262,7 +262,7 @@ class FeatureExtractor:
             img = camera_output[dt].float()
             if dt == "depth":
                 img = img.clone()
-                img[img == float("inf")] = 0
+                img.masked_fill_(img == float("inf"), 0)
                 max_val = img.max()
                 if max_val > 0:
                     img = img / max_val
