@@ -31,8 +31,6 @@ pip extras include:
      - What it installs
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]==6.0.0.*``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
-   * - ``rl-games``
-     - RL-Games framework dependencies
    * - ``all``
      - RL frameworks (SB3, SKRL, RL-Games, RSL-RL). Combine with ``isaacsim`` for a full install.
 
