@@ -20,7 +20,7 @@ tactile sensing with the GelSight finger setup.
         --contact_object_type nut \
         --save_viz \
         --enable_cameras \
-        --viz kit/newton 
+        --viz kit/newton
 
 """
 
@@ -78,18 +78,19 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab_physx.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
     PhysxCollisionPropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
+
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
@@ -127,9 +128,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
-            collision_props=PhysxCollisionPropertiesCfg(
-                contact_offset=0.001, rest_offset=-0.0005
-            ),
+            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.001, rest_offset=-0.0005),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
@@ -403,7 +402,6 @@ def main():
         )
 
     scene = InteractiveScene(scene_cfg)
-
 
     # Initialize simulation
     sim.reset()

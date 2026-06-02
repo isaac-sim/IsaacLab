@@ -20,6 +20,11 @@ import math
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import (
+    PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionPropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+)
 
 import omni.replicator.core as rep
 
@@ -29,11 +34,6 @@ from isaaclab.sensors.camera import CameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab_physx.sim.schemas import (
-    PhysxArticulationRootPropertiesCfg,
-    PhysxCollisionPropertiesCfg,
-    PhysxRigidBodyPropertiesCfg,
-)
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
 from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
@@ -173,9 +173,7 @@ def setup(sensor_type: str = "cube"):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
             rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=False),
-            articulation_props=PhysxArticulationRootPropertiesCfg(
-                articulation_enabled=False
-            ),
+            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(

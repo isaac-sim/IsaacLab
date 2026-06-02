@@ -12,6 +12,7 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from filelock import FileLock
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
@@ -29,7 +30,6 @@ from isaaclab.sim.utils import (
 )
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
