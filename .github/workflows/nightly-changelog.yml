@@ -173,6 +173,13 @@ jobs:
           python-version: "3.12"
 
       - name: Compile fragments
+        # Capture the compile exit code so the next step can commit/push
+        # whatever compiled successfully, then re-propagate the failure at
+        # the end. Without ``continue-on-error: true`` the workflow would
+        # short-circuit and discard the successful packages' on-disk state,
+        # which is exactly the wedge mode that motivated this design.
+        id: compile
+        continue-on-error: true
         run: |
           ARGS="--all"
           if [ "${{ inputs.dry_run }}" = "true" ]; then
@@ -182,7 +189,14 @@ jobs:
           python3 tools/changelog/cli.py compile $ARGS
 
       - name: Commit and push if fragments were compiled
-        if: ${{ !inputs.dry_run }}
+        # Fires when compile succeeded cleanly OR raised on at least one
+        # package (``continue-on-error: true`` above turned that conclusion
+        # to success while preserving the outcome — the surviving packages
+        # still ship). Explicitly NOT ``always()``: cancellation (timeout /
+        # maintainer cancel) leaves a partial on-disk state and the
+        # re-propagate step below wouldn't fire on ``outcome == 'cancelled'``,
+        # so this guard skips the commit/push entirely on cancel.
+        if: ${{ (success() || steps.compile.outcome == 'failure') && !inputs.dry_run }}
         env:
           # Pass the matrix branch through an env var rather than
           # interpolating ``${{ matrix.branch }}`` directly into ``run:``.
@@ -196,9 +210,15 @@ jobs:
           # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+          # ``pyproject.toml`` is staged alongside ``extension.toml`` because
+          # ``Package.write_version`` bumps both when a ``[project]`` block
+          # exists. Missing it leaves the pyproject write unstaged, which
+          # makes the subsequent ``git pull --rebase`` refuse with
+          # ``cannot pull with rebase: You have unstaged changes``.
           git add source/*/changelog.d/ \
                   source/*/docs/CHANGELOG.rst \
-                  source/*/config/extension.toml
+                  source/*/config/extension.toml \
+                  source/*/pyproject.toml
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
@@ -239,3 +259,13 @@ jobs:
             # write to the source ref of a workflow_dispatch run.
             git push origin "HEAD:refs/heads/$TARGET_BRANCH"
           fi
+
+      - name: Re-propagate compile failure
+        # ``continue-on-error: true`` above lets the commit/push step run on
+        # partial success, but the job tile must still stay red so the
+        # maintainer notices the failed package. This step re-asserts the
+        # original exit code AFTER successful packages have shipped.
+        if: ${{ steps.compile.outcome == 'failure' }}
+        run: |
+          echo "::error::One or more packages failed to compile (see the Compile fragments step above)."
+          exit 1
