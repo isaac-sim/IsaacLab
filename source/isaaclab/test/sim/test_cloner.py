@@ -380,9 +380,7 @@ def test_resolve_clone_plan_source_merges_same_template_rows(sim):
     plan = ClonePlan(
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor(
-            [[True, False, True, False], [False, True, False, True]], device=sim.cfg.device
-        ),
+        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]], device=sim.cfg.device),
     )
 
     # The union of both rows covers every env, so resolution succeeds and reports the first row's source.
@@ -397,9 +395,7 @@ def test_resolve_clone_plan_source_partial_coverage_raises(sim):
     plan = ClonePlan(
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor(
-            [[True, False, True, False], [False, True, False, False]], device=sim.cfg.device
-        ),
+        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
     )
 
     with pytest.raises(NotImplementedError, match="partial-env heterogeneous coverage"):

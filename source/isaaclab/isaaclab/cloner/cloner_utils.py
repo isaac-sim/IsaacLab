@@ -99,10 +99,7 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
     min_suffix_len = min(len(suffix) for _, suffix, _ in candidates)
     owning_templates = {template for template, suffix, _ in candidates if len(suffix) == min_suffix_len}
     if len(owning_templates) > 1:
-        raise ValueError(
-            f"path_expr {path_expr!r}: matches multiple destination templates"
-            f" {sorted(owning_templates)}."
-        )
+        raise ValueError(f"path_expr {path_expr!r}: matches multiple destination templates {sorted(owning_templates)}.")
     matching_template = next(iter(owning_templates))
     matching_rows = [index for template, _, index in candidates if template == matching_template]
     matching_suffix = next(suffix for template, suffix, _ in candidates if template == matching_template)
