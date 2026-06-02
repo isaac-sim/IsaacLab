@@ -238,6 +238,56 @@ def test_nested_hierarchy_world_poses(device):
 
 
 # ==================================================================
+# USD-only: Cross-space scale conversion under a scaled parent
+# ==================================================================
+#
+# These exercise the USD-specific world<->local scale math that the shared
+# contract suite cannot cover: the contract fixtures only expose a unit-scale
+# parent, and Newton has no independent local scale (local == world), so the
+# parent-aware conversions below are not universal invariants.  OvPhysxFrameView
+# inherits this behavior by delegating to UsdFrameView.
+
+
+def _make_scaled_parent_child_view(device, parent_scale, child_scale=None):
+    """Build a 1-prim view with a scaled parent (and optional authored child scale)."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Parent_0", "Xform", translation=PARENT_POS, scale=parent_scale, stage=stage)
+    child_kwargs = {} if child_scale is None else {"scale": child_scale}
+    sim_utils.create_prim("/World/Parent_0/Child", "Xform", translation=CHILD_OFFSET, stage=stage, **child_kwargs)
+    return FrameView("/World/Parent_.*/Child", device=device)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_set_local_scales_then_get_world_scales(device):
+    """Under a scaled parent, world scale == parent_scale * local_scale."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
+    local_scales = wp.array([wp.vec3f(3.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
+    view.set_local_scales(local_scales)
+
+    world_scales = view.get_world_scales().torch
+    expected = torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(world_scales, expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_set_world_scales_then_get_local_scales(device):
+    """Under a scaled parent, set_world_scales writes local = world / parent_scale."""
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
+    world_scales = wp.array([wp.vec3f(6.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
+    view.set_world_scales(world_scales)
+
+    local_scales = view.get_local_scales().torch
+    expected = torch.tensor([[3.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(local_scales, expected, atol=1e-5, rtol=0)
+
+
+# ==================================================================
 # USD-only: Comparison with Isaac Sim
 # ==================================================================
 
