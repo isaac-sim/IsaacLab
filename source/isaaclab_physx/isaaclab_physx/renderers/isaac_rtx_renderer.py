@@ -17,7 +17,7 @@ import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -160,10 +160,32 @@ class IsaacRtxRenderer(BaseRenderer):
 
         return specs
 
-    def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """No-op for Isaac RTX - uses USD scene directly without export.
+    def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
+        """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
+
+        For each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
+        non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
+        RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
+        geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
-        pass
+        root_layer = stage.GetRootLayer()
+        token_type = Sdf.ValueTypeNames.Token
+        with Sdf.ChangeBlock():
+            for env_idx in range(num_envs):
+                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+                if not env_prim.IsValid():
+                    continue
+                token = f"env_{env_idx}"
+                for prim in Usd.PrimRange(env_prim):
+                    if prim == env_prim:
+                        attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
+                    elif prim.IsA(UsdGeom.Camera):
+                        attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
+                    else:
+                        continue
+                    Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, token_type, Sdf.VariabilityUniform, True)
+                    root_layer.GetAttributeAtPath(attr_path).default = token
 
     def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
