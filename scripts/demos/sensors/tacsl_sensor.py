@@ -19,7 +19,8 @@ tactile sensing with the GelSight finger setup.
         --num_envs 16 \
         --contact_object_type nut \
         --save_viz \
-        --enable_cameras
+        --enable_cameras \
+        --viz kit/newton
 
 """
 
@@ -123,11 +124,13 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.001, rest_offset=-0.0005),
+            collision_props=sim_utils.CollisionPropertiesCfg(
+                contact_offset=0.001, rest_offset=-0.0005
+            ),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            rot=(math.sqrt(2) / 2, -math.sqrt(2) / 2, 0.0, 0.0),  # 90° rotation
+            rot=(-math.sqrt(2) / 2, 0.0, 0.0, math.sqrt(2) / 2),  # 90° rotation
             joint_pos={},
             joint_vel={},
         ),
@@ -139,7 +142,6 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
     # TacSL Tactile Sensor
     tactile_sensor = VisuoTactileSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
-        history_length=0,
         debug_vis=args_cli.debug_tactile_sensor_pts or args_cli.debug_sdf_closest_pts,
         # Sensor configuration
         render_cfg=GELSIGHT_R15_CFG,
@@ -185,7 +187,7 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0 + 0.06776, 0.51), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0 + 0.06776, 0.51), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
 
@@ -210,7 +212,7 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.0, 0.0 + 0.06776, 0.498),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
         ),
     )
 
@@ -382,12 +384,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
+    from isaaclab_physx.physics import PhysxCfg
+
     # Initialize simulation
     # Note: We set the gpu_collision_stack_size to prevent buffer overflow in contact-rich environments.
     sim_cfg = sim_utils.SimulationCfg(
         dt=0.005,
         device=args_cli.device,
-        physx=sim_utils.PhysxCfg(gpu_collision_stack_size=2**30),
+        physics=PhysxCfg(gpu_collision_stack_size=2**30),
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
@@ -414,8 +418,20 @@ def main():
 
     scene = InteractiveScene(scene_cfg)
 
+
     # Initialize simulation
     sim.reset()
+
+    # The tactile RGB path internally uses an RTX camera that may request only non-color render products.
+    # Isaac RTX can disable color rendering for that case, which makes the Kit viewport black even though
+    # the sensor images are produced correctly. Keep color rendering enabled when a Kit viewport is active.
+    visualizers = args_cli.visualizer
+    if isinstance(visualizers, str):
+        visualizers = [token.strip() for token in visualizers.split(",")]
+    if args_cli.use_tactile_rgb and "kit" in visualizers:
+        print("[INFO]: Keeping RTX color rendering enabled for Kit viewport visualization.")
+        sim.set_setting("/rtx/sdg/force/disableColorRender", False)
+
     print("[INFO]: Setup complete...")
 
     # Get initial render
