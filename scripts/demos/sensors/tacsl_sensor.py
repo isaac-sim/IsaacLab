@@ -20,7 +20,7 @@ tactile sensing with the GelSight finger setup.
         --contact_object_type nut \
         --save_viz \
         --enable_cameras \
-        --viz kit/newton
+        --viz kit/newton 
 
 """
 
@@ -69,8 +69,6 @@ parser.add_argument(
 
 # Append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
 # Parse the arguments
 args_cli = parser.parse_args()
 
@@ -86,7 +84,12 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.timer import Timer
+from isaaclab_physx.sim.schemas import (
+    PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionPropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+)
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
@@ -112,19 +115,19 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyPropertiesCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
             ),
             compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
             compliant_contact_damping=args_cli.tactile_compliant_damping,
             physics_material_prim_path="elastomer",
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            articulation_props=PhysxArticulationRootPropertiesCfg(
                 enabled_self_collisions=False,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
+            collision_props=PhysxCollisionPropertiesCfg(
                 contact_offset=0.001, rest_offset=-0.0005
             ),
         ),
@@ -181,10 +184,10 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
         prim_path="{ENV_REGEX_NS}/contact_object",
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.00327211),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            collision_props=PhysxCollisionPropertiesCfg(),
+            physics_material=PhysxRigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.1, 0.1)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0 + 0.06776, 0.51), rot=(0.0, 0.0, 0.0, 1.0)),
@@ -200,15 +203,15 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
         prim_path="{ENV_REGEX_NS}/contact_object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyPropertiesCfg(
                 disable_gravity=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
                 max_angular_velocity=180.0,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=False),
+            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.005, rest_offset=0),
+            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.0, 0.0 + 0.06776, 0.498),
@@ -321,10 +324,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     nrows = scene["tactile_sensor"].cfg.tactile_array_size[0]
     ncols = scene["tactile_sensor"].cfg.tactile_array_size[1]
 
-    physics_timer = Timer()
-    physics_total_time = 0.0
-    physics_total_count = 0
-
     entity_list = ["robot"]
     if "contact_object" in scene.keys():
         entity_list.append("contact_object")
@@ -351,15 +350,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 even_mask = env_indices % 2 == 0
                 torque_tensor[odd_mask, 0, 2] = 10  # rotation for odd environments
                 torque_tensor[even_mask, 0, 2] = -10  # rotation for even environments
-                scene["contact_object"].permanent_wrench_composer.set_forces_and_torques(force_tensor, torque_tensor)
+                scene["contact_object"].permanent_wrench_composer.set_forces_and_torques_index(
+                    forces=force_tensor, torques=torque_tensor
+                )
 
         # Step simulation
         scene.write_data_to_sim()
-        physics_timer.start()
         sim.step()
-        physics_timer.stop()
-        physics_total_time += physics_timer.total_run_time
-        physics_total_count += 1
         sim_time += sim_dt
         count += 1
         scene.update(sim_dt)
@@ -369,17 +366,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
         if args_cli.save_viz:
             save_viz_helper(dir_path_list, count, tactile_data, num_envs, nrows, ncols)
-
-    # Get timing summary from sensor and add physics timing
-    timing_summary = scene["tactile_sensor"].get_timing_summary()
-
-    # Add physics timing to the summary
-    physics_avg = physics_total_time / (physics_total_count * scene.num_envs) if physics_total_count > 0 else 0.0
-    timing_summary["physics_total"] = physics_total_time
-    timing_summary["physics_average"] = physics_avg
-    timing_summary["physics_fps"] = 1 / physics_avg if physics_avg > 0 else 0.0
-
-    print(timing_summary)
 
 
 def main():
@@ -396,7 +382,7 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Set main camera
-    sim.set_camera_view(eye=[0.5, 0.6, 1.0], target=[-0.1, 0.1, 0.5])
+    sim.set_camera_view(eye=(0.5, 0.6, 1.0), target=(-0.1, 0.1, 0.5))
 
     # Create scene based on contact object type
     if args_cli.contact_object_type == "cube":
