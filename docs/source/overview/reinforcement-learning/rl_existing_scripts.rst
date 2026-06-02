@@ -19,12 +19,12 @@ See :doc:`/source/features/hydra` for all available names and how the selectors 
 
    # Switch renderer (camera environments)
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
+       --task Isaac-Cartpole-Camera-Direct --headless \
        --enable_cameras renderer=newton_renderer
 
    # Combine selectors freely
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
+       --task Isaac-Cartpole-Camera-Direct --headless \
        --enable_cameras physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 .. note::

@@ -63,16 +63,19 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank rendering.
 # The max different pixels percentage is set based on the screen space taken up by the env.
+# The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
+# ``None`` uses the default.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", "cartpole"),
-    ("Isaac-Cartpole-Camera-Presets-Direct-v0", "cartpole"),
-    ("Isaac-Cartpole-Depth-Camera-Direct-v0", "cartpole"),
-    ("Isaac-Cartpole-RGB-Camera-Direct-v0", "cartpole"),
-    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", "cartpole"),
-    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", "cartpole"),
-    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "depth", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
     pytest.param(
         "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+        None,
         "shadow_hand",
         # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
         # exceeds the 3% diff threshold by a fraction of a percent. Allow up to 3 attempts and
@@ -82,15 +85,19 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 ]
 
 
-@pytest.mark.parametrize("task_id, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-def test_rendering_registered_tasks(task_id: str, env_name: str):
+@pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
+def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str):
     """Test registered tasks rendering correctness."""
     env = None
 
     try:
-        from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+        from isaaclab_tasks.utils.hydra import resolve_presets
+        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-        env_cfg = parse_env_cfg(task_id, num_envs=4)
+        env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        env_cfg = resolve_presets(env_cfg, {presets} if presets else frozenset())
+        env_cfg.sim.device = "cuda:0"
+        env_cfg.scene.num_envs = 4
 
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped

@@ -11,7 +11,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
 from isaaclab_tasks.utils import PresetCfg
 
 

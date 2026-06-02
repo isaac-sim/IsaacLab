@@ -1,6 +1,134 @@
 Changelog
 ---------
 
+6.2.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Auto-install ``libgl1-mesa-dev``, ``libopengl-dev``, ``libglx-dev``,
+  ``libx11-dev``, ``libxcursor-dev``, ``libxi-dev``, ``libxinerama-dev``,
+  and ``libxrandr-dev`` on ARM when sudo is available, so
+  ``./isaaclab.sh -i`` can build ``imgui-bundle`` from source without a
+  separate provisioning step.
+* Added the ``train_multigpu`` entry point for launching distributed RL training with
+  ``torch.distributed.run`` or the skrl JAX distributed launcher.
+*  Updates tendon randomization events to support newton tendons
+*  Adds support to modify MJC usd schema
+* Added :func:`~isaaclab.utils.string.compile_template_pattern` to compile a slotted template
+  (with ``{}`` slots expanding to a caller-provided regex fragment) into a regular expression.
+* Added :func:`~isaaclab.utils.string.strip_templated_prefix` to strip a templated prefix
+  (with ``{}`` slots matching one path segment each) from a string and return the remainder.
+* Added multi-GPU troubleshooting documentation describing the NCCL hang that can occur when
+  ``CUDA_VISIBLE_DEVICES`` selects a subset of a node's GPUs, including the
+  ``NCCL_P2P_DISABLE=1`` workaround and an explanation of why it is not needed when all GPUs
+  are visible.
+* Added the ``expected_num_matches`` argument to
+  :func:`~isaaclab.sim.utils.get_all_matching_child_prims` to validate match counts.
+* Added the ``raise_if_no_matches`` argument to
+  :func:`~isaaclab.sim.utils.resolve_matching_prims_from_source` to allow callers to opt out of
+  the default no-match error.
+* Added Kit version, kernel version, and git hash logging to :class:`~isaaclab.app.AppLauncher` startup.
+* Added the ``rl-games`` optional dependency to the ``isaaclab`` wheel and
+  included it in the wheel's ``all`` extra.
+* Added :attr:`~isaaclab.managers.EventTermCfg.resample_interval_on_reset` to allow ``"interval"``
+  event terms to keep their per-environment timer across resets while still firing asynchronously
+  per environment. Defaults to ``True`` to preserve the existing behavior.
+
+Changed
+^^^^^^^
+
+* Renamed the ``./isaaclab.sh -i none`` core-only install selector to
+  ``./isaaclab.sh -i core`` for clarity (the install still ships the
+  core submodules, so ``"core"`` describes the result better than
+  ``"none"``).
+* ``./isaaclab.sh -i mimic`` now also installs ``isaaclab_teleop`` as an editable
+  submodule, since :mod:`isaaclab_mimic` declares it as a required dependency.
+* Replaced third-party ``toml`` dependency with stdlib :mod:`tomllib` in
+  :class:`~isaaclab.sim.SimulationContext` and its test, removing an undeclared
+  runtime dependency.
+* Migrated package build declaration from ``setup.py`` to ``pyproject.toml``
+  only; no public API changes.
+* :data:`~isaaclab.ISAACLAB_EXT_DIR` and :data:`~isaaclab.ISAACLAB_METADATA`
+  are preserved; they now read ``config/extension.toml`` via :mod:`tomllib`
+  instead of the removed ``toml`` package.
+* Moved test dependencies (``pytest``, ``pytest-mock``, ``junitparser``,
+  ``flatdict``, ``flaky``) from base ``install_requires`` to the new
+  ``test`` optional extra. Install with ``pip install isaaclab[test]``
+  to get the full test environment.
+* Updated shared visualizer tiled camera defaults for the visualizer integration test coverage.
+* Updated installation, quickstart, and pip documentation to match ``./isaaclab.sh -i``
+  install tokens and pip wheel extras.
+* Regenerated the environments overview table from task configuration metadata.
+
+Fixed
+^^^^^
+
+* Fixed ``scripts/tutorials/01_assets/add_new_robot.py`` failing at the Jetbot
+  velocity-target setter when the action was a CPU ``torch.Tensor``. The
+  tutorial now allocates the wheel-velocity templates on ``sim.device`` and
+  uses :meth:`~isaaclab.assets.BaseArticulation.set_joint_velocity_target_index`.
+* Restricted the ``pytetwild`` install requirement to x86_64 platforms.
+  PyPI ships no aarch64 wheel and the sdist build fails on ARM
+  (``-m64`` hardcoded in CMake), which broke the ARM64 docker image
+  build.  Tetrahedralization of volume deformables now degrades
+  gracefully on ARM64 with the existing "install pytetwild" message
+  instead of failing the install outright.
+* Made ``./isaaclab.sh -i`` skip the ARM-only swig auto-install when
+  ``sudo`` is unavailable instead of crashing with a ``FileNotFoundError``.
+  Users on locked-down ARM containers can now run the install and
+  pre-provision swig themselves if they need to build nlopt from source.
+* Fixed lazy-eval sensors (contact, IMU, PVA, joint-wrench across PhysX and Newton)
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each step-dependent sensor's
+  update kernel now skips envs whose ``timestamp`` is still ``0`` (the signal that no
+  physics step has occurred since the last reset), so the next ``data`` access returns
+  the values that the sensor's ``reset()`` populated rather than re-reading a physics
+  buffer that holds pre-reset values.
+* Fixed ``--viz none`` parsing to use the internal disable-all sentinel.
+* Fixed Kit launches hiding Isaac Lab Python ``INFO`` logs, including joint
+  wrench sensor initialization messages.
+* Fixed translational Jacobian drift in
+  :meth:`~isaaclab.envs.mdp.actions.DifferentialInverseKinematicsAction._compute_frame_jacobian`
+  when called multiple times per step with non-``None`` ``body_offset``.
+* Fixed Hydra space deserialization for direct MARL environment configs so
+  per-agent observation and action spaces remain populated for skrl multi-agent
+  wrappers.
+* Fixed :func:`~isaaclab.envs.mdp.body_projected_gravity_b` to normalize
+  ``GRAVITY_VEC_W`` before projecting it into the body frame, so the observation
+  stays a unit direction when the Newton backend exposes gravity as a raw
+  m/s\ :sup:`2` vector. This is a no-op for the PhysX/OvPhysX backends, whose
+  ``GRAVITY_VEC_W`` is already unit length.
+* Fixed Newton replicated-scene cloning so source clone plans are available
+  before sensor construction and asset USD replication is skipped for Newton
+  physics replication.
+* Fixed ignored shutdown traceback from environment destructors when Python import
+  machinery has already finalized.
+* Fixed :class:`~isaaclab.sim.converters.MjcfConverter` to enable the Isaac Sim MJCF importer
+  extension before importing MJCF assets.
+* Fixed module-import-time ``from pxr import …`` in :mod:`isaaclab.sim.simulation_context`,
+  :mod:`isaaclab.assets.asset_base`, :mod:`isaaclab.scene.interactive_scene`,
+  :mod:`isaaclab.sim.spawners.from_files.from_files`, :mod:`isaaclab.sim.utils.prims`,
+  :mod:`isaaclab.sim.utils.queries`, :mod:`isaaclab.sim.utils.semantics`,
+  :mod:`isaaclab.sim.utils.stage`, and :mod:`isaaclab.sim.utils.transforms`.  Previously,
+  ``from isaaclab.assets import Articulation`` or ``from isaaclab.sim import SimulationContext``
+  forced ``pxr`` (USD) into ``sys.modules`` before :class:`~isaaclab.app.AppLauncher`,
+  which broke Kit's USD binding registration with a cascade of
+  ``TfNotice`` / ``UsdAPISchemaBase`` / ``GfVec3f`` converter errors during
+  ``SimulationApp.startup``.  Kit-less env-cfg parsing followed by ``--visualizer kit``
+  now succeeds without any pxr modules preloaded.  Type hints stay under
+  ``TYPE_CHECKING``; where pxr is used at runtime, the ``from pxr import …`` is deferred
+  into the function body that needs it.
+* Fixed the pip wheel build so that extensions promoted to top-level packages
+  (e.g. ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_rl``) keep their
+  ``config/extension.toml`` under ``isaaclab/source/`` where the bundled Kit
+  experience files search for them. Without this, launching a Kit app from the
+  wheel failed during dependency resolution with
+  ``isaaclab_assets ... (none found)`` before the simulator started.
+
+
 6.1.0 (2026-05-21)
 ~~~~~~~~~~~~~~~~~~
 

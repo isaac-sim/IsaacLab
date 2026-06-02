@@ -62,7 +62,7 @@ only in RGB mode, run
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
-   --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
+   --task Isaac-Cartpole --num_tiled_cameras 100 \
    --task_num_cameras_per_env 2 \
    --tiled_camera_data_types rgb
 
@@ -75,7 +75,7 @@ you can run with cartpole, you could run:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
-   --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
+   --task Isaac-Cartpole --num_tiled_cameras 100 \
    --task_num_cameras_per_env 2 \
    --tiled_camera_data_types rgb --autotune \
    --autotune_max_percentage_util 100 80 50 50

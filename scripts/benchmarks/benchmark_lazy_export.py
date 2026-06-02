@@ -46,7 +46,7 @@ with warnings.catch_warnings():
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _REPRESENTATIVE_TASKS = [
-    "Isaac-Cartpole-v0",
+    "Isaac-Cartpole",
     "Isaac-Humanoid-v0",
     "Isaac-Velocity-Flat-Anymal-D-v0",
     "Isaac-Reach-Franka-v0",

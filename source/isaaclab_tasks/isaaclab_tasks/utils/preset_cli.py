@@ -193,7 +193,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
-        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-v0"``).
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole"``).
 
     Returns:
         A mapping ``{PresetTarget: sorted list of preset names}`` on success.

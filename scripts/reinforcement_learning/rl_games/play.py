@@ -10,7 +10,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/rl_games/play.py is deprecated. Use "
     "`./isaaclab.sh play --rl_library rl_games --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library rl_games --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh play --rl_library rl_games --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )

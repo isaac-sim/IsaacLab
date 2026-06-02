@@ -56,7 +56,7 @@ from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 
 def test_is_training_task_filters_inference_variants():
-    assert is_training_task("Isaac-Cartpole-v0")
+    assert is_training_task("Isaac-Cartpole")
     assert not is_training_task("Isaac-Cartpole-Play-v0")
     assert not is_training_task("Isaac-Assemble-Trocar-G129-Dex3-Eval-v0")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0")
@@ -110,7 +110,7 @@ def test_find_inference_task_name_supports_play_and_eval():
         find_inference_task_name("Isaac-Assemble-Trocar-G129-Dex3-v0", registry_ids)
         == "Isaac-Assemble-Trocar-G129-Dex3-Eval-v0"
     )
-    assert find_inference_task_name("Isaac-Cartpole-v0", registry_ids) is None
+    assert find_inference_task_name("Isaac-Cartpole", registry_ids) is None
 
 
 def test_format_presets_rst_single_and_multi_line():
@@ -172,8 +172,8 @@ def test_physics_names_for_docs_infers_physx_from_default():
 def test_collect_environment_doc_rows_from_mock_specs():
     specs = [
         EnvSpec(
-            id="Isaac-Cartpole-Direct-v0",
-            entry_point="isaaclab_tasks.core.direct_cartpole.cartpole_env:CartpoleEnv",
+            id="Isaac-Cartpole-Direct",
+            entry_point="isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv",
             kwargs={
                 "env_cfg_entry_point": "cfg:CartpoleEnvCfg",
                 "rl_games_cfg_entry_point": "agents:rl_games_ppo_cfg.yaml",
@@ -184,13 +184,13 @@ def test_collect_environment_doc_rows_from_mock_specs():
         ),
         EnvSpec(
             id="Isaac-Cartpole-Direct-Play-v0",
-            entry_point="isaaclab_tasks.core.direct_cartpole.cartpole_env:CartpoleEnv",
+            entry_point="isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv",
             kwargs={"env_cfg_entry_point": "cfg:CartpoleEnvCfg_PLAY"},
         ),
     ]
     rows = collect_environment_doc_rows(specs)
     assert len(rows) == 1
-    assert rows[0].task_name == "Isaac-Cartpole-Direct-v0"
+    assert rows[0].task_name == "Isaac-Cartpole-Direct"
     assert rows[0].inference_task_name == "Isaac-Cartpole-Direct-Play-v0"
     assert rows[0].workflow == "Direct"
     assert "sb3" in rows[0].rl_libraries
@@ -260,7 +260,7 @@ def test_render_comprehensive_list_table_includes_header():
             collect_environment_doc_rows(
                 [
                     EnvSpec(
-                        id="Isaac-Cartpole-v0",
+                        id="Isaac-Cartpole",
                         entry_point="isaaclab.envs:ManagerBasedRLEnv",
                         kwargs={
                             "env_cfg_entry_point": "cfg:CartpoleEnvCfg",
@@ -272,5 +272,5 @@ def test_render_comprehensive_list_table_includes_header():
         ]
     )
     assert "**Task Name**" in table
-    assert "Isaac-Cartpole-v0" in table
+    assert "Isaac-Cartpole" in table
     assert format_rl_libraries({"rsl_rl": ["PPO"]}) in table

@@ -53,7 +53,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # Test environment - use Cartpole as it's simple and fast
-TEST_ENV = "Isaac-Cartpole-v0"
+TEST_ENV = "Isaac-Cartpole"
 NUM_ENVS = 4
 
 

@@ -15,7 +15,7 @@ import sys
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import compute_kit_requirements, resolve_task_config
 
-_CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Presets-Direct-v0"
+_CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 
 def _resolve_with_presets(presets: str):

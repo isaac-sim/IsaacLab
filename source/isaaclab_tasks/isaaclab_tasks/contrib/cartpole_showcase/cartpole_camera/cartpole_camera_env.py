@@ -8,8 +8,8 @@ from __future__ import annotations
 import gymnasium as gym
 import torch
 
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleRGBCameraEnvCfg
 
 
 class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
