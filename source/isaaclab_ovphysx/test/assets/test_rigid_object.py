@@ -55,6 +55,8 @@ from isaaclab.utils.math import (  # noqa: E402
 
 wp.init()
 
+pytestmark = pytest.mark.device_split
+
 _logger = logging.getLogger(__name__)
 
 

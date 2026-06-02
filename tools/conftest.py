@@ -445,6 +445,11 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
     """
     if prev is None:
         return new
+    passes = []
+    for status in (prev, new):
+        for pass_name in status.get("passes", []):
+            if pass_name not in passes:
+                passes.append(pass_name)
     return {
         "errors": prev["errors"] + new["errors"],
         "failures": prev["failures"] + new["failures"],
@@ -452,6 +457,7 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
         "tests": prev["tests"] + new["tests"],
         "time_elapsed": prev["time_elapsed"] + new["time_elapsed"],
         "wall_time": prev["wall_time"] + new["wall_time"],
+        "passes": passes,
         "result": prev["result"]
         if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
         else new["result"],
@@ -781,6 +787,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         merged_status: dict | None = None
         for suffix, k_expr in passes:
             report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
+            status["passes"] = [suffix.lstrip("-") or "single"]
             if report is not None:
                 xml_reports.append(report)
             if was_failure and test_file not in failed_tests:
@@ -1016,7 +1023,7 @@ def pytest_sessionstart(session):
     summary_str += "Per Test Result Summary\n"
     summary_str += "=======================\n"
 
-    per_test_result_table = PrettyTable(field_names=["Test Path", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    per_test_result_table = PrettyTable(field_names=["Test Path", "Result", "Runs", "Test (s)", "Wall (s)", "# Tests"])
     per_test_result_table.align["Test Path"] = "l"
     per_test_result_table.align["Test (s)"] = "r"
     per_test_result_table.align["Wall (s)"] = "r"
@@ -1031,6 +1038,7 @@ def pytest_sessionstart(session):
             [
                 test_path,
                 test_status[test_path]["result"],
+                "+".join(test_status[test_path].get("passes", ["single"])),
                 f"{test_status[test_path]['time_elapsed']:0.2f}",
                 f"{test_status[test_path]['wall_time']:0.2f}",
                 f"{num_tests_passed}/{test_status[test_path]['tests']}",
