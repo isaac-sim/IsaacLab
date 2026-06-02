@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.54.4 (2026-06-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Pink IK controller (:class:`~isaaclab.controllers.pink_ik.PinkIKController`)
+  producing a fixed ~26 mm end-effector offset that broke
+  ``test/controllers/test_pink_ik.py`` in CI. ``qpsolvers`` 4.12.0 enabled DAQP warm
+  starts, which require the ``primal_start`` argument that ``daqp`` only exposes from
+  0.8.0 onward; the pinned ``daqp==0.7.2`` lacked it. Bumped the pin to ``daqp==0.8.5``.
+
+
 0.54.3 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~
 
