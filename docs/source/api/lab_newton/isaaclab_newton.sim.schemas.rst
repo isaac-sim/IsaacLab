@@ -21,6 +21,7 @@ isaaclab_newton.sim.schemas
     NewtonJointDrivePropertiesCfg
     NewtonCollisionPropertiesCfg
     NewtonMeshCollisionPropertiesCfg
+    NewtonSDFCollisionPropertiesCfg
     NewtonMaterialPropertiesCfg
     NewtonArticulationRootPropertiesCfg
 
@@ -79,6 +80,11 @@ Collision
     :exclude-members: __init__
 
 .. autoclass:: NewtonMeshCollisionPropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: NewtonSDFCollisionPropertiesCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__

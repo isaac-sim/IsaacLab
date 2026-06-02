@@ -55,6 +55,7 @@ _NEWTON_FORWARDS = frozenset(
         "NewtonMeshCollisionPropertiesCfg",
         "NewtonMaterialPropertiesCfg",
         "NewtonArticulationRootPropertiesCfg",
+        "NewtonSDFCollisionPropertiesCfg",
     }
 )
 
