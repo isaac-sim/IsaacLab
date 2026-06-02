@@ -28,13 +28,14 @@ parser = argparse.ArgumentParser(
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
-parser.add_argument("--visualizer", default="kit", choices=["kit", "newton"], help="Visualizer backend.")
 add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
 import numpy as np
 import torch
+
+import isaaclab.sim as sim_utils
 
 ##
 # Pre-defined configs
@@ -66,8 +67,6 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
 
 def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
-    import isaaclab.sim as sim_utils
-
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -185,8 +184,6 @@ def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tenso
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        import isaaclab.sim as sim_utils
-
         dt = 1 / 200
         sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(
