@@ -18,6 +18,8 @@ This script demonstrates the visualizer tiled camera panel.
 
 """
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import sys
@@ -147,6 +149,11 @@ def main():
 
         # keep stepping until all visualizer windows have been closed
         sim = env.unwrapped.sim
+        if not sim.visualizers:
+            print("[WARN]: No visualizers found. Exiting.")
+            env.close()
+            return
+
         while True:
             if sim.visualizers and not any(v.is_running() and not v.is_closed for v in sim.visualizers):
                 break
