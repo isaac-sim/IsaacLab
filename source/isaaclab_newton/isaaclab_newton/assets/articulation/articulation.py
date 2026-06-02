@@ -3398,7 +3398,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data._sim_bind_joint_stiffness_sim,
+                    self.data._actuator_stiffness,
                 ],
                 device=self.device,
             )
@@ -3411,7 +3411,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data._sim_bind_joint_damping_sim,
+                    self.data._actuator_damping,
                 ],
                 device=self.device,
             )
