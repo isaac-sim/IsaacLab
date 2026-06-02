@@ -20,7 +20,7 @@ gym.register(
     entry_point=f"{__name__}.cartpole_warp_env:CartpoleWarpEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_warp_env:CartpoleWarpEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_warp_env_cfg:CartpoleWarpEnvCfg",
         "rl_games_cfg_entry_point": f"{stable_agents}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{stable_agents}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "skrl_cfg_entry_point": f"{stable_agents}:skrl_ppo_cfg.yaml",

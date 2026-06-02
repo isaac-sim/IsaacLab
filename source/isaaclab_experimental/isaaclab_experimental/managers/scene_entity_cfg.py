@@ -11,11 +11,15 @@ with the stable manager stack (which type-checks against the stable SceneEntityC
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _SceneEntityCfg
-from isaaclab.scene import InteractiveScene
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 
 class SceneEntityCfg(_SceneEntityCfg):
