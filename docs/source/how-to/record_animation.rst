@@ -54,7 +54,7 @@ In standalone Isaac Lab environments, pass the ``--disable_fabric`` flag:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric
+  ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric --viz kit
 
 After launching, the Isaac Lab UI window will display a "Record Animation" button.
 Click to begin recording. Click again to stop.
