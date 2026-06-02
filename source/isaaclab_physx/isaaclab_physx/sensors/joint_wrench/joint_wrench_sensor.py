@@ -25,7 +25,7 @@ from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.api as physx
+    import omni.physics.tensors as physx
 
     from isaaclab.sensors.joint_wrench import JointWrenchSensorCfg
 

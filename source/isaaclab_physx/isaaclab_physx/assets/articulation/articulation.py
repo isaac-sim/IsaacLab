@@ -45,7 +45,7 @@ from .articulation_data import ArticulationData
 if TYPE_CHECKING:
     from isaaclab_newton.actuators import NewtonActuatorAdapter
 
-    import omni.physics.tensors.api as physx
+    import omni.physics.tensors as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
