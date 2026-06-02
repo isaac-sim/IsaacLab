@@ -88,9 +88,9 @@ def _make_newton_visualizer_cfg():
     visualizer_cfg.tiled_cam_view = True
     visualizer_cfg.tiled_cam_num = 12
     # Here are other robot mounted camera options for this environment
-    # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/left_camera"
+    # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/left_arm_camera_sim_view_frame/left_camera"
     # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/right_camera"
-    visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/head_camera"
+    visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/head_camera_sim_view_frame/head_camera"
     visualizer_cfg.tiled_cam_eye = None
     visualizer_cfg.tiled_cam_target_prim_path = None
     return visualizer_cfg
