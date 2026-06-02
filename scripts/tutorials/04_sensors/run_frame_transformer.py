@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
 
 """
 
@@ -27,7 +27,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -36,7 +36,11 @@ import math
 
 import torch
 
-import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
+from isaacsim.core.experimental.utils.app import enable_extension
+
+enable_extension("isaacsim.util.debug_draw")
+
+from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -51,6 +55,9 @@ from isaaclab.sim import SimulationContext
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
+ROBOT_PRIM_PATH = "/World/envs/env_0/Robot"
+ROBOT_PRIM_PATH_EXPR = "/World/envs/env_.*/Robot"
+
 
 def define_sensor() -> FrameTransformer:
     """Defines the FrameTransformer sensor to add to the scene."""
@@ -60,11 +67,11 @@ def define_sensor() -> FrameTransformer:
 
     # Example using .* to get full body + LF_FOOT
     frame_transformer_cfg = FrameTransformerCfg(
-        prim_path="/World/Robot/base",
+        prim_path=f"{ROBOT_PRIM_PATH_EXPR}/base",
         target_frames=[
-            FrameTransformerCfg.FrameCfg(prim_path="/World/Robot/.*"),
+            FrameTransformerCfg.FrameCfg(prim_path=f"{ROBOT_PRIM_PATH_EXPR}/.*"),
             FrameTransformerCfg.FrameCfg(
-                prim_path="/World/Robot/LF_SHANK",
+                prim_path=f"{ROBOT_PRIM_PATH_EXPR}/LF_SHANK",
                 name="LF_FOOT_USER",
                 offset=OffsetCfg(pos=tuple(pos_offset.tolist()), rot=tuple(rot_offset[0].tolist())),
             ),
@@ -86,7 +93,7 @@ def design_scene() -> dict:
     cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
     # -- Robot
-    robot = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Robot"))
+    robot = Articulation(ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH))
     # -- Sensors
     frame_transformer = define_sensor()
 

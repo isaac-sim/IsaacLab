@@ -9,7 +9,7 @@ This script demonstrates how to use the ray-caster sensor.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
 
 """
 
