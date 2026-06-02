@@ -46,7 +46,7 @@ Expected behavior:
 Known failure modes:
 
 - Uses `physics=` for a camera data-type preset.
-- Forgets `--enable_cameras` in command examples.
+- Omits the `renderer=` selector for a camera task.
 - Leaves observation shape unchanged when switching RGB to depth.
 
 ## Scenario 4: Discover Available Options

@@ -99,6 +99,6 @@ In Isaac Lab, first migrate the direct task until it runs with the maintained ba
 
 ## Result
 
-The migration skill is actionable for a non-toy rough-terrain locomotion task. The direct-first path remains valid because Isaac Lab has a maintained direct rough Anymal-C task at `source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/`.
+The migration skill is actionable for a non-toy rough-terrain locomotion task. The direct-first path remains valid because Isaac Lab has a direct rough Anymal-C task at `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`.
 
 This validation also shows the limits of direct copying: terrain generation, sensor models, observation layout, randomization timing, and PhysX/Newton support must be mapped deliberately through Isaac Lab docs and maintained source.

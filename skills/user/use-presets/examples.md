@@ -90,8 +90,8 @@ Command examples:
 For camera tasks that expose physics, renderer, and data-type variants, combine selectors:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct-v0 --num_envs 4 physics=physx renderer=isaacsim_rtx_renderer presets=rgb --enable_cameras
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct-v0 --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth --enable_cameras
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct-v0 --num_envs 4 physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct-v0 --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth
 ```
 
 Before using a name, list the task's exposed presets:
@@ -104,6 +104,6 @@ Before using a name, list the task's exposed presets:
 
 Inspect these maintained examples before adding new preset patterns:
 
-- `source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_c/flat_env_cfg.py`
-- `source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/go1/flat_env_cfg.py`
-- `source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_presets_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/cartpole_camera_presets_env_cfg.py`

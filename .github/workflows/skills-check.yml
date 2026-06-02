@@ -41,6 +41,3 @@ jobs:
 
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
-
-      - name: Compile skills validator
-        run: python3 -m py_compile tools/skills/cli.py tools/skills/test/test_validate.py

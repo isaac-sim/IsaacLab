@@ -158,6 +158,8 @@ Skills should not become parallel documentation. The source of truth is the Isaa
 
 Each skill must include a ``Maintenance`` section that names the authoritative files to review when code changes. When a skill needs documentation-level content, update the official docs first and link to them from the skill.
 
+Keep the link bidirectional. When a documentation page under ``docs/source/`` is the source of truth for a skill, add a ``.. seealso::`` admonition near the top of that page that names the skill and links back to it. This reminds documentation authors to update the associated skill in the same change, so the two never drift apart. Treat a missing back-link as a review issue whenever a skill's ``Maintenance`` section names a documentation page.
+
 Use these rules during review:
 
 * Reject large copied API tables or standalone install guides when official docs already cover the topic.

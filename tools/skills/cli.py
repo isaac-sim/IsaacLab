@@ -30,6 +30,7 @@ NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
 HEADING_RE = re.compile(r"^## (?P<title>.+?)\s*$", re.MULTILINE)
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\((?P<target>[^)]+)\)")
 BACKTICK_PATH_RE = re.compile(r"`(?P<path>(?:docs|source|scripts|skills|tools|\.github)/[^`\s]+)`")
+CROSS_SKILL_RE = re.compile(r"`(?P<name>isaaclab-[a-z0-9-]+)`")
 XML_TAG_RE = re.compile(r"<[^>]+>")
 WINDOWS_PATH_RE = re.compile(r"(?<!`)[A-Za-z0-9_.-]+\\[A-Za-z0-9_.-]+")
 SCENARIO_RE = re.compile(r"^#{2,3} (?P<title>Scenario\b.*)$", re.MULTILINE)
@@ -252,7 +253,7 @@ class Skill:
             errors.append(f"{_display_path(self.path)}: user-facing skills must include evaluations.md")
             return errors
         has_evaluations_link = any(
-            unquote(match.group("target").strip().split("#", 1)[0]) == "evaluations.md"
+            unquote(match.group("target").strip().split("#", 1)[0]).removeprefix("./") == "evaluations.md"
             for match in LINK_RE.finditer(body)
         )
         if not has_evaluations_link:
@@ -303,8 +304,9 @@ def validate_all(root: Path = SKILLS_ROOT) -> list[str]:
     errors: list[str] = []
     skills = iter_skills(root)
     names: dict[str, Path] = {}
+    bodies: list[tuple[Skill, str]] = []
     for skill in skills:
-        metadata, _, frontmatter_error = _parse_frontmatter(skill.path.read_text(encoding="utf-8"))
+        metadata, body, frontmatter_error = _parse_frontmatter(skill.path.read_text(encoding="utf-8"))
         if frontmatter_error is None and isinstance(metadata.get("name"), str):
             name = str(metadata["name"])
             if name in names:
@@ -314,7 +316,17 @@ def validate_all(root: Path = SKILLS_ROOT) -> list[str]:
                 )
             else:
                 names[name] = skill.path
+        bodies.append((skill, body))
         errors.extend(skill.validate())
+
+    for skill, body in bodies:
+        for match in CROSS_SKILL_RE.finditer(body):
+            referenced = match.group("name")
+            if referenced not in names:
+                errors.append(
+                    f"{_display_path(skill.path)}: cross-skill reference {referenced!r} "
+                    "does not match any registered skill name"
+                )
     return errors
 
 

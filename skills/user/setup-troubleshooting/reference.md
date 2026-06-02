@@ -39,7 +39,7 @@ For task import and stepping:
 For training entry points:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless --max_iterations 1
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --max_iterations 1
 ```
 
 ## Common Failure Routing

@@ -70,6 +70,47 @@ def test_validate_rejects_duplicate_names(tmp_path):
     assert any("duplicate skill name" in error for error in errors)
 
 
+def test_validate_rejects_unknown_cross_skill_reference(tmp_path):
+    skill = _write_skill(tmp_path, name="isaaclab-source-skill")
+    text = skill.read_text(encoding="utf-8").replace(
+        "## Workflow\n\n1. Follow the test workflow.\n\n",
+        "## Workflow\n\n1. Pair this with `isaaclab-missing-skill`.\n\n",
+    )
+    skill.write_text(text, encoding="utf-8")
+    errors = cli.validate_all(tmp_path)
+    assert any("cross-skill reference 'isaaclab-missing-skill'" in error for error in errors)
+
+
+def test_validate_accepts_known_cross_skill_reference(tmp_path):
+    source = _write_skill(tmp_path, audience="user", name="isaaclab-source-skill")
+    text = source.read_text(encoding="utf-8").replace(
+        "## Workflow\n\n1. Follow the test workflow.\n\n",
+        "## Workflow\n\n1. Pair this with `isaaclab-target-skill`.\n\n",
+    )
+    source.write_text(text, encoding="utf-8")
+    target_dir = tmp_path / "developer" / "example"
+    target_dir.mkdir(parents=True)
+    (target_dir / "reference.md").write_text("# Reference\n\n## Contents\n\n- Workflow\n", encoding="utf-8")
+    (target_dir / "SKILL.md").write_text(
+        "---\n"
+        "name: isaaclab-target-skill\n"
+        "description: Tests Isaac Lab cross-skill routing. Use when validating cross-skill references.\n"
+        "audience: developer\n"
+        "status: stable\n"
+        "owners:\n"
+        "  - isaaclab-maintainers\n"
+        "---\n\n"
+        "# Target Skill\n\n"
+        "## When To Use\n\nUse for tests.\n\n"
+        "## Workflow\n\n1. Follow the test workflow.\n\n"
+        "## Validation\n\nRun the validator.\n\n"
+        "## Maintenance\n\nKeep this synchronized with test fixtures.\n\n"
+        "## References\n\n- [Reference](reference.md)\n",
+        encoding="utf-8",
+    )
+    assert not any("cross-skill reference" in error for error in cli.validate_all(tmp_path))
+
+
 def test_validate_rejects_missing_required_section(tmp_path):
     skill = _write_skill(tmp_path)
     text = skill.read_text(encoding="utf-8").replace("## Validation\n\nRun the validator.\n\n", "")
@@ -105,6 +146,17 @@ def test_validate_rejects_user_skill_without_evaluations_link(tmp_path):
     skill.write_text(text, encoding="utf-8")
     errors = cli.Skill(skill).validate()
     assert any("must link to evaluations.md" in error for error in errors)
+
+
+def test_validate_accepts_dot_slash_evaluations_link(tmp_path):
+    skill = _write_skill(tmp_path)
+    text = skill.read_text(encoding="utf-8").replace(
+        "- [Evaluations](evaluations.md)\n",
+        "- [Evaluations](./evaluations.md)\n",
+    )
+    skill.write_text(text, encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert not any("must link to evaluations.md" in error for error in errors)
 
 
 def test_validate_rejects_user_skill_without_evaluation_details(tmp_path):

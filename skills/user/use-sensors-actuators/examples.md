@@ -6,8 +6,8 @@ Use contact sensors for feet air time, undesired contacts, grasp checks, and ter
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env_cfg.py`
-- `source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
 
 Validation checklist:
 
@@ -22,8 +22,8 @@ Use ray casters for terrain perception on rough locomotion tasks.
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env_cfg.py`
-- `source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
 
 Validation checklist:
 
@@ -38,7 +38,7 @@ Use camera or tiled-camera examples before adding visual observations to trainin
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_presets_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/cartpole_camera_presets_env_cfg.py`
 - `docs/source/tutorials/04_sensors/add_sensors_on_robot.rst`
 
 Validation checklist:
@@ -53,8 +53,8 @@ Use actuator configs in robot assets or task overrides, then validate joint name
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py`
-- `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/cabinet/cabinet_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/shadow_hand_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_env_cfg.py`
 
 Validation checklist:
 

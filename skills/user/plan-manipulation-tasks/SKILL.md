@@ -13,7 +13,7 @@ owners:
 
 Use this skill when a user is creating, migrating, or debugging manipulation tasks such as reach, grasp, lift, place, insertion, or tool-use environments.
 
-Do not use this skill as a replacement for environment construction details. Pair it with `isaaclab-creating-environments`, `isaaclab-debugging-rl-training`, and `isaaclab-using-sensors-actuators` as needed.
+Do not use this skill as a replacement for environment construction details. Pair it with `isaaclab-building-environments`, `isaaclab-debugging-rl-training`, and `isaaclab-using-sensors-actuators` as needed.
 
 ## Workflow
 
@@ -47,7 +47,7 @@ For skill changes, run:
 
 ## Maintenance
 
-Keep this skill synchronized with manipulation examples in `source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/`, environment authoring docs, and RL debugging guidance. Put project-specific history and experiment logs in the project, not in this public skill.
+Keep this skill synchronized with manipulation examples such as `source/isaaclab_tasks/isaaclab_tasks/core/lift/` and `source/isaaclab_tasks/isaaclab_tasks/contrib/stack/`, environment authoring docs, and RL debugging guidance. Put project-specific history and experiment logs in the project, not in this public skill.
 
 ## References
 
@@ -56,4 +56,4 @@ Keep this skill synchronized with manipulation examples in `source/isaaclab_task
 - [Create environments skill](../create-environments/SKILL.md)
 - [Debug RL training skill](../debug-rl-training/SKILL.md)
 - [Use sensors and actuators skill](../use-sensors-actuators/SKILL.md)
-- [Manipulation tasks](../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation)
+- [Manipulation task example (lift)](../../../source/isaaclab_tasks/isaaclab_tasks/core/lift)

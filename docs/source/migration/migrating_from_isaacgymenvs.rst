@@ -5,6 +5,13 @@ From IsaacGymEnvs
 
 .. currentmodule:: isaaclab
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
+   (`skills/user/migrate-from-isaac-gym/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/migrate-from-isaac-gym/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/overview/developer-guide/agent_skills`.
+
 
 `IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.
 As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through

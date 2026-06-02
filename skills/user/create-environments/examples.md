@@ -7,7 +7,7 @@ Use direct workflow when the task has custom step logic or is being migrated fro
 Start from:
 
 - `docs/source/tutorials/03_envs/create_direct_rl_env.rst`
-- `source/isaaclab_tasks/isaaclab_tasks/direct/`
+- `source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/`
 
 Smoke-test pattern:
 
@@ -18,7 +18,7 @@ Smoke-test pattern:
 Training pattern:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0 --headless
+./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0
 ```
 
 ## Manager-Based Workflow
@@ -29,7 +29,7 @@ Start from:
 
 - `docs/source/tutorials/03_envs/create_manager_base_env.rst`
 - `docs/source/tutorials/03_envs/create_manager_rl_env.rst`
-- `source/isaaclab_tasks/isaaclab_tasks/manager_based/`
+- `source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/`
 
 Smoke-test pattern:
 
