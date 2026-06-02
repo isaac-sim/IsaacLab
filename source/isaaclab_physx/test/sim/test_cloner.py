@@ -19,9 +19,9 @@ import torch
 import warp as wp
 from isaaclab_physx.cloner import physx_replicate
 
+import isaaclab.cloner._fabric_notices as _fabric_notices
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
-    _fabric_notices,
     disabled_fabric_change_notifies,
     make_clone_plan,
     sequential,
