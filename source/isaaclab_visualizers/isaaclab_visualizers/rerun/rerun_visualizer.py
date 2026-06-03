@@ -16,9 +16,9 @@ import webbrowser
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+import newton
 import rerun as rr
 import rerun.blueprint as rrb
-import newton
 from newton.viewer import ViewerRerun
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer

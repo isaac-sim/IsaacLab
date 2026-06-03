@@ -71,6 +71,10 @@ class SceneDataFormat:
 
 
 class SceneDataBackend:
+    def set_interactive_scene(self, scene) -> None:
+        """Attach the active interactive scene, if the backend needs scene-owned entities."""
+        pass
+
     @property
     def transforms(
         self,

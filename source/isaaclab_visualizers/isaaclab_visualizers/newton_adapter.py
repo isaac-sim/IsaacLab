@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-
 VISUALIZER_INFINITE_PLANE_SIZE = 1000.0
 """Finite render size used for Newton planes encoded as infinite."""
 
