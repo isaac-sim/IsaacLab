@@ -184,8 +184,16 @@ class IsaacRtxRenderer(BaseRenderer):
                         attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
                     else:
                         continue
-                    Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, token_type, Sdf.VariabilityUniform, True)
-                    root_layer.GetAttributeAtPath(attr_path).default = token
+                    # Idempotent: a different renderer backend sharing this stage may have already
+                    # authored this attribute. Re-creating an existing spec raises, so only create
+                    # it when absent, then (re)assign the per-env token either way.
+                    attr_spec = root_layer.GetAttributeAtPath(attr_path)
+                    if attr_spec is None:
+                        Sdf.JustCreatePrimAttributeInLayer(
+                            root_layer, attr_path, token_type, Sdf.VariabilityUniform, True
+                        )
+                        attr_spec = root_layer.GetAttributeAtPath(attr_path)
+                    attr_spec.default = token
 
     def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
