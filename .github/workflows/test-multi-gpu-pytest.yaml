@@ -179,16 +179,25 @@ jobs:
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
 
-      - name: Run shards in parallel on local GPUs
-        # Single job, one container per non-default cuda:N, all launched in
-        # parallel on the SAME runner — uses the GPUs the multi-gpu instance
-        # exposes without burning N separate runners from the pool.  All shards
-        # pull from one shared work queue (ISAACLAB_TEST_QUEUE) instead of a
-        # static slice, so every file runs on exactly one GPU with dynamic
-        # (work-stealing) balancing.
+      - name: Run shards in parallel on local GPUs (1-docker N-shard)
+        # ONE container hosts all N pytest shards as parallel subshells. Each
+        # shard pins ISAACLAB_SIM_DEVICE / ISAACLAB_TEST_DEVICES to its own
+        # non-default cuda:N and pulls files from the shared work queue. This
+        # collapses the previous N-container layout into one container, removing
+        # cross-container races on the shared workspace mount (``_isaac_sim``
+        # symlink, ``/mgpu`` queue, ``/dev/dri`` cap-add) and ~30s of docker
+        # init per shard, at the cost of sharing the container's /isaac-sim/
+        # writable subtrees. Per-shard HOME (under /tmp) keeps user-level
+        # caches isolated.
+        #
+        # Scaling: shard count is derived inside the container from
+        # ``nvidia-smi -L`` (truth — torch.cuda.device_count() under-counts MIG
+        # slices on the same parent GPU), so this works unchanged on any GPU
+        # count or topology. ``CUDA_VISIBLE_DEVICES`` is set to the
+        # comma-separated MIG-UUID list only on MIG-mode hosts; discrete-GPU
+        # runners rely on ``--gpus all``.
         env:
           IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
-          CUDA_SHARDS: ${{ needs.build.outputs.cuda_shards }}
           INCLUDE_FILES: ${{ steps.discover.outputs.include }}
           PATHS: ${{ steps.discover.outputs.paths }}
         run: |
@@ -197,135 +206,155 @@ jobs:
           host_gid="$(id -g)"
           host_user="$(id -un)"
 
-          # Pre-create the ``_isaac_sim`` symlink on the host once so the
-          # parallel containers don't race rm/ln on the shared workspace
-          # mount.  The host has no /isaac-sim path, so the symlink is
-          # dangling locally; inside each container it resolves to
-          # /isaac-sim correctly.
+          # _isaac_sim symlink on the host — single creator now, no race.
           rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
 
           runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mgpu-runtime.XXXXXX")"
           mkdir -p "$runtime_dir"
 
-          # Shared work queue: all discovered files, one per line, in a dir
-          # mounted into every shard container. Each container's conftest claims
-          # the next file under flock (work-stealing), so a container that lands
-          # a slow file simply claims fewer — dynamic balance, each file once.
+          # Shared work queue inside one container — flock still serializes
+          # claims across the in-container subshells exactly as it did across
+          # sibling containers; the file lives on the same mount.
           queue_dir="$runtime_dir/queue"
           mkdir -p "$queue_dir"
           printf '%s\n' "$PATHS" | tr ',' '\n' | grep -v '^$' > "$queue_dir/queue.txt"
           echo "::notice::seeded work queue with $(wc -l < "$queue_dir/queue.txt") files"
 
-          declare -A pids logfiles results
-          for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
-            # Per-shard runtime mask naming exactly this shard's GPU: position
-            # cuda+1 is set (position 0 = cpu, 1 = cuda:0, 2 = cuda:1, ...), so
-            # cuda:1 -> "001", cuda:2 -> "0001".  scope ∩ runtime then resolves
-            # to this one non-default GPU, and ISAACLAB_SIM_DEVICE boots Kit on
-            # the same one.  Each file runs once on one non-default GPU.
-            runtime_devices=$(python3 -c "print('0' * ($cuda + 1) + '1')")
-            idx=$((cuda - 1))
+          # Per-shard log dir mounted from the container so we can grouped-print
+          # the per-shard stream after the run completes.
+          logs_dir="$runtime_dir/logs"
+          mkdir -p "$logs_dir"
 
-            # Per-shard writable runtime tree mirroring run-tests action
-            # (HOME, Kit cache/data/logs, isaac-sim writable subdirs).
-            shard_runtime="$runtime_dir/cuda-$cuda"
-            mkdir -p \
-              "$shard_runtime/home/.cache" \
-              "$shard_runtime/home/.local/share" \
-              "$shard_runtime/home/.nvidia-omniverse/config" \
-              "$shard_runtime/home/.nvidia-omniverse/logs" \
-              "$shard_runtime/isaac-sim/kit/cache" \
-              "$shard_runtime/isaac-sim/kit/data" \
-              "$shard_runtime/isaac-sim/kit/logs" \
-              "$shard_runtime/isaac-sim/cache" \
-              "$shard_runtime/isaac-sim/computecache" \
-              "$shard_runtime/isaac-sim/config" \
-              "$shard_runtime/isaac-sim/data" \
-              "$shard_runtime/isaac-sim/logs" \
-              "$shard_runtime/isaac-sim/pkg"
-            logfiles[$cuda]="$runtime_dir/shard-cuda-$cuda.log"
+          # MIG detection: only override CUDA_VISIBLE_DEVICES on MIG hosts.
+          # nvidia-smi -L is authoritative — see memory rule
+          # ``reference_gpu_enumeration``: torch.cuda.device_count() under-counts
+          # MIG slices on the same parent GPU.
+          cvd_args=()
+          if nvidia-smi -L | grep -q "^  MIG "; then
+            mapfile -t MIGS < <(nvidia-smi -L | awk -F'UUID: ' '/^  MIG /{print $2}' | tr -d ')')
+            MIG_LIST=$(IFS=,; echo "${MIGS[*]}")
+            cvd_args=(-e "CUDA_VISIBLE_DEVICES=${MIG_LIST}")
+            echo "::notice::MIG mode: ${#MIGS[@]} slices — overriding CUDA_VISIBLE_DEVICES"
+          else
+            echo "::notice::discrete GPU mode — relying on --gpus all"
+          fi
 
-            # Subshell: stream tagged output live AND keep a clean per-shard
-            # logfile (tee writes the unprefixed stream for the end-of-job
-            # grouped re-print; sed prefixes the live copy so the three
-            # concurrent shards stay followable in the workflow log).
-            (
-            # ``--cap-add=SYS_PTRACE`` lets ``tools/conftest.py`` invoke
-            # ``py-spy dump`` / ``gdb -p`` against the hung Kit process when
-            # ``shutdown_hang`` fires. Without it the diagnostic capture
-            # comes back as "Permission Denied" and we have no frames to
-            # localize the IsaacLab #3475 / OMPE-43816 Kit shutdown hang.
-            docker run --rm --gpus all --network=host \
-              --cap-add=SYS_PTRACE \
-              --entrypoint bash \
-              --user "${host_uid}:${host_gid}" \
-              --name "isaac-lab-mgpu-cuda${cuda}-${{ github.run_id }}-${{ github.run_attempt }}" \
-              -v "$PWD:/workspace/isaaclab:rw" \
-              -v "$shard_runtime/home:/tmp/isaaclab-ci-home:rw" \
-              -v "$shard_runtime/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw" \
-              -v "$shard_runtime/isaac-sim/kit/data:/isaac-sim/kit/data:rw" \
-              -v "$shard_runtime/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw" \
-              -v "$shard_runtime/isaac-sim/cache:/isaac-sim/.cache:rw" \
-              -v "$shard_runtime/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw" \
-              -v "$shard_runtime/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw" \
-              -v "$shard_runtime/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw" \
-              -v "$shard_runtime/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw" \
-              -v "$shard_runtime/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw" \
-              -v "$queue_dir:/mgpu:rw" \
-              -e HOME=/tmp/isaaclab-ci-home \
-              -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
-              -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share \
-              -e USER="${host_user}" \
-              -e LOGNAME="${host_user}" \
-              -e OMNI_KIT_ACCEPT_EULA=yes \
-              -e ACCEPT_EULA=Y \
-              -e OMNI_KIT_DISABLE_CUP=1 \
-              -e ISAAC_SIM_HEADLESS=1 \
-              -e ISAAC_SIM_LOW_MEMORY=1 \
-              -e PYTHONUNBUFFERED=1 \
-              -e PYTHONIOENCODING=utf-8 \
-              -e ISAACLAB_TEST_DEVICES="$runtime_devices" \
-              -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
-              -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
-              -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
-              -e ISAACLAB_PIN_KIT_GPU=1 \
-              "$IMAGE_TAG" \
-              -c '
-                set +e
-                cd /workspace/isaaclab
-                unset HUB__ARGS__DETECT_ONLY
-                # Install test-only deps that are NOT in the image build
-                # (mirrors the hardcoded line in run-tests action.yml).
-                # junitparser is imported at tools/conftest.py load time,
-                # so it must be present before pytest fires.
-                ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky py-spy "coverage>=7.6.1"
-                ./isaaclab.sh -p -m pytest \
-                  --ignore=tools/conftest.py \
-                  --ignore=source/isaaclab/test/install_ci \
-                  tools -v
-              ' 2>&1 | tee "${logfiles[$cuda]}" | stdbuf -oL sed "s/^/[cuda:$cuda] /"
-              # Propagate docker's exit (PIPESTATUS[0]), not sed's, so a
-              # passing tail doesn't mask a failing shard.
-              exit "${PIPESTATUS[0]}"
-            ) &
-            pids[$cuda]=$!
-            echo "::notice::launched shard cuda:$cuda (pid ${pids[$cuda]}, idx=$idx, runtime_devices=$runtime_devices)"
-          done
+          # --cap-add=SYS_PTRACE for py-spy/gdb hang capture in conftest.
+          docker run --rm --gpus all --network=host \
+            --cap-add=SYS_PTRACE \
+            --entrypoint bash \
+            --user "${host_uid}:${host_gid}" \
+            --name "isaac-lab-mgpu-${{ github.run_id }}-${{ github.run_attempt }}" \
+            -v "$PWD:/workspace/isaaclab:rw" \
+            -v "$queue_dir:/mgpu:rw" \
+            -v "$logs_dir:/shard-logs:rw" \
+            -e USER="${host_user}" \
+            -e LOGNAME="${host_user}" \
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ACCEPT_EULA=Y \
+            -e OMNI_KIT_DISABLE_CUP=1 \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e ISAAC_SIM_LOW_MEMORY=1 \
+            -e PYTHONUNBUFFERED=1 \
+            -e PYTHONIOENCODING=utf-8 \
+            -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
+            -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
+            -e ISAACLAB_PIN_KIT_GPU=1 \
+            "${cvd_args[@]}" \
+            "$IMAGE_TAG" \
+            -c '
+              set +e
+              cd /workspace/isaaclab
+              unset HUB__ARGS__DETECT_ONLY
 
-          # Wait for every shard before aggregating, so a fast failure
-          # doesn't tear down still-running siblings.
-          for cuda in "${!pids[@]}"; do
-            wait "${pids[$cuda]}"
-            results[$cuda]=$?
-          done
+              # Pytest deps (same as run-tests action). junitparser is imported
+              # at tools/conftest.py load time, so it must be present first.
+              ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky py-spy "coverage>=7.6.1"
 
-          fail=0
-          for cuda in $(echo "$CUDA_SHARDS" | jq -r '.[]'); do
-            rc="${results[$cuda]}"
-            echo "::group::shard cuda:$cuda — exit $rc"
-            cat "${logfiles[$cuda]}"
+              # Shard count from nvidia-smi -L (truth; torch under-counts MIG).
+              MIG_COUNT=$(nvidia-smi -L | grep -c "^  MIG ")
+              GPU_COUNT=$(nvidia-smi -L | grep -c "^GPU ")
+              if [ "$MIG_COUNT" -gt 0 ]; then
+                DEV_COUNT=$MIG_COUNT
+                echo "::notice::container: MIG mode, $MIG_COUNT slices"
+              else
+                DEV_COUNT=$GPU_COUNT
+                echo "::notice::container: discrete mode, $GPU_COUNT GPUs"
+              fi
+              if [ "$DEV_COUNT" -lt 2 ]; then
+                echo "::error::Need at least 2 visible devices; found $DEV_COUNT"
+                exit 1
+              fi
+
+              # Cross-check with torch and cap shard count to what torch can
+              # actually address — guards against a CUDA_VISIBLE_DEVICES misconfig
+              # silently fanning out shards that crash on device access.
+              TORCH_COUNT=$(/isaac-sim/python.sh -c "import torch; print(torch.cuda.device_count())")
+              echo "container: torch sees $TORCH_COUNT cuda devices (cross-check vs $DEV_COUNT)"
+              if [ "$TORCH_COUNT" -lt "$DEV_COUNT" ]; then
+                echo "::warning::torch sees fewer devices than nvidia-smi — capping shards to $TORCH_COUNT"
+                DEV_COUNT=$TORCH_COUNT
+              fi
+
+              # Fan out 1 pytest subshell per non-default cuda:N. Each gets its
+              # own HOME (per-shard isolation for .cache, .local/share, etc.)
+              # and per-shard ISAACLAB_SIM_DEVICE / ISAACLAB_TEST_DEVICES.
+              declare -A pids
+              for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do
+                zeros=""
+                for ((i = 0; i <= cuda; i++)); do zeros+="0"; done
+                runtime_devices="${zeros}1"
+
+                shard_home="/tmp/isaaclab-ci-home-${cuda}"
+                mkdir -p "${shard_home}/.cache" "${shard_home}/.local/share" \
+                         "${shard_home}/.nvidia-omniverse/config" \
+                         "${shard_home}/.nvidia-omniverse/logs"
+
+                shard_log="/shard-logs/cuda-${cuda}.log"
+
+                (
+                  export HOME="$shard_home"
+                  export XDG_CACHE_HOME="${HOME}/.cache"
+                  export XDG_DATA_HOME="${HOME}/.local/share"
+                  export ISAACLAB_TEST_DEVICES="$runtime_devices"
+                  export ISAACLAB_SIM_DEVICE="cuda:${cuda}"
+
+                  ./isaaclab.sh -p -m pytest \
+                    --ignore=tools/conftest.py \
+                    --ignore=source/isaaclab/test/install_ci \
+                    tools -v 2>&1 \
+                    | tee "$shard_log" \
+                    | stdbuf -oL sed "s/^/[cuda:${cuda}] /"
+
+                  exit "${PIPESTATUS[0]}"
+                ) &
+                pids[$cuda]=$!
+                echo "::notice::launched shard cuda:${cuda} (pid ${pids[$cuda]}, runtime_devices=$runtime_devices)"
+              done
+
+              # Wait for every shard before aggregating exits.
+              declare -A results
+              for cuda in "${!pids[@]}"; do
+                wait "${pids[$cuda]}"
+                results[$cuda]=$?
+              done
+
+              fail=0
+              for cuda in "${!results[@]}"; do
+                rc="${results[$cuda]}"
+                echo "shard cuda:${cuda} exited $rc"
+                [ "$rc" -eq 0 ] || fail=1
+              done
+              exit $fail
+            '
+          docker_rc=$?
+
+          # Grouped re-print of per-shard logs (preserved across the host).
+          for log in "$logs_dir"/cuda-*.log; do
+            cuda=$(basename "$log" .log | sed s/cuda-//)
+            echo "::group::shard cuda:${cuda} log"
+            cat "$log"
             echo "::endgroup::"
-            [ "$rc" -eq 0 ] || fail=1
           done
 
-          exit $fail
+          exit "$docker_rc"
