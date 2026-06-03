@@ -200,6 +200,9 @@ Camera Modes
 To configure camera modes, including launching a tiled camera view, edit the fields described below in the
 ``VisualizerCfg`` config class.
 
+For runnable Kit and Newton examples that use generated and existing tiled cameras,
+see :doc:`/source/how-to/visualizer_tiled_camera`.
+
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
 Kit and Newton visualizers can also run additional tiled camera image panels.
 
@@ -207,8 +210,6 @@ If ``tiled_cam_view=True`` is set, another window is launched in the visualizer 
 a non-interactive tiled camera image view. Number of tiles is capped at 100.
 
 Note, Kit tiled camera views require launching with ``--enable_cameras``.
-For runnable Kit and Newton examples that use generated and existing tiled cameras,
-see :doc:`/source/how-to/visualizer_tiled_camera`.
 
 .. list-table:: Camera Modes
    :header-rows: 1
