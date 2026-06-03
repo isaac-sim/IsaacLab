@@ -220,10 +220,13 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
      - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
    * - Generated tiled camera
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot"``
-     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target. Note that the ``tiled_cam_target_prim_path`` is the default value, but different environments may require different paths.
+     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
+       Note that the ``tiled_cam_target_prim_path`` has a default value, but different environments may require different paths.
    * - Existing tiled camera sensors
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
-     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored. Note that the ``tiled_cam_prim_path`` is the default value, but different environments may require different paths.
+     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and
+       ``tiled_cam_target_prim_path`` are ignored. Note that the ``tiled_cam_prim_path`` has a default value, but different
+       environments may require different paths.
 
      This mode requires an environment that registers Isaac Lab ``Camera`` sensors in ``scene.sensors``.
      For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole`` task
