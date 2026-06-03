@@ -16,6 +16,12 @@ on:
     # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
     # additionally, we have a check that determines what version of docs will be built
     types: [opened, synchronize, reopened]
+  # Nightly multi-version rebuild + deploy from develop tip. Picks up every
+  # develop commit accumulated since the previous nightly in a single run.
+  schedule:
+    - cron: '0 6 * * *'
+  # Allow manual trigger
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,24 +32,47 @@ jobs:
     name: Detect Doc Build Type
     runs-on: ubuntu-latest
     outputs:
+      docs-changed: ${{ steps.changed.outputs.value }}
       trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 2
+
     - id: info
-      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}"
+      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}, event=github.event_name=${{ github.event_name }}"
+
+    - id: changed
+      # Skip build on pushes when no doc-relevant files changed; PR / schedule / workflow_dispatch always pass.
+      run: |
+        if [[ "${{ github.event_name }}" != "push" ]]; then
+          echo "value=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        CHANGED=$(git diff --name-only HEAD^1 HEAD -- docs source VERSION .github/workflows/docs.yaml || true)
+        echo "Doc-relevant files changed:"
+        echo "$CHANGED"
+        if [[ -n "$CHANGED" ]]; then
+          echo "value=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "value=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-      # develop, main, release/ trigger multi-version build, then deployment to gh-pages
-      # all others - just the current docs without deployment
-      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
+      # main deploys on push; develop and release/* defer to the nightly schedule above (workflow_dispatch for manual redeploys)
+      if: "${{ github.repository == env.REPO_NAME && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
   build-latest-docs:
     name: Build Latest Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type]
-    # run on non-deploy branches to build current version docs only
-    if: needs.doc-build-type.outputs.trigger-deploy != 'true'
+    # Run on non-deploy events (PRs, develop / release/* / feature branch pushes) when
+    # docs actually changed. Builds current-version docs only - no deploy.
+    if: needs.doc-build-type.outputs.trigger-deploy != 'true' && needs.doc-build-type.outputs.docs-changed == 'true'
 
     steps:
     - name: Checkout code
@@ -73,12 +102,15 @@ jobs:
     name: Build Multi-Version Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type]
-    # run on deploy branches to create multi-version docs
     if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        # On schedule, always rebuild from the develop tip regardless of
+        # which ref the cron run defaults to. Other events use github.ref.
+        ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
 
     - name: Setup python
       uses: actions/setup-python@v5
@@ -116,7 +148,6 @@ jobs:
     name: Deploy Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type, build-multi-docs]
-    # deploy only on "deploy" branches
     if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
     steps:

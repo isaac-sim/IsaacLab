@@ -1,0 +1,2 @@
+CI-only: deploy multi-version docs from develop on a nightly schedule; pushes to main still deploy immediately. Skip docs jobs when no doc-relevant files changed.
+No user-facing change to the published site.
