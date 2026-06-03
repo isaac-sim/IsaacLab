@@ -260,12 +260,21 @@ jobs:
             -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
             -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
             -e ISAACLAB_PIN_KIT_GPU=1 \
+            -e HOME=/tmp/mgpu-base-home \
             "${cvd_args[@]}" \
             "$IMAGE_TAG" \
             -c '
               set +e
               cd /workspace/isaaclab
               unset HUB__ARGS__DETECT_ONLY
+
+              # Container-level HOME for the pre-fan-out pip install. The
+              # image runs ``--user $host_uid:$host_gid`` with no matching
+              # /etc/passwd entry, so HOME defaults to /root which the user
+              # cannot write. /tmp/mgpu-base-home is on /tmp (1777 tmpfs)
+              # and writable by any user. Per-shard subshells below override
+              # HOME to their own /tmp/isaaclab-ci-home-N for test runs.
+              mkdir -p /tmp/mgpu-base-home
 
               # Pytest deps (same as run-tests action). junitparser is imported
               # at tools/conftest.py load time, so it must be present first.
