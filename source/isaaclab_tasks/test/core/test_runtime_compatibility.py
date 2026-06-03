@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for :func:`isaaclab_tasks.utils.sim_launcher.validate_runtime_compatibility`.
+"""Tests for runtime-compatibility validation in ``isaaclab.app.sim_launcher``.
 
 The OVRTX renderer is kitless and cannot run together with Isaac Sim / Kit
 runtimes (``PhysxCfg`` physics or the Kit visualizer). These tests verify that
@@ -17,10 +17,18 @@ import sys
 
 import pytest
 
+from isaaclab.app import scan
+from isaaclab.app.sim_launcher import _validate_runtime
+
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import resolve_task_config, validate_runtime_compatibility
+from isaaclab_tasks.utils import resolve_task_config
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+
+
+def validate_runtime_compatibility(env_cfg, launcher_args=None):
+    """Run the single-scan runtime validation for *env_cfg* (test adapter)."""
+    _validate_runtime(scan(env_cfg), launcher_args)
 
 
 def _resolve_with_presets(presets: str):

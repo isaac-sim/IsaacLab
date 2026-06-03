@@ -98,7 +98,9 @@ import isaaclab_tasks  # noqa: F401
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab.app import launch_simulation
+
+from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 

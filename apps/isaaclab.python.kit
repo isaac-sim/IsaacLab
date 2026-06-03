@@ -122,6 +122,7 @@ exts."omni.kit.viewport.window".windowMenu.label = "" # Put Viewport menuitem un
 exts."omni.rtx.window.settings".window_menu = "Window" # Where to put the render settings menuitem
 exts."omni.usd".locking.onClose = false # reduce time it takes to close/create stage
 renderer.asyncInit = true # Don't block while renderer inits
+renderer.scenePartitioning.enabled = true # Enable before RTX initialization so env-root partitions are honored
 renderer.gpuEnumeration.glInterop.enabled = false # Improves startup speed.
 rendergraph.mgpu.backend = "copyQueue" # In MGPU configurations, This setting can be removed if IOMMU is disabled for better performance, copyQueue improves stability and performance when IOMMU is enabled
 rtx-transient.dlssg.enabled = false # DLSSG frame generation is not compatible with synthetic data generation

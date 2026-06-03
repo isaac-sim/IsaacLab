@@ -6,13 +6,12 @@
 __all__ = [
     "CloneCfg",
     "ClonePlan",
-    "cfg_source_path",
     "disabled_fabric_change_notifies",
     "filter_collisions",
     "grid_transforms",
     "make_clone_plan",
-    "path_source_path",
     "random",
+    "resolve_clone_plan_source",
     "sequential",
     "usd_replicate",
 ]
@@ -21,11 +20,10 @@ from .clone_plan import ClonePlan
 from .cloner_cfg import CloneCfg
 from .cloner_strategies import random, sequential
 from .cloner_utils import (
-    cfg_source_path,
     disabled_fabric_change_notifies,
     filter_collisions,
     grid_transforms,
     make_clone_plan,
-    path_source_path,
+    resolve_clone_plan_source,
     usd_replicate,
 )
