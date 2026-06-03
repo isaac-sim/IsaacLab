@@ -39,6 +39,69 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("h5py").setLevel(logging.WARNING)
 
 
+def _parse_force_exit_seconds(value: str) -> int:
+    """Parse the ``ISAACLAB_FORCE_EXIT_TIMEOUT`` env var.
+
+    Returns 0 (no timer) for unset/empty/falsy values, otherwise a positive
+    integer of seconds. Invalid integers also return 0 with a warning so a
+    typo cannot accidentally arm a force-exit.
+    """
+    raw = (value or "").strip()
+    if not raw or raw.lower() in {"0", "false", "no", "off"}:
+        return 0
+    try:
+        n = int(raw)
+    except ValueError:
+        logger.warning("ISAACLAB_FORCE_EXIT_TIMEOUT=%r is not an integer; ignoring", raw)
+        return 0
+    return max(0, n)
+
+
+def _arm_force_exit_timer(seconds: int, label: str) -> None:
+    """Spawn a daemon thread that calls ``os._exit(0)`` after ``seconds``.
+
+    Bounds the Kit ``quickReleaseFrameworkAndTerminate`` hang in CI
+    environments (https://github.com/isaac-sim/IsaacLab/issues/3475 / NVBug
+    5948099 / OMPE-75416).
+
+    Uses ``ctypes.CDLL("libc.so.6").kill(os.getpid(), SIGKILL)`` rather than
+    ``os._exit(0)`` because the hang in question is a GIL deadlock: Kit's
+    teardown C++ frames hold the GIL while joining ``carb.tasking`` worker
+    threads that themselves wait for the GIL. ``os._exit`` is a Python-level
+    syscall wrapper that requires the bytecode dispatcher (which needs the
+    GIL); if the daemon thread cannot acquire the GIL, the wake never runs.
+    ``ctypes`` releases the GIL around C calls by default, so the raw libc
+    ``kill(2)`` syscall fires even when the interpreter is GIL-blocked.
+
+    The daemon thread is created (and parks on ``time.sleep``, which releases
+    the GIL) BEFORE the close() call so it is already in the GIL-released
+    sleep state when the deadlock starts. SIGKILL ends the process; no
+    atexit, no JUnit cleanup runs — callers must have already written their
+    JUnit XML before triggering close().
+    """
+    import ctypes
+    import threading
+
+    def _timeout_kill() -> None:
+        import time as _time
+
+        _time.sleep(seconds)
+        sys.stderr.write(
+            f"[isaaclab.app] ISAACLAB_FORCE_EXIT_TIMEOUT={seconds}s expired during {label}; libc.kill(self, SIGKILL)\n"
+        )
+        sys.stderr.flush()
+        try:
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            # SIGKILL is 9 on Linux. Raw syscall — does not require the GIL
+            # to be dispatchable through the interpreter.
+            libc.kill(os.getpid(), 9)
+        except Exception:
+            # Last-resort fallback: only works when GIL is reachable.
+            os._exit(0)
+
+    threading.Thread(target=_timeout_kill, name="isaaclab-force-exit", daemon=True).start()
+
+
 class ExplicitAction(argparse.Action):
     """Custom action to track if an argument was explicitly passed by the user."""
 
@@ -344,19 +407,43 @@ class AppLauncher:
         # Ensure SimulationApp.close() is called on normal process exit so Kit
         # shuts down cleanly instead of relying on __del__ (which logs a warning
         # and can leave GPU resources in a bad state for the next test).
-        def _atexit_close(app=self._app):
+        #
+        # ``ISAACLAB_FORCE_EXIT_TIMEOUT`` (env var, integer seconds) arms a
+        # daemon thread that calls ``os._exit(0)`` after the deadline. Used by
+        # CI to bound the Kit shutdown hang
+        # (https://github.com/isaac-sim/IsaacLab/issues/3475). The hang sits
+        # inside ``shutdown_and_release_framework`` (Kit binary path), which
+        # ``skip_cleanup=True`` also enters and Python signal handlers cannot
+        # interrupt — only ``os._exit`` actually returns control. Unset/empty/0
+        # means "wait indefinitely", the current upstream behavior and the
+        # right default for interactive user code that wants graceful teardown.
+        force_exit_seconds = _parse_force_exit_seconds(os.environ.get("ISAACLAB_FORCE_EXIT_TIMEOUT", ""))
+        self._force_exit_seconds = force_exit_seconds
+
+        def _atexit_close(app=self._app, force_exit_seconds=force_exit_seconds):
+            if force_exit_seconds > 0:
+                _arm_force_exit_timer(force_exit_seconds, "atexit_close")
             with contextlib.suppress(Exception):
                 app.close()
 
         atexit.register(_atexit_close)
 
-        # Set up signal handlers for graceful shutdown
-        # -- during explicit `kill` commands
+        # Set up signal handlers for graceful shutdown. Kit launches with
+        # ``--/app/installSignalHandlers=0``, so it's on us to drive ``app.close()``
+        # before the default disposition terminates the process and leaves
+        # USD / PhysX state attached (the next sibling shard then trips
+        # "Stage X already attached" or hangs on physx detach).
+        # -- during explicit ``kill`` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
         # -- during aborts
         signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
         # -- during segfaults
         signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
+        # -- when the controlling session leader (e.g. a parent shell that
+        # supervises sibling shards) exits: SIGHUP cascades to children, and
+        # without a handler the default action would terminate before
+        # ``_atexit_close`` could run.
+        signal.signal(signal.SIGHUP, self._abort_signal_handle_callback)
 
     """
     Properties.
@@ -1404,7 +1491,19 @@ class AppLauncher:
                 play_button_group._play_button.visible = not flag  # type: ignore
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
-    def _abort_signal_handle_callback(self, signal, frame):
-        """Handle the abort/segmentation/kill signals."""
-        # close the app
-        self._app.close()
+    def _abort_signal_handle_callback(self, signum, frame):
+        """Handle the abort/segmentation/kill/hangup signals.
+
+        Closes :class:`SimulationApp` (honoring ``ISAACLAB_FORCE_EXIT_TIMEOUT``
+        if set) so Kit detaches USD/PhysX state, then exits with
+        ``128 + signum`` to preserve the conventional signal-exit encoding.
+        Without the explicit exit, Python would resume execution after the
+        handler returns (since we replaced the OS-default disposition), and
+        Kit would be left half-torn-down.
+        """
+        force_exit_seconds = getattr(self, "_force_exit_seconds", 0)
+        if force_exit_seconds > 0:
+            _arm_force_exit_timer(force_exit_seconds, f"abort_signal_{signum}")
+        with contextlib.suppress(Exception):
+            self._app.close()
+        sys.exit(128 + signum)
