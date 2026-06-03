@@ -16,10 +16,9 @@ from typing import TYPE_CHECKING
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_visualizer import NEWTON_HUD_IMPORT_LOG_WARNING
     from .newton_visualizer import NewtonVisualizer
 
-__all__ = ["NEWTON_HUD_IMPORT_LOG_WARNING", "NewtonVisualizer", "NewtonVisualizerCfg"]
+__all__ = ["NewtonVisualizer", "NewtonVisualizerCfg"]
 
 
 def __getattr__(name: str):
@@ -27,8 +26,4 @@ def __getattr__(name: str):
         from .newton_visualizer import NewtonVisualizer
 
         return NewtonVisualizer
-    if name == "NEWTON_HUD_IMPORT_LOG_WARNING":
-        from .newton_visualizer import NEWTON_HUD_IMPORT_LOG_WARNING
-
-        return NEWTON_HUD_IMPORT_LOG_WARNING
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

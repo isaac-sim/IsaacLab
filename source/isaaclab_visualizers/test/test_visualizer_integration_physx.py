@@ -33,7 +33,7 @@ def test_cartpole_env_visualizers_motion_with_play_pause_physx(
 ) -> None:
     """Cartpole env + all non-tiled visualizers on PhysX."""
     run_cartpole_env_visualizers_motion_with_play_pause("physx", caplog)
-    _viz_utils.assert_no_newton_hud_dependency_warning(capsys, caplog)
+    _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
 if __name__ == "__main__":

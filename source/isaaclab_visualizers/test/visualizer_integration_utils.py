@@ -36,7 +36,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
-from isaaclab_visualizers.newton import NEWTON_HUD_IMPORT_LOG_WARNING, NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import AppLauncher
@@ -222,23 +222,14 @@ def _assert_no_visualizer_log_issues(caplog: pytest.LogCaptureFixture, *, fail_o
         )
 
 
-def assert_no_newton_hud_dependency_warning(
-    capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
-) -> None:
-    """Fail when Newton disables the imgui HUD due to a broken dependency chain."""
+def assert_no_newton_imgui_bundle_warning(capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture) -> None:
+    """Fail when Newton reports that its imgui HUD dependency is missing."""
     captured = capsys.readouterr()
     captured_output = captured.out + captured.err
     printed_warning = _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in captured_output
-    logged_warnings = [
-        record
-        for record in caplog.records
-        if NEWTON_HUD_IMPORT_LOG_WARNING in record.getMessage()
-        or _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in record.getMessage()
-    ]
+    logged_warnings = [record for record in caplog.records if _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in record.getMessage()]
     assert not printed_warning and not logged_warnings, (
-        "Newton visualizer HUD dependency failed. The Newton viewer printed/logged that imgui_bundle could not "
-        "be imported, which disables the HUD controls. Ensure isaaclab-visualizers[newton] installs "
-        "imgui-bundle and compatible transitive dependencies such as typing-extensions>=4.15.0. "
+        "Newton viewer reported that imgui_bundle could not be imported, which disables HUD controls. "
         f"Captured output: {captured_output!r}. "
         "Captured logs: " + "; ".join(f"{record.name}: {record.getMessage()}" for record in logged_warnings)
     )
