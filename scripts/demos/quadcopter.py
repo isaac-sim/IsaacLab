@@ -56,7 +56,7 @@ def main():
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
-        sim.set_camera_view(eye=[0.5, 0.5, 1.0], target=[0.0, 0.0, 0.5])
+        sim.set_camera_view(eye=[0.25, -0.25, 0.7], target=[0.0, 0.0, 0.5])
 
         # Spawn things into stage
         # Ground-plane
