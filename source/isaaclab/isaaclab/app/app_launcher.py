@@ -350,22 +350,13 @@ class AppLauncher:
 
         atexit.register(_atexit_close)
 
-        # Set up signal handlers for graceful shutdown. Kit launches with
-        # ``--/app/installSignalHandlers=0``, so it's on us to drive ``app.close()``
-        # before the default disposition terminates the process and leaves
-        # USD / PhysX state attached (the next sibling shard then trips
-        # "Stage X already attached" or hangs on physx detach).
-        # -- during explicit ``kill`` commands
+        # Set up signal handlers for graceful shutdown
+        # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
         # -- during aborts
         signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
         # -- during segfaults
         signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
-        # -- when the controlling session leader (e.g. a parent shell that
-        # supervises sibling shards) exits: SIGHUP cascades to children, and
-        # without a handler the default action would terminate before
-        # ``_atexit_close`` could run.
-        signal.signal(signal.SIGHUP, self._abort_signal_handle_callback)
 
     """
     Properties.
@@ -1394,15 +1385,7 @@ class AppLauncher:
                 play_button_group._play_button.visible = not flag  # type: ignore
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
-    def _abort_signal_handle_callback(self, signum, frame):
-        """Handle the abort/segmentation/kill/hangup signals.
-
-        Closes :class:`SimulationApp` so Kit detaches USD/PhysX state, then
-        exits with ``128 + signum`` to preserve the conventional signal-exit
-        encoding. Without the explicit exit, Python would resume execution
-        after the handler returns (since we replaced the OS-default
-        disposition), and Kit would be left half-torn-down.
-        """
-        with contextlib.suppress(Exception):
-            self._app.close()
-        sys.exit(128 + signum)
+    def _abort_signal_handle_callback(self, signal, frame):
+        """Handle the abort/segmentation/kill signals."""
+        # close the app
+        self._app.close()
