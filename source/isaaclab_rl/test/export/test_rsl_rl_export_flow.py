@@ -34,7 +34,7 @@ _OUTPUT_TAIL_CHARS = 5000
 TASKS = [
     # Classic
     "Isaac-Ant-v0",
-    "Isaac-Cartpole-v0",
+    "Isaac-Cartpole",
     # Navigation
     "Isaac-Navigation-Flat-Anymal-C-v0",
     "Isaac-Navigation-Flat-Anymal-C-Play-v0",

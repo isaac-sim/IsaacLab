@@ -187,13 +187,13 @@ Users then select a physics backend at the command line:
 .. code-block:: bash
 
     # Default (PhysX)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct-v0
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
 
     # MJWarp (Newton backend)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct-v0 physics=newton_mjwarp
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
     # OvPhysX backend
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct-v0 physics=ovphysx
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
 
 The Physics Manager
 -------------------

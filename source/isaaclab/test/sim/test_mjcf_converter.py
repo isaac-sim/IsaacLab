@@ -16,13 +16,24 @@ import os
 
 import pytest
 
-from isaacsim.core.experimental.utils.app import enable_extension, get_extension_path
+import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
 pytestmark = pytest.mark.isaacsim_ci
+
+_MJCF_IMPORTER_EXTENSION = "isaacsim.asset.importer.mjcf"
+
+
+def _get_extension_path_without_enabling(extension_name: str) -> str:
+    """Get the path for an extension without enabling it."""
+    manager = omni.kit.app.get_app().get_extension_manager()
+    for extension in manager.get_extensions():
+        if extension["name"] == extension_name:
+            return extension["path"]
+    raise RuntimeError(f"Extension not found: {extension_name}")
 
 
 @pytest.fixture(autouse=True)
@@ -36,8 +47,7 @@ def test_setup_teardown():
     sim = SimulationContext(SimulationCfg(dt=dt))
 
     # Setup: Create MJCF config
-    enable_extension("isaacsim.asset.importer.mjcf")
-    extension_path = get_extension_path("isaacsim.asset.importer.mjcf")
+    extension_path = _get_extension_path_without_enabling(_MJCF_IMPORTER_EXTENSION)
     config = MjcfConverterCfg(
         asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
         self_collision=False,
@@ -50,6 +60,19 @@ def test_setup_teardown():
     sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear_instance()
+
+
+def test_converter_enables_importer_extension(test_setup_teardown):
+    """Call conversion with the MJCF importer disabled. This should enable the importer extension."""
+    _, mjcf_config = test_setup_teardown
+
+    manager = omni.kit.app.get_app().get_extension_manager()
+    if manager.is_extension_enabled(_MJCF_IMPORTER_EXTENSION):
+        pytest.skip("MJCF importer extension was already enabled before constructing MjcfConverter.")
+
+    MjcfConverter(mjcf_config)
+
+    assert manager.is_extension_enabled(_MJCF_IMPORTER_EXTENSION)
 
 
 def test_no_change(test_setup_teardown):

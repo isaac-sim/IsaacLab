@@ -27,7 +27,7 @@ _TRAIN_CMD = [
     "--rl_library",
     "rsl_rl",
     "--task",
-    "Isaac-Cartpole-Direct-v0",
+    "Isaac-Cartpole-Direct",
     "--num_envs",
     "16",
     "presets=newton_mjwarp",

@@ -46,18 +46,22 @@ _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 def _user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
-    outside this module, so deprecation messages cite user code rather than
-    internal hydra-utility frames.
+    outside the ``isaaclab_tasks.utils`` package, so deprecation messages
+    cite user code rather than internal utility frames.
 
-    Walks at most a small bounded number of frames; if no non-hydra frame is
-    found within the bound (frozen modules, exec'd contexts, or oddly named
-    ``__file__`` globals), falls back to ``stacklevel=2`` so the warning at
-    least jumps out of the helper that called it.
+    Walks at most a small bounded number of frames; if no out-of-package
+    frame is found within the bound (frozen modules, exec'd contexts, or
+    oddly named ``__name__`` globals), falls back to ``stacklevel=2`` so
+    the warning at least jumps out of the helper that called it.
+
+    Package-scoped (not file-scoped) so callers in any module under
+    ``isaaclab_tasks.utils.*`` (``hydra``, ``parse_cfg``, ...) get the same
+    "skip our own internals" behavior without duplicating the walk.
     """
     max_walk = 16
     level = 1
     frame = sys._getframe(1)
-    while frame is not None and frame.f_globals.get("__file__") == __file__:
+    while frame is not None and frame.f_globals.get("__name__", "").startswith(__package__):
         level += 1
         frame = frame.f_back
         if level > max_walk:
@@ -111,6 +115,21 @@ class PresetCfg:
     The preset *name* (``newton_mjwarp``) is decoupled from the config class
     (``NewtonCfg``): the class describes the Newton backend, while the field
     name labels which solver variant this entry selects.
+
+    **Class-local helpers (underscore convention).** Names prefixed with
+    ``_`` and callables (nested classes, methods) are skipped by the
+    resolver and are NOT registered as variants. Use this to keep shared
+    helpers adjacent to the variants that need them, without polluting the
+    module namespace::
+
+        @configclass
+        class MultiBackendCameraCfg(PresetCfg):
+            # Class-local helper -- not a variant.
+            _ROTATED_OFFSET = CameraCfg.OffsetCfg(rot=(1, 0, 0, 0), ...)
+
+            rgb = CameraCfg(data_types=["rgb"])
+            albedo = CameraCfg(data_types=["albedo"], offset=_ROTATED_OFFSET)
+            default = rgb
     """
 
     def __getattr__(self, name: str):

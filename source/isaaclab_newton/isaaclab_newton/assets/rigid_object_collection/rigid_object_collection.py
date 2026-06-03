@@ -1071,6 +1071,39 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Internal helper.
     """
 
+    def reshape_data_to_view_3d(
+        self, data: wp.array | torch.Tensor, data_dim: int, device: str | None = None
+    ) -> wp.array | torch.Tensor:
+        """Reshape instance-major ``(num_instances, num_bodies, data_dim)`` data to body-major view order.
+
+        Args:
+            data: Source buffer with shape ``(num_instances, num_bodies, data_dim)``.
+                Supports Warp arrays and torch tensors.
+            data_dim: Trailing per-element dimension size.
+            device: Optional target device for the output. Defaults to ``data.device``.
+
+        Returns:
+            Contiguous body-major buffer with shape ``(num_bodies * num_instances, data_dim)``.
+            Torch inputs return torch tensors, and Warp inputs return Warp arrays.
+        """
+        if isinstance(data, torch.Tensor):
+            if device is None:
+                device = data.device
+            return data.transpose(0, 1).reshape(self.num_bodies * self.num_instances, data_dim).to(device).contiguous()
+
+        if device is None:
+            device = str(data.device)
+        element_size = wp.types.type_size_in_bytes(data.dtype)
+        row_size = element_size * data_dim
+        strided_view = wp.array(
+            ptr=data.ptr,
+            shape=(self.num_bodies, self.num_instances, data_dim),
+            dtype=data.dtype,
+            strides=(row_size, self.num_bodies * row_size, element_size),
+            device=str(data.device),
+        )
+        return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances, data_dim))
+
     def _initialize_impl(self):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
@@ -1081,20 +1114,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         root_prim_path_exprs: list[str] = []
 
         for name, rigid_body_cfg in self.cfg.rigid_objects.items():
-            matches = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)
-            if not matches:
-                raise RuntimeError(f"No prim found at '{rigid_body_cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
+            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)[0]
             walk_root = asset_prim.GetPath().pathString
-            root_prims = sim_utils.get_all_matching_child_prims(
-                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
-            )
-            if len(root_prims) != 1:
-                matched = [p.GetPath().pathString for p in root_prims]
-                raise RuntimeError(
-                    f"Expected exactly one RigidBodyAPI prim under '{walk_root}'"
-                    f" (resolved from '{rigid_body_cfg.prim_path}'), found {len(root_prims)}: {matched}."
-                )
+            root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
             root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
             root_prim_path_exprs.append(root_prim_path_expr.replace(".*", "*"))
             self._body_names_list.append(name)

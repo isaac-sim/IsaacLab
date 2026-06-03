@@ -14,6 +14,19 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
 
+This branch is a development branch for Isaac Sim 6.0, which is currently only available through the Isaac Sim [GitHub repo](https://github.com/isaac-sim/IsaacSim).
+For installation, please refer to the Isaac Sim GitHub repo to build the latest Isaac Sim branch, and follow the binary installation method in the
+Isaac Lab documentation for Isaac Lab installation.
+
+> [!WARNING]
+> A recent breaking change on the Isaac Lab `develop` branch is not compatible with the `develop` branch of Isaac Sim on GitHub.
+> To run Isaac Lab with Isaac Sim's GitHub `develop` branch, use Isaac Lab commit [`f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa`](https://github.com/isaac-sim/IsaacLab/commit/f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa) or an earlier commit.
+> Alternatively, use the Isaac Lab [`v3.0.0-beta`](https://github.com/isaac-sim/IsaacLab/tree/v3.0.0-beta) tag.
+
+Note that this branch is currently under active development and may experience breaking changes or error messages.
+Performance issues and regressions may also be observed in some use cases.
+
+
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
 such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html),
 it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real
@@ -43,10 +56,10 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including
 detailed tutorials and step-by-step guides. Follow these links to learn more about:
 
-- [Installation steps](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html#local-installation)
-- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html)
-- [Tutorials](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/index.html)
-- [Available environments](https://isaac-sim.github.io/IsaacLab/main/source/overview/environments.html)
+- [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html#local-installation)
+- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/develop/source/overview/reinforcement-learning/rl_existing_scripts.html)
+- [Tutorials](https://isaac-sim.github.io/IsaacLab/develop/source/tutorials/index.html)
+- [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/overview/environments.html)
 
 ## Performance Dashboard
 
@@ -63,7 +76,7 @@ dependency versions for Isaac Sim.
 
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
-| `release/3.0.0-beta` branch   | Isaac Sim 6.0             |
+| `release/3.0.0-beta2` branch  | Isaac Sim 6.0             |
 | `develop` branch              | Isaac Sim 6.0             |
 | `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v3.0.0*`                     | Isaac Sim 6.0             |
@@ -76,7 +89,7 @@ dependency versions for Isaac Sim.
 
 We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone.
 These may happen as bug reports, feature requests, or code contributions. For details, please check our
-[contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html).
+[contribution guidelines](https://isaac-sim.github.io/IsaacLab/develop/source/refs/contributing.html).
 
 ## Show & Tell: Share Your Inspiration
 
@@ -93,7 +106,7 @@ innovation in robotics and simulation.
 
 ## Troubleshooting
 
-Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/main/source/refs/troubleshooting.html) section for
+Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/develop/source/refs/troubleshooting.html) section for
 common fixes or [submit an issue](https://github.com/isaac-sim/IsaacLab/issues).
 
 For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)

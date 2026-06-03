@@ -13,7 +13,7 @@ import gymnasium as gym
 # Register Gym environments.
 ##
 
-stable_agents = "isaaclab_tasks.direct.cartpole.agents"
+stable_agents = "isaaclab_tasks.core.direct_cartpole.agents"
 
 gym.register(
     id="Isaac-Cartpole-Direct-Warp-v0",

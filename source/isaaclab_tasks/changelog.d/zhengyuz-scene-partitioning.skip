@@ -1,0 +1,3 @@
+Test-only: regenerated rendering golden images to match per-env ``omni:scenePartition``
+authoring in ``InteractiveScene``. No user-facing ``isaaclab_tasks`` change, so no
+changelog entry or version bump.

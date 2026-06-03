@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_physx"
-version = "1.1.0"
+version = "1.1.1"
 description = "Extension providing IsaacLab with PhysX specific abstractions."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]

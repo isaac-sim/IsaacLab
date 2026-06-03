@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+1.1.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
+  :class:`~isaaclab_physx.sensors.Pva`, and :class:`~isaaclab_physx.sensors.JointWrenchSensor`
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each sensor's ``reset()`` now marks
+  the reset envs as up to date after zeroing ``_data``, so an immediate read returns those
+  zeros rather than re-fetching a physics buffer that has not been stepped since the reset.
+* Fixed PhysX scene-data rigid-body view creation to use exact rigid-body prim
+  paths, avoiding spurious warnings for assets whose joint prims share body names.
+* Restored wildcard PhysX scene-data rigid-body view patterns to keep Newton
+  visualizers updating live PhysX transforms.
+* Fixed PhysX tensor imports when using wheel-installed Isaac Sim packages.
+
+
 1.1.0 (2026-05-21)
 ~~~~~~~~~~~~~~~~~~
 

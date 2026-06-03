@@ -358,8 +358,9 @@ def export_rsl_rl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
+    from isaaclab.app import launch_simulation
+
     from isaaclab_tasks.utils.hydra import hydra_task_config
-    from isaaclab_tasks.utils.sim_launcher import launch_simulation
 
     original_argv = sys.argv
     # Fold typed preset selectors into a single ``presets=<csv>`` token before

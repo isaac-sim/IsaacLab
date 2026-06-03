@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.4.2 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed legacy OVRTX 0.2.x code paths from :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+* Removed the "experimental" statement from the ``isaaclab_ov`` package documentation.
+
+
 0.4.1 (2026-05-23)
 ~~~~~~~~~~~~~~~~~~
 

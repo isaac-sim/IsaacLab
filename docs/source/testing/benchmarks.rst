@@ -87,7 +87,7 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
    # Add metadata
    benchmark.add_measurement(
        phase_name="simulation",
-       metadata=StringMetadata(name="task", data="Isaac-Cartpole-v0"),
+       metadata=StringMetadata(name="task", data="Isaac-Cartpole"),
    )
 
    # Finalize and write output
@@ -110,7 +110,7 @@ Measure environment stepping performance without training:
 
    # Run a single benchmark manually
    ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
-       --task Isaac-Cartpole-v0 \
+       --task Isaac-Cartpole \
        --num_envs 4096 \
        --num_frames 100 \
        --headless \
@@ -129,7 +129,7 @@ Measure training performance with RSL-RL:
 
    # Run manually with RSL-RL
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-       --task Isaac-Cartpole-v0 \
+       --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
        --headless \
@@ -279,7 +279,7 @@ Non-RL Benchmark Arguments
      - Description
    * - ``--task``
      - required
-     - Environment task name (e.g., ``Isaac-Cartpole-v0``)
+     - Environment task name (e.g., ``Isaac-Cartpole``)
    * - ``--num_envs``
      - ``4096``
      - Number of parallel environments
@@ -439,7 +439,7 @@ Output structure:
          }
        ],
        "metadata": [
-         {"name": "MyBenchmark simulation task", "data": "Isaac-Cartpole-v0", "type": "string"}
+         {"name": "MyBenchmark simulation task", "data": "Isaac-Cartpole", "type": "string"}
        ]
      }
    ]
@@ -461,7 +461,7 @@ Output structure:
      "workflow_name": "MyBenchmark",
      "phase": "simulation",
      "fps": 1234.5,
-     "task": "Isaac-Cartpole-v0"
+     "task": "Isaac-Cartpole"
    }
 
 OmniPerf Backend

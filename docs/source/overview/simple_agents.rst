@@ -44,14 +44,14 @@ useful to ensure that the environments are configured correctly.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 32
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole --num_envs 32
 
 -  Random-action agent on the Cart-pole example:
 
@@ -63,14 +63,14 @@ useful to ensure that the environments are configured correctly.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole --num_envs 32
 
 
 State machine
@@ -91,14 +91,14 @@ allows efficient execution for large number of environments using CUDA kernels.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32
+         ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32 --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\state_machine\lift_cube_sm.py --num_envs 32
+         isaaclab.bat -p scripts\environments\state_machine\lift_cube_sm.py --num_envs 32 --viz kit
 
 - Picking up a deformable teddy bear and placing it at a desired pose with a robotic arm:
 

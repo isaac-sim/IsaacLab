@@ -8,44 +8,46 @@ This script demonstrates different legged robots.
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with the default PhysX backend (launches Isaac Sim Kit).
     ./isaaclab.sh -p scripts/demos/quadrupeds.py
+
+    # Usage with the kit-less Newton (MJWarp) backend.
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different legged robots.",
+    conflict_handler="resolve",
+)
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
 
 ##
 # Pre-defined configs
 ##
+from isaaclab.physics import PhysicsCfg
+
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
 from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -79,37 +81,43 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 1 with Anymal B
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
-
+    anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot")
+    anymal_b = anymal_b_cfg.class_type(anymal_b_cfg)
     # Origin 2 with Anymal C
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
+    anymal_c_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
+    anymal_c = anymal_c_cfg.class_type(anymal_c_cfg)
 
     # Origin 3 with Anymal D
     sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
     # -- Robot
-    anymal_d = Articulation(ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot"))
+    anymal_d_cfg = ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot")
+    anymal_d = anymal_d_cfg.class_type(anymal_d_cfg)
 
     # Origin 4 with Unitree A1
     sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
-    unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+    unitree_a1_cfg = UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot")
+    unitree_a1 = unitree_a1_cfg.class_type(unitree_a1_cfg)
 
     # Origin 5 with Unitree Go1
     sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
     # -- Robot
-    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
+    unitree_go1_cfg = UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot")
+    unitree_go1 = unitree_go1_cfg.class_type(unitree_go1_cfg)
 
     # Origin 6 with Unitree Go2
     sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
     # -- Robot
-    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
+    unitree_go2_cfg = UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot")
+    unitree_go2 = unitree_go2_cfg.class_type(unitree_go2_cfg)
 
     # Origin 7 with Boston Dynamics Spot
     sim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
     # -- Robot
-    spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
+    spot_cfg = SPOT_CFG.replace(prim_path="/World/Origin7/Robot")
+    spot = spot_cfg.class_type(spot_cfg)
 
     # return the scene information
     scene_entities = {
@@ -124,14 +132,14 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
+def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tensor):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
-    # Simulate physics
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while not sim.visualizers or any(v.is_running() and not v.is_closed for v in sim.visualizers):
         # reset
         if count % 200 == 0:
             # reset counters
@@ -175,24 +183,22 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 
 def main():
     """Main function."""
-
-    # Initialize the simulation context
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01))
-    # Set main camera
-    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        dt = 1 / 200
+        sim = sim_utils.SimulationContext(
+            sim_utils.SimulationCfg(
+                dt=dt,
+                device=args_cli.device,
+                physics=physics_cfg,
+            )
+        )
+        sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+        scene_entities, scene_origins = design_scene()
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        sim.reset()
+        print("[INFO]: Setup complete...")
+        run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

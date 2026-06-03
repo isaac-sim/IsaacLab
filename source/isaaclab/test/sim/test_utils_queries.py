@@ -113,6 +113,18 @@ def test_get_all_matching_child_prims():
     assert len(isaaclab_result) == 1
     assert isaaclab_result[0].GetPrimPath() == "/World/Franka/panda_hand/visuals/panda_hand"
 
+    # test expected number of matches
+    isaaclab_result = sim_utils.get_all_matching_child_prims(
+        "/World", predicate=lambda x: x.GetTypeName() == "Cube", expected_num_matches=1
+    )
+    assert len(isaaclab_result) == 1
+    with pytest.raises(RuntimeError, match="Expected 2 prims under '/World', found 1"):
+        sim_utils.get_all_matching_child_prims(
+            "/World", predicate=lambda x: x.GetTypeName() == "Cube", expected_num_matches=2
+        )
+    with pytest.raises(ValueError, match="Expected number of matches must be non-negative"):
+        sim_utils.get_all_matching_child_prims("/World", expected_num_matches=-1)
+
     # test valid path
     with pytest.raises(ValueError):
         sim_utils.get_all_matching_child_prims("World/Room")

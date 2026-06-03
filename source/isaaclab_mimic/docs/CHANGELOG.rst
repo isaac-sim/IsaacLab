@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+1.3.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Declared ``isaaclab_teleop`` as a required extension of
+  ``isaaclab_mimic`` in ``install.py``. ``./isaaclab.sh -i mimic``
+  now installs ``isaaclab_teleop`` alongside ``isaaclab_mimic``.
+* Updated imports to the new :mod:`isaaclab_tasks.core` / :mod:`isaaclab_tasks.contrib`
+  task layout. No behavior change.
+
+
 1.3.0 (2026-05-18)
 ~~~~~~~~~~~~~~~~~~
 

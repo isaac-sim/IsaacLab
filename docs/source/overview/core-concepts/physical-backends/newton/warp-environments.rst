@@ -103,7 +103,7 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - Stable Step (us)
      - Warp Step (us)
      - Change
-   * - Cartpole-Direct
+   * - Isaac-Cartpole-Direct
      - Direct
      - 5,274
      - 4,331

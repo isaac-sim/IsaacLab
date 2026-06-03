@@ -49,7 +49,7 @@ the intersection first (both sides pre-fold, vocabulary matches), then fold::
     sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining)
 
 ``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
-explicitly via :func:`isaaclab_tasks.utils.add_launcher_args` before calling.
+explicitly via :func:`isaaclab.app.add_launcher_args` before calling.
 """
 
 from __future__ import annotations
@@ -193,7 +193,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
-        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-v0"``).
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole"``).
 
     Returns:
         A mapping ``{PresetTarget: sorted list of preset names}`` on success.
