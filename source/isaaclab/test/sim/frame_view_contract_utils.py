@@ -401,12 +401,28 @@ def test_return_types_are_torcharray(device, view_factory):
             f"get_local_poses(indices)[1] must be ProxyArray, got {type(lquat_idx).__name__}"
         )
 
-        scales_full = bundle.view.get_scales()
-        assert isinstance(scales_full, ProxyArray), f"get_scales() must be ProxyArray, got {type(scales_full).__name__}"
-        scales_idx = bundle.view.get_scales(indices)
-        assert isinstance(scales_idx, ProxyArray), (
-            f"get_scales(indices) must be ProxyArray, got {type(scales_idx).__name__}"
+        world_scales_full = bundle.view.get_world_scales()
+        assert isinstance(world_scales_full, ProxyArray), (
+            f"get_world_scales() must be ProxyArray, got {type(world_scales_full).__name__}"
         )
+        world_scales_idx = bundle.view.get_world_scales(indices)
+        assert isinstance(world_scales_idx, ProxyArray), (
+            f"get_world_scales(indices) must be ProxyArray, got {type(world_scales_idx).__name__}"
+        )
+
+        local_scales_full = bundle.view.get_local_scales()
+        assert isinstance(local_scales_full, ProxyArray), (
+            f"get_local_scales() must be ProxyArray, got {type(local_scales_full).__name__}"
+        )
+        local_scales_idx = bundle.view.get_local_scales(indices)
+        assert isinstance(local_scales_idx, ProxyArray), (
+            f"get_local_scales(indices) must be ProxyArray, got {type(local_scales_idx).__name__}"
+        )
+
+        scales_full = bundle.view.get_scales()
+        assert isinstance(scales_full, wp.array), f"get_scales() must be wp.array, got {type(scales_full).__name__}"
+        scales_idx = bundle.view.get_scales(indices)
+        assert isinstance(scales_idx, wp.array), f"get_scales(indices) must be wp.array, got {type(scales_idx).__name__}"
     finally:
         bundle.teardown()
 
