@@ -106,16 +106,16 @@ Particular care should be taken when modifying the parameters using command line
 perform intermediate computations based on other parameters. These computations will not be updated when the parameters
 are modified.
 
-For example, for the configuration of the Cartpole camera depth environment:
+For example, for the configuration of the Cartpole camera environment:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py
     :language: python
-    :start-at: class CartpoleDepthCameraEnvCfg
-    :end-at: tiled_camera.width
-    :emphasize-lines: 10, 15
+    :start-at: class CartpoleTiledCameraCfg
+    :end-at: observation_space = [3, 100, 100]
+    :emphasize-lines: 12, 44
 
 If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.observation_space=[80,128,1]`` must be updated and given as input as well.
+``env.observation_space=[3,100,128]`` must be updated and given as input as well.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:

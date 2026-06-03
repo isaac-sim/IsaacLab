@@ -17,9 +17,9 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
 @configclass
-class TiledCameraCfg(PresetCfg):
+class CartpoleTiledCameraCfg(PresetCfg):
     @configclass
-    class CartpoleTiledCameraCfg(CameraCfg):
+    class BaseCartpoleTiledCameraCfg(CameraCfg):
         prim_path: str = "/World/envs/env_.*/Camera"
         offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
@@ -32,13 +32,13 @@ class TiledCameraCfg(PresetCfg):
         height: int = 100
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
-    default = CartpoleTiledCameraCfg(data_types=["rgb"])
-    depth = CartpoleTiledCameraCfg(data_types=["depth"])
-    albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
-    semantic_segmentation = CartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
-    simple_shading_constant_diffuse = CartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
-    simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
-    simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
+    default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
+    depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
+    albedo = BaseCartpoleTiledCameraCfg(data_types=["albedo"])
+    semantic_segmentation = BaseCartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
+    simple_shading_constant_diffuse = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    simple_shading_diffuse_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    simple_shading_full_mdl = BaseCartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
     rgb = default
 
 
@@ -49,7 +49,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         """Camera variant of :class:`CartpoleEnvCfg` — only the fields that differ are overridden."""
 
         # camera
-        tiled_camera: TiledCameraCfg = TiledCameraCfg()
+        tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
         write_image_to_file = False
 
         frame_stack: int = -1
