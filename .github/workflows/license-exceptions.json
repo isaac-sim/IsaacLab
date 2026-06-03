@@ -470,7 +470,7 @@
   },
   {
     "package": "typing_extensions",
-    "license": "Python Software Foundation License",
+    "license": "PSF-2.0",
     "comment": "PSFL / OSRB"
   },
   {
