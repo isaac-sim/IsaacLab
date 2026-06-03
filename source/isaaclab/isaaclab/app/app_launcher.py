@@ -60,20 +60,44 @@ def _parse_force_exit_seconds(value: str) -> int:
 def _arm_force_exit_timer(seconds: int, label: str) -> None:
     """Spawn a daemon thread that calls ``os._exit(0)`` after ``seconds``.
 
-    Bounds the Kit ``shutdown_and_release_framework`` hang in CI environments
-    (https://github.com/isaac-sim/IsaacLab/issues/3475). The hang sits in
-    Kit binary code; the only python-side escape is ``os._exit``, which
-    bypasses any threads still holding the GIL.
+    Bounds the Kit ``quickReleaseFrameworkAndTerminate`` hang in CI
+    environments (https://github.com/isaac-sim/IsaacLab/issues/3475 / NVBug
+    5948099 / OMPE-75416).
+
+    Uses ``ctypes.CDLL("libc.so.6").kill(os.getpid(), SIGKILL)`` rather than
+    ``os._exit(0)`` because the hang in question is a GIL deadlock: Kit's
+    teardown C++ frames hold the GIL while joining ``carb.tasking`` worker
+    threads that themselves wait for the GIL. ``os._exit`` is a Python-level
+    syscall wrapper that requires the bytecode dispatcher (which needs the
+    GIL); if the daemon thread cannot acquire the GIL, the wake never runs.
+    ``ctypes`` releases the GIL around C calls by default, so the raw libc
+    ``kill(2)`` syscall fires even when the interpreter is GIL-blocked.
+
+    The daemon thread is created (and parks on ``time.sleep``, which releases
+    the GIL) BEFORE the close() call so it is already in the GIL-released
+    sleep state when the deadlock starts. SIGKILL ends the process; no
+    atexit, no JUnit cleanup runs — callers must have already written their
+    JUnit XML before triggering close().
     """
+    import ctypes
     import threading
 
     def _timeout_kill() -> None:
         import time as _time
 
         _time.sleep(seconds)
-        sys.stderr.write(f"[isaaclab.app] ISAACLAB_FORCE_EXIT_TIMEOUT={seconds}s expired during {label}; os._exit(0)\n")
+        sys.stderr.write(
+            f"[isaaclab.app] ISAACLAB_FORCE_EXIT_TIMEOUT={seconds}s expired during {label}; libc.kill(self, SIGKILL)\n"
+        )
         sys.stderr.flush()
-        os._exit(0)
+        try:
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            # SIGKILL is 9 on Linux. Raw syscall — does not require the GIL
+            # to be dispatchable through the interpreter.
+            libc.kill(os.getpid(), 9)
+        except Exception:
+            # Last-resort fallback: only works when GIL is reachable.
+            os._exit(0)
 
     threading.Thread(target=_timeout_kill, name="isaaclab-force-exit", daemon=True).start()
 
