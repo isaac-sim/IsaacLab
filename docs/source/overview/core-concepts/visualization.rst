@@ -220,12 +220,10 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
      - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
    * - Generated tiled camera
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot"``
-     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
-     - Note that the ``tiled_cam_target_prim_path`` is the default value, but different environments may require a different paths.
+     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target. Note that the ``tiled_cam_target_prim_path`` is the default value, but different environments may require different paths.
    * - Existing tiled camera sensors
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
-     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
-     - Note that the ``tiled_cam_prim_path`` is the default value, but different environments may require a different paths.
+     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored. Note that the ``tiled_cam_prim_path`` is the default value, but different environments may require different paths.
 
      This mode requires an environment that registers Isaac Lab ``Camera`` sensors in ``scene.sensors``.
      For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole`` task
@@ -607,6 +605,13 @@ The FPS control in the Rerun visualizer UI may not affect the visualization fram
 **Live Plots**
 
 Currently, live plots are only available in the Kit Visualizer.
+
+
+**Newton Contact Visualization**
+
+Newton's native ``Show Contacts`` view can show all contacts from the Newton physics contact buffer. When running
+with PhysX, the Newton visualizer can only show contacts reported by configured Isaac Lab contact sensors, so
+currently the set of displayed contacts may differ across backends.
 
 
 **Viser Visualizer Renderer Requirement**
