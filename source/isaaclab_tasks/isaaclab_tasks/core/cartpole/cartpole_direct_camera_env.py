@@ -8,8 +8,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sensors import Camera, save_images_to_file
@@ -78,9 +76,7 @@ class CartpoleCameraEnv(CartpoleEnv):
         if frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
-            self._stack = CircularBuffer(
-                max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
-            )
+            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1)
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""

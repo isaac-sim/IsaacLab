@@ -708,12 +708,12 @@ def normalize_image_uint8(
             ``3`` (BHWC). Constant across all threads; the wrapper validates the value
             and resolves negatives before launch.
     """
-    i, j, k, l = wp.tid()
+    b, d1, d2, d3 = wp.tid()
     if channel_dim == 1:
-        c = j
+        c = d1
     else:
-        c = l
-    out[i, j, k, l] = wp.float32(src[i, j, k, l]) / 255.0 - mean[i, c]
+        c = d3
+    out[b, d1, d2, d3] = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
 
 
 @wp.kernel(enable_backward=False)
