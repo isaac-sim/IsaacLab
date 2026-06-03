@@ -8,6 +8,29 @@
 from __future__ import annotations
 
 
+VISUALIZER_INFINITE_PLANE_SIZE = 1000.0
+"""Finite render size used for Newton planes encoded as infinite."""
+
+
+def expand_infinite_plane_scale(
+    geo_scale: tuple[float, ...], plane_size: float = VISUALIZER_INFINITE_PLANE_SIZE
+) -> tuple[float, ...]:
+    """Return a finite visual scale for Newton planes encoded with non-positive extents.
+
+    Newton uses non-positive X/Y plane scale values to represent an effectively
+    infinite plane. Newton GL renders those with a large finite mesh; web viewers
+    also need a finite size, otherwise their world-extents heuristic can shrink
+    the floor to just the actor bounds.
+    """
+    scale = tuple(float(value) for value in geo_scale)
+    width = scale[0] if len(scale) > 0 else 0.0
+    length = scale[1] if len(scale) > 1 else 0.0
+    if width > 0.0 and length > 0.0:
+        return scale
+    tail = scale[2:] if len(scale) > 2 else ()
+    return (float(plane_size), float(plane_size), *tail)
+
+
 def resolve_visible_env_indices(
     env_ids: list[int] | None,
     max_visible_envs: int | None,

@@ -41,6 +41,21 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 
+def _log_newton_hud_dependency_issue() -> None:
+    """Log a clear warning if Newton's imgui HUD dependencies cannot be imported."""
+    try:
+        from imgui_bundle import imgui as _imgui  # noqa: F401
+        from imgui_bundle import imguizmo as _imguizmo  # noqa: F401
+        from imgui_bundle.python_backends import pyglet_backend as _pyglet_backend  # noqa: F401
+    except ImportError as exc:
+        logger.warning(
+            "[NewtonVisualizer] Newton HUD disabled: failed to import imgui_bundle. "
+            "Install isaaclab-visualizers[newton] or fix its transitive dependencies "
+            "(for example typing-extensions>=4.15.0). ImportError: %s",
+            exc,
+        )
+
+
 class NewtonViewerGL(ViewerGL):
     """Wrapper around Newton's ViewerGL with training/rendering pause controls."""
 
@@ -389,6 +404,7 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
+        _log_newton_hud_dependency_issue()
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,

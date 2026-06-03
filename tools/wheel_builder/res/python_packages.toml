@@ -106,7 +106,7 @@ pyproject.optional-dependencies.all = [
     { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     # ================================================================================
-    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/setup.py
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/pyproject.toml
     # ================================================================================
     # Viser visualizer (opt-in: viser pulls websockets>=13.1 which collides with
     # isaacsim-kernel==6.0.0.0's websockets==12.0; do not include in [all]).

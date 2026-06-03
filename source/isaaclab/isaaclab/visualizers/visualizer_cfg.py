@@ -36,7 +36,7 @@ class VisualizerCfg:
     """Camera focal length in millimeters for visualizer camera views."""
 
     # Tiled camera settings
-    tiled_cam_view: bool = False
+    tiled_cam_view: bool = True
     """Enable a non-interactive tiled camera image view."""
 
     tiled_cam_num: int = 16

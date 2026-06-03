@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins
+from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, find_camera_by_prim_path
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -124,6 +124,15 @@ def test_apply_camera_view_from_origins_forwards_env_ids():
     assert targets.tolist() == [[1.0, 2.0, 3.0]]
     assert env_ids == [2]
     assert camera.update_poses_calls == [None]
+
+
+def test_find_camera_by_prim_path_explains_missing_scene_cameras():
+    with pytest.raises(RuntimeError) as exc_info:
+        find_camera_by_prim_path({}, "/World/envs/*/Camera", [0])
+
+    message = str(exc_info.value)
+    assert "No Isaac Lab Camera sensors are registered in the scene" in message
+    assert "leave tiled_cam_prim_path unset" in message
 
 
 def test_compute_visualized_env_ids_cap_only_returns_none():

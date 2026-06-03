@@ -1,0 +1,3 @@
+Fixed Newton visualizer HUD dependency checks by requiring ``typing-extensions>=4.15.0`` for the Newton visualizer extra and failing integration tests when Newton reports that ``imgui_bundle`` could not be imported. Removed the legacy ``setup.py`` for ``isaaclab_visualizers`` now that ``pyproject.toml`` carries the package metadata.
+
+Fixed Rerun and Viser visualizers rendering Newton infinite ground planes too small by expanding non-positive plane extents to the same large finite size used by Newton GL.

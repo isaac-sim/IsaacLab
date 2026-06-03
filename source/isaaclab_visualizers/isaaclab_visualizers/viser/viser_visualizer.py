@@ -16,12 +16,17 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import newton
 from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import (
+    apply_viewer_visible_worlds,
+    expand_infinite_plane_scale,
+    resolve_visible_env_indices,
+)
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -113,6 +118,21 @@ class NewtonViewerViser(ViewerViser):
     def share_url(self) -> str | None:
         """Return the public share URL created by Viser, if any."""
         return self._share_url
+
+    def log_geo(
+        self,
+        name: str,
+        geo_type: int,
+        geo_scale: tuple[float, ...],
+        geo_thickness: float,
+        geo_is_solid: bool,
+        geo_src=None,
+        hidden: bool = False,
+    ):
+        """Log geometry, preserving large render extents for infinite ground planes."""
+        if geo_type == newton.GeoType.PLANE:
+            geo_scale = expand_infinite_plane_scale(geo_scale)
+        return super().log_geo(name, geo_type, geo_scale, geo_thickness, geo_is_solid, geo_src, hidden)
 
 
 class ViserVisualizer(BaseVisualizer):
