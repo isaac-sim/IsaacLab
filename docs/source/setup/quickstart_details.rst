@@ -34,19 +34,19 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
 
          # Kit-less: Newton MJWarp + Newton visualizer
          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-Direct-v0 \
+           --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=newton_mjwarp --visualizer newton
 
          # With Isaac Sim: PhysX
          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-Direct-v0 \
+           --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
 
          # Camera task: physics + renderer + domain preset
          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-Camera-Presets-Direct-v0 \
+           --task=Isaac-Cartpole-Camera-Direct \
            physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
          # OVRTX rendering (kit-less, no Kit visualizer)
@@ -61,7 +61,7 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
       .. code-block:: batch
 
          isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
-           --task=Isaac-Cartpole-Direct-v0 ^
+           --task=Isaac-Cartpole-Direct ^
            --num_envs=4096 ^
            physics=newton_mjwarp --visualizer newton
 

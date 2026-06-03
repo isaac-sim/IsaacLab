@@ -20,7 +20,7 @@ gym.register(
     entry_point=f"{__name__}.humanoid_warp_env:HumanoidWarpEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.humanoid_warp_env:HumanoidWarpEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.humanoid_warp_env_cfg:HumanoidWarpEnvCfg",
         "rl_games_cfg_entry_point": f"{stable_agents}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{stable_agents}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
         "skrl_cfg_entry_point": f"{stable_agents}:skrl_ppo_cfg.yaml",

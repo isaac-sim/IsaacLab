@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.4.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--rl_model_path`` CLI flag to ``play.py`` for evaluating RL-finetuned checkpoints.
+  The base model architecture is loaded via ``--model_path`` and the RL-trained weights
+  (``full_weights.pt``) are overlaid from the checkpoint directory.
+
+Fixed
+^^^^^
+
+* Fixed Newton replicated-scene setup for deformable VBD managers to use
+  clone-plan source prims.
+
+
 0.4.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 

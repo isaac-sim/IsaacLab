@@ -291,7 +291,7 @@ Do not re-invent these assertions per file.
 _TRAIN_CMD = [
     "train",
     "--rl_library", "rsl_rl",
-    "--task", "Isaac-Cartpole-Direct-v0",
+    "--task", "Isaac-Cartpole-Direct",
     "--num_envs", "16",
     "presets=newton_mjwarp",
     "--max_iterations", "5",

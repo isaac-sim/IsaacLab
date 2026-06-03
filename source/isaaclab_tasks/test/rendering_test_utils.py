@@ -832,10 +832,10 @@ def rendering_test_cartpole(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    from isaaclab_tasks.core.direct_cartpole.cartpole_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.core.direct_cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-    env_cfg = CartpoleCameraPresetsEnvCfg()
+    env_cfg = CartpoleCameraEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(
         env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
     )

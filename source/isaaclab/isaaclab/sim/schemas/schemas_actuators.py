@@ -24,6 +24,11 @@ import logging
 import re
 from typing import Any
 
+from pxr import Sdf, Usd
+
+from isaaclab.actuators import ImplicitActuator
+from isaaclab.utils.string import resolve_matching_names
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,11 +139,6 @@ def _author_actuator_prims(
     actuator_cfgs: dict[str, Any],
 ) -> None:
     """Inner authoring routine; exposed separately for test fixtures."""
-    from pxr import Sdf  # noqa: PLC0415
-
-    from isaaclab.actuators import ImplicitActuator  # noqa: PLC0415
-    from isaaclab.utils.string import resolve_matching_names  # noqa: PLC0415
-
     art_prim = stage.GetPrimAtPath(articulation_prim_path)
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
@@ -300,8 +300,6 @@ def _collect_joint_prims(art_prim: Any) -> dict[str, str]:
     Returns:
         Ordered mapping of joint name to full prim path.
     """
-    from pxr import Usd  # noqa: PLC0415
-
     _JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"}
 
     joints: dict[str, str] = {}
@@ -324,8 +322,6 @@ def _remove_actuator_prims_for_joints(
 
     Only prims under the *art_prim* subtree are considered.
     """
-    from pxr import Usd  # noqa: PLC0415
-
     to_deactivate: list = []
     for prim in Usd.PrimRange(art_prim):
         if prim.GetTypeName() != "NewtonActuator":

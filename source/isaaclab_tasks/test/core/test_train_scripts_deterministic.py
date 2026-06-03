@@ -245,7 +245,7 @@ def test_rl_games_deterministic_flag_affects_rewards_reproducibility():
     train_script = "scripts/reinforcement_learning/rl_games/train.py"
     log_subdir = "rl_games"
     preferred_reward_tags = ["rewards/iter"]
-    task_name = "Isaac-Cartpole-RGB-v0"
+    task_name = "Isaac-Cartpole-Camera"
 
     rewards_non_det_1 = _run_train_once(
         train_script=train_script,

@@ -45,10 +45,10 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         allow_abbrev=False,
         epilog=(
             "Examples:\n"
-            "  train_multigpu --num_gpus 4 --task Isaac-Cartpole-v0\n"
-            "  train_multigpu --rl_library skrl --num_gpus 2 --task Isaac-Cartpole-v0\n"
+            "  train_multigpu --num_gpus 4 --task Isaac-Cartpole\n"
+            "  train_multigpu --rl_library skrl --num_gpus 2 --task Isaac-Cartpole\n"
             "  train_multigpu --rl_library skrl --num_gpus 2 --ml_framework jax "
-            "--task Isaac-Cartpole-v0\n"
+            "--task Isaac-Cartpole\n"
             "\n"
             "All unrecognized arguments are forwarded to the selected training library."
         ),

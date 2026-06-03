@@ -99,12 +99,13 @@ def run(argv: list[str]) -> None:
     """Train a skrl agent."""
     import skrl
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)
 

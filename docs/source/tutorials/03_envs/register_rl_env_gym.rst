@@ -74,12 +74,12 @@ Manager-Based Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For manager-based environments, the following shows the registration
-call for the cartpole environment in the ``isaaclab_tasks.core.manager_cartpole`` sub-package:
+call for the cartpole environment in the ``isaaclab_tasks.core.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 10-
-   :emphasize-lines: 4, 11, 12, 15
+   :lines: 14-16,50-64
+   :emphasize-lines: 5, 6, 9
 
 The ``id`` argument is the name of the environment. As a convention, we name all the environments
 with the prefix ``Isaac-`` to make it easier to search for them in the registry. The name of the
@@ -109,12 +109,12 @@ Additionally, we add the suffix ``-Direct`` to the environment name to different
 manager-based environments.
 
 As an example, the following shows the registration call for the cartpole environment in the
-``isaaclab_tasks.core.direct_cartpole`` sub-package:
+``isaaclab_tasks.core.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 10-31
-   :emphasize-lines: 5, 12, 13, 16
+   :lines: 14-16,22-33
+   :emphasize-lines: 5, 6, 9
 
 
 Creating the environment
@@ -149,7 +149,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --viz kit
+   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 
 This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
@@ -166,7 +166,7 @@ In addition, you can also change the simulation device from GPU to CPU by settin
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --device cpu --viz kit
+   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --device cpu --viz kit
 
 With the ``--device cpu`` flag, the simulation will run on the CPU. This is useful for debugging the simulation.
 However, the simulation will run much slower than on the GPU.

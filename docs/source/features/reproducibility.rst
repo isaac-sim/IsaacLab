@@ -41,7 +41,7 @@ To enable deterministic RTX settings from the app launcher, pass ``--determinist
 .. code-block:: bash
 
   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
-    --task Isaac-Cartpole-RGB-v0 --enable_cameras --headless --deterministic
+    --task Isaac-Cartpole-Camera --enable_cameras --headless --deterministic
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 

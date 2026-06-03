@@ -88,19 +88,19 @@ Training scripts live under ``scripts/reinforcement_learning/``. Pass a **task n
 
          # Kit-less: Newton MJWarp physics + Newton visualizer
          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-Direct-v0 \
+           --task=Isaac-Cartpole-Direct \
            --num_envs=16 --max_iterations=10 \
            physics=newton_mjwarp --visualizer newton
 
          # With Isaac Sim: PhysX physics (default renderer)
          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-Direct-v0 \
+           --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
 
          # Camera task: typed physics + renderer + domain preset
          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-Camera-Presets-Direct-v0 \
+           --task=Isaac-Cartpole-Camera-Direct \
            physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -109,12 +109,12 @@ Training scripts live under ``scripts/reinforcement_learning/``. Pass a **task n
       .. code-block:: batch
 
          isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
-           --task=Isaac-Cartpole-Direct-v0 ^
+           --task=Isaac-Cartpole-Direct ^
            --num_envs=16 --max_iterations=10 ^
            physics=newton_mjwarp --visualizer newton
 
          isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
-           --task=Isaac-Cartpole-Direct-v0 ^
+           --task=Isaac-Cartpole-Direct ^
            --num_envs=4096 ^
            physics=physx
 

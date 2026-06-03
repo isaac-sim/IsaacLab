@@ -65,8 +65,14 @@ for ext_dir in "$BUILD_DIR"/src/isaaclab/source/isaaclab_*; do
         # the package dir rather than one level up.
         sed -i 's|os\.path\.join(os\.path\.dirname(__file__), "\.\./"|os.path.join(os.path.dirname(__file__), ""|g' \
             "$BUILD_DIR/src/$pkg/__init__.py"
-        # Remove the original from inside the isaaclab bundle to avoid duplication
-        rm -rf "$ext_dir"
+        # Keep the extension discoverable by Kit under source/. The .kit experience
+        # files in apps/ register "${app}/../source" as an extension search folder,
+        # so each extension's config/extension.toml must remain there or the Kit
+        # dependency solver fails with "isaaclab_assets ... (none found)". We drop
+        # the inner Python package (imported from the promoted top-level copy above)
+        # and the duplicated data/ to avoid a second copy on sys.path and bloat,
+        # but leave config/extension.toml in place for discovery.
+        rm -rf "$inner" "$ext_dir/data"
     fi
 done
 

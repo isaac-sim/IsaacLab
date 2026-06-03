@@ -109,7 +109,7 @@ syntax as the other backends:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --headless presets=ovphysx
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --headless presets=ovphysx
 
 This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
 after the environment has started and stepped successfully.

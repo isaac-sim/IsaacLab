@@ -74,31 +74,35 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
         mounted at the env root rather than under a planned asset).
 
     Raises:
-        ValueError: When ``path_expr``'s matching rows span multiple distinct
-            destination templates.
+        ValueError: When ``path_expr`` is owned by multiple distinct, equally
+            specific destination templates (a genuine ambiguity). Nested
+            templates do not conflict: the most specific (longest-matching) one
+            wins, mirroring :func:`iter_clone_plan_matches`.
         NotImplementedError: When the union of matching rows' clone masks does not
             cover every env (partial-env heterogeneous coverage is unsupported).
     """
-    matching_template: str | None = None
-    matching_rows: list[int] = []
-    matching_suffix: str | None = None
+    # Collect every template that owns ``path_expr`` together with the suffix below it.
+    # A shorter suffix means a longer matched prefix, i.e. a more specific (nearer) owner.
+    candidates: list[tuple[str, str, int]] = []
     for source_index, destination_template in enumerate(plan.destinations):
         if "{}" not in destination_template:
             continue
         suffix = get_suffix(path_expr, destination_template)
         if suffix is None:
             continue
-        if matching_template is None:
-            matching_template = destination_template
-            matching_suffix = suffix
-        elif destination_template != matching_template:
-            raise ValueError(
-                f"path_expr {path_expr!r}: matches multiple destination templates"
-                f" {matching_template!r} and {destination_template!r}."
-            )
-        matching_rows.append(source_index)
-    if matching_template is None:
+        candidates.append((destination_template, suffix, source_index))
+    if not candidates:
         return None
+
+    # The nearest owner is the one with the shortest suffix. Distinct templates that tie
+    # at this minimal suffix length are a genuine ambiguity that callers cannot resolve.
+    min_suffix_len = min(len(suffix) for _, suffix, _ in candidates)
+    owning_templates = {template for template, suffix, _ in candidates if len(suffix) == min_suffix_len}
+    if len(owning_templates) > 1:
+        raise ValueError(f"path_expr {path_expr!r}: matches multiple destination templates {sorted(owning_templates)}.")
+    matching_template = next(iter(owning_templates))
+    matching_rows = [index for template, _, index in candidates if template == matching_template]
+    matching_suffix = next(suffix for template, suffix, _ in candidates if template == matching_template)
     if not plan.clone_mask[matching_rows].any(dim=0).all():
         raise NotImplementedError(
             f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"

@@ -90,7 +90,7 @@ class AppLauncher:
         were resolved elsewhere (e.g. :class:`AppLauncher` strips flags from *launcher_args*).
         Otherwise ``disable_all`` is inferred from ``"none"`` in ``visualizer``.
 
-        Also used when Kit is skipped (see :mod:`isaaclab_tasks.utils.sim_launcher`).
+        Also used when Kit is skipped (see :mod:`isaaclab.app.sim_launcher`).
         """
         visualizers = launcher_args.get("visualizer")
 

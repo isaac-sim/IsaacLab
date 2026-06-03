@@ -11,7 +11,7 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
 
 """
 
