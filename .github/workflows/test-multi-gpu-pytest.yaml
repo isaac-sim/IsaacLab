@@ -303,7 +303,6 @@ jobs:
               -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
               -e ISAACLAB_PIN_KIT_GPU=1 \
-              -e ISAACLAB_FORCE_EXIT_TIMEOUT=30 \
               "$IMAGE_TAG" \
               -c '
                 set +e

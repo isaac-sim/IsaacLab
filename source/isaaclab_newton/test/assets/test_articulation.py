@@ -6,16 +6,16 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Kitless newton tests: run the newton physics backend without booting Kit.
+"""Launch Isaac Sim Simulator first."""
 
-``SimulationContext`` and :func:`~isaaclab.sim.build_simulation_context` gate
-all Kit-specific paths on :func:`~isaaclab.utils.version.has_kit`, so omitting
-the module-level ``AppLauncher(headless=True).app`` boot is sufficient — newton
-tests run in pure-python + warp without Isaac Sim's Kit runtime. This avoids
-the Kit/Isaac-Sim concurrency lifecycle bug (SIGHUP / shutdown-hang at >=3
-concurrent Kit instances on test_articulation under multi-GPU CI) and shaves
-~30s off per-file boot.
-"""
+from isaaclab.app import AppLauncher
+
+HEADLESS = True
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
+
+"""Rest everything follows."""
 
 import sys
 from copy import deepcopy
@@ -354,12 +354,9 @@ def generate_articulation(
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
     if any(name in usd_path for name in _REVERSED_JOINT_USD_FILES):
-        # Kitless: use IsaacLab's stage helper instead of ``omni.usd.get_context()``.
-        # ``get_current_stage`` falls back to the in-memory pxr.Usd stage when Kit
-        # isn't loaded.
-        from isaaclab.sim.utils.stage import get_current_stage
+        import omni.usd
 
-        fix_reversed_joints(get_current_stage())
+        fix_reversed_joints(omni.usd.get_context().get_stage())
 
     return articulation, translations
 

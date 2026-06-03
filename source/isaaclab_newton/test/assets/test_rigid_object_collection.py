@@ -7,8 +7,14 @@
 # pyright: reportPrivateUsage=none
 
 
-"""Kitless newton-only test: no AppLauncher boot. See test_articulation.py
-for rationale."""
+"""Launch Isaac Sim Simulator first."""
+
+from isaaclab.app import AppLauncher
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
+
+"""Rest everything follows."""
 
 import sys
 
