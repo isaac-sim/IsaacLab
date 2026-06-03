@@ -60,6 +60,7 @@ extension package:
    ├── CollisionBaseCfg
    │   ├── isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg
    │   └── isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg
+   │       ├── isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg
    │       └── isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg
    │
    ├── ArticulationRootBaseCfg
