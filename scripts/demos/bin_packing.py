@@ -51,10 +51,12 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.utils.string import string_to_callable
 
 ##
 # Pre-defined configs
-##from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+##
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -365,7 +367,7 @@ def main() -> None:
         # Design scene
         scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=True)
         with Timer("[INFO] Time to create scene: "):
-            scene = InteractiveScene(scene_cfg)
+            scene = string_to_callable("isaaclab.scene:InteractiveScene")(scene_cfg)
 
         # Play the simulator
         sim.reset()

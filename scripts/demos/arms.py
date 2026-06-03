@@ -39,7 +39,6 @@ args_cli = parser.parse_args()
 
 import numpy as np
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 
@@ -48,6 +47,7 @@ import isaaclab.sim as sim_utils
 ##
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 from isaaclab_assets.robots.kinova import KINOVA_GEN3_N7_CFG, KINOVA_JACO2_N6S300_CFG, KINOVA_JACO2_N7S300_CFG  # isort:skip
