@@ -50,6 +50,11 @@ class CartpolePPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class CartpoleDirectPPORunnerCfg(CartpolePPORunnerCfg):
+    experiment_name = "cartpole_direct"
+
+
+@configclass
 class CartpolePPORunnerWithSymmetryCfg(CartpolePPORunnerCfg):
     """Configuration for the PPO agent with symmetry augmentation."""
 
@@ -120,6 +125,11 @@ class CartpoleCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
         share_cnn_encoders=True,
     )
+
+
+@configclass
+class CartpoleCameraDirectPPORunnerCfg(CartpoleCameraPPORunnerCfg):
+    experiment_name = "cartpole_camera_direct"
 
 
 @configclass
