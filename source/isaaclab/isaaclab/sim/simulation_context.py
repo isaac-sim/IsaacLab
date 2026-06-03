@@ -183,7 +183,7 @@ class SimulationContext:
         self._scene_data_requirements = SceneDataRequirement()
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
-        # their own backend args. None until :meth:`InteractiveScene.clone_environments` runs.
+        # their own backend args. None until a replication session publishes a plan.
         self._clone_plan: ClonePlan | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -682,9 +682,9 @@ class SimulationContext:
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
 
-        Set by :meth:`InteractiveScene.clone_environments` after replication. Consumed by
-        scene data providers that build backend models (e.g. Newton visualizer model on a
-        PhysX backend) from the same plan the cloner used. ``None`` until the scene clones.
+        Set after replication. Consumed by scene data providers that build backend models
+        (e.g. Newton visualizer model on a PhysX backend) from the same plan the cloner used.
+        ``None`` until the scene replicates.
         """
         return self._clone_plan
 

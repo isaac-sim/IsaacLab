@@ -1,0 +1,5 @@
+Internal refactor: ``queue_newton_physics_replication`` now appends ``(cfg,
+NewtonReplicateContext)`` to :data:`isaaclab.cloner.REPLICATION_QUEUE` instead of
+reaching into the now-removed module-level replication session. No user-visible
+behavior change — :func:`~isaaclab.cloner.replicate` still drives Newton replication
+via :class:`NewtonReplicateContext` exactly as before.

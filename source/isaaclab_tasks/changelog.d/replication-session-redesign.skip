@@ -1,0 +1,4 @@
+Internal refactor: every direct env's ``_setup_scene`` now calls
+``cloner.replicate(cloner.ClonePlan.from_env_0(...))`` after asset
+construction in place of the prior ``with cloner.ReplicateSession():`` wrapper.
+No user-visible behavior change.

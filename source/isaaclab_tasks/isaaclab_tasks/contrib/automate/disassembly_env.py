@@ -11,6 +11,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
@@ -185,8 +186,11 @@ class DisassemblyEnv(DirectRLEnv):
         # self._held_asset = Articulation(self.cfg_task.held_asset)
         # self._fixed_asset = RigidObject(self.cfg_task.fixed_asset)
         self._held_asset = RigidObject(self.cfg_task.held_asset)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
 
-        self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot

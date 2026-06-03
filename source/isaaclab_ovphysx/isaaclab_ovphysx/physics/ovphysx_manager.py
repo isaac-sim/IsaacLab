@@ -211,8 +211,8 @@ class OvPhysxManager(PhysicsManager):
     # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
     # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
     _locked_device: ClassVar[str | None] = None
-    # Pending (source, targets, parent_positions) triples registered by
-    # ovphysx_replicate() before the PhysX instance exists.  Replayed via
+    # Pending (source, targets, parent_positions) triples queued by
+    # queue_ovphysx_replication() before the PhysX instance exists.  Replayed via
     # physx.clone() in _warmup_and_load().
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
@@ -572,10 +572,9 @@ class OvPhysxManager(PhysicsManager):
         # Xform containers.  physx.clone() creates the remaining environments
         # in the physics runtime without modifying the USD file.
         if cls._pending_clones:
-            # ovphysx_replicate() only registers pending clones when clone_usd=False,
-            # meaning the USD contains only env_0 physics and physx.clone() is required
-            # to populate env_1..N in the physics runtime.  Execute unconditionally —
-            # no USD content heuristic is needed.
+            # The cfg-level OvPhysX replicator registers pending clones for physics
+            # regardless of whether USD copies were also queued for rendering. Execute
+            # unconditionally — no USD content heuristic is needed.
             for source, targets, parent_positions in cls._pending_clones:
                 logger.info(
                     "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",

@@ -194,7 +194,7 @@ adding any other optional objects into the scene, such as lights.
 |     self.up_axis = self.cfg["sim"]["up_axis"]                                |     # add ground plane                                                 |
 |                                                                              |     spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg() |
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # clone, filter, and replicate                                     |
-|                                     self.physics_engine, self.sim_params)    |     self.scene.clone_environments(copy_from_source=False)              |
+|                                     self.physics_engine, self.sim_params)    |     # assets are built inside ReplicateSession                         |
 |     self._create_ground_plane()                                              |     self.scene.filter_collisions(global_prim_paths=[])                 |
 |     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
@@ -369,16 +369,15 @@ Isaac Lab eliminates the need for looping through the environments by using the 
 The scene creation process is as follow:
 
 #. Construct a single environment (what the scene would look like if number of environments = 1)
-#. Call ``clone_environments()`` to replicate the single environment
+#. Use ``cloner.ReplicateSession`` to replicate the single environment
 #. Call ``filter_collisions()`` to filter out collision between environments (if required)
 
 
 .. code-block:: python
 
-   # construct a single environment with the Cartpole robot
-   self.cartpole = Articulation(self.cfg.robot_cfg)
-   # clone the environment
-   self.scene.clone_environments(copy_from_source=False)
+   # construct and replicate a single environment with the Cartpole robot
+   with cloner.ReplicateSession():
+       self.cartpole = Articulation(self.cfg.robot_cfg)
    # filter collisions
    self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
 
@@ -660,8 +659,8 @@ the need to set simulation parameters for actors in the task implementation.
 |                                                                        |     spawn_ground_plane(prim_path="/World/ground",                   |
 |     self.sim = super().create_sim(self.device_id,                      |         cfg=GroundPlaneCfg())                                       |
 |         self.graphics_device_id, self.physics_engine,                  |     # clone, filter, and replicate                                  |
-|         self.sim_params)                                               |     self.scene.clone_environments(                                  |
-|     self._create_ground_plane()                                        |         copy_from_source=False)                                     |
+|         self.sim_params)                                               |     # assets are built inside ReplicateSession                      |
+|     self._create_ground_plane()                                        |                                                                     |
 |     self._create_envs(self.num_envs,                                   |     self.scene.filter_collisions(                                   |
 |         self.cfg["env"]['envSpacing'],                                 |         global_prim_paths=[])                                       |
 |         int(np.sqrt(self.num_envs)))                                   |     # add articulation to scene                                     |
