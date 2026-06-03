@@ -17,7 +17,7 @@ from rsl_rl.modules import HiddenState
 
 class CNNModel(_CNNModel):
     """CNN model that supports pure image-only observations.
-    
+
     rsl_rl CNN model does not support image-only as it calls get_latent without checking if the observation groups are empty."""
 
     def get_latent(
