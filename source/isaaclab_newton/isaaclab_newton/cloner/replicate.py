@@ -43,8 +43,12 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     simplify_meshes: bool = True,
-) -> tuple[ModelBuilder, object, dict, list]:
-    """Build a Newton model builder from clone mapping inputs."""
+) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
+    """Build a Newton model builder from clone mapping inputs.
+
+    Returns the populated builder, stage metadata, the site index map, the
+    per-world transforms, and the per-source builders keyed by clone source path.
+    """
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
@@ -98,7 +102,7 @@ def _build_newton_builder_from_mapping(
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    return builder, stage_info, site_index_map, world_xforms
+    return builder, stage_info, site_index_map, world_xforms, source_builders
 
 
 class NewtonReplicateContext:
@@ -208,7 +212,7 @@ class NewtonReplicateContext:
     def replicate(self) -> tuple[ModelBuilder, object, dict]:
         """Build the Newton model builder from queued mappings and optionally publish it."""
         sources, destinations, env_ids, mapping, positions, quaternions = self._merged_mapping()
-        builder, stage_info, site_index_map, world_xforms = _build_newton_builder_from_mapping(
+        builder, stage_info, site_index_map, world_xforms, source_builders = _build_newton_builder_from_mapping(
             stage=self.stage,
             sources=sources,
             destinations=destinations,
@@ -224,6 +228,7 @@ class NewtonReplicateContext:
             NewtonManager._cl_site_index_map = site_index_map
             NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
             NewtonManager._world_xforms = world_xforms
+            NewtonManager.register_prototype_builders(sources, destinations, source_builders)
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()
