@@ -32,6 +32,7 @@ from __future__ import annotations
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -49,20 +50,23 @@ import math
 
 import torch
 
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.string import string_to_callable
-
 ##
 # Pre-defined configs
 ##
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.string import string_to_callable
+
+if TYPE_CHECKING:
+    from isaaclab.assets import RigidObjectCollection
 
 ##
 # Scene Configuration

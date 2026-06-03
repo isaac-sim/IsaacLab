@@ -25,6 +25,7 @@ This script demonstrates different legged robots.
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -50,6 +51,9 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
 from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 def define_origins(num_origins: int, spacing: float) -> torch.Tensor:
