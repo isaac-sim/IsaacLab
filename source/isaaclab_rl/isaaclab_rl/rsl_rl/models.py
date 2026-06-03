@@ -8,17 +8,18 @@
 from __future__ import annotations
 
 import torch
-from tensordict import TensorDict
-
 from rsl_rl.models.cnn_model import CNNModel as _CNNModel
 from rsl_rl.models.mlp_model import MLPModel
 from rsl_rl.modules import HiddenState
+from tensordict import TensorDict
 
 
 class CNNModel(_CNNModel):
     """CNN model that supports pure image-only observations.
 
-    rsl_rl CNN model does not support image-only as it calls get_latent without checking if the observation groups are empty."""
+    The rsl_rl CNN model does not support image-only observations as it calls
+    :meth:`get_latent` without checking whether the observation groups are empty.
+    """
 
     def get_latent(
         self, obs: TensorDict, masks: torch.Tensor | None = None, hidden_state: HiddenState = None

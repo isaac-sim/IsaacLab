@@ -11,37 +11,8 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
-
-
-@configclass
-class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
-    @configclass
-    class CartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "/World/envs/env_.*/Camera"
-        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
-            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
-        )
-        data_types: list[str] = []
-        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        )
-        width: int = 100
-        height: int = 100
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
-
-    default = CartpoleTiledCameraCfg(data_types=["rgb"])
-    depth = CartpoleTiledCameraCfg(data_types=["depth"])
-    albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
-    semantic_segmentation = CartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
-    simple_shading_constant_diffuse = CartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
-    simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
-    simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
-    rgb = default
-
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Scene definition
@@ -67,6 +38,8 @@ class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
 
 @configclass
 class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
+    """Configuration for the cartpole environment with depth camera."""
+
     # add camera to the scene
     tiled_camera: CameraCfg = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
