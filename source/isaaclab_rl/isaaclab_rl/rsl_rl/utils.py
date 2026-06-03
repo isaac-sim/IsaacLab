@@ -200,6 +200,69 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
     return agent_cfg
 
 
+def handle_deprecated_rsl_rl_checkpoint(checkpoint_path: str, installed_version) -> str:
+    """Convert a pre-5.0 rsl-rl checkpoint to the layout expected by rsl-rl >= 5.0.
+
+    Older rsl-rl versions saved a single combined ``model_state_dict`` (with ``actor.*``, ``critic.*``
+    and a top-level ``std`` parameter). rsl-rl >= 5.0 instead expects separate ``actor_state_dict`` and
+    ``critic_state_dict`` entries, so the published pretrained checkpoints shipped with older asset
+    releases fail to load with ``KeyError: 'actor_state_dict'``. This converts such a checkpoint into a
+    sibling file and returns its path. New-layout checkpoints, unrecognized payloads, and installations
+    of rsl-rl < 5.0 are returned unchanged.
+
+    Args:
+        checkpoint_path: Path to the checkpoint to (possibly) convert.
+        installed_version: Installed ``rsl-rl-lib`` version string.
+
+    Returns:
+        Path to a checkpoint compatible with the installed rsl-rl version.
+
+    Raises:
+        ValueError: If the checkpoint uses the deprecated combined layout but contains a key that does
+            not map to the ``actor``/``critic``/``std`` structure expected from older rsl-rl versions.
+    """
+    import os
+
+    import torch
+
+    if version.parse(str(installed_version)) < _V5_0_0:
+        return checkpoint_path
+
+    loaded = torch.load(checkpoint_path, weights_only=False, map_location="cpu")
+    # Only the deprecated combined layout needs conversion; leave new-layout/unknown payloads untouched.
+    if not isinstance(loaded, dict) or "actor_state_dict" in loaded or "model_state_dict" not in loaded:
+        return checkpoint_path
+
+    actor_state_dict: dict = {}
+    critic_state_dict: dict = {}
+    for key, value in loaded["model_state_dict"].items():
+        if key == "std":
+            actor_state_dict["distribution.std_param"] = value
+        elif key.startswith("actor."):
+            actor_state_dict["mlp." + key[len("actor.") :]] = value
+        elif key.startswith("critic."):
+            critic_state_dict["mlp." + key[len("critic.") :]] = value
+        else:
+            raise ValueError(
+                f"Unrecognized key '{key}' while converting deprecated rsl-rl checkpoint '{checkpoint_path}'."
+                " Only MLP actor-critic checkpoints from rsl-rl < 5.0 are supported for automatic conversion."
+            )
+
+    converted = {
+        "actor_state_dict": actor_state_dict,
+        "critic_state_dict": critic_state_dict,
+        # Carry the remaining payload so the runner's loader behaves as it does for native checkpoints.
+        "optimizer_state_dict": loaded.get("optimizer_state_dict"),
+        "iter": loaded.get("iter", 0),
+        "infos": loaded.get("infos"),
+    }
+    root, ext = os.path.splitext(checkpoint_path)
+    converted_path = f"{root}_rslrl5{ext}"
+    torch.save(converted, converted_path)
+    print(f"[INFO]: Converted deprecated rsl-rl checkpoint to '{converted_path}'.")
+    return converted_path
+
+
 def _is_missing(value) -> bool:
     return isinstance(value, type(MISSING))
 
