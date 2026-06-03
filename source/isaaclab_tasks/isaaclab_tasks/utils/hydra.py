@@ -74,6 +74,11 @@ def _known_preset_names(presets: dict) -> set[str]:
     return {name for section in presets.values() for fields in section.values() for name in fields}
 
 
+def _preset_targets(value) -> set[PresetTarget]:
+    """Return typed preset targets matched by a preset alternative value."""
+    return {target for target in PresetTarget if target.base_classes and isinstance(value, target.base_classes)}
+
+
 def _normalize_preset_name(name: str, known_names: set[str]) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
@@ -279,6 +284,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
+    consumed_selected_targets: dict[str, set[PresetTarget]] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -310,16 +316,21 @@ def _pick_alternative(
         name = _normalize_preset_name(raw_name, field_names)
         if name not in fields or name == match_name:
             continue
+        val = fields[name]
         if consumed_selected is not None:
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
+        if consumed_selected_targets is not None:
+            targets = _preset_targets(val)
+            if targets:
+                consumed_selected_targets.setdefault(raw_name, set()).update(targets)
+                consumed_selected_targets.setdefault(name, set()).update(targets)
         if match_name is not None:
-            val = fields[name]
             if match_value is not val and match_value != val:
                 raise ValueError(
                     f"Conflicting global presets: '{match_name}' and '{name}' both define preset for '{path}'"
                 )
-        match_name, match_value = name, fields[name]
+        match_name, match_value = name, val
     if match_name is not None:
         return match_value
     if "default" in fields:
@@ -338,6 +349,7 @@ def _resolve_active_presets(
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
+    consumed_selected_targets: dict[str, set[PresetTarget]] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
@@ -364,6 +376,7 @@ def _resolve_active_presets(
                 path=path,
                 explicit_name=explicit.get(path),
                 consumed_selected=consumed_selected,
+                consumed_selected_targets=consumed_selected_targets,
             )
         return val
 
@@ -535,6 +548,30 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
     return "\n".join(lines)
 
 
+def _selected_newton_physics_presets(selected: list[str]) -> set[str]:
+    """Return canonical Newton physics preset names requested by the user."""
+    aliases = PresetTarget.PHYSICS.legacy_aliases
+    newton_names = set(aliases.values())
+    return {aliases.get(name, name) for name in selected if aliases.get(name, name) in newton_names}
+
+
+def _validate_selected_newton_physics_presets(
+    selected: list[str], consumed_selected_targets: dict[str, set[PresetTarget]]
+) -> None:
+    """Raise when a Newton solver preset did not apply to active physics config."""
+    missing = sorted(
+        name
+        for name in _selected_newton_physics_presets(selected)
+        if PresetTarget.PHYSICS not in consumed_selected_targets.get(name, set())
+    )
+    if missing:
+        raise ValueError(
+            f"Selected Newton physics preset(s) {', '.join(missing)} did not match any active physics preset. "
+            "This task does not declare Newton physics support for the selected solver. "
+            "Remove the Newton preset or choose a task that declares it on a PhysicsCfg."
+        )
+
+
 def register_task(task_name: str, agent_entry: str) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -566,6 +603,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
 
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
+    consumed_preset_targets: dict[str, set[PresetTarget]] = {}
     consumed_explicit: set[str] = set()
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
     agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
@@ -576,6 +614,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         root_path="env",
         strict_explicit=False,
         consumed_selected=consumed_presets,
+        consumed_selected_targets=consumed_preset_targets,
         consumed_explicit=consumed_explicit,
     )
     if agent_cfg is not None:
@@ -586,8 +625,11 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             root_path="agent",
             strict_explicit=False,
             consumed_selected=consumed_presets,
+            consumed_selected_targets=consumed_preset_targets,
             consumed_explicit=consumed_explicit,
         )
+
+    _validate_selected_newton_physics_presets(global_presets, consumed_preset_targets)
 
     unknown_presets = set(global_presets) - consumed_presets
     if unknown_presets:
