@@ -27,6 +27,8 @@ __all__ = [
     "TerminationManager",
 ]
 
+from isaaclab.managers import *  # noqa: F401, F403
+
 from .action_manager import ActionManager, ActionTerm
 from .command_manager import CommandManager, CommandTerm
 from .event_manager import EventManager
