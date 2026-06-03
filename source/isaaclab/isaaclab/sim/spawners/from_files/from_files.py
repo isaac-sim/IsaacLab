@@ -12,9 +12,10 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from filelock import FileLock
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg, SurfaceDeformableBodyMaterialBaseCfg
+from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -478,7 +479,7 @@ def spawn_from_usd_with_compliant_contact_material(
             material_kwargs["compliant_contact_stiffness"] = stiff
         if damp is not None:
             material_kwargs["compliant_contact_damping"] = damp
-        material_cfg = RigidBodyMaterialCfg(**material_kwargs)
+        material_cfg = PhysxRigidBodyMaterialCfg(**material_kwargs)
 
         for path in prim_paths:
             if not path.startswith("/"):
