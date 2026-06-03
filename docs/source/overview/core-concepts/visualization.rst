@@ -221,9 +221,11 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
    * - Generated tiled camera
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot"``
      - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
+     - Note that the ``tiled_cam_target_prim_path`` is the default value, but different environments may require a different paths.
    * - Existing tiled camera sensors
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
      - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
+     - Note that the ``tiled_cam_prim_path`` is the default value, but different environments may require a different paths.
 
      This mode requires an environment that registers Isaac Lab ``Camera`` sensors in ``scene.sensors``.
      For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole`` task
@@ -420,8 +422,8 @@ Newton Visualizer
         tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
         tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
         tiled_cam_target_prim_path=(              # Prim that generated cameras follow/look at
-            "/World/envs/*/Robot"
-        ),
+            "/World/envs/*/Robot"                 # This is the default value, but different environments
+        ),                                        # may require a different paths.
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
