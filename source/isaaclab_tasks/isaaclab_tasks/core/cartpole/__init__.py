@@ -26,19 +26,20 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_direct_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_direct_ppo_cfg:CartpolePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
-        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_direct_ppo_cfg.yaml",
+        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
 )
 
 gym.register(
     id="Isaac-Cartpole-Camera-Direct",
-    entry_point=f"{__name__}.cartpole_direct_camera_presets_env:CartpoleCameraPresetsEnv",
+    entry_point=f"{__name__}.cartpole_direct_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_direct_camera_presets_env_cfg:CartpoleCameraPresetsEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_camera_ppo_cfg.yaml",
+        "env_cfg_entry_point": f"{__name__}.cartpole_direct_camera_env_cfg:CartpoleCameraEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraDirectPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_camera_ppo_cfg.yaml",
     },
 )
@@ -54,27 +55,26 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_manager_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_manager_ppo_cfg:CartpolePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "rsl_rl_with_symmetry_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_manager_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
+            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
         ),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
-        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_manager_ppo_cfg.yaml",
+        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
 )
 
-# Canonical perception task -- selects observation pipeline (raw RGB, raw depth,
-# ResNet18 features, Theia-Tiny features) via the preset CLI (#5587). Two
-# rl_games agent entry points cover the image-policy and feature-policy yamls;
-# pick via ``--agent rl_games_cfg_entry_point`` (image, default) or
-# ``--agent rl_games_feature_cfg_entry_point`` (pretrained-feature).
 gym.register(
     id="Isaac-Cartpole-Camera",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_manager_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_camera_ppo_cfg.yaml",
+        "env_cfg_entry_point": f"{__name__}.cartpole_manager_camera_env_cfg:CartpoleCameraEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_manager_feature_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",
+        "rsl_rl_feature_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
+        ),
     },
 )

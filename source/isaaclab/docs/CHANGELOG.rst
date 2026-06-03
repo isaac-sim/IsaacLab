@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+6.2.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.app.sim_launcher.make_physics_cfg` so a script can build a
+  physics config for the backend selected via ``--physics``.
+* Added a physics config as the value yielded by
+  :func:`~isaaclab.app.sim_launcher.launch_simulation`, so callers can write
+  ``with launch_simulation(PhysicsCfg(), args) as physics_cfg:`` and reuse the resolved backend.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab.sim.views.BaseFrameView.get_scales` now returns
+  a :class:`~isaaclab.utils.warp.ProxyArray` instead of a raw ``wp.array``,
+  matching :meth:`~isaaclab.sim.views.BaseFrameView.get_world_poses` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_local_poses`. Callers that
+  passed the return value straight into Warp kernels or ``set_scales`` need to
+  extract the underlying array via ``.warp``; callers that read ``.torch`` are
+  unaffected.
+
+Fixed
+^^^^^
+
+* Fixed missing :mod:`isaaclab.cloner` lazy exports for clone-plan source resolution.
+* Enabled RTX scene partitioning in Isaac Lab Kit app files and added top-level scene partitioning regression coverage.
+
+
 6.2.0 (2026-06-02)
 ~~~~~~~~~~~~~~~~~~
 

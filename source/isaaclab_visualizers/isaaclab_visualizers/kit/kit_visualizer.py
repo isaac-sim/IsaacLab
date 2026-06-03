@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
-from pxr import Gf, Usd, UsdGeom, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.camera_view import (
@@ -111,6 +111,7 @@ class KitVisualizer(BaseVisualizer):
                 "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
             self._apply_env_visibility(usd_stage, num_envs, self._resolved_visible_env_ids)
+        self._apply_viewport_camera_scene_partition(usd_stage, num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
@@ -504,6 +505,29 @@ class KitVisualizer(BaseVisualizer):
             self._controlled_camera_path = path if path else "/OmniverseKit_Persp"
         else:
             self._controlled_camera_path = "/OmniverseKit_Persp"
+
+    def _apply_viewport_camera_scene_partition(self, usd_stage: Usd.Stage, num_envs: int) -> None:
+        """Tag the viewport camera with the first visible env partition.
+
+        RTX scene partitioning culls per-env geometry by the camera's non-primvar
+        ``omni:scenePartition`` token. Interactive viewport cameras live outside
+        ``/World/envs`` and are created by Kit, so they do not inherit the env-root
+        primvar authored by :class:`~isaaclab.scene.InteractiveScene`.
+        """
+        if num_envs <= 0 or self._controlled_camera_path is None:
+            return
+        env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
+        camera_prim = usd_stage.GetPrimAtPath(self._controlled_camera_path)
+        if not camera_prim.IsValid() or not camera_prim.IsA(UsdGeom.Camera):
+            logger.debug(
+                "[KitVisualizer] Scene partition token skipped for non-camera viewport prim: %s",
+                self._controlled_camera_path,
+            )
+            return
+        attr = camera_prim.GetAttribute("omni:scenePartition")
+        if not attr.IsValid():
+            attr = camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
+        attr.Set(f"env_{env_id}")
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
         """Dock a created viewport window relative to main viewport."""

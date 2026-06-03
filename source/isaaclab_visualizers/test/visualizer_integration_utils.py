@@ -44,7 +44,7 @@ from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_t
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.core.cartpole.cartpole_direct_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
 
 # TODO: Several test cases currently show flakiness with frozen bodies. Remove the test-level retry once fixed.
@@ -1189,13 +1189,13 @@ def _make_cartpole_camera_env(
     visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
 ) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
-    env_cfg_root = CartpoleCameraPresetsEnvCfg()
+    env_cfg_root = CartpoleCameraEnvCfg()
     env_cfg = getattr(env_cfg_root, "default", None)
     if env_cfg is None:
         env_cfg = getattr(type(env_cfg_root), "default", None)
     if env_cfg is None:
         raise RuntimeError(
-            "CartpoleCameraPresetsEnvCfg does not expose a 'default' preset config. "
+            "CartpoleCameraEnvCfg does not expose a 'default' preset config. "
             f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
         )
     env_cfg = copy.deepcopy(env_cfg)

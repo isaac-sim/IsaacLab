@@ -141,7 +141,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |humanoid-link| replace:: `Isaac-Humanoid-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_humanoid/humanoid_env_cfg.py>`__
 .. |ant-link| replace:: `Isaac-Ant-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_ant/ant_env_cfg.py>`__
 .. |cartpole-link| replace:: `Isaac-Cartpole <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py>`__
-.. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_presets_env_cfg.py>`__
+.. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py>`__
 .. |cartpole-camera-link| replace:: `Isaac-Cartpole-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_camera_env_cfg.py>`__
 
 

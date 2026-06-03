@@ -85,11 +85,12 @@ def run(argv: list[str]) -> None:
     from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
     from stable_baselines3.common.vec_env import VecNormalize
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import resolve_task_config
 
     signal.signal(signal.SIGINT, _cleanup_pbar)
 

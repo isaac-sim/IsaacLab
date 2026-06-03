@@ -506,7 +506,7 @@ class NewtonSiteFrameView(BaseFrameView):
             device=self._device,
         )
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get per-site scales by reading from the first collision shape on the same body."""
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
@@ -520,7 +520,7 @@ class NewtonSiteFrameView(BaseFrameView):
             outputs=[out],
             device=self._device,
         )
-        return out
+        return ProxyArray(out)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set per-site scales by writing to all collision shapes on the same body."""

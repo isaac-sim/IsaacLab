@@ -18,9 +18,8 @@ from isaaclab_experimental.envs.utils.io_descriptors import generic_io_descripto
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
 
-from isaaclab.assets import Articulation
-
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
 
 
