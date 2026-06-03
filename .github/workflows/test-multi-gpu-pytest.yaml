@@ -288,6 +288,7 @@ jobs:
               -e ISAACLAB_SIM_DEVICE="cuda:$cuda" \
               -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
+              -e ISAACLAB_PIN_KIT_GPU=1 \
               "$IMAGE_TAG" \
               -c '
                 set +e

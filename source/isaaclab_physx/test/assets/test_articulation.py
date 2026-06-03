@@ -11,16 +11,6 @@
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import test_devices
 
-# File-level opt-out from concurrent multi-GPU CI. The multi-GPU workflow's
-# discover step skips any test file declaring this module-level constant.
-# Kit shutdown hangs >52s under concurrent multi-GPU Kit processes on shared
-# hardware (CI runner with --gpus all), causing SIGHUP cascades and "Stage
-# already attached" errors on sibling shards. Upstream-tracked at
-# https://github.com/isaac-sim/IsaacLab/issues/3475 (OMPE-43816). The file
-# still runs in single-GPU CI. Drop this line once that upstream issue is
-# resolved.
-MULTI_GPU_SKIP_REASON = "Kit lifecycle bug: shutdown hangs after tests under concurrent multi-GPU (IsaacLab #3475)"
-
 HEADLESS = True
 
 # launch omniverse app
