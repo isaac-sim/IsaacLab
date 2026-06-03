@@ -42,8 +42,6 @@ For more information about the workflow design patterns, see the `Task Design Wo
 .. _`Task Design Workflows`: https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html
 """
 
-from . import mdp
-
 from isaaclab.utils.module import lazy_export
 
 lazy_export()
