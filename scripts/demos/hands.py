@@ -40,7 +40,6 @@ args_cli = parser.parse_args()
 
 import numpy as np
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 
@@ -49,6 +48,7 @@ import isaaclab.sim as sim_utils
 ##
 from isaaclab.physics import PhysicsCfg
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
 

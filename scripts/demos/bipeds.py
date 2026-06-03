@@ -39,7 +39,6 @@ parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 
@@ -48,6 +47,7 @@ import isaaclab.sim as sim_utils
 ##
 from isaaclab.physics import PhysicsCfg
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort:skip
 from isaaclab_assets.robots.unitree import G1_CFG, H1_CFG  # isort:skip
 
