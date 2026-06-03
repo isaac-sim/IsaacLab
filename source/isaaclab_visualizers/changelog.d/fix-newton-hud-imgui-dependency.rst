@@ -12,3 +12,6 @@ Fixed
 
 * Fixed Viser visualizer ground-grid flickering by reusing unchanged plane grid
   line segments instead of removing and re-adding them every frame.
+
+* Removed the legacy ``setup.py`` for ``isaaclab_visualizers`` now that
+  ``pyproject.toml`` carries the package metadata.
