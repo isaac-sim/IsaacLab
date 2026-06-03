@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -23,13 +23,17 @@ class ClonePlan:
     clone_mask: torch.Tensor
     """Bool tensor ``[len(sources), num_clones]``; ``True`` if env ``j`` comes from row ``i``."""
 
-    env_ids: torch.Tensor
-    """Long tensor ``[num_clones]`` of target env ids."""
+    env_ids: torch.Tensor | None = None
+    """Long tensor ``[num_clones]`` of target env ids.
 
-    positions: torch.Tensor | None
+    Optional for plans used only with :func:`~isaaclab.cloner.iter_clone_plan_matches` or
+    :func:`~isaaclab.cloner.resolve_clone_plan_source`; required by :func:`~isaaclab.cloner.replicate`.
+    """
+
+    positions: torch.Tensor | None = None
     """Per-env world positions [m], shape ``[num_clones, 3]``, or ``None``."""
 
-    cfg_rows: dict[int, tuple[int, ...]]
+    cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
     @classmethod
