@@ -33,6 +33,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
@@ -42,9 +43,7 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
     fold_preset_tokens,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )

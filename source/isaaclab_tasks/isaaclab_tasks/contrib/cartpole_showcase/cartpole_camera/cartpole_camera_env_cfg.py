@@ -8,11 +8,16 @@ from __future__ import annotations
 from gymnasium import spaces
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg
+from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
 from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> CameraCfg:
@@ -26,6 +31,54 @@ def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) ->
         width=width,
         height=height,
     )
+
+
+@configclass
+class CartpoleCameraEnvCfg(DirectRLEnvCfg):
+    """Base cartpole camera cfg for the observation/action-space showcase.
+
+    Each showcase variant below overrides :attr:`observation_space`, :attr:`action_space`,
+    and :attr:`tiled_camera` to demonstrate a specific space layout.
+    """
+
+    # env
+    decimation = 2
+    episode_length_s = 5.0
+    action_scale = 100.0  # [N]
+
+    # simulation
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+
+    # robot
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    cart_dof_name = "slider_to_cart"
+    pole_dof_name = "cart_to_pole"
+
+    # camera
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
+    write_image_to_file = False
+
+    # spaces
+    action_space = 1
+    state_space = 0
+    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+
+    # change viewer settings
+    viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
+
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+
+    # reset
+    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
+    initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
+
+    # reward scales
+    rew_scale_alive = 1.0
+    rew_scale_terminated = -2.0
+    rew_scale_pole_pos = -1.0
+    rew_scale_cart_vel = -0.01
+    rew_scale_pole_vel = -0.005
 
 
 ###

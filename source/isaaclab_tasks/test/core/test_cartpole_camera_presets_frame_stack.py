@@ -6,11 +6,11 @@
 """Integration tests for the cartpole-camera-presets frame-stacking policy.
 
 Cfg-level: for each ``(physics, renderer)`` preset combo, the resolved cfg combined with
-:meth:`CartpoleCameraPresetsEnv._resolve_frame_stack_default` produces the expected
+:meth:`CartpoleCameraEnv._resolve_frame_stack_default` produces the expected
 ``frame_stack`` value; user-set values are respected; per-data-type single-frame channel
 counts are correct.
 
-End-to-end: constructs ``CartpoleCameraPresetsEnv`` for the PhysX baseline and
+End-to-end: constructs ``CartpoleCameraEnv`` for the PhysX baseline and
 Newton+Warp combos, then verifies ``env.reset()`` / ``env.step()`` produce policy
 observations of the expected stacked shape."""
 
@@ -26,9 +26,9 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
-from isaaclab_tasks.core.cartpole.cartpole_direct_camera_presets_env import CartpoleCameraPresetsEnv  # noqa: E402
-from isaaclab_tasks.core.cartpole.cartpole_direct_camera_presets_env_cfg import (
-    CartpoleCameraPresetsEnvCfg,  # noqa: E402
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv  # noqa: E402
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import (
+    CartpoleCameraEnvCfg,  # noqa: E402
 )
 from isaaclab_tasks.utils.hydra import resolve_presets  # noqa: E402
 
@@ -36,17 +36,17 @@ pytestmark = pytest.mark.isaacsim_ci
 
 
 def _resolve(*presets: str):
-    """Build a fresh CartpoleCameraPresetsEnvCfg and resolve with the given preset names.
+    """Build a fresh CartpoleCameraEnvCfg and resolve with the given preset names.
 
     Returns the resolved root cfg (a ``BaseCartpoleCameraEnvCfg`` instance).
     """
-    outer = CartpoleCameraPresetsEnvCfg()
+    outer = CartpoleCameraEnvCfg()
     return resolve_presets(outer, selected=set(presets))
 
 
 def _policy_default(cfg) -> int:
     """Run the task's policy helper on a resolved cfg."""
-    return CartpoleCameraPresetsEnv._resolve_frame_stack_default(cfg.tiled_camera, cfg.sim.physics)
+    return CartpoleCameraEnv._resolve_frame_stack_default(cfg.tiled_camera, cfg.sim.physics)
 
 
 class TestFrameStackTruthTable:
@@ -86,8 +86,8 @@ class TestFrameStackTruthTable:
 
 
 class TestObsSpaceBumpArithmetic:
-    """The env class bumps ``observation_space[-1] *= frame_stack`` when stacking — sanity-check
-    that the arithmetic across data-type variants stays correct."""
+    """The env class bumps ``observation_space[0] *= frame_stack`` (channel-first) when stacking —
+    sanity-check that the arithmetic across data-type variants stays correct."""
 
     @pytest.mark.parametrize(
         "data_type_preset,expected_single_channels",
@@ -104,7 +104,7 @@ class TestObsSpaceBumpArithmetic:
     def test_observation_space_unstacked_channels(self, data_type_preset, expected_single_channels):
         """Each data-type variant declares the expected single-frame channel count."""
         cfg = _resolve(data_type_preset)
-        assert cfg.observation_space[-1] == expected_single_channels
+        assert cfg.observation_space[0] == expected_single_channels
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ class TestObsSpaceBumpArithmetic:
 
 
 class TestEnvConstructionEndToEnd:
-    """Construct ``CartpoleCameraPresetsEnv`` for real and verify the obs pipeline.
+    """Construct ``CartpoleCameraEnv`` for real and verify the obs pipeline.
 
     These tests catch wiring bugs that cfg-only tests miss: that the env class
     correctly resolves the policy, bumps obs_space, allocates the buffer, runs the
@@ -137,21 +137,21 @@ class TestEnvConstructionEndToEnd:
     )
     def test_env_obs_shape_matches_policy(self, presets, user_frame_stack, expected_frame_stack, expected_channels):
         # Build + resolve cfg; trim envs for test speed.
-        outer = CartpoleCameraPresetsEnvCfg()
+        outer = CartpoleCameraEnvCfg()
         env_cfg = resolve_presets(outer, selected=set(presets))
         env_cfg.scene.num_envs = 2
         env_cfg.frame_stack = user_frame_stack
 
         env = None
         try:
-            env = CartpoleCameraPresetsEnv(cfg=env_cfg)
+            env = CartpoleCameraEnv(cfg=env_cfg)
             assert env.cfg.frame_stack == expected_frame_stack, (
                 f"presets={presets} user_fs={user_frame_stack}: expected"
                 f" frame_stack={expected_frame_stack}, got {env.cfg.frame_stack}"
             )
             # Reset and verify obs shape.
             obs, _ = env.reset()
-            expected_shape = (env.num_envs, env_cfg.tiled_camera.height, env_cfg.tiled_camera.width, expected_channels)
+            expected_shape = (env.num_envs, expected_channels, env_cfg.tiled_camera.height, env_cfg.tiled_camera.width)
             assert obs["policy"].shape == expected_shape, (
                 f"presets={presets}: reset obs shape {tuple(obs['policy'].shape)} != expected {expected_shape}"
             )
@@ -187,22 +187,23 @@ class TestEnvConstructionEndToEnd:
         """
         import torch as _torch
 
-        outer = CartpoleCameraPresetsEnvCfg()
+        outer = CartpoleCameraEnvCfg()
         env_cfg = resolve_presets(outer, selected={"newton_mjwarp", "newton_renderer"})
         env_cfg.scene.num_envs = 2
 
         env = None
         try:
-            env = CartpoleCameraPresetsEnv(cfg=env_cfg)
+            env = CartpoleCameraEnv(cfg=env_cfg)
             assert env.cfg.frame_stack == 2, "Newton+Warp must auto-resolve to frame_stack=2 for this test"
 
-            c = env_cfg.observation_space[-1] // env.cfg.frame_stack
+            c = env_cfg.observation_space[0] // env.cfg.frame_stack
             obs, _ = env.reset()
-            reset_newest = obs["policy"][..., -c:].clone()
+            # channel-first [B, C, H, W]: newest frame occupies the last ``c`` channels
+            reset_newest = obs["policy"][:, -c:].clone()
 
             action = _torch.zeros(env.num_envs, 1, device=env.device)
             obs, _, _, _, _ = env.step(action)
-            step_oldest = obs["policy"][..., :c]
+            step_oldest = obs["policy"][:, :c]
 
             assert _torch.allclose(step_oldest, reset_newest), (
                 "Ring shift broken: the frame that was newest at reset did not appear at the oldest "

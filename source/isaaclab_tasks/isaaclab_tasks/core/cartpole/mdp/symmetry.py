@@ -56,7 +56,7 @@ def compute_symmetric_states(
     # actions
     if actions is not None:
         batch_size = actions.shape[0]
-        # since we have 4 different symmetries, we need to augment the batch size by 4
+        # since we have 2 different symmetries, we need to augment the batch size by 2
         actions_aug = torch.zeros(batch_size * 2, actions.shape[1], device=actions.device)
         # -- original
         actions_aug[:batch_size] = actions[:]

@@ -114,8 +114,7 @@ To use the tactile sensor in a simulation environment, run the demo:
 
 .. code-block:: bash
 
-    cd scripts/demos/sensors
-    python tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --enable_cameras
+    ./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --enable_cameras --viz kit
 
 Available command-line options include:
 
@@ -129,15 +128,24 @@ Available command-line options include:
 * ``--normal_contact_stiffness``: Normal contact stiffness for force field computation
 * ``--tangential_stiffness``: Tangential stiffness for shear forces
 * ``--friction_coefficient``: Friction coefficient for shear forces
+* ``--viz``: Select one or more visualizers, such as ``kit`` or ``newton``
 * ``--debug_sdf_closest_pts``: Visualize closest SDF points for debugging
 * ``--debug_tactile_sensor_pts``: Visualize tactile sensor points for debugging
 * ``--trimesh_vis_tactile_points``: Enable trimesh-based visualization of tactile points
+
+.. note::
+
+   Since Isaac Lab 3.0, visualizers are selected independently from the simulation backend. Use the ``--viz``
+   argument to choose the visualizer backend, such as ``kit`` or ``newton``. The TacSL demo currently supports
+   only the PhysX simulation backend; running the tactile sensor simulation with the Newton backend is not
+   supported.
+
 
 For a complete list of available options:
 
 .. code-block:: bash
 
-    python tacsl_sensor.py -h
+    ./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py -h
 
 .. note::
    The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.

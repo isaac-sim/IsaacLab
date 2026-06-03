@@ -37,6 +37,7 @@ params:
     cnn:
       type: conv2d
       activation: relu
+      permute_input: False  # env already emits channel-first NCHW
       initializer:
           name: default
       regularizer:
@@ -65,7 +66,7 @@ params:
   load_path: '' # path to the checkpoint to load
 
   config:
-    name: cartpole_camera_direct
+    name: cartpole_camera
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'

@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+1.1.2 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_physx.sim.views.FabricFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
 1.1.1 (2026-06-02)
 ~~~~~~~~~~~~~~~~~~
 

@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
@@ -188,6 +188,78 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
     Only relevant when ``physics:approximation = "convexHull"``.
     Written to ``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``.
     Set to ``-1`` to use as many vertices as needed for a perfect hull.
+    """
+
+
+@configclass
+class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
+    """Newton-specific SDF and hydroelastic collision properties.
+
+    Extends :class:`NewtonCollisionPropertiesCfg` with SDF generation and
+    hydroelastic-contact attributes consumed by Newton's USD importer.
+
+    See :meth:`~isaaclab.sim.schemas.modify_collision_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
+    _usd_field_exceptions: ClassVar[dict] = {}
+
+    sdf_max_resolution: int | None = None
+    """Maximum SDF grid dimension.
+
+    Newton requires this value to be divisible by 8. If
+    :attr:`sdf_target_voxel_size` is also authored, Newton uses the target voxel
+    size and ignores this resolution.
+    Written to ``newton:sdfMaxResolution`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_narrow_band_inner: float | None = None
+    """Inner narrow-band distance for SDF generation [m].
+
+    Written to ``newton:sdfNarrowBandInner`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_narrow_band_outer: float | None = None
+    """Outer narrow-band distance for SDF generation [m].
+
+    Written to ``newton:sdfNarrowBandOuter`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_target_voxel_size: float | None = None
+    """Target SDF voxel size [m].
+
+    Takes precedence over :attr:`sdf_max_resolution` in Newton's USD importer.
+    Written to ``newton:sdfTargetVoxelSize`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_texture_format: Literal["uint8", "uint16", "float32"] | None = None
+    """Subgrid texture storage format for generated SDFs.
+
+    Written to ``newton:sdfTextureFormat`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_padding: float | None = None
+    """SDF AABB padding [m].
+
+    Written to ``newton:sdfPadding`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    hydroelastic_enabled: bool | None = None
+    """Whether Newton should use SDF-based hydroelastic contacts for this shape.
+
+    Both participating collision shapes must enable hydroelastic contacts for
+    Newton to use this path. Written to ``newton:hydroelasticEnabled`` via
+    ``NewtonSDFCollisionAPI``.
+    """
+
+    hydroelastic_stiffness: float | None = None
+    """Hydroelastic contact stiffness.
+
+    Written to ``newton:hydroelasticStiffness`` via ``NewtonSDFCollisionAPI``.
     """
 
 

@@ -27,7 +27,7 @@ import sys
 import types
 from unittest.mock import patch
 
-import isaaclab_tasks.utils.sim_launcher as sim_launcher
+import isaaclab.app.sim_launcher as sim_launcher
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,6 +53,18 @@ def _make_distributed_args(**overrides) -> argparse.Namespace:
     defaults = {"distributed": True}
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
+
+
+def _force_kitless(monkeypatch):
+    """Wrap ``scan`` so the resulting scan reports ``needs_kit=False``."""
+    real_scan = sim_launcher.scan
+
+    def fake_scan(*args, **kwargs):
+        result = real_scan(*args, **kwargs)
+        result.needs_kit = False
+        return result
+
+    monkeypatch.setattr(sim_launcher, "scan", fake_scan)
 
 
 def _make_env_vars(
@@ -429,12 +441,6 @@ class TestLaunchSimulationDevicePropagation:
             "importlib.util.find_spec",
             lambda name: object() if name == "omni.kit" else None,
         )
-        # Force needs_kit=True, no cameras
-        monkeypatch.setattr(
-            sim_launcher,
-            "compute_kit_requirements",
-            lambda env_cfg, launcher_args: (True, False, set()),
-        )
         # Mock _resolve_distributed_device to avoid torch.cuda calls
         monkeypatch.setattr(
             sim_launcher,
@@ -458,11 +464,8 @@ class TestLaunchSimulationDevicePropagation:
             env_cfg.sim.device = "cuda:1"
             resolved_devices.append("cuda:1")
 
-        monkeypatch.setattr(
-            sim_launcher,
-            "compute_kit_requirements",
-            lambda env_cfg, launcher_args: (False, False, set()),
-        )
+        # Force the kitless path (needs_kit=False) without constructing a real backend cfg.
+        _force_kitless(monkeypatch)
         monkeypatch.setattr(
             sim_launcher,
             "_resolve_distributed_device",

@@ -13,6 +13,7 @@ These tests do not require Isaac Sim — only Python import semantics.
 import warnings
 
 import pytest
+from isaaclab_newton.sim.schemas import schemas_cfg as newton_cfg
 from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
 from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 
@@ -82,6 +83,18 @@ DEPRECATED_FORWARDED_MATERIAL_NAMES = [
     "SurfaceDeformableBodyMaterialCfg",
 ]
 
+NEWTON_FORWARDED_NAMES = [
+    "MujocoRigidBodyPropertiesCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonSDFCollisionPropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+]
+
 
 @pytest.mark.parametrize("name", FORWARDED_NAMES)
 def test_schemas_shim_resolves_to_physx_class(name):
@@ -115,6 +128,24 @@ def test_materials_cfg_submodule_shim_resolves_to_physx_class(name):
     """``from isaaclab.sim.spawners.materials.physics_materials_cfg import <name>`` (direct
     submodule import path) resolves to the same class object as the relocated definition."""
     assert getattr(materials_cfg_submodule, name) is getattr(physx_mat_cfg, name)
+
+
+@pytest.mark.parametrize("name", NEWTON_FORWARDED_NAMES)
+def test_schemas_shim_resolves_to_newton_class(name):
+    """``isaaclab.sim.schemas.<name>`` resolves to the Newton extension class."""
+    assert getattr(schemas, name) is getattr(newton_cfg, name)
+
+
+@pytest.mark.parametrize("name", NEWTON_FORWARDED_NAMES)
+def test_sim_namespace_shim_resolves_to_newton_class(name):
+    """``isaaclab.sim.<name>`` resolves to the Newton extension class."""
+    assert getattr(sim_utils, name) is getattr(newton_cfg, name)
+
+
+@pytest.mark.parametrize("name", NEWTON_FORWARDED_NAMES)
+def test_schemas_cfg_submodule_shim_resolves_to_newton_class(name):
+    """Direct ``isaaclab.sim.schemas.schemas_cfg`` imports resolve to Newton classes."""
+    assert getattr(schemas_cfg_submodule, name) is getattr(newton_cfg, name)
 
 
 @pytest.mark.parametrize("name", FORWARDED_MATERIAL_NAMES)
@@ -181,6 +212,8 @@ def test_dir_lists_forwarded_names():
     """``dir(isaaclab.sim.schemas)`` includes the forwarded names so IDE autocomplete works."""
     listing = dir(schemas)
     for name in FORWARDED_NAMES:
+        assert name in listing
+    for name in NEWTON_FORWARDED_NAMES:
         assert name in listing
 
 

@@ -58,7 +58,7 @@ are equivalent:
          disable_env_checker=True,
          kwargs={
             "env_cfg_entry_point": f"{__name__}.cartpole_manager_env_cfg:CartpoleEnvCfg",
-            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_manager_ppo_cfg:CartpolePPORunnerCfg",
+            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
          },
       )
 
@@ -75,7 +75,7 @@ are equivalent:
          disable_env_checker=True,
          kwargs={
             "env_cfg_entry_point": f"{__name__}.cartpole_manager_env_cfg:CartpoleEnvCfg",
-            "rsl_rl_cfg_entry_point": agents.rsl_rl_manager_ppo_cfg.CartpolePPORunnerCfg,
+            "rsl_rl_cfg_entry_point": agents.rsl_rl_ppo_cfg.CartpolePPORunnerCfg,
          },
       )
 

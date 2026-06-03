@@ -67,8 +67,9 @@ POISSONS_RATIO = 0.25
 class DeformableNewtonCfg(NewtonCfg):
     """NewtonCfg extended with model-level contact parameters for deformable objects.
 
-    Uses a distinct class name so that ``_is_kitless_physics`` does not
-    match it, ensuring Kit is launched for USD deformable spawning.
+    Uses a distinct class name so that it is not treated as a kitless backend
+    (its name is not in ``_KITLESS_PHYSICS_CFGS``), ensuring Kit is launched for
+    USD deformable spawning.
     """
 
     model_cfg: NewtonModelCfg | None = None
