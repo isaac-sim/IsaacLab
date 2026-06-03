@@ -190,6 +190,17 @@ from .curriculums import modify_env_param, modify_reward_weight, modify_term_cfg
 from .events import (
     apply_external_force_torque,
     push_by_setting_velocity,
+    randomize_visual_color,
+    randomize_visual_texture_material,
+    reset_joints_by_offset,
+    reset_joints_by_scale,
+    reset_nodal_state_uniform,
+    reset_root_state_from_terrain,
+    reset_root_state_uniform,
+    reset_root_state_with_random_orientation,
+    reset_scene_to_default,
+)
+from .physics_events import (
     randomize_actuator_gains,
     randomize_fixed_tendon_parameters,
     randomize_joint_parameters,
@@ -200,15 +211,6 @@ from .events import (
     randomize_rigid_body_mass,
     randomize_rigid_body_material,
     randomize_rigid_body_scale,
-    randomize_visual_color,
-    randomize_visual_texture_material,
-    reset_joints_by_offset,
-    reset_joints_by_scale,
-    reset_nodal_state_uniform,
-    reset_root_state_from_terrain,
-    reset_root_state_uniform,
-    reset_root_state_with_random_orientation,
-    reset_scene_to_default,
 )
 from .observations import (
     base_ang_vel,

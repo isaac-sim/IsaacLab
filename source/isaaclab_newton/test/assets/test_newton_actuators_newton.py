@@ -527,7 +527,7 @@ class _MockEnv:
 
 
 def _build_dr_term(env, asset_name, joint_ids=None):
-    from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
+    from isaaclab.envs.mdp.physics_events import randomize_actuator_gains  # noqa: PLC0415
     from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
 
     asset_cfg = SceneEntityCfg(asset_name)
