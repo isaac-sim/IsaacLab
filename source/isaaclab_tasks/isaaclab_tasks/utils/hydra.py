@@ -42,6 +42,8 @@ from isaaclab.utils.configclass import configclass
 from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
+# Canonical Newton solver presets that must resolve through an active PhysicsCfg.
+_NEWTON_PHYSICS_PRESETS = {"newton_mjwarp", "newton_kamino"}
 
 
 def _user_stacklevel() -> int:
@@ -551,18 +553,24 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
 def _selected_newton_physics_presets(selected: list[str]) -> set[str]:
     """Return canonical Newton physics preset names requested by the user."""
     aliases = PresetTarget.PHYSICS.legacy_aliases
-    newton_names = set(aliases.values())
-    return {aliases.get(name, name) for name in selected if aliases.get(name, name) in newton_names}
+    return {
+        name
+        for selected_name in selected
+        for name in [aliases.get(selected_name, selected_name)]
+        if name in _NEWTON_PHYSICS_PRESETS
+    }
 
 
 def _validate_selected_newton_physics_presets(
-    selected: list[str], consumed_selected_targets: dict[str, set[PresetTarget]]
+    selected: list[str],
+    consumed_selected: set[str],
+    consumed_selected_targets: dict[str, set[PresetTarget]],
 ) -> None:
     """Raise when a Newton solver preset did not apply to active physics config."""
     missing = sorted(
         name
         for name in _selected_newton_physics_presets(selected)
-        if PresetTarget.PHYSICS not in consumed_selected_targets.get(name, set())
+        if name in consumed_selected and PresetTarget.PHYSICS not in consumed_selected_targets.get(name, set())
     )
     if missing:
         raise ValueError(
@@ -629,7 +637,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             consumed_explicit=consumed_explicit,
         )
 
-    _validate_selected_newton_physics_presets(global_presets, consumed_preset_targets)
+    _validate_selected_newton_physics_presets(global_presets, consumed_presets, consumed_preset_targets)
 
     unknown_presets = set(global_presets) - consumed_presets
     if unknown_presets:
