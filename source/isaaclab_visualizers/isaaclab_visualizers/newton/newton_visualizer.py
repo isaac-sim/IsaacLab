@@ -50,6 +50,15 @@ CONTACT_ARROW_LENGTH = 0.1
 NEWTON_HUD_IMPORT_LOG_WARNING = "[NewtonVisualizer] Newton HUD disabled: failed to import imgui_bundle."
 """Stable log prefix emitted when Newton's imgui HUD dependencies cannot be imported."""
 
+CONTACT_ARROW_PATH = "/contacts"
+"""Viewer path used for native and synthesized contact arrows."""
+
+CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
+"""Color used by Newton's native contact visualization."""
+
+CONTACT_ARROW_LENGTH = 0.1
+"""Length of synthesized contact arrows in meters."""
+
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
