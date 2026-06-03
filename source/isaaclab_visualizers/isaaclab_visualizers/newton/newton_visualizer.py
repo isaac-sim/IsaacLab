@@ -47,35 +47,8 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
-NEWTON_HUD_IMPORT_LOG_WARNING = "[NewtonVisualizer] Newton HUD disabled: failed to import imgui_bundle."
-"""Stable log prefix emitted when Newton's imgui HUD dependencies cannot be imported."""
-
-CONTACT_ARROW_PATH = "/contacts"
-"""Viewer path used for native and synthesized contact arrows."""
-
-CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
-"""Color used by Newton's native contact visualization."""
-
-CONTACT_ARROW_LENGTH = 0.1
-"""Length of synthesized contact arrows in meters."""
-
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
-
-
-def _log_newton_hud_dependency_issue() -> None:
-    """Log a clear warning if Newton's imgui HUD dependencies cannot be imported."""
-    try:
-        from imgui_bundle import imgui as _imgui  # noqa: F401
-        from imgui_bundle import imguizmo as _imguizmo  # noqa: F401
-        from imgui_bundle.python_backends import pyglet_backend as _pyglet_backend  # noqa: F401
-    except ImportError as exc:
-        logger.warning(
-            "%s Install isaaclab-visualizers[newton] or fix its transitive dependencies "
-            "(for example typing-extensions>=4.15.0). ImportError: %s",
-            NEWTON_HUD_IMPORT_LOG_WARNING,
-            exc,
-        )
 
 
 class NewtonViewerGL(ViewerGL):
@@ -426,7 +399,6 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
-        _log_newton_hud_dependency_issue()
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
