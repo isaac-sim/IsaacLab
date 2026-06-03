@@ -396,39 +396,99 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
-def _claim_queued_file(queue_path):
-    """Atomically pop the first path from a shared work-queue file, or ``None`` when empty.
+def _slugify_test_path(test_path):
+    """Encode a test path as a flat queue entry name.
 
-    The sibling single-GPU shard containers share one queue file on the workspace
-    mount; ``flock`` serializes the read-and-truncate so each file is claimed by
-    exactly one container. This turns the static round-robin split into dynamic
-    work-stealing: a container that lands a slow file simply claims fewer.
+    The queue uses one file per pending test. Slashes are not legal inside a
+    filename, so we encode the relative path by replacing ``/`` with ``__``.
+    The decoder is :func:`_unslugify_queue_entry`.
     """
-    import fcntl
+    return test_path.replace("/", "__")
 
-    lock_path = queue_path + ".lock"
-    with open(lock_path, "a+") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+
+def _unslugify_queue_entry(entry_name):
+    """Reverse of :func:`_slugify_test_path`."""
+    return entry_name.replace("__", "/")
+
+
+def _claim_queued_file(queue_dir):
+    """Atomically claim one pending test from the work-queue directory.
+
+    The queue is a directory of files (one per pending test); the shard claims
+    one by renaming it from ``queue/`` into its private ``inflight/cuda-N/``.
+    POSIX rename is atomic on the same filesystem, so two shards racing on the
+    same source file are serialized by the kernel: exactly one rename succeeds,
+    the other gets ``FileNotFoundError`` and tries the next entry.
+
+    On success, the test's queue entry is now sitting in ``inflight/cuda-N/``;
+    the caller is expected to move it to ``done/cuda-N/`` after the per-test
+    pytest invocation exits with a clean result, leaving anything still in
+    ``inflight/`` at job-end as recoverable evidence of a crashed test.
+
+    Args:
+        queue_dir: Path to the shared work-queue root. Must contain a
+            ``queue/`` subdir (pending entries) and an ``inflight/<shard>/``
+            subdir for this shard (claim destination).
+
+    Returns:
+        The decoded test path for the claimed file, or ``None`` when the
+        queue is empty.
+    """
+    shard = os.environ.get("ISAACLAB_SIM_DEVICE", "cuda").replace(":", "-")
+    pending_dir = os.path.join(queue_dir, "queue")
+    inflight_dir = os.path.join(queue_dir, "inflight", shard)
+    os.makedirs(inflight_dir, exist_ok=True)
+
+    # Listdir is intentionally not cached: another shard may have just removed
+    # an entry we'd otherwise try. We pay one listdir per claim attempt; with
+    # N≤20 entries this is microseconds.
+    try:
+        entries = sorted(os.listdir(pending_dir))
+    except FileNotFoundError:
+        return None
+
+    for entry in entries:
+        src = os.path.join(pending_dir, entry)
+        dst = os.path.join(inflight_dir, entry)
         try:
-            try:
-                with open(queue_path) as queue_file:
-                    remaining = [line for line in (raw.strip() for raw in queue_file) if line]
-            except FileNotFoundError:
-                return None
-            if not remaining:
-                return None
-            claimed, rest = remaining[0], remaining[1:]
-            with open(queue_path, "w") as queue_file:
-                queue_file.write("".join(f"{path}\n" for path in rest))
-            return claimed
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+            os.rename(src, dst)
+        except FileNotFoundError:
+            # Lost the race for this entry; another shard claimed it first.
+            # Continue to the next entry in our (potentially stale) listing.
+            continue
+        except OSError:
+            # Any other rename failure (e.g. permission) is a hard error.
+            raise
+        return _unslugify_queue_entry(entry)
+
+    return None
 
 
-def _queued_files(queue_path):
+def _mark_queued_file_done(queue_dir, test_path):
+    """Move a successfully-completed claim from ``inflight/cuda-N/`` to ``done/cuda-N/``.
+
+    Called by the test runner after a per-file pytest invocation exits cleanly.
+    The inflight residual is what the post-run reconciler uses to detect
+    crashed shards: anything still in ``inflight/`` at job-end is an orphan.
+    """
+    shard = os.environ.get("ISAACLAB_SIM_DEVICE", "cuda").replace(":", "-")
+    entry = _slugify_test_path(test_path)
+    src = os.path.join(queue_dir, "inflight", shard, entry)
+    dst_dir = os.path.join(queue_dir, "done", shard)
+    os.makedirs(dst_dir, exist_ok=True)
+    dst = os.path.join(dst_dir, entry)
+    try:
+        os.rename(src, dst)
+    except FileNotFoundError:
+        # Already moved (idempotent) or the runner crashed before we could
+        # mark done — the reconciler catches the second case.
+        pass
+
+
+def _queued_files(queue_dir):
     """Yield files claimed from the shared work queue until it is empty."""
     while True:
-        claimed = _claim_queued_file(queue_path)
+        claimed = _claim_queued_file(queue_dir)
         if claimed is None:
             return
         yield claimed
@@ -815,6 +875,14 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "time_elapsed": time_elapsed,
             "wall_time": wall_time,
         }
+
+        # When running under the directory-based work queue (option 2), move the
+        # claim entry from inflight/<shard>/ to done/<shard>/ so the post-run
+        # reconciler can distinguish "ran to completion" from "claimed but
+        # crashed mid-test". A claim that stays in inflight at job-end is a
+        # silent drop signal.
+        if queue_path:
+            _mark_queued_file_done(queue_path, test_file)
 
     print("~~~~~~~~~~~~ Finished running all tests")
 

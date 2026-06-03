@@ -212,13 +212,30 @@ jobs:
           runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mgpu-runtime.XXXXXX")"
           mkdir -p "$runtime_dir"
 
-          # Shared work queue inside one container — flock still serializes
-          # claims across the in-container subshells exactly as it did across
-          # sibling containers; the file lives on the same mount.
-          queue_dir="$runtime_dir/queue"
-          mkdir -p "$queue_dir"
-          printf '%s\n' "$PATHS" | tr ',' '\n' | grep -v '^$' > "$queue_dir/queue.txt"
-          echo "::notice::seeded work queue with $(wc -l < "$queue_dir/queue.txt") files"
+          # Directory-based work queue (atomic os.rename pattern; conftest claims
+          # entries via os.rename(queue/X, inflight/<shard>/X) — POSIX rename is
+          # atomic on the same filesystem, so two shards racing on the same
+          # entry are kernel-serialized: one wins, the other gets ENOENT and
+          # moves on). Each pending test path is materialized as an empty file
+          # in queue/ with '/' slugged to '__' so it's a flat filename.
+          #
+          # Subdirs:
+          #   queue/<slug>             — pending claims
+          #   inflight/<shard>/<slug>  — claimed by this shard, test in flight
+          #   done/<shard>/<slug>      — test exited cleanly
+          #
+          # At job-end the reconciler step asserts queue/ + inflight/ are empty
+          # (anything left = silent-drop signal: never claimed OR claimed but
+          # crashed mid-test).
+          queue_root="$runtime_dir/queue"
+          mkdir -p "$queue_root/queue" "$queue_root/inflight" "$queue_root/done"
+          IFS=',' read -ra _paths <<< "$PATHS"
+          for path in "${_paths[@]}"; do
+            [ -n "$path" ] || continue
+            slug="${path//\//__}"
+            : > "$queue_root/queue/$slug"
+          done
+          echo "::notice::seeded work queue with $(ls -1 "$queue_root/queue" | wc -l) entries"
 
           # Per-shard log dir mounted from the container so we can grouped-print
           # the per-shard stream after the run completes.
@@ -246,7 +263,7 @@ jobs:
             --user "${host_uid}:${host_gid}" \
             --name "isaac-lab-mgpu-${{ github.run_id }}-${{ github.run_attempt }}" \
             -v "$PWD:/workspace/isaaclab:rw" \
-            -v "$queue_dir:/mgpu:rw" \
+            -v "$queue_root:/mgpu:rw" \
             -v "$logs_dir:/shard-logs:rw" \
             -e USER="${host_user}" \
             -e LOGNAME="${host_user}" \
@@ -257,7 +274,7 @@ jobs:
             -e ISAAC_SIM_LOW_MEMORY=1 \
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
-            -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
+            -e ISAACLAB_TEST_QUEUE=/mgpu \
             -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
             -e ISAACLAB_PIN_KIT_GPU=1 \
             -e HOME=/tmp/mgpu-base-home \
@@ -371,5 +388,36 @@ jobs:
             cat "$log"
             echo "::endgroup::"
           done
+
+          # Reconciler — silent-drop guard. Anything left in queue/ was never
+          # claimed by any shard (work-queue starvation). Anything still in
+          # inflight/<shard>/ was claimed but never moved to done/ (shard
+          # crashed mid-test). Either is a silent-drop signal that the docker
+          # exit alone can't surface. Fail the job and name the orphans.
+          echo "::group::work-queue reconciler"
+          unclaimed=$(ls -1 "$queue_root/queue" 2>/dev/null | wc -l)
+          if [ "$unclaimed" -gt 0 ]; then
+            echo "::error::${unclaimed} test(s) never claimed by any shard:"
+            ls -1 "$queue_root/queue" | sed 's|__|/|g; s/^/  /'
+          fi
+          orphans=0
+          for shard_dir in "$queue_root/inflight"/*/; do
+            [ -d "$shard_dir" ] || continue
+            count=$(ls -1 "$shard_dir" 2>/dev/null | wc -l)
+            if [ "$count" -gt 0 ]; then
+              echo "::error::$(basename "$shard_dir") claimed but never finished ${count} test(s):"
+              ls -1 "$shard_dir" | sed 's|__|/|g; s/^/  /'
+              orphans=$((orphans + count))
+            fi
+          done
+          done_total=$(find "$queue_root/done" -type f 2>/dev/null | wc -l)
+          echo "::notice::reconciler: done=${done_total} unclaimed=${unclaimed} orphans=${orphans}"
+          echo "::endgroup::"
+
+          # Treat reconciler signals as fatal even if all shards exited 0.
+          if [ "$unclaimed" -gt 0 ] || [ "$orphans" -gt 0 ]; then
+            echo "::error::silent-drop detected — see reconciler group above"
+            [ "$docker_rc" -eq 0 ] && docker_rc=2
+          fi
 
           exit "$docker_rc"
