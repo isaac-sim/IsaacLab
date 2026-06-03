@@ -14,7 +14,7 @@ from typing import Any
 import torch
 import warp as wp
 
-from pxr import Sdf
+from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
