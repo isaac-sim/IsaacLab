@@ -69,7 +69,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.cartpole_manager_camera_env_cfg:CartpoleCameraPresetsEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.cartpole_manager_camera_env_cfg:CartpoleCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_manager_feature_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",

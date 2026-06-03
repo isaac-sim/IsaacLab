@@ -16,10 +16,10 @@ from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
 
-from .cartpole_direct_env import CartpoleEnv
+from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 
 if TYPE_CHECKING:
-    from .cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
 SIMPLE_SHADING_TYPES = {
     "simple_shading_constant_diffuse",
@@ -31,11 +31,8 @@ SIMPLE_SHADING_TYPES = {
 class CartpoleCameraEnv(CartpoleEnv):
     """Cartpole environment driven by camera observations.
 
-    Extends :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_env.CartpoleEnv`, reusing its
-    action, reward, termination and reset logic while swapping the joint-state observation for a
-    camera image. When the active backend benefits from explicit temporal observations
-    (Newton physics + Warp renderer) the policy observation is the channel-stacked output of a
-    :class:`~isaaclab.utils.buffers.CircularBuffer` (oldest → newest); otherwise it is a single frame.
+    Uses temporal observations for the Newton + Warp combo as it does not have the same implicit benefit
+    as the RTX renderer (implicit temporal anti-aliasing).
     """
 
     cfg: CartpoleCameraEnvCfg

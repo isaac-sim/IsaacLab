@@ -14,7 +14,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from .cartpole_direct_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 @configclass

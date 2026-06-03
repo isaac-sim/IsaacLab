@@ -18,7 +18,7 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
-    from .cartpole_direct_env_cfg import CartpoleEnvCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 class CartpoleEnv(DirectRLEnv):
@@ -36,15 +36,18 @@ class CartpoleEnv(DirectRLEnv):
 
     def _setup_scene(self):
         self.cartpole = Articulation(self.cfg.robot_cfg)
-        # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+        
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
+        
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
+        
         # add articulation to scene
         self.scene.articulations["cartpole"] = self.cartpole
+        
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)

@@ -23,9 +23,6 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
-##
-# Pre-defined configs
-##
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 

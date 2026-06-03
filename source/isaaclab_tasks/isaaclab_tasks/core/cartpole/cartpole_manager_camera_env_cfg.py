@@ -14,7 +14,7 @@ import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 
 @configclass
@@ -214,7 +214,7 @@ class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 
 
 @configclass
-class CartpoleCameraPresetsEnvCfg(PresetCfg):
+class CartpoleCameraEnvCfg(PresetCfg):
     """Configuration for the cartpole environment with selectable observation pipeline."""
 
     rgb: CartpoleRGBCameraEnvCfg = CartpoleRGBCameraEnvCfg()
