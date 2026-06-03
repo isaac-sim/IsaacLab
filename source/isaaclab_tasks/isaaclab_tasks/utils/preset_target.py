@@ -17,9 +17,15 @@ needs to know about that category in one place:
   "no typed target matched".
 * ``legacy_aliases`` -- deprecated-name to canonical-name table for this
   target, aggregated for hydra's resolver via :meth:`all_legacy_aliases`.
+* ``preset_names`` -- the canonical preset names that belong to this target
+  (e.g. the Newton solvers for ``PHYSICS``). Picking one of these must end up
+  replacing a config of this target's type; if it only matched something else,
+  hydra raises. See
+  :func:`~isaaclab_tasks.utils.hydra._validate_typed_presets`.
 
 Adding a new typed target = appending one enum member with its label, base
-classes, and (optional) legacy alias map. The CLI layer needs no other wiring.
+classes, (optional) legacy alias map, and (optional) preset names. The CLI
+layer needs no other wiring.
 """
 
 from __future__ import annotations
@@ -52,10 +58,16 @@ class PresetTarget(enum.Enum):
     Adding a new target = appending one enum member.
     """
 
-    # Members. Tuple values are (label, base_classes, legacy_aliases); the
-    # enum metaclass collects the whole namespace before constructing members,
-    # so ``__new__`` below unpacks each tuple regardless of declaration order.
-    PHYSICS = ("physics", (PhysicsCfg,), {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
+    # Members. Tuple values are (label, base_classes, legacy_aliases,
+    # preset_names); the enum metaclass collects the whole namespace before
+    # constructing members, so ``__new__`` below unpacks each tuple regardless
+    # of declaration order.
+    PHYSICS = (
+        "physics",
+        (PhysicsCfg,),
+        {"newton": "newton_mjwarp", "kamino": "newton_kamino"},
+        {"newton_mjwarp", "newton_kamino"},
+    )
     """Physics backends -- ``physics=NAME`` selector.
 
     Legacy aliases ``newton`` -> ``newton_mjwarp`` and ``kamino`` -> ``newton_kamino``
@@ -66,9 +78,20 @@ class PresetTarget(enum.Enum):
     :func:`~isaaclab_tasks.utils.hydra._normalize_preset_name`) consults these
     and emits a :class:`FutureWarning`; the aliases will be removed in a
     future release.
+
+    ``preset_names`` lists the Newton solver backends. Picking one of these on a
+    task that has no Newton physics would otherwise keep PhysX running while
+    only tweaking Newton-named scalars or sensors, so hydra rejects it instead.
+    ``physx`` and ``ovphysx`` are left out on purpose: PhysX is the default, so
+    asking for it on a task without a physics preset is harmless.
     """
 
-    RENDERER = ("renderer", (RendererCfg,))
+    RENDERER = (
+        "renderer",
+        (RendererCfg,),
+        None,
+        {"newton_renderer", "isaacsim_rtx_renderer", "ovrtx_renderer"},
+    )
     """Camera-sensor renderers -- ``renderer=NAME`` selector."""
 
     DOMAIN = ("presets",)
@@ -87,8 +110,9 @@ class PresetTarget(enum.Enum):
         label: str,
         base_classes: tuple[type, ...] = (),
         legacy_aliases: dict[str, str] | None = None,
+        preset_names: frozenset[str] | set[str] | None = None,
     ):
-        """Construct a member from its ``(label, base_classes, legacy_aliases)`` tuple.
+        """Construct a member from its ``(label, base_classes, legacy_aliases, preset_names)`` tuple.
 
         Args:
             label: Hydra-style selector key (e.g. ``"physics"`` is recognized
@@ -98,15 +122,20 @@ class PresetTarget(enum.Enum):
                 routing).
             legacy_aliases: Optional deprecated-to-canonical map for this
                 target; copied so members cannot alias each other's tables.
+            preset_names: Optional canonical preset names reserved for this
+                target; copied so members cannot alias each other's sets. A
+                reserved name must resolve through this target at least once.
 
         Returns:
             A new enum member with ``_value_`` set to *label*, plus
-            ``base_classes`` and ``legacy_aliases`` attributes.
+            ``base_classes``, ``legacy_aliases`` and ``preset_names``
+            attributes.
         """
         obj = object.__new__(cls)
         obj._value_ = label
         obj.base_classes = tuple(base_classes)
         obj.legacy_aliases = dict(legacy_aliases) if legacy_aliases else {}
+        obj.preset_names = frozenset(preset_names) if preset_names else frozenset()
         return obj
 
     @classmethod
@@ -126,3 +155,15 @@ class PresetTarget(enum.Enum):
             aggregated across all members.
         """
         return {name: rep for target in cls for name, rep in target.legacy_aliases.items()}
+
+    @classmethod
+    @functools.cache
+    def reserved_preset_targets(cls) -> dict[str, PresetTarget]:
+        """Look up which target owns each reserved preset name.
+
+        Returns ``{name: target}``, e.g. ``{"newton_mjwarp": PHYSICS, ...}``.
+        Hydra uses it to check a selected name landed on the right backend.
+        Cached (the sets never change after class construction); do not mutate
+        the result.
+        """
+        return {name: target for target in cls for name in target.preset_names}

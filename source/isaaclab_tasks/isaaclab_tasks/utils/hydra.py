@@ -279,6 +279,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
+    typed_hits: set[str] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -310,16 +311,21 @@ def _pick_alternative(
         name = _normalize_preset_name(raw_name, field_names)
         if name not in fields or name == match_name:
             continue
+        val = fields[name]
         if consumed_selected is not None:
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
+        if typed_hits is not None:
+            # mark a reserved typed name (e.g. newton_mjwarp) that landed on its own backend type
+            target = PresetTarget.reserved_preset_targets().get(name)
+            if target is not None and isinstance(val, target.base_classes):
+                typed_hits.add(name)
         if match_name is not None:
-            val = fields[name]
             if match_value is not val and match_value != val:
                 raise ValueError(
                     f"Conflicting global presets: '{match_name}' and '{name}' both define preset for '{path}'"
                 )
-        match_name, match_value = name, fields[name]
+        match_name, match_value = name, val
     if match_name is not None:
         return match_value
     if "default" in fields:
@@ -338,6 +344,7 @@ def _resolve_active_presets(
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
+    typed_hits: set[str] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
@@ -364,6 +371,7 @@ def _resolve_active_presets(
                 path=path,
                 explicit_name=explicit.get(path),
                 consumed_selected=consumed_selected,
+                typed_hits=typed_hits,
             )
         return val
 
@@ -535,6 +543,30 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
     return "\n".join(lines)
 
 
+def _validate_typed_presets(selected: list[str], consumed: set[str], typed_hits: set[str]) -> None:
+    """Check that each selected physics/renderer preset actually hit its backend.
+
+    Names like ``newton_mjwarp`` are reserved for a backend (physics). If a task
+    reuses that name on something unrelated (a scalar, a sensor variant),
+    selecting it would tune those fields while leaving the real backend
+    untouched -- a silent backend mix. So if a reserved name was used somewhere
+    (``consumed``) but never landed on a config of its own type (``typed_hits``),
+    raise. Names that matched nothing are left for the unknown-preset error.
+
+    Raises:
+        ValueError: If a reserved name was applied but not to its own backend.
+    """
+    aliases = PresetTarget.all_legacy_aliases()
+    reserved = PresetTarget.reserved_preset_targets()
+    missing = sorted({i for raw in selected for i in [aliases.get(raw, raw)] if i in reserved} & consumed - typed_hits)
+    if missing:
+        targets = ", ".join(sorted({reserved[i].value for i in missing}))
+        raise ValueError(
+            f"Selected preset(s) {', '.join(missing)} never applied to a '{targets}' config for this task. "
+            "The name only matched unrelated presets, which would silently mix backends. "
+        )
+
+
 def register_task(task_name: str, agent_entry: str) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -566,6 +598,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
 
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
+    typed_hits: set[str] = set()
     consumed_explicit: set[str] = set()
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
     agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
@@ -576,6 +609,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         root_path="env",
         strict_explicit=False,
         consumed_selected=consumed_presets,
+        typed_hits=typed_hits,
         consumed_explicit=consumed_explicit,
     )
     if agent_cfg is not None:
@@ -586,6 +620,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             root_path="agent",
             strict_explicit=False,
             consumed_selected=consumed_presets,
+            typed_hits=typed_hits,
             consumed_explicit=consumed_explicit,
         )
 
@@ -609,6 +644,9 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         if unknown:
             display = {n: p for n, p in name_to_paths.items() if n != "default"}
             raise ValueError(_format_unknown_presets_error(unknown, display))
+
+    # Reserved typed presets (e.g. Newton physics solvers) must have landed on a cfg of their type
+    _validate_typed_presets(global_presets, consumed_presets, typed_hits)
 
     cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:
