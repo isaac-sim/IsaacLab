@@ -261,6 +261,7 @@ jobs:
             -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
             -e ISAACLAB_PIN_KIT_GPU=1 \
             -e HOME=/tmp/mgpu-base-home \
+            -e PYTHONUSERBASE=/tmp/mgpu-pyuserbase \
             "${cvd_args[@]}" \
             "$IMAGE_TAG" \
             -c '
@@ -268,13 +269,18 @@ jobs:
               cd /workspace/isaaclab
               unset HUB__ARGS__DETECT_ONLY
 
-              # Container-level HOME for the pre-fan-out pip install. The
-              # image runs ``--user $host_uid:$host_gid`` with no matching
+              # Container-level HOME + PYTHONUSERBASE for pip --user installs.
+              # The image runs as ``--user $host_uid:$host_gid`` with no matching
               # /etc/passwd entry, so HOME defaults to /root which the user
-              # cannot write. /tmp/mgpu-base-home is on /tmp (1777 tmpfs)
-              # and writable by any user. Per-shard subshells below override
-              # HOME to their own /tmp/isaaclab-ci-home-N for test runs.
-              mkdir -p /tmp/mgpu-base-home
+              # cannot write. /tmp/* is on tmpfs (1777, world-writable).
+              #
+              # PYTHONUSERBASE is the key for the 1-docker shape: pip --user
+              # writes to ${PYTHONUSERBASE}/lib/python3.12/site-packages, and
+              # every Python invocation that sees the same env var imports
+              # from there. Per-shard subshells below override HOME (so .cache
+              # / .nvidia-omniverse are isolated) but inherit PYTHONUSERBASE
+              # so junitparser et al. resolve everywhere.
+              mkdir -p /tmp/mgpu-base-home /tmp/mgpu-pyuserbase
 
               # Pytest deps (same as run-tests action). junitparser is imported
               # at tools/conftest.py load time, so it must be present first.
