@@ -1,0 +1,1 @@
+Internal import-hygiene cleanup: moved eager submodule imports into the lazy ``.pyi`` stubs; no user-facing changelog entry.
