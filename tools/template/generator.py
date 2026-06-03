@@ -89,9 +89,13 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
             file_ext = ".py" if rl_library_name == "rsl_rl" else ".yaml"
             try:
                 template = jinja_env.get_template(f"agents/{file_name}")
-            except jinja2.exceptions.TemplateNotFound:
-                print(f"Template not found: agents/{file_name}")
-                continue
+            except jinja2.exceptions.TemplateNotFound as exc:
+                # Fail loudly: the task is still registered with this agent's entry point, so silently skipping
+                # the config would emit a project that only fails later at train time with a missing config file.
+                raise FileNotFoundError(
+                    f"No agent config template 'agents/{file_name}' for the requested '{rl_library_name}'"
+                    f" algorithm '{algorithm}'. Add the template or drop the algorithm from the selection."
+                ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
     # workflow-specific content
     if task_spec["workflow"]["name"] == "direct":

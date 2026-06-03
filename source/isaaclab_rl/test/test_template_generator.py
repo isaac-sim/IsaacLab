@@ -5,8 +5,11 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import gymnasium as gym
@@ -250,3 +253,204 @@ def test_external_launch_configs_pass_skrl_algorithm_for_every_generated_skrl_ag
     launch_config = (root_dir / project_name / ".vscode" / "tools" / "launch.template.json").read_text()
     for algorithm in ["AMP", "PPO", "IPPO", "MAPPO"]:
         assert f'"--algorithm", "{algorithm}"' in launch_config
+
+
+def _all_libraries() -> list[dict]:
+    """Every rl library with every algorithm it supports across both workflow types."""
+    algorithms = get_algorithms_per_rl_library(single_agent=True, multi_agent=True)
+    return [{"name": name, "algorithms": [a.lower() for a in algos]} for name, algos in algorithms.items() if algos]
+
+
+# Backend runtime modules that must not be imported while a config is loaded (before SimulationApp); see PR #5826.
+_FORBIDDEN_RUNTIME_MODULES = {"pxr", "omni", "carb", "isaacsim", "usdrt"}
+
+
+def _top_level_imported_roots(source: str) -> set[str]:
+    """Return the root package names imported UNCONDITIONALLY at module scope.
+
+    Only statements directly in the module body are inspected, so deferred (in-function) and
+    ``if TYPE_CHECKING:`` imports -- the sanctioned way to reference backend modules -- are ignored.
+    """
+    roots: set[str] = set()
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Import):
+            roots |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            roots.add(node.module.split(".")[0])
+    return roots
+
+
+@pytest.mark.parametrize("external", [True, False])
+def test_generated_env_modules_have_no_forbidden_top_level_imports(tmp_path, monkeypatch, external):
+    """Generated ``*_env.py`` / ``*_env_cfg.py`` must not import backend runtime modules at module scope.
+
+    Config loading runs before ``SimulationApp``; a top-level ``pxr``/``omni``/``carb``/``isaacsim`` import there
+    causes the pre-SimulationApp crashes (e.g. ``free(): invalid pointer``, ``TfNotice`` wrapper not created). This
+    catches such an import being (re)introduced into the env templates; deferred / ``TYPE_CHECKING`` imports are fine.
+    """
+    project_name = f"template_imports_{'external' if external else 'internal'}"
+    root_dir = tmp_path / ("external_root" if external else "internal_tasks")
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    if not external:
+        monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
+
+    specification = {
+        "external": external,
+        "name": project_name,
+        "workflows": [
+            {"name": "direct", "type": "single-agent"},
+            {"name": "manager-based", "type": "single-agent"},
+            {"name": "direct", "type": "multi-agent"},
+        ],
+        "rl_libraries": _all_libraries(),
+    }
+    if external:
+        specification["path"] = str(root_dir)
+
+    generate(specification)
+
+    env_modules = list(root_dir.rglob("*_env.py")) + list(root_dir.rglob("*_env_cfg.py"))
+    assert env_modules, "generator produced no env modules"
+    for module_file in env_modules:
+        forbidden = _top_level_imported_roots(module_file.read_text()) & _FORBIDDEN_RUNTIME_MODULES
+        assert not forbidden, (
+            f"{module_file} imports {sorted(forbidden)} at module top level (load before SimulationApp)"
+        )
+
+
+def test_each_requested_agent_cfg_file_is_generated(tmp_path, monkeypatch):
+    """A missing agent template is silently skipped (``generator.py`` ``continue``); ensure requested configs emit."""
+    project_name = "template_agents"
+    root_dir = tmp_path / "external_root"
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+
+    workflows = [
+        {"name": "direct", "type": "single-agent"},
+        {"name": "manager-based", "type": "single-agent"},
+        {"name": "direct", "type": "multi-agent"},
+    ]
+    generate(
+        {
+            "external": True,
+            "path": str(root_dir),
+            "name": project_name,
+            "workflows": workflows,
+            "rl_libraries": _all_libraries(),
+        }
+    )
+
+    single_libraries = {lib["name"]: lib["algorithms"] for lib in _SINGLE_AGENT_RL_LIBRARIES}
+    multi_libraries = {lib["name"]: lib["algorithms"] for lib in _MULTI_AGENT_RL_LIBRARIES}
+    for workflow in workflows:
+        libraries = multi_libraries if workflow["type"] == "multi-agent" else single_libraries
+        agents_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external=True) / "agents"
+        for library, algorithms in libraries.items():
+            for algorithm in algorithms:
+                extension = ".py" if library == "rsl_rl" else ".yaml"
+                cfg_file = agents_dir / f"{library}_{algorithm}_cfg{extension}"
+                assert cfg_file.exists(), f"missing generated agent config: {cfg_file}"
+
+
+@pytest.mark.parametrize("external", [True, False])
+def test_generated_python_is_syntactically_valid(tmp_path, monkeypatch, external):
+    """Every generated ``.py`` must parse and compile, catching template edits that emit broken Python."""
+    project_name = f"template_syntax_{'external' if external else 'internal'}"
+    root_dir = tmp_path / ("external_root" if external else "internal_tasks")
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    if not external:
+        monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
+
+    specification = {
+        "external": external,
+        "name": project_name,
+        "workflows": [
+            {"name": "direct", "type": "single-agent"},
+            {"name": "manager-based", "type": "single-agent"},
+            {"name": "direct", "type": "multi-agent"},
+        ],
+        "rl_libraries": _all_libraries(),
+    }
+    if external:
+        specification["path"] = str(root_dir)
+
+    generate(specification)
+
+    python_files = list(root_dir.rglob("*.py"))
+    assert python_files, "generator produced no Python files"
+    for python_file in python_files:
+        source = python_file.read_text()
+        ast.parse(source, filename=str(python_file))
+        compile(source, str(python_file), "exec")
+
+
+def test_extension_toml_registers_ui_extension_as_separate_module(tmp_path, monkeypatch):
+    """The UI extension must stay loadable by Kit via its own ``[[python.module]]`` entry now that the package
+    ``__init__`` no longer imports it (so ``import <project>`` stays omni-free). Locks both halves of the fix."""
+    project_name = "template_ui_module"
+    root_dir = tmp_path / "external_root"
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    generate(
+        {
+            "external": True,
+            "path": str(root_dir),
+            "name": project_name,
+            "workflows": [{"name": "direct", "type": "single-agent"}],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo"]}],
+        }
+    )
+    package_dir = root_dir / project_name / "source" / project_name / project_name
+    extension_toml = (package_dir.parent / "config" / "extension.toml").read_text()
+    assert f'name = "{project_name}"' in extension_toml
+    assert f'name = "{project_name}.ui_extension_example"' in extension_toml
+    # the package __init__ must not eagerly import the omni-dependent UI module (a comment mentioning it is fine)
+    init_tree = ast.parse((package_dir / "__init__.py").read_text())
+    imported = [node.module for node in ast.walk(init_tree) if isinstance(node, ast.ImportFrom)]
+    imported += [alias.name for node in ast.walk(init_tree) if isinstance(node, ast.Import) for alias in node.names]
+    assert not any(module and "ui_extension_example" in module for module in imported)
+
+
+def test_generated_package_import_is_omni_and_pxr_free(tmp_path, monkeypatch):
+    """NVBug 6251247: importing a generated project must not pull ``omni``/``pxr`` (headless / pre-SimulationApp).
+
+    The generated package ``__init__`` runs Gym registration (``import_packages``) on import; if it eagerly
+    imports the example UI extension (``omni.ext``) or any pxr-loading module, ``import <project>`` crashes
+    before Isaac Sim starts. We import the generated package in a subprocess with ``omni``/``pxr`` blocked.
+    """
+    project_name = "template_import_safe"
+    root_dir = tmp_path / "external_root"
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    generate(
+        {
+            "external": True,
+            "path": str(root_dir),
+            "name": project_name,
+            "workflows": [
+                {"name": "direct", "type": "single-agent"},
+                {"name": "manager-based", "type": "single-agent"},
+                {"name": "direct", "type": "multi-agent"},
+            ],
+            "rl_libraries": _all_libraries(),
+        }
+    )
+    source_dir = root_dir / project_name / "source" / project_name
+
+    program = textwrap.dedent(
+        f"""
+        import sys
+
+        class _Blocker:
+            def find_spec(self, name, path=None, target=None):
+                if name.split(".")[0] in ("omni", "pxr"):
+                    raise ImportError(f"BLOCKED eager import of {{name!r}} at package import time")
+                return None
+
+        sys.path.insert(0, {str(source_dir)!r})
+        sys.meta_path.insert(0, _Blocker())
+        import {project_name}  # noqa: F401
+        print("OK")
+        """
+    )
+    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"importing the generated package eagerly pulled omni/pxr:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    )
