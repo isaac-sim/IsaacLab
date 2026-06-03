@@ -563,6 +563,16 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
         startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
 
+        # Prefix the report file with a slug derived from the full test_file
+        # path so two concurrent shards running same-basename files (e.g.
+        # ``isaaclab_newton/.../test_articulation.py`` vs
+        # ``isaaclab_physx/.../test_articulation.py``) don't write to the same
+        # path inside the shared ``/workspace/isaaclab`` mount and trigger
+        # false shutdown_hang detections in sibling shards via the
+        # ``os.path.exists(report_file)`` check at line ~137.
+        report_slug = str(test_file).replace("/", "__").replace("\\", "__")
+        report_file = f"tests/test-reports-{report_slug}.xml"
+
         cmd = [
             sys.executable,
             "-m",
@@ -571,7 +581,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
             "--no-header",
             f"--config-file={workspace_root}/pyproject.toml",
-            f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+            f"--junitxml={report_file}",
             "--tb=short",
         ]
 
@@ -580,8 +590,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             cmd.append("isaacsim_ci")
 
         cmd.append(str(test_file))
-
-        report_file = f"tests/test-reports-{str(file_name)}.xml"
 
         # -- Run with retry on startup hang or hard timeout -----------------
         returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
