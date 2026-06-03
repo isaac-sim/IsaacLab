@@ -1004,6 +1004,10 @@ def pytest_sessionstart(session):
     # write content to full report
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
     full_report_path = f"tests/{result_file}"
+    # Ensure the directory exists even when this shard claimed zero files
+    # from the work queue (per-test JUnit XMLs are what normally create
+    # ``tests/``; with no tests run there is nothing to create it).
+    os.makedirs("tests", exist_ok=True)
     print(f"Using result file: {result_file}")
     full_report.write(full_report_path)
     print("~~~~~~~~~~~~ Report written to", full_report_path)
