@@ -13,7 +13,7 @@ import math
 import numpy as np
 import warp as wp
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
@@ -132,6 +132,63 @@ def _get_field_declaring_class(cfg_class: type, field_name: str) -> type | None:
         if field_name in getattr(cls, "__annotations__", {}):
             return cls
     return None
+
+
+def _create_fixed_joint_to_world(stage: Usd.Stage, articulation_prim: Usd.Prim) -> UsdPhysics.FixedJoint:
+    """Create a ``UsdPhysics.FixedJoint`` pinning ``articulation_prim`` to the world.
+
+    Kitless equivalent of ``omni.physx.scripts.utils.createJoint(stage, "Fixed",
+    from_prim=None, to_prim=articulation_prim)``: the omni helper is just a
+    thin wrapper around :mod:`pxr.UsdPhysics` ops, so inlining the
+    single-selection Fixed case lets this code path work both with and without
+    Kit loaded (newton backend in kitless mode hits this too).
+
+    Args:
+        stage: USD stage to author on.
+        articulation_prim: The articulation root prim to anchor to the world.
+
+    Returns:
+        The created :class:`pxr.UsdPhysics.FixedJoint`.
+    """
+    to_path = articulation_prim.GetPath().pathString
+    # Mirror omni.physx createJoint's "find first writable ancestor" walk:
+    # instanced / prototype prims can't host the joint, so climb to a writable
+    # parent before authoring.
+    base_prim = articulation_prim
+    pseudo_root = stage.GetPseudoRoot()
+    while base_prim != pseudo_root:
+        if base_prim.IsInPrototype() or base_prim.IsInstanceProxy() or base_prim.IsInstanceable():
+            base_prim = base_prim.GetParent()
+        else:
+            break
+    joint_base_path = str(base_prim.GetPrimPath())
+    if joint_base_path == "/":
+        joint_base_path = ""
+
+    # Pick a unique sibling name "FixedJoint", "FixedJoint_01", etc.
+    joint_name = "FixedJoint"
+    idx = 1
+    while stage.GetPrimAtPath(f"{joint_base_path}/{joint_name}").IsValid():
+        joint_name = f"FixedJoint_{idx:02d}"
+        idx += 1
+    joint_path = f"{joint_base_path}/{joint_name}"
+
+    component = UsdPhysics.FixedJoint.Define(stage, joint_path)
+
+    # Single-selection placement: joint sits at to_prim's world pose; body0
+    # rel is left empty (world), body1 rel points to to_prim. Matches the
+    # omni single-selection branch.
+    xf_cache = UsdGeom.XformCache()
+    to_pose = xf_cache.GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
+    pos = Gf.Vec3f(to_pose.ExtractTranslation())
+    rot = Gf.Quatf(to_pose.ExtractRotationQuat())
+
+    component.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+    component.CreateLocalPos0Attr().Set(pos)
+    component.CreateLocalRot0Attr().Set(rot)
+    component.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+    component.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+    return component
 
 
 def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
@@ -339,10 +396,11 @@ def modify_articulation_root_properties(
                     " the articulation tree. However, this is not implemented yet."
                 )
 
-            # create a fixed joint between the root link and the world frame
-            from omni.physx.scripts import utils as physx_utils
-
-            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            # Create a fixed joint between the root link and the world frame.
+            # Use pxr.UsdPhysics directly so this code path also works in
+            # kitless mode (newton backend without Kit). The equivalent
+            # ``omni.physx.scripts.utils.createJoint`` is a thin pxr.Usd wrapper.
+            _create_fixed_joint_to_world(stage, articulation_prim)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.
