@@ -36,7 +36,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton import NEWTON_HUD_IMPORT_LOG_WARNING, NewtonVisualizer, NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import AppLauncher
@@ -62,10 +62,6 @@ _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 ASSERT_VISUALIZER_WARNINGS = False
 
 _NEWTON_IMGUI_BUNDLE_PRINT_WARNING = "Warning: imgui_bundle not found"
-_NEWTON_HUD_IMPORT_LOG_WARNING = (
-    "Newton Visualizer HUD disabled: failed to import imgui_bundle. This can be caused by conflicting libraries."
-)
-
 _MAX_FRAME_CHECK_STEPS = 5
 """Steps for Rerun / Viser smoke tests."""
 
@@ -236,7 +232,7 @@ def assert_no_newton_hud_dependency_warning(
     logged_warnings = [
         record
         for record in caplog.records
-        if _NEWTON_HUD_IMPORT_LOG_WARNING in record.getMessage()
+        if NEWTON_HUD_IMPORT_LOG_WARNING in record.getMessage()
         or _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in record.getMessage()
     ]
     assert not printed_warning and not logged_warnings, (
