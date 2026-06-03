@@ -39,8 +39,6 @@ args_cli = parser.parse_args()
 
 import numpy as np
 import torch
-from isaaclab_newton.physics import NewtonCfg
-from isaaclab_newton.sim.schemas import MJWarpSolverCfg
 
 import isaaclab.sim as sim_utils
 
@@ -48,6 +46,7 @@ import isaaclab.sim as sim_utils
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
@@ -160,7 +159,7 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # The default newton mjwarp solver configuration needs to be tuned for these hands.
         if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
-            physics_cfg.solver_cfg.njmax = 70
+            physics_cfg.solver_cfg.njmax = 128
             physics_cfg.solver_cfg.nconmax = 70
             physics_cfg.solver_cfg.ls_iterations = 40
             physics_cfg.solver_cfg.cone = "elliptic"
