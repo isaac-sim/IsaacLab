@@ -14,8 +14,11 @@ from typing import Any
 import torch
 import warp as wp
 
+from pxr import UsdGeom
+
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sim.views import FrameView
 
 _GENERATED_CAMERA_NAME = "VisualizerCamera"
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
@@ -215,10 +218,6 @@ def prim_world_positions(
     Uses ``FrameView`` first so PhysX/Fabric-backed transforms are current; falls
     back to USD only if the backend view cannot be constructed.
     """
-    from pxr import UsdGeom
-
-    from isaaclab.sim.views import FrameView
-
     xform_cache = UsdGeom.XformCache()
     positions = []
     try:
