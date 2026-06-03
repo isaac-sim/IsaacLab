@@ -25,7 +25,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import (
     apply_viewer_visible_worlds,
-    expand_infinite_plane_scale,
+    log_geo_with_expanded_plane_scale,
     resolve_visible_env_indices,
 )
 
@@ -181,9 +181,17 @@ class NewtonViewerViser(ViewerViser):
         hidden: bool = False,
     ):
         """Log geometry, preserving large render extents for infinite ground planes."""
-        if geo_type == newton.GeoType.PLANE:
-            geo_scale = expand_infinite_plane_scale(geo_scale)
-        return super().log_geo(name, geo_type, geo_scale, geo_thickness, geo_is_solid, geo_src, hidden)
+        return log_geo_with_expanded_plane_scale(
+            super().log_geo,
+            newton.GeoType.PLANE,
+            name,
+            geo_type,
+            geo_scale,
+            geo_thickness,
+            geo_is_solid,
+            geo_src,
+            hidden,
+        )
 
 
 class ViserVisualizer(BaseVisualizer):

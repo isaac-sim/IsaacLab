@@ -11,6 +11,7 @@ from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
     expand_infinite_plane_scale,
+    log_geo_with_expanded_plane_scale,
     resolve_visible_env_indices,
 )
 
@@ -24,12 +25,37 @@ def test_expand_infinite_plane_scale_expands_non_positive_extents():
     )
     assert expand_infinite_plane_scale((-1.0, 25.0)) == (
         VISUALIZER_INFINITE_PLANE_SIZE,
+        25.0,
+    )
+    assert expand_infinite_plane_scale((25.0, 0.0)) == (
+        25.0,
         VISUALIZER_INFINITE_PLANE_SIZE,
     )
 
 
 def test_expand_infinite_plane_scale_preserves_finite_extents():
     assert expand_infinite_plane_scale((100.0, 50.0, 1.0)) == (100.0, 50.0, 1.0)
+
+
+def test_log_geo_with_expanded_plane_scale_delegates_with_adjusted_plane_scale():
+    calls = []
+
+    def _log_geo(*args):
+        calls.append(args)
+        return "logged"
+
+    assert log_geo_with_expanded_plane_scale(_log_geo, 1, "ground", 1, (0.0, 25.0), 0.0, True) == "logged"
+    assert calls == [("ground", 1, (VISUALIZER_INFINITE_PLANE_SIZE, 25.0), 0.0, True, None, False)]
+
+
+def test_log_geo_with_expanded_plane_scale_preserves_non_plane_scale():
+    calls = []
+
+    def _log_geo(*args):
+        calls.append(args)
+
+    log_geo_with_expanded_plane_scale(_log_geo, 1, "box", 2, (0.0, 25.0), 0.0, True, hidden=True)
+    assert calls == [("box", 2, (0.0, 25.0), 0.0, True, None, True)]
 
 
 def test_resolve_visible_env_indices_truncates_explicit_list():

@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 VISUALIZER_INFINITE_PLANE_SIZE = 1000.0
 """Finite render size used for Newton planes encoded as infinite."""
 
@@ -27,7 +30,28 @@ def expand_infinite_plane_scale(
     if width > 0.0 and length > 0.0:
         return scale
     tail = scale[2:] if len(scale) > 2 else ()
-    return (float(plane_size), float(plane_size), *tail)
+    return (
+        width if width > 0.0 else float(plane_size),
+        length if length > 0.0 else float(plane_size),
+        *tail,
+    )
+
+
+def log_geo_with_expanded_plane_scale(
+    super_log_geo: Callable[..., Any],
+    plane_geo_type: int,
+    name: str,
+    geo_type: int,
+    geo_scale: tuple[float, ...],
+    geo_thickness: float,
+    geo_is_solid: bool,
+    geo_src=None,
+    hidden: bool = False,
+):
+    """Log geometry after expanding Newton infinite-plane extents for web viewers."""
+    if geo_type == plane_geo_type:
+        geo_scale = expand_infinite_plane_scale(geo_scale)
+    return super_log_geo(name, geo_type, geo_scale, geo_thickness, geo_is_solid, geo_src, hidden)
 
 
 def resolve_visible_env_indices(
