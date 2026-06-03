@@ -226,10 +226,6 @@ def prim_world_positions(
     Uses scene articulation state first when the target is an asset/body path,
     then falls back to ``FrameView`` and USD for arbitrary prim paths.
     """
-    from pxr import UsdGeom
-
-    from isaaclab.sim.views import FrameView
-
     if scene is not None:
         positions_tensor = _scene_articulation_positions(scene, prim_path_template, env_indices)
         if positions_tensor is not None:
