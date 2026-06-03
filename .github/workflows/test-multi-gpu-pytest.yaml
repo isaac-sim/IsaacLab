@@ -163,6 +163,20 @@ jobs:
           echo "::notice::Discovered ${#discovered[@]} opt-in test files"
           printf '  %s\n' "${discovered[@]}"
 
+      - name: TEMP narrow to test_articulation only (DIAGNOSTIC PR)
+        # Speeds up the integration A/B by running only the file that triggers
+        # the upstream Kit hang. Revert before this PR can land.
+        id: narrow
+        run: |
+          # Narrow the seed queue + the include-files filter to just
+          # test_articulation.py (both newton + physx variants).
+          paths_csv='${{ steps.discover.outputs.paths }}'
+          narrowed=$(printf '%s' "$paths_csv" | tr ',' '\n' | grep '/test_articulation\.py$' | paste -sd,)
+          echo "paths=${narrowed}," >> "$GITHUB_OUTPUT"
+          echo "include=test_articulation.py" >> "$GITHUB_OUTPUT"
+          echo "::notice::DIAGNOSTIC narrow: $(echo $narrowed | tr ',' '\n' | wc -l) file(s)"
+          printf '  %s\n' "${narrowed//,/$'\n'}"
+
       - name: Pull image from ECR
         # Pulls the per-commit image the build job pushed. ecr-build-push-pull
         # handles ECR auth via the EC2 IAM role, and on exact-cache-hit (which
@@ -189,8 +203,8 @@ jobs:
         env:
           IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
           CUDA_SHARDS: ${{ needs.build.outputs.cuda_shards }}
-          INCLUDE_FILES: ${{ steps.discover.outputs.include }}
-          PATHS: ${{ steps.discover.outputs.paths }}
+          INCLUDE_FILES: ${{ steps.narrow.outputs.include }}
+          PATHS: ${{ steps.narrow.outputs.paths }}
         run: |
           set +e
           host_uid="$(id -u)"
@@ -289,6 +303,7 @@ jobs:
               -e ISAACLAB_TEST_QUEUE=/mgpu/queue.txt \
               -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
               -e ISAACLAB_PIN_KIT_GPU=1 \
+              -e ISAACLAB_FORCE_EXIT_TIMEOUT=30 \
               "$IMAGE_TAG" \
               -c '
                 set +e
