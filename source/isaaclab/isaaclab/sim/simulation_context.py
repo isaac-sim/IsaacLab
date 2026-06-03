@@ -662,10 +662,11 @@ class SimulationContext:
         return self._scene_data_provider
 
     def register_interactive_scene(self, scene) -> None:
-        """Register the active scene so scene data providers can expose scene-owned sensors."""
+        """Register the active scene so scene-data consumers can access scene-owned entities."""
         self._interactive_scene = scene
         if self._scene_data_provider is not None:
             self._scene_data_provider.set_interactive_scene(scene)
+            self._scene_data_provider.backend.set_interactive_scene(scene)
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
         """Return scene-data requirements resolved from visualizers/renderers."""

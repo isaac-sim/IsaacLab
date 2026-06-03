@@ -62,7 +62,9 @@ _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 ASSERT_VISUALIZER_WARNINGS = False
 
 _NEWTON_IMGUI_BUNDLE_PRINT_WARNING = "Warning: imgui_bundle not found"
-_NEWTON_HUD_IMPORT_LOG_WARNING = "Newton Visualizer HUD disabled: failed to import imgui_bundle. This can be caused by conflicting libraries."
+_NEWTON_HUD_IMPORT_LOG_WARNING = (
+    "Newton Visualizer HUD disabled: failed to import imgui_bundle. This can be caused by conflicting libraries."
+)
 
 _MAX_FRAME_CHECK_STEPS = 5
 """Steps for Rerun / Viser smoke tests."""
@@ -242,8 +244,7 @@ def assert_no_newton_hud_dependency_warning(
         "be imported, which disables the HUD controls. Ensure isaaclab-visualizers[newton] installs "
         "imgui-bundle and compatible transitive dependencies such as typing-extensions>=4.15.0. "
         f"Captured output: {captured_output!r}. "
-        "Captured logs: "
-        + "; ".join(f"{record.name}: {record.getMessage()}" for record in logged_warnings)
+        "Captured logs: " + "; ".join(f"{record.name}: {record.getMessage()}" for record in logged_warnings)
     )
 
 

@@ -233,6 +233,10 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
        in ``scene.sensors``. For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole``
        task has no ``/World/envs/*/Camera`` sensor, so leave ``tiled_cam_prim_path=None`` to use generated visualizer cameras.
 
+     This mode requires an environment that registers Isaac Lab ``Camera`` sensors in ``scene.sensors``.
+     For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole`` task
+     has no ``/World/envs/*/Camera`` sensor, so leave ``tiled_cam_prim_path=None`` to use generated visualizer cameras.
+
 **How to Access the Tiled Camera View in the UI**
 
 - **Kit Visualizer:**
