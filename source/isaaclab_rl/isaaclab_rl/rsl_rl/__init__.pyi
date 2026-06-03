@@ -11,6 +11,7 @@ __all__ = [
     "export_policy_as_jit",
     "export_policy_as_onnx",
     "handle_deprecated_rsl_rl_cfg",
+    "CNNModel",
     "RslRlBaseRunnerCfg",
     "RslRlCNNModelCfg",
     "RslRlMLPModelCfg",
@@ -31,6 +32,7 @@ from .distillation_cfg import (
     RslRlDistillationStudentTeacherRecurrentCfg,
 )
 from .exporter import export_policy_as_jit, export_policy_as_onnx
+from .models import CNNModel
 from .rl_cfg import (
     RslRlBaseRunnerCfg,
     RslRlCNNModelCfg,

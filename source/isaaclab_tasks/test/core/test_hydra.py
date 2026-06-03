@@ -581,7 +581,7 @@ def test_nested_presetcfg_path_preset_uses_selected_parent_branch():
 
 # =============================================================================
 # Tests: root-level PresetCfg with nested PresetCfg inside alternatives
-# (mirrors CartpoleCameraPresetsEnvCfg structure)
+# (mirrors CartpoleCameraEnvCfg structure)
 # =============================================================================
 
 

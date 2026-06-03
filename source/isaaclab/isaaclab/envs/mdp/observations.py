@@ -387,6 +387,7 @@ def image(
     data_type: str = "rgb",
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
+    permute: bool = False,
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -404,7 +405,7 @@ def image(
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
-
+        permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
     Returns:
         The images produced at the last time-step
     """
@@ -428,6 +429,9 @@ def image(
             images[images == float("inf")] = 0
         elif "normals" in data_type:
             images = (images + 1.0) * 0.5
+
+    if permute:
+        images = images.permute(0, 3, 1, 2)
 
     return images.clone()
 

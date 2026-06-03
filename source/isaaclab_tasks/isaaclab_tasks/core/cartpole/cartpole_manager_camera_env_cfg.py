@@ -12,8 +12,36 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
+
+
+@configclass
+class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
+    @configclass
+    class CartpoleTiledCameraCfg(CameraCfg):
+        prim_path: str = "/World/envs/env_.*/Camera"
+        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
+            pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
+        )
+        data_types: list[str] = []
+        spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        )
+        width: int = 100
+        height: int = 100
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+
+    default = CartpoleTiledCameraCfg(data_types=["rgb"])
+    depth = CartpoleTiledCameraCfg(data_types=["depth"])
+    albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
+    semantic_segmentation = CartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
+    simple_shading_constant_diffuse = CartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
+    simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
+    simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
+    rgb = default
+
 
 ##
 # Scene definition
@@ -65,7 +93,9 @@ class RGBObservationsCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        image = ObsTerm(func=mdp.image, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb"})
+        image = ObsTerm(
+            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "permute": True}
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -83,7 +113,8 @@ class DepthObservationsCfg:
         """Observations for policy group with depth images."""
 
         image = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "distance_to_camera"}
+            func=mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "distance_to_camera", "permute": True},
         )
 
     policy: ObsGroup = DepthCameraPolicyCfg()
@@ -178,32 +209,13 @@ class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 
 
 ##
-# Consolidated env configuration (canonical -- used by Isaac-Cartpole-Camera)
+# Environment configuration
 ##
 
 
 @configclass
 class CartpoleCameraPresetsEnvCfg(PresetCfg):
-    """Manager-based cartpole perception with selectable observation pipeline.
-
-    Variants selected via ``presets=<name>``:
-
-    * ``rgb`` / ``default`` -- raw RGB camera observations.
-    * ``depth`` -- depth (distance-to-camera) observations.
-    * ``resnet18`` -- features extracted by a frozen ResNet18 backbone from
-      the RGB camera.
-    * ``theia_tiny`` -- features extracted by a frozen Theia-Tiny transformer
-      backbone from the RGB camera.
-
-    Each variant is one of the existing per-pipeline subclasses above. The
-    framework resolver pins the selected variant at ``gym.make`` time when
-    the user passes ``presets=<name>``.
-
-    Used by the canonical :obj:`Isaac-Cartpole-Camera` task. The retired
-    per-variant task IDs (:obj:`Isaac-Cartpole-{RGB,Depth,RGB-ResNet18,RGB-TheiaTiny}-v0`)
-    return the same per-variant subclasses directly via the deprecation
-    shims in the sibling ``__init__.py``.
-    """
+    """Configuration for the cartpole environment with selectable observation pipeline."""
 
     rgb: CartpoleRGBCameraEnvCfg = CartpoleRGBCameraEnvCfg()
     depth: CartpoleDepthCameraEnvCfg = CartpoleDepthCameraEnvCfg()

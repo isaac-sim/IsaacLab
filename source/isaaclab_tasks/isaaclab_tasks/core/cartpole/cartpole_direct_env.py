@@ -77,7 +77,6 @@ class CartpoleEnv(DirectRLEnv):
             self.cfg.rew_scale_pole_vel,
             self.joint_pos[:, self._pole_dof_idx[0]],
             self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_pos[:, self._cart_dof_idx[0]],
             self.joint_vel[:, self._cart_dof_idx[0]],
             self.reset_terminated,
         )
@@ -133,7 +132,6 @@ def compute_rewards(
     rew_scale_pole_vel: float,
     pole_pos: torch.Tensor,
     pole_vel: torch.Tensor,
-    cart_pos: torch.Tensor,
     cart_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
 ):
