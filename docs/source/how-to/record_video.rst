@@ -80,10 +80,6 @@ precedence and only one ``--video`` stream is recorded. Rerun records ``.rrd`` r
 the Rerun visualizer rather than producing ``--video`` clips, and Viser does not currently provide a
 ``--video`` recording backend.
 
-To record both Kit and Newton perspectives for the same task, run two jobs: one with ``--viz kit`` and
-one with ``--viz newton``. The Gymnasium ``RecordVideo`` wrapper records one ``env.render()`` stream
-per process; it does not emit one video per visualizer listed in ``--viz``.
-
 Set ``VideoRecorderCfg.backend_source = "renderer"`` to ignore active visualizers and choose from the
 physics/renderer stack instead. In that mode, PhysX physics (``physics=physx``) or Isaac RTX
 (``renderer=isaacsim_rtx_renderer``) selects the Kit path. Newton physics (``physics=newton_mjwarp``) or
