@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "NewtonIKManager",
-    "NewtonIKManagerCfg",
+    "NewtonIKSolver",
+    "NewtonIKSolverCfg",
     "NewtonIKPoseObjective",
 ]
 
-from .newton_ik_manager import NewtonIKManager, NewtonIKPoseObjective
-from .newton_ik_manager_cfg import NewtonIKManagerCfg
+from .newton_ik_solver import NewtonIKPoseObjective, NewtonIKSolver
+from .newton_ik_solver_cfg import NewtonIKSolverCfg

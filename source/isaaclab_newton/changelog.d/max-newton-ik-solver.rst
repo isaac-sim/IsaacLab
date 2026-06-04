@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added :class:`~isaaclab_newton.ik.NewtonIKManager` and
+* Added :class:`~isaaclab_newton.ik.NewtonIKSolver` and
   :class:`~isaaclab_newton.envs.mdp.actions.NewtonInverseKinematicsAction`
   for Newton-backed inverse kinematics, including named pose objectives and
   custom Newton objective passthrough.

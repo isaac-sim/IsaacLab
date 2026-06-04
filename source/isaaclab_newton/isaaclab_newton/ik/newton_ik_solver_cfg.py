@@ -9,8 +9,8 @@ from isaaclab.utils.configclass import configclass
 
 
 @configclass
-class NewtonIKManagerCfg:
-    """Configuration for the Newton inverse-kinematics manager."""
+class NewtonIKSolverCfg:
+    """Configuration for the Newton inverse-kinematics solver."""
 
     command_type: str = "pose"
     """Action command type for manager-based actions: ``"position"`` or ``"pose"``."""

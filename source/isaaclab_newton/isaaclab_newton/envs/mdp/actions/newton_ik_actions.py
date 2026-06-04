@@ -20,7 +20,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.action_manager import ActionTerm
 
-from isaaclab_newton.ik.newton_ik_manager import NewtonIKManager, NewtonIKPoseObjective
+from isaaclab_newton.ik.newton_ik_solver import NewtonIKPoseObjective, NewtonIKSolver
 from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
@@ -112,7 +112,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         self._prototype_joint_seed = self._prototype_joint_seed.unsqueeze(0).repeat(self.num_envs, 1).contiguous()
         self._ik_target_name = "target"
 
-        self._ik_manager = NewtonIKManager(
+        self._ik_solver = NewtonIKSolver(
             self.cfg.controller,
             model=prototype_model,
             num_envs=self.num_envs,
@@ -201,11 +201,11 @@ class NewtonInverseKinematicsAction(ActionTerm):
         target_pos_w, target_quat_w = math_utils.combine_frame_transforms(
             root_pos_proto, root_quat_proto, self._target_pos_b, self._target_quat_b
         )
-        self._ik_manager.set_target_pose(self._ik_target_name, target_pos_w, target_quat_w)
+        self._ik_solver.set_target_pose(self._ik_target_name, target_pos_w, target_quat_w)
 
         joint_seed = self._prototype_joint_seed.clone()
         joint_seed[:, self._prototype_joint_coord_ids] = self._asset.data.joint_pos.torch
-        joint_pos_des_all = self._ik_manager.solve(joint_seed)
+        joint_pos_des_all = self._ik_solver.solve(joint_seed)
         joint_pos_des = joint_pos_des_all[:, self._prototype_controlled_coord_ids].contiguous()
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids_warp)
 

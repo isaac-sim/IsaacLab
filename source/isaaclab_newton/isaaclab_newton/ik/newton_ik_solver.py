@@ -14,7 +14,7 @@ import newton.ik as ik
 import torch
 import warp as wp
 
-from .newton_ik_manager_cfg import NewtonIKManagerCfg
+from .newton_ik_solver_cfg import NewtonIKSolverCfg
 
 
 @dataclass(frozen=True)
@@ -26,8 +26,8 @@ class NewtonIKPoseObjective:
         link_index: Newton body index for the controlled link.
         link_offset_pos: Target frame translation in meters relative to the link frame.
         link_offset_rot: Target frame quaternion ``(x, y, z, w)`` relative to the link frame.
-        position_weight: Optional residual weight overriding the manager default.
-        rotation_weight: Optional residual weight overriding the manager default.
+        position_weight: Optional residual weight overriding the solver default.
+        rotation_weight: Optional residual weight overriding the solver default.
     """
 
     name: str
@@ -38,20 +38,20 @@ class NewtonIKPoseObjective:
     rotation_weight: float | None = None
 
 
-class NewtonIKManager:
+class NewtonIKSolver:
     """Batched wrapper around Newton's inverse-kinematics solver.
 
-    The manager mirrors Newton's objective-list design while adding torch/Warp
+    The solver mirrors Newton's objective-list design while adding torch/Warp
     target updates convenient for Isaac Lab action terms. Pose objectives are
     named so callers can update individual targets between solves. Additional
     custom Newton objectives can be passed through ``extra_objectives``.
     """
 
-    cfg: NewtonIKManagerCfg
+    cfg: NewtonIKSolverCfg
 
     def __init__(
         self,
-        cfg: NewtonIKManagerCfg,
+        cfg: NewtonIKSolverCfg,
         *,
         model,
         num_envs: int,
@@ -60,7 +60,7 @@ class NewtonIKManager:
         extra_objectives: Sequence[ik.IKObjective] | None = None,
     ):
         if not pose_objectives and not extra_objectives:
-            raise ValueError("NewtonIKManager requires at least one pose or custom objective.")
+            raise ValueError("NewtonIKSolver requires at least one pose or custom objective.")
 
         self.cfg = cfg
         self.model = model
@@ -131,7 +131,7 @@ class NewtonIKManager:
 
     @property
     def action_dim(self) -> int:
-        """Dimension of the IK command expected by this manager."""
+        """Dimension of the IK command expected by this solver."""
         if self.cfg.command_type == "position":
             return 3
         if self.cfg.command_type == "pose" and self.cfg.use_relative_mode:
@@ -232,10 +232,10 @@ class NewtonIKManager:
         return self.solver.joint_q
 
     def solve(self, joint_pos: torch.Tensor | None = None) -> torch.Tensor:
-        """Solve IK from an explicit seed or the manager's persistent seed."""
+        """Solve IK from an explicit seed or the solver's persistent seed."""
         if joint_pos is None:
             if not self._has_joint_q_seed:
-                raise RuntimeError("NewtonIKManager.solve() needs joint_pos or a seed set with set_joint_seed().")
+                raise RuntimeError("NewtonIKSolver.solve() needs joint_pos or a seed set with set_joint_seed().")
             joint_q_in = self.joint_q_seed
             update_seed = True
         else:

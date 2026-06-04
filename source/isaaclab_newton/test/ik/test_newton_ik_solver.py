@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-import isaaclab_newton.ik.newton_ik_manager as ik_manager_module
+import isaaclab_newton.ik.newton_ik_solver as ik_solver_module
 import torch
 import warp as wp
-from isaaclab_newton.ik.newton_ik_manager import NewtonIKManager, NewtonIKPoseObjective
-from isaaclab_newton.ik.newton_ik_manager_cfg import NewtonIKManagerCfg
+from isaaclab_newton.ik.newton_ik_solver import NewtonIKPoseObjective, NewtonIKSolver
+from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 
 class _Model:
@@ -51,17 +51,17 @@ class _Solver:
 
 
 def _patch_newton_ik(monkeypatch):
-    monkeypatch.setattr(ik_manager_module.ik, "IKObjectivePosition", _PoseObjective)
-    monkeypatch.setattr(ik_manager_module.ik, "IKObjectiveRotation", _PoseObjective)
-    monkeypatch.setattr(ik_manager_module.ik, "IKObjectiveJointLimit", _JointLimitObjective)
-    monkeypatch.setattr(ik_manager_module.ik, "IKSolver", _Solver)
-    monkeypatch.setattr(ik_manager_module.ik, "IKOptimizer", lambda value: value)
-    monkeypatch.setattr(ik_manager_module.ik, "IKJacobianType", lambda value: value)
-    monkeypatch.setattr(ik_manager_module.ik, "IKSampler", lambda value: value)
+    monkeypatch.setattr(ik_solver_module.ik, "IKObjectivePosition", _PoseObjective)
+    monkeypatch.setattr(ik_solver_module.ik, "IKObjectiveRotation", _PoseObjective)
+    monkeypatch.setattr(ik_solver_module.ik, "IKObjectiveJointLimit", _JointLimitObjective)
+    monkeypatch.setattr(ik_solver_module.ik, "IKSolver", _Solver)
+    monkeypatch.setattr(ik_solver_module.ik, "IKOptimizer", lambda value: value)
+    monkeypatch.setattr(ik_solver_module.ik, "IKJacobianType", lambda value: value)
+    monkeypatch.setattr(ik_solver_module.ik, "IKSampler", lambda value: value)
 
 
-def _cfg() -> NewtonIKManagerCfg:
-    cfg = NewtonIKManagerCfg()
+def _cfg() -> NewtonIKSolverCfg:
+    cfg = NewtonIKSolverCfg()
     cfg.use_persistent_seed = True
     cfg.joint_limit_weight = None
     return cfg
@@ -69,7 +69,7 @@ def _cfg() -> NewtonIKManagerCfg:
 
 def test_persistent_seed_is_reused_between_solves(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    manager = NewtonIKManager(
+    solver = NewtonIKSolver(
         _cfg(),
         model=_Model(),
         num_envs=2,
@@ -78,10 +78,10 @@ def test_persistent_seed_is_reused_between_solves(monkeypatch):
     )
 
     seed = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-    manager.set_joint_seed(seed)
+    solver.set_joint_seed(seed)
 
-    first = manager.solve().clone()
-    second = manager.solve().clone()
+    first = solver.solve().clone()
+    second = solver.solve().clone()
 
     assert torch.allclose(first, seed + 1.0)
     assert torch.allclose(second, seed + 2.0)
@@ -91,7 +91,7 @@ def test_solve_result_is_independent_from_next_solve(monkeypatch):
     _patch_newton_ik(monkeypatch)
     cfg = _cfg()
     cfg.use_persistent_seed = False
-    manager = NewtonIKManager(
+    solver = NewtonIKSolver(
         cfg,
         model=_Model(),
         num_envs=2,
@@ -100,16 +100,16 @@ def test_solve_result_is_independent_from_next_solve(monkeypatch):
     )
     seed = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
 
-    first = manager.solve(seed)
+    first = solver.solve(seed)
     expected_first = first.clone()
-    manager.solve(seed + 10.0)
+    solver.solve(seed + 10.0)
 
     assert torch.allclose(first, expected_first)
 
 
 def test_set_target_pose_updates_named_objective(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    manager = NewtonIKManager(
+    solver = NewtonIKSolver(
         _cfg(),
         model=_Model(),
         num_envs=2,
@@ -119,15 +119,15 @@ def test_set_target_pose_updates_named_objective(monkeypatch):
     target_pos = torch.tensor([[0.1, 0.2, 0.3], [1.0, 1.1, 1.2]])
     target_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 0.0]])
 
-    manager.set_target_pose("ee", target_pos, target_quat)
+    solver.set_target_pose("ee", target_pos, target_quat)
 
-    assert torch.allclose(wp.to_torch(manager.position_objectives["ee"].target), target_pos)
-    assert torch.allclose(wp.to_torch(manager.rotation_objectives["ee"].target), target_quat)
+    assert torch.allclose(wp.to_torch(solver.position_objectives["ee"].target), target_pos)
+    assert torch.allclose(wp.to_torch(solver.rotation_objectives["ee"].target), target_quat)
 
 
 def test_pose_targets_can_be_initialized_from_body_transforms(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    manager = NewtonIKManager(
+    solver = NewtonIKSolver(
         _cfg(),
         model=_Model(),
         num_envs=2,
@@ -145,9 +145,9 @@ def test_pose_targets_can_be_initialized_from_body_transforms(monkeypatch):
     )
     env_origins = torch.tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
 
-    manager.set_pose_targets_from_body_q(body_q, names=["torso"], env_origins=env_origins)
+    solver.set_pose_targets_from_body_q(body_q, names=["torso"], env_origins=env_origins)
 
-    target_pos = wp.to_torch(manager.position_objectives["torso"].target)
-    target_quat = wp.to_torch(manager.rotation_objectives["torso"].target)
+    target_pos = wp.to_torch(solver.position_objectives["torso"].target)
+    target_quat = wp.to_torch(solver.rotation_objectives["torso"].target)
     assert torch.allclose(target_pos, torch.tensor([[4.0, 5.0, 6.0], [3.0, 4.0, 5.0]]))
     assert torch.allclose(target_quat, torch.tensor([[0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 1.0, 0.0]]))

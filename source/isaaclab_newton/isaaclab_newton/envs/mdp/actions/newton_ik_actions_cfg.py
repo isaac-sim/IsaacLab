@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_newton.ik.newton_ik_manager_cfg import NewtonIKManagerCfg
+from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 if TYPE_CHECKING:
     from .newton_ik_actions import NewtonInverseKinematicsAction
@@ -56,5 +56,5 @@ class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     this is in radians. For quaternions this is dimensionless.
     """
 
-    controller: NewtonIKManagerCfg = MISSING
-    """Configuration for the Newton IK manager."""
+    controller: NewtonIKSolverCfg = MISSING
+    """Configuration for the Newton IK solver."""
