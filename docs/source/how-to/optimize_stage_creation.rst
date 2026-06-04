@@ -88,8 +88,8 @@ Limitations
     21. Isaac-Factory-NutThread-Direct-v0
     22. Isaac-Factory-PegInsert-Direct-v0
     23. Isaac-Franka-Cabinet-Direct-v0
-    24. Isaac-Humanoid-Direct-v0
-    25. Isaac-Humanoid-v0
+    24. Isaac-Humanoid-Direct
+    25. Isaac-Humanoid
     26. Isaac-Quadcopter-Direct-v0
     27. Isaac-Repose-Cube-Allegro-Direct-v0
     28. Isaac-Repose-Cube-Allegro-NoVelObs-v0

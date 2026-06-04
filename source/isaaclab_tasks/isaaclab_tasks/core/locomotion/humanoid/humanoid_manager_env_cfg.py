@@ -20,7 +20,7 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.core.manager_humanoid.mdp as mdp
+import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG  # isort:skip
@@ -50,7 +50,7 @@ class HumanoidPhysicsCfg(PresetCfg):
 
 
 @configclass
-class MySceneCfg(InteractiveSceneCfg):
+class HumanoidSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a humanoid robot."""
 
     # terrain
@@ -168,7 +168,7 @@ class RewardsCfg:
     progress = RewTerm(func=mdp.progress_reward, weight=1.0, params={"target_pos": (1000.0, 0.0, 0.0)})
     # (2) Stay alive bonus
     alive = RewTerm(func=mdp.is_alive, weight=2.0)
-    # (3) Reward for non-upright posture
+    # (3) Reward for upright posture
     upright = RewTerm(func=mdp.upright_posture_bonus, weight=0.1, params={"threshold": 0.93})
     # (4) Reward for moving in the right direction
     move_to_target = RewTerm(
@@ -227,10 +227,10 @@ class TerminationsCfg:
 
 @configclass
 class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the MuJoCo-style Humanoid walking environment."""
+    """Configuration for the Humanoid walking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: HumanoidSceneCfg = HumanoidSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
     # Basic settings
     observations: HumanoidObservationsCfg = HumanoidObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

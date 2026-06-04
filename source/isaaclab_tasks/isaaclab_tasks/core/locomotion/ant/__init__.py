@@ -13,7 +13,7 @@ the two workflows within the flat package layout.
 
 import gymnasium as gym
 
-from isaaclab_tasks.core.ant import agents
+from isaaclab_tasks.core.locomotion.ant import agents
 
 ##
 # Register Gym environments -- direct workflow.

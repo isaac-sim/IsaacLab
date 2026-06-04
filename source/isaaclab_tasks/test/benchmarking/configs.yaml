@@ -40,7 +40,7 @@ fast:
       episode_length: 230
     upper_thresholds:
       duration: 450
-  rsl_rl:Isaac-Humanoid-v0:
+  rsl_rl:Isaac-Humanoid:
     max_iterations: 200
     lower_thresholds:
       reward: 50
@@ -100,14 +100,14 @@ full:
       episode_length: 700
     upper_thresholds:
       duration: 800
-  Isaac-Humanoid-Direct-v0:
+  Isaac-Humanoid-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 2000
       episode_length: 600
     upper_thresholds:
       duration: 1000
-  Isaac-Humanoid-v0:
+  Isaac-Humanoid:
     max_iterations: 1000
     lower_thresholds:
       reward: 100

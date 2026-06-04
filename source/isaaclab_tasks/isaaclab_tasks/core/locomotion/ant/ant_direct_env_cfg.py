@@ -65,6 +65,8 @@ class AntPhysicsCfg(PresetCfg):
 
 @configclass
 class AntEnvCfg(DirectRLEnvCfg):
+    """Configuration for the direct-workflow Ant walking environment."""
+
     # env
     episode_length_s = 15.0
     decimation = 2
@@ -96,7 +98,7 @@ class AntEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    joint_gears: list = [15, 15, 15, 15, 15, 15, 15, 15]
+    joint_gears: list[float] = [15, 15, 15, 15, 15, 15, 15, 15]
 
     heading_weight: float = 0.5
     up_weight: float = 0.1

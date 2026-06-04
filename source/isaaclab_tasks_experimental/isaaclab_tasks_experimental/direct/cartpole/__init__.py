@@ -22,8 +22,8 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_warp_env_cfg:CartpoleWarpEnvCfg",
         "rl_games_cfg_entry_point": f"{stable_agents}:rl_games_direct_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{stable_agents}.rsl_rl_direct_ppo_cfg:CartpolePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{stable_agents}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
         "skrl_cfg_entry_point": f"{stable_agents}:skrl_direct_ppo_cfg.yaml",
-        "sb3_cfg_entry_point": f"{stable_agents}:sb3_direct_ppo_cfg.yaml",
+        "sb3_cfg_entry_point": f"{stable_agents}:sb3_ppo_cfg.yaml",
     },
 )

@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
-from isaaclab_tasks.core.ant.ant_direct_env_cfg import AntEnvCfg
-from isaaclab_tasks.core.direct_locomotion.locomotion_env import LocomotionEnv
+from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg
+from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirectEnv
 
 
-class AntEnv(LocomotionEnv):
+class AntEnv(LocomotionDirectEnv):
+    """Direct-workflow Ant locomotion environment."""
+
     cfg: AntEnvCfg
 
     def __init__(self, cfg: AntEnvCfg, render_mode: str | None = None, **kwargs):

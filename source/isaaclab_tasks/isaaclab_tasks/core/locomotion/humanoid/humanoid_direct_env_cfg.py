@@ -43,6 +43,8 @@ class HumanoidPhysicsCfg(PresetCfg):
 
 @configclass
 class HumanoidEnvCfg(DirectRLEnvCfg):
+    """Configuration for the direct-workflow Humanoid walking environment."""
+
     # env
     episode_length_s = 15.0
     decimation = 2
@@ -75,7 +77,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
-    physx_joint_gears: list = [
+    physx_joint_gears: list[float] = [
         67.5000,  # lower_waist
         67.5000,  # lower_waist
         67.5000,  # right_upper_arm
@@ -98,7 +100,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         22.5,  # left_foot
         22.5,  # left_foot
     ]
-    newton_joint_gears: list = [
+    newton_joint_gears: list[float] = [
         67.5000,  # left_upper_arm
         67.5000,  # left_upper_arm
         45.0000,  # left_lower_arm

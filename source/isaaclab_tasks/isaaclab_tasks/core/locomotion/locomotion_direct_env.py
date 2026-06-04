@@ -25,7 +25,8 @@ from isaaclab.utils.math import (
 )
 
 
-def normalize_angle(x):
+def normalize_angle(x: torch.Tensor) -> torch.Tensor:
+    """Wrap angles [rad] to the range ``[-pi, pi]``."""
     return torch.atan2(torch.sin(x), torch.cos(x))
 
 
@@ -71,7 +72,9 @@ def compute_rot(
     return vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target
 
 
-class LocomotionEnv(DirectRLEnv):
+class LocomotionDirectEnv(DirectRLEnv):
+    """Base direct-workflow environment shared by the ant and humanoid locomotion tasks."""
+
     cfg: DirectRLEnvCfg
 
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
@@ -124,10 +127,10 @@ class LocomotionEnv(DirectRLEnv):
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
-    def _pre_physics_step(self, actions: torch.Tensor):
+    def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
 
-    def _apply_action(self):
+    def _apply_action(self) -> None:
         forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
         self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
 
@@ -173,7 +176,7 @@ class LocomotionEnv(DirectRLEnv):
             self.cfg.sim.dt,
         )
 
-    def _get_observations(self) -> dict:
+    def _get_observations(self) -> dict[str, torch.Tensor]:
         obs = torch.cat(
             (
                 self.torso_position[:, 2].view(-1, 1),
@@ -267,7 +270,7 @@ def compute_rewards(
     death_cost: float,
     alive_reward_scale: float,
     motor_effort_ratio: torch.Tensor,
-):
+) -> torch.Tensor:
     heading_weight_tensor = torch.ones_like(heading_proj) * heading_weight
     heading_reward = torch.where(heading_proj > 0.8, heading_weight_tensor, heading_weight * heading_proj / 0.8)
 
@@ -333,8 +336,7 @@ def compute_intermediate_values(
 
     dof_pos_scaled = scale_transform(dof_pos, dof_lower_limits, dof_upper_limits)
 
-    to_target = targets - torso_position
-    to_target[:, 2] = 0.0
+    # ``to_target`` is unchanged since it was computed above, so reuse it for the potential.
     prev_potentials[:] = potentials
     potentials = -torch.linalg.norm(to_target, ord=2, dim=-1) / dt
 

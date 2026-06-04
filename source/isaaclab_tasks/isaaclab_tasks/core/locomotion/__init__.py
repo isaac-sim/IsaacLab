@@ -2,3 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+"""
+Locomotion task family (ant and humanoid).
+"""

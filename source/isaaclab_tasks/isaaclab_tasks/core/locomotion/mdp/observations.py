@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 def base_yaw_roll(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Yaw and roll of the base in the simulation world frame."""
+    """Yaw and roll [rad] of the base in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # extract euler angles (in world frame)
@@ -61,7 +61,7 @@ def base_heading_proj(
 def base_angle_to_target(
     env: ManagerBasedEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Angle between the base forward vector and the vector to the target."""
+    """Angle [rad] between the base forward vector and the vector to the target."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute desired heading direction

@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-from isaaclab_tasks.core.direct_locomotion.locomotion_env import LocomotionEnv
+from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
+from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirectEnv
 
-from .humanoid_env_cfg import HumanoidEnvCfg  # noqa: F401
 
+class HumanoidEnv(LocomotionDirectEnv):
+    """Direct-workflow Humanoid locomotion environment."""
 
-class HumanoidEnv(LocomotionEnv):
     cfg: HumanoidEnvCfg
 
     def __init__(self, cfg: HumanoidEnvCfg, render_mode: str | None = None, **kwargs):
