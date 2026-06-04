@@ -158,6 +158,7 @@ def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototyp
     )
     test_marker = VisualizationMarkers(config)
 
+    # This is the regression case from #5262: first marker count equals prototype count.
     test_marker.visualize(translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device))
 
     instancer = UsdGeom.PointInstancer(sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path))
