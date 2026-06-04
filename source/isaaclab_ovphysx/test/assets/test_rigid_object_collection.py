@@ -11,7 +11,7 @@
 
 Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
-``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
+The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
 first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
 process restart.  Full coverage therefore requires two separate pytest
 invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The

@@ -16,7 +16,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES: list[str] = []
 
 EXTRAS_REQUIRE = {
-    "ovphysx": ["ovphysx"],
+    "ovphysx": ["ovphysx==0.4.13"],
 }
 
 setup(
