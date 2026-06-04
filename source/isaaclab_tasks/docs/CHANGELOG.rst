@@ -1,6 +1,73 @@
 Changelog
 ---------
 
+2.0.2 (2026-06-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added rsl_rl vision training configs for the cartpole camera tasks. The
+  :obj:`Isaac-Cartpole-Camera-Direct` and :obj:`Isaac-Cartpole-Camera` tasks
+  now expose an ``rsl_rl_cfg_entry_point`` using a CNN policy for the raw
+  RGB/depth pipelines, and :obj:`Isaac-Cartpole-Camera` additionally exposes an
+  ``rsl_rl_feature_cfg_entry_point`` with an MLP policy for the pretrained
+  ResNet18 and Theia-Tiny feature pipelines.
+
+Changed
+^^^^^^^
+
+* Consolidated the direct cartpole camera env and config into a single
+  ``CartpoleCameraEnv`` / ``CartpoleCameraEnvCfg`` pair (in
+  ``cartpole_direct_camera_env`` / ``cartpole_direct_camera_env_cfg``). The
+  separate ``CartpoleCameraPresetsEnv`` env class and
+  ``cartpole_direct_camera_presets_env`` /
+  ``cartpole_direct_camera_presets_env_cfg`` modules were removed; frame
+  stacking is now built into ``CartpoleCameraEnv`` and stays gated on the
+  Newton + Warp backend combo. ``CartpoleCameraEnv`` now subclasses
+  :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_env.CartpoleEnv` and
+  ``CartpoleCameraEnvCfg`` subclasses
+  :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg.CartpoleEnvCfg`,
+  overriding only the camera-specific fields to remove duplication.
+* Reworked the manager-based cartpole camera env into a preset-driven
+  :class:`~isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg.CartpoleCameraEnvCfg`,
+  mirroring the direct env. The camera data type and rendering backend (RTX,
+  OmniverseRTX, Newton + Warp) are now selectable through the ``presets=``
+  selector, e.g. ``presets=depth`` or ``presets=newton_renderer``.
+* Consolidated the cartpole physics-backend presets into a single shared
+  ``CartpolePhysicsCfg``. The direct camera task (:obj:`Isaac-Cartpole-Camera-Direct`)
+  now uses the same tuned Newton solver settings as the other cartpole tasks
+  instead of the solver defaults.
+* **Breaking:** The cartpole camera tasks (:obj:`Isaac-Cartpole-Camera-Direct`
+  and :obj:`Isaac-Cartpole-Camera`) now emit channel-first ``[C, H, W]`` image
+  observations instead of channel-last ``[H, W, C]``, matching the layout
+  expected by the rsl_rl CNN policy. The bundled rl_games and skrl configs were
+  updated accordingly (``permute_input: False`` / no input permute); custom
+  agent configs that assumed channel-last observations must drop their
+  NHWC-to-NCHW permute.
+
+Removed
+^^^^^^^
+
+* Removed the orphaned per-datatype direct cartpole camera cfg subclasses
+  ``CartpoleDepthCameraEnvCfg``, ``CartpoleAlbedoCameraEnvCfg``,
+  ``CartpoleSimpleShadingConstantCameraEnvCfg``,
+  ``CartpoleSimpleShadingDiffuseCameraEnvCfg`` and
+  ``CartpoleSimpleShadingFullCameraEnvCfg``. These were left over from the
+  pre-preset design and no longer back any task. Select the datatype through
+  the preset-based :obj:`Isaac-Cartpole-Camera-Direct` task instead, e.g.
+  ``presets=depth`` or ``presets=albedo``.
+* Removed ``CartpoleRGBCameraEnvCfg`` from
+  ``isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg``. The cartpole
+  camera showcase now defines its own equivalent base cfg.
+* Removed the per-pipeline manager cartpole camera cfg subclasses
+  ``CartpoleRGBCameraEnvCfg``, ``CartpoleDepthCameraEnvCfg``,
+  ``CartpoleResNet18CameraEnvCfg`` and ``CartpoleTheiaTinyCameraEnvCfg`` along
+  with their dedicated scene cfgs. Select the pipeline through the preset-based
+  :obj:`Isaac-Cartpole-Camera` task instead, e.g. ``presets=rgb``,
+  ``presets=depth``, ``presets=resnet18`` or ``presets=theia_tiny``.
+
+
 2.0.1 (2026-06-03)
 ~~~~~~~~~~~~~~~~~~
 

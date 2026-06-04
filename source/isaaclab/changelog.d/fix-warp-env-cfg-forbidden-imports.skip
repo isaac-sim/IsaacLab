@@ -1,3 +1,0 @@
-Internal: hoisted module-local backend imports (``pxr``/``sim_utils``) to module top in
-implementation files (``scene_data/scene_data_provider``, ``sim/schemas/schemas_actuators``,
-``envs/utils/camera_view``, ``terrains/utils``). No user-facing change.
