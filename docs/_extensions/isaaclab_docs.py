@@ -14,7 +14,10 @@ from sphinx.util.docutils import SphinxDirective
 
 
 def _branch(config) -> str:
-    """Return the release branch pinned in installation docs."""
+    """Return the branch or tag pinned in installation docs."""
+    current_version = getattr(config, "smv_current_version", "")
+    if current_version:
+        return current_version
     return getattr(config, "isaaclab_latest_branch", "main")
 
 
