@@ -78,7 +78,7 @@ RL-Games
   for use outside of a strictly controlled network environment.
 
 -  Training an agent with
-   `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
+   `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant``:
 
    .. tab-set::
       :sync-group: os
@@ -91,13 +91,13 @@ RL-Games
             # install python module (for rl-games)
             ./isaaclab.sh -i rl_games
             # run command for training
-            ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant-v0 --headless
+            ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant --headless
             # run command for training with Newton backend
-            ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant-v0 --headless physics=newton_mjwarp
+            ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant --headless physics=newton_mjwarp
             # run command for playing with 32 environments
-            ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+            ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
             # run command for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant-v0 --headless --video --video_length 200
+            ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant --headless --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -107,13 +107,13 @@ RL-Games
             :: install python module (for rl-games)
             isaaclab.bat -i rl_games
             :: run command for training
-            isaaclab.bat train --rl_library rl_games --task Isaac-Ant-v0 --headless
+            isaaclab.bat train --rl_library rl_games --task Isaac-Ant --headless
             :: run command for training with Newton backend
-            isaaclab.bat train --rl_library rl_games --task Isaac-Ant-v0 --headless physics=newton_mjwarp
+            isaaclab.bat train --rl_library rl_games --task Isaac-Ant --headless physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library rl_games --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+            isaaclab.bat play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
             :: run command for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat play --rl_library rl_games --task Isaac-Ant-v0 --headless --video --video_length 200
+            isaaclab.bat play --rl_library rl_games --task Isaac-Ant --headless --video --video_length 200
 
 RSL-RL
 ------

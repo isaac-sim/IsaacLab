@@ -80,7 +80,7 @@ BROAD_CASES = (
     *QUICK_CASES,
     Case("cartpole_direct", "Isaac-Cartpole-Direct"),
     Case("cartpole_rgb_direct", "Isaac-Cartpole-Camera-Direct", None, ("presets=rgb",)),
-    Case("ant_manager", "Isaac-Ant-v0"),
+    Case("ant_manager", "Isaac-Ant"),
     Case("humanoid_manager", "Isaac-Humanoid-v0", "rsl_rl_cfg_entry_point"),
     Case("franka_reach", "Isaac-Reach-Franka-v0"),
     Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka-v0", "sb3_cfg_entry_point"),

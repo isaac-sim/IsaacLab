@@ -70,7 +70,7 @@ class AntPhysicsCfg(PresetCfg):
 
 
 @configclass
-class MySceneCfg(InteractiveSceneCfg):
+class AntSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with an ant robot."""
 
     # terrain
@@ -216,7 +216,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Ant walking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: AntSceneCfg = AntSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
     # Basic settings
     observations: AntObservationsCfg = AntObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

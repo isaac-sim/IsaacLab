@@ -305,7 +305,7 @@ is currently beta.
     python train.py --task=Isaac-Cartpole env.sim.physics=newton_kamino
 
 The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct``,
-``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole``, and ``Isaac-Ant-v0``. Passing
+``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. Passing
 ``presets=newton_kamino`` to a task without a ``newton_kamino`` preset does not enable Kamino;
 add and validate a task-specific preset first.
 

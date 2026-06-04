@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Cart-Double-Pendulum-Direct-v0",
+    id="Isaac-Cart-Double-Pendulum-Direct",
     entry_point=f"{__name__}.cart_double_pendulum_env:CartDoublePendulumEnv",
     disable_env_checker=True,
     kwargs={

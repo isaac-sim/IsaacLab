@@ -79,8 +79,8 @@ Limitations
 
 .. code-block:: none
 
-    1.  Isaac-Ant-Direct-v0
-    2.  Isaac-Ant-v0
+    1.  Isaac-Ant-Direct
+    2.  Isaac-Ant
     3.  Isaac-Cartpole-Direct
     4.  Isaac-Cartpole-Showcase-Direct
     5.  Isaac-Cartpole

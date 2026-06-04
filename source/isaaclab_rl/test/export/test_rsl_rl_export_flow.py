@@ -33,7 +33,7 @@ _OUTPUT_TAIL_CHARS = 5000
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
 TASKS = [
     # Classic
-    "Isaac-Ant-v0",
+    "Isaac-Ant",
     "Isaac-Cartpole",
     # Navigation
     "Isaac-Navigation-Flat-Anymal-C-v0",
