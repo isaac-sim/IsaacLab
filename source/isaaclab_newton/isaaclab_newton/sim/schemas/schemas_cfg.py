@@ -14,6 +14,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
+    RigidBodyFragment,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
@@ -81,6 +82,31 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     ``0.0`` = no compensation; ``1.0`` = full compensation.
     Written to ``mjc:gravcomp`` on the rigid-body prim.
     Body-level gravcomp must be set for joint-level actuatorgravcomp to have any effect.
+    """
+
+
+@configclass
+class MujocoRigidBodyCfg(RigidBodyFragment):
+    """``mjc:*`` rigid-body attributes for Newton's MuJoCo solver.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) carrying
+    body-level gravity compensation. The ``mjc`` namespace has no applied schema; the
+    ``UsdPhysics.RigidBodyAPI`` anchor is applied by
+    :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`.
+
+    .. note::
+        A ``newton:*`` rigid-body fragment is reserved but currently empty (Newton has no native
+        ``newton:`` rigid-body attributes today).
+    """
+
+    _usd_namespace: ClassVar[str | None] = "mjc"
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    gravcomp: float | None = None
+    """Gravity compensation scale for the body [dimensionless].
+
+    ``0.0`` = no compensation; ``1.0`` = full compensation. Written to ``mjc:gravcomp``. Body-level
+    gravcomp must be set for joint-level ``actuatorgravcomp`` to have any effect.
     """
 
 

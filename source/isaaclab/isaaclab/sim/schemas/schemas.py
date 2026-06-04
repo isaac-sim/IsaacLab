@@ -16,7 +16,7 @@ import warp as wp
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
+from isaaclab.utils.string import string_to_callable, to_camel_case
 
 from ..utils import (
     apply_nested,
@@ -214,6 +214,41 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
+def apply_namespaced(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Default fragment applier: apply the fragment's schema and write its namespaced attrs.
+
+    Reads :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_namespace` /
+    :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_applied_schema` from the cfg's class. If the
+    fragment owns an applied schema, it is applied (once). Each non-``None`` dataclass field is
+    written as ``<namespace>:<camelCase(field)>``; the ``func`` field is skipped. ``None`` fields
+    are left unchanged on the prim (partial update).
+
+    Args:
+        cfg: The fragment instance carrying ``_usd_namespace`` / ``_usd_applied_schema`` metadata.
+        prim_path: The prim path to author on.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    namespace = type(cfg)._usd_namespace
+    applied = type(cfg)._usd_applied_schema
+    if applied and applied not in prim.GetAppliedSchemas():
+        prim.AddAppliedSchema(applied)
+    for f in dataclasses.fields(cfg):
+        if f.name == "func":
+            continue
+        value = getattr(cfg, f.name)
+        if value is None:
+            continue
+        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{to_camel_case(f.name, 'cC')}", value, camel_case=False)
+    return True
+
+
 """
 Articulation root properties.
 """
@@ -384,6 +419,33 @@ def modify_articulation_root_properties(
 """
 Rigid body properties.
 """
+
+
+def apply_rigid_body_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+    """Apply a list of rigid-body fragments to a prim.
+
+    Applies ``UsdPhysics.RigidBodyAPI`` as the implicit anchor (the defining schema for a rigid
+    body), then dispatches each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the rigid-body schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.RigidBodyFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not UsdPhysics.RigidBodyAPI(prim):
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
 
 
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):

@@ -15,6 +15,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
+    RigidBodyFragment,
 )
 from isaaclab.utils.configclass import configclass
 
@@ -259,6 +260,64 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
 
     stabilization_threshold: float | None = None
     """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
+
+
+@configclass
+class PhysxRigidBodyCfg(RigidBodyFragment):
+    """``physxRigidBody:*`` rigid-body attributes from `PhysxRigidBodyAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX rigid-body add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`
+    via :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`.
+
+    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxRigidBody"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxRigidBodyAPI"
+
+    linear_damping: float | None = None
+    """Linear damping coefficient for the body [1/s]."""
+
+    angular_damping: float | None = None
+    """Angular damping coefficient for the body [1/s]."""
+
+    max_linear_velocity: float | None = None
+    """Maximum linear velocity for the body [m/s]."""
+
+    max_angular_velocity: float | None = None
+    """Maximum angular velocity for the body [deg/s]."""
+
+    max_depenetration_velocity: float | None = None
+    """Maximum depenetration velocity permitted to be introduced by the solver [m/s]."""
+
+    max_contact_impulse: float | None = None
+    """The limit on the impulse that may be applied at a contact [N·s]."""
+
+    enable_gyroscopic_forces: bool | None = None
+    """Enables computation of gyroscopic forces on the rigid body."""
+
+    retain_accelerations: bool | None = None
+    """Carries over forces/accelerations over sub-steps."""
+
+    solver_position_iteration_count: int | None = None
+    """Solver position iteration counts for the body."""
+
+    solver_velocity_iteration_count: int | None = None
+    """Solver velocity iteration counts for the body."""
+
+    sleep_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
+
+    stabilization_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may participate in stabilization [m²/s²]."""
+
+    disable_gravity: bool | None = None
+    """Disable gravity for the body.
+
+    PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True excludes the
+    body from world gravity integration.
+    """
 
 
 @configclass
