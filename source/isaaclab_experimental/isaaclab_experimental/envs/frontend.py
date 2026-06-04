@@ -39,6 +39,7 @@ __all__ = [
     "Frontend",
     "FrontendIncompatibleError",
     "Workflow",
+    "adapt_cfg_for_warp",
     "build",
 ]
 
@@ -110,9 +111,11 @@ def build(
         _assert_direct_warp_registration(task_id)
         return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
 
-    _adapt_cfg_for_warp(env_cfg, task_id)
     # Imported lazily so that ``--frontend=torch`` callers don't pay the
-    # ``isaaclab_experimental.envs`` import cost.
+    # ``isaaclab_experimental.envs`` import cost. The warp env adapts the stable
+    # cfg in its own ``__init__`` (see :func:`adapt_cfg_for_warp`), so a task
+    # registered directly as ``*-Warp-v0`` (constructed straight from the stable
+    # cfg) goes through the exact same adaptation as ``--frontend=warp``.
     from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
     return ManagerBasedRLEnvWarp(cfg=env_cfg, **construct_kwargs)
@@ -123,8 +126,14 @@ def build(
 # ---------------------------------------------------------------------------
 
 
-def _adapt_cfg_for_warp(cfg: Any, task_id: str) -> None:
-    """Mutate ``cfg`` in place so warp managers can consume it.
+def adapt_cfg_for_warp(cfg: Any) -> None:
+    """Mutate a stable manager-based ``cfg`` in place so warp managers can consume it.
+
+    Called from :meth:`ManagerBasedEnvWarp.__init__`, so it runs identically
+    whether the env is built via ``--frontend=warp`` on a stable task id or by
+    constructing a ``*-Warp-v0`` registration straight from the stable cfg.
+    Idempotent: re-running on an already-adapted cfg is a no-op (the steps below
+    skip warp-origin symbols / already-promoted entities).
 
     Three steps, each independently testable:
 
@@ -143,12 +152,13 @@ def _adapt_cfg_for_warp(cfg: Any, task_id: str) -> None:
        twin raises :class:`FrontendIncompatibleError` — partial coverage is
        unsafe under the warp managers' kernel-only signature.
     """
-    _require_newton_physics(cfg, task_id)
+    label = type(cfg).__name__
+    _require_newton_physics(cfg, label)
     _promote_scene_entity_cfgs(cfg)
-    _swap_mdp(cfg, task_id)
+    _swap_mdp(cfg, label)
 
 
-def _require_newton_physics(cfg: Any, task_id: str) -> None:
+def _require_newton_physics(cfg: Any, label: str) -> None:
     """Block unless ``cfg.sim.physics`` is :class:`NewtonCfg`.
 
     The warp managers' assets read state through :class:`NewtonManager`;
@@ -163,7 +173,7 @@ def _require_newton_physics(cfg: Any, task_id: str) -> None:
     if isinstance(physics, NewtonCfg):
         return
     raise FrontendIncompatibleError(
-        f"--frontend=warp on {task_id!r}: expected cfg.sim.physics to be NewtonCfg,"
+        f"warp env {label!r}: expected cfg.sim.physics to be NewtonCfg,"
         f" got {type(physics).__name__!r}. Pass `presets=newton_mjwarp` on the CLI so"
         f" Hydra resolves the task's PresetCfg wrapper to the Newton variant."
     )
@@ -199,7 +209,7 @@ def _promote_scene_entity_cfgs(cfg: Any) -> None:
         )
 
 
-def _swap_mdp(cfg: Any, task_id: str) -> None:
+def _swap_mdp(cfg: Any, label: str) -> None:
     """Replace ``term.func`` and ``term.class_type`` with their warp twins.
 
     Iterates every term cfg in the tree (via :func:`_walk_terms`) and on each
@@ -218,7 +228,7 @@ def _swap_mdp(cfg: Any, task_id: str) -> None:
     substitutes the callable; the manager reads the new func's annotations
     when it parses the term cfg.
     """
-    modules = _warp_mdp_modules(task_id)
+    modules = _warp_mdp_modules(type(cfg).__module__)
     searched = tuple(m.__name__ for m in modules)
     logger.info("frontend.warp: searching warp mdp modules %s", list(searched))
 
@@ -240,7 +250,7 @@ def _swap_mdp(cfg: Any, task_id: str) -> None:
     if missing:
         lines = "\n  ".join(f"{loc}.{attr}: no warp twin for {sym!r}" for loc, attr, sym in missing)
         raise FrontendIncompatibleError(
-            f"--frontend=warp on {task_id!r}: missing warp MDP twins (searched {list(searched)}):\n  {lines}"
+            f"warp env {label!r}: missing warp MDP twins (searched {list(searched)}):\n  {lines}"
         )
 
     logger.info("frontend.warp: swapped %d MDP symbol(s) to warp twins", swapped)
@@ -285,25 +295,26 @@ def _assert_direct_warp_registration(task_id: str) -> None:
         )
 
 
-def _warp_mdp_modules(task_id: str) -> list[ModuleType]:
+def _warp_mdp_modules(cfg_module: str) -> list[ModuleType]:
     """Locate warp MDP modules to consult for twin lookups.
+
+    The lookup is keyed off the *stable* cfg class's module
+    (``type(cfg).__module__``) rather than the gym task id, so it resolves the
+    same twins whether the env is built via ``--frontend=warp`` or constructed
+    directly from a ``*-Warp-v0`` registration.
 
     Order of preference:
 
     1. The task-specific module, derived by replacing ``isaaclab_tasks`` with
-       ``isaaclab_tasks_experimental`` in the task's ``env_cfg_entry_point``
-       package and walking up to the first existing ``.mdp`` submodule.
+       ``isaaclab_tasks_experimental`` in ``cfg_module`` and walking up to the
+       first existing ``.mdp`` submodule. This relies on the experimental
+       package mirroring the stable ``core/`` layout.
     2. The shared :mod:`isaaclab_experimental.envs.mdp` fallback (where
        generic warp twins live).
     """
     modules: list[ModuleType] = []
-    try:
-        spec = gym.spec(task_id)
-    except gym.error.NameNotFound:
-        spec = None
-    entry = spec.kwargs.get("env_cfg_entry_point") if spec is not None else None
-    if isinstance(entry, str) and entry.startswith("isaaclab_tasks."):
-        warp_pkg = entry.rsplit(".", 1)[0].replace("isaaclab_tasks", "isaaclab_tasks_experimental", 1)
+    if isinstance(cfg_module, str) and cfg_module.startswith("isaaclab_tasks."):
+        warp_pkg = cfg_module.replace("isaaclab_tasks", "isaaclab_tasks_experimental", 1)
         parts = warp_pkg.split(".")
         for depth in range(len(parts), 0, -1):
             target = ".".join(parts[:depth] + ["mdp"])

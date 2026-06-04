@@ -73,6 +73,14 @@ class ManagerBasedEnvWarp:
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # Adapt a stable manager-based cfg to the warp runtime in place: assert
+        # Newton physics, promote SceneEntityCfg to the warp variant, and swap
+        # every MDP func/class to its warp twin. Idempotent, so an already-warp
+        # cfg passes through untouched. This lets a ``*-Warp-v0`` task point its
+        # env_cfg_entry_point at the stable cfg rather than carry a drifting copy.
+        from isaaclab_experimental.envs.frontend import adapt_cfg_for_warp
+
+        adapt_cfg_for_warp(cfg)
         # check that the config is valid
         cfg.validate()
         # store inputs to class
