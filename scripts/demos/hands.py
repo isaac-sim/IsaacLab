@@ -163,14 +163,14 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # The default newton mjwarp solver configuration needs to be tuned for these hands.
         if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
-            physics_cfg.solver_cfg.njmax = 128
+            physics_cfg.solver_cfg.njmax = 200
             physics_cfg.solver_cfg.nconmax = 70
-            physics_cfg.solver_cfg.ls_iterations = 40
+            physics_cfg.solver_cfg.impratio = 10.0
             physics_cfg.solver_cfg.cone = "elliptic"
-            physics_cfg.solver_cfg.impratio = 100
-            physics_cfg.solver_cfg.ls_parallel = False
-            physics_cfg.solver_cfg.integrator = "implicitfast"
+            physics_cfg.solver_cfg.update_data_interval = 2
+            physics_cfg.solver_cfg.ccd_iterations = 50
             physics_cfg.num_substeps = 2
+            physics_cfg.debug_mode = False
 
         # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
