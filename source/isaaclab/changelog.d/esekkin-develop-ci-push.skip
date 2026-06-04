@@ -1,0 +1,4 @@
+CI-only:
+develop / release pushes no longer trigger the multi-version docs deploy or Docker image publish — both are owned by the nightly cron (registered on main).
+Docs pushes and PRs still build current-docs for validation; Docker images build on demand via workflow_dispatch.
+No tag-name changes and no user-facing change to the published site.
