@@ -38,8 +38,10 @@ _uint8_sum_partials_cache: dict[tuple[tuple[int, ...], str, int], torch.Tensor] 
 def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -> torch.Tensor:
     """Per-(batch, channel) mean of a uint8 image scaled by ``1 / scale``.
 
-    Equivalent to ``src.sum(dim=spatial_dims, dtype=int32).float() / scale`` where
-    ``spatial_dims`` is the pair of non-batch, non-channel axes.
+    Equivalent to ``src.sum(dim=spatial_dims, dtype=int64).float() / scale`` where
+    ``spatial_dims`` is the pair of non-batch, non-channel axes. The int64
+    promotion is safe at any resolution; the per-tile Warp accumulator stays
+    int32 (overflow-safe up to ~16M values per tile).
 
     Args:
         src: Input image. Shape is ``(B, H, W, C)`` (BHWC) or ``(B, C, H, W)`` (BCHW),
@@ -73,7 +75,7 @@ def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -
         inputs=[src_wp, partials_wp, _UINT8_SUM_TILE_HW, channel_dim],
         device=device_str,
     )
-    return partials.sum(dim=1).float() / scale
+    return partials.sum(dim=1, dtype=torch.int64).float() / scale
 
 
 def raycast_mesh(

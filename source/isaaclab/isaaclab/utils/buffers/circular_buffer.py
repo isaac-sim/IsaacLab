@@ -122,7 +122,9 @@ class CircularBuffer:
             RuntimeError: If ``stack_dim`` was not set at construction.
         """
         if self._stack_dim_internal is None:
-            raise RuntimeError("stacked is only available when CircularBuffer was created with stack_dim set.")
+            if self._stack_dim_arg is None:
+                raise RuntimeError("stacked is only available when CircularBuffer was created with stack_dim set.")
+            raise RuntimeError("stacked is not yet available: call append() at least once to initialize the buffer.")
         k_pos = self._stack_dim_internal
         s = self._buffer.shape
         return self._buffer.reshape(*s[:k_pos], s[k_pos] * s[k_pos + 1], *s[k_pos + 2 :])
