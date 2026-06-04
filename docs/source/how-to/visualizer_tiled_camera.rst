@@ -8,9 +8,9 @@ Using Visualizer Tiled Cameras
 For general visualizer documentation, see :doc:`/source/overview/core-concepts/visualization`.
 
 The visualizer tiled camera view is a live monitoring and debugging tool. It opens a
-non-interactive panel in the Kit or Newton visualizer and streams tiled camera views
-across all selected environments. Note, this is separate from tiled camera observations
-used by policies.
+non-interactive panel in the Kit or Newton visualizer and displays tiled camera views
+across all selected environments. They can stream observation camera data or generate cameras
+that follow the robots.
 
 This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in the
 ``IsaacLab/scripts/tutorials/07_visualizers`` directory.
@@ -28,7 +28,7 @@ Either visualizer can be used to run either example.
 
    .. literalinclude:: ../../../scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py
       :language: python
-      :emphasize-lines: 74-81,89-97
+      :emphasize-lines: 72-78,87-94
       :linenos:
 
 
@@ -39,13 +39,13 @@ The Kit Visualizer shows the tiled camera view in a separate tab inside the main
 Viewport window. The highlighted tab area in the figures below shows where to
 toggle between the interactive viewport and the visualizer tiled camera view.
 
-.. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.png
+.. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
    :alt: Kit visualizer interactive viewport for Anymal-D robots
 
    Kit visualizer showing the default interactive viewport.
 
-.. figure:: ../_static/visualizers/kit_viz_anymal_tiled_view.png
+.. figure:: ../_static/visualizers/kit_viz_anymal_tiled_view.jpg
    :width: 100%
    :alt: Kit visualizer tiled camera view for Anymal-D robots
 
@@ -78,7 +78,7 @@ camera is offset by ``(3.0, 3.0, 3.0)`` from each robot base. If you change ``ti
 In this example, there are 256 total environments, and we randomly sample 36 to stream to the
 tiled camera view.
 
-Also note that the Kit visualizer tiled camera view requires passing
+Also note that the Kit visualizer tiled camera view requires passing the
 ``--enable_cameras`` CLI arg.
 
 
@@ -89,13 +89,13 @@ The Newton visualizer provides a tiled camera view in a lightweight OpenGL windo
 Use the highlighted ``Tiled Camera View`` dropdown in the left-hand sidebar to
 show or hide the tiled camera panel.
 
-.. figure:: ../_static/visualizers/newton_viz_galbot_interactive_view.png
+.. figure:: ../_static/visualizers/newton_viz_galbot_interactive_view.jpg
    :width: 100%
    :alt: Newton visualizer interactive view for the Galbot cube stacking environment
 
    Newton visualizer showing the default interactive viewport.
 
-.. figure:: ../_static/visualizers/newton_viz_galbot_tiled_view.png
+.. figure:: ../_static/visualizers/newton_viz_galbot_tiled_view.jpg
    :width: 100%
    :alt: Newton visualizer tiled camera view for Galbot wrist cameras
 

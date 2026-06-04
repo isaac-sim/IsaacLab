@@ -10,7 +10,7 @@ This script demonstrates the visualizer tiled camera panel.
 
     # Kit visualizer tiled camera panel
     ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task Isaac-Velocity-Rough-Anymal-D-v0 --num_envs 256 --viz kit
+        --enable_cameras --task Isaac-Velocity-Rough-Anymal-D-v0 --num_envs 256 --viz kit
 
     # Newton visualizer tiled camera panel
     ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
@@ -67,9 +67,6 @@ def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
 def _make_kit_visualizer_cfg(args_cli: argparse.Namespace):
     """Create generated tiled cameras that follow each Anymal-D base."""
     from isaaclab_visualizers.kit import KitVisualizerCfg
-
-    # Generated Kit cameras are not found by the task config scan.
-    args_cli.enable_cameras = True
 
     visualizer_cfg = KitVisualizerCfg()
     visualizer_cfg.tiled_cam_view = True
