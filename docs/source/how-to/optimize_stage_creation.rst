@@ -49,7 +49,7 @@ Stage in memory can be toggled by setting the :attr:`isaaclab.sim.SimulationCfg.
     env = ManagerBasedRLEnv(cfg=cfg)
 
 When using stage in memory without an existing RL environment class, wrap the stage creation steps
-in a :py:keyword:`with` statement to set the stage context. The stage is automatically attached
+in a ``with`` statement to set the stage context. The stage is automatically attached
 to the USD context when ``SimulationContext`` is created with ``create_stage_in_memory=True``.
 
 **Using Stage in Memory with a manual scene setup**
