@@ -1,0 +1,1 @@
+CI-only: publish Docker images from develop on a nightly schedule; pushes to main still publish immediately. release/* images are now built on demand via workflow_dispatch (previously published on every push). No tag-name changes.

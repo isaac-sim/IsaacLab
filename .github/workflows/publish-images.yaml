@@ -9,8 +9,11 @@ on:
   push:
     branches:
       - main
-      - develop
-      - release/**
+  # Daily build + publish from develop tip.
+  schedule:
+    - cron: '0 3 * * *'  # 7pm PST / 8pm PDT
+  # Manual trigger.
+  workflow_dispatch:
 
 # Concurrency control to prevent parallel runs
 concurrency:
@@ -62,6 +65,8 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+        # On schedule, always build from the develop tip regardless of which ref the cron defaults to.
+        ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -91,7 +96,9 @@ jobs:
 
     - name: Build and Push Docker Images
       run: |
-        BRANCH_NAME="${{ github.ref_name }}"
+        # Schedule runs check out develop (see Checkout step) but github.ref_name still resolves
+        # to the default branch; mirror the override so tagging matches the code.
+        BRANCH_NAME="${{ github.event_name == 'schedule' && 'develop' || github.ref_name }}"
         IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
         SHA="${{ github.sha }}"
         IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
