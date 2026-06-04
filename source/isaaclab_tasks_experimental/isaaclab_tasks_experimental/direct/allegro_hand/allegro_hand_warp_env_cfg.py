@@ -16,7 +16,30 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=80,
+            nconmax=70,
+            impratio=10.0,
+            cone="elliptic",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=15,
+            # save_to_mjcf="AllegroHand.xml",
+        ),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    default = newton_mjwarp
 
 
 @configclass
@@ -30,24 +53,6 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    solver_cfg = MJWarpSolverCfg(
-        solver="newton",
-        integrator="implicitfast",
-        njmax=80,
-        nconmax=70,
-        impratio=10.0,
-        cone="elliptic",
-        update_data_interval=2,
-        iterations=100,
-        ls_iterations=15,
-        # save_to_mjcf="AllegroHand.xml",
-    )
-
-    newton_cfg = NewtonCfg(
-        solver_cfg=solver_cfg,
-        num_substeps=2,
-        debug_mode=False,
-    )
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
@@ -56,7 +61,7 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
-        physics=newton_cfg,
+        physics=PhysicsCfg(),
     )
     # robot
     robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")

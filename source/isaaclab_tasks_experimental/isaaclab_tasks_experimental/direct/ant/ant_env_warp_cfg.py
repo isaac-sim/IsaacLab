@@ -15,7 +15,26 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets import ANT_CFG
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=45,
+            nconmax=25,
+            cone="pyramidal",
+            integrator="implicitfast",
+            impratio=1,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default = newton_mjwarp
 
 
 @configclass
@@ -28,22 +47,8 @@ class AntWarpEnvCfg(DirectRLEnvCfg):
     observation_space = 36
     state_space = 0
 
-    solver_cfg = MJWarpSolverCfg(
-        njmax=45,
-        nconmax=25,
-        cone="pyramidal",
-        integrator="implicitfast",
-        impratio=1,
-    )
-    newton_cfg = NewtonCfg(
-        solver_cfg=solver_cfg,
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=newton_cfg)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

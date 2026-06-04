@@ -10,6 +10,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 import isaaclab_tasks_experimental.manager_based.manipulation.reach.mdp as mdp
 from isaaclab_tasks_experimental.manager_based.manipulation.reach.reach_env_cfg import ReachEnvCfg
 
@@ -25,21 +27,24 @@ from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass
-class FrankaReachEnvCfg(ReachEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=50,
-                nconmax=20,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=50,
+            nconmax=20,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
         ),
+        num_substeps=1,
+        debug_mode=False,
     )
+    default = newton_mjwarp
+
+
+@configclass
+class FrankaReachEnvCfg(ReachEnvCfg):
+    sim: SimulationCfg = SimulationCfg(dt=1 / 60, physics=PhysicsCfg())
 
     def __post_init__(self):
         # post init of parent

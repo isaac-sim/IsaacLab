@@ -18,6 +18,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 import isaaclab_tasks_experimental.manager_based.classic.humanoid.mdp as mdp
 
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG  # isort:skip
@@ -190,6 +192,24 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=80,
+            nconmax=25,
+            ls_iterations=15,
+            cone="pyramidal",
+            update_data_interval=2,
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    default = newton_mjwarp
+
+
+@configclass
 class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Humanoid walking environment."""
 
@@ -209,22 +229,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 16.0
         # simulation settings
-        self.sim: SimulationCfg = SimulationCfg(
-            dt=1 / 120.0,
-            physics=NewtonCfg(
-                solver_cfg=MJWarpSolverCfg(
-                    njmax=80,
-                    nconmax=25,
-                    ls_iterations=15,
-                    cone="pyramidal",
-                    update_data_interval=2,
-                    impratio=1,
-                    integrator="implicitfast",
-                ),
-                num_substeps=2,
-                debug_mode=False,
-            ),
-        )
+        self.sim: SimulationCfg = SimulationCfg(dt=1 / 120.0, physics=PhysicsCfg())
         # self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
         # default friction material

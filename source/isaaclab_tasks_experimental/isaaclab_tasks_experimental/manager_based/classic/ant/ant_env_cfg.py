@@ -19,6 +19,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 import isaaclab_tasks_experimental.manager_based.classic.humanoid.mdp as mdp
 
 ##
@@ -155,24 +157,28 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=38,
+            nconmax=15,
+            ls_iterations=10,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+    )
+    default = newton_mjwarp
+
+
+@configclass
 class AntEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Ant walking environment."""
 
     # Simulation settings
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=38,
-                nconmax=15,
-                ls_iterations=10,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)

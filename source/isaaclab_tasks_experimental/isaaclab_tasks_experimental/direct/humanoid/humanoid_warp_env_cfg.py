@@ -15,7 +15,27 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets import HUMANOID_CFG
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=80,
+            nconmax=25,
+            cone="pyramidal",
+            integrator="implicitfast",
+            update_data_interval=2,
+            impratio=1,
+        ),
+        num_substeps=2,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default = newton_mjwarp
 
 
 @configclass
@@ -28,23 +48,8 @@ class HumanoidWarpEnvCfg(DirectRLEnvCfg):
     observation_space = 75
     state_space = 0
 
-    solver_cfg = MJWarpSolverCfg(
-        njmax=80,
-        nconmax=25,
-        cone="pyramidal",
-        integrator="implicitfast",
-        update_data_interval=2,
-        impratio=1,
-    )
-    newton_cfg = NewtonCfg(
-        solver_cfg=solver_cfg,
-        num_substeps=2,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=newton_cfg)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

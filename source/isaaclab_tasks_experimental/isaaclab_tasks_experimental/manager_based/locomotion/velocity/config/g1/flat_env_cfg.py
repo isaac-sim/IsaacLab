@@ -9,24 +9,30 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from .rough_env_cfg import G1RoughEnvCfg
 
 
 @configclass
-class G1FlatEnvCfg(G1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=95,
-                nconmax=10,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=95,
+            nconmax=10,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
     )
+    default = newton_mjwarp
+
+
+@configclass
+class G1FlatEnvCfg(G1RoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     def __post_init__(self):
         super().__post_init__()

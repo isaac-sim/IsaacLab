@@ -20,6 +20,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 import isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp as mdp
 
 ##
@@ -158,6 +160,23 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default = newton_mjwarp
+
+
+@configclass
 class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
 
@@ -171,20 +190,7 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     # Simulation settings
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=5,
-                nconmax=3,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-            use_cuda_graph=True,
-        )
-    )
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     # Post initialization
     def __post_init__(self) -> None:
