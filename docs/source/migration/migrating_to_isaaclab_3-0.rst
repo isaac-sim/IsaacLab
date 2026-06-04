@@ -599,18 +599,19 @@ when no CLI override is given. Other fields are named presets selectable with
    @configclass
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton_mjwarp
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
+The legacy ``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
+   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
@@ -646,8 +647,8 @@ subclass that carries both a PhysX and a Newton variant.
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
-               cone="pyramidal", ls_parallel=True,
-               integrator="implicitfast", impratio=1,
+               cone="pyramidal", integrator="implicitfast",
+               impratio=1,
            ),
            num_substeps=1,
            debug_mode=False,
@@ -671,7 +672,8 @@ Key Newton solver parameters:
    * - ``nconmax``
      - Max contacts per env
    * - ``ls_iterations``
-     - Linear solver iterations (higher = more stable, slower)
+     - Iterative line search cap; stops early when convergence is reached.
+       Tune alongside outer solver iterations for runtime and convergence.
    * - ``cone``
      - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
    * - ``integrator``
@@ -1619,7 +1621,8 @@ automatically by the importer based on the robot name and cannot be overridden.
      /output/dir \
      --fix-base \
      --joint-stiffness 100.0 \
-     --joint-damping 1.0
+     --joint-damping 1.0 \
+     --viz kit
 
 .. note::
 
@@ -1773,7 +1776,8 @@ are no longer available.
      ../mujoco_menagerie/unitree_h1/h1.xml \
      source/isaaclab_assets/data/Robots/Unitree/h1.usd \
      --merge-mesh \
-     --self-collision
+     --self-collision \
+     --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 

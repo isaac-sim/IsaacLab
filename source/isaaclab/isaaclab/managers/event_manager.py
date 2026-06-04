@@ -142,7 +142,9 @@ class EventManager(ManagerBase):
                 # sample a new interval and set that as time left
                 # note: global time events are based on simulation time and not episode time
                 #   so we do not reset them
-                if not term_cfg.is_global_time:
+                # note: terms with resample_interval_on_reset=False keep their per-environment
+                #   counter across resets, so we do not resample them either
+                if not term_cfg.is_global_time and term_cfg.resample_interval_on_reset:
                     lower, upper = term_cfg.interval_range_s
                     sampled_interval = torch.rand(num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_term_time_left[index][env_ids] = sampled_interval

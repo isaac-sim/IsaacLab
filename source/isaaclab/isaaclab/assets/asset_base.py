@@ -15,14 +15,14 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-from pxr import Usd
-
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from .asset_base_cfg import AssetBaseCfg
 
 

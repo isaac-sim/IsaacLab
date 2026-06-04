@@ -271,7 +271,7 @@ class FabricFrameView(BaseFrameView):
         self._fabric_hierarchy.update_world_xforms()
         self._fabric_usd_sync_done = True
 
-    def get_scales(self, indices=None):
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         if not self._use_fabric:
             return self._usd_view.get_scales(indices)
 
@@ -305,7 +305,7 @@ class FabricFrameView(BaseFrameView):
 
         if use_cached:
             wp.synchronize()
-        return scales_wp
+        return ProxyArray(scales_wp)
 
     # ------------------------------------------------------------------
     # Internal — PrepareForReuse (renderer notification + topology tracking)
@@ -441,7 +441,7 @@ class FabricFrameView(BaseFrameView):
         positions_usd_ta, orientations_usd_ta = self._usd_view.get_world_poses()
         positions_usd = positions_usd_ta.warp
         orientations_usd = orientations_usd_ta.warp
-        scales_usd = self._usd_view.get_scales()
+        scales_usd = self._usd_view.get_scales().warp
 
         self.set_world_poses(positions_usd, orientations_usd)
         self.set_scales(scales_usd)

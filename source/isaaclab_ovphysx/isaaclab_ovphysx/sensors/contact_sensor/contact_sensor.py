@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.sim as sim_utils
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
@@ -179,23 +179,29 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance
 
-        # Discover sensor bodies. Mirror the PhysX discovery path but use
-        # ``GetPrimTypeInfo().GetAppliedAPISchemas()`` (raw apiSchemas listOp)
-        # rather than ``GetAppliedSchemas()`` (filtered by USD's plugin
-        # registry).  Under the kitless ovphysx flow the ``PhysxSchema`` USD
-        # plugin is registered by :meth:`OvPhysxManager.initialize` so the
-        # wheel-side schema check passes, but the Python-side filtered API
-        # still hides ``PhysxContactReportAPI`` because the schema TYPE
-        # registration only happens when the C++ plugin library is loaded by
-        # ``omni.physx``.  The unfiltered API matches what the underlying
-        # USD apiSchemas listOp actually carries (verified against
+        # Discover sensor bodies.  We use ``GetPrimTypeInfo().GetAppliedAPISchemas()``
+        # (raw apiSchemas listOp) instead of ``GetAppliedSchemas()`` so that codeless
+        # USDs without ``omni.physx``'s plugin loaded still report
+        # ``PhysxContactReportAPI``.  Under the kitless ovphysx flow the
+        # ``PhysxSchema`` USD plugin is registered by
+        # :meth:`OvPhysxManager.initialize` so the wheel-side schema check passes,
+        # but the Python-side filtered API still hides ``PhysxContactReportAPI``
+        # because the schema TYPE registration only happens when the C++ plugin
+        # library is loaded by ``omni.physx``.  The unfiltered API matches what
+        # the underlying USD apiSchemas listOp actually carries (verified against
         # :class:`pxr.Sdf.PrimSpec.GetInfo("apiSchemas")`).
-        leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
-        template_prim_path = self._parent_prims[0].GetPath().pathString
-        body_names: list[str] = []
-        for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-            if "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
-                body_names.append(prim.GetPath().pathString.rsplit("/", 1)[-1])
+        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        name_pattern = re.compile(leaf_pattern)
+
+        def has_contact_report(prim) -> bool:
+            return bool(name_pattern.fullmatch(prim.GetName())) and (
+                "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+            )
+
+        asset_prim, body_parent = resolve_matching_prims_from_source(parent_expr)[0]
+        walk_root = asset_prim.GetPath().pathString
+        prims = get_all_matching_child_prims(walk_root, predicate=has_contact_report, traverse_instance_prims=False)
+        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim in prims]
         if not body_names:
             raise RuntimeError(
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
@@ -206,8 +212,7 @@ class ContactSensor(BaseContactSensor):
 
         # Build glob patterns: one per (env, sensor body).
         # IsaacLab path forms map to ovphysx fnmatch globs the same way Articulation does.
-        base_glob = self.cfg.prim_path.rsplit("/", 1)[0]
-        base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", base_glob)
+        base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", body_parent)
         base_glob = re.sub(r"\.\*", "*", base_glob)
         sensor_patterns = [f"{base_glob}/{name}" for name in body_names]
 

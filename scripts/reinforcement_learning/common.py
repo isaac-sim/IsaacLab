@@ -19,11 +19,10 @@ from typing import Any
 
 import gymnasium as gym
 
+from isaaclab.app import add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
-
-from isaaclab_tasks.utils import add_launcher_args
 
 
 def dispatch_library_entrypoint(

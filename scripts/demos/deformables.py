@@ -242,7 +242,15 @@ def main():
 
         from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
-        physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(iterations=10), num_substeps=4)
+        physics_cfg = NewtonCfg(
+            solver_cfg=VBDSolverCfg(
+                iterations=5,
+                particle_enable_self_contact=True,
+                particle_self_contact_radius=0.0001,
+                particle_self_contact_margin=0.1,
+            ),
+            num_substeps=4,
+        )
     else:
         from isaaclab_physx.physics import PhysxCfg
 

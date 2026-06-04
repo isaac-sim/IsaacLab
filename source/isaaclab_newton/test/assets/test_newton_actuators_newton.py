@@ -39,7 +39,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.manager_based.locomotion.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -59,7 +59,6 @@ NEWTON_CFG = NewtonCfg(
         ls_iterations=20,
         cone="pyramidal",
         impratio=1,
-        ls_parallel=False,
         integrator="implicitfast",
     ),
     num_substeps=1,
@@ -748,7 +747,6 @@ NEWTON_CFG_DEC = NewtonCfg(
         ls_iterations=20,
         cone="pyramidal",
         impratio=1,
-        ls_parallel=False,
         integrator="implicitfast",
     ),
     num_substeps=2,

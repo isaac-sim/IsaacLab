@@ -442,6 +442,46 @@ def quat_apply_inverse_2D_kernel(
 
 
 @wp.kernel
+def projected_gravity_b_kernel(
+    gravity_w: wp.array(dtype=wp.vec3f),
+    quat: wp.array(dtype=wp.quatf),
+    projected_gravity_b: wp.array(dtype=wp.vec3f),
+):
+    """Project per-env world-frame gravity into the base frame as a unit vector.
+
+    ``gravity_w`` carries magnitude (m/s^2) and is normalized internally, so the
+    result stays direction-only under per-env gravity randomization.
+    ``wp.normalize`` maps a zero vector to zero, so disabled gravity is safe.
+
+    Args:
+        gravity_w: World-frame gravity vector per env. Shape is (num_envs,).
+        quat: Per-env body quaternion. Shape is (num_envs,).
+        projected_gravity_b: Output unit-vector projection. Shape is (num_envs,).
+    """
+    i = wp.tid()
+    projected_gravity_b[i] = wp.quat_rotate_inv(quat[i], wp.normalize(gravity_w[i]))
+
+
+@wp.kernel
+def projected_gravity_b_2D_kernel(
+    gravity_w: wp.array(dtype=wp.vec3f),
+    quat: wp.array2d(dtype=wp.quatf),
+    projected_gravity_b: wp.array2d(dtype=wp.vec3f),
+):
+    """Project per-env world-frame gravity into per-body base frame as a unit vector.
+
+    Broadcasts the per-env ``gravity_w[i]`` across all bodies of env ``i``.
+
+    Args:
+        gravity_w: World-frame gravity vector per env. Shape is (num_envs,).
+        quat: Per-body quaternion. Shape is (num_envs, num_bodies).
+        projected_gravity_b: Output unit-vector projection. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    projected_gravity_b[i, j] = wp.quat_rotate_inv(quat[i, j], wp.normalize(gravity_w[i]))
+
+
+@wp.kernel
 def body_heading_w(
     forward_vec: wp.array2d(dtype=wp.vec3f),
     quat: wp.array2d(dtype=wp.quatf),

@@ -144,18 +144,18 @@ For environments that need to support both backends, use
         renderer_cfg=MultiBackendRendererCfg(),  # selects RTX or Newton Warp via presets= CLI arg
     )
 
-The active preset is selected at launch via the ``presets=`` CLI argument:
+The active preset is selected at launch via ``physics=``, ``renderer=``, or ``presets=`` CLI arguments:
 
 .. code-block:: bash
 
    # Use Newton Warp renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=newton_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx_renderer
 
    # Use default (Isaac RTX)
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0
+   python train.py task=Isaac-Cartpole-Camera-Direct
 
 
 Accessing camera data
@@ -174,7 +174,7 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
 .. code-block:: shell
 
     python scripts/reinforcement_learning/rl_games/train.py \
-        --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+        --task=Isaac-Cartpole-Camera-Direct --headless --enable_cameras
 
 
 Annotators (RTX only)
@@ -321,6 +321,24 @@ Newton Warp renderer from its native scene-linear color buffer. Each
 backend allocates its own HDR scratch buffer when the user did not request
 ``"rgb_hdr"`` in :attr:`~sensors.CameraCfg.data_types`, and dispatches the
 PPISP kernel into ``rgb`` / ``rgba`` after every render tick.
+
+Usage example
+^^^^^^^^^^^^^
+
+For a runnable usage example, see ``scripts/demos/sensors/ppisp_camera.py``.
+It loads a PPISP-authored USD or USDZ Gaussian scene, creates baseline and
+PPISP camera sensors for the selected camera, and saves baseline, PPISP, and
+absolute-difference images.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+       --renderer newton --visualizer none --max_steps 60
+
+Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
+``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
+contains multiple PPISP-bound cameras. Images are written to
+``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
 
 Known limitations
 ^^^^^^^^^^^^^^^^^

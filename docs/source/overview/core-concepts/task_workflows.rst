@@ -53,7 +53,7 @@ For reinforcement learning, much of this has been done for you already! In most 
     implementation, weight and additional parameters to be passed to the function. Users can define multiple
     reward terms and their weights to be used in the reward function.
 
-    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
         :language: python
         :pyobject: RewardsCfg
 
@@ -88,14 +88,14 @@ This workflow may be the most familiar for users migrating from the `IsaacGymEnv
 
     The following function is a part of the Cartpole environment class and is responsible for computing the rewards.
 
-    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
+    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
         :language: python
         :pyobject: CartpoleEnv._get_rewards
         :dedent: 4
 
     It calls the :meth:`compute_rewards` function which is Torch JIT compiled for performance benefits.
 
-    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py
+    .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
         :language: python
         :pyobject: compute_rewards
 

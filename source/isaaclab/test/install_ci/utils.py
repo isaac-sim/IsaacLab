@@ -186,6 +186,33 @@ def run_cmd(
 _IS_WINDOWS = platform.system() == "Windows"
 
 
+def cuda_torch_index_url() -> str:
+    """Return the documented CUDA-matched torch wheel index URL for the current platform.
+
+    Mirrors ``docs/source/setup/installation/pip_installation.rst``:
+    ``cu130`` on aarch64 (e.g. GB10 / DGX Spark, which expose CUDA capability 12.x),
+    ``cu128`` on x86_64.
+    """
+    if platform.machine().lower() in ("aarch64", "arm64"):
+        return "https://download.pytorch.org/whl/cu130"
+    return "https://download.pytorch.org/whl/cu128"
+
+
+def aarch64_isaacsim_env() -> dict[str, str]:
+    """Return env vars required to import ``isaacsim`` from a ``uv pip`` install on aarch64.
+
+    Without ``LD_PRELOAD``ing the system ``libgomp.so.1``, ``isaacsim`` refuses to load on
+    aarch64 because the torch wheel ships its own OpenMP that loads first and conflicts.
+    The same workaround is recommended to users in the install docs. Returns an empty
+    dict on non-aarch64 hosts.
+    """
+    if platform.machine().lower() in ("aarch64", "arm64"):
+        libgomp = "/lib/aarch64-linux-gnu/libgomp.so.1"
+        if os.path.exists(libgomp):
+            return {"LD_PRELOAD": libgomp}
+    return {}
+
+
 class UV_Mixin:
     """Mixin providing uv virtual-environment helpers for test classes."""
 

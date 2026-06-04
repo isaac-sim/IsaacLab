@@ -6,16 +6,20 @@
 """Script to run an environment with zero action agent."""
 
 import argparse
+import contextlib
 import sys
 
 import gymnasium as gym
 import torch
 
 import isaaclab_tasks  # noqa: F401
+
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
+from isaaclab.app import add_launcher_args, launch_simulation
+
 from isaaclab_tasks.utils import (
-    add_launcher_args,
     fold_preset_tokens,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )

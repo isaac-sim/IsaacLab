@@ -3,9 +3,16 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.
+Isaac Lab offers several lightweight visualizers for real-time simulation
+inspection and debugging. Unlike renderers that process sensor data,
+visualizers are meant for fast, interactive feedback.
 
-You can use any visualizer regardless of your chosen physics engine or rendering backend.
+Most visualizers can be combined with any physics engine or rendering backend.
+The exception is the Kit visualizer with kit-less OV backends:
+``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
+``ovrtx_renderer`` in the same process. Use ``--visualizer newton``,
+``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
+for headless execution.
 
 
 Overview
@@ -63,20 +70,20 @@ Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` ali
 .. code-block:: bash
 
     # Launch all visualizers (comma-delimited list, no spaces)
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz kit,newton,rerun
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --viz kit,newton,rerun
 
     # Launch only the Newton visualizer
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz newton
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --viz newton
 
     # Launch the Viser web-based visualizer
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz viser
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --viz viser
 
 
 To run in headless mode, omit the ``--viz`` argument:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole
 
 .. note::
 
@@ -190,16 +197,18 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
 Camera Modes
 ~~~~~~~~~~~~
 
+To configure camera modes, including launching a tiled camera view, edit the fields described below in the
+``VisualizerCfg`` config class.
+
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
 Kit and Newton visualizers can also run additional tiled camera image panels.
-If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
-a non-interactive tiled camera image view.
 
-Kit and Newton cap tiled camera views at 100 tiles.
+If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
+a non-interactive tiled camera image view. Number of tiles is capped at 100.
 
 Note, Kit tiled camera views require launching with ``--enable_cameras``.
 
-.. list-table:: Camera configuration modes
+.. list-table:: Camera Modes
    :header-rows: 1
    :widths: 24 30 46
 
@@ -215,6 +224,15 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
    * - Existing tiled camera sensors
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
      - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
+
+**How to Access the Tiled Camera View in the UI**
+
+- **Kit Visualizer:**
+  To display the tiled camera panel, select the "Visualizer Tiled Camera" viewport from the viewport selection menu.
+
+- **Newton Visualizer:**
+  To enable or disable the tiled camera panel, use the "Visualizer Tiled Camera" option found in the Tiled Camera View dropdown menu on the left sidebar.
+
 
 Video Recording
 ---------------
@@ -271,7 +289,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     "presets=newton_mjwarp,ovrtx_renderer,rgb"
+     physics=newton_mjwarp renderer=ovrtx_renderer presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
 
@@ -287,7 +305,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     "presets=physx,isaacsim_rtx_renderer,rgb"
+     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Kit video backend**
 
@@ -303,7 +321,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     "presets=physx,isaacsim_rtx_renderer,rgb"
+     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
 
 
 Visualizer Backends
@@ -572,7 +590,7 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --viz rerun --num_envs 512
 
 
 **Rerun Visualizer FPS Control**

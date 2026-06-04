@@ -20,7 +20,8 @@ import torch
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import make_clone_plan, sequential, usd_replicate
+from isaaclab.cloner import ClonePlan, make_clone_plan, sequential, usd_replicate
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches, resolve_clone_plan_source
 from isaaclab.sim import build_simulation_context
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -223,7 +224,7 @@ def test_clone_decorator_wildcard_patterns(
 
 def test_make_clone_plan_returns_flat_source_rows(sim):
     """make_clone_plan exposes the flat source-to-env mask used by scene cloning."""
-    plan = make_clone_plan(
+    sources, destinations, clone_mask = make_clone_plan(
         [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
         ["/World/envs/env_{}/Object"],
         num_clones=4,
@@ -231,10 +232,171 @@ def test_make_clone_plan_returns_flat_source_rows(sim):
         device=sim.cfg.device,
     )
 
-    assert plan.sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
-    assert plan.destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
-    assert plan.clone_mask.shape == (2, 4)
-    assert plan.clone_mask.dtype == torch.bool
-    assert torch.all(plan.clone_mask.sum(dim=0) == 1)
-    actual_source_idx = plan.clone_mask.to(torch.int).argmax(dim=0).cpu()
+    assert sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
+    assert destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
+    assert clone_mask.shape == (2, 4)
+    assert clone_mask.dtype == torch.bool
+    assert torch.all(clone_mask.sum(dim=0) == 1)
+    actual_source_idx = clone_mask.to(torch.int).argmax(dim=0).cpu()
     assert torch.equal(actual_source_idx, torch.tensor([0, 1, 0, 1]))
+
+
+def test_iter_clone_plan_matches(sim):
+    """ClonePlan entries can be matched by destination path expression."""
+    sources, destinations, clone_mask = make_clone_plan(
+        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
+        ["/World/envs/env_{}/Object"],
+        num_clones=4,
+        clone_strategy=sequential,
+        device=sim.cfg.device,
+    )
+    plan = ClonePlan(sources=sources, destinations=destinations, clone_mask=clone_mask)
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_0/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_0/Object/Body/Camera",
+            (0, 2),
+        ),
+        (
+            "/World/envs/env_1/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_1/Object/Body/Camera",
+            (1, 3),
+        ),
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_3/Object",),
+        destinations=("/World/envs/env_{}/Object",),
+        clone_mask=torch.tensor([[False, False, True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_3/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_3/Object/Body/Camera",
+            (2, 3),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/source/Object",),
+        destinations=("/World/scenes/{}/Object",),
+        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/source/Object",
+            "/World/scenes/{}/Object",
+            "/World/source/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/source",),
+        destinations=("/World/scenes/{}",),
+        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/source",
+            "/World/scenes/{}",
+            "/World/source/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_0", "/World/envs/env_0/Object"),
+        destinations=("/World/envs/env_{}", "/World/envs/env_{}/Object"),
+        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_0/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_0/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+
+def test_resolve_clone_plan_source_nested_templates_pick_most_specific(sim):
+    """A path owned by both an ancestor and a descendant template resolves to the descendant."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/ee_link/palm_link/Camera"),
+        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/ee_link/palm_link/Camera"),
+        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
+    )
+
+    # The camera path matches both templates; the more specific (longer-matching) one wins.
+    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot/ee_link/palm_link/Camera")
+
+    assert resolved == (
+        "/World/envs/env_0/Robot/ee_link/palm_link/Camera",
+        "/World/envs/env_*/Robot/ee_link/palm_link/Camera",
+        "",
+    )
+
+    # A path that only the ancestor template owns still resolves against it with its suffix.
+    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot/base")
+
+    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_*/Robot", "/base")
+
+
+def test_resolve_clone_plan_source_ambiguous_templates_raise(sim):
+    """Two distinct, equally specific templates owning a path remain a genuine ambiguity."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Robot"),
+        destinations=("/World/envs/{}/Robot", "/World/{}/env_0/Robot"),
+        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
+    )
+
+    with pytest.raises(ValueError, match="matches multiple destination templates"):
+        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot")
+
+
+def test_resolve_clone_plan_source_merges_same_template_rows(sim):
+    """Heterogeneous source rows sharing one template OR-merge their masks for the coverage check."""
+    # One logical asset cloned from two source variants onto the same destination template.
+    # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> envs (1, 3).
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
+        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]], device=sim.cfg.device),
+    )
+
+    # The union of both rows covers every env, so resolution succeeds and reports the first row's source.
+    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
+
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
+
+
+def test_resolve_clone_plan_source_partial_coverage_raises(sim):
+    """When the matching rows' merged mask misses an env, partial coverage is rejected."""
+    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
+        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
+    )
+
+    with pytest.raises(NotImplementedError, match="partial-env heterogeneous coverage"):
+        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")

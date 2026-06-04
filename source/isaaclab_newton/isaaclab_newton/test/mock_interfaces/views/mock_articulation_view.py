@@ -201,6 +201,7 @@ class MockNewtonArticulationView:
         num_instances: int = 1,
         num_bodies: int = 2,
         num_joints: int = 1,
+        num_tendons: int = 0,
         device: str = "cpu",
         is_fixed_base: bool = False,
         joint_names: list[str] | None = None,
@@ -220,6 +221,7 @@ class MockNewtonArticulationView:
         self._count = num_instances
         self._link_count = num_bodies
         self._joint_dof_count = num_joints
+        self._tendon_count = num_tendons
         self._device = device
         self._is_fixed_base = is_fixed_base
         self._noop_setters = False
@@ -295,6 +297,10 @@ class MockNewtonArticulationView:
     def link_names(self) -> list[str]:
         """Alias for body_names (Newton calls bodies 'links')."""
         return self._body_names
+
+    @property
+    def tendon_count(self):
+        return self._tendon_count
 
     @property
     def articulation_ids(self) -> wp.array:

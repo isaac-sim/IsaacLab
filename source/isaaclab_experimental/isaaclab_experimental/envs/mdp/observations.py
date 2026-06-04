@@ -27,8 +27,6 @@ from isaaclab_newton.kernels.state_kernels import (
     rotate_vec_to_body_frame,
 )
 
-from isaaclab.assets import Articulation
-
 from isaaclab_experimental.envs.utils.io_descriptors import (
     generic_io_descriptor_warp,
     record_dtype,
@@ -40,6 +38,7 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
 from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -168,7 +167,7 @@ def _projected_gravity_kernel(
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
     i = wp.tid()
-    g = rotate_vec_to_body_frame(gravity_w[0], root_pose_w[i])
+    g = rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])
     out[i, 0] = g[0]
     out[i, 1] = g[1]
     out[i, 2] = g[2]

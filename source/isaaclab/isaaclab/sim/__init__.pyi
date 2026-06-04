@@ -55,6 +55,7 @@ __all__ = [
     "NewtonMaterialPropertiesCfg",
     "NewtonMeshCollisionPropertiesCfg",
     "NewtonRigidBodyPropertiesCfg",
+    "NewtonSDFCollisionPropertiesCfg",
     "PhysxJointDrivePropertiesCfg",
     "PhysxRigidBodyPropertiesCfg",
     "RigidBodyBaseCfg",
@@ -159,6 +160,7 @@ __all__ = [
     "get_all_matching_child_prims",
     "find_first_matching_prim",
     "find_matching_prims",
+    "resolve_matching_prims_from_source",
     "find_matching_prim_paths",
     "find_global_fixed_joint_prim",
     "add_labels",
@@ -251,6 +253,7 @@ NewtonJointDrivePropertiesCfg = ...
 NewtonMaterialPropertiesCfg = ...
 NewtonMeshCollisionPropertiesCfg = ...
 NewtonRigidBodyPropertiesCfg = ...
+NewtonSDFCollisionPropertiesCfg = ...
 from .spawners import (
     SpawnerCfg,
     RigidObjectSpawnerCfg,
@@ -351,6 +354,7 @@ from .utils import (
     get_all_matching_child_prims,
     find_first_matching_prim,
     find_matching_prims,
+    resolve_matching_prims_from_source,
     find_matching_prim_paths,
     find_global_fixed_joint_prim,
     add_labels,

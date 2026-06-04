@@ -1,3 +1,37 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_teleop"
+version = "0.5.2"
+description = "Extension providing IsaacTeleop-based teleoperation device for Isaac Lab."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+keywords = ["kit", "robotics", "teleoperation", "xr", "isaaclab"]
+requires-python = ">=3.12"
+dependencies = [
+    # IsaacTeleop is only available on Linux x86_64
+    "isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
+    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
+]
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_teleop", "isaaclab_teleop.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi", "*.env"]

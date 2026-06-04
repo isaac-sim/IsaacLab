@@ -1,0 +1,135 @@
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+
+from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
+from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.contrib.pick_place.exhaustpipe_gr1t2_base_env_cfg import (
+    ExhaustPipeGR1T2BaseEnvCfg,
+)
+from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
+    _build_gr1t2_pickplace_pipeline,
+)
+
+
+@configclass
+class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.actions.gr1_action = PinkInverseKinematicsActionCfg(
+            pink_controlled_joint_names=[
+                "left_shoulder_pitch_joint",
+                "left_shoulder_roll_joint",
+                "left_shoulder_yaw_joint",
+                "left_elbow_pitch_joint",
+                "left_wrist_yaw_joint",
+                "left_wrist_roll_joint",
+                "left_wrist_pitch_joint",
+                "right_shoulder_pitch_joint",
+                "right_shoulder_roll_joint",
+                "right_shoulder_yaw_joint",
+                "right_elbow_pitch_joint",
+                "right_wrist_yaw_joint",
+                "right_wrist_roll_joint",
+                "right_wrist_pitch_joint",
+            ],
+            hand_joint_names=[
+                "L_index_proximal_joint",
+                "L_middle_proximal_joint",
+                "L_pinky_proximal_joint",
+                "L_ring_proximal_joint",
+                "L_thumb_proximal_yaw_joint",
+                "R_index_proximal_joint",
+                "R_middle_proximal_joint",
+                "R_pinky_proximal_joint",
+                "R_ring_proximal_joint",
+                "R_thumb_proximal_yaw_joint",
+                "L_index_intermediate_joint",
+                "L_middle_intermediate_joint",
+                "L_pinky_intermediate_joint",
+                "L_ring_intermediate_joint",
+                "L_thumb_proximal_pitch_joint",
+                "R_index_intermediate_joint",
+                "R_middle_intermediate_joint",
+                "R_pinky_intermediate_joint",
+                "R_ring_intermediate_joint",
+                "R_thumb_proximal_pitch_joint",
+                "L_thumb_distal_joint",
+                "R_thumb_distal_joint",
+            ],
+            target_eef_link_names={
+                "left_wrist": "left_hand_pitch_link",
+                "right_wrist": "right_hand_pitch_link",
+            },
+            # the robot in the sim scene we are controlling
+            asset_name="robot",
+            # Configuration for the IK controller
+            # The frames names are the ones present in the URDF file
+            # The urdf has to be generated from the USD that is being used in the scene
+            controller=PinkIKControllerCfg(
+                articulation_name="robot",
+                base_link_name="base_link",
+                num_hand_joints=22,
+                show_ik_warnings=False,
+                # Determines whether Pink IK solver will fail due to a joint limit violation
+                fail_on_joint_limit_violation=False,
+                variable_input_tasks=[
+                    FrameTaskCfg(
+                        frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                        position_cost=8.0,  # [cost] / [m]
+                        orientation_cost=1.0,  # [cost] / [rad]
+                        lm_damping=10,  # dampening for solver for step jumps
+                        gain=0.5,
+                    ),
+                    FrameTaskCfg(
+                        frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                        position_cost=8.0,  # [cost] / [m]
+                        orientation_cost=1.0,  # [cost] / [rad]
+                        lm_damping=10,  # dampening for solver for step jumps
+                        gain=0.5,
+                    ),
+                    DampingTaskCfg(
+                        cost=0.5,  # [cost] * [s] / [rad]
+                    ),
+                    NullSpacePostureTaskCfg(
+                        cost=0.2,
+                        lm_damping=1,
+                        controlled_frames=[
+                            "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                            "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                        ],
+                        controlled_joints=[
+                            "left_shoulder_pitch_joint",
+                            "left_shoulder_roll_joint",
+                            "left_shoulder_yaw_joint",
+                            "left_elbow_pitch_joint",
+                            "right_shoulder_pitch_joint",
+                            "right_shoulder_roll_joint",
+                            "right_shoulder_yaw_joint",
+                            "right_elbow_pitch_joint",
+                            "waist_yaw_joint",
+                            "waist_pitch_joint",
+                            "waist_roll_joint",
+                        ],
+                    ),
+                ],
+                fixed_input_tasks=[],
+            ),
+        )
+        # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
+        self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
+        self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
+
+        # IsaacTeleop-based teleoperation pipeline.
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )

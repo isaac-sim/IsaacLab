@@ -81,23 +81,9 @@ Limitations
 
     1.  Isaac-Ant-Direct-v0
     2.  Isaac-Ant-v0
-    3.  Isaac-Cartpole-Direct-v0
-    4.  Isaac-Cartpole-Showcase-Box-Box-Direct-v0
-    5.  Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
-    6.  Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
-    7.  Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
-    8.  Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
-    9.  Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
-    10. Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
-    11. Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
-    12. Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
-    13. Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
-    14. Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
-    15. Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
-    16. Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
-    17. Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
-    18. Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
-    19. Isaac-Cartpole-v0
+    3.  Isaac-Cartpole-Direct
+    4.  Isaac-Cartpole-Showcase-Direct
+    5.  Isaac-Cartpole
     20. Isaac-Factory-GearMesh-Direct-v0
     21. Isaac-Factory-NutThread-Direct-v0
     22. Isaac-Factory-PegInsert-Direct-v0

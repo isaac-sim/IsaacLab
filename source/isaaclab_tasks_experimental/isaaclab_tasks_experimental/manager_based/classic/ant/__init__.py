@@ -10,7 +10,7 @@ Ant locomotion environment (experimental manager-based entry point).
 import gymnasium as gym
 
 # Reuse agent configs from the stable task package.
-from isaaclab_tasks.manager_based.classic.ant import agents
+from isaaclab_tasks.core.manager_ant import agents
 
 ##
 # Register Gym environments.

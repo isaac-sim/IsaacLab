@@ -31,6 +31,7 @@ renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render
 app.useFabricSceneDelegate = true
 # Temporary, should be enabled by default in Kit soon
 rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+renderer.scenePartitioning.enabled = true # Enable before RTX initialization so env-root partitions are honored
 
 # xr optimizations
 xr.skipInputDeviceUSDWrites = true

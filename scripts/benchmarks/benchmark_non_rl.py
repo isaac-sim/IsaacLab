@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
 import os
 import sys
 import time
@@ -84,7 +85,13 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+
+# PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
+from isaaclab.app import launch_simulation
+
+from isaaclab_tasks.utils import resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 

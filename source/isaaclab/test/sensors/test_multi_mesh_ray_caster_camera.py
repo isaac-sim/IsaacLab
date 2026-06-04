@@ -465,6 +465,7 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
     sim_utils.create_prim("/World/envs", "Xform", stage=stage)
     for env_id, origin in enumerate(env_origins.cpu().tolist()):
         sim_utils.create_prim(env_fmt.format(env_id), "Xform", translation=tuple(origin), stage=stage)
+        sim_utils.create_prim(env_fmt.format(env_id) + "/RayCasterCamera", "Xform", stage=stage)
 
     robot_mask = torch.zeros((2, num_envs), dtype=torch.bool, device=sim.device)
     robot_mask[0, 0::2] = True

@@ -183,7 +183,10 @@ def body_projected_gravity_b(
     asset: Articulation = env.scene[asset_cfg.name]
 
     body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids]
-    gravity_dir = asset.data.GRAVITY_VEC_W.torch.unsqueeze(1)
+    # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
+    # backend) or scene-wide gravity (PhysX backend).
+    gravity_w = asset.data.GRAVITY_VEC_W.torch
+    gravity_dir = torch.nn.functional.normalize(gravity_w, dim=-1).unsqueeze(1)
     return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
@@ -384,6 +387,7 @@ def image(
     data_type: str = "rgb",
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
+    permute: bool = False,
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -401,7 +405,7 @@ def image(
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
-
+        permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
     Returns:
         The images produced at the last time-step
     """
@@ -425,6 +429,9 @@ def image(
             images[images == float("inf")] = 0
         elif "normals" in data_type:
             images = (images + 1.0) * 0.5
+
+    if permute:
+        images = images.permute(0, 3, 1, 2)
 
     return images.clone()
 

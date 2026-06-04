@@ -6,12 +6,13 @@
 __all__ = [
     "CloneCfg",
     "ClonePlan",
-    "random",
-    "sequential",
     "disabled_fabric_change_notifies",
     "filter_collisions",
     "grid_transforms",
     "make_clone_plan",
+    "random",
+    "resolve_clone_plan_source",
+    "sequential",
     "usd_replicate",
 ]
 
@@ -23,5 +24,6 @@ from .cloner_utils import (
     filter_collisions,
     grid_transforms,
     make_clone_plan,
+    resolve_clone_plan_source,
     usd_replicate,
 )

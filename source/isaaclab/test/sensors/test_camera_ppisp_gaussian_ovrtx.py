@@ -33,7 +33,7 @@ Notes:
     same RTX hydra libraries (``librtx.hydra.so``, ``liblegacy.hydra.so``)
     under conflicting USD namespaces; loading both into the same process
     causes a dynamic-linker crash. See
-    :func:`isaaclab_tasks.utils.sim_launcher.launch_simulation` for the
+    :func:`isaaclab.app.sim_launcher.launch_simulation` for the
     documented incompatibility.
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.

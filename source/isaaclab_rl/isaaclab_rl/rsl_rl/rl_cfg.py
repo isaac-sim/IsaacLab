@@ -114,8 +114,9 @@ class RslRlRNNModelCfg(RslRlMLPModelCfg):
 class RslRlCNNModelCfg(RslRlMLPModelCfg):
     """Configuration for CNN model."""
 
-    class_name: str = "CNNModel"
-    """The model class name. Defaults to CNNModel."""
+    class_name: str = "isaaclab_rl.rsl_rl.models:CNNModel"
+    """The model class name. Defaults to Isaac Lab's :class:`~isaaclab_rl.rsl_rl.models.CNNModel`.
+    """
 
     @configclass
     class CNNCfg:

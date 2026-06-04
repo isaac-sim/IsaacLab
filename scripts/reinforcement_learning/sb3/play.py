@@ -10,7 +10,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/sb3/play.py is deprecated. Use "
     "`./isaaclab.sh play --rl_library sb3 --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )
@@ -28,6 +28,7 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
@@ -37,10 +38,8 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
     fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
