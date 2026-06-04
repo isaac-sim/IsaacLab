@@ -46,14 +46,30 @@ import isaaclab.sim as sim_utils
 ##
 # Pre-defined configs
 ##
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsCfg
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
+from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+
+_SHADOW_HAND_NEWTON_MJWARP_CFG = ShadowHandRobotCfg().newton_mjwarp
+SHADOW_HAND_NEWTON_MJWARP_CFG = _SHADOW_HAND_NEWTON_MJWARP_CFG.replace(
+    actuators={
+        "fingers": _SHADOW_HAND_NEWTON_MJWARP_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
+        "distal_passive": ImplicitActuatorCfg(
+            joint_names_expr=["robot0_(FF|MF|RF)J4", "robot0_LFJ5"],
+            stiffness=10.0,
+            damping=0.1,
+            friction=1e-2,
+            armature=2e-3,
+        ),
+    },
+)
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -93,7 +109,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 2 with Shadow Hand
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    shadow_hand_cfg = SHADOW_HAND_CFG.replace(prim_path="/World/Origin2/Robot")
+    shadow_hand_cfg = SHADOW_HAND_NEWTON_MJWARP_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_CFG
+    shadow_hand_cfg = shadow_hand_cfg.replace(prim_path="/World/Origin2/Robot")
     shadow_hand = shadow_hand_cfg.class_type(shadow_hand_cfg)
 
     # return the scene information
@@ -176,7 +193,7 @@ def main():
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
-        sim.set_camera_view(eye=[0.0, -0.35, 1.1], target=[0.0, -0.05, 0.45])
+        sim.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.05, 0.45])
         # design scene
         scene_entities, scene_origins = design_scene()
         scene_origins = torch.tensor(scene_origins, device=sim.device)
