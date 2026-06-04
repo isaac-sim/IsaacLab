@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import enum
 import logging
 
@@ -74,16 +75,18 @@ class FabricFrameView(BaseFrameView):
       USD ``xformOp:*`` attributes are unchanged.  Downstream consumers that
       read the prim's USD attributes after a Fabric write will see stale
       values until the next USD-side sync.
-    * **World ↔ local consistency (lazy).**  Getters are lazy: after
-      ``set_world_poses`` or ``set_world_scales``, local matrices are only
-      recomputed when ``get_local_poses`` (or ``get_local_scales``) is called;
-      after ``set_local_poses`` or ``set_local_scales``, world matrices are
-      only recomputed when ``get_world_poses`` (or ``get_world_scales``) is
-      called.  Both directions stay in sync without round-tripping through USD.
+    * **World ↔ local consistency.**  Getters are lazy after world writes:
+      ``set_world_poses`` or ``set_world_scales`` recompute local matrices only
+      when ``get_local_poses`` (or ``get_local_scales``) is called.  Local
+      writes update renderer-facing ``omni:fabric:worldMatrix`` eagerly so
+      Fabric render delegates see the new pose/scale without requiring an Isaac
+      Lab world getter.  Wrap multiple local writes in :meth:`change_block` to
+      defer this local→world recompute until the outermost block exits.
     * **Dirty-flag invariant.**  The ``_dirty`` enum is one of ``NONE``,
       ``WORLD``, or ``LOCAL`` -- mutually exclusive by construction.
       ``set_world_poses`` / ``set_world_scales`` sets ``_dirty = LOCAL``;
-      ``set_local_poses`` / ``set_local_scales`` sets ``_dirty = WORLD``.
+      ``set_local_poses`` / ``set_local_scales`` flushes local→world
+      immediately unless a :meth:`change_block` is active.
       If the user interleaves both setters on the same view within a single
       frame, the second setter flushes the first's stale data before writing.
       This is correct but incurs an extra kernel launch -- a one-time warning
@@ -149,6 +152,7 @@ class FabricFrameView(BaseFrameView):
         # Per-view (not per-stage) so concurrent views on the same stage don't interfere.
         self._dirty: _DirtyFlag = _DirtyFlag.NONE
         self._warned_interleaved_set: bool = False
+        self._change_block_depth: int = 0
 
         # Selection (single RW covering both world + local matrix).
         self._sel = None
@@ -178,6 +182,33 @@ class FabricFrameView(BaseFrameView):
     def device(self) -> str:
         """Device where arrays are allocated (cpu or cuda)."""
         return self._device
+
+    @contextlib.contextmanager
+    def change_block(self):
+        """Batch Fabric writes and flush derived matrices on outermost exit.
+
+        Local pose/scale setters normally update cached Fabric world matrices
+        immediately for renderer/FSD consumers.  Use this block when applying
+        several local edits to the same view so the local→world recompute runs
+        once after the final edit.
+        """
+        self._change_block_depth += 1
+        try:
+            yield self
+        finally:
+            self._change_block_depth -= 1
+            if self._change_block_depth == 0:
+                self._flush_deferred_local_writes()
+
+    def changeBlock(self):
+        """Alias for :meth:`change_block`."""
+        return self.change_block()
+
+    def _flush_deferred_local_writes(self) -> None:
+        """Flush pending local→world recompute unless still inside a change block."""
+        if self._change_block_depth > 0:
+            return
+        self._sync_world_from_local_if_dirty()
 
     @property
     def prims(self) -> list:
@@ -338,8 +369,11 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
-        # Mark this view's worlds stale so the next world read recomputes them.
+        # Keep renderer-facing world matrices current.  Inside change_block(),
+        # defer the recompute until the outermost block exits so pose+scale
+        # edits only pay one local→world kernel launch.
         self._dirty = _DirtyFlag.WORLD
+        self._flush_deferred_local_writes()
 
     def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Return (translations, orientations) in parent-local frame.
@@ -503,8 +537,11 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
-        # Local was just written -- mark world poses as stale.
+        # Keep renderer-facing world matrices current.  Inside change_block(),
+        # defer the recompute until the outermost block exits so pose+scale
+        # edits only pay one local→world kernel launch.
         self._dirty = _DirtyFlag.WORLD
+        self._flush_deferred_local_writes()
 
     def get_local_scales(self, indices=None):
         """Return per-prim (sx, sy, sz) scales extracted from local matrix.

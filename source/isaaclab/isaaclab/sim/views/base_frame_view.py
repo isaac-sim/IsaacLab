@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import abc
+import contextlib
 import warnings
 
 import warp as wp
@@ -37,6 +38,21 @@ class BaseFrameView(abc.ABC):
     def device(self) -> str:
         """Device where arrays are allocated (``"cpu"`` or ``"cuda:0"``)."""
         ...
+
+
+    @contextlib.contextmanager
+    def change_block(self):
+        """Batch multiple transform writes into one logical change.
+
+        Backends may use this context to defer expensive derived-state updates
+        until the outermost block exits.  The default implementation is a no-op
+        so callers can use it with every FrameView backend.
+        """
+        yield self
+
+    def changeBlock(self):
+        """Alias for :meth:`change_block`."""
+        return self.change_block()
 
     @abc.abstractmethod
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
