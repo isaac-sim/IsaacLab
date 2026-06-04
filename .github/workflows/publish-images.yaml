@@ -6,25 +6,60 @@
 name: Publish Docker Images
 
 on:
-  # Daily build + publish from develop tip (latest-develop tags).
-  # No push triggers — use workflow_dispatch to publish main or release images on demand.
+  # Nightly build + publish from develop, main, and the active release branches
+  # listed in CRON_RELEASE_BRANCHES below. No push triggers — workflow_dispatch
+  # also accepts any publishable branch.
   schedule:
     - cron: '0 3 * * *'  # 7pm PST / 8pm PDT
-  # Manual trigger.
   workflow_dispatch:
-
-# Concurrency control to prevent parallel runs
-concurrency:
-  group: publish-images-${{ github.ref }}
-  cancel-in-progress: true
+    inputs:
+      branch:
+        description: 'Branch to build and publish (e.g. develop, release/3.0.0-beta2, main)'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+# Active release branches the nightly cron publishes, alongside develop and main.
+# Single source of truth — append a ref here when a new release/* is cut and drop
+# it once that release is retired, so stale release branches aren't rebuilt nightly.
+# Mirrors CRON_BRANCHES in nightly-changelog.yml. Whitespace per entry is stripped.
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  CRON_RELEASE_BRANCHES: release/3.0.0-beta2
 
 jobs:
+  resolve-branches:
+    name: Resolve publish branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      branches: ${{ steps.b.outputs.branches }}
+    steps:
+    - id: b
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        MANUAL_BRANCH: ${{ inputs.branch }}
+        RELEASE_BRANCHES: ${{ env.CRON_RELEASE_BRANCHES }}
+      run: |
+        if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          # Manual trigger: build exactly the one branch the maintainer entered.
+          arr=$(echo "$MANUAL_BRANCH" | jq -R . | jq -s -c .)
+        else
+          # Schedule: develop + main + the configured active release branches.
+          # CSV → newline, trimming surrounding whitespace per entry.
+          releases=$(echo "$RELEASE_BRANCHES" | tr ',' '\n' | xargs -n1 || true)
+          branches=$( { echo develop; echo main; echo "$releases"; } | sed '/^$/d' | sort -u )
+          arr=$(echo "$branches" | jq -R . | jq -s -c .)
+        fi
+        if [ "$(echo "$arr" | jq 'length')" -eq 0 ]; then
+          echo "::error::No branches resolved for publishing"
+          exit 1
+        fi
+        echo "branches=$arr" >> "$GITHUB_OUTPUT"
+        echo "Resolved branches: $arr"
+
   config:
     name: Load Config
     runs-on: ubuntu-latest
@@ -47,9 +82,17 @@ jobs:
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
 
   build-and-push-images:
-    needs: [config]
+    name: Build and Push (${{ matrix.branch }})
+    needs: [config, resolve-branches]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
+    concurrency:
+      group: publish-images-${{ matrix.branch }}
+      cancel-in-progress: true
     environment:
       name: postmerge-production
       url: https://github.com/${{ github.repository }}
@@ -63,8 +106,7 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
-        # On schedule, always build from the develop tip regardless of which ref the cron defaults to.
-        ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+        ref: ${{ matrix.branch }}
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -94,9 +136,7 @@ jobs:
 
     - name: Build and Push Docker Images
       run: |
-        # Schedule runs check out develop (see Checkout step) but github.ref_name still resolves
-        # to the default branch; mirror the override so tagging matches the code.
-        BRANCH_NAME="${{ github.event_name == 'schedule' && 'develop' || github.ref_name }}"
+        BRANCH_NAME="${{ matrix.branch }}"
         IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
         SHA="${{ github.sha }}"
         IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
@@ -109,11 +149,11 @@ jobs:
         # Build the list of tags based on the branch.
         #
         # Tagging scheme:
-        #   - Push to develop:    $IMAGE:latest-develop                          (moves to newest develop build)
+        #   - develop:            $IMAGE:latest-develop                          (moves to newest develop build)
         #                         $IMAGE:latest-develop-<run#>-<sha-stub>        (immutable per-build)
-        #   - Push to release/X:  $IMAGE:latest-release-X                        (moves to newest build on that release branch)
+        #   - release/X:          $IMAGE:latest-release-X                        (moves to newest build on that release branch)
         #                         $IMAGE:latest-release-X-<run#>-<sha-stub>      (immutable per-build)
-        #   - Push to main:       $IMAGE:latest                                  (moves to newest main build)
+        #   - main:               $IMAGE:latest                                  (moves to newest main build)
         #                         $IMAGE:v<VERSION>                              (from the VERSION file, e.g. v3.0.0)
         TAGS=()
 
