@@ -160,8 +160,6 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._simulation_view: omni.physics.tensors.SimulationView | None = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
         self._scene_data = SceneDataFormat.Transform()
-        self._interactive_scene: Any | None = None
-        self._articulation_body_paths: list[str] = []
 
     @property
     def simulation_view(self) -> omni.physics.tensors.SimulationView | None:
@@ -172,48 +170,13 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._simulation_view = simulation_view
         self._rigid_body_view = None
 
-    def set_interactive_scene(self, scene: Any) -> None:
-        """Attach the active scene so articulation link transforms can be read from asset views."""
-        self._interactive_scene = scene
-        self._rigid_body_view = None
-        self._articulation_body_paths = []
-
-    def _get_articulation_body_paths(self) -> set[str]:
-        """Return body prim paths owned by scene articulations."""
-        if self._interactive_scene is None:
-            self._articulation_body_paths = []
-            return set()
-
-        articulation_paths: list[str] = []
-        for articulation in getattr(self._interactive_scene, "articulations", {}).values():
-            root_paths = list(getattr(articulation.root_view, "prim_paths", []))
-            body_names = list(getattr(articulation, "body_names", []))
-            for root_path in root_paths:
-                asset_root_path = root_path.rsplit("/", 1)[0]
-                articulation_paths.extend(f"{asset_root_path}/{body_name}" for body_name in body_names)
-
-        self._articulation_body_paths = articulation_paths
-        return set(articulation_paths)
-
-    def _get_articulation_transforms(self) -> wp.array | None:
-        """Return flattened articulation link transforms from scene-owned articulation assets."""
-        if self._interactive_scene is None:
-            return None
-
-        transform_tensors = []
-        for articulation in getattr(self._interactive_scene, "articulations", {}).values():
-            transform_tensors.append(wp.to_torch(articulation.data.body_link_pose_w.warp).reshape(-1, 7))
-
-        if not transform_tensors:
-            return None
-        return wp.from_torch(torch.cat(transform_tensors, dim=0).contiguous(), dtype=wp.transformf)
-
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
 
-        Discovers rigid body prims by traversing the USD stage and converts
-        per-environment paths (``/World/envs/env_N/...``) into wildcard
-        patterns so a single PhysX view covers every environment instance.
+        Discovers exact rigid body prims by traversing USD, then compacts cloned
+        environment paths into wildcard patterns. If a rigid body name is also
+        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
+        the wildcard to the non-rigid prim.
         """
         if self._rigid_body_view is not None:
             return self._rigid_body_view
@@ -225,51 +188,51 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return None
 
-        patterns: set[str] = set()
-        articulation_body_paths = self._get_articulation_body_paths()
+        rigid_body_paths: list[str] = []
+        non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
             prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and prim_path not in articulation_body_paths:
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                rigid_body_paths.append(prim_path)
+            elif re.search(r"/World/envs/env_\d+/", prim_path):
+                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
+
+        patterns: set[str] = set()
+        exact_paths: list[str] = []
+        for prim_path in rigid_body_paths:
+            body_name = prim_path.rsplit("/", 1)[-1]
+            if body_name in non_rigid_body_names:
+                exact_paths.append(prim_path)
+            else:
                 patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
 
-        if not patterns:
+        body_paths = [*sorted(patterns), *exact_paths]
+        if not body_paths:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(list(patterns))
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
-        transform_tensors = []
-        articulation_transforms = self._get_articulation_transforms()
-        if articulation_transforms is not None:
-            transform_tensors.append(wp.to_torch(articulation_transforms).reshape(-1, 7))
         if view := self.get_rigid_body_view():
-            transform_tensors.append(wp.to_torch(view.get_transforms().view(wp.transformf)).reshape(-1, 7))
-        if transform_tensors:
-            self._scene_data.transforms = wp.from_torch(
-                torch.cat(transform_tensors, dim=0).contiguous(), dtype=wp.transformf
-            )
+            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
         return self._scene_data
 
     @property
     def transform_count(self) -> int:
         """Return the number of rigid body transforms in the PhysX sim."""
-        self._get_articulation_body_paths()
-        count = len(self._articulation_body_paths)
         if view := self.get_rigid_body_view():
-            count += view.count
-        return count
+            return view.count
+        return 0
 
     @property
     def transform_paths(self) -> list[str]:
         """Return the prim paths for each rigid body transform."""
-        self._get_articulation_body_paths()
-        transform_paths = list(self._articulation_body_paths)
         if view := self.get_rigid_body_view():
-            transform_paths.extend(list(view.prim_paths))
-        return transform_paths
+            return list(view.prim_paths)
+        return []
 
 
 class PhysxManager(PhysicsManager):

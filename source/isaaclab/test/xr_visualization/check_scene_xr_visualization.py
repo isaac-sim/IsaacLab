@@ -9,7 +9,7 @@ This script checks if the XR visualization widgets are visible from the camera.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/visualization/check_scene_visualization.py
+    ./isaaclab.sh -p source/isaaclab/test/xr_visualization/check_scene_xr_visualization.py
 
 """
 
