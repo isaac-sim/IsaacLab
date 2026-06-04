@@ -242,7 +242,9 @@ class NewtonSiteFrameView(BaseFrameView):
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         use_clone_body_pattern = model is None
-        specs: list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]] = []
+        specs: list[
+            tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]
+        ] = []
 
         for path_expr in self._prim_paths:
             if resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
