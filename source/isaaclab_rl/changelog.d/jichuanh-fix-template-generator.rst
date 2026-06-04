@@ -6,3 +6,5 @@ Fixed
 * Fixed generated manager-based projects aborting Kit startup with ``TfNotice ... has not been
   created yet`` because the env config loaded ``pxr`` before ``launch_simulation``.
 * Fixed the template generator silently skipping a missing agent-config template instead of raising.
+* Fixed generated internal tasks failing to register because the generator did not create the
+  ``direct``/``manager_based`` workflow package ``__init__.py`` they are placed under.

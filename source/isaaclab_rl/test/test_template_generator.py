@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import pkgutil
 import subprocess
 import sys
 import textwrap
@@ -505,4 +506,35 @@ def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_pat
     result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
     assert result.returncode == 0, (
         f"generated env config eagerly pulled omni/pxr:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    )
+
+
+def test_generated_internal_task_workflow_dirs_are_importable_packages(tmp_path, monkeypatch):
+    """An internal task must register out of the box: its workflow dirs must be importable packages.
+
+    After the core/contrib split (#5891), ``isaaclab_tasks/{direct,manager_based}/`` are namespace dirs
+    with no ``__init__.py``. ``import_packages`` uses ``pkgutil.iter_modules``, which skips namespace
+    packages, so a generated internal task placed under them would never be discovered/registered. The
+    generator must therefore create the per-workflow ``__init__.py``.
+    """
+    tasks_dir = tmp_path / "isaaclab_tasks"
+    tasks_dir.mkdir()
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    monkeypatch.setattr(generator, "TASKS_DIR", str(tasks_dir))
+    generate(
+        {
+            "external": False,
+            "name": "template_internal_reg",
+            "workflows": [
+                {"name": "manager-based", "type": "single-agent"},
+                {"name": "direct", "type": "single-agent"},
+            ],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo"]}],
+        }
+    )
+    # pkgutil.iter_modules (what import_packages walks) lists a directory only if it is a regular package
+    discovered = {info.name for info in pkgutil.iter_modules([str(tasks_dir)]) if info.ispkg}
+    assert {"direct", "manager_based"} <= discovered, (
+        "generated internal task workflow dirs are not importable packages, so import_packages would"
+        f" skip them and the task would never register; discovered packages: {sorted(discovered)}"
     )
