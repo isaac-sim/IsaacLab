@@ -23,7 +23,7 @@ EXTRAS_REQUIRE = {
         "av>=12.3.0",
         "numpydantic>=1.7.0",
         "albumentations>=1.4.18",
-        "decord>=0.6.0",
+        "decord2",
         "dm_tree>=0.1.8",
         "diffusers>=0.35.0",
         "timm>=1.0.14",

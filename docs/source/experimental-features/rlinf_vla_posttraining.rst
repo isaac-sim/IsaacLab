@@ -117,21 +117,6 @@ The training and evaluation commands below work unchanged.
 
 .. _rlinf-decord-aarch64:
 
-Building decord on DGX Spark / aarch64
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``decord`` package only publishes pre-built wheels for ``manylinux2010_x86_64``
-and ``win_amd64``, so installation fails on aarch64 hosts (e.g. DGX Spark / Grace).
-Build decord from source **before** Step 1:
-
-.. code-block:: bash
-
-   git clone --recursive https://github.com/jasontitus/decord
-   cd decord && mkdir -p build && cd build
-   cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
-   make -j$(nproc)
-   cd ../python && pip install -e .
-
 Then preload the OpenMP library so it can be loaded into the Python process
 (see the IsaacLab `pip installation guide
 <https://isaac-sim.github.io/IsaacLab/release/3.0.0-beta2/source/setup/installation/pip_installation.html#installing-dependencies>`_):
@@ -140,8 +125,6 @@ Then preload the OpenMP library so it can be loaded into the Python process
 
    unset LD_PRELOAD
    export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
-
-Now re-run Step 1; the resolver will see the locally-installed decord and stop trying to fetch a wheel.
 
 
 Quick Start
