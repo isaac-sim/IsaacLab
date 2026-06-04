@@ -148,6 +148,7 @@ def benchmark_frame_view(  # noqa: C901
     try:
         # -- Warmup --------------------------------------------------------
         xform_view.get_world_poses()
+        xform_view.get_world_scales()
 
         # -- get_world_poses -----------------------------------------------
         if is_newton:
@@ -221,6 +222,70 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["local_translations_after_set"] = to_torch(ta).clone()
         computed_results["local_orientations_after_set"] = to_torch(ola).clone()
 
+        # -- get_world_scales ----------------------------------------------
+        if is_newton:
+            torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            world_scales = xform_view.get_world_scales()
+        if is_newton:
+            torch.cuda.synchronize()
+        timing_results["get_world_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        world_scales_t = to_torch(world_scales)
+        computed_results["initial_world_scales"] = world_scales_t.clone()
+
+        # -- set_world_scales ----------------------------------------------
+        if is_newton:
+            new_world_scales = wp.clone(world_scales.warp)
+            wp.to_torch(new_world_scales)[:] = 1.1
+        else:
+            new_world_scales = world_scales_t.clone()
+            new_world_scales[:] = 1.1
+
+        if is_newton:
+            torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            xform_view.set_world_scales(new_world_scales)
+        if is_newton:
+            torch.cuda.synchronize()
+        timing_results["set_world_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        computed_results["world_scales_after_set"] = to_torch(xform_view.get_world_scales()).clone()
+
+        # -- get_local_scales ----------------------------------------------
+        if is_newton:
+            torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            local_scales = xform_view.get_local_scales()
+        if is_newton:
+            torch.cuda.synchronize()
+        timing_results["get_local_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        local_scales_t = to_torch(local_scales)
+        computed_results["initial_local_scales"] = local_scales_t.clone()
+
+        # -- set_local_scales ----------------------------------------------
+        if is_newton:
+            new_local_scales = wp.clone(local_scales.warp)
+            wp.to_torch(new_local_scales)[:] = 0.9
+        else:
+            new_local_scales = local_scales_t.clone()
+            new_local_scales[:] = 0.9
+
+        if is_newton:
+            torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            xform_view.set_local_scales(new_local_scales)
+        if is_newton:
+            torch.cuda.synchronize()
+        timing_results["set_local_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        computed_results["local_scales_after_set"] = to_torch(xform_view.get_local_scales()).clone()
+
         # -- get_both (world + local) --------------------------------------
         if is_newton:
             torch.cuda.synchronize()
@@ -277,6 +342,10 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         ("Set World Poses", "set_world_poses"),
         ("Get Local Poses", "get_local_poses"),
         ("Set Local Poses", "set_local_poses"),
+        ("Get World Scales", "get_world_scales"),
+        ("Set World Scales", "set_world_scales"),
+        ("Get Local Scales", "get_local_scales"),
+        ("Set Local Scales", "set_local_scales"),
         ("Get Both (World+Local)", "get_both"),
         ("Interleaved World Set->Get", "interleaved_world_set_get"),
     ]
