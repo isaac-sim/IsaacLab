@@ -14,6 +14,8 @@ The following configurations are available:
 Reference: https://github.com/frankaemika/franka_ros
 """
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -27,10 +29,12 @@ FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                max_depenetration_velocity=5.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
         ),
@@ -76,7 +80,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
 
 
 FRANKA_PANDA_HIGH_PD_CFG = FRANKA_PANDA_CFG.copy()
-FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+next(f for f in FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].damping = 80.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].stiffness = 400.0
@@ -90,7 +94,7 @@ This configuration is useful for task-space control using differential IK.
 FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_CFG.copy()
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
-FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
+next(f for f in FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos = {
     "panda_joint1": 0.0,
     "panda_joint2": -0.569,

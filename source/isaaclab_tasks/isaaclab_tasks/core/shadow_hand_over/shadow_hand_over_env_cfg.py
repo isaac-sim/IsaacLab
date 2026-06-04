@@ -5,6 +5,7 @@
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -199,16 +200,18 @@ class ObjectCfg(PresetCfg):
             radius=0.0335,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
             physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=8,
+                    solver_velocity_iteration_count=0,
+                    sleep_threshold=0.005,
+                    stabilization_threshold=0.0025,
+                    max_depenetration_velocity=1000.0,
+                ),
+            ],
             collision_props=sim_utils.CollisionPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(density=500.0),
         ),
@@ -219,11 +222,13 @@ class ObjectCfg(PresetCfg):
         spawn=sim_utils.SphereCfg(
             radius=0.0335,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                    enable_gyroscopic_forces=True,
+                ),
+            ],
             collision_props=sim_utils.CollisionPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(density=500.0),
         ),

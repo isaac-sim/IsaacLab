@@ -21,6 +21,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -94,9 +95,11 @@ CUBE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Cube",
     spawn=sim_utils.CuboidCfg(
         size=(0.5, 0.5, 0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(
             collision_enabled=True,
         ),
@@ -113,9 +116,11 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
     prim_path="/World/Objects/Sphere",
     spawn=sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(
             collision_enabled=True,
         ),
@@ -134,9 +139,11 @@ CYLINDER_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.01,
         axis="Y",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(
             collision_enabled=True,
         ),
@@ -155,9 +162,11 @@ CAPSULE_CFG = ContactSensorRigidObjectCfg(
         radius=0.25,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(
             collision_enabled=True,
         ),
@@ -176,9 +185,11 @@ CONE_CFG = ContactSensorRigidObjectCfg(
         radius=0.5,
         height=0.5,
         axis="Z",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(
             collision_enabled=True,
         ),

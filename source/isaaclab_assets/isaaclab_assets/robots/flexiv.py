@@ -14,6 +14,8 @@ The following configurations are available:
 Reference: https://www.flexiv.com/product/rizon
 """
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -26,10 +28,12 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 FLEXIV_RIZON4S_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=True,
+                max_depenetration_velocity=5.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=16,
@@ -86,10 +90,12 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
 FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s_with_grav.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                max_depenetration_velocity=5.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=16,

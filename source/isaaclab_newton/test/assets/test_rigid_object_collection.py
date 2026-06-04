@@ -92,7 +92,7 @@ def generate_cubes_scene(
     if has_api:
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled)],
         )
     else:
         # since no rigid body properties defined, this is just a static collider

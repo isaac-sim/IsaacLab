@@ -23,6 +23,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -225,7 +226,10 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, enable_ri
     if enable_rigid_body_gravity:
         cfg = cfg.replace(
             spawn=cfg.spawn.replace(
-                rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+                rigid_props=[
+                    f.replace(disable_gravity=False) if isinstance(f, PhysxRigidBodyCfg) else f
+                    for f in cfg.spawn.rigid_props
+                ],
             ),
         )
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
@@ -2527,7 +2531,10 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
     cfg = cfg.replace(
         spawn=cfg.spawn.replace(
-            rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+            rigid_props=[
+                f.replace(disable_gravity=False) if isinstance(f, PhysxRigidBodyCfg) else f
+                for f in cfg.spawn.rigid_props
+            ],
         ),
     )
 

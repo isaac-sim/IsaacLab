@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -133,9 +134,10 @@ def test_spawn_cone_with_rigid_props(sim):
     cfg = sim_utils.ConeCfg(
         radius=1.0,
         height=2.0,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True, solver_position_iteration_count=8, sleep_threshold=0.1
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1),
+        ],
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -144,12 +146,12 @@ def test_spawn_cone_with_rigid_props(sim):
     assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Cone")
-    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == cfg.rigid_props.rigid_body_enabled
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == cfg.rigid_props[0].rigid_body_enabled
     assert (
         prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get()
-        == cfg.rigid_props.solver_position_iteration_count
+        == cfg.rigid_props[1].solver_position_iteration_count
     )
-    assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(cfg.rigid_props.sleep_threshold)
+    assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(cfg.rigid_props[1].sleep_threshold)
 
 
 def test_spawn_cone_with_rigid_and_mass_props(sim):
@@ -157,9 +159,10 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
     cfg = sim_utils.ConeCfg(
         radius=1.0,
         height=2.0,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True, solver_position_iteration_count=8, sleep_threshold=0.1
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1),
+        ],
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     )
     prim = cfg.func("/World/Cone", cfg)
@@ -188,9 +191,10 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
     cfg = sim_utils.ConeCfg(
         radius=1.0,
         height=2.0,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True, solver_position_iteration_count=8, sleep_threshold=0.1
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1),
+        ],
         mass_props=sim_utils.MassPropertiesCfg(density=10.0),
         collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
     )
@@ -215,7 +219,7 @@ def test_spawn_cone_with_all_props(sim):
         radius=1.0,
         height=2.0,
         mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialCfg(),
@@ -275,7 +279,7 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
         radius=1.0,
         height=2.0,
         mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialCfg(),

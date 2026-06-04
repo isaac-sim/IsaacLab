@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -44,16 +45,18 @@ class InHandObjectSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=8,
+                    solver_velocity_iteration_count=0,
+                    sleep_threshold=0.005,
+                    stabilization_threshold=0.0025,
+                    max_depenetration_velocity=1000.0,
+                ),
+            ],
             mass_props=sim_utils.MassPropertiesCfg(density=400.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.19, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),

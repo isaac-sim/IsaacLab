@@ -12,6 +12,8 @@ The following configuration parameters are available:
 
 """
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -26,10 +28,12 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Galbot/galbot_one_charlie/galbot_one_charlie.usd",
         variants={"Physics": "PhysX"},
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=True,
+                max_depenetration_velocity=5.0,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         activate_contact_sensors=True,
     ),

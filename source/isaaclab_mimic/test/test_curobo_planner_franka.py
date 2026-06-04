@@ -27,10 +27,12 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObjectCfg
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab.sim.schemas.schemas_cfg import UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
 ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
+
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
@@ -58,7 +60,10 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     env_cfg.scene.num_envs = 1
 
     # Add a static wall for the robot to avoid
-    wall_props = RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True)
+    wall_props = [
+        UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        PhysxRigidBodyCfg(disable_gravity=True),
+    ]
     wall_cfg = RigidObjectCfg(
         prim_path="/World/envs/env_0/moving_wall",
         spawn=UsdFileCfg(

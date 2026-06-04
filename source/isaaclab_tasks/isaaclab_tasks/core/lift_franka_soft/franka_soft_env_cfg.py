@@ -17,7 +17,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -215,7 +215,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     def __post_init__(self) -> None:
         # disable gravity on the arm so the low-PD actuators do not need to fight gravity sag,
         # which is the dominant source of steady-state IK tracking error.
-        self.robot.spawn.rigid_props.disable_gravity = True
+        next(f for f in self.robot.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 
         # increase franka gripper stiffness
         self.robot.actuators["panda_hand"].effort_limit_sim = 500.0

@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -60,9 +61,7 @@ def test_spawn_multiple_shapes_with_regex_prefix(sim):
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
@@ -101,9 +100,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
             ),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0)],
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
@@ -130,21 +127,21 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
                 radius=0.3,
                 height=0.6,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
                 mass_props=sim_utils.MassPropertiesCfg(mass=mass_variations[0]),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
             sim_utils.CuboidCfg(
                 size=(0.3, 0.3, 0.3),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
                 mass_props=sim_utils.MassPropertiesCfg(mass=mass_variations[1]),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
             sim_utils.SphereCfg(
                 radius=0.3,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
                 mass_props=sim_utils.MassPropertiesCfg(mass=mass_variations[2]),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
@@ -211,15 +208,17 @@ def test_spawn_multiple_files_with_global_settings(sim):
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            retain_accelerations=False,
-            linear_damping=0.0,
-            angular_damping=0.0,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=1.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                retain_accelerations=False,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
         ),

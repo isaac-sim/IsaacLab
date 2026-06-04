@@ -5,6 +5,8 @@
 
 """Configuration for a simple inverted Double Pendulum on a Cart robot."""
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -17,13 +19,15 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 CART_DOUBLE_PENDULUM_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/CartDoublePendulum/cart_double_pendulum.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=100.0,
-            enable_gyroscopic_forces=True,
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=100.0,
+                enable_gyroscopic_forces=True,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=4,

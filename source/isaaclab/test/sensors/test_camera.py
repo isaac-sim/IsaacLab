@@ -1273,6 +1273,6 @@ def _populate_scene():
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid body and collision properties using Isaac Lab schemas
         prim_path = f"/World/Objects/Obj_{i:02d}"
-        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
+        sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()])
         sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
         sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())

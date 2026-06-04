@@ -1,0 +1,1 @@
+Test-only: migrated a test off the deprecated RigidBodyPropertiesCfg to the fragment-list API.

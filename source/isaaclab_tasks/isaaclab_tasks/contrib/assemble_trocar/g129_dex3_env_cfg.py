@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -123,10 +124,12 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
                 "DisposableLaparoscopicPunctureDevice001/"
                 "DisposableLaparoscopicPunctureDevice005-xform.usd"
             ),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                disable_gravity=False,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                ),
+            ],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             rot=[-0.71475, -0.000243, 0.05853, 0.69692], pos=[-1.50635, 1.90997, 0.8631]

@@ -32,6 +32,7 @@ import os
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -59,7 +60,7 @@ def test_partitioning_isolates_rigid_object():
             spawn=sim_utils.CuboidCfg(
                 size=(0.25, 0.25, 0.25),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.2)),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
                 collision_props=sim_utils.CollisionPropertiesCfg(),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
             ),

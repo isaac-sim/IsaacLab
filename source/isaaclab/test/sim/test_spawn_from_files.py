@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import omni.kit.app
 
@@ -108,7 +109,7 @@ def test_spawn_usd_with_compliant_contact_material(sim):
     # Create spawn configuration
     spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
         usd_path=usd_file_path,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
         compliant_contact_stiffness=1000.0,
         compliant_contact_damping=100.0,
         physics_material_prim_path="elastomer",
@@ -142,7 +143,7 @@ def test_spawn_usd_with_compliant_contact_material_on_multiple_prims(sim):
     # Create spawn configuration
     spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
         usd_path=usd_file_path,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
         compliant_contact_stiffness=1000.0,
         compliant_contact_damping=100.0,
         physics_material_prim_path=["elastomer", "gelsight_finger"],
@@ -178,7 +179,7 @@ def test_spawn_usd_with_compliant_contact_material_no_prim_path(sim):
     # Create spawn configuration without physics material prim path
     spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
         usd_path=usd_file_path,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        rigid_props=[PhysxRigidBodyCfg(disable_gravity=True)],
         compliant_contact_stiffness=1000.0,
         compliant_contact_damping=100.0,
         physics_material_prim_path=None,

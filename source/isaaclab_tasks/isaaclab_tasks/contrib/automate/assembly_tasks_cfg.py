@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -210,18 +212,20 @@ class Insertion(AssemblyTask):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{assembly_dir}{fixed_asset_cfg.usd_path}",
             activate_contact_sensors=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                max_depenetration_velocity=5.0,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=3666.0,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=192,
-                solver_velocity_iteration_count=1,
-                max_contact_impulse=1e32,
-            ),
+            rigid_props=[
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                    max_depenetration_velocity=5.0,
+                    linear_damping=0.0,
+                    angular_damping=0.0,
+                    max_linear_velocity=1000.0,
+                    max_angular_velocity=3666.0,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=192,
+                    solver_velocity_iteration_count=1,
+                    max_contact_impulse=1e32,
+                ),
+            ],
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=True,
                 fix_root_link=True,  # add this so the fixed asset is set to have a fixed base
@@ -244,18 +248,20 @@ class Insertion(AssemblyTask):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{assembly_dir}{held_asset_cfg.usd_path}",
             activate_contact_sensors=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                max_depenetration_velocity=5.0,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=3666.0,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=192,
-                solver_velocity_iteration_count=1,
-                max_contact_impulse=1e32,
-            ),
+            rigid_props=[
+                PhysxRigidBodyCfg(
+                    disable_gravity=True,
+                    max_depenetration_velocity=5.0,
+                    linear_damping=0.0,
+                    angular_damping=0.0,
+                    max_linear_velocity=1000.0,
+                    max_angular_velocity=3666.0,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=192,
+                    solver_velocity_iteration_count=1,
+                    max_contact_impulse=1e32,
+                ),
+            ],
             mass_props=sim_utils.MassPropertiesCfg(mass=held_asset_cfg.mass),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         ),

@@ -65,7 +65,7 @@ def generate_surface_gripper_cfgs(
     articulation_cfg = ArticulationCfg(
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/SurfaceGripper/test_gripper.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled)],
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
@@ -129,7 +129,7 @@ def generate_grippable_object(sim, num_grippable_objects: int):
         prim_path="/World/Env_.*/Object",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),

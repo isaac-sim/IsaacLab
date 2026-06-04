@@ -15,6 +15,8 @@ Reference:
 
 """
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -28,11 +30,13 @@ SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            retain_accelerations=True,
-            max_depenetration_velocity=1000.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=True,
+                retain_accelerations=True,
+                max_depenetration_velocity=1000.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True,
             solver_position_iteration_count=8,

@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -94,14 +94,16 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
         self.gripper_threshold = 0.005
 
         # Rigid body properties of each cube
-        cube_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
-            max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
-        )
+        cube_properties = [
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            ),
+        ]
 
         # Set each stacking cube to be a collection of rigid objects
         cube_1_config_dict = {

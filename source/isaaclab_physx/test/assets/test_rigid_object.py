@@ -76,12 +76,12 @@ def generate_cubes_scene(
     elif api == "rigid_body":
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled)],
         )
     elif api == "articulation_root":
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/RigidObject/Cube/dex_cube_instanceable_with_articulation_root.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled)],
         )
     else:
         raise ValueError(f"Unknown api: {api}")

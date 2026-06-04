@@ -75,7 +75,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # -- Balls
     cfg = sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
         mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
@@ -85,7 +85,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     for i in range(args_cli.num_objects):
         object = sim_utils.CuboidCfg(
             size=(0.5 + random.random() * 0.5, 0.5 + random.random() * 0.5, 0.1 + random.random() * 0.05),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
             mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(

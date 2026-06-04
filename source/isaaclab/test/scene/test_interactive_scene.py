@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -47,9 +48,11 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/RigidObj",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-            ),
+            rigid_props=[
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                ),
+            ],
             collision_props=sim_utils.CollisionPropertiesCfg(
                 collision_enabled=True,
             ),

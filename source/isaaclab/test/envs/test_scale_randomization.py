@@ -22,6 +22,7 @@ simulation_app = app_launcher.app
 
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Sdf
 
@@ -153,7 +154,7 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/cube1",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True)],
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
@@ -166,7 +167,7 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/cube2",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True)],
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),

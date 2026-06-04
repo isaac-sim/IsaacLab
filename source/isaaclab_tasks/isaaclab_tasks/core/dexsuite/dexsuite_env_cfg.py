@@ -7,6 +7,7 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -31,7 +32,7 @@ from .adr_curriculum import CurriculumCfg
 
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.8, 1.5, 0.04),
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+    rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
     collision_props=sim_utils.CollisionPropertiesCfg(),
     # trick: we let visualizer's color to show the table with success coloring
     visible=False,
@@ -65,22 +66,26 @@ class ObjectCfg(PresetCfg):
             MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
             MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=0,
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=0,
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.1, 0.1),
         physics_material=RigidBodyMaterialCfg(static_friction=0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=0,
-            disable_gravity=False,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=0,
+                disable_gravity=False,
+            ),
+        ],
         collision_props=sim_utils.CollisionPropertiesCfg(),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )

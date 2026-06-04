@@ -39,7 +39,7 @@ def generate_cubes_scene(
 
     spawn_cfg = sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
     )
 
     cube_object_cfg = RigidObjectCfg(

@@ -130,7 +130,7 @@ def design_scene():
             obj_cfg.deformable_props = sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0)
         else:
             obj_cfg.deformable_props = None
-            obj_cfg.rigid_props = sim_utils.RigidBodyPropertiesCfg()
+            obj_cfg.rigid_props = [sim_utils.UsdPhysicsRigidBodyCfg()]
             obj_cfg.collision_props = sim_utils.CollisionPropertiesCfg()
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())

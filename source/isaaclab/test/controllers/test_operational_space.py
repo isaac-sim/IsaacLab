@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -95,7 +96,7 @@ def sim():
     robot_cfg.actuators["panda_shoulder"].damping = 0.0
     robot_cfg.actuators["panda_forearm"].stiffness = 0.0
     robot_cfg.actuators["panda_forearm"].damping = 0.0
-    robot_cfg.spawn.rigid_props.disable_gravity = True
+    next(f for f in robot_cfg.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 
     # Define the ContactSensor
     contact_forces = None
@@ -355,7 +356,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
         frame,
     ) = sim
 
-    robot_cfg.spawn.rigid_props.disable_gravity = False
+    next(f for f in robot_cfg.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = False
     robot = Articulation(cfg=robot_cfg)
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -560,7 +561,7 @@ def test_franka_wrench_abs_open_loop(sim):
         size=(0.7, 0.7, 0.01),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -641,7 +642,7 @@ def test_franka_wrench_abs_closed_loop(sim):
         size=(0.7, 0.7, 0.01),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -730,7 +731,7 @@ def test_franka_hybrid_decoupled_motion(sim):
         size=(1.0, 1.0, 0.01),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -807,7 +808,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         size=(1.0, 1.0, 0.01),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -987,7 +988,7 @@ def test_franka_taskframe_hybrid(sim):
         size=(2.0, 1.5, 0.01),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -1216,7 +1217,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         size=(2.0, 1.5, 0.01),
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)],
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
@@ -1286,7 +1287,7 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
     def __post_init__(self):
         super().__post_init__()
         self.robot.spawn.articulation_props.fix_root_link = False
-        self.robot.spawn.rigid_props.disable_gravity = True
+        next(f for f in self.robot.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 
 
 @lab_configclass

@@ -5,6 +5,7 @@
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -152,11 +153,13 @@ class ShadowHandRobotCfg(PresetCfg):
             # newton/mujoco have separate usd schema
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandNewton/shadow_hand_instanceable.usda",
             activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                retain_accelerations=True,
-                max_depenetration_velocity=1000.0,
-            ),
+            rigid_props=[
+                PhysxRigidBodyCfg(
+                    disable_gravity=True,
+                    retain_accelerations=True,
+                    max_depenetration_velocity=1000.0,
+                ),
+            ],
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
             joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
             fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
@@ -215,16 +218,18 @@ class ObjectCfg(PresetCfg):
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                    enable_gyroscopic_forces=True,
+                    solver_position_iteration_count=8,
+                    solver_velocity_iteration_count=0,
+                    sleep_threshold=0.005,
+                    stabilization_threshold=0.0025,
+                    max_depenetration_velocity=1000.0,
+                ),
+            ],
             mass_props=sim_utils.MassPropertiesCfg(density=567.0),
             semantic_tags=[("class", "cube")],
         ),

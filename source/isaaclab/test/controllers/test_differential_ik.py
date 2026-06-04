@@ -28,6 +28,8 @@ from isaaclab.utils.math import (  # isort:skip
     subtract_frame_transforms,
 )
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # isort:skip
+
 ##
 # Pre-defined configs
 ##
@@ -100,7 +102,7 @@ def test_ur10_ik_pose_abs(sim):
 
     # Create robot instance
     robot_cfg = UR10_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    robot_cfg.spawn.rigid_props.disable_gravity = True
+    next(f for f in robot_cfg.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller

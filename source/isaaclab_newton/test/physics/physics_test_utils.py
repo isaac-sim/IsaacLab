@@ -17,6 +17,7 @@ from enum import Enum, auto
 
 import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -135,11 +136,13 @@ def create_shape_cfg(
     activate_contact_sensors: bool = True,
 ) -> RigidObjectCfg:
     """Create RigidObjectCfg for a shape type."""
-    rigid_props = sim_utils.RigidBodyPropertiesCfg(
-        disable_gravity=disable_gravity,
-        linear_damping=0.0,
-        angular_damping=0.0,
-    )
+    rigid_props = [
+        PhysxRigidBodyCfg(
+            disable_gravity=disable_gravity,
+            linear_damping=0.0,
+            angular_damping=0.0,
+        )
+    ]
     collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
     mass_props = sim_utils.MassPropertiesCfg(mass=1.0)
 

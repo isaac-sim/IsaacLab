@@ -15,6 +15,8 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
+    RigidBodyFragment,
+    UsdPhysicsRigidBodyCfg,
 )
 from isaaclab.utils.configclass import configclass
 
@@ -262,26 +264,96 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
 
 
 @configclass
-class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
-    """Deprecated: use :class:`PhysxRigidBodyPropertiesCfg` or :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
+class PhysxRigidBodyCfg(RigidBodyFragment):
+    """``physxRigidBody:*`` rigid-body attributes from `PhysxRigidBodyAPI`_.
 
-    .. deprecated:: 4.6.22
-        ``RigidBodyPropertiesCfg`` has been split into
-        :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` (solver-common) and
-        :class:`PhysxRigidBodyPropertiesCfg` (PhysX-specific) and relocated to
-        :mod:`isaaclab_physx.sim.schemas`. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX rigid-body add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`
+    via :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`.
+
+    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'RigidBodyPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg' for PhysX properties, or"
-            " 'isaaclab.sim.schemas.RigidBodyBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
+    _usd_namespace: ClassVar[str | None] = "physxRigidBody"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxRigidBodyAPI"
+
+    linear_damping: float | None = None
+    """Linear damping coefficient for the body [1/s]."""
+
+    angular_damping: float | None = None
+    """Angular damping coefficient for the body [1/s]."""
+
+    max_linear_velocity: float | None = None
+    """Maximum linear velocity for the body [m/s]."""
+
+    max_angular_velocity: float | None = None
+    """Maximum angular velocity for the body [deg/s]."""
+
+    max_depenetration_velocity: float | None = None
+    """Maximum depenetration velocity permitted to be introduced by the solver [m/s]."""
+
+    max_contact_impulse: float | None = None
+    """The limit on the impulse that may be applied at a contact [N·s]."""
+
+    enable_gyroscopic_forces: bool | None = None
+    """Enables computation of gyroscopic forces on the rigid body."""
+
+    retain_accelerations: bool | None = None
+    """Carries over forces/accelerations over sub-steps."""
+
+    solver_position_iteration_count: int | None = None
+    """Solver position iteration counts for the body."""
+
+    solver_velocity_iteration_count: int | None = None
+    """Solver velocity iteration counts for the body."""
+
+    sleep_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
+
+    stabilization_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may participate in stabilization [m²/s²]."""
+
+    disable_gravity: bool | None = None
+    """Disable gravity for the body.
+
+    PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True excludes the
+    body from world gravity integration.
+    """
+
+
+# UsdPhysics ``physics:*`` rigid-body fields; everything else routes to the PhysX fragment.
+_USD_RIGID_FIELDS = ("rigid_body_enabled", "kinematic_enabled")
+
+
+def RigidBodyPropertiesCfg(**kwargs) -> list[RigidBodyFragment]:
+    """Deprecated factory returning the equivalent rigid-body fragment list.
+
+    .. deprecated:: 4.6.22
+        ``RigidBodyPropertiesCfg`` no longer returns a single cfg. Pass a list of fragments
+        instead, e.g. ``rigid_props=[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``.
+        This factory forwards the legacy keyword arguments to the matching fragments
+        (``physics:*`` fields to :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`, the rest to
+        :class:`PhysxRigidBodyCfg`) and is scheduled for removal in 5.0.
+
+    Args:
+        **kwargs: Any field accepted by the legacy ``RigidBodyPropertiesCfg`` cfg.
+
+    Returns:
+        The equivalent fragment list. Always contains a
+        :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` (so the ``RigidBodyAPI`` anchor is
+        applied) and, when any PhysX field is set, a :class:`PhysxRigidBodyCfg`.
+    """
+    warnings.warn(
+        "'RigidBodyPropertiesCfg' is deprecated and will be removed in 5.0. Pass a list of"
+        " fragments instead, e.g. [UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)].",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    usd = {k: kwargs.pop(k) for k in _USD_RIGID_FIELDS if k in kwargs}
+    frags: list[RigidBodyFragment] = [UsdPhysicsRigidBodyCfg(**usd)]
+    if kwargs:  # remaining kwargs are physxRigidBody:* fields (incl. disable_gravity)
+        frags.append(PhysxRigidBodyCfg(**kwargs))
+    return frags
 
 
 @configclass

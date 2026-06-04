@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils.configclass import configclass
@@ -28,7 +30,7 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         self.scene.robot.actuators["panda_shoulder"].damping = 0.0
         self.scene.robot.actuators["panda_forearm"].stiffness = 0.0
         self.scene.robot.actuators["panda_forearm"].damping = 0.0
-        self.scene.robot.spawn.rigid_props.disable_gravity = True
+        next(f for f in self.scene.robot.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot
         # self.scene.robot.spawn.activate_contact_sensors = True

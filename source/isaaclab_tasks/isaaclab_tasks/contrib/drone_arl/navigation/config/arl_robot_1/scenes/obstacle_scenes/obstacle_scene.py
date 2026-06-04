@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
@@ -62,16 +63,18 @@ def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectio
             spawn=sim_utils.CuboidCfg(
                 size=wall_cfg.size,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.5, color), metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=4,
-                    solver_velocity_iteration_count=0,
-                    disable_gravity=True,
-                    kinematic_enabled=False,
-                    linear_damping=9999.0,
-                    angular_damping=9999.0,
-                    max_linear_velocity=0.0,
-                    max_angular_velocity=0.0,
-                ),
+                rigid_props=[
+                    sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+                    PhysxRigidBodyCfg(
+                        solver_position_iteration_count=4,
+                        solver_velocity_iteration_count=0,
+                        disable_gravity=True,
+                        linear_damping=9999.0,
+                        angular_damping=9999.0,
+                        max_linear_velocity=0.0,
+                        max_angular_velocity=0.0,
+                    ),
+                ],
                 # mass of walls needs to be way larger than weight of obstacles to make them not move during reset
                 mass_props=sim_utils.MassPropertiesCfg(mass=10000000.0),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -94,16 +97,18 @@ def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectio
             spawn=sim_utils.CuboidCfg(
                 size=obs_cfg.size,
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color_normalized, metallic=0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=4,
-                    solver_velocity_iteration_count=0,
-                    disable_gravity=True,
-                    kinematic_enabled=False,
-                    linear_damping=1.0,
-                    angular_damping=1.0,
-                    max_linear_velocity=0.0,
-                    max_angular_velocity=0.0,
-                ),
+                rigid_props=[
+                    sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+                    PhysxRigidBodyCfg(
+                        solver_position_iteration_count=4,
+                        solver_velocity_iteration_count=0,
+                        disable_gravity=True,
+                        linear_damping=1.0,
+                        angular_damping=1.0,
+                        max_linear_velocity=0.0,
+                        max_angular_velocity=0.0,
+                    ),
+                ],
                 mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),

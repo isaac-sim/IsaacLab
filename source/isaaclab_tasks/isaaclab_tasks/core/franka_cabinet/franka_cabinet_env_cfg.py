@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -49,10 +51,12 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
             activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                max_depenetration_velocity=5.0,
-            ),
+            rigid_props=[
+                PhysxRigidBodyCfg(
+                    disable_gravity=False,
+                    max_depenetration_velocity=5.0,
+                ),
+            ],
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=12, solver_velocity_iteration_count=1
             ),

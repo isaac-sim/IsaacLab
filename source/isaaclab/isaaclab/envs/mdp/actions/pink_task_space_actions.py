@@ -329,7 +329,10 @@ class PinkInverseKinematicsAction(ActionTerm):
         rather than silently receive zeros. To use Pink IK on Newton, keep
         ``enable_gravity_compensation=False``.
         """
-        if not self._asset.cfg.spawn.rigid_props.disable_gravity:
+        _rigid_props = self._asset.cfg.spawn.rigid_props
+        _rigid_frags = _rigid_props if isinstance(_rigid_props, (list, tuple)) else [_rigid_props]
+        _disable_gravity = any(getattr(f, "disable_gravity", None) for f in _rigid_frags if f is not None)
+        if not _disable_gravity:
             # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``.
             # Shift actuated-joint ids by ``num_base_dofs`` to skip the leading floating-
             # base columns (0 for fixed-base, 6 for floating-base).

@@ -26,6 +26,8 @@ Motor spec sheets:
     https://files.seeedstudio.com/products/Damiao/DM-J4310-en.pdf
 """
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -34,10 +36,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 OPENARM_BI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/OpenArm/openarm_bimanual/openarm_bimanual.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                max_depenetration_velocity=5.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=8,
@@ -102,10 +106,12 @@ OPENARM_BI_CFG = ArticulationCfg(
 OPENARM_UNI_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/OpenArm/openarm_unimanual/openarm_unimanual.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=[
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                max_depenetration_velocity=5.0,
+            ),
+        ],
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=8,
@@ -153,7 +159,7 @@ OPENARM_UNI_CFG = ArticulationCfg(
 """Configuration of OpenArm Unimanual robot."""
 
 OPENARM_BI_HIGH_PD_CFG = OPENARM_BI_CFG.copy()
-OPENARM_BI_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+next(f for f in OPENARM_BI_HIGH_PD_CFG.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 OPENARM_BI_HIGH_PD_CFG.actuators["openarm_arm"].stiffness = 400.0
 OPENARM_BI_HIGH_PD_CFG.actuators["openarm_arm"].damping = 80.0
 OPENARM_BI_HIGH_PD_CFG.actuators["openarm_gripper"].stiffness = 2e3
@@ -164,7 +170,7 @@ This configuration is useful for task-space control using differential IK.
 """
 
 OPENARM_UNI_HIGH_PD_CFG = OPENARM_UNI_CFG.copy()
-OPENARM_UNI_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+next(f for f in OPENARM_UNI_HIGH_PD_CFG.spawn.rigid_props if isinstance(f, PhysxRigidBodyCfg)).disable_gravity = True
 OPENARM_UNI_HIGH_PD_CFG.actuators["openarm_arm"].stiffness = 400.0
 OPENARM_UNI_HIGH_PD_CFG.actuators["openarm_arm"].damping = 80.0
 """Configuration of OpenArm Unimanual robot with stiffer PD control.
