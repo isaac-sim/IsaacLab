@@ -672,9 +672,8 @@ Key Newton solver parameters:
    * - ``nconmax``
      - Max contacts per env
    * - ``ls_iterations``
-     - Iterative line search cap; keep low for performance. The deprecated
-       parallel line search option is accepted for compatibility, but setting
-       it emits a warning and is ignored.
+     - Iterative line search cap; stops early when convergence is reached.
+       Tune alongside outer solver iterations for runtime and convergence.
    * - ``cone``
      - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
    * - ``integrator``

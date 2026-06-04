@@ -128,6 +128,6 @@ class MJWarpSolverCfg(NewtonSolverCfg):
                 "MuJoCo Warp is dropping parallel line search support. Tune "
                 "MJWarpSolverCfg.ls_iterations instead.",
                 DeprecationWarning,
-                stacklevel=3,
+                stacklevel=5,
             )
             self.ls_parallel = False

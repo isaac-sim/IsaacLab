@@ -58,13 +58,10 @@ Here is a very brief explanation of some of the key parameters above:
 * ``nconmax``: This is the maximum number of contact points MuJoCo-Warp pre-allocates
   for a given environment. Set it high enough for the expected contact count.
 
-* ``ls_iterations``: The number of line searches performed by the MuJoCo Warp solver.
-  Line searches are used to find an optimal step size, and for each solver step,
-  at most ``ls_iterations`` iterative line searches will be performed. Use
-  iterative line search for performance and keep this number low when tuning.
-  The deprecated ``ls_parallel`` option is accepted for compatibility, but
-  setting it emits a warning and is ignored because MuJoCo Warp is dropping
-  support for parallel line search.
+* ``ls_iterations``: The number of iterative line searches performed by the
+  MuJoCo Warp solver. Line searches are used to find an acceptable step size,
+  and the solver stops early when convergence is reached. Tune this cap together
+  with ``iterations`` and ``tolerance`` when balancing convergence and runtime.
 
 * ``cone``: This parameter provides a choice between pyramidal and elliptic
   approximations for the friction cone used in contact handling. Please see the
