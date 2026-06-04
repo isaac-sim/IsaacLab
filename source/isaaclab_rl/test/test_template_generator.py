@@ -320,7 +320,7 @@ def test_generated_env_modules_have_no_forbidden_top_level_imports(tmp_path, mon
 
 
 def test_each_requested_agent_cfg_file_is_generated(tmp_path, monkeypatch):
-    """A missing agent template is silently skipped (``generator.py`` ``continue``); ensure requested configs emit."""
+    """Every requested (RL library, algorithm) agent config is generated; a missing template raises, not skips."""
     project_name = "template_agents"
     root_dir = tmp_path / "external_root"
     monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
