@@ -138,7 +138,6 @@ In a different terminal, run the following.
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --run_mode local \
-    --workflow scripts/reinforcement_learning/rl_games/train.py \
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
 

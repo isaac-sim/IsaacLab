@@ -151,7 +151,7 @@ Quick Start
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rlinf/train.py \
+   ./isaaclab.sh train --rl_library rlinf \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/checkpoint
 
@@ -159,7 +159,7 @@ Quick Start
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rlinf/play.py \
+   ./isaaclab.sh play --rl_library rlinf \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/base_model \
        --video
@@ -168,7 +168,7 @@ Quick Start
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rlinf/play.py \
+   ./isaaclab.sh play --rl_library rlinf \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/base_model \
        --rl_model_path /path/to/checkpoints/global_step_N \
