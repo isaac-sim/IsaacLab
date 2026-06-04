@@ -169,8 +169,9 @@ Solver Convergence
         searches per outer iteration. Convergence gate:
         :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.tolerance` (default
         ``1e-6``).
-        :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.ls_parallel` switches
-        line search to parallel execution at a small accuracy cost.
+        Use iterative line search for performance. The deprecated
+        ``ls_parallel`` option is accepted for compatibility, but ignored
+        because MuJoCo Warp is dropping parallel line search support.
     * - Kamino
       - P-ADMM with separate
         :attr:`~isaaclab_newton.physics.KaminoSolverCfg.padmm_primal_tolerance`,
