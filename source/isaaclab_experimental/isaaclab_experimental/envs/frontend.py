@@ -214,12 +214,15 @@ def _swap_mdp(cfg: Any, label: str) -> None:
 
     Iterates every term cfg in the tree (via :func:`_walk_terms`) and on each
     term swaps whichever of ``func`` / ``class_type`` is a stable-origin
-    callable. Twin lookup is name-based against the task's matching
-    ``isaaclab_tasks_experimental.<...>.mdp`` module and, as a fallback,
-    :mod:`isaaclab_experimental.envs.mdp`. Any missing twin raises
-    :class:`FrontendIncompatibleError` listing every affected term — partial
-    swaps would leave torch-style callables in the cfg and the warp managers
-    would call them with the wrong signature.
+    callable. Twin lookup is name-based against the warp mirror of the *stable
+    symbol's own module* (:func:`_warp_mdp_modules`) plus the
+    :mod:`isaaclab_experimental.envs.mdp` fallback. Keying off the symbol's
+    module — not the cfg's — means a task that borrows another task's MDP (e.g.
+    ``manager_ant`` reuses ``manager_humanoid.mdp``) resolves to the right warp
+    twins without a per-task shim, mirroring the stable ``core/`` layout. Any
+    missing twin raises :class:`FrontendIncompatibleError` listing every
+    affected term — partial swaps would leave torch-style callables in the cfg
+    and the warp managers would call them with the wrong signature.
 
     The warp-side side declarations (``out_dim``, ``axes``, ``observation_type``)
     that the warp managers need at init are *not* supplied by this swap; they
@@ -228,9 +231,8 @@ def _swap_mdp(cfg: Any, label: str) -> None:
     substitutes the callable; the manager reads the new func's annotations
     when it parses the term cfg.
     """
-    modules = _warp_mdp_modules(type(cfg).__module__)
-    searched = tuple(m.__name__ for m in modules)
-    logger.info("frontend.warp: searching warp mdp modules %s", list(searched))
+    module_cache: dict[str, list[ModuleType]] = {}
+    searched: set[str] = set()
 
     swapped = 0
     missing: list[tuple[str, str, str]] = []  # (location, attr, symbol)
@@ -240,7 +242,11 @@ def _swap_mdp(cfg: Any, label: str) -> None:
             stable = getattr(term, attr, None)
             if stable is None or not _is_swap_candidate(stable):
                 continue
-            twin = _resolve_warp_twin(stable.__name__, modules)
+            origin = getattr(stable, "__module__", "") or ""
+            if origin not in module_cache:
+                module_cache[origin] = _warp_mdp_modules(origin)
+                searched.update(m.__name__ for m in module_cache[origin])
+            twin = _resolve_warp_twin(stable.__name__, module_cache[origin])
             if twin is None:
                 missing.append((location, attr, stable.__name__))
                 continue
@@ -250,7 +256,7 @@ def _swap_mdp(cfg: Any, label: str) -> None:
     if missing:
         lines = "\n  ".join(f"{loc}.{attr}: no warp twin for {sym!r}" for loc, attr, sym in missing)
         raise FrontendIncompatibleError(
-            f"warp env {label!r}: missing warp MDP twins (searched {list(searched)}):\n  {lines}"
+            f"warp env {label!r}: missing warp MDP twins (searched {sorted(searched)}):\n  {lines}"
         )
 
     logger.info("frontend.warp: swapped %d MDP symbol(s) to warp twins", swapped)
@@ -295,36 +301,40 @@ def _assert_direct_warp_registration(task_id: str) -> None:
         )
 
 
-def _warp_mdp_modules(cfg_module: str) -> list[ModuleType]:
-    """Locate warp MDP modules to consult for twin lookups.
+def _warp_mdp_modules(symbol_module: str) -> list[ModuleType]:
+    """Locate warp MDP modules to consult for a stable symbol's twin.
 
-    The lookup is keyed off the *stable* cfg class's module
-    (``type(cfg).__module__``) rather than the gym task id, so it resolves the
-    same twins whether the env is built via ``--frontend=warp`` or constructed
-    directly from a ``*-Warp-v0`` registration.
+    The lookup is keyed off the *stable symbol's own module*
+    (``func.__module__`` / ``class_type.__module__``), e.g.
+    ``isaaclab_tasks.core.manager_humanoid.mdp.rewards``. We mirror that path
+    into the experimental package and walk up to the nearest importable module,
+    then append the shared fallback. Keying off the symbol's module — not the
+    cfg's — resolves the right twins even when a task borrows another task's MDP
+    (``manager_ant`` reuses ``manager_humanoid.mdp``), so the experimental
+    package can mirror the stable ``core/`` layout one-to-one without per-task
+    re-export shims.
 
     Order of preference:
 
-    1. The task-specific module, derived by replacing ``isaaclab_tasks`` with
-       ``isaaclab_tasks_experimental`` in ``cfg_module`` and walking up to the
-       first existing ``.mdp`` submodule. This relies on the experimental
-       package mirroring the stable ``core/`` layout.
+    1. The warp mirror of ``symbol_module`` (or its nearest importable ancestor,
+       e.g. the ``...mdp`` package when the exact submodule isn't mirrored).
     2. The shared :mod:`isaaclab_experimental.envs.mdp` fallback (where
        generic warp twins live).
     """
     modules: list[ModuleType] = []
-    if isinstance(cfg_module, str) and cfg_module.startswith("isaaclab_tasks."):
-        warp_pkg = cfg_module.replace("isaaclab_tasks", "isaaclab_tasks_experimental", 1)
-        parts = warp_pkg.split(".")
+    if isinstance(symbol_module, str) and symbol_module.startswith("isaaclab_tasks."):
+        warp_mod = symbol_module.replace("isaaclab_tasks", "isaaclab_tasks_experimental", 1)
+        parts = warp_mod.split(".")
         for depth in range(len(parts), 0, -1):
-            target = ".".join(parts[:depth] + ["mdp"])
+            target = ".".join(parts[:depth])
             try:
                 modules.append(importlib.import_module(target))
                 break
             except ModuleNotFoundError as exc:
-                # Only swallow "this candidate doesn't exist" — a real
-                # import error inside an existing module is a bug.
-                if exc.name == target:
+                # Keep walking up while the missing module is part of the path
+                # we're probing; a genuine import error inside an existing
+                # module (missing third-party dep, etc.) must surface.
+                if exc.name and warp_mod.startswith(exc.name):
                     continue
                 raise
     # Generic fallback.
