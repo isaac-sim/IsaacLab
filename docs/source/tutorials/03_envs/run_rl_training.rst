@@ -43,6 +43,7 @@ For this tutorial, we use the training implementation from `Stable-Baselines3`_ 
     .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
       :language: python
       :linenos:
+      :emphasize-lines: 97-100, 104-109, 121-137, 145-157, 164-170
 
 The Code Explained
 ------------------

@@ -96,6 +96,7 @@ reads the configuration instance:
     .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
       :language: python
       :linenos:
+      :emphasize-lines: 56-60, 97-98
 
 The argument ``--rl_library`` selects the reinforcement learning library. The ``--agent``
 argument selects the library-specific configuration entry point from the ``kwargs``
