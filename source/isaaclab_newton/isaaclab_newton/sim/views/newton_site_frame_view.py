@@ -104,7 +104,7 @@ def _write_site_local_from_local_poses(
 
 
 @wp.kernel
-def _gather_scales(
+def _gather_shape_scales(
     shape_scale: wp.array(dtype=wp.vec3f),
     shape_body: wp.array(dtype=wp.int32),
     site_body: wp.array(dtype=wp.int32),
@@ -112,7 +112,7 @@ def _gather_scales(
     num_shapes: wp.int32,
     out_scales: wp.array(dtype=wp.vec3f),
 ):
-    """Gather per-site scales from collision shapes on the same body."""
+    """Gather legacy per-site geometry scales from collision shapes on the same body."""
     i = wp.tid()
     si = indices[i]
     bid = site_body[si]
@@ -126,7 +126,7 @@ def _gather_scales(
 
 
 @wp.kernel
-def _scatter_scales(
+def _scatter_shape_scales(
     site_body: wp.array(dtype=wp.int32),
     indices: wp.array(dtype=wp.int32),
     new_scales: wp.array(dtype=wp.vec3f),
@@ -134,13 +134,35 @@ def _scatter_scales(
     num_shapes: wp.int32,
     shape_scale: wp.array(dtype=wp.vec3f),
 ):
-    """Scatter per-site scales to collision shapes on the same body."""
+    """Scatter legacy per-site geometry scales to collision shapes on the same body."""
     i = wp.tid()
     si = indices[i]
     bid = site_body[si]
     for s in range(num_shapes):
         if shape_body[s] == bid:
             shape_scale[s] = new_scales[i]
+
+
+@wp.kernel
+def _gather_xform_scales(
+    site_xform_scale: wp.array(dtype=wp.vec3f),
+    indices: wp.array(dtype=wp.int32),
+    out_scales: wp.array(dtype=wp.vec3f),
+):
+    """Gather per-site xform scales."""
+    i = wp.tid()
+    out_scales[i] = site_xform_scale[indices[i]]
+
+
+@wp.kernel
+def _scatter_xform_scales(
+    indices: wp.array(dtype=wp.int32),
+    new_scales: wp.array(dtype=wp.vec3f),
+    site_xform_scale: wp.array(dtype=wp.vec3f),
+):
+    """Scatter per-site xform scales."""
+    i = wp.tid()
+    site_xform_scale[indices[i]] = new_scales[i]
 
 
 class NewtonSiteFrameView(BaseFrameView):
@@ -178,43 +200,49 @@ class NewtonSiteFrameView(BaseFrameView):
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
         self._site_labels: list[str] = []
+        self._site_label_scales: list[tuple[float, float, float]] = []
         self._site_body: wp.array | None = None
         self._site_local: wp.array | None = None
+        self._site_xform_scale: wp.array | None = None
         self._site_indices: wp.array | None = None
         self._pos_buf: wp.array | None = None
         self._quat_buf: wp.array | None = None
         self._local_pos_buf: wp.array | None = None
         self._local_quat_buf: wp.array | None = None
+        self._scale_buf: wp.array | None = None
         self._pos_ta: ProxyArray | None = None
         self._quat_ta: ProxyArray | None = None
         self._local_pos_ta: ProxyArray | None = None
         self._local_quat_ta: ProxyArray | None = None
+        self._scale_ta: ProxyArray | None = None
         self._count = 0
 
         model = NewtonManager.get_model()
         if model is not None:
             self._initialize_from_specs(model)
         else:
-            for body_patterns, xform, per_world, _env_ids in self._site_specs:
+            for body_patterns, xform, scale, per_world, _env_ids in self._site_specs:
                 if body_patterns is None:
                     self._site_labels.append(NewtonManager.cl_register_site(None, xform, per_world=per_world))
+                    self._site_label_scales.append(scale)
                 else:
                     for body_pattern in body_patterns:
                         self._site_labels.append(NewtonManager.cl_register_site(body_pattern, xform))
+                        self._site_label_scales.append(scale)
             self._physics_ready_handle = NewtonManager.register_callback(
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )
 
     def _resolve_site_specs(
         self, stage, validate_xform_ops: bool
-    ) -> list[tuple[tuple[str, ...] | None, wp.transform, bool, tuple[int, ...] | None]]:
+    ) -> list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]]:
         """Resolve source prims into Newton site registration specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         use_clone_body_pattern = model is None
-        specs: list[tuple[tuple[str, ...] | None, wp.transform, bool, tuple[int, ...] | None]] = []
+        specs: list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]] = []
 
         for path_expr in self._prim_paths:
             if resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
@@ -268,8 +296,8 @@ class NewtonSiteFrameView(BaseFrameView):
         env_ids: tuple[int, ...] | None,
         use_clone_body_pattern: bool,
         stage,
-    ) -> tuple[tuple[str, ...] | None, wp.transform, bool, tuple[int, ...] | None]:
-        """Resolve one source prim into body patterns and a local frame."""
+    ) -> tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]:
+        """Resolve one source prim into body patterns, local frame, and xform scale."""
         prim_path = prim.GetPath().pathString
         if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
             raise ValueError(
@@ -280,6 +308,13 @@ class NewtonSiteFrameView(BaseFrameView):
             sim_utils.standardize_xform_ops(prim)
             if not sim_utils.validate_standard_xform_ops(prim):
                 raise ValueError(f"FrameView prim '{prim_path}' does not have standard xform ops.")
+
+        scale_attr = prim.GetAttribute("xformOp:scale")
+        scale = (
+            tuple(float(v) for v in scale_attr.Get())
+            if scale_attr and scale_attr.HasAuthoredValue()
+            else (1.0, 1.0, 1.0)
+        )
 
         body_prim = prim.GetParent()
         while body_prim and body_prim.IsValid():
@@ -300,7 +335,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                 raise RuntimeError(
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
-                            return (destination_root[: -len(suffix)],), wp.transform(pos, quat), False, env_ids
+                            return (destination_root[: -len(suffix)],), wp.transform(pos, quat), scale, False, env_ids
                         body_patterns = []
                         for env_id in env_ids:
                             destination_root = destination_template.format(env_id)
@@ -309,7 +344,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
                             body_patterns.append(destination_root[: -len(suffix)])
-                        return tuple(body_patterns), wp.transform(pos, quat), False, env_ids
+                        return tuple(body_patterns), wp.transform(pos, quat), scale, False, env_ids
                     else:
                         raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
                     if use_clone_body_pattern:
@@ -318,12 +353,12 @@ class NewtonSiteFrameView(BaseFrameView):
                         body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
                 else:
                     body_patterns = (body_path,)
-                return body_patterns, wp.transform(pos, quat), False, env_ids
+                return body_patterns, wp.transform(pos, quat), scale, False, env_ids
             body_prim = body_prim.GetParent()
 
         ref_prim = stage.GetPrimAtPath(source_root) if source_root is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
-        return None, wp.transform(pos, quat), source_root is not None, env_ids
+        return None, wp.transform(pos, quat), scale, source_root is not None, env_ids
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
@@ -336,8 +371,9 @@ class NewtonSiteFrameView(BaseFrameView):
         xform_t = wp.to_torch(model.shape_transform)
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
+        site_scales: list[tuple[float, float, float]] = []
 
-        for site_label in self._site_labels:
+        for site_label, scale in zip(self._site_labels, self._site_label_scales, strict=True):
             global_idx, per_world = site_map[site_label]
             site_indices = (
                 [global_idx] if per_world is None else [site_idx for sites in per_world for site_idx in sites]
@@ -345,16 +381,18 @@ class NewtonSiteFrameView(BaseFrameView):
             for site_idx in site_indices:
                 site_bodies.append(int(body_t[site_idx].item()))
                 site_locals.append([float(v) for v in xform_t[site_idx].tolist()])
+                site_scales.append(scale)
 
-        self._create_buffers(site_bodies, site_locals)
+        self._create_buffers(site_bodies, site_locals, site_scales)
 
     def _initialize_from_specs(self, model) -> None:
         """Initialize arrays directly from resolved specs and Newton body labels."""
         body_labels = list(model.body_label)
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
+        site_scales: list[tuple[float, float, float]] = []
 
-        for body_patterns, xform, per_world, env_ids in self._site_specs:
+        for body_patterns, xform, scale, per_world, env_ids in self._site_specs:
             if body_patterns is None:
                 if per_world:
                     if NewtonManager._world_xforms is None:
@@ -364,9 +402,11 @@ class NewtonSiteFrameView(BaseFrameView):
                         world_xform = NewtonManager._world_xforms[world_id]
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
+                        site_scales.append(scale)
                 else:
                     site_bodies.append(WORLD_BODY_INDEX)
                     site_locals.append([float(v) for v in xform])
+                    site_scales.append(scale)
                 continue
 
             for body_pattern in body_patterns:
@@ -379,24 +419,33 @@ class NewtonSiteFrameView(BaseFrameView):
                 for body_idx in matched_indices:
                     site_bodies.append(body_idx)
                     site_locals.append([float(v) for v in xform])
+                    site_scales.append(scale)
 
-        self._create_buffers(site_bodies, site_locals)
+        self._create_buffers(site_bodies, site_locals, site_scales)
 
-    def _create_buffers(self, site_bodies: list[int], site_locals: list[list[float]]) -> None:
+    def _create_buffers(
+        self,
+        site_bodies: list[int],
+        site_locals: list[list[float]],
+        site_scales: list[tuple[float, float, float]],
+    ) -> None:
         """Allocate view buffers from body indices and local transforms."""
         self._count = len(site_bodies)
         device = self._device
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
         self._site_local = wp.array([wp.transform(*x) for x in site_locals], dtype=wp.transformf, device=device)
+        self._site_xform_scale = wp.array([wp.vec3f(*scale) for scale in site_scales], dtype=wp.vec3f, device=device)
         self._site_indices = wp.array(list(range(self._count)), dtype=wp.int32, device=device)
         self._pos_buf = wp.zeros(self._count, dtype=wp.vec3f, device=device)
         self._quat_buf = wp.zeros(self._count, dtype=wp.vec4f, device=device)
         self._local_pos_buf = wp.zeros(self._count, dtype=wp.vec3f, device=device)
         self._local_quat_buf = wp.zeros(self._count, dtype=wp.vec4f, device=device)
+        self._scale_buf = wp.zeros(self._count, dtype=wp.vec3f, device=device)
         self._pos_ta = ProxyArray(self._pos_buf)
         self._quat_ta = ProxyArray(self._quat_buf)
         self._local_pos_ta = ProxyArray(self._local_pos_buf)
         self._local_quat_ta = ProxyArray(self._local_quat_buf)
+        self._scale_ta = ProxyArray(self._site_xform_scale)
 
     @property
     def prims(self) -> list:
@@ -511,17 +560,65 @@ class NewtonSiteFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
-        """Get per-site world scales from the first collision shape on the same body.
+        """Get per-site world xform scales.
 
-        Newton's ``shape_scale`` is an absolute (world-space) quantity.
+        These are transform scales, matching the USD FrameView scale API.  They
+        are intentionally separate from Newton collision shape geometry sizes.
         """
+        if indices is None:
+            return self._scale_ta
+        n = len(indices)
+        out = wp.zeros(n, dtype=wp.vec3f, device=self._device)
+        wp.launch(
+            _gather_xform_scales,
+            dim=n,
+            inputs=[self._site_xform_scale, indices],
+            outputs=[out],
+            device=self._device,
+        )
+        return ProxyArray(out)
+
+    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get per-site local xform scales.
+
+        These are transform scales, matching the USD FrameView scale API.  They
+        are intentionally separate from Newton collision shape geometry sizes.
+        """
+        return self.get_world_scales(indices)
+
+    def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set per-site world xform scales.
+
+        These update transform scale state only; use deprecated ``set_scales`` if
+        legacy Newton collision shape geometry-scale behavior is required.
+        """
+        if indices is None:
+            indices = self._site_indices
+        n = self.count if indices is self._site_indices else len(indices)
+        wp.launch(
+            _scatter_xform_scales,
+            dim=n,
+            inputs=[indices, scales, self._site_xform_scale],
+            device=self._device,
+        )
+
+    def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set per-site local xform scales.
+
+        These update transform scale state only; use deprecated ``set_scales`` if
+        legacy Newton collision shape geometry-scale behavior is required.
+        """
+        self.set_world_scales(scales, indices)
+
+    def _get_legacy_shape_scales(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get Newton legacy geometry scales from collision shapes."""
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         out = wp.zeros(n, dtype=wp.vec3f, device=self._device)
         wp.launch(
-            _gather_scales,
+            _gather_shape_scales,
             dim=n,
             inputs=[model.shape_scale, model.shape_body, self._site_body, site_indices, num_shapes],
             outputs=[out],
@@ -529,42 +626,23 @@ class NewtonSiteFrameView(BaseFrameView):
         )
         return ProxyArray(out)
 
-    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
-        """Get per-site local scales.
-
-        Newton does not distinguish local from world scale (``shape_scale`` is
-        absolute).  Returns the same value as :meth:`get_world_scales`.
-        """
-        return self.get_world_scales(indices)
-
-    def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set per-site world scales by writing to all collision shapes on the same body.
-
-        Newton's ``shape_scale`` is an absolute (world-space) quantity.
-        """
+    def _set_legacy_shape_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set Newton legacy geometry scales on collision shapes."""
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         wp.launch(
-            _scatter_scales,
+            _scatter_shape_scales,
             dim=n,
             inputs=[self._site_body, site_indices, scales, model.shape_body, num_shapes, model.shape_scale],
             device=self._device,
         )
 
-    def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set per-site local scales.
-
-        Newton does not distinguish local from world scale (``shape_scale`` is
-        absolute).  Delegates to :meth:`set_world_scales`.
-        """
-        self.set_world_scales(scales, indices)
-
     def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
-        """Newton legacy: get_scales returns world scales."""
-        return self.get_world_scales(indices)
+        """Newton legacy: get_scales returns collision shape geometry scales."""
+        return self._get_legacy_shape_scales(indices)
 
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Newton legacy: set_scales writes world scales."""
-        self.set_world_scales(scales, indices)
+        """Newton legacy: set_scales writes collision shape geometry scales."""
+        self._set_legacy_shape_scales(scales, indices)

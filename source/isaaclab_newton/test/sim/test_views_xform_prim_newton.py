@@ -40,7 +40,7 @@ class _SceneCfg(InteractiveSceneCfg):
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
-            size=(2.0, 2.0, 2.0),
+            size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
