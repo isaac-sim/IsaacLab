@@ -553,7 +553,7 @@ class FabricFrameView(BaseFrameView):
 
     def _get_scales_impl(self, indices=None):
         """Fabric: deprecated get_scales delegates to get_world_scales."""
-        return self.get_world_scales(indices).warp
+        return self.get_world_scales(indices)
 
     def _set_scales_impl(self, scales, indices=None):
         """Fabric: deprecated set_scales delegates to set_world_scales."""

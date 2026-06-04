@@ -561,9 +561,9 @@ class NewtonSiteFrameView(BaseFrameView):
         """
         self.set_world_scales(scales, indices)
 
-    def _get_scales_impl(self, indices: wp.array | None = None) -> wp.array:
+    def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         """Newton legacy: get_scales returns world scales."""
-        return self.get_world_scales(indices).warp
+        return self.get_world_scales(indices)
 
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Newton legacy: set_scales writes world scales."""

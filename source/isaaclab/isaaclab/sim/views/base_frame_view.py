@@ -157,7 +157,7 @@ class BaseFrameView(abc.ABC):
     _get_scales_deprecated_warned: bool = False
     _set_scales_deprecated_warned: bool = False
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get scales for prims in the view.
 
         .. deprecated::
@@ -169,7 +169,7 @@ class BaseFrameView(abc.ABC):
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+            A ``ProxyArray`` of shape ``(M, 3)``.
         """
         if not BaseFrameView._get_scales_deprecated_warned:
             BaseFrameView._get_scales_deprecated_warned = True
@@ -202,7 +202,7 @@ class BaseFrameView(abc.ABC):
         self._set_scales_impl(scales, indices)
 
     @abc.abstractmethod
-    def _get_scales_impl(self, indices: wp.array | None = None) -> wp.array:
+    def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         """Backend-specific implementation for deprecated get_scales()."""
         ...
 

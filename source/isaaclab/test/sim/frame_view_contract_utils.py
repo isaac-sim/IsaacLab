@@ -420,10 +420,10 @@ def test_return_types_are_torcharray(device, view_factory):
         )
 
         scales_full = bundle.view.get_scales()
-        assert isinstance(scales_full, wp.array), f"get_scales() must be wp.array, got {type(scales_full).__name__}"
+        assert isinstance(scales_full, ProxyArray), f"get_scales() must be ProxyArray, got {type(scales_full).__name__}"
         scales_idx = bundle.view.get_scales(indices)
-        assert isinstance(scales_idx, wp.array), (
-            f"get_scales(indices) must be wp.array, got {type(scales_idx).__name__}"
+        assert isinstance(scales_idx, ProxyArray), (
+            f"get_scales(indices) must be ProxyArray, got {type(scales_idx).__name__}"
         )
     finally:
         bundle.teardown()

@@ -262,9 +262,9 @@ class UsdFrameView(BaseFrameView):
                 )
                 prim.GetAttribute("xformOp:scale").Set(local_scale)
 
-    def _get_scales_impl(self, indices: wp.array | None = None) -> wp.array:
-        """USD default: get_scales returns local scales."""
-        return self.get_local_scales(indices).warp
+    def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """USD legacy: get_scales returns local scales."""
+        return self.get_local_scales(indices)
 
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """USD default: set_scales writes local scales."""
