@@ -156,15 +156,7 @@ intersphinx_mapping = {
     "trimesh": ("https://trimesh.org/", None),
     # NOTE: pinned to /docs/2.11/ because /docs/stable/objects.inv currently 404s
     "torch": ("https://docs.pytorch.org/docs/2.11/", None),
-    # The versioned Isaac Sim inventory can temporarily 404 during docs publishing.
-    # Keep links pointing at 6.0.0, but fall back to the matching latest Python inventory.
-    "isaacsim": (
-        "https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/",
-        (
-            None,
-            "https://docs.isaacsim.omniverse.nvidia.com/latest/py/objects.inv",
-        ),
-    ),
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
