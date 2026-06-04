@@ -1077,7 +1077,15 @@ class AppLauncher:
             sys.argv.append("--/renderer/multiGpu/enabled=False")
             sys.argv.append("--/renderer/multiGpu/autoEnable=False")
             sys.argv.append("--/renderer/multiGpu/maxGpuCount=1")
-            logger.info("ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU")
+            # Also disable the fabric GPU-interop path. The renderer multiGpu
+            # flags above mitigate the startup-time enumeration race; this
+            # mitigates the runtime GPU-interop race on top. Safe for the
+            # multi-GPU CI lane: it covers physics / scene / utility tests, not
+            # rendering.
+            sys.argv.append("--/physics/fabricUseGPUInterop=false")
+            logger.info(
+                "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + disabling fabric GPU-interop"
+            )
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
