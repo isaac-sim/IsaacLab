@@ -19,7 +19,6 @@ with contextlib.suppress(ImportError):
 from isaaclab.app import add_launcher_args, launch_simulation
 
 from isaaclab_tasks.utils import (
-    fold_preset_tokens,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -34,7 +33,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 MAX_STEPS = 100

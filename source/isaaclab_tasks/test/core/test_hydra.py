@@ -1426,11 +1426,12 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 
 
 # =============================================================================
-# Tests: typed-preset validation (reserved physics/renderer presets must hit
-# their typed target)
+# Tests: typed-selector validation (physics=/renderer= must hit their type)
 # =============================================================================
 
 from isaaclab.physics import PhysicsCfg as _RealPhysicsCfg  # noqa: E402
+
+from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 
 @configclass
@@ -1445,35 +1446,28 @@ class _PhysxPhysicsCfg(_RealPhysicsCfg):
     dt: float = 0.005
 
 
-def test_validate_typed_presets_passes_when_reserved_name_hits_its_target():
-    """A reserved physics name that landed on its backend does not raise."""
-    hydra_mod._validate_typed_presets(["newton_mjwarp"], consumed={"newton_mjwarp"}, typed_hits={"newton_mjwarp"})
+def test_validate_typed_presets_passes_when_selector_hits_its_type():
+    """``physics=newton_mjwarp`` that landed on a PhysicsCfg does not raise."""
+    hydra_mod._validate_typed_presets(
+        {PresetTarget.PHYSICS: {"newton_mjwarp"}},
+        typed_hits={"newton_mjwarp": {PresetTarget.PHYSICS}},
+    )
 
 
-def test_validate_typed_presets_raises_when_reserved_name_hits_only_unrelated():
-    """A reserved physics name used but never on a PhysicsCfg must raise."""
-    with pytest.raises(ValueError, match="silently mix backends"):
-        hydra_mod._validate_typed_presets(["newton_mjwarp"], consumed={"newton_mjwarp"}, typed_hits=set())
+def test_validate_typed_presets_raises_when_selector_misses_its_type():
+    """``physics=newton_mjwarp`` that never landed on a PhysicsCfg must raise."""
+    with pytest.raises(ValueError, match="physics=newton_mjwarp"):
+        hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits={})
 
 
-def test_validate_typed_presets_ignores_unconsumed_reserved_name():
-    """A reserved name that was never used is left for the unknown-preset path."""
-    hydra_mod._validate_typed_presets(["newton_mjwarp"], consumed=set(), typed_hits=set())
+def test_validate_typed_presets_ignores_broadcast_presets():
+    """A plain ``presets=`` broadcast is never in ``requested``, so it is trusted."""
+    # No typed selectors requested -> nothing to validate, even with no hits.
+    hydra_mod._validate_typed_presets({}, typed_hits={})
 
 
-def test_validate_typed_presets_ignores_unreserved_physics_default():
-    """``physx`` is not reserved, so selecting it without a PhysicsCfg never raises."""
-    hydra_mod._validate_typed_presets(["physx"], consumed={"physx"}, typed_hits=set())
-
-
-def test_validate_typed_presets_canonicalizes_legacy_alias():
-    """A legacy alias (``newton``) is validated as its canonical name."""
-    with pytest.raises(ValueError, match="newton_mjwarp"):
-        hydra_mod._validate_typed_presets(["newton"], consumed={"newton", "newton_mjwarp"}, typed_hits=set())
-
-
-def test_resolve_active_presets_records_typed_hit_for_reserved_name():
-    """End-to-end: a reserved name on a real PhysicsCfg is recorded as a typed hit."""
+def test_resolve_active_presets_records_physics_hit_for_selector():
+    """End-to-end: selecting a name that resolves to a real PhysicsCfg records a PHYSICS hit."""
 
     @configclass
     class PhysicsPresetCfg(PresetCfg):
@@ -1484,17 +1478,17 @@ def test_resolve_active_presets_records_typed_hit_for_reserved_name():
     class EnvWithPhysicsCfg:
         physics: PhysicsPresetCfg = PhysicsPresetCfg()
 
-    consumed: set[str] = set()
-    typed_hits: set[str] = set()
+    typed_hits: dict[str, set[PresetTarget]] = {}
     hydra_mod._resolve_active_presets(
-        EnvWithPhysicsCfg(), ["newton_mjwarp"], {}, root_path="env", consumed_selected=consumed, typed_hits=typed_hits
+        EnvWithPhysicsCfg(), ["newton_mjwarp"], {}, root_path="env", typed_hits=typed_hits
     )
-    assert "newton_mjwarp" in typed_hits
-    hydra_mod._validate_typed_presets(["newton_mjwarp"], consumed, typed_hits)  # passes
+    assert PresetTarget.PHYSICS in typed_hits.get("newton_mjwarp", set())
+    # physics=newton_mjwarp therefore validates.
+    hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
 
 
-def test_resolve_active_presets_no_typed_hit_for_scalar_preset():
-    """A reserved name on a non-physics scalar is consumed but not a typed hit, so validation raises."""
+def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
+    """A name resolving only to a scalar records no typed hit, so a physics= selector raises."""
 
     @configclass
     class EnvWithScalarOnlyCfg:
@@ -1502,7 +1496,7 @@ def test_resolve_active_presets_no_typed_hit_for_scalar_preset():
         armature: PresetCfg = preset(default=0.0, newton_mjwarp=0.01)
 
     consumed: set[str] = set()
-    typed_hits: set[str] = set()
+    typed_hits: dict[str, set[PresetTarget]] = {}
     hydra_mod._resolve_active_presets(
         EnvWithScalarOnlyCfg(),
         ["newton_mjwarp"],
@@ -1511,6 +1505,9 @@ def test_resolve_active_presets_no_typed_hit_for_scalar_preset():
         consumed_selected=consumed,
         typed_hits=typed_hits,
     )
-    assert "newton_mjwarp" in consumed and "newton_mjwarp" not in typed_hits
-    with pytest.raises(ValueError, match="silently mix backends"):
-        hydra_mod._validate_typed_presets(["newton_mjwarp"], consumed, typed_hits)
+    assert "newton_mjwarp" in consumed and PresetTarget.PHYSICS not in typed_hits.get("newton_mjwarp", set())
+    # presets=newton_mjwarp (broadcast) is trusted: no entry in ``requested`` -> no error.
+    hydra_mod._validate_typed_presets({}, typed_hits)
+    # physics=newton_mjwarp (typed selector) must error.
+    with pytest.raises(ValueError, match="physics=newton_mjwarp"):
+        hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)

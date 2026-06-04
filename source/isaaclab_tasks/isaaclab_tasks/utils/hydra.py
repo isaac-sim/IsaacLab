@@ -15,9 +15,11 @@ presets and their paths automatically, including inside dict-valued fields.
 
 Override categories (applied in order):
     1. Global presets: ``presets=inference,newton_mjwarp`` -- apply everywhere matching
-    2. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
-    3. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
-    4. Global scalars: ``env.decimation=10`` -- handled by Hydra
+    2. Typed selectors: ``physics=newton_mjwarp`` / ``renderer=NAME`` -- like a
+       global preset, but must resolve against a config of that type or it errors
+    3. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
+    4. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
+    5. Global scalars: ``env.decimation=10`` -- handled by Hydra
 
 Example usage::
 
@@ -279,7 +281,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
-    typed_hits: set[str] | None = None,
+    typed_hits: dict[str, set[PresetTarget]] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -316,10 +318,11 @@ def _pick_alternative(
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
         if typed_hits is not None:
-            # mark a reserved typed name (e.g. newton_mjwarp) that landed on its own backend type
-            target = PresetTarget.reserved_preset_targets().get(name)
-            if target is not None and isinstance(val, target.base_classes):
-                typed_hits.add(name)
+            # record which typed targets (physics/renderer) this name landed on
+            targets = {t for t in PresetTarget if t.base_classes and isinstance(val, t.base_classes)}
+            if targets:
+                typed_hits.setdefault(raw_name, set()).update(targets)
+                typed_hits.setdefault(name, set()).update(targets)
         if match_name is not None:
             if match_value is not val and match_value != val:
                 raise ValueError(
@@ -344,7 +347,7 @@ def _resolve_active_presets(
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
-    typed_hits: set[str] | None = None,
+    typed_hits: dict[str, set[PresetTarget]] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
@@ -543,27 +546,33 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
     return "\n".join(lines)
 
 
-def _validate_typed_presets(selected: list[str], consumed: set[str], typed_hits: set[str]) -> None:
-    """Check that each selected physics/renderer preset actually hit its backend.
+def _validate_typed_presets(
+    requested: dict[PresetTarget, set[str]],
+    typed_hits: dict[str, set[PresetTarget]],
+) -> None:
+    """Check that each typed selector landed on a config of its own type.
 
-    Names like ``newton_mjwarp`` are reserved for a backend (physics). If a task
-    reuses that name on something unrelated (a scalar, a sensor variant),
-    selecting it would tune those fields while leaving the real backend
-    untouched -- a silent backend mix. So if a reserved name was used somewhere
-    (``consumed``) but never landed on a config of its own type (``typed_hits``),
-    raise. Names that matched nothing are left for the unknown-preset error.
+    A typed selector (``physics=NAME`` / ``renderer=NAME``) is an explicit
+    request for a backend of that type, so ``NAME`` must replace at least one
+    config of that type during resolution. If it only matched unrelated presets
+    that happen to share the name (a scalar, a sensor variant), the backend
+    silently stays unchanged, so raise. The free-form ``presets=NAME`` broadcast
+    is intentionally *not* checked -- there the user makes no typing claim.
 
     Raises:
-        ValueError: If a reserved name was applied but not to its own backend.
+        ValueError: If a ``physics=`` / ``renderer=`` name never resolved
+            against a config of that target's type.
     """
     aliases = PresetTarget.all_legacy_aliases()
-    reserved = PresetTarget.reserved_preset_targets()
-    missing = sorted({i for raw in selected for i in [aliases.get(raw, raw)] if i in reserved} & consumed - typed_hits)
+    missing = sorted(
+        (t.value, n) for t, ns in requested.items() for n in ns if t not in typed_hits.get(aliases.get(n, n), set())
+    )
     if missing:
-        targets = ", ".join(sorted({reserved[i].value for i in missing}))
+        clauses = ", ".join(f"{label}={name}" for label, name in missing)
         raise ValueError(
-            f"Selected preset(s) {', '.join(missing)} never applied to a '{targets}' config for this task. "
-            "The name only matched unrelated presets, which would silently mix backends. "
+            f"Typed preset selector(s) {clauses} did not match any preset of that type for this task. "
+            "The name only matched unrelated presets (or nothing), so the backend would stay unchanged. "
+            "Use a task that declares it on the matching config, or drop the selector."
         )
 
 
@@ -583,7 +592,12 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
+    # CLI preset tokens: ``presets=NAME[,...]`` broadcasts (no typing claim),
+    # while ``physics=NAME`` / ``renderer=NAME`` are typed selectors that must
+    # resolve against a config of that type (enforced after resolution).
+    typed_labels = {target.value: target for target in PresetTarget if target.base_classes}
     global_presets: list[str] = []
+    requested_targets: dict[PresetTarget, set[str]] = {}
     override_items: list[tuple[str, str, str]] = []
     hydra_args: list[str] = []
     for arg in sys.argv[1:]:
@@ -591,14 +605,19 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             hydra_args.append(arg)
             continue
         key, val = arg.split("=", 1)
-        if key.lstrip("-") == "presets":
+        token = key.lstrip("-")
+        if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+        elif token in typed_labels:
+            for name in (v.strip() for v in val.split(",") if v.strip()):
+                global_presets.append(name)
+                requested_targets.setdefault(typed_labels[token], set()).add(name)
         else:
             override_items.append((key, val, arg))
 
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
-    typed_hits: set[str] = set()
+    typed_hits: dict[str, set[PresetTarget]] = {}
     consumed_explicit: set[str] = set()
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
     agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
@@ -645,8 +664,8 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             display = {n: p for n, p in name_to_paths.items() if n != "default"}
             raise ValueError(_format_unknown_presets_error(unknown, display))
 
-    # Reserved typed presets (e.g. Newton physics solvers) must have landed on a cfg of their type
-    _validate_typed_presets(global_presets, consumed_presets, typed_hits)
+    # Typed selectors (physics=/renderer=) must have landed on a cfg of their type
+    _validate_typed_presets(requested_targets, typed_hits)
 
     cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:

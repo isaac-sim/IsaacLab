@@ -11,20 +11,13 @@ Recognizes three ``key=value`` tokens (no leading dashes) on ``sys.argv``:
 * ``renderer=NAME``           -- typed selector for ``RendererCfg`` variants.
 * ``presets=NAME[,NAME,...]`` -- broadcast applied to every matching ``PresetCfg``.
 
-Two responsibilities, split across two functions:
-
-* :func:`setup_preset_cli` -- register the preset-selection help description on
-  the parser and run ``parse_known_args``. Returns the raw pre-fold remainder.
-* :func:`fold_preset_tokens` -- rewrite typed selectors and any free-form
-  ``presets=...`` tokens into a single ``presets=<csv>`` token that hydra's
-  :func:`~isaaclab_tasks.utils.hydra.resolve_presets` consumes. The resolver,
-  alias rewriting, and unknown-name errors are unchanged.
-
-Splitting the fold out lets callers intersect the pre-fold remainder with
-external sources (e.g. ``rsl_rl`` scripts' ``--external_callback`` hook, which
-reads the user's unmutated ``sys.argv`` and returns pre-fold tokens) in the
-same vocabulary. The fold runs exactly once, at the caller's final
-``sys.argv`` assignment.
+:func:`setup_preset_cli` registers the preset-selection help description on the
+parser and runs ``parse_known_args``, returning the verbatim remainder. The
+tokens above are passed through unchanged; hydra's
+:func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly (applying
+the names as presets and enforcing that ``physics=``/``renderer=`` resolve
+against a config of that type). Callers simply assign the remainder to
+``sys.argv``; no rewriting step is needed.
 
 No argparse arguments are registered for the typed selectors -- discoverability
 lives in the ``argument_group`` description, so the parsed Namespace gains no
@@ -37,16 +30,17 @@ Typical script setup::
     # ... script-specific args ...
     add_launcher_args(parser)
     args_cli, remaining = setup_preset_cli(parser)
-    sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining)
+    sys.argv = [sys.argv[0]] + remaining
 
-Scripts that need to intersect the remainder with external-callback output do
-the intersection first (both sides pre-fold, vocabulary matches), then fold::
+Scripts that intersect the remainder with external-callback output (e.g.
+``rsl_rl`` scripts' ``--external_callback`` hook) do the intersection on the
+remainder before assigning ``sys.argv`` -- both sides share the same token
+vocabulary::
 
     args_cli, remaining = setup_preset_cli(parser)
     if args_cli.external_callback:
-        cb_remainder = external_callback_function()
-        remaining = list_intersection(remaining, cb_remainder)
-    sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining)
+        remaining = list_intersection(remaining, external_callback_function())
+    sys.argv = [sys.argv[0]] + remaining
 
 ``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
 explicitly via :func:`isaaclab.app.add_launcher_args` before calling.
@@ -73,18 +67,14 @@ def setup_preset_cli(
     registered on ``parser`` -- otherwise those unknown tokens land in
     ``parse_known_args``'s remainder.
 
-    Does NOT fold typed selectors. The returned remainder still contains the
-    user-typed ``physics=`` / ``renderer=`` / ``presets=`` tokens verbatim,
-    alongside any Hydra path overrides and any unknown argparse flags. Call
-    :func:`fold_preset_tokens` on the remainder before assigning ``sys.argv``;
-    keeping parse and fold separate lets callers run other filters (notably
-    ``rsl_rl``'s ``--external_callback`` intersection) on the pre-fold list,
-    where vocabularies match.
+    The returned remainder contains the user-typed ``physics=`` / ``renderer=``
+    / ``presets=`` tokens verbatim, alongside any Hydra path overrides and any
+    unknown argparse flags, ready to assign to ``sys.argv`` for hydra to parse.
 
     Does not mutate ``sys.argv``; the caller assigns
-    ``sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining)`` when ready, so
-    any argv-aware logic that re-reads ``sys.argv`` (e.g. an external callback)
-    runs against the user's original command line.
+    ``sys.argv = [sys.argv[0]] + remaining`` when ready, so any argv-aware logic
+    that re-reads ``sys.argv`` (e.g. an external callback) runs against the
+    user's original command line first.
 
     Args:
         parser: Caller's argument parser. An ``argument_group`` is attached
@@ -99,8 +89,8 @@ def setup_preset_cli(
 
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
-        ``parser.parse_known_args(argv)``. Apply :func:`fold_preset_tokens`
-        to ``remaining`` before handing it to Hydra.
+        ``parser.parse_known_args(argv)``, ready to hand to Hydra via
+        ``sys.argv``.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
@@ -123,58 +113,6 @@ def setup_preset_cli(
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
     return parser.parse_known_args(argv)
-
-
-def fold_preset_tokens(tokens: list[str]) -> list[str]:
-    """Fold preset selector tokens into a single ``presets=<csv>`` token.
-
-    Recognises ``physics=NAME`` / ``renderer=NAME`` / ``presets=NAME[,NAME,...]``
-    in *tokens* (exact key match; dotted keys like ``env.sim.physics=NAME`` are
-    path-targeted overrides and pass through unchanged). All recognised names
-    are deduped in first-occurrence order and emitted as a leading
-    ``presets=<csv>`` token; every other token in *tokens* is appended in its
-    original position.
-
-    Call this on the remainder returned by :func:`setup_preset_cli` before
-    assigning ``sys.argv``. Scripts that intersect the remainder with
-    callback-returned tokens (e.g. ``rsl_rl/{train,play}.py``'s
-    ``--external_callback`` flow) must do the intersection *first* (both sides
-    pre-fold) and then call this function.
-
-    Args:
-        tokens: Pre-fold token list (typically the second element of the
-            tuple returned by :func:`setup_preset_cli`).
-
-    Returns:
-        A new list with selector tokens folded into one leading
-        ``presets=<csv>`` token if any were present; otherwise the input list
-        is returned unchanged.
-    """
-    typed_labels = {t.value for t in PresetTarget if t.base_classes}
-    names: list[str] = []
-    kept: list[str] = []
-    for token in tokens:
-        if "=" not in token:
-            kept.append(token)
-            continue
-        key, val = token.split("=", 1)
-        if key in typed_labels:
-            # Typed selector value is a single name; commas are reserved for ``presets=`` broadcast.
-            stripped = val.strip()
-            if stripped:
-                names.append(stripped)
-        elif key == PresetTarget.DOMAIN.value:
-            names.extend(name.strip() for name in val.split(",") if name.strip())
-        else:
-            kept.append(token)
-
-    if not names:
-        return list(kept)
-
-    # Dedupe, preserve first-occurrence order.
-    seen: set[str] = set()
-    deduped = [name for name in names if not (name in seen or seen.add(name))]
-    return [f"presets={','.join(deduped)}", *kept]
 
 
 # ============================================================================

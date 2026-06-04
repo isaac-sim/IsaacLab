@@ -13,7 +13,7 @@ import sys
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 # local imports
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
@@ -45,7 +45,7 @@ cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 if args_cli.video:
     args_cli.enable_cameras = True
 

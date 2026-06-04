@@ -19,7 +19,7 @@ import time
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 # -- CLI arguments -----------------------------------------------------------
 
@@ -60,7 +60,6 @@ parser.add_argument(
 # append AppLauncher cli args (provides --device, --headless, etc.)
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-hydra_args = fold_preset_tokens(hydra_args)
 sys.argv = [sys.argv[0]] + hydra_args
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
