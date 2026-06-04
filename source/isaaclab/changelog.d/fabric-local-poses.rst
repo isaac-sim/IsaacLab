@@ -6,8 +6,7 @@ Added
   :meth:`~isaaclab.sim.views.BaseFrameView.set_local_scales`,
   :meth:`~isaaclab.sim.views.BaseFrameView.get_world_scales`, and
   :meth:`~isaaclab.sim.views.BaseFrameView.set_world_scales` to the FrameView
-  API, implemented for :class:`~isaaclab.sim.views.UsdFrameView`.  Scale getters
-  now return :class:`~isaaclab.utils.warp.ProxyArray`.
+  API, implemented for :class:`~isaaclab.sim.views.UsdFrameView`.
 
 * Added :func:`~isaaclab.utils.warp.fabric.decompose_indexed_fabric_transforms`,
   :func:`~isaaclab.utils.warp.fabric.compose_indexed_fabric_transforms`,

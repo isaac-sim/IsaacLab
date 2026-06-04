@@ -5,8 +5,7 @@ Added
   :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.set_local_scales`,
   :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_world_scales`, and
   :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.set_world_scales`, which
-  delegate to the internal :class:`~isaaclab.sim.views.UsdFrameView`.  Scale
-  getters now return :class:`~isaaclab.utils.warp.ProxyArray`.
+  delegate to the internal :class:`~isaaclab.sim.views.UsdFrameView`.
 
 Deprecated
 ^^^^^^^^^^
