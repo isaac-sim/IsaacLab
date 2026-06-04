@@ -165,36 +165,6 @@ Then relaunch the distributed training command as usual.
     through host/shared memory instead of a direct P2P link, which can reduce communication
     bandwidth, so only set it when you observe a hang while restricting visible devices.
 
-.. _multi-gpu-nccl-troubleshooting:
-
-Troubleshooting NCCL Errors
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-On some Linux multi-GPU systems, distributed training may fail with
-``CUDA error: an illegal memory access was encountered`` reported by ``ProcessGroupNCCL``
-during or shortly after communicator initialization.
-
-If this occurs, try disabling the NCCL shared-memory transport before launching training:
-
-.. code-block:: shell
-
-    export NCCL_SHM_DISABLE=1
-
-If the issue persists, additional NCCL fallbacks that may help are:
-
-.. code-block:: shell
-
-    export NCCL_IB_DISABLE=1
-    export NCCL_ALGO=Ring
-
-Then relaunch the distributed training command as usual.
-
-.. note::
-
-    These variables are NCCL-level workarounds intended for affected systems. They are not
-    required on all machines, and may change communication behavior or performance depending
-    on the hardware topology.
-
 Multi-Node Training
 -------------------
 
