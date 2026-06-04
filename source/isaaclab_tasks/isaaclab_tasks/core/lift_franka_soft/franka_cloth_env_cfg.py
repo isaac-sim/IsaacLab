@@ -50,7 +50,6 @@ class PhysicsCfg(PresetCfg):
                 ls_iterations=20,
                 cone="pyramidal",
                 impratio=1,
-                ls_parallel=False,
                 integrator="implicitfast",
                 ccd_iterations=100,
             ),

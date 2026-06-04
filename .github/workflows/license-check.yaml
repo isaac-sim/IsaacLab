@@ -49,30 +49,26 @@ jobs:
         docker system prune -af
 
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: '3.12'
+        enable-cache: true
 
-    - name: Install dependencies using ./isaaclab.sh -i
+    - name: Install dependencies with uv
       env:
-        DEBUG: 1
         OMNI_KIT_ACCEPT_EULA: yes
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
       run: |
-        # first install isaac sim
-        pip install --upgrade pip
-        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
-        chmod +x ./isaaclab.sh  # Make sure the script is executable
-        # install all lab dependencies
-        ./isaaclab.sh -i
-
-    - name: Install pip-licenses
-      run: |
-        pip install --no-cache-dir pip-licenses
-        pip install --no-cache-dir -r tools/template/requirements.txt
-        pip install --no-cache-dir -r docs/requirements.txt
+        uv sync --extra all
+        # Isaac Sim isn't in the dev pyproject; sync first so it isn't pruned.
+        uv pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}'
+        uv pip install pip-licenses pipdeptree \
+          -r tools/template/requirements.txt \
+          -r docs/requirements.txt
+        # Put the venv on PATH for later steps.
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     # Optional: Print the license report for visibility
     - name: Print License Report
@@ -80,11 +76,7 @@ jobs:
 
     # Print pipdeptree
     - name: Print pipdeptree
-      run: |
-        # clean up pip cache
-        pip cache purge
-        pip install pipdeptree
-        pipdeptree
+      run: pipdeptree
 
     - name: Check licenses against whitelist and exceptions
       run: |

@@ -647,8 +647,8 @@ subclass that carries both a PhysX and a Newton variant.
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
-               cone="pyramidal", ls_parallel=True,
-               integrator="implicitfast", impratio=1,
+               cone="pyramidal", integrator="implicitfast",
+               impratio=1,
            ),
            num_substeps=1,
            debug_mode=False,
@@ -672,7 +672,8 @@ Key Newton solver parameters:
    * - ``nconmax``
      - Max contacts per env
    * - ``ls_iterations``
-     - Linear solver iterations (higher = more stable, slower)
+     - Iterative line search cap; stops early when convergence is reached.
+       Tune alongside outer solver iterations for runtime and convergence.
    * - ``cone``
      - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
    * - ``integrator``
