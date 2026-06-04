@@ -233,8 +233,6 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
 
 def _read_fabric_world_matrix_translation(view, prim_index=0):
     """Read cached Fabric worldMatrix directly, without FrameView getter sync."""
-    import usdrt  # noqa: PLC0415
-
     rt_prim = view._stage.GetPrimAtPath(view.prim_paths[prim_index])
     world_attr = rt_prim.GetAttribute(view._WORLD_MATRIX_NAME)
     matrix = world_attr.Get()

@@ -39,7 +39,6 @@ class BaseFrameView(abc.ABC):
         """Device where arrays are allocated (``"cpu"`` or ``"cuda:0"``)."""
         ...
 
-
     @contextlib.contextmanager
     def change_block(self):
         """Batch multiple transform writes into one logical change.
