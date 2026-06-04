@@ -96,8 +96,7 @@ class PreTrainedPolicyAction(ActionTerm):
     def apply_actions(self):
         if self._counter % self.cfg.low_level_decimation == 0:
             low_level_obs = self._low_level_obs_manager.compute_group("ll_policy")
-            with torch.no_grad():
-                self.low_level_actions[:] = self.policy(low_level_obs).detach()
+            self.low_level_actions[:] = self.policy(low_level_obs)
             self._low_level_action_term.process_actions(self.low_level_actions)
             self._counter = 0
         self._low_level_action_term.apply_actions()
