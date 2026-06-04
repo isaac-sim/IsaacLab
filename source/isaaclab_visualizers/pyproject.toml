@@ -37,6 +37,7 @@ newton = [
 ]
 rerun = [
     "newton[sim]==1.2.1",
+    # Match rerun-sdk's supported Arrow stack and avoid resolver drift across environments.
     "pyarrow==22.0.0",
     "rerun-sdk>=0.29.0",
 ]
@@ -49,6 +50,7 @@ all = [
     "newton[sim]==1.2.1",
     "pydantic>=2.7,<2.12",
     "PyOpenGL-accelerate",
+    # Match rerun-sdk's supported Arrow stack and avoid resolver drift across environments.
     "pyarrow==22.0.0",
     "rerun-sdk>=0.29.0",
     "typing-extensions>=4.15.0",
