@@ -49,30 +49,30 @@ jobs:
         docker system prune -af
 
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: '3.12'
+        enable-cache: true
 
-    - name: Install dependencies using ./isaaclab.sh -i
+    - name: Install dependencies with uv
       env:
-        DEBUG: 1
         OMNI_KIT_ACCEPT_EULA: yes
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
       run: |
-        # first install isaac sim
-        pip install --upgrade pip
-        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}' --extra-index-url https://pypi.nvidia.com
-        chmod +x ./isaaclab.sh  # Make sure the script is executable
-        # install all lab dependencies
-        ./isaaclab.sh -i
-
-    - name: Install pip-licenses
-      run: |
-        pip install --no-cache-dir pip-licenses
-        pip install --no-cache-dir -r tools/template/requirements.txt
-        pip install --no-cache-dir -r docs/requirements.txt
+        # Resolve and install the full Isaac Lab dev closure (all extras) from the
+        # locked sources. This replaces the slow pip-based `./isaaclab.sh -i` path.
+        uv sync --all-extras
+        # Add Isaac Sim into the same environment (not part of the dev pyproject).
+        # `uv sync` runs first so it does not prune the packages installed below.
+        uv pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}'
+        # Tools used by the license report and the project template / docs deps.
+        uv pip install pip-licenses pipdeptree \
+          -r tools/template/requirements.txt \
+          -r docs/requirements.txt
+        # Expose the venv to subsequent steps so pip-licenses / pipdeptree are on PATH.
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     # Optional: Print the license report for visibility
     - name: Print License Report
@@ -80,11 +80,7 @@ jobs:
 
     # Print pipdeptree
     - name: Print pipdeptree
-      run: |
-        # clean up pip cache
-        pip cache purge
-        pip install pipdeptree
-        pipdeptree
+      run: pipdeptree
 
     - name: Check licenses against whitelist and exceptions
       run: |
