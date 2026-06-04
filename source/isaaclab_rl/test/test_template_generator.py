@@ -454,3 +454,55 @@ def test_generated_package_import_is_omni_and_pxr_free(tmp_path, monkeypatch):
     assert result.returncode == 0, (
         f"importing the generated package eagerly pulled omni/pxr:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
+
+
+def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_path, monkeypatch):
+    """NVBug 6251258/6257159: resolving a generated env config must not pull ``omni``/``pxr``.
+
+    The training scripts use the deferred-launch pattern: ``resolve_task_config`` imports and
+    instantiates the env config *before* ``launch_simulation`` starts Kit. If the env config (or an
+    MDP term it references) eagerly loads ``pxr``, the USD plugins initialize out of order and Kit
+    aborts with ``TfNotice ... has not been created yet``. We resolve the generated manager-based env
+    config in a subprocess with ``omni``/``pxr`` blocked.
+    """
+    project_name = "template_env_safe"
+    root_dir = tmp_path / "external_root"
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    generate(
+        {
+            "external": True,
+            "path": str(root_dir),
+            "name": project_name,
+            "workflows": [{"name": "manager-based", "type": "single-agent"}],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo"]}],
+        }
+    )
+    source_dir = root_dir / project_name / "source" / project_name
+    task_folder = _task_folder(project_name, "single-agent")
+    env_cfg_module = f"{project_name}.tasks.manager_based.{task_folder}.{task_folder}_env_cfg"
+    env_cfg_class = f"{_task_class(project_name, 'single-agent')}EnvCfg"
+
+    program = textwrap.dedent(
+        f"""
+        import sys
+
+        class _Blocker:
+            def find_spec(self, name, path=None, target=None):
+                if name.split(".")[0] in ("omni", "pxr"):
+                    raise ImportError(f"BLOCKED eager import of {{name!r}} before launch_simulation")
+                return None
+
+        sys.path.insert(0, {str(source_dir)!r})
+        sys.meta_path.insert(0, _Blocker())
+
+        import importlib
+
+        cfg_module = importlib.import_module({env_cfg_module!r})
+        getattr(cfg_module, {env_cfg_class!r})()  # instantiate to evaluate scene/mdp field defaults
+        print("OK")
+        """
+    )
+    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"generated env config eagerly pulled omni/pxr:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    )
