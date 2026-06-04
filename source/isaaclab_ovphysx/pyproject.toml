@@ -23,7 +23,7 @@ Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
 [project.optional-dependencies]
-ovphysx = ["ovphysx"]
+ovphysx = ["ovphysx==0.4.13"]
 
 [tool.setuptools]
 include-package-data = true

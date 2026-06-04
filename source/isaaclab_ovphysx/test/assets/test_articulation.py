@@ -28,7 +28,7 @@ and the public setters (:meth:`set_masses_index`, :meth:`set_coms_index`,
 Process-global device lock
 --------------------------
 
-``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
+The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
 first ``ovphysx.PhysX(device=...)`` call and cannot release/swap it without a
 process restart.  :class:`~isaaclab_ovphysx.physics.OvPhysxManager` tracks
 this on ``_locked_device`` and raises :exc:`RuntimeError` if a later
@@ -125,7 +125,7 @@ _LOCKED_DEVICE: list[str | None] = [None]
 def _ovphysx_skip_other_device(request):
     """Skip tests whose ``device`` parameter mismatches the session-locked device.
 
-    ``ovphysx<=0.3.7`` locks the process-global device mode on the first
+    The OVPhysX runtime locks the process-global device mode on the first
     ``ovphysx.PhysX(device=...)`` call, so any test parametrized to a different
     device after the first ``sim.reset()`` would hit
     :exc:`ovphysx.types.PhysXDeviceError`.  We detect the locked device on the
