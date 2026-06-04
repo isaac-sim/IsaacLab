@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_contrib"
-version = "0.4.1"
+version = "0.4.2"
 description = "An extension used to stage and integrate externally contributed features and implementations."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]

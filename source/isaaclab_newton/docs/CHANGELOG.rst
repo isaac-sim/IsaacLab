@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.15.0 (2026-06-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NewtonSDFCollisionPropertiesCfg`` for authoring Newton SDF and hydroelastic collision USD attributes.
+
+
 0.14.1 (2026-06-03)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_experimental"
-version = "0.1.0"
+version = "0.1.1"
 description = "Provides early access to future features that are not yet production-ready."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
