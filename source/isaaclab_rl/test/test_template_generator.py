@@ -538,3 +538,53 @@ def test_generated_internal_task_workflow_dirs_are_importable_packages(tmp_path,
         "generated internal task workflow dirs are not importable packages, so import_packages would"
         f" skip them and the task would never register; discovered packages: {sorted(discovered)}"
     )
+
+
+def test_generated_external_project_registers_tasks_on_import(tmp_path, monkeypatch):
+    """A freshly generated external project must register all its tasks on a plain ``import`` — no manual steps.
+
+    End-to-end check of the "generate then it just works" promise: import the generated package the normal
+    way (its ``__init__`` runs Gym registration) and assert every workflow's task id is in the registry.
+    """
+    project_name = "template_reg_import"
+    root_dir = tmp_path / "external_root"
+    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
+    generate(
+        {
+            "external": True,
+            "path": str(root_dir),
+            "name": project_name,
+            "workflows": [
+                {"name": "manager-based", "type": "single-agent"},
+                {"name": "direct", "type": "single-agent"},
+                {"name": "direct", "type": "multi-agent"},
+            ],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "ippo", "mappo"]}],
+        }
+    )
+    source_dir = root_dir / project_name / "source" / project_name
+    expected = sorted(
+        {
+            _task_id(project_name, "manager-based", "single-agent", external=True),
+            _task_id(project_name, "direct", "single-agent", external=True),
+            _task_id(project_name, "direct", "multi-agent", external=True),
+        }
+    )
+    program = textwrap.dedent(
+        f"""
+        import sys
+
+        sys.path.insert(0, {str(source_dir)!r})
+        import {project_name}  # noqa: F401  (registration runs on import, with no manual step)
+        import gymnasium as gym
+
+        want = {expected!r}
+        missing = [task_id for task_id in want if task_id not in gym.registry]
+        assert not missing, f"not registered on import: {{missing}}"
+        print("OK")
+        """
+    )
+    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"external project did not register tasks on import:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    )
