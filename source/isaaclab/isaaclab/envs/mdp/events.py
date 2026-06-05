@@ -67,9 +67,9 @@ def randomize_rigid_body_scale(
         event mode named "usd". Using it at simulation time, may lead to unpredictable behaviors.
 
     .. note::
-        When randomizing the scale of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
+        The Isaac Lab cloner replicates per-object when environments differ, so per-environment scales
+        are parsed individually by the physics engine regardless of the
+        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` setting.
     """
     # check if sim is running
     if env.sim.is_playing():
@@ -2115,9 +2115,9 @@ class randomize_visual_texture_material(ManagerTermBase):
         from the asset converters in Isaac Lab.
 
     .. note::
-        When randomizing the texture of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
+        The Isaac Lab cloner replicates per-object when environments differ, so per-environment USD
+        material edits are preserved regardless of the
+        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` setting.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -2128,16 +2128,6 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: The environment instance.
         """
         super().__init__(cfg, env)
-
-        # check to make sure replicate_physics is set to False, else raise error
-        # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
-        #   and the event manager doesn't check in that case.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual texture material with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
         from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
@@ -2296,9 +2286,9 @@ class randomize_visual_color(ManagerTermBase):
     If a dictionary is used, the function will sample random colors from the given ranges.
 
     .. note::
-        When randomizing the color of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
+        The Isaac Lab cloner replicates per-object when environments differ, so per-environment USD
+        material edits are preserved regardless of the
+        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` setting.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -2320,16 +2310,6 @@ class randomize_visual_color(ManagerTermBase):
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
         mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
-
-        # check to make sure replicate_physics is set to False, else raise error
-        # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
-        #   and the event manager doesn't check in that case.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual color with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
 
         # obtain the asset entity
         asset = env.scene[asset_cfg.name]

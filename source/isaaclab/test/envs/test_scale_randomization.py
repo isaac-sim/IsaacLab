@@ -336,15 +336,31 @@ def test_scale_randomization(device):
     env.close()
 
 
-def test_scale_randomization_failure_replicate_physics():
-    """Test scale randomization failure when replicate physics is set to True."""
+def test_scale_randomization_with_replicate_physics():
+    """Scale randomization stays per-environment with replicate_physics=True.
+
+    The Isaac Lab cloner replicates per-object when environments differ, so the per-environment
+    USD scales are preserved (and parsed individually by the physics engine).
+    """
     # create a new stage
     sim_utils.create_new_stage()
     # set the arguments
-    cfg_failure = CubeEnvCfg()
-    cfg_failure.scene.replicate_physics = True
+    env_cfg = CubeEnvCfg()
+    env_cfg.scene.replicate_physics = True
 
-    # run the test
-    with pytest.raises(RuntimeError):
-        env = ManagerBasedEnv(cfg_failure)
-        env.close()
+    # building the environment must not raise
+    env = ManagerBasedEnv(cfg=env_cfg)
+
+    # the randomized scales must still be distinct across environments
+    applied_scaling_randomization = set()
+    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+    stage = sim_utils.get_current_stage()
+    for i in range(3):
+        prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
+        scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
+        assert scale_spec.default not in applied_scaling_randomization, (
+            "Detected repeat in applied scale values - scaling randomization is not per-environment."
+        )
+        applied_scaling_randomization.add(scale_spec.default)
+
+    env.close()

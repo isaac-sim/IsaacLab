@@ -214,21 +214,24 @@ def test_texture_randomization(device):
         sim_utils.close_stage()
 
 
-def test_texture_randomization_failure_replicate_physics():
-    """Test texture randomization failure when replicate physics is set to True."""
+def test_texture_randomization_with_replicate_physics():
+    """Texture randomization works with replicate_physics=True.
+
+    The Isaac Lab cloner replicates per-object when environments differ, so per-environment USD
+    material edits are preserved and building the environment must not raise.
+    """
     # Create a new stage
     sim_utils.create_new_stage()
 
     try:
         # Set the arguments
-        cfg_failure = CartpoleEnvCfg()
-        cfg_failure.scene.num_envs = 16
-        cfg_failure.scene.replicate_physics = True
+        env_cfg = CartpoleEnvCfg()
+        env_cfg.scene.num_envs = 16
+        env_cfg.scene.replicate_physics = True
 
-        # Test that creating the environment raises RuntimeError
-        with pytest.raises(RuntimeError):
-            env = ManagerBasedEnv(cfg_failure)
-            env.close()
+        # building the environment must not raise
+        env = ManagerBasedEnv(env_cfg)
+        env.close()
     finally:
         # Clean up stage
         sim_utils.close_stage()
