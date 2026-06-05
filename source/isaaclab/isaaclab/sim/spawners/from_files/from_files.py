@@ -390,7 +390,7 @@ def _spawn_from_usd_file(
             MujocoRigidBodyPropertiesCfg,
         )
 
-        # transition routing: a fragment list -> apply_joint_drive_properties; a legacy single cfg
+        # transition shim, remove later: a fragment list -> apply_joint_drive_properties; a legacy single cfg
         # -> modify_joint_drive_properties.
         joint_frags = (
             cfg.joint_drive_props if isinstance(cfg.joint_drive_props, (list, tuple)) else [cfg.joint_drive_props]
