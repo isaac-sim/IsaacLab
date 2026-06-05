@@ -27,6 +27,8 @@ from pxr import UsdPhysics
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
+from isaaclab_ovphysx._runtime import import_ovphysx
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -627,13 +629,12 @@ class OvPhysxManager(PhysicsManager):
 
         _hidden_pxr = {k: _sys.modules.pop(k) for k in list(_sys.modules) if k == "pxr" or k.startswith("pxr.")}
         try:
-            import ovphysx as _ovphysx_bootstrap
-
+            _ovphysx_bootstrap = import_ovphysx()
             _ovphysx_bootstrap.bootstrap()
         finally:
             _sys.modules.update(_hidden_pxr)
 
-        import ovphysx
+        ovphysx = import_ovphysx()
 
         physx_kwargs = {"device": ovphysx_device}
         physx_signature = inspect.signature(ovphysx.PhysX)
