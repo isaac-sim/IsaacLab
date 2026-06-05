@@ -41,22 +41,25 @@ DEVICE_SPLIT_PASSES: list[tuple[str, str]] = [
 ]
 
 
-def is_device_split_file(path: Path | str) -> bool:
+def is_device_split_file(path: Path | str, source: str | None = None) -> bool:
     """Return whether the test file at ``path`` declares the ``device_split`` marker.
 
-    Reads the file source once and matches :data:`_DEVICE_SPLIT_MARK_RE`. A
-    missing or unreadable file returns ``False`` so the caller falls back to
-    the default single-pass invocation.
+    Matches :data:`_DEVICE_SPLIT_MARK_RE` against ``source`` when supplied.
+    Otherwise, reads the file source from ``path``. A missing or unreadable
+    file returns ``False`` so the caller falls back to the default single-pass
+    invocation.
 
     Args:
         path: Filesystem path to a candidate test file.
+        source: Optional preloaded source text to inspect.
 
     Returns:
         ``True`` when the file's module-level ``pytestmark`` mentions
         ``device_split``; ``False`` otherwise.
     """
-    try:
-        source = Path(path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return False
+    if source is None:
+        try:
+            source = Path(path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
     return bool(_DEVICE_SPLIT_MARK_RE.search(source))

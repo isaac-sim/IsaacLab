@@ -772,7 +772,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             env=env,
         )
 
-        if is_device_split_file(test_file):
+        if is_device_split_file(test_file, source=test_content):
             print(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
             passes = DEVICE_SPLIT_PASSES
         else:

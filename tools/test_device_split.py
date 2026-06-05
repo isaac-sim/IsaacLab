@@ -49,6 +49,17 @@ def test_list_form_single_line(tmp_path):
     assert is_device_split_file(f) is True
 
 
+def test_preloaded_source(tmp_path):
+    source = textwrap.dedent(
+        """
+        import pytest
+
+        pytestmark = pytest.mark.device_split
+        """
+    )
+    assert is_device_split_file(tmp_path / "does_not_exist.py", source=source) is True
+
+
 def test_no_mark(tmp_path):
     f = _write(
         tmp_path,
