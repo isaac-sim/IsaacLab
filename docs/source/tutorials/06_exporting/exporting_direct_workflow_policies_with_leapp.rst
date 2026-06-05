@@ -23,7 +23,8 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-Before exporting, install LEAPP into the Isaac Lab Python environment:
+This export flow requires ``leapp>=0.5.2``. Before exporting, install LEAPP into
+the Isaac Lab Python environment:
 
 .. tab-set::
    :sync-group: os
@@ -236,6 +237,6 @@ into deployment systems.
 .. note::
 
    Refer to the `LEAPP semantic annotation guide
-   <https://github.com/nvidia-isaac/leapp/blob/main/docs/5_semantic_data_annotation.md>`_
-   and `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
+   <https://nvidia-isaac.github.io/leapp/guides/semantics.html>`_
+   and `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
    for details on authoring semantic annotations.

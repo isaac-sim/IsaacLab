@@ -4,7 +4,7 @@ Exporting Policies with LEAPP
 .. currentmodule:: isaaclab
 
 This guide covers how to export trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://github.com/nvidia-isaac/leapp>`_ (Lightweight Export Annotations for Policy Pipelines).
+`LEAPP <https://nvidia-isaac.github.io/leapp/>`_ (Lightweight Export Annotations for Policy Pipelines).
 The main goal of the LEAPP export path is to package the policy together with the input and
 output semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
 observation preprocessing, action postprocessing, or recurrent-state handling by hand.
@@ -22,7 +22,8 @@ ROS will add direct support for running LEAPP-exported policies in a future rele
 Prerequisites
 -------------
 
-LEAPP requires Python >= 3.8 and PyTorch >= 2.6. Install it with:
+This export flow requires ``leapp>=0.5.2``, Python >= 3.8, and PyTorch >= 2.6. Install
+LEAPP with:
 
 .. tab-set::
    :sync-group: os
@@ -64,7 +65,7 @@ consumers can run the policy without reconstructing observation ordering, comman
 targets, or policy feedback loops themselves.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
-`LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_.
+`LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_.
 
 
 Exporting a Policy
@@ -279,6 +280,18 @@ simulation without the training infrastructure. This is the Isaac Lab deployment
 LEAPP-exported policies and is useful for validating that the packaged policy still behaves
 correctly when driven through the deployment stack instead of the training stack.
 
+Run the deployment script with the task name and the exported LEAPP ``.yaml`` file.
+
+By default, Isaac Lab launches headless when no visualization option is selected. If you expect
+to see the policy running in a viewport, pass a visualization option such as ``--viz kit``:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
+       --task <TASK_NAME> \
+       --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+       --viz kit
+
 For Direct workflow policies, see the
 :doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.
 That guide shows how to add LEAPP annotations to a direct RL environment so it can be
@@ -289,6 +302,6 @@ workflow policies are not currently supported by ``scripts/reinforcement_learnin
 Further Reading
 ---------------
 
-- `LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_
-- `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
+- `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_
+- `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
 - :class:`~envs.LeappDeploymentEnv` API reference
