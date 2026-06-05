@@ -559,6 +559,12 @@ class DirectMARLEnv(gym.Env):
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 
+            # Drop cached observation/state tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_dict", None), dict):
+                self.obs_dict.clear()
+            self.state_buf = None
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -568,6 +574,12 @@ class DirectMARLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             self.sim.clear_instance()
+
+            # Release gym space objects set in _configure_env_spaces; without this they
+            # survive close via gymnasium's wrapper chain.
+            self.observation_spaces = None
+            self.action_spaces = None
+            self.state_space = None
 
             # destroy the window
             if self._window is not None:
