@@ -5,6 +5,7 @@
 
 import contextlib
 import os
+import re
 import select
 import signal
 import subprocess
@@ -312,6 +313,102 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
+def _slugify_test_path(test_path):
+    """Encode a test path as a flat queue entry name.
+
+    The queue uses one file per pending test. Slashes are not legal inside a
+    filename, so we encode the relative path by replacing ``/`` with ``__``.
+    The decoder is :func:`_unslugify_queue_entry`.
+    """
+    return test_path.replace("/", "__")
+
+
+def _unslugify_queue_entry(entry_name):
+    """Reverse of :func:`_slugify_test_path`."""
+    return entry_name.replace("__", "/")
+
+
+def _claim_queued_file(queue_dir):
+    """Atomically claim one pending test from the work-queue directory.
+
+    The queue is a directory of files (one per pending test); the shard claims
+    one by renaming it from ``queue/`` into its private ``inflight/cuda-N/``.
+    POSIX rename is atomic on the same filesystem, so two shards racing on the
+    same source file are serialized by the kernel: exactly one rename succeeds,
+    the other gets ``FileNotFoundError`` and tries the next entry.
+
+    On success, the test's queue entry is now sitting in ``inflight/cuda-N/``;
+    the caller is expected to move it to ``done/cuda-N/`` after the per-test
+    pytest invocation exits with a clean result, leaving anything still in
+    ``inflight/`` at job-end as recoverable evidence of a crashed test.
+
+    Args:
+        queue_dir: Path to the shared work-queue root. Must contain a
+            ``queue/`` subdir (pending entries) and an ``inflight/<shard>/``
+            subdir for this shard (claim destination).
+
+    Returns:
+        The decoded test path for the claimed file, or ``None`` when the
+        queue is empty.
+    """
+    shard = os.environ.get("ISAACLAB_SIM_DEVICE", "cuda").replace(":", "-")
+    pending_dir = os.path.join(queue_dir, "queue")
+    inflight_dir = os.path.join(queue_dir, "inflight", shard)
+    os.makedirs(inflight_dir, exist_ok=True)
+
+    # Listdir is intentionally not cached: another shard may have just removed
+    # an entry we'd otherwise try. We pay one listdir per claim attempt; with
+    # N≤20 entries this is microseconds.
+    try:
+        entries = sorted(os.listdir(pending_dir))
+    except FileNotFoundError:
+        return None
+
+    for entry in entries:
+        src = os.path.join(pending_dir, entry)
+        dst = os.path.join(inflight_dir, entry)
+        try:
+            os.rename(src, dst)
+        except FileNotFoundError:
+            # Lost the race for this entry; another shard claimed it first.
+            # Continue to the next entry in our (potentially stale) listing.
+            continue
+        except OSError:
+            # Any other rename failure (e.g. permission) is a hard error.
+            raise
+        return _unslugify_queue_entry(entry)
+
+    return None
+
+
+def _mark_queued_file_done(queue_dir, test_path):
+    """Move a successfully-completed claim from ``inflight/cuda-N/`` to ``done/cuda-N/``.
+
+    Called by the test runner after a per-file pytest invocation exits cleanly.
+    The inflight residual is what the post-run reconciler uses to detect
+    crashed shards: anything still in ``inflight/`` at job-end is an orphan.
+    """
+    shard = os.environ.get("ISAACLAB_SIM_DEVICE", "cuda").replace(":", "-")
+    entry = _slugify_test_path(test_path)
+    src = os.path.join(queue_dir, "inflight", shard, entry)
+    dst_dir = os.path.join(queue_dir, "done", shard)
+    os.makedirs(dst_dir, exist_ok=True)
+    dst = os.path.join(dst_dir, entry)
+    # Suppress: already moved (idempotent) or the runner crashed before we
+    # could mark done — the reconciler catches the second case.
+    with contextlib.suppress(FileNotFoundError):
+        os.rename(src, dst)
+
+
+def _queued_files(queue_dir):
+    """Yield files claimed from the shared work queue until it is empty."""
+    while True:
+        claimed = _claim_queued_file(queue_dir)
+        if claimed is None:
+            return
+        yield claimed
+
+
 def _read_test_report(report_file, file_name):
     """Read a pytest JUnit report and return its summary fields."""
     report = JUnitXml.fromfile(report_file)
@@ -401,13 +498,21 @@ def _retry_failed_test_in_fresh_process(
 
 
 def run_individual_tests(test_files, workspace_root, isaacsim_ci):
-    """Run each test file separately, ensuring one finishes before starting the next."""
+    """Run each test file separately, ensuring one finishes before starting the next.
+
+    When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue file, files are claimed
+    from it (work-stealing across sibling shard containers) instead of iterating
+    ``test_files``; each file still runs once, on this container's pinned GPU.
+    """
     failed_tests = []
     test_status = {}
     xml_reports = []
     cold_cache_applied = False
 
-    for test_file in test_files:
+    queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
+    file_source = _queued_files(queue_path) if queue_path else test_files
+
+    for test_file in file_source:
         print(f"\n\n🚀 Running {test_file} independently...\n")
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
@@ -433,14 +538,25 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
         startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
 
+        # Prefix the report file with a slug derived from the full test_file
+        # path so two concurrent shards running same-basename files (e.g.
+        # ``isaaclab_newton/.../test_articulation.py`` vs
+        # ``isaaclab_physx/.../test_articulation.py``) don't write to the same
+        # path inside the shared ``/workspace/isaaclab`` mount and trigger
+        # false shutdown_hang detections in sibling shards via the
+        # ``os.path.exists(report_file)`` check at line ~137.
+        report_slug = str(test_file).replace("/", "__").replace("\\", "__")
+        report_file = f"tests/test-reports-{report_slug}.xml"
+
         cmd = [
             sys.executable,
             "-m",
             "pytest",
             "-s",
+            "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
             "--no-header",
             f"--config-file={workspace_root}/pyproject.toml",
-            f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+            f"--junitxml={report_file}",
             "--tb=short",
         ]
 
@@ -449,8 +565,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             cmd.append("isaacsim_ci")
 
         cmd.append(str(test_file))
-
-        report_file = f"tests/test-reports-{str(file_name)}.xml"
 
         # -- Run with retry on startup hang or hard timeout -----------------
         returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
@@ -677,6 +791,14 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             "wall_time": wall_time,
         }
 
+        # When running under the directory-based work queue (option 2), move the
+        # claim entry from inflight/<shard>/ to done/<shard>/ so the post-run
+        # reconciler can distinguish "ran to completion" from "claimed but
+        # crashed mid-test". A claim that stays in inflight at job-end is a
+        # silent drop signal.
+        if queue_path:
+            _mark_queued_file_done(queue_path, test_file)
+
     print("~~~~~~~~~~~~ Finished running all tests")
 
     return failed_tests, test_status, xml_reports
@@ -845,6 +967,10 @@ def pytest_sessionstart(session):
     # Run all tests individually
     failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
 
+    # In work-queue mode this container ran only the files it claimed; report on those.
+    if os.environ.get("ISAACLAB_TEST_QUEUE"):
+        test_files = list(test_status)
+
     print("failed tests:", failed_tests)
 
     # Collect reports
@@ -861,6 +987,10 @@ def pytest_sessionstart(session):
     # write content to full report
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
     full_report_path = f"tests/{result_file}"
+    # Ensure the directory exists even when this shard claimed zero files
+    # from the work queue (per-test JUnit XMLs are what normally create
+    # ``tests/``; with no tests run there is nothing to create it).
+    os.makedirs("tests", exist_ok=True)
     print(f"Using result file: {result_file}")
     full_report.write(full_report_path)
     print("~~~~~~~~~~~~ Report written to", full_report_path)
@@ -899,14 +1029,17 @@ def pytest_sessionstart(session):
     summary_str += f"Total Wall Time: {total_wall // 3600:.0f}h{total_wall // 60 % 60:.0f}m{total_wall % 60:.2f}s\n"
     summary_str += f"Total Test Time: {total_test // 3600:.0f}h{total_test // 60 % 60:.0f}m{total_test % 60:.2f}s"
 
+    # GPU this run used (the shard's boot device); ``cuda:0`` when unset.
+    run_device = os.environ.get("ISAACLAB_SIM_DEVICE") or "cuda:0"
+
     summary_str += "\n\n=======================\n"
-    summary_str += "Per Test Result Summary\n"
+    summary_str += "Per File Result Summary\n"
     summary_str += "=======================\n"
 
-    per_test_result_table = PrettyTable(field_names=["Test Path", "Result", "Test (s)", "Wall (s)", "# Tests"])
-    per_test_result_table.align["Test Path"] = "l"
-    per_test_result_table.align["Test (s)"] = "r"
-    per_test_result_table.align["Wall (s)"] = "r"
+    per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    per_file_result_table.align["Test Path"] = "l"
+    per_file_result_table.align["Test (s)"] = "r"
+    per_file_result_table.align["Wall (s)"] = "r"
     for test_path in test_files:
         num_tests_passed = (
             test_status[test_path]["tests"]
@@ -914,9 +1047,10 @@ def pytest_sessionstart(session):
             - test_status[test_path]["errors"]
             - test_status[test_path]["skipped"]
         )
-        per_test_result_table.add_row(
+        per_file_result_table.add_row(
             [
                 test_path,
+                run_device,
                 test_status[test_path]["result"],
                 f"{test_status[test_path]['time_elapsed']:0.2f}",
                 f"{test_status[test_path]['wall_time']:0.2f}",
@@ -924,7 +1058,34 @@ def pytest_sessionstart(session):
             ]
         )
 
-    summary_str += per_test_result_table.get_string()
+    summary_str += per_file_result_table.get_string()
+
+    # Per-test run times, slowest first, from the merged JUnit report. The
+    # device is read from the test id params (e.g. ``...[size0-cuda:1]``),
+    # falling back to the run's boot device.
+    summary_str += "\n\n=================\n"
+    summary_str += "Per Test Run Time\n"
+    summary_str += "=================\n"
+
+    per_test_time_table = PrettyTable(field_names=["Test", "Device", "Time (s)"])
+    per_test_time_table.align["Test"] = "l"
+    per_test_time_table.align["Time (s)"] = "r"
+    test_times = []
+    for suite in full_report:
+        for case in suite:
+            full_name = f"{case.classname}::{case.name}" if case.classname else case.name
+            device = run_device
+            bracket = re.search(r"\[(.*)\]", full_name)
+            if bracket:
+                dev_match = re.search(r"cuda:\d+|\bcpu\b", bracket.group(1))
+                if dev_match:
+                    device = dev_match.group(0)
+            elapsed = float(case.time) if case.time is not None else 0.0
+            test_times.append((full_name, device, elapsed))
+    for full_name, device, elapsed in sorted(test_times, key=lambda row: row[2], reverse=True):
+        per_test_time_table.add_row([full_name, device, f"{elapsed:0.3f}"])
+
+    summary_str += per_test_time_table.get_string()
 
     # Print summary to console and log file
     print(summary_str)
