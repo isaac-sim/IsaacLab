@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "apply_fixed_tendon",
+    "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "ArticulationRootPropertiesCfg",
@@ -21,11 +23,13 @@ __all__ = [
     "PhysxConvexHullPropertiesCfg",
     "PhysxDeformableBodyPropertiesCfg",
     "PhysxDeformableCollisionPropertiesCfg",
+    "PhysxFixedTendonCfg",
     "PhysxFixedTendonPropertiesCfg",
     "PhysxJointDrivePropertiesCfg",
     "PhysxRigidBodyCfg",
     "PhysxRigidBodyPropertiesCfg",
     "PhysxSDFMeshPropertiesCfg",
+    "PhysxSpatialTendonCfg",
     "PhysxSpatialTendonPropertiesCfg",
     "PhysxTriangleMeshPropertiesCfg",
     "PhysxTriangleMeshSimplificationPropertiesCfg",
@@ -37,6 +41,8 @@ __all__ = [
 ]
 
 from .schemas import (
+    apply_fixed_tendon,
+    apply_spatial_tendon,
     define_deformable_body_properties,
     modify_deformable_body_properties,
 )
@@ -56,11 +62,13 @@ from .schemas_cfg import (
     PhysxConvexHullPropertiesCfg,
     PhysxDeformableBodyPropertiesCfg,
     PhysxDeformableCollisionPropertiesCfg,
+    PhysxFixedTendonCfg,
     PhysxFixedTendonPropertiesCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyCfg,
     PhysxRigidBodyPropertiesCfg,
     PhysxSDFMeshPropertiesCfg,
+    PhysxSpatialTendonCfg,
     PhysxSpatialTendonPropertiesCfg,
     PhysxTriangleMeshPropertiesCfg,
     PhysxTriangleMeshSimplificationPropertiesCfg,

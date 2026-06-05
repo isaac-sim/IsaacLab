@@ -927,6 +927,32 @@ Fixed tendon properties.
 """
 
 
+def apply_fixed_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+    """Apply a list of fixed-tendon fragments to a prim.
+
+    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
+    multi-instance schemas already exist on the prim (authored in the source asset). This writer
+    therefore applies no anchor schema; it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the fixed-tendon schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
+
+
 @apply_nested
 def modify_fixed_tendon_properties(
     prim_path: str, cfg: schemas_cfg.PhysxFixedTendonPropertiesCfg, stage: Usd.Stage | None = None
@@ -985,6 +1011,10 @@ def modify_fixed_tendon_properties(
                     camel_case=False,
                 )
     else:
+        # NOTE: This ``mjc:*`` branch (for the ``MjcTendon`` prim type) is a future split
+        #   candidate -- it could become a separate Mjc tendon fragment + applier in
+        #   isaaclab_newton, mirroring the PhysX/Mjc split done for other families. It is
+        #   kept inline here for now so the schema-fragment migration stays additive.
         # only stiffness and damping in the cfg map to mjc attributes
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
@@ -997,6 +1027,33 @@ def modify_fixed_tendon_properties(
 """
 Spatial tendon properties.
 """
+
+
+def apply_spatial_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+    """Apply a list of spatial-tendon fragments to a prim.
+
+    Spatial tendons are a *tune-not-apply* family: the applied
+    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
+    already exist on the prim (authored in the source asset). This writer therefore applies no
+    anchor schema; it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the spatial-tendon schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
 
 
 @apply_nested
