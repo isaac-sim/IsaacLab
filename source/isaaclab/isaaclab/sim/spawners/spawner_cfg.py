@@ -82,8 +82,14 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         to the prim outside of the properties available by default when spawning the prim.
     """
 
-    mass_props: schemas.MassPropertiesCfg | None = None
-    """Mass properties."""
+    mass_props: schemas.MassPropertiesCfg | schemas.MassFragment | list[schemas.MassFragment] | None = None
+    """Mass properties.
+
+    Accepts either a single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg` or a list of
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``[MassCfg(...)]``). When a fragment
+    list is given, ``UsdPhysics.MassAPI`` is applied as the implicit anchor and each fragment writes
+    its own namespace.
+    """
 
     rigid_props: schemas.RigidBodyBaseCfg | schemas.RigidBodyFragment | list[schemas.RigidBodyFragment] | None = None
     """Rigid body properties.

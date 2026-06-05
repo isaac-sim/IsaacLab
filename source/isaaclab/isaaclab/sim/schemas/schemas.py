@@ -651,6 +651,32 @@ Mass properties.
 """
 
 
+def apply_mass_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+    """Apply a list of mass fragments to a prim.
+
+    Applies ``UsdPhysics.MassAPI`` as the implicit anchor (the defining schema for mass properties),
+    then dispatches each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+
+    Args:
+        prim_path: The prim path to apply the mass schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.MassFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not UsdPhysics.MassAPI(prim):
+        UsdPhysics.MassAPI.Apply(prim)
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
+
+
 def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
     """Apply the mass schema on the input prim and set its properties.
 
