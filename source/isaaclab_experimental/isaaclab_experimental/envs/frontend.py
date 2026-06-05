@@ -77,12 +77,14 @@ class FrontendIncompatibleError(RuntimeError):
 _WARP_ROOT_PREFIXES: tuple[str, ...] = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
 # Top-level cfg groups whose managers run warp-first. Only terms under these are
-# adapted (SceneEntityCfg promotion + MDP twin swap); the event, curriculum,
-# recorder and command managers run on the stable (torch) implementation, so
-# their stable funcs/SceneEntityCfgs are left untouched. A stable term left on a
-# warp manager would break, so a missing twin in these groups is a hard error;
-# a stable term on a stable manager is correct, so those groups are skipped.
-_WARP_MANAGED_GROUPS: frozenset[str] = frozenset({"observations", "rewards", "terminations", "actions"})
+# adapted (SceneEntityCfg promotion + MDP twin swap). The event manager is
+# warp-first too — it invokes term funcs with a Warp env-mask, so a stable event
+# func (which expects torch ``env_ids``) breaks at runtime; its funcs must be
+# swapped to warp twins. The curriculum, recorder and command managers run on the
+# stable (torch) implementation, so their terms are left untouched. A stable term
+# left on a warp manager would break, so a missing twin in these groups is a hard
+# error; a stable term on a stable manager is correct, so those groups are skipped.
+_WARP_MANAGED_GROUPS: frozenset[str] = frozenset({"observations", "rewards", "terminations", "actions", "events"})
 
 
 def build(

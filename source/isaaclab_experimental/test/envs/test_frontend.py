@@ -207,10 +207,16 @@ class _EventsCfg:
 
 
 @configclass
+class _CurriculumCfg:
+    c1: EventTermCfg | None = None
+
+
+@configclass
 class _CfgFixture:
     observations: _ObservationsCfg | None = None
     rewards: _RewardsCfg | None = None
     events: _EventsCfg | None = None
+    curriculum: _CurriculumCfg | None = None
 
 
 def _term(func=None, params: dict | None = None) -> RewardTermCfg:
@@ -311,18 +317,23 @@ class TestPromoteSceneEntityCfgs(unittest.TestCase):
                     o3=ObservationTermCfg(func=_stable_func, params={"asset_cfg": StableSceneEntityCfg(name="o-per")})
                 ),
             ),
+            curriculum=_CurriculumCfg(
+                c1=EventTermCfg(func=_stable_func, mode="reset", params={"asset_cfg": StableSceneEntityCfg(name="c")})
+            ),
         )
         _promote_scene_entity_cfgs(cfg)
-        # Warp-managed groups (rewards, observations incl. sub-groups) are promoted.
+        # Warp-managed groups (rewards, observations incl. sub-groups, events) are promoted.
         self.assertIsInstance(cfg.rewards.r1.params["asset_cfg"], WarpSceneEntityCfg)
         self.assertIsInstance(cfg.observations.policy.o1.params["asset_cfg"], WarpSceneEntityCfg)
         # The perception sub-group is reached even though its attribute name is
         # not hardcoded in the framework.
         self.assertIsInstance(cfg.observations.perception.o3.params["asset_cfg"], WarpSceneEntityCfg)
-        # Events run on the stable (torch) manager, so their SceneEntityCfg is
+        # The event manager is warp-first, so its terms are promoted too.
+        self.assertIsInstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
+        # Curriculum runs on the stable (torch) manager, so its SceneEntityCfg is
         # left untouched — promoting it would hand a warp variant to a torch manager.
-        self.assertIsInstance(cfg.events.e1.params["asset_cfg"], StableSceneEntityCfg)
-        self.assertNotIsInstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
+        self.assertIsInstance(cfg.curriculum.c1.params["asset_cfg"], StableSceneEntityCfg)
+        self.assertNotIsInstance(cfg.curriculum.c1.params["asset_cfg"], WarpSceneEntityCfg)
 
 
 # ======================================================================

@@ -9,12 +9,9 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_experimental.managers.manager_base import ManagerTermBase
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
 
 if TYPE_CHECKING:
-    from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg
-
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -48,28 +45,14 @@ def joint_pos_target_l2(env: ManagerBasedRLEnv, out, target: float, asset_cfg: S
     )
 
 
-class survival_success_rate(ManagerTermBase):
-    """Logs the mean time-out (survival) rate of the resetting envs; contributes zero reward.
+def survival_success_rate(env: ManagerBasedRLEnv, out) -> None:
+    """Zero-reward placeholder mirroring the stable ``survival_success_rate`` term.
 
-    Mirrors the stable term: the reward value is always zero (so it is registered with
-    ``weight=0.0``) and the only effect is logging ``Metrics/success_rate`` on reset, where
-    success is defined as the episode ending by time-out rather than an early termination.
+    The stable term contributes zero reward (registered with ``weight=0.0``) and its only
+    effect is logging ``Metrics/success_rate`` on reset. That logging needs a host readback
+    of the time-out mask, which is incompatible with the warp reward manager's
+    CUDA-graph-captured reset, so the warp twin keeps the zero reward and omits the diagnostic
+    metric. Implemented as a plain term func (not a :class:`ManagerTermBase`) since there is no
+    graph-safe per-reset state to maintain.
     """
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-
-    def reset(self, env_mask: wp.array | None = None) -> None:
-        # ``time_outs`` is exposed as a torch tensor by the warp termination manager.
-        time_outs = self._env.termination_manager.time_outs
-        if env_mask is None:
-            survived = time_outs.float().mean()
-        else:
-            selected = time_outs[wp.to_torch(env_mask).bool()]
-            survived = selected.float().mean() if selected.numel() > 0 else time_outs.new_zeros(())
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = float(survived.item())
-
-    def __call__(self, env: ManagerBasedRLEnv, out) -> None:
-        # Pure logging term: the reward contribution is zero. The reward manager pre-zeroes
-        # ``out`` each step, but zero it explicitly so the term is correct independent of that.
-        out.zero_()
+    out.zero_()

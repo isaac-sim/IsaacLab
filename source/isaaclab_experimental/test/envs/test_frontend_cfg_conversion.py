@@ -53,21 +53,25 @@ def _instantiate_cfg(cfg_entry_point: str):
 
 _MANAGER_WARP_TASKS = _manager_warp_tasks()
 
-# Tasks whose stable cfg still includes a warp-managed term with no warp twin.
-# These are tracked for implementation; delete the entry once the twin lands
-# (xfail is strict, so an unexpected pass fails the suite and flags the cleanup).
-_PENDING_WARP_TWINS: dict[str, str] = {}
+
+def _pending_reason(task_id: str) -> str | None:
+    """Reason a task's cfg cannot yet fully adapt, or ``None`` if it should pass.
+
+    Tracked for implementation; remove an entry once its warp twin lands (xfail is
+    strict, so an unexpected pass fails the suite and flags the cleanup).
+    """
+    # Velocity locomotion tasks randomize body mass + material in their event terms,
+    # which have no warp twins yet (would need Newton articulation mass/material setters).
+    if task_id.startswith("Isaac-Velocity-"):
+        return "pending warp event twins: randomize_rigid_body_mass / randomize_rigid_body_material"
+    return None
 
 
 def _params():
     cases = []
     for task_id, cfg_entry_point in _MANAGER_WARP_TASKS:
-        marks = ()
-        if task_id in _PENDING_WARP_TWINS:
-            marks = pytest.mark.xfail(
-                strict=True,
-                reason=f"pending warp twin for {_PENDING_WARP_TWINS[task_id]}",
-            )
+        reason = _pending_reason(task_id)
+        marks = pytest.mark.xfail(strict=True, reason=reason) if reason else ()
         cases.append(pytest.param(task_id, cfg_entry_point, marks=marks, id=task_id))
     return cases
 
