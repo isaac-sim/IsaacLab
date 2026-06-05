@@ -171,15 +171,11 @@ class LoopClosureErrorCommand(CommandTerm):
         n = self._kinematic_metric_step_count.float()
         self.metrics["loop_closure_pos_error_mean"] += (loop_err - self.metrics["loop_closure_pos_error_mean"]) / n
         self.metrics["loop_closure_pos_error_max"] = torch.maximum(self.metrics["loop_closure_pos_error_max"], loop_err)
-        self.metrics["ground_link_pos_error_mean"] += (
-            ground_pos_err - self.metrics["ground_link_pos_error_mean"]
-        ) / n
+        self.metrics["ground_link_pos_error_mean"] += (ground_pos_err - self.metrics["ground_link_pos_error_mean"]) / n
         self.metrics["ground_link_pos_error_max"] = torch.maximum(
             self.metrics["ground_link_pos_error_max"], ground_pos_err
         )
-        self.metrics["ground_link_ori_error_mean"] += (
-            ground_ori_err - self.metrics["ground_link_ori_error_mean"]
-        ) / n
+        self.metrics["ground_link_ori_error_mean"] += (ground_ori_err - self.metrics["ground_link_ori_error_mean"]) / n
         self.metrics["ground_link_ori_error_max"] = torch.maximum(
             self.metrics["ground_link_ori_error_max"], ground_ori_err
         )
