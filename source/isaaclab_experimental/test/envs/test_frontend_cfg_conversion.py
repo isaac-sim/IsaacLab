@@ -77,6 +77,9 @@ def test_manager_warp_tasks_are_registered():
     assert _MANAGER_WARP_TASKS, "no manager-based '*-Warp-v0' tasks registered"
 
 
+_WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")
+
+
 @pytest.mark.parametrize("task_id, cfg_entry_point", _params())
 def test_stable_cfg_adapts_to_warp(task_id: str, cfg_entry_point: str):
     """The stable cfg behind each warp task adapts without a missing twin."""
@@ -86,3 +89,16 @@ def test_stable_cfg_adapts_to_warp(task_id: str, cfg_entry_point: str):
     cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
     # Raises FrontendIncompatibleError if any warp-managed term lacks a warp twin.
     adapt_cfg_for_warp(cfg)
+
+    # Action terms carry a ``class_type`` (not a ``func``) and live on a base that
+    # is not a ManagerTermBaseCfg; guard that the adapter still swaps them to the
+    # warp ActionTerm, otherwise the warp ActionManager rejects them at runtime.
+    actions = getattr(cfg, "actions", None)
+    if actions is not None:
+        for name, term in vars(actions).items():
+            class_type = getattr(term, "class_type", None)
+            if class_type is not None:
+                assert class_type.__module__.startswith(_WARP_ROOTS), (
+                    f"{task_id}: action term '{name}' class_type was not swapped to a warp twin"
+                    f" (got {class_type.__module__}.{class_type.__name__})"
+                )

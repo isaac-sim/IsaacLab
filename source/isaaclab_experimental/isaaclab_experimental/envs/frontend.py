@@ -384,26 +384,31 @@ def _is_swap_candidate(value: Any) -> bool:
 
 
 def _walk_terms(node: Any, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[str, ...], Any]]:
-    """Yield ``(path, term)`` for every :class:`ManagerTermBaseCfg` in the cfg tree.
+    """Yield ``(path, term)`` for every MDP term cfg in the cfg tree.
+
+    A "term" is a :class:`ManagerTermBaseCfg` (observation/reward/termination/
+    event/curriculum) *or* an :class:`ActionTermCfg` — the latter is a separate
+    base that is **not** a ``ManagerTermBaseCfg`` subclass, yet carries a
+    swappable ``class_type``, so it must be matched explicitly.
 
     Behavior at each node:
 
-    * Match (:class:`ManagerTermBaseCfg` instance): yield ``(path, node)`` and stop —
-      do not descend into ``term.params`` / ``term.func``.
+    * Match (a term cfg instance): yield ``(path, node)`` and stop — do not
+      descend into ``term.params`` / ``term.func`` / ``term.class_type``.
     * Configclass: don't yield; recurse into every non-underscore attribute,
-      extending the path. ``observations``, ``rewards``, ``events``, sub-groups
-      like ``observations.policy`` / ``observations.perception``, and anything
-      nested deeper are reached transparently.
+      extending the path. ``observations``, ``rewards``, ``events``, ``actions``,
+      sub-groups like ``observations.policy`` / ``observations.perception``, and
+      anything nested deeper are reached transparently.
     * Anything else (plain Python data, callables, non-configclass objects):
       stop. No yield, no recursion.
 
     Driven entirely by type — no attribute names are hardcoded — so future
     cfg layouts (extra observation groups, new nesting, etc.) are picked up
-    automatically as long as their terms subclass :class:`ManagerTermBaseCfg`.
+    automatically as long as their terms subclass one of the term base cfgs.
     """
-    from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
+    from isaaclab.managers.manager_term_cfg import ActionTermCfg, ManagerTermBaseCfg
 
-    if isinstance(node, ManagerTermBaseCfg):
+    if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg)):
         yield path, node
         return
     if not hasattr(node, "__dataclass_fields__"):
