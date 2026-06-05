@@ -39,7 +39,17 @@ import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 # By setting OVRTX_SKIP_USD_CHECK, we prevent the C library from loading the pxr Python package.
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
-from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
+
+try:
+    from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
+except ModuleNotFoundError as exc:
+    if exc.name != "ovrtx":
+        raise
+    raise ModuleNotFoundError(
+        "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
+        "Install it with: ./isaaclab.sh -i 'ov[ovrtx]' "
+        "(or, manually: pip install --extra-index-url https://pypi.nvidia.com -e 'source/isaaclab_ov[ovrtx]')."
+    ) from exc
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
