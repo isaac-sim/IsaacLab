@@ -1620,9 +1620,10 @@ class NewtonManager(PhysicsManager):
         - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
-        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture, then restores the live states so user-staged writes (for example external
-        wrenches) are still consumed by the first user-visible graph replay.
+        Warmup advances Newton once outside the normal IsaacLab step bookkeeping, only to
+        trigger lazy solver allocations before capture. The original state buffers are
+        restored afterwards so values written by this internal advance do not become the
+        initial state for the first real graph replay.
         ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is excluded from the
         capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
@@ -1632,8 +1633,8 @@ class NewtonManager(PhysicsManager):
             logger.warning("libcudart not available; cannot use relaxed graph capture")
             return None
 
-        # Warmup is a real physics step; restore state so first-step
-        # staged writes, such as external wrenches, are captured and replayed.
+        # Warmup advances Newton outside the normal IsaacLab step bookkeeping.
+        # Restore state so its writes do not leak into the first real replay.
         simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
         state_0 = cls._state_0
         state_1 = cls._state_1
@@ -1644,7 +1645,6 @@ class NewtonManager(PhysicsManager):
         try:
             with wp.ScopedDevice(device):
                 simulate()
-            wp.synchronize_stream(wp.get_stream(device))
         finally:
             NewtonManager._state_0 = state_0
             NewtonManager._state_1 = state_1

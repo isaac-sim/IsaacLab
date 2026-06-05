@@ -1,4 +1,5 @@
 Fixed
 ^^^^^
 
-* Fixed deferred Newton CUDA graph capture with Kit/RTX so first-step external wrenches are preserved.
+* Fixed deferred Newton CUDA graph capture with Kit/RTX so the internal warmup step no longer leaks
+  state into the first real graph replay.
