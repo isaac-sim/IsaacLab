@@ -11,20 +11,19 @@ from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
+from isaaclab_newton.assets import Articulation as NewtonArticulation
+from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton.solvers import SolverNotifyFlags
 
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.envs.mdp.physics_events import randomize_prop_by_op, validate_scale_range
 
-from isaaclab_newton.assets import Articulation as NewtonArticulation
-from isaaclab_newton.physics.newton_manager import NewtonManager
-
 if TYPE_CHECKING:
+    from isaaclab_newton.assets import Articulation, RigidObject
+
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.managers import EventTermCfg, SceneEntityCfg
-
-    from isaaclab_newton.assets import Articulation, RigidObject
 
 
 class RandomizeRigidBodyMaterial:
@@ -145,6 +144,7 @@ class RandomizeRigidBodyColliderOffsets:
             env_ids = env_ids.to(device)
 
         margin_view = wp.to_torch(self._sim_bind_shape_margin)
+        margin_for_gap = self.default_margin
 
         if rest_offset_distribution_params is not None:
             margin = self.default_margin.clone()
@@ -156,11 +156,11 @@ class RandomizeRigidBodyColliderOffsets:
                 operation="abs",
                 distribution=distribution,
             )
-            self.default_margin[env_ids] = margin[env_ids]
             margin_view[env_ids] = margin[env_ids]
+            margin_for_gap = margin
 
         if contact_offset_distribution_params is not None:
-            current_margin = self.default_margin
+            current_margin = margin_for_gap
             contact_offset = torch.zeros_like(self.default_gap)
             contact_offset = randomize_prop_by_op(
                 contact_offset,
@@ -171,7 +171,6 @@ class RandomizeRigidBodyColliderOffsets:
                 distribution=distribution,
             )
             gap = torch.clamp(contact_offset - current_margin, min=0.0)
-            self.default_gap[env_ids] = gap[env_ids]
             gap_view = wp.to_torch(self._sim_bind_shape_gap)
             gap_view[env_ids] = gap[env_ids]
 

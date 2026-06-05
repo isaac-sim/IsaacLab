@@ -241,6 +241,7 @@ class RandomizePhysicsSceneGravity:
                 f"Unknown distribution: '{distribution}' for gravity randomization."
                 " Please use 'uniform', 'log_uniform', or 'gaussian'."
             )
+        self._distribution = distribution
 
         operation = cfg.params["operation"]
         if operation not in ("add", "scale", "abs"):
@@ -275,9 +276,7 @@ class RandomizePhysicsSceneGravity:
             None,
             slice(None),
             operation=operation,
-            # distribution is cached/validated at init; PhysX applies a single scene-wide vector
-            # using uniform sampling (matches the original unified implementation).
-            distribution="uniform",
+            distribution=self._distribution,
         )
         gravity = gravity[0].tolist()
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
