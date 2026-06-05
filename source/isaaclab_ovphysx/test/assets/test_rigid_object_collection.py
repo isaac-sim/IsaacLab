@@ -28,6 +28,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.test.utils import test_devices
+
 # The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
 # but the ovphysx wheel is not installed in that environment. Skip gracefully
 # so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
@@ -171,7 +173,7 @@ def generate_cubes_scene(
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 3])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization(num_envs, num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
@@ -200,7 +202,7 @@ def test_initialization(num_envs, num_cubes, device):
             object_collection.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_id_conversion(device):
     """Test environment and object index conversion to physics view indices."""
@@ -240,7 +242,7 @@ def test_id_conversion(device):
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 3])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(num_envs, num_cubes, device):
     """Test that initialization for prim with kinematic flag enabled."""
@@ -276,7 +278,7 @@ def test_initialization_with_kinematic_enabled(num_envs, num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization_with_no_rigid_body(num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -291,7 +293,7 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
             sim.reset()
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_external_force_buffer(device):
     """Test if external force buffer correctly updates in the force value is zero case."""
@@ -347,7 +349,7 @@ def test_external_force_buffer(device):
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 4])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(num_envs, num_cubes, device):
     """Test application of external force on the base of the object."""
@@ -409,7 +411,7 @@ def test_external_force_on_single_body(num_envs, num_cubes, device):
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 4])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
     """Test application of external force on the base of the object at a specific position.
@@ -492,7 +494,7 @@ def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
 def test_set_object_state(num_envs, num_cubes, device, gravity_enabled):
@@ -563,7 +565,7 @@ def test_set_object_state(num_envs, num_cubes, device, gravity_enabled):
 
 @pytest.mark.parametrize("num_envs", [1, 4])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -663,7 +665,7 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset, gravi
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
 @pytest.mark.parametrize("gravity_enabled", [False])
@@ -742,7 +744,7 @@ def test_write_object_state(num_envs, num_cubes, device, with_offset, state_loca
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_reset_object_collection(num_envs, num_cubes, device):
     """Test resetting the state of the rigid object."""
@@ -778,7 +780,7 @@ def test_reset_object_collection(num_envs, num_cubes, device):
 @pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_set_material_properties(num_envs, num_cubes, device):
     """Test getting and setting material properties of rigid object."""
@@ -787,7 +789,7 @@ def test_set_material_properties(num_envs, num_cubes, device):
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.isaacsim_ci
 def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
@@ -822,7 +824,7 @@ def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
 
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
 @pytest.mark.parametrize("gravity_enabled", [False])

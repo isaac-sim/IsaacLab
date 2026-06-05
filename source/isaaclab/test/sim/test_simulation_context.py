@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import test_devices
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -43,7 +44,7 @@ Basic Configuration Tests
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_init(device):
     """Test the simulation context initialization."""
     from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg

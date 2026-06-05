@@ -10,7 +10,6 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -30,6 +29,7 @@ from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.test.utils import test_devices  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -126,7 +126,7 @@ def view_factory():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.xfail(
     reason=(
         "Issue #5: FabricFrameView.set_world_poses writes to Fabric worldMatrix only. "
@@ -155,7 +155,7 @@ def _fill_position(out: wp.array(dtype=wp.float32, ndim=2), x: float, y: float, 
     out[i, 2] = wp.float32(z)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     """Verify that set_world_poses in Fabric mode does NOT sync back to USD.
 
@@ -199,7 +199,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch):
     """Forcing the topology-changed branch on a write triggers
     :meth:`_rebuild_fabric_arrays` and leaves the view in a state where
@@ -252,11 +252,7 @@ def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch)
 # ------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
-    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
-)
-@pytest.mark.parametrize("device", ["cuda:1"])
+@pytest.mark.parametrize("device", test_devices("00X"))
 def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     """set_world_poses -> get_world_poses roundtrip works on cuda:1.
 
@@ -276,11 +272,7 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
-    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
-)
-@pytest.mark.parametrize("device", ["cuda:1"])
+@pytest.mark.parametrize("device", test_devices("00X"))
 def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     """set_world_poses on cuda:1 does not write back to USD.
 
@@ -308,11 +300,7 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     )
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
-    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
-)
-@pytest.mark.parametrize("device", ["cuda:1"])
+@pytest.mark.parametrize("device", test_devices("00X"))
 def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     """set_scales -> get_scales roundtrip works on cuda:1.
 
