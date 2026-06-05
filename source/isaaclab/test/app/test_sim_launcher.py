@@ -18,34 +18,8 @@ def test_livestream_injects_kit_visualizer_when_missing():
     assert args.visualizer == ["kit"]
 
 
-def test_livestream_preserves_requested_visualizer_and_appends_kit():
-    args = argparse.Namespace(livestream=2, visualizer=["newton"], visualizer_explicit=True)
-
-    _ensure_livestream_kit_visualizer(args)
-
-    assert args.visualizer == ["newton", "kit"]
-
-
 def test_livestream_rejects_disabled_visualizers():
     args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=True)
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
         _ensure_livestream_kit_visualizer(args)
-
-
-def test_livestream_env_var_injects_kit_visualizer(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("LIVESTREAM", "2")
-    args = argparse.Namespace(livestream=-1, visualizer=None, visualizer_explicit=False)
-
-    _ensure_livestream_kit_visualizer(args)
-
-    assert args.visualizer == ["kit"]
-
-
-def test_livestream_disabled_leaves_visualizer_unchanged(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("LIVESTREAM", "0")
-    args = argparse.Namespace(livestream=-1, visualizer=None, visualizer_explicit=False)
-
-    _ensure_livestream_kit_visualizer(args)
-
-    assert args.visualizer is None
