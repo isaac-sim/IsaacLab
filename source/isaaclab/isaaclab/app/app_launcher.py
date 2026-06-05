@@ -1140,6 +1140,14 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        if (
+            self._livestream in {1, 2}
+            and os.path.basename(self._sim_experience_file) == "isaacsim.exp.full.streaming.kit"
+        ):
+            raise ValueError(
+                "The experience 'isaacsim.exp.full.streaming.kit' is known to hang or invalidate PhysX tensor "
+                "views when launched through Isaac Lab with livestreaming enabled."
+            )
         self._apply_rtx_determinism = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
 
