@@ -201,8 +201,17 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     wp.launch(kernel=_fill_position, dim=2, inputs=[initial, 1.0, 2.0, 3.0], device=device)
     view.set_world_poses(positions=initial)
 
-    # Simulate topology change: force rebuild of the selection's indexed arrays.
-    view._refresh_if_needed()
+    # Simulate topology change: recompute per-selection fabric indices and rebuild
+    # every indexed array, mirroring the lazy paths in the ``_get_*_array`` accessors.
+    view._rebuild_trans_ro_arrays()
+    view._world_rw_fabric_indices = view._compute_fabric_indices(view._world_sel_rw)
+    view._world_ifa_rw = view._build_indexed_array(
+        view._world_sel_rw, view._WORLD_MATRIX_NAME, view._world_rw_fabric_indices
+    )
+    view._local_rw_fabric_indices = view._compute_fabric_indices(view._local_sel_rw)
+    view._local_ifa_rw = view._build_indexed_array(
+        view._local_sel_rw, view._LOCAL_MATRIX_NAME, view._local_rw_fabric_indices
+    )
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
@@ -225,10 +234,11 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
     view = bundle.view
     view.get_world_poses()  # trigger Fabric init
 
-    assert view._sel is not None, "selection not initialized"
-    result = view._sel.PrepareForReuse()
-    assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
-    assert not result, "PrepareForReuse should return False when no topology change"
+    assert view._trans_sel_ro is not None, "trans_sel_ro selection not initialized"
+    for selection in (view._trans_sel_ro, view._world_sel_rw, view._local_sel_rw):
+        result = selection.PrepareForReuse()
+        assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
+        assert not result, "PrepareForReuse should return False when no topology change"
 
 
 def _read_fabric_world_matrix_translation(view, prim_index=0):
@@ -270,213 +280,6 @@ def _read_fabric_local_matrix_translation(view, prim_index=0):
         dtype=torch.float32,
         device=view._device,
     )
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_set_local_poses_updates_renderer_facing_fabric_world_matrix(device, view_factory):
-    """Local pose writes must update cached Fabric worldMatrix immediately.
-
-    The FSD renderer reads Fabric's cached ``omni:fabric:worldMatrix`` directly;
-    it does not call ``FrameView.get_world_poses()`` to trigger Isaac Lab's lazy
-    local→world sync.  This test intentionally reads the Fabric attribute
-    directly after ``set_local_poses`` and before any world getter call.
-    """
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    # Initialize Fabric and clear the initial dirty state.
-    view.get_world_poses()
-    assert view._dirty.name == "NONE"
-
-    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
-    new_local_ori = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
-
-    view.set_local_poses(translations=new_local_pos, orientations=new_local_ori)
-
-    # Parent is at (0, 0, 1), so renderer-facing cached worldMatrix should
-    # already contain world translation (1, 2, 4) without get_world_poses().
-    expected_world = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
-    cached_world = _read_fabric_world_matrix_translation(view)
-    torch.testing.assert_close(cached_world, expected_world, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_set_local_scales_updates_renderer_facing_fabric_world_matrix(device, view_factory):
-    """Local scale writes must update cached Fabric worldMatrix immediately.
-
-    This is the scale analogue of the local-pose renderer/FSD contract: read
-    cached ``omni:fabric:worldMatrix`` directly after ``set_local_scales`` and
-    before any FrameView world getter can repair stale state.
-    """
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    # Initialize Fabric and clear the initial dirty state.
-    view.get_world_poses()
-    assert view._dirty.name == "NONE"
-
-    new_scales = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-
-    view.set_local_scales(new_scales)
-
-    expected_scale = torch.tensor([[2.0, 3.0, 4.0]], dtype=torch.float32, device=device)
-    cached_scale = _read_fabric_world_matrix_scale(view)
-    torch.testing.assert_close(cached_scale, expected_scale, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_change_block_batches_local_world_matrix_update(device, view_factory, monkeypatch):
-    """Local pose+scale writes inside change_block flush worldMatrix once on exit."""
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    view.get_world_poses()
-    assert view._dirty.name == "NONE"
-
-    calls = 0
-    original_recompute = view._recompute_world_from_local
-
-    def counted_recompute():
-        nonlocal calls
-        calls += 1
-        original_recompute()
-
-    monkeypatch.setattr(view, "_recompute_world_from_local", counted_recompute)
-
-    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
-    new_local_ori = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
-    new_scales = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-
-    with view.change_block():
-        view.set_local_poses(translations=new_local_pos, orientations=new_local_ori)
-        assert view._dirty.name == "WORLD"
-        assert calls == 0
-
-        view.set_local_scales(new_scales)
-        assert view._dirty.name == "WORLD"
-        assert calls == 0
-
-    assert calls == 1
-    assert view._dirty.name == "NONE"
-
-    expected_world = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
-    cached_world = _read_fabric_world_matrix_translation(view)
-    torch.testing.assert_close(cached_world, expected_world, atol=1e-5, rtol=0)
-
-    expected_scale = torch.tensor([[2.0, 3.0, 4.0]], dtype=torch.float32, device=device)
-    cached_scale = _read_fabric_world_matrix_scale(view)
-    torch.testing.assert_close(cached_scale, expected_scale, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_change_block_can_defer_world_matrix_update(device, view_factory, monkeypatch):
-    """Callers can suppress local→world flushing when no world consumer needs it."""
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    view.get_world_poses()
-    assert view._dirty.name == "NONE"
-    initial_cached_world = _read_fabric_world_matrix_translation(view)
-
-    calls = 0
-    original_recompute = view._recompute_world_from_local
-
-    def counted_recompute():
-        nonlocal calls
-        calls += 1
-        original_recompute()
-
-    monkeypatch.setattr(view, "_recompute_world_from_local", counted_recompute)
-
-    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
-
-    with view.change_block(update_world_matrices=False):
-        view.set_local_poses(translations=new_local_pos)
-
-    assert calls == 0
-    assert view._dirty.name == "WORLD"
-    cached_world = _read_fabric_world_matrix_translation(view)
-    torch.testing.assert_close(cached_world, initial_cached_world, atol=1e-5, rtol=0)
-
-    expected_world = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
-    world_pos, _ = view.get_world_poses()
-    assert calls == 1
-    torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected_world, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_change_block_can_flush_local_matrix_update(device, view_factory, monkeypatch):
-    """Callers can request world→local flushing when a localMatrix consumer needs it."""
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    view.get_world_poses()
-    assert view._dirty.name == "NONE"
-
-    calls = 0
-    original_sync_local = view._sync_local_from_world
-
-    def counted_sync_local(indices_wp):
-        nonlocal calls
-        calls += 1
-        original_sync_local(indices_wp)
-
-    monkeypatch.setattr(view, "_sync_local_from_world", counted_sync_local)
-
-    new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 1.0, 2.0, 4.0], device=device)
-
-    with view.change_block(update_local_matrices=True):
-        view.set_world_poses(positions=new_world_pos)
-        assert view._dirty.name == "LOCAL"
-        assert calls == 0
-
-    assert calls == 1
-    assert view._dirty.name == "NONE"
-
-    # Parent is at (0, 0, 1), so local translation should be world - parent.
-    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
-    cached_local = _read_fabric_local_matrix_translation(view)
-    torch.testing.assert_close(cached_local, expected_local, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_change_block_leaves_local_matrix_lazy_by_default(device, view_factory, monkeypatch):
-    """Default block policy updates world matrices, but not local matrices."""
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    view.get_world_poses()
-    assert view._dirty.name == "NONE"
-
-    calls = 0
-    original_sync_local = view._sync_local_from_world
-
-    def counted_sync_local(indices_wp):
-        nonlocal calls
-        calls += 1
-        original_sync_local(indices_wp)
-
-    monkeypatch.setattr(view, "_sync_local_from_world", counted_sync_local)
-
-    new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 1.0, 2.0, 4.0], device=device)
-
-    with view.change_block():
-        view.set_world_poses(positions=new_world_pos)
-
-    assert calls == 0
-    assert view._dirty.name == "LOCAL"
-
-    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
-    local_pos, _ = view.get_local_poses()
-    assert calls == 1
-    torch.testing.assert_close(torch.as_tensor(local_pos, device=device), expected_local, atol=1e-5, rtol=0)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -541,8 +344,11 @@ def test_local_scales_roundtrip(device, view_factory):
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
     view.set_local_scales(new_scales)
 
-    # Local writes eagerly update renderer-facing world matrices outside change_block().
-    assert view._dirty.name == "NONE"
+    # Local writes mark world matrices stale; the renderer-facing world is
+    # recomputed lazily by Kit's next ``update_world_xforms`` tick (the
+    # ``_local_sel_rw`` selection has worldMatrix=RO, so that recompute is
+    # safe and the lazy design is correct).
+    assert view._dirty.name == "WORLD"
 
     ret_scales = view.get_local_scales()
     scales_torch = ret_scales.torch
@@ -563,7 +369,10 @@ def test_world_scales_roundtrip(device, view_factory):
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 5.0, 6.0, 7.0], device=device)
     view.set_world_scales(new_scales)
 
-    # Should have dirtied local
+    # World writes mark local matrices stale; they are recomputed lazily on the
+    # next ``get_local_*`` call.  The renderer-facing world write is protected
+    # by ``_world_sel_rw`` having localMatrix=RO, so Kit's next
+    # ``update_world_xforms`` tick will not clobber it from a stale local.
     assert view._dirty.name == "LOCAL"
 
     ret_scales = view.get_world_scales()
@@ -754,20 +563,18 @@ def test_multi_view_per_view_dirty_isolation(device):
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
     view_a.set_local_poses(translations=new_local_a, orientations=identity_quat)
 
-    # Local writes eagerly update renderer-facing world matrices outside change_block(),
-    # and they must not dirty another view on the same stage.
-    assert view_a._dirty.name == "NONE", "set_local_poses should flush its own view outside change_block"
+    # Local writes are lazy: view A is dirty (WORLD), view B must not be touched.
+    assert view_a._dirty.name == "WORLD", "set_local_poses must mark its own view dirty"
     assert view_b._dirty.name == "NONE", "set_local_poses on view A must not dirty view B"
 
-    # Read worlds from view B FIRST.  This must not affect view A's already-flushed
-    # world matrices.
+    # Read worlds from view B FIRST.  This must not clear view A's dirty flag.
     torch.testing.assert_close(
         torch.as_tensor(view_b.get_world_poses()[0], device=device), expected_b0, atol=1e-5, rtol=0
     )
     assert view_b._dirty.name == "NONE"
-    assert view_a._dirty.name == "NONE"
+    assert view_a._dirty.name == "WORLD", "view B's read must not clear view A's dirty flag"
 
-    # Now read view A's worlds -- world already reflects the new local.
+    # Now read view A's worlds -- triggers the per-view local->world flush.
     expected_a1 = torch.tensor([[1.0, 0.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(
         torch.as_tensor(view_a.get_world_poses()[0], device=device), expected_a1, atol=1e-5, rtol=0
@@ -779,10 +586,10 @@ def test_multi_view_per_view_dirty_isolation(device):
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_b, 3.0, 0.0, 0.0], device=device)
     view_b.set_local_poses(translations=new_local_b, orientations=identity_quat)
     assert view_a._dirty.name == "NONE"
-    assert view_b._dirty.name == "NONE"
+    assert view_b._dirty.name == "WORLD"
 
-    # A's worlds must still read back the post-set-local value from above; no
-    # cross-view stomp on the world matrix.
+    # A's worlds must still read back the post-flush value from above; no cross-view
+    # stomp on the world matrix.
     torch.testing.assert_close(
         torch.as_tensor(view_a.get_world_poses()[0], device=device), expected_a1, atol=1e-5, rtol=0
     )
@@ -1014,15 +821,21 @@ def test_interleaved_set_local_then_set_world_partial_indices(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_interleaved_set_emits_warning(device, caplog):
-    """Interleaving set_world_poses and set_local_poses logs a one-time warning."""
+    """Interleaving set_world_poses and set_local_poses logs a one-time warning.
+
+    With the lazy design, a set_world_poses leaves localMatrix stale; a subsequent
+    set_local_poses on a different (possibly disjoint) index subset must flush the
+    stale local first to avoid silent inconsistency.  That extra kernel launch is
+    a performance hazard and is flagged once per view instance.
+    """
     view = _build_two_child_view(device)
 
-    # First set_world_poses -- no warning (first user setter)
+    # First set_world_poses -- no warning (first user setter).
     new_world = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_world, 1.0, 2.0, 3.0], device=device)
     view.set_world_poses(positions=new_world)
 
-    # Now set_local_poses -- should trigger warning about interleaving
+    # Now set_local_poses -- should trigger warning about interleaving.
     new_local = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_local, 0.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=torch.float32, device=device))
@@ -1035,7 +848,7 @@ def test_interleaved_set_emits_warning(device, caplog):
         f"Expected interleave warning, got: {[r.message for r in caplog.records]}"
     )
 
-    # Second interleave -- warning should NOT repeat (one-time only)
+    # Second interleave -- warning should NOT repeat (one-time only).
     caplog.clear()
     view.set_world_poses(positions=new_world)
     assert not any("interleaving" in r.message.lower() for r in caplog.records), (

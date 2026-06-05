@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import abc
-import contextlib
 import warnings
 
 import warp as wp
@@ -38,37 +37,6 @@ class BaseFrameView(abc.ABC):
     def device(self) -> str:
         """Device where arrays are allocated (``"cpu"`` or ``"cuda:0"``)."""
         ...
-
-    @contextlib.contextmanager
-    def change_block(self, update_world_matrices: bool = True, update_local_matrices: bool = False):
-        """Batch multiple transform writes into one logical change.
-
-        Backends may use this context to defer expensive derived-state updates
-        until the outermost block exits.  The default implementation is a no-op
-        so callers can use it with every FrameView backend.
-
-        Args:
-            update_world_matrices: Whether derived world matrices should be
-                updated before the outermost block exits.  Backends may ignore
-                this option when they do not maintain separate cached world
-                matrices.
-            update_local_matrices: Whether derived local matrices should be
-                updated before the outermost block exits.  Backends may ignore
-                this option when they do not maintain separate cached local
-                matrices.
-        """
-        yield self
-
-    def changeBlock(
-        self,
-        updateWorldMatrices: bool = True,
-        updateLocalMatrices: bool = False,
-    ):
-        """CamelCase alias for :meth:`change_block`."""
-        return self.change_block(
-            update_world_matrices=updateWorldMatrices,
-            update_local_matrices=updateLocalMatrices,
-        )
 
     @abc.abstractmethod
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
