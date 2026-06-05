@@ -379,12 +379,11 @@ class PhysxJointCfg(JointDriveFragment):
         Newton's USD importer consumes the same attribute via its PhysX-bridge resolver and
         populates ``Model.joint_velocity_limit``; the PhysX engine consumes it natively.
 
-    .. caution::
-        Unlike the drive stiffness/damping, this value is written as authored (no radian-to-degree
-        conversion is performed by the generic writer). The legacy
-        :func:`~isaaclab.sim.schemas.modify_joint_drive_properties` converts angular
-        ``max_joint_velocity`` from rad/s to deg/s; that conversion is not reproduced here because
-        this fragment uses the generic :func:`~isaaclab.sim.schemas.apply_namespaced` writer.
+    .. note::
+        Authored in rad/s; :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` converts it to
+        deg/s for angular (revolute) joints (PhysX's angular convention) and writes linear
+        (prismatic) joints unchanged, matching the legacy
+        :func:`~isaaclab.sim.schemas.modify_joint_drive_properties`.
     """
 
     max_velocity: float | None = None
