@@ -20,7 +20,7 @@ class CircularBuffer:
     The shape of the appended data is expected to be (batch_size, ...), where the first dimension is the
     batch dimension. Correspondingly, the shape of the ring buffer is (max_len, batch_size, ...).
 
-    When :paramref:`stack_dim` is set, the internal layout is rearranged so that :attr:`stacked`
+    When ``stack_dim`` is set, the internal layout is rearranged so that :attr:`stacked`
     returns the K frames merged into the chosen dim as a free contiguous view; :meth:`__getitem__`
     is disabled in this mode.
     """
