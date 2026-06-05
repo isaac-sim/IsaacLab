@@ -63,7 +63,9 @@ runs:
 
         if [ -n "${{ env.NGC_API_KEY }}" ]; then
           echo "🔵 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          # Pipe the key via stdin so it never appears in the process argument
+          # list (/proc/<pid>/cmdline) on the shared self-hosted runner.
+          echo "${{ env.NGC_API_KEY }}" | docker login -u \$oauthtoken --password-stdin nvcr.io
         else
           echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
@@ -266,11 +268,17 @@ runs:
           -t "${{ inputs.image-tag }}"
         )
         if [ -n "${ECR_URL:-}" ]; then
+          echo "🔵 ECR available: building with ECR layer cache (${CACHE_IMAGE})."
           BUILD_ARGS+=(
             --cache-from "type=registry,ref=${CACHE_IMAGE}"
             --cache-to   "type=registry,ref=${CACHE_IMAGE},mode=max"
             -t "${ECR_IMAGE}"
           )
+        else
+          # No ECR cache and no prebuilt image to pull: each caller (e.g. every
+          # test job) builds from scratch. The build-once optimization degrades
+          # to build-per-job here; log it so the regression is visible in CI.
+          echo "🟠 ECR unavailable: full local build with no shared cache (build-once degrades to build-per-job)."
         fi
 
         BUILDER_NAME="ci-builder-${{ github.run_id }}-${{ github.job }}"
