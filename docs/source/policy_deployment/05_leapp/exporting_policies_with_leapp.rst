@@ -289,6 +289,6 @@ workflow policies are not currently supported by ``scripts/reinforcement_learnin
 Further Reading
 ---------------
 
-- `LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_
-- `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
+- `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_
+- `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
 - :class:`~envs.LeappDeploymentEnv` API reference
