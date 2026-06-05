@@ -33,8 +33,8 @@ def test_close_clears_obs_buf_and_releases_spaces(device):
     of numpy bounds-array memory per image-observation Box at ``(num_envs, H, W, C)``
     float32) survive the call and accumulate on each construct/teardown cycle.
     """
-    env_cfg = parse_env_cfg("Isaac-Cartpole-v0", device=device, num_envs=2)
-    env = gym.make("Isaac-Cartpole-v0", cfg=env_cfg)
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device=device, num_envs=2)
+    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
     env.reset()
     # Step once so the ObservationManager populates ``obs_buf``.
     action = torch.zeros((2, env.action_space.shape[-1]), device=env.unwrapped.device)
