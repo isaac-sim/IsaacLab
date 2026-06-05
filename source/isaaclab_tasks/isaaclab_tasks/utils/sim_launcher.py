@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
@@ -100,6 +101,56 @@ def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> se
         # CLI now uses comma-delimited syntax: --visualizer kit,newton,rerun
         visualizers = [token.strip() for token in visualizers.split(",")]
     return {str(v).strip().lower() for v in visualizers if str(v).strip()}
+
+
+def _get_launcher_arg(launcher_args: argparse.Namespace | dict | None, name: str, default=None):
+    """Read *name* from argparse namespace or dict launcher args."""
+    if isinstance(launcher_args, argparse.Namespace):
+        return getattr(launcher_args, name, default)
+    if isinstance(launcher_args, dict):
+        return launcher_args.get(name, default)
+    return default
+
+
+def _set_launcher_arg(launcher_args: argparse.Namespace | dict | None, name: str, value) -> None:
+    """Write *name* to argparse namespace or dict launcher args."""
+    if isinstance(launcher_args, argparse.Namespace):
+        setattr(launcher_args, name, value)
+    elif isinstance(launcher_args, dict):
+        launcher_args[name] = value
+
+
+def _get_livestream_mode(launcher_args: argparse.Namespace | dict | None) -> int:
+    """Return effective livestream mode using the same CLI-over-env precedence as AppLauncher."""
+    livestream_arg = _get_launcher_arg(launcher_args, "livestream", -1)
+    if livestream_arg is not None and int(livestream_arg) >= 0:
+        return int(livestream_arg)
+    return int(os.environ.get("LIVESTREAM", 0))
+
+
+def _ensure_livestream_kit_visualizer(launcher_args: argparse.Namespace | dict | None) -> None:
+    """Request the Kit visualizer when livestreaming needs a video-producing viewport."""
+    if launcher_args is None or _get_livestream_mode(launcher_args) == 0:
+        return
+
+    visualizer_explicit = bool(_get_launcher_arg(launcher_args, "visualizer_explicit", False))
+    visualizers = _get_launcher_arg(launcher_args, "visualizer")
+    if visualizer_explicit and (visualizers is None or "none" in _get_visualizer_types(launcher_args)):
+        raise ValueError("Livestreaming requires the Kit visualizer. Remove '--viz none' or pass '--viz kit'.")
+
+    visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in visualizer_types:
+        return
+
+    requested_visualizers = []
+    if visualizers:
+        requested_visualizers = (
+            [visualizer.strip() for visualizer in visualizers.split(",")]
+            if isinstance(visualizers, str)
+            else [str(visualizer).strip() for visualizer in visualizers if str(visualizer).strip()]
+        )
+    requested_visualizers.append("kit")
+    _set_launcher_arg(launcher_args, "visualizer", requested_visualizers)
 
 
 def _compute_visualizer_intent(env_cfg) -> dict[str, bool]:
@@ -334,6 +385,7 @@ def launch_simulation(
             )
 
     validate_runtime_compatibility(env_cfg, launcher_args)
+    _ensure_livestream_kit_visualizer(launcher_args)
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
