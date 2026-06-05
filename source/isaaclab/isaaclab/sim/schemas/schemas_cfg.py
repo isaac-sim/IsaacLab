@@ -177,6 +177,34 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
 
 
 @configclass
+class CollisionFragment(SchemaFragment):
+    """Marker base for collision fragments; types the ``collision_props`` slot."""
+
+    pass
+
+
+@configclass
+class UsdPhysicsCollisionCfg(CollisionFragment):
+    """``physics:*`` collision attributes from `UsdPhysics.CollisionAPI`_.
+
+    The ``UsdPhysics.CollisionAPI`` schema is applied as the implicit anchor by the collision
+    family writer (:func:`~isaaclab.sim.schemas.apply_collision_properties`), so this fragment
+    owns no applied schema of its own.
+
+    .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # CollisionAPI applied by the family anchor
+
+    collision_enabled: bool | None = None
+    """Whether to enable or disable collisions.
+
+    Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
+    """
+
+
+@configclass
 class ArticulationRootBaseCfg:
     """Solver-common properties to apply to the root of an articulation.
 

@@ -10,6 +10,7 @@ from typing import ClassVar, Literal
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     CollisionBaseCfg,
+    CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
@@ -154,6 +155,41 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     When ``True``, compensation forces go to ``qfrc_actuator`` (subject to force limits).
     Requires body-level :attr:`MujocoRigidBodyPropertiesCfg.gravcomp`.
     Written to ``mjc:actuatorgravcomp`` via ``MjcJointAPI``.
+    """
+
+
+@configclass
+class NewtonCollisionCfg(CollisionFragment):
+    """``newton:*`` collision attributes for Newton's contact pipeline.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) carrying
+    Newton-native contact-geometry attributes (``NewtonCollisionAPI``). Applied alongside
+    :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` via
+    :func:`~isaaclab.sim.schemas.apply_collision_properties`.
+
+    .. note::
+        The contact / rest offsets live on :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
+        as ``physxCollision:*`` fields; Newton reads them via its PhysX-bridge resolver, so they
+        are not duplicated here.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = "NewtonCollisionAPI"
+
+    contact_margin: float | None = None
+    """Outward inflation of the collision surface [m].
+
+    Extends the effective collision surface outward. Sum of both bodies' margins is used for
+    collision detection. Essential for thin shells and cloth. Written to ``newton:contactMargin``
+    via ``NewtonCollisionAPI``. Range: [0, inf).
+    """
+
+    contact_gap: float | None = None
+    """Additional contact detection gap [m].
+
+    AABBs are expanded by this value; contacts are detected earlier to avoid tunneling. Written to
+    ``newton:contactGap`` via ``NewtonCollisionAPI``. Set to ``-inf`` to use Newton's builder
+    default. Range: [0, inf).
     """
 
 

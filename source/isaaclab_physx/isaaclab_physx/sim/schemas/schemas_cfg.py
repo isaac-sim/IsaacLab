@@ -11,6 +11,7 @@ from typing import ClassVar
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     CollisionBaseCfg,
+    CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
@@ -389,6 +390,58 @@ class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
             stacklevel=2,
         )
         super().__post_init__()
+
+
+@configclass
+class PhysxCollisionCfg(CollisionFragment):
+    """``physxCollision:*`` collision attributes from `PhysxCollisionAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX collision add-on schema. Applied alongside
+    :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` via
+    :func:`~isaaclab.sim.schemas.apply_collision_properties`.
+
+    The :attr:`contact_offset` / :attr:`rest_offset` knobs live here as plain
+    ``physxCollision:*`` fields. Newton's USD importer consumes the same attributes via its
+    PhysX-bridge resolver, so they are not duplicated on the Newton collision fragment.
+
+    .. _PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
+
+    contact_offset: float | None = None
+    """Contact offset for the collision shape [m].
+
+    The collision detector generates contact points as soon as two shapes get closer than the sum
+    of their contact offsets. This quantity should be non-negative, which means contact generation
+    can potentially start before the shapes actually penetrate.
+
+    Writes ``physxCollision:contactOffset``. Newton's USD importer consumes the same attribute via
+    its PhysX-bridge resolver.
+    """
+
+    rest_offset: float | None = None
+    """Rest offset for the collision shape [m].
+
+    The rest offset quantifies how close a shape gets to others at rest. At rest, the distance
+    between two vertically stacked objects is the sum of their rest offsets. If a pair of shapes
+    have a positive rest offset, the shapes will be separated at rest by an air gap.
+
+    Writes ``physxCollision:restOffset``. Newton's USD importer consumes the same attribute via its
+    PhysX-bridge resolver.
+    """
+
+    torsional_patch_radius: float | None = None
+    """Radius of the contact patch for applying torsional friction [m].
+
+    It is used to approximate rotational friction introduced by the compression of contacting
+    surfaces. If the radius is zero, no torsional friction is applied.
+    """
+
+    min_torsional_patch_radius: float | None = None
+    """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
 @configclass
