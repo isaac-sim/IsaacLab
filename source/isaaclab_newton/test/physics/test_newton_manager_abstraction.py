@@ -29,6 +29,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
@@ -752,3 +753,36 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
+
+def test_deferred_relaxed_capture_preserves_staged_wrench():
+    """Deferred relaxed capture preserves first-step staged external wrenches."""
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True),
+            num_substeps=1,
+            use_cuda_graph=True,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = NewtonManager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        NewtonManager.set_builder(builder)
+        sim.reset()
+
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = True
+        body_f = wp.to_torch(NewtonManager._state_0.body_f)
+        body_f.zero_()
+        body_f[0, 2] = 9.81
+
+        sim.step(render=False)
+        wp.synchronize_device("cuda:0")
+
+        joint_qd = wp.to_torch(NewtonManager._state_0.joint_qd)
+        torch.testing.assert_close(joint_qd[2], torch.tensor(0.0, device=joint_qd.device), atol=1e-3, rtol=0.0)
