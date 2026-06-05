@@ -173,7 +173,8 @@ def test_newton_sdf_collision_fragment_writes_namespace():
     apply_namespaced(NewtonSDFCollisionCfg(sdf_max_resolution=64, hydroelastic_enabled=True), "/World/M7", stage)
     assert prim.GetAttribute("newton:sdfMaxResolution").Get() == 64
     assert prim.GetAttribute("newton:hydroelasticEnabled").Get() is True
-    assert "NewtonSDFCollisionAPI" in prim.GetAppliedSchemas()
+    # ``NewtonSDFCollisionAPI`` is not a registered applied API schema in the current Newton
+    # build, so the fragment writes the ``newton:*`` attributes without applying a schema.
 
 
 # -------------------------------------------------------------------------------------

@@ -339,7 +339,11 @@ class NewtonSDFCollisionCfg(MeshCollisionFragment):
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
-    _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
+    # ``NewtonSDFCollisionAPI`` is not a registered applied API schema in the current Newton
+    # build (verified via ``Usd.SchemaRegistry``), so no schema is applied; the ``newton:*``
+    # attributes are authored directly and consumed by Newton's USD importer. Switch this to
+    # ``"NewtonSDFCollisionAPI"`` once that schema ships.
+    _usd_applied_schema: ClassVar[str | None] = None
 
     sdf_max_resolution: int | None = None
     """Maximum SDF grid dimension [dimensionless].
