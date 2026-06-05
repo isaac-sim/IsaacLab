@@ -13,7 +13,7 @@
 
 # Warp tasks reuse the stable env cfgs; only physics (presets=newton_mjwarp)
 # and MDP twins are swapped at construction (see adapt_cfg_for_warp).
-_stable_pkg = agents.__name__.rsplit(".", 1)[0]
+# _stable_pkg = agents.__name__.rsplit(".", 1)[0]
 
 # gym.register(
 #     id="Isaac-Reach-UR10-Warp-v0",

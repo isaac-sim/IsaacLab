@@ -76,6 +76,14 @@ class FrontendIncompatibleError(RuntimeError):
 # the warp packages. Used by the direct-workflow guard.
 _WARP_ROOT_PREFIXES: tuple[str, ...] = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
+# Top-level cfg groups whose managers run warp-first. Only terms under these are
+# adapted (SceneEntityCfg promotion + MDP twin swap); the event, curriculum,
+# recorder and command managers run on the stable (torch) implementation, so
+# their stable funcs/SceneEntityCfgs are left untouched. A stable term left on a
+# warp manager would break, so a missing twin in these groups is a hard error;
+# a stable term on a stable manager is correct, so those groups are skipped.
+_WARP_MANAGED_GROUPS: frozenset[str] = frozenset({"observations", "rewards", "terminations", "actions"})
+
 
 def build(
     frontend: Frontend | str,
@@ -193,6 +201,8 @@ def _promote_scene_entity_cfgs(cfg: Any) -> None:
 
     promoted: list[str] = []
     for path, term in _walk_terms(cfg):
+        if not path or path[0] not in _WARP_MANAGED_GROUPS:
+            continue
         params = getattr(term, "params", None)
         if not isinstance(params, dict):
             continue
@@ -237,6 +247,8 @@ def _swap_mdp(cfg: Any, label: str) -> None:
     swapped = 0
     missing: list[tuple[str, str, str]] = []  # (location, attr, symbol)
     for path, term in _walk_terms(cfg):
+        if not path or path[0] not in _WARP_MANAGED_GROUPS:
+            continue
         location = ".".join(path)
         for attr in ("func", "class_type"):
             stable = getattr(term, attr, None)

@@ -313,12 +313,16 @@ class TestPromoteSceneEntityCfgs(unittest.TestCase):
             ),
         )
         _promote_scene_entity_cfgs(cfg)
+        # Warp-managed groups (rewards, observations incl. sub-groups) are promoted.
         self.assertIsInstance(cfg.rewards.r1.params["asset_cfg"], WarpSceneEntityCfg)
-        self.assertIsInstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
         self.assertIsInstance(cfg.observations.policy.o1.params["asset_cfg"], WarpSceneEntityCfg)
         # The perception sub-group is reached even though its attribute name is
         # not hardcoded in the framework.
         self.assertIsInstance(cfg.observations.perception.o3.params["asset_cfg"], WarpSceneEntityCfg)
+        # Events run on the stable (torch) manager, so their SceneEntityCfg is
+        # left untouched — promoting it would hand a warp variant to a torch manager.
+        self.assertIsInstance(cfg.events.e1.params["asset_cfg"], StableSceneEntityCfg)
+        self.assertNotIsInstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
 
 
 # ======================================================================
