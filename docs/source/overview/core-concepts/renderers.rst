@@ -27,8 +27,8 @@ Choosing a renderer backend
 | Isaac RTX           | Yes                           | Full sensor fidelity, RTX       |
 |                     |                               | photorealism, PhysX backend     |
 +---------------------+-------------------------------+---------------------------------+
-| OVRTX               | No (kit-less; needs           | RTX-quality rendering backend   |
-|                     | ``isaaclab_ov`` + ``ovrtx``)  | backend without Isaac Sim       |
+| OVRTX               | No (kit-less; needs           | RTX-quality rendering without   |
+|                     | ``isaaclab_ov`` + ``ovrtx``)  | requiring Isaac Sim             |
 +---------------------+-------------------------------+---------------------------------+
 | Newton Warp         | No (kit-less)                 | Newton backend, fast training   |
 +---------------------+-------------------------------+---------------------------------+
@@ -130,7 +130,7 @@ Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
 .. note::
 
    The bare ``ov`` token does **not** install any runtime wheel (the source
-   packages are already part of the core install). Use ``ov[ovrtx]`` (or``ov[all]``)
+   packages are already part of the core install). Use ``ov[ovrtx]`` (or ``ov[all]``)
    to pull in the ``ovrtx`` dependency.
 
 Or install manually with pip (note the ``[ovrtx]`` extra and the extra index URL):
