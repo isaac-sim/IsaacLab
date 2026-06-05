@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+from collections.abc import Iterable
 
 import numpy as np
 import warp as wp
@@ -214,7 +215,7 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
-def apply_namespaced(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Default fragment applier: apply the fragment's schema and write its namespaced attrs.
 
     Reads :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_namespace` /
@@ -421,7 +422,9 @@ Rigid body properties.
 """
 
 
-def apply_rigid_body_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+def apply_rigid_body_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.RigidBodyFragment], stage: Usd.Stage | None = None
+) -> bool:
     """Apply a list of rigid-body fragments to a prim.
 
     Applies ``UsdPhysics.RigidBodyAPI`` as the implicit anchor (the defining schema for a rigid
