@@ -263,7 +263,7 @@ These friction values were determined through iterative visual comparison:
 
            .. code-block:: bash
 
-               python scripts/reinforcement_learning/rsl_rl/train.py \
+               ./isaaclab.sh train --rl_library rsl_rl \
                    --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
                    --headless \
                    --video --video_length 800 --video_interval 5000
@@ -272,7 +272,7 @@ These friction values were determined through iterative visual comparison:
 
            .. code-block:: bash
 
-               python scripts/reinforcement_learning/rsl_rl/train.py \
+               ./isaaclab.sh train --rl_library rsl_rl \
                    --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
                    --headless \
                    --video --video_length 800 --video_interval 5000
@@ -650,7 +650,7 @@ First, launch the training with a small number of environments and visualization
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -659,7 +659,7 @@ First, launch the training with a small number of environments and visualization
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -668,7 +668,7 @@ First, launch the training with a small number of environments and visualization
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -697,7 +697,7 @@ Now launch the full training run with more parallel environments in headless mod
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
                 --headless \
                 --num_envs 256 \
@@ -707,7 +707,7 @@ Now launch the full training run with more parallel environments in headless mod
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
                 --headless \
                 --num_envs 256 \
@@ -717,7 +717,7 @@ Now launch the full training run with more parallel environments in headless mod
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
                 --headless \
                 --num_envs 256 \
@@ -823,7 +823,7 @@ CUDA Out of Memory
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/rsl_rl/train.py \
+       ./isaaclab.sh train --rl_library rsl_rl \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
@@ -854,7 +854,7 @@ CUDA Out of Memory
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/rsl_rl/train.py \
+       ./isaaclab.sh train --rl_library rsl_rl \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --num_envs 256
@@ -870,11 +870,11 @@ deterministic setup for debugging policy behavior against a specific real-world 
 All randomization is disabled and observation noise is turned off, so the simulation is
 identical on every reset.
 
-To use it, run the standard ``play.py`` script:
+To use it, run the standard play command:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/play.py \
+    ./isaaclab.sh play --rl_library rsl_rl \
         --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \
         --num_envs 1 \
         --checkpoint <path_to_model.pt>
@@ -898,7 +898,7 @@ To match a specific real-world setup, edit the constants at the top of the
         OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, 0.70711, -0.70711)
 
 When ``OBS_SHAFT_POS`` or ``OBS_SHAFT_QUAT`` are set (not ``None``), the
-``play.py`` script automatically overwrites the corresponding portions of the
+play command automatically overwrites the corresponding portions of the
 policy's observation tensor every step, regardless of simulation state.  This
 lets you test what the policy does when given a specific observation (e.g. a
 pose captured from the real robot).

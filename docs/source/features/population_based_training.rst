@@ -114,7 +114,7 @@ Launch *N* workers, where *n* indicates each worker index:
 .. code-block:: bash
 
    # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
-   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
+   ./isaaclab.sh train --rl_library rl_games \
      --seed=<n> \
      --task=Isaac-Repose-Cube-Shadow-Direct-v0 \
      --num_envs=8192 \

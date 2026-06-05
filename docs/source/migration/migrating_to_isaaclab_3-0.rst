@@ -34,6 +34,42 @@ For the full behavior of visualizer resolution, with the visualizer CLI arg, vis
 and ``--headless``, see :ref:`visualization-common-modes`.
 
 
+Reinforcement Learning CLI Entrypoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 provides unified reinforcement learning entrypoints for training
+and play. Instead of launching library-specific scripts under
+``scripts/reinforcement_learning/<library>/``, select the library with
+``--rl_library``.
+
+.. code-block:: bash
+
+   # Isaac Lab 2.x/deprecated
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless
+
+   # Isaac Lab 3.0
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless
+
+The same pattern applies to the play workflow:
+
+.. code-block:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
+
+Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
+``sb3``, and ``rlinf``. The old per-library ``train.py`` and ``play.py`` scripts
+remain available as deprecated compatibility entrypoints and emit a
+``DeprecationWarning`` when used.
+
+For distributed launchers that execute a Python script directly, use the unified
+script path and pass ``--rl_library`` to it:
+
+.. code-block:: bash
+
+   python -m torch.distributed.run --nproc_per_node=2 scripts/reinforcement_learning/train.py \
+      --rl_library rsl_rl --task Isaac-Cartpole --headless --distributed
+
+
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

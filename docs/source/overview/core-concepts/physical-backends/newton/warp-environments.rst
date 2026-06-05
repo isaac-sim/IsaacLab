@@ -71,11 +71,11 @@ Quick Start
 .. code-block:: bash
 
     # Direct workflow
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    ./isaaclab.sh train --rl_library rsl_rl \
         --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
 
     # Manager-based workflow
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    ./isaaclab.sh train --rl_library rsl_rl \
         --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096 --headless
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and

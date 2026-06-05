@@ -34,16 +34,16 @@ cartpole balancing task.
 The Code
 --------
 
-For this tutorial, we use the training script from `Stable-Baselines3`_ workflow in the
+For this tutorial, we use the training implementation from `Stable-Baselines3`_ workflow in the
 ``scripts/reinforcement_learning/sb3`` directory.
 
-.. dropdown:: Code for train.py
+.. dropdown:: Code for train_sb3.py
     :icon: code
 
-    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train.py
+    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
       :language: python
-      :emphasize-lines: 57, 66, 68-70, 81, 90-98, 100, 105-113, 115-116, 121-126, 133-136
       :linenos:
+      :emphasize-lines: 97-100, 104-109, 121-137, 145-157, 164-170
 
 The Code Explained
 ------------------
@@ -88,7 +88,7 @@ Rendering can still be active for sensor/camera data capture when enabled by the
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
+  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 
 
 Headless execution with off-screen render
@@ -100,7 +100,7 @@ in the workflow and pass ``--video`` to record the agent behavior.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --video
+  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -112,11 +112,11 @@ Interactive execution
 
 While the above two methods are useful for training the agent, they don't allow you to interact with the
 simulation to see what is happening. In this case, run the
-training script as follows:
+training command as follows:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --viz kit
+  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
 
 This will open the Kit visualizer window and you can see the agent training in the environment. However, this
 can slow down the training process because interactive visual feedback is enabled. As a workaround, you
@@ -142,7 +142,7 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./isaaclab.sh -p scripts/reinforcement_learning/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint --viz kit
+   ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --use_last_checkpoint --viz kit
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

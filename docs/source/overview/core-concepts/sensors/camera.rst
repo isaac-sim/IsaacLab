@@ -173,8 +173,8 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
 
 .. code-block:: shell
 
-    python scripts/reinforcement_learning/rl_games/train.py \
-        --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+    ./isaaclab.sh train --rl_library rl_games \
+        --task=Isaac-Cartpole-Camera-Direct --headless --enable_cameras
 
 
 Annotators (RTX only)
