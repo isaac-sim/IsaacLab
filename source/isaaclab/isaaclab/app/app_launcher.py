@@ -1060,6 +1060,32 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
+        # Pin Kit's renderer to a single GPU when ``ISAACLAB_PIN_KIT_GPU`` is
+        # truthy. The default ``apps/isaaclab.python.headless.kit`` sets
+        # ``renderer.multiGpu.enabled = true`` + ``renderer.multiGpu.autoEnable
+        # = true``, so each Kit process enumerates every visible GPU at
+        # startup. Under concurrent multi-GPU CI shards (``--gpus all`` per
+        # container, one Kit per non-default cuda device), that produces a
+        # shared GPU-interop context across sibling processes -- surfacing as
+        # ``[Error] [omni.physx.plugin] Stage X already attached`` mid-test and
+        # ``SimulationApp.close`` hanging in teardown (see
+        # https://github.com/isaac-sim/IsaacLab/issues/3475). The mitigation is
+        # to set ``renderer.multiGpu.enabled = false`` + ``maxGpuCount = 1`` so
+        # each Kit only touches its assigned GPU.
+        if os.environ.get("ISAACLAB_PIN_KIT_GPU", "0").lower() not in {"", "0", "false", "no", "off"}:
+            sys.argv.append("--/renderer/multiGpu/enabled=False")
+            sys.argv.append("--/renderer/multiGpu/autoEnable=False")
+            sys.argv.append("--/renderer/multiGpu/maxGpuCount=1")
+            # Also disable the fabric GPU-interop path. The renderer multiGpu
+            # flags above mitigate the startup-time enumeration race; this
+            # mitigates the runtime GPU-interop race on top. Safe for the
+            # multi-GPU CI lane: it covers physics / scene / utility tests,
+            # not rendering.
+            sys.argv.append("--/physics/fabricUseGPUInterop=false")
+            logger.info(
+                "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + disabling fabric GPU-interop"
+            )
+
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
         # Kit's platform-info fork during startup.
