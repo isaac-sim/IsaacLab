@@ -191,7 +191,7 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         scene_entities, scene_origins = design_scene()
-        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        scene_origins = scene_origins.to(sim.device)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene_entities, scene_origins)
