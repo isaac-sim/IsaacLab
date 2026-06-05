@@ -441,7 +441,7 @@ def _spawn_mesh_geom_from_mesh(
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     if cfg.rigid_props is not None:
-        # apply mass properties (transition routing: fragment list -> apply_*; legacy cfg -> define_*)
+        # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         if cfg.mass_props is not None:
             mass_frags = cfg.mass_props if isinstance(cfg.mass_props, (list, tuple)) else [cfg.mass_props]
             if mass_frags and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
