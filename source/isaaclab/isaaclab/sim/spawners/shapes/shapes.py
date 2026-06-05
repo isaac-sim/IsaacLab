@@ -322,7 +322,7 @@ def _spawn_geom_from_prim_type(
         schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if cfg.rigid_props is not None:
-        # transition routing: new fragment list -> apply_*; legacy single cfg -> define_*
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
             schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
