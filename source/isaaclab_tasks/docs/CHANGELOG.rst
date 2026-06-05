@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+2.0.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton task presets to rely on iterative MuJoCo Warp line search.
+
+
 2.0.2 (2026-06-04)
 ~~~~~~~~~~~~~~~~~~
 

@@ -554,6 +554,11 @@ class DirectRLEnv(gym.Env):
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 
+            # Drop cached observation tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_buf", None), dict):
+                self.obs_buf.clear()
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -563,6 +568,15 @@ class DirectRLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             self.sim.clear_instance()
+
+            # Drop the observation/action space objects. gymnasium's wrapper chain keeps
+            # the env referenced past close, so without this they leak — and for image
+            # observations each space holds a large gym.spaces.Box bounds array.
+            self.single_observation_space = None
+            self.single_action_space = None
+            self.observation_space = None
+            self.action_space = None
+            self.state_space = None
 
             # destroy the window
             if self._window is not None:

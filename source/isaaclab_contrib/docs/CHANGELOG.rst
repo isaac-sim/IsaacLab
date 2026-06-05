@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed deformable Newton test presets to rely on iterative MuJoCo Warp line search.
+
+
 0.4.2 (2026-06-04)
 ~~~~~~~~~~~~~~~~~~
 

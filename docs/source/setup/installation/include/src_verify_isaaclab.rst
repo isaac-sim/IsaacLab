@@ -65,14 +65,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Ant --headless
 
 ... Or a robot dog!
 
@@ -84,14 +84,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be.
 Take a look at our :ref:`how-to` like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.

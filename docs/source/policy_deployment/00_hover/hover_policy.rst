@@ -191,4 +191,4 @@ To deploy the trained policy on the H1 robot,
 .. _README of Sim2Real deployment: https://github.com/NVlabs/HOVER/blob/main/neural_wbc/hw_wrappers/README.md
 .. _Hardware Environment: https://github.com/NVlabs/HOVER/blob/main/neural_wbc/hw_wrappers/README.md
 .. _Mujoco Environment: https://github.com/NVlabs/HOVER/tree/main/neural_wbc/mujoco_wrapper
-.. _Unitree H1 Robot: https://unitree.com/h1
+.. _Unitree H1 Robot: https://www.unitree.com/h1

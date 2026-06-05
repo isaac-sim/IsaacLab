@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.1.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin used by the optional ``[newton]`` extra from ``v1.2.0`` to ``v1.2.1rc2``.
+
+
 1.1.2 (2026-06-03)
 ~~~~~~~~~~~~~~~~~~
 

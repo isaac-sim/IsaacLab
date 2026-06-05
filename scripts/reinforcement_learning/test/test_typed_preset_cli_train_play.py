@@ -71,7 +71,7 @@ def test_typed_preset_reaches_resolver(action: str, library: str) -> None:
         str(dispatcher),
         "--rl_library",
         library,
-        "--task=Isaac-Ant-v0",
+        "--task=Isaac-Ant",
         "physics=does_not_exist",
         "--headless",
     ]

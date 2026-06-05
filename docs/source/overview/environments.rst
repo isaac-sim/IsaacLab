@@ -138,15 +138,15 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |ant| image:: ../_static/tasks/classic/ant.jpg
 .. |cartpole| image:: ../_static/tasks/classic/cartpole.jpg
 
-.. |humanoid-link| replace:: `Isaac-Humanoid-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_humanoid/humanoid_env_cfg.py>`__
-.. |ant-link| replace:: `Isaac-Ant-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/manager_ant/ant_env_cfg.py>`__
+.. |humanoid-link| replace:: `Isaac-Humanoid <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_manager_env_cfg.py>`__
+.. |ant-link| replace:: `Isaac-Ant <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py>`__
 .. |cartpole-link| replace:: `Isaac-Cartpole <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py>`__
 .. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py>`__
 .. |cartpole-camera-link| replace:: `Isaac-Cartpole-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_camera_env_cfg.py>`__
 
 
-.. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_humanoid/humanoid_env.py>`__
-.. |ant-direct-link| replace:: `Isaac-Ant-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_ant/ant_env.py>`__
+.. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py>`__
+.. |ant-direct-link| replace:: `Isaac-Ant-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_direct_env.py>`__
 .. |cartpole-direct-link| replace:: `Isaac-Cartpole-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py>`__
 
 Manipulation
@@ -814,7 +814,7 @@ Classic
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
 
-.. |cart-double-pendulum-direct-link| replace:: `Isaac-Cart-Double-Pendulum-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/cart_double_pendulum/cart_double_pendulum_env.py>`__
+.. |cart-double-pendulum-direct-link| replace:: `Isaac-Cart-Double-Pendulum-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cart_double_pendulum/cart_double_pendulum_env.py>`__
 
 Manipulation
 ~~~~~~~~~~~~
@@ -860,7 +860,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Ant-Direct-v0
+    * - Isaac-Ant-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -870,7 +870,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Ant-v0
+    * - Isaac-Ant
       -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
@@ -890,7 +890,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Cart-Double-Pendulum-Direct-v0
+    * - Isaac-Cart-Double-Pendulum-Direct
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1058,12 +1058,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Humanoid-Direct-v0
+    * - Isaac-Humanoid-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Humanoid-v0
+    * - Isaac-Humanoid
       -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)

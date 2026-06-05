@@ -369,7 +369,7 @@ Where:
 - ``--environment nova_carter-galileo``: Specifies the NuRec Real2Sim Galileo environment
 
 The training will run for the number of iterations specified in the config file (default: 1000 iterations).
-The resulting checkpoint will be stored in ``<output_dir>/checkpoints/`` with the filename ``model_<iteration_number>.pt``.
+Checkpoints are saved directly under ``<output_dir>/`` with the filename ``model_<iteration_number>.pt`` (e.g., ``model_0.pt``, ``model_50.pt``, ``model_100.pt``), written every 50 iterations.
 Videos will be saved in ``<output_dir>/videos/``.
 
 .. note::
@@ -441,7 +441,7 @@ Execute the following command from the ``COMPASS`` directory to evaluate the tra
 
 Where:
 
-- ``<path/to/residual_policy_ckpt>``: Path to the trained residual policy checkpoint (e.g., ``<output_dir>/checkpoints/model_1000.pt``)
+- ``<path/to/residual_policy_ckpt>``: Path to the trained residual policy checkpoint (e.g., ``<output_dir>/model_1000.pt``)
 - ``--video``: Enable video recording during evaluation
 - ``--video_interval``: Record video every N iterations
 

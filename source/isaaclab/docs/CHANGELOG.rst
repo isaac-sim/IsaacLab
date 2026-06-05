@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+6.3.1 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed obsolete ``scripts/tools/wrap_warp_to_torch.py`` migration helper. Use
+  :attr:`~isaaclab.utils.warp.ProxyArray.torch` when tensor interop is needed.
+
+
 6.3.0 (2026-06-04)
 ~~~~~~~~~~~~~~~~~~
 

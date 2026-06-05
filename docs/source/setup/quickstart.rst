@@ -75,7 +75,7 @@ your workflow:
 Run Training
 ------------
 
-Training scripts live under ``scripts/reinforcement_learning/``. Pass a **task name** and use
+Use the reinforcement learning training command with a **task name** and
 ``physics=``, ``renderer=``, and ``presets=`` to select backends and task-specific options:
 
 .. tab-set::
@@ -87,19 +87,19 @@ Training scripts live under ``scripts/reinforcement_learning/``. Pass a **task n
       .. code-block:: bash
 
          # Kit-less: Newton MJWarp physics + Newton visualizer
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=16 --max_iterations=10 \
            physics=newton_mjwarp --visualizer newton
 
          # With Isaac Sim: PhysX physics (default renderer)
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
 
          # Camera task: typed physics + renderer + domain preset
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Camera-Direct \
            physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
@@ -108,12 +108,12 @@ Training scripts live under ``scripts/reinforcement_learning/``. Pass a **task n
 
       .. code-block:: batch
 
-         isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
+         isaaclab.bat train --rl_library rsl_rl ^
            --task=Isaac-Cartpole-Direct ^
            --num_envs=16 --max_iterations=10 ^
            physics=newton_mjwarp --visualizer newton
 
-         isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
+         isaaclab.bat train --rl_library rsl_rl ^
            --task=Isaac-Cartpole-Direct ^
            --num_envs=4096 ^
            physics=physx
