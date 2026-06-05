@@ -4,7 +4,7 @@ Exporting Policies with LEAPP
 .. currentmodule:: isaaclab
 
 This guide covers how to export trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://github.com/nvidia-isaac/leapp>`_ (Lightweight Export Annotations for Policy Pipelines).
+`LEAPP <https://github.com/nvidia-isaac/leapp>`__ (Lightweight Export Annotations for Policy Pipelines).
 The main goal of the LEAPP export path is to package the policy together with the input and
 output semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
 observation preprocessing, action postprocessing, or recurrent-state handling by hand.
@@ -64,7 +64,7 @@ consumers can run the policy without reconstructing observation ordering, comman
 targets, or policy feedback loops themselves.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
-`LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_.
+`LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`__.
 
 
 Exporting a Policy
@@ -289,6 +289,6 @@ workflow policies are not currently supported by ``scripts/reinforcement_learnin
 Further Reading
 ---------------
 
-- `LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_
-- `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
+- `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`__
+- `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`__
 - :class:`~envs.LeappDeploymentEnv` API reference

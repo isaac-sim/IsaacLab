@@ -117,21 +117,6 @@ The training and evaluation commands below work unchanged.
 
 .. _rlinf-decord-aarch64:
 
-Building decord on DGX Spark / aarch64
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``decord`` package only publishes pre-built wheels for ``manylinux2010_x86_64``
-and ``win_amd64``, so installation fails on aarch64 hosts (e.g. DGX Spark / Grace).
-Build decord from source **before** Step 1:
-
-.. code-block:: bash
-
-   git clone --recursive https://github.com/jasontitus/decord
-   cd decord && mkdir -p build && cd build
-   cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
-   make -j$(nproc)
-   cd ../python && pip install -e .
-
 Then preload the OpenMP library so it can be loaded into the Python process
 (see the IsaacLab `pip installation guide
 <https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies>`_):
@@ -141,8 +126,6 @@ Then preload the OpenMP library so it can be loaded into the Python process
    unset LD_PRELOAD
    export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 
-Now re-run Step 1; the resolver will see the locally-installed decord and stop trying to fetch a wheel.
-
 
 Quick Start
 -----------
@@ -151,7 +134,7 @@ Quick Start
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rlinf/train.py \
+   ./isaaclab.sh train --rl_library rlinf \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/checkpoint
 
@@ -159,7 +142,7 @@ Quick Start
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rlinf/play.py \
+   ./isaaclab.sh play --rl_library rlinf \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/base_model \
        --video
@@ -168,7 +151,7 @@ Quick Start
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rlinf/play.py \
+   ./isaaclab.sh play --rl_library rlinf \
        --config_name isaaclab_ppo_gr00t_assemble_trocar \
        --model_path /path/to/base_model \
        --rl_model_path /path/to/checkpoints/global_step_N \

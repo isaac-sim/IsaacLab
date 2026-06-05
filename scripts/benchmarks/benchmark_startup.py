@@ -234,7 +234,8 @@ def main(
         first_step_time_begin = time.perf_counter_ns()
         first_step_profile.enable()
         try:
-            env.step(actions)
+            with torch.inference_mode():
+                env.step(actions)
         finally:
             first_step_profile.disable()
 

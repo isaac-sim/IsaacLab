@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_contrib"
-version = "0.4.1"
+version = "0.4.3"
 description = "An extension used to stage and integrate externally contributed features and implementations."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -28,7 +28,7 @@ rlinf = [
     "av>=12.3.0",
     "numpydantic>=1.7.0",
     "albumentations>=1.4.18",
-    "decord>=0.6.0",
+    "decord2",
     "dm_tree>=0.1.8",
     "diffusers>=0.35.0",
     "timm>=1.0.14",

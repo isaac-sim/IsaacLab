@@ -48,7 +48,6 @@ def _make_coupled_cfg(coupling_mode: str, rigid_solver: str = "mjwarp") -> Simul
                 ls_iterations=20,
                 cone="pyramidal",
                 impratio=1,
-                ls_parallel=False,
                 integrator="implicitfast",
             ),
             soft_solver_cfg=VBDSolverCfg(

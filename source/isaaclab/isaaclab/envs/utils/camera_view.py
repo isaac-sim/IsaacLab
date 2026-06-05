@@ -223,9 +223,14 @@ def prim_world_positions(
 ) -> torch.Tensor:
     """Return world-space translations for concrete prim paths resolved from env ids.
 
-    Uses ``FrameView`` first so PhysX/Fabric-backed transforms are current; falls
-    back to USD only if the backend view cannot be constructed.
+    Uses scene articulation state first when the target is an asset/body path,
+    then falls back to ``FrameView`` and USD for arbitrary prim paths.
     """
+    if scene is not None:
+        positions_tensor = _scene_articulation_positions(scene, prim_path_template, env_indices)
+        if positions_tensor is not None:
+            return positions_tensor
+
     xform_cache = UsdGeom.XformCache()
     positions = []
     try:
@@ -240,11 +245,6 @@ def prim_world_positions(
         return torch.tensor(positions, dtype=torch.float32)
     except Exception:
         positions.clear()
-
-    if scene is not None:
-        positions_tensor = _scene_articulation_positions(scene, prim_path_template, env_indices)
-        if positions_tensor is not None:
-            return positions_tensor
 
     for env_id in env_indices:
         prim_path = env_path_from_template(prim_path_template, env_id)

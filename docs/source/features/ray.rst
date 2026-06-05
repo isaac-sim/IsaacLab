@@ -141,6 +141,16 @@ In a different terminal, run the following.
     --workflow scripts/reinforcement_learning/rl_games/train.py \
     --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
 
+The Ray tuner currently launches training through its ``--workflow`` script path. The built-in
+example configs still use the library-specific RL-Games workflow shown above. Custom Ray configs
+can use the unified training entrypoint by setting:
+
+.. code-block:: python
+
+  cfg["runner_args"]["--rl_library"] = "rl_games"
+
+and passing ``--workflow scripts/reinforcement_learning/train.py``.
+
 
 To view the training logs, in a different terminal, run the following and visit ``localhost:6006`` in a browser afterwards.
 

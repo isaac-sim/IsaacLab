@@ -39,7 +39,6 @@ simulation parameters except for the ``dt``:
         nconmax=20,
         ls_iterations=10,
         cone="pyramidal",
-        ls_parallel=True,
         impratio=1,
     )
     newton_cfg = NewtonCfg(
@@ -59,22 +58,15 @@ Here is a very brief explanation of some of the key parameters above:
 * ``nconmax``: This is the maximum number of contact points MuJoCo-Warp pre-allocates
   for a given environment. Set it high enough for the expected contact count.
 
-* ``ls_iterations``: The number of line searches performed by the MuJoCo Warp solver.
-  Line searches are used to find an optimal step size, and for each solver step,
-  at most ``ls_iterations`` line searches will be performed. Keeping this number low
-  is important for performance. This number is also an upper bound when
-  ``ls_parallel`` is not set.
+* ``ls_iterations``: The number of iterative line searches performed by the
+  MuJoCo Warp solver. Line searches are used to find an acceptable step size,
+  and the solver stops early when convergence is reached. Tune this cap together
+  with ``iterations`` and ``tolerance`` when balancing convergence and runtime.
 
 * ``cone``: This parameter provides a choice between pyramidal and elliptic
   approximations for the friction cone used in contact handling. Please see the
   MuJoCo documentation for additional information on contact:
   https://mujoco.readthedocs.io/en/stable/computation/index.html#contact
-
-* ``ls_parallel``: This switches line searches from iterative to parallel execution.
-  Enabling ``ls_parallel`` provides a performance boost, but at the cost of some
-  simulation stability. To ensure good simulation behaviour when enabled, a higher
-  ``ls_iterations`` setting is required. Usually an increase of approximately 50% is
-  best over the ``ls_iterations`` setting when ``ls_parallel`` is disabled.
 
 * ``impratio``: This is the frictional-to-normal constraint impedance ratio that
   enables finer-grained control of the significance of the tangential forces
