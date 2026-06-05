@@ -259,6 +259,19 @@ def _read_fabric_world_matrix_scale(view, prim_index=0):
     )
 
 
+def _read_fabric_local_matrix_translation(view, prim_index=0):
+    """Read cached Fabric localMatrix directly, without FrameView getter sync."""
+    rt_prim = view._stage.GetPrimAtPath(view.prim_paths[prim_index])
+    local_attr = rt_prim.GetAttribute(view._LOCAL_MATRIX_NAME)
+    matrix = local_attr.Get()
+    translation = matrix.ExtractTranslation()
+    return torch.tensor(
+        [[float(translation[0]), float(translation[1]), float(translation[2])]],
+        dtype=torch.float32,
+        device=view._device,
+    )
+
+
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_set_local_poses_updates_renderer_facing_fabric_world_matrix(device, view_factory):
     """Local pose writes must update cached Fabric worldMatrix immediately.
@@ -357,6 +370,113 @@ def test_change_block_batches_local_world_matrix_update(device, view_factory, mo
     expected_scale = torch.tensor([[2.0, 3.0, 4.0]], dtype=torch.float32, device=device)
     cached_scale = _read_fabric_world_matrix_scale(view)
     torch.testing.assert_close(cached_scale, expected_scale, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_change_block_can_defer_world_matrix_update(device, view_factory, monkeypatch):
+    """Callers can suppress local→world flushing when no world consumer needs it."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+
+    view.get_world_poses()
+    assert view._dirty.name == "NONE"
+    initial_cached_world = _read_fabric_world_matrix_translation(view)
+
+    calls = 0
+    original_recompute = view._recompute_world_from_local
+
+    def counted_recompute():
+        nonlocal calls
+        calls += 1
+        original_recompute()
+
+    monkeypatch.setattr(view, "_recompute_world_from_local", counted_recompute)
+
+    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
+
+    with view.change_block(update_world_matrices=False):
+        view.set_local_poses(translations=new_local_pos)
+
+    assert calls == 0
+    assert view._dirty.name == "WORLD"
+    cached_world = _read_fabric_world_matrix_translation(view)
+    torch.testing.assert_close(cached_world, initial_cached_world, atol=1e-5, rtol=0)
+
+    expected_world = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
+    world_pos, _ = view.get_world_poses()
+    assert calls == 1
+    torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected_world, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_change_block_can_flush_local_matrix_update(device, view_factory, monkeypatch):
+    """Callers can request world→local flushing when a localMatrix consumer needs it."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+
+    view.get_world_poses()
+    assert view._dirty.name == "NONE"
+
+    calls = 0
+    original_sync_local = view._sync_local_from_world
+
+    def counted_sync_local(indices_wp):
+        nonlocal calls
+        calls += 1
+        original_sync_local(indices_wp)
+
+    monkeypatch.setattr(view, "_sync_local_from_world", counted_sync_local)
+
+    new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 1.0, 2.0, 4.0], device=device)
+
+    with view.change_block(update_local_matrices=True):
+        view.set_world_poses(positions=new_world_pos)
+        assert view._dirty.name == "LOCAL"
+        assert calls == 0
+
+    assert calls == 1
+    assert view._dirty.name == "NONE"
+
+    # Parent is at (0, 0, 1), so local translation should be world - parent.
+    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
+    cached_local = _read_fabric_local_matrix_translation(view)
+    torch.testing.assert_close(cached_local, expected_local, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_change_block_leaves_local_matrix_lazy_by_default(device, view_factory, monkeypatch):
+    """Default block policy updates world matrices, but not local matrices."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+
+    view.get_world_poses()
+    assert view._dirty.name == "NONE"
+
+    calls = 0
+    original_sync_local = view._sync_local_from_world
+
+    def counted_sync_local(indices_wp):
+        nonlocal calls
+        calls += 1
+        original_sync_local(indices_wp)
+
+    monkeypatch.setattr(view, "_sync_local_from_world", counted_sync_local)
+
+    new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 1.0, 2.0, 4.0], device=device)
+
+    with view.change_block():
+        view.set_world_poses(positions=new_world_pos)
+
+    assert calls == 0
+    assert view._dirty.name == "LOCAL"
+
+    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
+    local_pos, _ = view.get_local_poses()
+    assert calls == 1
+    torch.testing.assert_close(torch.as_tensor(local_pos, device=device), expected_local, atol=1e-5, rtol=0)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

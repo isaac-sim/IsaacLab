@@ -80,13 +80,18 @@ class FabricFrameView(BaseFrameView):
       when ``get_local_poses`` (or ``get_local_scales``) is called.  Local
       writes update renderer-facing ``omni:fabric:worldMatrix`` eagerly so
       Fabric render delegates see the new pose/scale without requiring an Isaac
-      Lab world getter.  Wrap multiple local writes in :meth:`change_block` to
-      defer this local→world recompute until the outermost block exits.
+      Lab world getter.  The default is intentionally asymmetric: render
+      delegates consume world matrices, while no known downstream render path
+      consumes local matrices directly.  Wrap multiple writes in
+      :meth:`change_block` to defer and configure derived-matrix updates.
     * **Dirty-flag invariant.**  The ``_dirty`` enum is one of ``NONE``,
       ``WORLD``, or ``LOCAL`` -- mutually exclusive by construction.
       ``set_world_poses`` / ``set_world_scales`` sets ``_dirty = LOCAL``;
       ``set_local_poses`` / ``set_local_scales`` flushes local→world
-      immediately unless a :meth:`change_block` is active.
+      immediately unless a :meth:`change_block` is active.  By default,
+      ``change_block`` flushes pending world matrices on exit but leaves local
+      matrices lazy; callers can override this with
+      ``update_world_matrices`` / ``update_local_matrices``.
       If the user interleaves both setters on the same view within a single
       frame, the second setter flushes the first's stale data before writing.
       This is correct but incurs an extra kernel launch -- a one-time warning
@@ -153,6 +158,8 @@ class FabricFrameView(BaseFrameView):
         self._dirty: _DirtyFlag = _DirtyFlag.NONE
         self._warned_interleaved_set: bool = False
         self._change_block_depth: int = 0
+        self._change_block_update_world_matrices: bool = True
+        self._change_block_update_local_matrices: bool = False
 
         # Selection (single RW covering both world + local matrix).
         self._sel = None
@@ -184,31 +191,71 @@ class FabricFrameView(BaseFrameView):
         return self._device
 
     @contextlib.contextmanager
-    def change_block(self):
-        """Batch Fabric writes and flush derived matrices on outermost exit.
+    def change_block(self, update_world_matrices: bool = True, update_local_matrices: bool = False):
+        """Batch Fabric writes and configure derived-matrix flushes.
 
-        Local pose/scale setters normally update cached Fabric world matrices
-        immediately for renderer/FSD consumers.  Use this block when applying
-        several local edits to the same view so the local→world recompute runs
-        once after the final edit.
+        Args:
+            update_world_matrices: When True (default), pending local writes are
+                propagated to cached renderer-facing ``omni:fabric:worldMatrix``
+                before the outermost block exits.  Set False when the caller
+                knows no downstream consumer will read world matrices before an
+                explicit FrameView world getter or later sync.
+            update_local_matrices: When True, pending world writes are propagated
+                to ``omni:fabric:localMatrix`` before the outermost block exits.
+                The default is False because Fabric render delegates consume
+                cached world matrices, and no known downstream render path reads
+                local matrices directly.
+
+        Nested blocks inherit the outermost block's policy.  This lets callers
+        reliably suppress derived-matrix updates around helper code that may
+        also use ``change_block()`` with default arguments.
         """
+        if self._change_block_depth == 0:
+            self._change_block_update_world_matrices = update_world_matrices
+            self._change_block_update_local_matrices = update_local_matrices
+
         self._change_block_depth += 1
         try:
             yield self
         finally:
             self._change_block_depth -= 1
             if self._change_block_depth == 0:
-                self._flush_deferred_local_writes()
+                update_world = self._change_block_update_world_matrices
+                update_local = self._change_block_update_local_matrices
+                self._change_block_update_world_matrices = True
+                self._change_block_update_local_matrices = False
+                self._flush_deferred_writes(
+                    update_world_matrices=update_world,
+                    update_local_matrices=update_local,
+                )
+            # Nested blocks inherit the outermost block's flush policy.
 
-    def changeBlock(self):
-        """Alias for :meth:`change_block`."""
-        return self.change_block()
+    def changeBlock(
+        self,
+        updateWorldMatrices: bool = True,
+        updateLocalMatrices: bool = False,
+    ):
+        """CamelCase alias for :meth:`change_block`."""
+        return self.change_block(
+            update_world_matrices=updateWorldMatrices,
+            update_local_matrices=updateLocalMatrices,
+        )
 
-    def _flush_deferred_local_writes(self) -> None:
-        """Flush pending local→world recompute unless still inside a change block."""
+    def _flush_deferred_writes(self, update_world_matrices: bool = True, update_local_matrices: bool = False) -> None:
+        """Flush pending derived matrices unless still inside a change block."""
         if self._change_block_depth > 0:
             return
-        self._sync_world_from_local_if_dirty()
+        if update_world_matrices:
+            self._sync_world_from_local_if_dirty()
+        if update_local_matrices:
+            self._sync_local_from_world_if_dirty()
+
+    def _flush_deferred_local_writes(self) -> None:
+        """Flush local→world recompute using the active change-block policy."""
+        self._flush_deferred_writes(
+            update_world_matrices=self._change_block_update_world_matrices,
+            update_local_matrices=False,
+        )
 
     @property
     def prims(self) -> list:
