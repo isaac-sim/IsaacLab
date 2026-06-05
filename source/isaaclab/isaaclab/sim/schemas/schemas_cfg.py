@@ -184,6 +184,13 @@ class CollisionFragment(SchemaFragment):
 
 
 @configclass
+class JointDriveFragment(SchemaFragment):
+    """Marker base for joint-drive fragments; types the ``joint_drive_props`` slot."""
+
+    pass
+
+
+@configclass
 class UsdPhysicsCollisionCfg(CollisionFragment):
     """``physics:*`` collision attributes from `UsdPhysics.CollisionAPI`_.
 
@@ -201,6 +208,87 @@ class UsdPhysicsCollisionCfg(CollisionFragment):
     """Whether to enable or disable collisions.
 
     Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
+    """
+
+
+@configclass
+class UsdPhysicsDriveCfg(JointDriveFragment):
+    """``drive:<linear|angular>:physics:*`` joint-drive attributes from `UsdPhysics.DriveAPI`_.
+
+    The drive attributes live under a multi-instance ``UsdPhysics.DriveAPI`` (instance
+    ``"angular"`` for revolute joints, ``"linear"`` for prismatic joints), so this fragment
+    cannot use the generic :func:`~isaaclab.sim.schemas.apply_namespaced` writer. It overrides
+    :attr:`func` with :func:`~isaaclab.sim.schemas.apply_drive`, which selects the instance,
+    applies ``UsdPhysics.DriveAPI`` (presence-gated, the conditional anchor for the joint-drive
+    family), performs the radian-to-degree conversion for angular drives, and writes the typed
+    ``drive:<inst>:physics:{type,maxForce,stiffness,damping}`` attributes.
+
+    .. note::
+        Unlike most fragments, this one is not a metadata-driven write. ``DriveAPI`` is applied
+        only when this fragment is present in the slot.
+
+    .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
+    """
+
+    # No metadata-driven namespace: the typed multi-instance ``UsdPhysics.DriveAPI`` is written
+    # directly by ``apply_drive``. ``DriveAPI`` is presence-gated, not an implicit anchor.
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab.sim.schemas:apply_drive"
+
+    def __post_init__(self):
+        # Deprecation alias: ``max_effort`` -> ``max_force`` (the USD attr is ``maxForce``).
+        # Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
+        _deprecate_field_alias(self, "max_effort", "max_force")
+
+    drive_type: Literal["force", "acceleration"] | None = None
+    """Joint drive type to apply.
+
+    If the drive type is ``"force"``, then the joint is driven by a force. If the drive type is
+    ``"acceleration"``, then the joint is driven by an acceleration (usually used for kinematic
+    joints). Written to ``drive:<inst>:physics:type`` (the USD attr is ``type``, a permanent
+    inline carve-out from the snake-to-camel convention).
+    """
+
+    max_force: float | None = None
+    """Maximum force/torque that can be applied to the joint [N for linear joints, N·m for angular joints].
+
+    Written to ``drive:<inst>:physics:maxForce`` via :class:`UsdPhysics.DriveAPI`.
+    """
+
+    max_effort: float | None = None
+    """Deprecated alias for :attr:`max_force`.
+
+    .. deprecated:: 4.6.25
+        Use :attr:`max_force` instead. The cfg field is renamed so its snake_case name maps
+        identity-style to the USD camelCase attribute (``maxForce`` on ``UsdPhysics.DriveAPI``).
+        The alias is forwarded to :attr:`max_force` in :meth:`__post_init__` and will be removed
+        in 4.0.
+    """
+
+    stiffness: float | None = None
+    """Stiffness of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s² (N/m).
+    * For angular joints, the unit is kg-m²/s²/rad (N·m/rad).
+
+    Angular drives are converted from radians to degrees (``N·m/rad`` -> ``N·m/deg``) before
+    being written to ``drive:angular:physics:stiffness``.
+    """
+
+    damping: float | None = None
+    """Damping of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s (N·s/m).
+    * For angular joints, the unit is kg-m²/s/rad (N·m·s/rad).
+
+    Angular drives are converted from radians to degrees (``N·m·s/rad`` -> ``N·m·s/deg``) before
+    being written to ``drive:angular:physics:damping``.
     """
 
 
