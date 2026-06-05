@@ -329,7 +329,7 @@ class FabricFrameView(BaseFrameView):
 
         topology_changed = self._fabric_selection.PrepareForReuse()
         if topology_changed:
-            logger.info("Fabric topology changed — rebuilding view-to-fabric index mapping.")
+            logger.debug("Fabric topology changed — rebuilding view-to-fabric index mapping.")
             self._rebuild_fabric_arrays()
 
     def _rebuild_fabric_arrays(self) -> None:
