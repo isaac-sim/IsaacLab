@@ -369,7 +369,7 @@ def _spawn_from_usd_file(
 
     # modify articulation root properties
     if cfg.articulation_props is not None:
-        # transition routing: new fragment list -> apply_*; legacy single cfg -> modify_*
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
         articulation_frags = (
             cfg.articulation_props if isinstance(cfg.articulation_props, (list, tuple)) else [cfg.articulation_props]
         )
