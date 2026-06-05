@@ -15,6 +15,7 @@ from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
+from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
 from isaaclab.sim.utils import delete_prim, export_prim_to_file
 
 # import logger
@@ -131,9 +132,22 @@ class MeshConverter(AssetConverterBase):
                     )
                 # Add collision mesh
                 if cfg.mesh_collision_props is not None:
-                    schemas.define_mesh_collision_properties(
-                        prim_path=child_mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
+                    # Transition bridge: route a fragment (or list of fragments) through the new
+                    # ``apply_mesh_collision_properties`` family writer; otherwise fall back to the
+                    # legacy single-cfg ``define_mesh_collision_properties`` path.
+                    mesh_collision_frags = (
+                        cfg.mesh_collision_props
+                        if isinstance(cfg.mesh_collision_props, (list, tuple))
+                        else [cfg.mesh_collision_props]
                     )
+                    if all(isinstance(f, SchemaFragment) for f in mesh_collision_frags):
+                        schemas.apply_mesh_collision_properties(
+                            prim_path=child_mesh_prim.GetPath(), fragments=mesh_collision_frags, stage=stage
+                        )
+                    else:
+                        schemas.define_mesh_collision_properties(
+                            prim_path=child_mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
+                        )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
         # Apply default Xform rotation to mesh -> enable to set rotation and scale

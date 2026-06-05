@@ -255,6 +255,13 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
         # ``func`` is the only non-USD field; non-scalar values raise in the setter
         if f.name == "func":
             continue
+        # ``mesh_approximation_name`` is not a namespaced attribute: it is the standard
+        # ``physics:approximation`` token, written by ``apply_mesh_collision_properties`` (the
+        # family writer) which validates it against ``MESH_APPROXIMATION_TOKENS``. Skip it here
+        # so a mesh-collision cooking fragment dispatched through this generic applier does not
+        # author a spurious ``<namespace>:meshApproximationName`` attribute.
+        if f.name == "mesh_approximation_name":
+            continue
         value = getattr(cfg, f.name)
         if value is None:
             continue
@@ -466,6 +473,71 @@ def apply_rigid_body_properties(
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
         success = bool(func(cfg, prim_path, stage)) and success
     return success
+
+
+def apply_mesh_collision_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+    """Apply a list of mesh-collision fragments to a prim.
+
+    Applies ``UsdPhysics.MeshCollisionAPI`` as the implicit anchor (the carrier of the
+    ``physics:approximation`` token), resolves and writes that token, then dispatches each
+    fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend cooking fragments
+    carry backend-specific funcs (the generic :func:`apply_namespaced` applier), so core never
+    imports a backend.
+
+    .. attention::
+        **Approximation-token coupling.** The ``physics:approximation`` token is *not* a plain
+        namespaced attribute: it is shared state set by whichever cooking fragment is present.
+        Each fragment carries a :attr:`mesh_approximation_name` whose default encodes the token its
+        cooking schema implies (e.g. ``"convexHull"`` for :class:`PhysxConvexHullCfg`, ``"sdf"``
+        for :class:`PhysxSDFMeshCfg`). This writer scans the fragment list and uses the last
+        fragment whose :attr:`mesh_approximation_name` is set to a non-``"none"`` value (mirroring
+        the legacy single-cfg behavior), falling back to ``"none"`` when none is set. The token is
+        validated against :const:`MESH_APPROXIMATION_TOKENS`; an unknown name raises ``ValueError``.
+        The :attr:`mesh_approximation_name` field is therefore handled here and explicitly skipped
+        by :func:`apply_namespaced` so it is never authored as a namespaced attribute.
+
+    Args:
+        prim_path: The prim path to apply the mesh-collision schemas on. This prim should be a Mesh.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.MeshCollisionFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+
+    Raises:
+        ValueError: When the resolved mesh approximation name is not in
+            :const:`MESH_APPROXIMATION_TOKENS`.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # apply the standard MeshCollisionAPI anchor (carrier of ``physics:approximation``)
+    if not UsdPhysics.MeshCollisionAPI(prim):
+        UsdPhysics.MeshCollisionAPI.Apply(prim)
+
+    # resolve the approximation token shared across the fragment list: the last fragment whose
+    # ``mesh_approximation_name`` is set to a non-"none" value wins; otherwise "none".
+    approximation_name = "none"
+    for cfg in fragments:
+        name = getattr(cfg, "mesh_approximation_name", None)
+        if name is not None and name != "none":
+            approximation_name = name
+    if approximation_name not in MESH_APPROXIMATION_TOKENS:
+        raise ValueError(
+            f"Invalid mesh approximation name: '{approximation_name}'. "
+            f"Valid options are: {list(MESH_APPROXIMATION_TOKENS.keys())}"
+        )
+    approximation_token = MESH_APPROXIMATION_TOKENS[approximation_name]
+    safe_set_attribute_on_usd_schema(
+        UsdPhysics.MeshCollisionAPI(prim), "Approximation", approximation_token, camel_case=False
+    )
+
+    # dispatch each fragment via its ``func`` (cooking-schema application + namespaced tuning attrs)
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
 
 
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):

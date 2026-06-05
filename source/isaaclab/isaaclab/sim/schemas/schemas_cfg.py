@@ -177,6 +177,52 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
 
 
 @configclass
+class MeshCollisionFragment(SchemaFragment):
+    """Marker base for mesh-collision fragments; types the ``mesh_collision_props`` slot.
+
+    A mesh-collision concept is split across one *core* fragment carrying the standard
+    ``physics:approximation`` token (:class:`UsdPhysicsMeshCollisionCfg`) and one cooking
+    fragment per backend cooking schema (PhysX convex hull / decomposition / triangle mesh /
+    SDF, Newton mesh / SDF). Whichever cooking fragment is present implies the approximation
+    token written to ``physics:approximation`` -- see
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+    """
+
+    pass
+
+
+@configclass
+class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
+    """``physics:approximation`` mesh-collision token from `UsdPhysics.MeshCollisionAPI`_.
+
+    Carries the standard mesh-collision approximation token (:attr:`mesh_approximation_name`
+    written to ``physics:approximation``). The ``UsdPhysics.MeshCollisionAPI`` schema is applied
+    as the implicit anchor by the mesh-collision family writer
+    (:func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`), so this fragment owns no
+    applied schema of its own.
+
+    .. note::
+        The ``physics:approximation`` attribute is a ``TfToken`` validated against
+        :const:`~isaaclab.sim.schemas.MESH_APPROXIMATION_TOKENS`; the family writer (not the generic
+        :func:`~isaaclab.sim.schemas.apply_namespaced` applier) handles the token write, so this
+        fragment overrides nothing but the namespace metadata. When a PhysX/Newton cooking fragment
+        is present alongside this one, its default :attr:`mesh_approximation_name` sets the token.
+
+    .. _UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # MeshCollisionAPI applied by the family anchor
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none".
+
+    Writes the ``physics:approximation`` token via :class:`UsdPhysics.MeshCollisionAPI`.
+    Refer to :const:`~isaaclab.sim.schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
+
+
+@configclass
 class ArticulationRootBaseCfg:
     """Solver-common properties to apply to the root of an articulation.
 
