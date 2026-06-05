@@ -369,7 +369,16 @@ def _spawn_from_usd_file(
 
     # modify articulation root properties
     if cfg.articulation_props is not None:
-        schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
+        # transition routing: new fragment list -> apply_*; legacy single cfg -> modify_*
+        articulation_frags = (
+            cfg.articulation_props if isinstance(cfg.articulation_props, (list, tuple)) else [cfg.articulation_props]
+        )
+        if articulation_frags and all(isinstance(f, schemas.SchemaFragment) for f in articulation_frags):
+            schemas.apply_articulation_root_properties(
+                prim_path, articulation_frags, fix_root_link=getattr(cfg, "fix_root_link", None)
+            )
+        else:
+            schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
         schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)

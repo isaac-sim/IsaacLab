@@ -8,6 +8,7 @@ __all__ = [
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
     "activate_contact_sensors",
+    "apply_articulation_root_properties",
     "apply_collision_properties",
     "apply_mass_properties",
     "apply_namespaced",
@@ -40,6 +41,7 @@ __all__ = [
     "MassFragment",
     "MassPropertiesCfg",
     "MeshCollisionBaseCfg",
+    "ArticulationRootFragment",
     "RigidBodyFragment",
     "SchemaFragment",
     "UsdPhysicsCollisionCfg",
@@ -61,6 +63,7 @@ from .schemas import (
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
     activate_contact_sensors,
+    apply_articulation_root_properties,
     apply_collision_properties,
     apply_mass_properties,
     apply_namespaced,
@@ -86,6 +89,7 @@ from .schemas_actuators import (
 )
 from .schemas_cfg import (
     ArticulationRootBaseCfg,
+    ArticulationRootFragment,
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
     CollisionBaseCfg,
