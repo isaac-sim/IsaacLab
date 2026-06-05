@@ -20,7 +20,7 @@ INSTALL_REQUIRES = ["isaaclab_ppisp"]
 
 EXTRAS_REQUIRE = {
     "newton": [
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.1rc2",
     ],
 }
 
