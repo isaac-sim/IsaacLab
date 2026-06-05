@@ -179,12 +179,43 @@ def get_actor_memory_module(policy_nn):
         return policy_nn.memory_a
     if hasattr(policy_nn, "memory_s"):
         return policy_nn.memory_s
+    if hasattr(policy_nn, "rnn"):
+        return policy_nn.rnn
     return None
+
+
+def get_policy_module(policy):
+    """Return the policy module for both bound-method and callable-module inference policies."""
+    return getattr(policy, "__self__", policy)
+
+
+def is_actor_recurrent_policy(policy_nn) -> bool:
+    """Return whether the actor policy has a supported recurrent state container."""
+    return bool(getattr(policy_nn, "is_recurrent", False) and get_actor_memory_module(policy_nn) is not None)
+
+
+def get_actor_hidden_state(policy_nn):
+    """Return the actor-side recurrent hidden state for supported RSL-RL policy APIs."""
+    if hasattr(policy_nn, "get_hidden_states"):
+        return policy_nn.get_hidden_states()[0]
+    if hasattr(policy_nn, "get_hidden_state"):
+        return policy_nn.get_hidden_state()
+    memory = get_actor_memory_module(policy_nn)
+    return None if memory is None else getattr(memory, "hidden_state", None)
+
+
+def set_actor_hidden_state(policy_nn, actor_hidden) -> None:
+    """Assign the actor-side recurrent hidden state for supported RSL-RL policy APIs."""
+    memory = get_actor_memory_module(policy_nn)
+    if memory is not None:
+        memory.hidden_state = actor_hidden
 
 
 def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dtype):
     """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
-    actor_state, _ = policy_nn.get_hidden_states()
+    torch_module = torch
+    assert torch_module is not None
+    actor_state = get_actor_hidden_state(policy_nn)
     if actor_state is not None:
         return actor_state
 
@@ -194,12 +225,12 @@ def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dt
 
     num_layers = memory.rnn.num_layers
     hidden_size = memory.rnn.hidden_size
-    zeros = torch.zeros(num_layers, batch_size, hidden_size, device=device, dtype=dtype)
-    if isinstance(memory.rnn, torch.nn.LSTM):
+    zeros = torch_module.zeros(num_layers, batch_size, hidden_size, device=device, dtype=dtype)
+    if isinstance(memory.rnn, torch_module.nn.LSTM):
         actor_state = (zeros.clone(), zeros.clone())
     else:
         actor_state = zeros
-    memory.hidden_state = actor_state
+    set_actor_hidden_state(policy_nn, actor_state)
     return actor_state
 
 
@@ -298,7 +329,7 @@ def export_rsl_rl_agent(
         runner.load(resume_path)
 
         policy = runner.get_inference_policy(device=env.unwrapped.device)
-        policy_nn = getattr(policy, "__self__", None)
+        policy_nn = get_policy_module(policy)
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
@@ -316,7 +347,7 @@ def export_rsl_rl_agent(
 
         for _ in range(max(args_cli.validation_steps, 2)):
             with torch.inference_mode():
-                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
+                if policy_nn is not None and is_actor_recurrent_policy(policy_nn):
                     actor_hidden = ensure_actor_hidden_state_initialized(
                         policy_nn,
                         batch_size=env.num_envs,
@@ -327,14 +358,12 @@ def export_rsl_rl_agent(
                         policy_node_name,
                         state_dict_from_actor_hidden(actor_hidden),
                     )
-                    actor_memory = get_actor_memory_module(policy_nn)
-                    if actor_memory is not None:
-                        actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
+                    set_actor_hidden_state(policy_nn, actor_hidden_from_registered(registered_state, actor_hidden))
 
                 actions = policy(obs)
 
-                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                    actor_hidden_after = policy_nn.get_hidden_states()[0]
+                if policy_nn is not None and is_actor_recurrent_policy(policy_nn):
+                    actor_hidden_after = get_actor_hidden_state(policy_nn)
                     annotate.update_state(
                         policy_node_name,
                         state_dict_from_actor_hidden(actor_hidden_after),
