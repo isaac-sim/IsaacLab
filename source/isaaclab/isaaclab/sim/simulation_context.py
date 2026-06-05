@@ -1006,8 +1006,9 @@ def build_simulation_context(
             # ``device=cuda:N`` silently got sim_cfg's device, causing warp
             # kernel-launch mismatches when test fixtures allocated tensors on
             # the requested device while assets resolved their device from the
-            # untouched sim_cfg.
-            sim_cfg.device = device
+            # untouched sim_cfg. ``replace`` returns a copy so a caller-owned
+            # sim_cfg is not mutated in-place and stays reusable across calls.
+            sim_cfg = sim_cfg.replace(device=device)
 
         sim = SimulationContext(sim_cfg)
 
