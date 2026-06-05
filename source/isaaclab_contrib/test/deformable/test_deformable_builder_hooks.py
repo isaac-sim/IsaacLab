@@ -9,12 +9,13 @@ from types import SimpleNamespace
 
 import pytest
 import warp as wp
-from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
-from isaaclab.cloner.usd import UsdReplicateContext
 from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
+
+from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
+from isaaclab.cloner.usd import UsdReplicateContext
 
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (

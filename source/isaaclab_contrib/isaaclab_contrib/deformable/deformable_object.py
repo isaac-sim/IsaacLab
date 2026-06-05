@@ -231,7 +231,9 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
                 SimulationManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
             )
             if not offset_attr.IsValid() or not count_attr.IsValid():
-                logger.warning("[setup_fabric_particle_sync] Fabric particle attributes not created at %s", resolved_vis)
+                logger.warning(
+                    "[setup_fabric_particle_sync] Fabric particle attributes not created at %s", resolved_vis
+                )
                 continue
 
             offset_attr.Set(int(offset))
