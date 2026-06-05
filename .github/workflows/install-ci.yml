@@ -34,6 +34,11 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    # DIAGNOSTIC PR opt-out: skip install-ci entirely when the PR title is
+    # marked DO-NOT-MERGE. The downstream install-tests-x86 / install-tests-arm
+    # jobs gate on `needs.changes.outputs.run_install_tests == 'true'`; with
+    # this job skipped the output is empty and both dependents skip too.
+    if: ${{ !(github.event_name == 'pull_request' && contains(github.event.pull_request.title, 'DO-NOT-MERGE')) }}
     outputs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
     steps:

@@ -477,12 +477,10 @@ def _mark_queued_file_done(queue_dir, test_path):
     dst_dir = os.path.join(queue_dir, "done", shard)
     os.makedirs(dst_dir, exist_ok=True)
     dst = os.path.join(dst_dir, entry)
-    try:
+    # Suppress: already moved (idempotent) or the runner crashed before we
+    # could mark done — the reconciler catches the second case.
+    with contextlib.suppress(FileNotFoundError):
         os.rename(src, dst)
-    except FileNotFoundError:
-        # Already moved (idempotent) or the runner crashed before we could
-        # mark done — the reconciler catches the second case.
-        pass
 
 
 def _queued_files(queue_dir):
