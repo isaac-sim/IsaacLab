@@ -14,6 +14,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
@@ -371,23 +372,21 @@ def launch_simulation(
     # loading both in the same process causes a dynamic-linker crash.  Use
     # --visualizer newton instead, which is compatible with ovrtx presets.
     early_visualizer_types = _get_visualizer_types(launcher_args)
-    if "kit" in early_visualizer_types:
-        has_ovrtx = _scan_config(
-            env_cfg, [lambda node: isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"]
-        )[0]
-        if has_ovrtx:
-            raise ValueError(
-                "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
-                "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
-                "(librtx.hydra.so, liblegacy.hydra.so) compiled against different USD namespaces, "
-                "which causes a dynamic-linker crash when loaded into the same process. "
-                "Use '--visualizer newton' instead, which is fully compatible with ovrtx presets."
-            )
+    has_ovrtx_renderer = _scan_config(env_cfg, [_is_ovrtx_renderer])[0]
+    if "kit" in early_visualizer_types and has_ovrtx_renderer:
+        raise ValueError(
+            "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
+            "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
+            "(librtx.hydra.so, liblegacy.hydra.so) compiled against different USD namespaces, "
+            "which causes a dynamic-linker crash when loaded into the same process. "
+            "Use '--visualizer newton' instead, which is fully compatible with ovrtx presets."
+        )
 
     validate_runtime_compatibility(env_cfg, launcher_args)
     _ensure_livestream_kit_visualizer(launcher_args)
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
+    has_kit_visualizer = "kit" in visualizer_types or visualizer_intent.get("has_kit_visualizer", False)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
 
     if needs_kit and has_kit_cameras:
@@ -473,7 +472,14 @@ def launch_simulation(
             if sim_cfg is not None and hasattr(app_launcher, "device"):
                 sim_cfg.device = app_launcher.device
             close_fn = app_launcher.app.close
-    elif visualizer_types or visualizer_explicit_none:
+
+    settings = get_settings_manager()
+    settings.set_bool("/isaaclab/runtime/needs_kit", bool(needs_kit))
+    settings.set_bool("/isaaclab/runtime/has_kit_cameras", bool(has_kit_cameras))
+    settings.set_bool("/isaaclab/runtime/has_kit_visualizer", bool(has_kit_visualizer))
+    settings.set_bool("/isaaclab/runtime/has_ovrtx_renderer", bool(has_ovrtx_renderer))
+
+    if not needs_kit and (visualizer_types or visualizer_explicit_none):
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that
         # SimulationContext._get_cli_visualizer_types() can find it.

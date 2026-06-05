@@ -146,7 +146,6 @@ class InteractiveScene:
         self.stage_id = get_current_stage_id()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         requested_viz_types = set(self.sim.resolve_visualizer_types())
-        requested_renderer_types = set(self._cfg_renderer_types())
         if self.physics_backend.startswith("ovphysx"):
             from isaaclab_ovphysx.cloner import ovphysx_replicate
 
@@ -166,13 +165,16 @@ class InteractiveScene:
         # prepare cloner for environment replication
         self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
         is_newton_replicated_scene = self.cfg.replicate_physics and self.physics_backend.startswith("newton")
+        needs_kit = self.sim.get_setting("/isaaclab/runtime/needs_kit")
+        needs_kit = has_kit() if needs_kit is None else bool(needs_kit)
+        has_ovrtx_renderer = bool(self.sim.get_setting("/isaaclab/runtime/has_ovrtx_renderer"))
 
         self.cloner_cfg = cloner.CloneCfg(
             clone_regex=self.env_regex_ns,
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
             physics_clone_fn=physics_clone_fn,
-            clone_usd=not is_newton_replicated_scene or has_kit() or "ovrtx" in requested_renderer_types,
+            clone_usd=not is_newton_replicated_scene or needs_kit or has_ovrtx_renderer,
         )
 
         # create source prim
@@ -353,17 +355,6 @@ class InteractiveScene:
         requirements = aggregate_requirements((current_req, discovered_req))
         if requirements != current_req:
             self.sim.update_scene_data_requirements(requirements)
-
-    def _cfg_renderer_types(self) -> list[str]:
-        """Return renderer type names declared by scene cfg entries before sensors are constructed."""
-        cfg_fields = InteractiveSceneCfg.__dataclass_fields__
-        renderer_types: list[str] = []
-        for asset_cfg in (v for k, v in self.cfg.__dict__.items() if k not in cfg_fields and v is not None):
-            cfgs = asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
-            for cfg in cfgs:
-                if (rcfg := getattr(cfg, "renderer_cfg", None)) is not None:
-                    renderer_types.append(getattr(rcfg, "renderer_type", "default"))
-        return renderer_types
 
     def _sensor_renderer_types(self) -> list[str]:
         """Return renderer type names used by scene sensors (skipping any without a renderer cfg)."""
