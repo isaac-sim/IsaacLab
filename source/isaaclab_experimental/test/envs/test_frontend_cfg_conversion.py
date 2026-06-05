@@ -56,11 +56,7 @@ _MANAGER_WARP_TASKS = _manager_warp_tasks()
 # Tasks whose stable cfg still includes a warp-managed term with no warp twin.
 # These are tracked for implementation; delete the entry once the twin lands
 # (xfail is strict, so an unexpected pass fails the suite and flags the cleanup).
-_PENDING_WARP_TWINS = {
-    "Isaac-Cartpole-Warp": "reward 'survival_success_rate'",
-    "Isaac-Ant-Warp-v0": "observation 'body_incoming_wrench'",
-    "Isaac-Humanoid-Warp-v0": "observation 'body_incoming_wrench'",
-}
+_PENDING_WARP_TWINS: dict[str, str] = {}
 
 
 def _params():

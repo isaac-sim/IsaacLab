@@ -5,10 +5,11 @@
 
 __all__ = [
     "joint_pos_target_l2",
+    "survival_success_rate",
 ]
 
 # Forward stable MDP terms and experimental Warp-first overrides lazily, then
 # override with cartpole-specific terms below.
 from isaaclab_experimental.envs.mdp import *  # noqa: F401, F403
 
-from .rewards import joint_pos_target_l2
+from .rewards import joint_pos_target_l2, survival_success_rate
