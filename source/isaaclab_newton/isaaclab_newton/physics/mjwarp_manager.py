@@ -32,14 +32,14 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
-    # Persistent bool mask co-located with :attr:`mjw_data`, populated from
+    # Persistent bool mask co-located with MJWarp data, populated from
     # :attr:`NewtonManager._world_reset_mask` when the two arrays live on
-    # different devices.  ``mujoco_warp.put_data`` always lands on Warp's
-    # default device (typically ``cuda:0``) regardless of the Newton model's
-    # device, so on a CPU-pinned sim the base mask is on ``cpu`` while the
-    # ``reset_data`` kernels launch on ``cuda:0``; this mirror bridges that
-    # gap.  Lazily allocated in :meth:`_reset_solver_internals` and released
-    # via :meth:`_solver_specific_clear`.
+    # different devices.  :func:`mujoco_warp.reset_data` launches on Warp's
+    # current device when no explicit device is passed, so
+    # :meth:`_reset_solver_internals` scopes the call to the MJWarp data
+    # device and mirrors the mask there when needed.  Lazily allocated in
+    # :meth:`_reset_solver_internals` and released via
+    # :meth:`_solver_specific_clear`.
     _mjwarp_reset_mask: wp.array | None = None
 
     @classmethod
@@ -120,11 +120,11 @@ class NewtonMJWarpManager(NewtonManager):
         :meth:`~isaaclab_newton.physics.NewtonManager.clear` and the next
         :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`).
 
-        When :attr:`NewtonManager._world_reset_mask` and ``mjw_data`` live on
-        different devices (typical on CPU-pinned sims, since
-        :func:`mujoco_warp.put_data` always lands on Warp's default device),
-        the mask is copied into :attr:`_mjwarp_reset_mask` co-located with
-        ``mjw_data`` before launching ``reset_data``.
+        When :attr:`NewtonManager._world_reset_mask` and the MJWarp data live
+        on different devices, the mask is copied into
+        :attr:`_mjwarp_reset_mask` co-located with the data.  The
+        ``reset_data`` call runs under ``wp.ScopedDevice`` so Warp
+        launches on the data device instead of the current default device.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count,)``;
@@ -137,7 +137,7 @@ class NewtonMJWarpManager(NewtonManager):
         # can still autodoc :class:`NewtonMJWarpManager` from this module.
         import mujoco_warp
 
-        target_device = cls._solver.mjw_data.qpos.device
+        target_device = cls._solver.mjw_data.xfrc_applied.device
         if world_mask.device != target_device:
             mirror = cls._mjwarp_reset_mask
             if mirror is None or mirror.shape != world_mask.shape or mirror.device != target_device:
@@ -145,7 +145,8 @@ class NewtonMJWarpManager(NewtonManager):
                 mirror = cls._mjwarp_reset_mask
             wp.copy(mirror, world_mask)
             world_mask = mirror
-        mujoco_warp.reset_data(cls._solver.mjw_model, cls._solver.mjw_data, reset=world_mask)
+        with wp.ScopedDevice(target_device):
+            mujoco_warp.reset_data(cls._solver.mjw_model, cls._solver.mjw_data, reset=world_mask)
 
     @classmethod
     def _solver_specific_clear(cls) -> None:
