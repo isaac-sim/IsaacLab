@@ -1137,6 +1137,7 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        # Detect a known incompatibility between Isaac Lab and the Isaac Sim full streaming experience.
         if (
             self._livestream in {1, 2}
             and os.path.basename(self._sim_experience_file) == "isaacsim.exp.full.streaming.kit"

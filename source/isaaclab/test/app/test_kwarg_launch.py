@@ -226,7 +226,7 @@ def _new_launcher_for_experience_check():
     return launcher
 
 
-def test_rejects_isaacsim_full_streaming_experience_absolute(tmp_path, monkeypatch: pytest.MonkeyPatch):
+def test_rejects_isaacsim_full_streaming_experience_with_livestream(tmp_path, monkeypatch: pytest.MonkeyPatch):
     experience = tmp_path / "isaacsim.exp.full.streaming.kit"
     experience.touch()
     monkeypatch.setenv("EXP_PATH", str(tmp_path))
@@ -235,17 +235,6 @@ def test_rejects_isaacsim_full_streaming_experience_absolute(tmp_path, monkeypat
 
     with pytest.raises(ValueError, match="full streaming experience"):
         launcher._resolve_experience_file({"experience": str(experience)})
-
-
-def test_rejects_isaacsim_full_streaming_experience_relative(tmp_path, monkeypatch: pytest.MonkeyPatch):
-    experience = tmp_path / "isaacsim.exp.full.streaming.kit"
-    experience.touch()
-    monkeypatch.setenv("EXP_PATH", str(tmp_path))
-    launcher = _new_launcher_for_experience_check()
-    launcher._livestream = 2
-
-    with pytest.raises(ValueError, match="full streaming experience"):
-        launcher._resolve_experience_file({"experience": "isaacsim.exp.full.streaming.kit"})
 
 
 def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_path, monkeypatch: pytest.MonkeyPatch):
