@@ -4,7 +4,7 @@ Exporting Policies with LEAPP
 .. currentmodule:: isaaclab
 
 This guide covers how to export trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://github.com/nvidia-isaac/leapp>`__ (Lightweight Export Annotations for Policy Pipelines).
+`LEAPP <https://nvidia-isaac.github.io/leapp/>`_ (Lightweight Export Annotations for Policy Pipelines).
 The main goal of the LEAPP export path is to package the policy together with the input and
 output semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
 observation preprocessing, action postprocessing, or recurrent-state handling by hand.
@@ -285,28 +285,12 @@ Run the deployment script with the task name and the exported LEAPP ``.yaml`` fi
 By default, Isaac Lab launches headless when no visualization option is selected. If you expect
 to see the policy running in a viewport, pass a visualization option such as ``--viz kit``:
 
-.. tab-set::
-   :sync-group: os
+.. code-block:: bash
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
-             --task <TASK_NAME> \
-             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-             --viz kit
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
-             --task <TASK_NAME> ^
-             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
-             --viz kit
+   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
+       --task <TASK_NAME> \
+       --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+       --viz kit
 
 For Direct workflow policies, see the
 :doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.
@@ -318,6 +302,6 @@ workflow policies are not currently supported by ``scripts/reinforcement_learnin
 Further Reading
 ---------------
 
-- `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`__
-- `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`__
+- `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_
+- `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
 - :class:`~envs.LeappDeploymentEnv` API reference
