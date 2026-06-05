@@ -575,8 +575,9 @@ class DirectMARLEnv(gym.Env):
 
             self.sim.clear_instance()
 
-            # Release gym space objects set in _configure_env_spaces; without this they
-            # survive close via gymnasium's wrapper chain.
+            # Drop the per-agent observation/action space objects. gymnasium's wrapper
+            # chain keeps the env referenced past close, so without this they leak — and
+            # for image observations each space holds a large gym.spaces.Box bounds array.
             self.observation_spaces = None
             self.action_spaces = None
             self.state_space = None
