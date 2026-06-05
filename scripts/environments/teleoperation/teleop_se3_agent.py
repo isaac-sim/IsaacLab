@@ -59,6 +59,7 @@ parser.add_argument(
     default=None,
     help="Fully qualified path to an externally defined callback.",
 )
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
