@@ -174,19 +174,10 @@ installed_version = metadata.version("rsl-rl-lib")
 
 
 def get_actor_memory_module(policy_nn):
-    """Return the actor-side recurrent memory module when the policy exposes one."""
-    if hasattr(policy_nn, "memory_a"):
-        return policy_nn.memory_a
-    if hasattr(policy_nn, "memory_s"):
-        return policy_nn.memory_s
+    """Return the actor-side RNN module for supported RSL-RL recurrent policies."""
     if hasattr(policy_nn, "rnn"):
         return policy_nn.rnn
     return None
-
-
-def get_policy_module(policy):
-    """Return the policy module for both bound-method and callable-module inference policies."""
-    return getattr(policy, "__self__", policy)
 
 
 def is_actor_recurrent_policy(policy_nn) -> bool:
@@ -196,8 +187,6 @@ def is_actor_recurrent_policy(policy_nn) -> bool:
 
 def get_actor_hidden_state(policy_nn):
     """Return the actor-side recurrent hidden state for supported RSL-RL policy APIs."""
-    if hasattr(policy_nn, "get_hidden_states"):
-        return policy_nn.get_hidden_states()[0]
     if hasattr(policy_nn, "get_hidden_state"):
         return policy_nn.get_hidden_state()
     memory = get_actor_memory_module(policy_nn)
@@ -329,7 +318,7 @@ def export_rsl_rl_agent(
         runner.load(resume_path)
 
         policy = runner.get_inference_policy(device=env.unwrapped.device)
-        policy_nn = get_policy_module(policy)
+        policy_nn = policy
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path

@@ -62,28 +62,6 @@ def _load_export_module():
     return module
 
 
-class _LegacyMemory(torch.nn.Module):
-    """Minimal RSL-RL 3.x recurrent memory shape."""
-
-    def __init__(self):
-        super().__init__()
-        self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
-        self.hidden_state = None
-
-
-class _LegacyRecurrentPolicy(torch.nn.Module):
-    """Minimal RSL-RL 3.x ActorCriticRecurrent shape."""
-
-    is_recurrent = True
-
-    def __init__(self):
-        super().__init__()
-        self.memory_a = _LegacyMemory()
-
-    def get_hidden_states(self):
-        return self.memory_a.hidden_state, None
-
-
 class _ModularRNN(torch.nn.Module):
     """Minimal RSL-RL 5.x RNN wrapper shape."""
 
@@ -106,21 +84,6 @@ class _ModularRecurrentPolicy(torch.nn.Module):
         return self.rnn.hidden_state
 
 
-def test_recurrent_state_helpers_support_legacy_actor_critic_lstm():
-    """Verify LSTM state registration helpers support RSL-RL 3.x ActorCriticRecurrent."""
-    export_module = _load_export_module()
-    policy = _LegacyRecurrentPolicy()
-
-    actor_state = export_module.ensure_actor_hidden_state_initialized(
-        policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32
-    )
-
-    assert export_module.is_actor_recurrent_policy(policy)
-    assert actor_state is policy.memory_a.hidden_state
-    assert [tensor.shape for tensor in actor_state] == [(2, 1, 4), (2, 1, 4)]
-    assert list(export_module.state_dict_from_actor_hidden(actor_state)) == ["actor_state_0", "actor_state_1"]
-
-
 def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
     """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
     export_module = _load_export_module()
@@ -139,13 +102,3 @@ def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
     assert export_module.get_actor_memory_module(policy) is policy.rnn
     assert export_module.get_actor_hidden_state(policy) is registered_state
     assert policy.rnn.hidden_state is registered_state
-
-
-def test_policy_module_helper_supports_bound_method_and_module_policy():
-    """Verify inference policies from RSL-RL 3.x and 5.x resolve to their owning module."""
-    export_module = _load_export_module()
-    legacy_policy = _LegacyRecurrentPolicy()
-    modular_policy = _ModularRecurrentPolicy()
-
-    assert export_module.get_policy_module(legacy_policy.forward) is legacy_policy
-    assert export_module.get_policy_module(modular_policy) is modular_policy
