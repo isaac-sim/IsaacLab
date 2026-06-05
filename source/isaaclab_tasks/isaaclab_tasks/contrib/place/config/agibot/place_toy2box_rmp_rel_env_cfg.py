@@ -6,6 +6,7 @@
 import os
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -30,6 +31,7 @@ from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import ObjectTableSceneCfg
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -172,6 +174,68 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for Agibot place tasks."""
+
+    default = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=300,
+            nconmax=200,
+            impratio=10.0,
+            cone="elliptic",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=15,
+            ls_parallel=False,
+            use_mujoco_contacts=False,
+            ccd_iterations=35,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    physx = default
+
+
+# Robot USD assets whose gripper revolute joints are authored with reversed
+# body0/body1 ordering, which the Newton MJWarp USD parser rejects.
+_NEWTON_REVERSED_JOINT_ASSETS = ("Robots/Agibot/A2D/",)
+
+
+def raise_if_reversed_joints_on_newton(env_cfg) -> None:
+    """Reject Newton physics for robots whose USD has reversed gripper joints.
+
+    The Newton MJWarp ``parse_usd`` importer requires each joint prim to define the parent
+    body as ``physics:body0`` and the child as ``physics:body1``. Some robot assets (e.g. the
+    Agibot A2D gripper support-link revolute joints) author these reversed; PhysX tolerates
+    this, but Newton raises ``Reversed joints are not supported`` deep in scene creation. This
+    raises an actionable error at config-validation time instead.
+
+    Args:
+        env_cfg: The resolved environment config to inspect.
+    """
+    robot_cfg = getattr(env_cfg.scene, "robot", None)
+    usd_path = getattr(getattr(robot_cfg, "spawn", None), "usd_path", None)
+    if usd_path is None or not isinstance(env_cfg.sim.physics, NewtonCfg):
+        return
+    if any(marker in usd_path for marker in _NEWTON_REVERSED_JOINT_ASSETS):
+        raise ValueError(
+            "This task's robot has gripper joints authored with reversed body0/body1 ordering, "
+            "which the Newton backend's USD parser does not support ('Reversed joints are not "
+            "supported'). Re-run this task with physics=physx (the default)."
+        )
+
+
+@configclass
 class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
@@ -194,16 +258,15 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.render_interval = self.decimation
 
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
-            gpu_total_aggregate_pairs_capacity=16 * 1024,
-            friction_correlation_distance=0.00625,
-        )
+        self.sim.physics = PhysicsCfg()
 
         # set viewer to see the whole scene
         self.viewer.eye = [1.5, -1.0, 1.5]
         self.viewer.lookat = [0.5, 0.0, 0.0]
+
+    def validate_config(self):
+        """Reject backend combinations that the configured robot cannot run on."""
+        raise_if_reversed_joints_on_newton(self)
 
 
 """

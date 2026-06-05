@@ -8,12 +8,18 @@
 This module provides utility functions to help with controller implementations.
 """
 
+import contextlib
 import logging
 import os
 import re
+import sys
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_LULA_EXT_NAME = "isaacsim.robot_motion.lula"
+_RMPFLOW_EXT_PREFIX = "rmpflow_ext:"
+_RMPFLOW_EXT_NAME = "isaacsim.robot_motion.motion_generation"
 
 
 def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool = True) -> tuple[str, str]:
@@ -136,3 +142,78 @@ def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verb
 
     with open(urdf_path, "w") as file:
         file.write(content)
+
+
+def resolve_rmpflow_path(path: str) -> str:
+    """Resolve a sentinel ``rmpflow_ext:`` path to an absolute filesystem path.
+
+    Paths stored in :class:`~isaaclab.controllers.rmp_flow_cfg.RmpFlowControllerCfg`
+    that begin with ``"rmpflow_ext:"`` are relative to the
+    ``isaacsim.robot_motion.motion_generation`` extension directory.  This avoids
+    importing ``isaacsim`` in the cfg file (which is loaded without Kit).
+    """
+    if path.startswith(_RMPFLOW_EXT_PREFIX):
+        rel = path[len(_RMPFLOW_EXT_PREFIX) :]
+        # imported lazily so the module loads without Kit (e.g. the kitless Newton visualizer)
+        from isaacsim.core.experimental.utils.app import get_extension_path
+
+        ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
+        return os.path.join(ext_dir, rel)
+    return path
+
+
+def find_lula_prebundle_dir() -> str | None:
+    """Locate the ``pip_prebundle`` directory shipping the ``lula`` module, or ``None`` if not found.
+
+    ``lula`` is prebundled inside the ``isaacsim.robot_motion.lula`` extension, under the Isaac Sim
+    install directory exposed via the ``ISAAC_PATH`` environment variable (importing ``isaacsim`` sets
+    it as a side effect).
+    """
+    isaac_path = os.environ.get("ISAAC_PATH")
+    if not isaac_path:
+        with contextlib.suppress(ImportError):
+            import isaacsim  # noqa: F401  (sets ``os.environ["ISAAC_PATH"]`` as a side effect)
+        isaac_path = os.environ.get("ISAAC_PATH")
+    if not isaac_path:
+        return None
+    prebundle = os.path.join(isaac_path, "exts", _LULA_EXT_NAME, "pip_prebundle")
+    return prebundle if os.path.isdir(prebundle) else None
+
+
+def import_lula():
+    """Import and return the ``lula`` library, making it importable across backends.
+
+    ``lula`` ships as a prebundled module of the ``isaacsim.robot_motion.lula`` Isaac Sim extension.
+    It imports directly when the Isaac Sim ``pip_prebundle`` paths are already on :data:`sys.path`
+    (e.g. when launched via ``isaaclab.sh``). Otherwise -- under a running Kit app the owning extension
+    is enabled to register the path, and in the kitless Newton visualizer (a bare interpreter) the
+    prebundle directory is located and added to :data:`sys.path` directly.
+    """
+    try:
+        import lula
+
+        return lula
+    except ModuleNotFoundError:
+        pass
+
+    # Under a running Kit app, enabling the owning extension registers its prebundle on ``sys.path``.
+    try:
+        from isaacsim.core.experimental.utils.app import enable_extension
+    except (ImportError, ModuleNotFoundError):
+        pass
+    else:
+        enable_extension(_LULA_EXT_NAME)
+        try:
+            import lula
+
+            return lula
+        except ModuleNotFoundError:
+            pass
+
+    # Kitless (or the extension did not register its path): locate the prebundle and add it ourselves.
+    prebundle = find_lula_prebundle_dir()
+    if prebundle is not None and prebundle not in sys.path:
+        sys.path.insert(0, prebundle)
+    import lula
+
+    return lula
