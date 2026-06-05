@@ -23,6 +23,23 @@ def _make_xform(stage, path="/World/Mesh"):
     return stage.GetPrimAtPath(path)
 
 
+def _has_authored_api_schema(prim, schema_name: str) -> bool:
+    """Return whether a schema name is applied or authored in ``apiSchemas`` metadata.
+
+    A schema that is authored via ``AddAppliedSchema`` but not registered in the current build
+    appears in the ``apiSchemas`` listOp yet not in the composed ``GetAppliedSchemas()``.
+    """
+    if schema_name in prim.GetAppliedSchemas():
+        return True
+    api_schemas = prim.GetMetadata("apiSchemas")
+    if api_schemas is None:
+        return False
+    return any(
+        schema_name in getattr(api_schemas, item_list)
+        for item_list in ("explicitItems", "prependedItems", "appendedItems", "addedItems")
+    )
+
+
 # -------------------------------------------------------------------------------------
 # Fragment metadata + marker hierarchy
 # -------------------------------------------------------------------------------------
@@ -173,8 +190,10 @@ def test_newton_sdf_collision_fragment_writes_namespace():
     apply_namespaced(NewtonSDFCollisionCfg(sdf_max_resolution=64, hydroelastic_enabled=True), "/World/M7", stage)
     assert prim.GetAttribute("newton:sdfMaxResolution").Get() == 64
     assert prim.GetAttribute("newton:hydroelasticEnabled").Get() is True
-    # ``NewtonSDFCollisionAPI`` is not a registered applied API schema in the current Newton
-    # build, so the fragment writes the ``newton:*`` attributes without applying a schema.
+    # ``NewtonSDFCollisionAPI`` is authored into the ``apiSchemas`` listOp (like the legacy cfg) but
+    # is not a registered schema in this Newton build, so it is absent from the composed
+    # ``GetAppliedSchemas()``. Assert the authored token, matching the legacy Newton test.
+    assert _has_authored_api_schema(prim, "NewtonSDFCollisionAPI")
 
 
 # -------------------------------------------------------------------------------------
