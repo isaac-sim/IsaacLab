@@ -1374,8 +1374,10 @@ class NewtonManager(PhysicsManager):
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
         Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
-        excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
+        capture, then restores the live states so user-staged writes (for example external
+        wrenches) are still consumed by the first user-visible graph replay.
+        ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is excluded from the
+        capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
         Returns a ``wp.Graph`` on success, or ``None`` on failure.
         """
@@ -1383,12 +1385,25 @@ class NewtonManager(PhysicsManager):
             logger.warning("libcudart not available; cannot use relaxed graph capture")
             return None
 
-        # Warmup: pre-allocate all solver scratch buffers so the capture window has
-        # no new cudaMalloc calls (which are forbidden inside graph capture).
+        # Warmup is a real physics step; restore state so first-step
+        # staged writes, such as external wrenches, are captured and replayed.
         simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-        with wp.ScopedDevice(device):
-            simulate()
-        wp.synchronize_stream(wp.get_stream(device))
+        state_0 = cls._state_0
+        state_1 = cls._state_1
+        state_0_snapshot = cls._model.state()
+        state_1_snapshot = cls._model.state()
+        state_0_snapshot.assign(state_0)
+        state_1_snapshot.assign(state_1)
+        try:
+            with wp.ScopedDevice(device):
+                simulate()
+            wp.synchronize_stream(wp.get_stream(device))
+        finally:
+            NewtonManager._state_0 = state_0
+            NewtonManager._state_1 = state_1
+            cls._state_0.assign(state_0_snapshot)
+            cls._state_1.assign(state_1_snapshot)
+            wp.synchronize_stream(wp.get_stream(device))
 
         # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
         raw_handle = ctypes.c_void_p()

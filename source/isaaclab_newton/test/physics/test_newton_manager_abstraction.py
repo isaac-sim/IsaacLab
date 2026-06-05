@@ -26,6 +26,8 @@ Covers:
 from __future__ import annotations
 
 import pytest
+import torch
+import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
@@ -360,3 +362,40 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 
         # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
         assert calls["n"] == 1 + expected_mid_loop_collides
+
+
+def test_deferred_relaxed_capture_preserves_first_step_external_wrench():
+    """Deferred CUDA graph capture must not consume the user's first-step wrench."""
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True),
+            num_substeps=1,
+            use_cuda_graph=True,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = NewtonManager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        NewtonManager.set_builder(builder)
+        sim.reset()
+
+        # Force the Kit/RTX path without launching Kit: graph capture is deferred
+        # until the next step and uses the relaxed warmup/capture sequence.
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = True
+
+        body_f = wp.to_torch(NewtonManager._state_0.body_f)
+        body_f.zero_()
+        body_f[0, 2] = 9.81
+
+        sim.step(render=False)
+        wp.synchronize_device("cuda:0")
+
+        joint_qd = wp.to_torch(NewtonManager._state_0.joint_qd)
+        torch.testing.assert_close(joint_qd[2], torch.tensor(0.0, device=joint_qd.device), atol=1e-3, rtol=0.0)
