@@ -128,18 +128,20 @@ def test_apply_drive_returns_false_on_non_joint():
 # -------------------------------------------------------------------------------------
 
 
-def test_physx_joint_fragment_writes_physx_namespace():
-    from isaaclab_physx.sim.schemas import PhysxJointCfg
-
-    from isaaclab.sim.schemas import apply_namespaced
+def test_physx_joint_fragment_converts_max_velocity_by_joint_type():
+    from isaaclab_physx.sim.schemas import PhysxJointCfg, apply_physx_joint
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    prim = _make_revolute_joint(stage)
-    apply_namespaced(PhysxJointCfg(max_joint_velocity=10.0), prim.GetPath().pathString, stage)
-    # apply_namespaced writes the value as authored (no rad->deg conversion at the generic writer)
-    assert prim.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(10.0, rel=1e-6)
+    # angular (revolute) joint: rad/s -> deg/s conversion
+    rev = _make_revolute_joint(stage)
+    apply_physx_joint(PhysxJointCfg(max_joint_velocity=10.0), rev.GetPath().pathString, stage)
+    assert rev.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(10.0 * 180.0 / math.pi, rel=1e-6)
+    # linear (prismatic) joint: written unchanged
+    pris = _make_prismatic_joint(stage)
+    apply_physx_joint(PhysxJointCfg(max_joint_velocity=10.0), pris.GetPath().pathString, stage)
+    assert pris.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(10.0, rel=1e-6)
 
 
 def test_physx_joint_fragment_max_velocity_alias():
@@ -196,7 +198,8 @@ def test_apply_joint_drive_properties_composes_namespaces():
     assert bool(UsdPhysics.DriveAPI(prim, "angular"))  # presence-gated anchor applied
     assert prim.GetAttribute("drive:angular:physics:maxForce").Get() == pytest.approx(80.0, rel=1e-6)
     assert prim.GetAttribute("drive:angular:physics:stiffness").Get() == pytest.approx(10.0 * math.pi / 180.0, rel=1e-6)
-    assert prim.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(5.0, rel=1e-6)
+    # revolute joint -> rad/s to deg/s conversion via apply_physx_joint
+    assert prim.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(5.0 * 180.0 / math.pi, rel=1e-6)
     assert prim.GetAttribute("mjc:actuatorgravcomp").Get() is True
 
 
@@ -212,7 +215,8 @@ def test_apply_joint_drive_properties_without_drive_does_not_apply_drive_api():
     apply_joint_drive_properties("/World/Articulation", [PhysxJointCfg(max_joint_velocity=5.0)], stage)
     # DriveAPI is presence-gated: not applied when no UsdPhysicsDriveCfg fragment is present
     assert not bool(UsdPhysics.DriveAPI(prim, "angular"))
-    assert prim.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(5.0, rel=1e-6)
+    # revolute joint -> rad/s to deg/s conversion via apply_physx_joint
+    assert prim.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(5.0 * 180.0 / math.pi, rel=1e-6)
 
 
 def test_apply_joint_drive_properties_ensure_drives_exist_seeds_stiffness():

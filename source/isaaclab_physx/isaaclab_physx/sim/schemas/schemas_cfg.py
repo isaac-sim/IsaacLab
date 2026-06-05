@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -352,14 +353,18 @@ class PhysxJointCfg(JointDriveFragment):
 
     A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
     PhysX joint add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg`
-    via :func:`~isaaclab.sim.schemas.apply_joint_drive_properties` and written with the generic
-    :func:`~isaaclab.sim.schemas.apply_namespaced` writer.
+    via :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. Written with the dedicated
+    :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` writer, which converts
+    :attr:`max_joint_velocity` from rad/s to deg/s for angular (revolute) joints.
 
     .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
     """
 
     _usd_namespace: ClassVar[str | None] = "physxJoint"
     _usd_applied_schema: ClassVar[str | None] = "PhysxJointAPI"
+    # Override the generic applier: ``max_joint_velocity`` needs joint-type-aware rad->deg
+    # conversion for angular joints, which ``apply_namespaced`` cannot do.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_physx_joint"
 
     def __post_init__(self):
         # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (the USD attr is
