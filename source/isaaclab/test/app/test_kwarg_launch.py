@@ -249,7 +249,7 @@ def test_rejects_isaacsim_full_streaming_experience_with_livestream(tmp_path, mo
     launcher = _new_launcher_for_experience_check()
     launcher._livestream = 2
 
-    with pytest.raises(ValueError, match="full streaming experience"):
+    with pytest.raises(ValueError, match="known to hang"):
         launcher._resolve_experience_file({"experience": str(experience)})
 
 
