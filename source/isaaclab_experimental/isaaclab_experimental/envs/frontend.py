@@ -115,7 +115,7 @@ def build(
     workflow = _detect_workflow(env_cfg)
     if workflow is Workflow.DIRECT:
         # Direct workflows aren't adapted — they must already be registered
-        # under the warp packages (e.g. ``Isaac-Cartpole-Direct-Warp-v0``).
+        # under the warp packages (e.g. ``Isaac-Cartpole-Direct-Warp``).
         _assert_direct_warp_registration(task_id)
         return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
 

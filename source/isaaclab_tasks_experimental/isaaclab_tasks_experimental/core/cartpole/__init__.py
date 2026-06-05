@@ -26,7 +26,7 @@ _stable_pkg = agents.__name__.rsplit(".", 1)[0]
 
 # Manager-based: stable cfg adapted to warp at construction.
 gym.register(
-    id="Isaac-Cartpole-Warp-v0",
+    id="Isaac-Cartpole-Warp",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={
@@ -40,7 +40,7 @@ gym.register(
 
 # Direct: dedicated warp env class + local cfg (not adaptable from a cfg).
 gym.register(
-    id="Isaac-Cartpole-Direct-Warp-v0",
+    id="Isaac-Cartpole-Direct-Warp",
     entry_point=f"{__name__}.cartpole_warp_env:CartpoleWarpEnv",
     disable_env_checker=True,
     kwargs={

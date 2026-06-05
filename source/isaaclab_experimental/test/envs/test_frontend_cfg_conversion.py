@@ -57,7 +57,7 @@ _MANAGER_WARP_TASKS = _manager_warp_tasks()
 # These are tracked for implementation; delete the entry once the twin lands
 # (xfail is strict, so an unexpected pass fails the suite and flags the cleanup).
 _PENDING_WARP_TWINS = {
-    "Isaac-Cartpole-Warp-v0": "reward 'survival_success_rate'",
+    "Isaac-Cartpole-Warp": "reward 'survival_success_rate'",
     "Isaac-Ant-Warp-v0": "observation 'body_incoming_wrench'",
     "Isaac-Humanoid-Warp-v0": "observation 'body_incoming_wrench'",
 }
