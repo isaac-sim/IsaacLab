@@ -69,6 +69,14 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  extra-env-vars:
+    description: >-
+      Extra environment variables to forward into the container, one per line in
+      ``KEY=value`` form. Whitespace-only lines and lines starting with ``#`` are
+      ignored. Used by the multi-GPU workflow to inject
+      ``ISAACLAB_TEST_DEVICES`` / ``ISAACLAB_SIM_DEVICE``.
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -93,6 +101,7 @@ runs:
           local shard_count="${13}"
           local volume_mount_source="${14}"
           local extra_pip_packages="${15}"
+          local extra_env_vars="${16}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -202,6 +211,24 @@ runs:
           if [ -n "$extra_pip_packages" ]; then
             export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+          fi
+
+          # Caller-supplied extra env vars (one KEY=value per line). Skips
+          # blank lines and full-line comments (line where the first
+          # non-whitespace char is ``#``). Mid-line ``#`` is preserved so
+          # values like ``IMAGE_TAG=v1.0#nightly`` survive.
+          if [ -n "$extra_env_vars" ]; then
+            while IFS= read -r line; do
+              # Strip leading whitespace (YAML ``|`` block can leave indent).
+              line="${line#"${line%%[![:space:]]*}"}"
+              [ -z "$line" ] && continue
+              [ "${line:0:1}" = "#" ] && continue
+              key="${line%%=*}"
+              value="${line#*=}"
+              export "$key"="$value"
+              docker_env_vars="$docker_env_vars -e $key"
+              echo "Forwarding extra env var: $key"
+            done <<< "$extra_env_vars"
           fi
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
@@ -392,7 +419,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.extra-env-vars }}"
 
     - name: Kill container on cancellation
       if: cancelled()

@@ -69,6 +69,10 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  extra-env-vars:
+    description: 'Extra env vars to forward into the container (one KEY=value per line)'
+    default: ''
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -150,6 +154,7 @@ runs:
         include-files: ${{ inputs.include-files }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        extra-env-vars: ${{ inputs.extra-env-vars }}
 
     - name: Check Test Results
       if: always()
