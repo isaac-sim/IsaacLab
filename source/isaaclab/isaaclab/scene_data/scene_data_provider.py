@@ -16,7 +16,6 @@ import warp as wp
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.contact_sensor import BaseContactSensor
 
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
@@ -61,6 +60,8 @@ class SceneDataProvider:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
+        from isaaclab.sensors.contact_sensor import BaseContactSensor
+
         return {
             name: sensor
             for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
