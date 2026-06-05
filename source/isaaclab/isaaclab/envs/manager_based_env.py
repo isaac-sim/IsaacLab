@@ -599,6 +599,11 @@ class ManagerBasedEnv:
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 
+            # Drop cached observation tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_buf", None), dict):
+                self.obs_buf.clear()
+
             # destructor is order-sensitive
             del self.viewport_camera_controller
             del self.action_manager
