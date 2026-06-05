@@ -46,7 +46,8 @@ parser.add_argument(
     help="Disables dataset compression",
 )
 parser.add_argument(
-    "--external_callback", default=None,
+    "--external_callback",
+    default=None,
     help="Fully qualified path to an externally defined callback.",
 )
 
