@@ -126,7 +126,7 @@ class MeshConverter(AssetConverterBase):
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
                     # -- Collider properties such as offset, scale, etc.
-                    # transition routing: new fragment list -> apply_*; legacy single cfg -> define_*
+                    # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
                     coll_frags = (
                         cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
                     )
