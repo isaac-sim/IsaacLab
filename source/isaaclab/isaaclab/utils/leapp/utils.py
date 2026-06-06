@@ -82,6 +82,11 @@ def build_command_connection(command_name: str) -> dict[str, str]:
     return {"isaaclab_connection": f"command:{command_name}"}
 
 
+def build_observation_connection(group_name: str, term_name: str) -> dict[str, str]:
+    """Return a compact deployment connection string for an observation term."""
+    return {"isaaclab_connection": f"observation:{group_name}:{term_name}"}
+
+
 def build_write_connection(entity_name: str, method_name: str) -> dict[str, str]:
     """Return a compact deployment connection string for an articulation write target."""
     return {"isaaclab_connection": f"write:{entity_name}:{method_name}"}

@@ -90,6 +90,40 @@ def leapp_tensor_semantics(
     return _apply
 
 
+def leapp_observation_input(
+    *,
+    kind: Any = None,
+    element_names: list[str] | list[list[str]] | None = None,
+    element_names_resolver: Callable | None = None,
+) -> Callable:
+    """Mark an observation term's returned tensor as a named LEAPP input boundary.
+
+    This is intended for observation terms whose deployment interface should be
+    the final observation value rather than the lower-level scene-state tensors
+    read inside the term.
+    """
+
+    semantics = LeappTensorSemantics(
+        kind=kind,
+        element_names=element_names,
+        element_names_resolver=element_names_resolver,
+    )
+
+    def _apply(term: Callable) -> Callable:
+        term._leapp_observation_input_semantics = semantics
+        return term
+
+    return _apply
+
+
+def resolve_leapp_observation_input_semantics(term: Any) -> LeappTensorSemantics | None:
+    """Return LEAPP input-boundary metadata attached to an observation term."""
+    semantics = getattr(term, "_leapp_observation_input_semantics", None)
+    if semantics is not None:
+        return semantics
+    return getattr(type(term), "_leapp_observation_input_semantics", None)
+
+
 def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_self) -> list | None:
     """Resolve element names from attached semantics and a tensor-producing object."""
     if semantics is None:
