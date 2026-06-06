@@ -89,7 +89,7 @@ jobs:
     if: needs.build.result == 'success'
     # Matches the runner label used by test-multi-gpu.yaml +
     # test-fabric-multi-gpu.yaml — the canonical multi-GPU pool.
-    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 60
     steps:
       - name: Checkout repository
