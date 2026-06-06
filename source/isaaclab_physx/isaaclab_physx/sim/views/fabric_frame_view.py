@@ -306,6 +306,12 @@ class FabricFrameView(BaseFrameView):
             When *indices* is None (all prims), the returned arrays are **shared
             pre-allocated buffers** that are overwritten on the next call.  Do not
             hold references across calls -- copy if persistence is needed.
+
+            When *indices* selects a subset, Fabric launches the decompose kernel
+            into freshly allocated Warp buffers and returns their
+            :class:`~isaaclab.utils.warp.ProxyArray` wrappers without blocking.
+            Callers that need host-visible values immediately must synchronize or
+            copy explicitly; GPU consumers can rely on normal Warp stream ordering.
         """
         if not self._use_fabric:
             return self._usd_view.get_world_poses(indices)
@@ -313,7 +319,12 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # If a prior set_local_poses left worldMatrix stale, propagate local -> world first.
+        # If a prior set_local_poses/set_local_scales left worldMatrix stale,
+        # propagate local -> world first.
+        # TODO(pv): This dirty bit tracks Isaac Lab writes only. If Kit/Fabric
+        # hierarchy update_world_xforms() has already satisfied the dirty world
+        # matrices during a render tick, we currently have no Fabric-side version
+        # stamp to observe that and clear the flag; conservatively recompute.
         self._sync_world_from_local_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
@@ -404,6 +415,12 @@ class FabricFrameView(BaseFrameView):
             When *indices* is None (all prims), the returned arrays are **shared
             pre-allocated buffers** that are overwritten on the next call.  Do not
             hold references across calls -- copy if persistence is needed.
+
+            When *indices* selects a subset, Fabric launches the decompose kernel
+            into freshly allocated Warp buffers and returns their
+            :class:`~isaaclab.utils.warp.ProxyArray` wrappers without blocking.
+            Callers that need host-visible values immediately must synchronize or
+            copy explicitly; GPU consumers can rely on normal Warp stream ordering.
         """
         if not self._use_fabric:
             return self._usd_view.get_local_poses(indices)
@@ -412,6 +429,10 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         # If a prior set_world_poses/set_world_scales left localMatrix stale, recompute.
+        # TODO(pv): This dirty bit tracks Isaac Lab writes only. If a future
+        # Fabric hierarchy tick learns to materialize the corresponding local
+        # matrices before this access, we have no Fabric-side version stamp to
+        # observe that and clear the flag; conservatively recompute.
         self._sync_local_from_world_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
@@ -457,6 +478,10 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         # Sync world matrices first if local writes are pending.
+        # TODO(pv): This dirty bit tracks Isaac Lab writes only. If Kit/Fabric
+        # hierarchy update_world_xforms() has already satisfied the dirty world
+        # matrices during a render tick, we currently have no Fabric-side version
+        # stamp to observe that and clear the flag; conservatively recompute.
         self._sync_world_from_local_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
@@ -491,6 +516,12 @@ class FabricFrameView(BaseFrameView):
             pre-allocated buffer** (shared with :meth:`get_local_scales`) that is
             overwritten on the next call.  Do not hold references across calls --
             copy if persistence is needed.
+
+            When *indices* selects a subset, Fabric launches the decompose kernel
+            into a freshly allocated Warp buffer and returns its
+            :class:`~isaaclab.utils.warp.ProxyArray` wrapper without blocking.
+            Callers that need host-visible values immediately must synchronize or
+            copy explicitly; GPU consumers can rely on normal Warp stream ordering.
         """
         if not self._use_fabric:
             return self._usd_view.get_world_scales(indices)
@@ -499,6 +530,10 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         # Sync world matrices first if local writes are pending.
+        # TODO(pv): This dirty bit tracks Isaac Lab writes only. If Kit/Fabric
+        # hierarchy update_world_xforms() has already satisfied the dirty world
+        # matrices during a render tick, we currently have no Fabric-side version
+        # stamp to observe that and clear the flag; conservatively recompute.
         self._sync_world_from_local_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
@@ -538,6 +573,10 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         # Sync local matrices first if world writes are pending.
+        # TODO(pv): This dirty bit tracks Isaac Lab writes only. If a future
+        # Fabric hierarchy tick learns to materialize the corresponding local
+        # matrices before this access, we have no Fabric-side version stamp to
+        # observe that and clear the flag; conservatively recompute.
         self._sync_local_from_world_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
@@ -572,6 +611,12 @@ class FabricFrameView(BaseFrameView):
             pre-allocated buffer** (shared with :meth:`get_world_scales`) that is
             overwritten on the next call.  Do not hold references across calls --
             copy if persistence is needed.
+
+            When *indices* selects a subset, Fabric launches the decompose kernel
+            into a freshly allocated Warp buffer and returns its
+            :class:`~isaaclab.utils.warp.ProxyArray` wrapper without blocking.
+            Callers that need host-visible values immediately must synchronize or
+            copy explicitly; GPU consumers can rely on normal Warp stream ordering.
         """
         if not self._use_fabric:
             return self._usd_view.get_local_scales(indices)
@@ -580,6 +625,10 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         # Sync local matrices first if world writes are pending.
+        # TODO(pv): This dirty bit tracks Isaac Lab writes only. If a future
+        # Fabric hierarchy tick learns to materialize the corresponding local
+        # matrices before this access, we have no Fabric-side version stamp to
+        # observe that and clear the flag; conservatively recompute.
         self._sync_local_from_world_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
