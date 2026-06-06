@@ -232,6 +232,26 @@ def test_newton_mesh_collision_no_schema_when_none(setup_sim):
     assert "NewtonMeshCollisionAPI" not in applied
 
 
+@pytest.mark.isaacsim_ci
+def test_newton_mesh_collision_nested_cfg_written(setup_sim):
+    """Nested mesh-collision cfgs must be accepted by base collision cfgs and dispatched."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/mesh_nested", prim_type="Cube", translation=(5.5, 0.0, 0.5))
+    schemas.define_collision_properties(
+        "/World/mesh_nested",
+        NewtonCollisionPropertiesCfg(
+            mesh_collision_property=NewtonMeshCollisionPropertiesCfg(
+                mesh_approximation_name="convexHull",
+                max_hull_vertices=24,
+            ),
+        ),
+    )
+    prim = stage.GetPrimAtPath("/World/mesh_nested")
+    assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
+    assert prim.GetAttribute("newton:maxHullVertices").Get() == 24
+    assert "NewtonMeshCollisionAPI" in prim.GetAppliedSchemas()
+
+
 # ---------------------------------------------------------------------------
 # Newton SDF collision
 # ---------------------------------------------------------------------------
