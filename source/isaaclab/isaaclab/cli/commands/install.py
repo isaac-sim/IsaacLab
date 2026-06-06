@@ -333,6 +333,92 @@ def _requirement_name(requirement: str) -> str:
     return re.split(r"\s|<|>|=|!|~|\[|@", requirement, maxsplit=1)[0]
 
 
+# Distributions installed from the PyTorch index by :func:`_ensure_cuda_torch`;
+# excluded from the centralized core-dependency install so they are not pulled
+# from PyPI first.
+_TORCH_DISTRIBUTIONS = {"torch", "torchvision", "torchaudio"}
+
+
+def _is_isaaclab_requirement(requirement: str) -> bool:
+    """Return True for ``isaaclab*`` self-references (installed as editable submodules)."""
+    return _normalize_package_name(_requirement_name(requirement)).startswith("isaaclab")
+
+
+def _load_root_pyproject() -> dict:
+    """Load the root development ``pyproject.toml`` (single source of dependency truth)."""
+    with (ISAACLAB_ROOT / "pyproject.toml").open("rb") as fd:
+        return tomllib.load(fd)
+
+
+def _root_core_dependencies() -> list[str]:
+    """Return the third-party core requirements declared in the root pyproject.
+
+    Workspace members (installed as editable submodules) and the torch stack
+    (installed by :func:`_ensure_cuda_torch`) are excluded.
+    """
+    project = _load_root_pyproject().get("project", {})
+    dependencies = []
+    for requirement in project.get("dependencies", []):
+        if _is_isaaclab_requirement(requirement):
+            continue
+        if _normalize_package_name(_requirement_name(requirement)) in _TORCH_DISTRIBUTIONS:
+            continue
+        dependencies.append(requirement)
+    return dependencies
+
+
+def _root_extra_dependencies(extra: str) -> list[str]:
+    """Return the third-party requirements for a root ``optional-dependencies`` group.
+
+    Workspace member self-references are stripped (the editable submodules are
+    installed separately).
+
+    Args:
+        extra: Name of the optional-dependency group in the root pyproject.
+    """
+    optional = _load_root_pyproject().get("project", {}).get("optional-dependencies", {})
+    if extra not in optional:
+        print_warning(f"Unknown root extra '{extra}'. Available: {', '.join(sorted(optional))}. Skipping.")
+        return []
+    return [requirement for requirement in optional[extra] if not _is_isaaclab_requirement(requirement)]
+
+
+def _install_root_extra(extra: str) -> None:
+    """Install the third-party dependencies of a root ``optional-dependencies`` group."""
+    dependencies = _root_extra_dependencies(extra)
+    if not dependencies:
+        return
+    python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
+    print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
+    run_command(pip_cmd + ["install"] + dependencies)
+
+
+def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: list[str]) -> None:
+    """Install the centralized third-party dependencies for the current install.
+
+    The editable sub-packages no longer declare dependencies, so the core
+    requirements come from the root pyproject; the runtime extras for any
+    requested optional submodules are installed on top.
+
+    Args:
+        pip_cmd: Base pip command (e.g. ``["uv", "pip"]`` or ``["python", "-m", "pip"]``).
+        optional_submodules: Names of requested optional submodules whose root
+            extras should also be installed.
+    """
+    core_dependencies = _root_core_dependencies()
+    if core_dependencies:
+        print_info("Installing core dependencies from the root pyproject...")
+        run_command(pip_cmd + ["install"] + core_dependencies)
+    # dict preserves order while de-duplicating extras shared across submodules.
+    extras: dict[str, None] = {}
+    for submodule_name in optional_submodules:
+        for extra in OPTIONAL_SUBMODULE_ROOT_EXTRAS.get(submodule_name, ()):
+            extras.setdefault(extra)
+    for extra in extras:
+        _install_root_extra(extra)
+
+
 def _get_installed_distribution_requirements(python_exe: str, distribution_name: str) -> list[str]:
     """Return installed ``Requires-Dist`` requirements for a distribution."""
     probe = """import importlib.metadata
@@ -491,6 +577,15 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
     "teleop": ("isaaclab_teleop",),
 }
 
+# Root pyproject optional-dependency groups that carry the third-party runtime
+# requirements for each optional submodule (the submodules themselves no longer
+# declare dependencies). Mirrors OPTIONAL_ISAACLAB_SUBMODULES: ``mimic`` pulls in
+# the teleop stack as well, matching the editable-install behavior it replaces.
+OPTIONAL_SUBMODULE_ROOT_EXTRAS: dict[str, tuple[str, ...]] = {
+    "mimic": ("mimic", "teleop"),
+    "teleop": ("teleop",),
+}
+
 # Extra feature sets that install optional heavy dependencies on top of the
 # always-installed core submodules. Each name corresponds to one or more
 # 'pip install --editable path[extra]' calls against packages already in the
@@ -587,12 +682,8 @@ def _install_contrib_extra_dependencies(selector: str) -> None:
         )
         return
 
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-
     print_info(f"Installing contrib optional dependencies: {selector}...")
-    run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{selector}]"])
+    _install_root_extra(selector)
 
 
 def _install_ov_extra_dependencies(selector: str) -> None:
@@ -609,10 +700,6 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
         return
 
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-
     selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
     valid_selectors = {"all", "ovrtx", "ovphysx"}
     unknown_selectors = selectors - valid_selectors
@@ -623,19 +710,20 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
     if "all" in selectors:
         selectors.update({"ovrtx", "ovphysx"})
+    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
     if "ovrtx" in selectors:
         print_info("Installing OVRTX optional dependency...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ov[ovrtx]"])
+        _install_root_extra("rtx")
     if "ovphysx" in selectors:
         print_info("Installing OVPhysX optional dependency...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ovphysx[ovphysx]"])
+        _install_root_extra("ov")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     """Install optional extra dependencies for a feature set.
 
-    Each feature maps to one or more editable installs with extras applied to
-    packages that are already part of the core set.
+    Each feature maps the CLI token to one or more root ``optional-dependencies``
+    groups and installs their third-party requirements.
 
     Args:
         feature_name: One of :data:`VALID_EXTRA_FEATURES`.
@@ -643,27 +731,31 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
             ``rl[rsl-rl]``). When empty a sensible default is chosen per
             feature (``"all"`` for ``rl`` and ``visualizer``).
     """
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-
     if feature_name == "contrib":
         _install_contrib_extra_dependencies(selector)
     elif feature_name == "newton":
         if selector:
-            print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
-        print_info("Installing newton extras (newton[sim], PyOpenGL-accelerate, imgui-bundle, typing-extensions)...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_newton[all]"])
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_physx[newton]"])
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[newton]"])
+            print_warning(f"'newton' does not support selectors (got '{selector}'). Installing the newton viewer.")
+        # The Newton physics engine is a core dependency; this installs the
+        # optional interactive viewer GUI (imgui-bundle, typing-extensions).
+        print_info("Installing newton interactive viewer dependencies...")
+        _install_root_extra("newton")
     elif feature_name == "rl":
         extra = selector if selector else "all"
+        # rl[all] maps to the root 'rl-all' extra; other selectors map by name
+        # (rsl_rl -> rsl-rl, skrl, sb3, rl-games).
+        root_extra = "rl-all" if extra == "all" else extra.replace("_", "-")
         print_info(f"Installing RL framework extras: {extra}...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_rl[{extra}]"])
+        _install_root_extra(root_extra)
     elif feature_name == "visualizer":
         extra = selector if selector else "all"
+        backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
         print_info(f"Installing visualizer extras: {extra}...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[{extra}]"])
+        for backend in sorted(backends):
+            # 'kit' has no third-party dependencies (Omniverse-provided).
+            if backend == "kit":
+                continue
+            _install_root_extra(backend)
     elif feature_name == "ov":
         _install_ov_extra_dependencies(selector)
     else:
@@ -857,6 +949,8 @@ def command_install(install_type: str = "all") -> None:
     extra_features: list[tuple[str, str]] = []
     # List of (submodule_name, selector) tuples for optional submodule extras.
     optional_submodule_extra_dependencies: list[tuple[str, str]] = []
+    # Names of requested optional submodules (used to install their root extras).
+    requested_optional_submodules: list[str] = []
 
     def append_submodules_once(package_dirs: tuple[str, ...]) -> None:
         for pkg_dir in package_dirs:
@@ -870,6 +964,7 @@ def command_install(install_type: str = "all") -> None:
     if install_type == "all":
         for package_dirs in OPTIONAL_ISAACLAB_SUBMODULES.values():
             append_submodules_once(package_dirs)
+        requested_optional_submodules = list(OPTIONAL_ISAACLAB_SUBMODULES)
         extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
     elif install_type == "core":
         # Core only — no optional submodules, no extra features.
@@ -891,6 +986,7 @@ def command_install(install_type: str = "all") -> None:
                 install_isaacsim = True
             elif name in OPTIONAL_ISAACLAB_SUBMODULES:
                 append_submodules_once(OPTIONAL_ISAACLAB_SUBMODULES[name])
+                requested_optional_submodules.append(name)
                 if selector:
                     optional_submodule_extra_dependencies.append((name, selector))
             elif name in VALID_EXTRA_FEATURES:
@@ -965,6 +1061,11 @@ def command_install(install_type: str = "all") -> None:
 
         # Install all submodules (core set + any explicitly requested optional ones).
         _install_isaaclab_submodules(submodules_to_install)
+
+        # The submodules no longer declare third-party dependencies; install the
+        # centralized core requirements (and optional-submodule extras) from the
+        # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
+        _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
 
         # Install requested optional submodule dependency extras.
         if optional_submodule_extra_dependencies:

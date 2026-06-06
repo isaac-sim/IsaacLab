@@ -38,39 +38,60 @@ def test_uv_run_extra_names_match_documented_workflow():
     assert documented_extras <= set(optional_dependencies)
 
 
-def test_uv_run_keeps_modular_extras_without_isaacsim():
-    """The root dev project keeps local module extras but leaves Isaac Sim opt-in out."""
+def test_uv_run_exposes_centralized_feature_extras():
+    """The root project centralizes optional third-party deps into named extras."""
     optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
 
+    # Feature extras a user can activate with ``uv run --extra``.
     expected_extras = {
-        "contrib": ["isaaclab-contrib"],
-        "mimic": ["isaaclab-mimic"],
-        "newton": ["isaaclab-newton[all]", "isaaclab-physx[newton]", "isaaclab-visualizers[newton]"],
-        "ov": ["isaaclab-ovphysx[ovphysx]"],
-        "rl": ["isaaclab-rl[rsl-rl]"],
-        "rl-all": ["isaaclab-rl[all]"],
-        "rtx": ["isaaclab-ov[ovrtx]"],
-        "all": [
-            "isaaclab-mimic",
-            "isaaclab-newton[all]",
-            "isaaclab-physx[newton]",
-            "isaaclab-ppisp",
-            "isaaclab-rl[all]",
-            "isaaclab-visualizers[all]",
-        ],
+        "test",
+        "sb3",
+        "skrl",
+        "rl-games",
+        "rsl-rl",
+        "rl-all",
+        "newton",
+        "viser",
+        "rerun",
+        "ov",
+        "rtx",
+        "mimic",
+        "teleop",
+        "rlinf",
+        "all",
     }
+    assert expected_extras <= set(optional_dependencies)
 
-    assert optional_dependencies == expected_extras
-    assert "isaacsim" not in optional_dependencies
+    # Concrete third-party deps live in the extras (not subpackage self-references).
+    assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
+    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
+
+
+def test_uv_run_keeps_isaacsim_out_of_workspace_resolution():
+    """Isaac Sim is a wheel-only extra: never a base dep, never a uv workspace extra.
+
+    The source workspace uses a repo-local Isaac Sim, and isaacsim's exact pins
+    conflict with several workspace extras under uv's strict resolver, so it is
+    declared under ``[tool.isaaclab.wheel-extras]`` instead.
+    """
+    pyproject = _root_pyproject()
+    project = pyproject["project"]
+    base_dependency_names = {re.split(r"[\s<>=!~\[;]", dep, maxsplit=1)[0] for dep in project["dependencies"]}
+
+    assert "isaacsim" not in base_dependency_names
+    assert "isaacsim" not in project["optional-dependencies"]
+    assert "isaacsim" in pyproject["tool"]["isaaclab"]["wheel-extras"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
-    """The documented bare ``uv run train`` command needs Newton and RSL-RL extras."""
+    """The documented bare ``uv run train`` command needs Newton and RSL-RL in core."""
     dependencies = _root_pyproject()["project"]["dependencies"]
 
-    assert "isaaclab-newton[all]" in dependencies
-    assert "isaaclab-physx[newton]" in dependencies
-    assert "isaaclab-rl[rsl-rl]" in dependencies
+    # Newton is the default physics engine and RSL-RL the default training library,
+    # so both ship as core third-party requirements (not opt-in extras).
+    assert any(dep.startswith("newton[sim]") for dep in dependencies)
+    assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 
 
 def test_uv_run_uses_managed_python():

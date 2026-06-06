@@ -16,25 +16,12 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "assets", "isaaclab"]
 requires-python = ">=3.12"
+# Third-party requirements are centralized in the root pyproject.toml.
 dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
-
-[project.optional-dependencies]
-rlinf = [
-    "ray[default]>=2.47.0",
-    "av>=12.3.0",
-    "numpydantic>=1.7.0",
-    "albumentations>=1.4.18",
-    "decord2",
-    "dm_tree>=0.1.8",
-    "diffusers>=0.35.0",
-    "timm>=1.0.14",
-    "peft>=0.17.0",
-    "pandas",
-]
 
 [tool.setuptools]
 include-package-data = true

@@ -1,0 +1,4 @@
+# No changelog entry / version bump: third-party dependency declarations
+# were relocated to the root pyproject.toml (single source of truth). The
+# published isaaclab wheel is monolithic and unaffected; the user-facing change
+# is recorded in source/isaaclab/changelog.d/centralize-deps-root-pyproject.rst.

@@ -3,41 +3,65 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Generate pyproject.toml for the isaaclab wheel from python_packages.toml."""
+"""Generate pyproject.toml for the isaaclab wheel from the root pyproject.toml.
 
+The published wheel bundles every ``isaaclab*`` sub-package as a top-level
+module, so the workspace self-references in the root ``[project.dependencies]``
+and ``[project.optional-dependencies]`` are dropped here; only third-party
+requirements end up in the wheel metadata.
+"""
+
+import re
 import sys
 
 import tomllib
 
 if len(sys.argv) != 4:
-    print(f"Usage: {sys.argv[0]} <packages_toml> <output_path> <version>", file=sys.stderr)
+    print(f"Usage: {sys.argv[0]} <root_pyproject> <output_path> <version>", file=sys.stderr)
     sys.exit(1)
 
-packages_toml_path = sys.argv[1]
+root_pyproject_path = sys.argv[1]
 output_path = sys.argv[2]
 version = sys.argv[3]
 
-with open(packages_toml_path, "rb") as f:
-    data = tomllib.load(f)
-pkg = data["isaaclab"]
+with open(root_pyproject_path, "rb") as f:
+    root = tomllib.load(f)
+project = root["project"]
 
-# Collect dependencies (deduplicated, preserving order)
-raw_deps = pkg["pyproject"]["dependencies"]["all"]
-seen = set()
-deps = []
-for d in raw_deps:
-    # Normalize for dedup: lowercase package name (before any version specifier)
-    key = d.split(">")[0].split("<")[0].split("=")[0].split("!")[0].split("[")[0].strip().lower()
-    if key not in seen:
-        seen.add(key)
-        deps.append(d)
 
-# Collect optional dependencies
+def _requirement_name(requirement: str) -> str:
+    """Extract the normalized distribution name from a requirement string."""
+    name = re.split(r"\s|<|>|=|!|~|\[|@|;", requirement, maxsplit=1)[0].strip()
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _is_workspace_member(requirement: str) -> bool:
+    """Return True for ``isaaclab*`` self-references (bundled into the wheel)."""
+    return _requirement_name(requirement).startswith("isaaclab")
+
+
+def _dedup(requirements: list[str]) -> list[str]:
+    """Drop duplicate requirements by distribution name, preserving order."""
+    seen = set()
+    result = []
+    for requirement in requirements:
+        key = _requirement_name(requirement)
+        if key not in seen:
+            seen.add(key)
+            result.append(requirement)
+    return result
+
+
+# Required dependencies: third-party only (strip workspace members), deduped.
+deps = _dedup([d for d in project["dependencies"] if not _is_workspace_member(d)])
+
+# Optional dependencies: per extra, strip workspace members and dedup.
+# Wheel-only extras (e.g. isaacsim) live under [tool.isaaclab.wheel-extras]; they
+# are excluded from the uv workspace resolution but still shipped in the wheel.
+wheel_extras = root.get("tool", {}).get("isaaclab", {}).get("wheel-extras", {})
 opt_deps = {}
-for entry in pkg["pyproject"]["optional-dependencies"]["all"]:
-    # Each entry is a dict like {"name": ["dep1", "dep2"]}
-    for name, dep_list in entry.items():
-        opt_deps[name] = dep_list
+for name, dep_list in {**project.get("optional-dependencies", {}), **wheel_extras}.items():
+    opt_deps[name] = _dedup([d for d in dep_list if not _is_workspace_member(d)])
 
 # Write pyproject.toml
 lines = []
