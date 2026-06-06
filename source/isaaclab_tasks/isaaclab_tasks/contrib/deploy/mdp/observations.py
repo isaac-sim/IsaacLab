@@ -12,6 +12,11 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils.leapp.leapp_semantics import (
+    QUAT_XYZW_ELEMENT_NAMES,
+    XYZ_ELEMENT_NAMES,
+    leapp_observation_input,
+)
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
@@ -21,6 +26,7 @@ if TYPE_CHECKING:
     from .events import randomize_gear_type
 
 
+@leapp_observation_input(kind="state/body/position", element_names=[XYZ_ELEMENT_NAMES])
 class gear_shaft_pos_w(ManagerTermBase):
     """Gear shaft position in world frame with offset applied.
 
@@ -139,6 +145,7 @@ class gear_shaft_pos_w(ManagerTermBase):
         return shaft_pos - env.scene.env_origins
 
 
+@leapp_observation_input(kind="state/body/rotation", element_names=[QUAT_XYZW_ELEMENT_NAMES])
 class gear_shaft_quat_w(ManagerTermBase):
     """Gear shaft orientation in world frame.
 
