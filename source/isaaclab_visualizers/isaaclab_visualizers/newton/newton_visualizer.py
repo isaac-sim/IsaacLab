@@ -13,6 +13,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
@@ -36,6 +37,15 @@ from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, res
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
+
+CONTACT_ARROW_PATH = "/contacts"
+"""Viewer path used for native and synthesized contact arrows."""
+
+CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
+"""Color used by Newton's native contact visualization."""
+
+CONTACT_ARROW_LENGTH = 0.1
+"""Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
@@ -488,6 +498,11 @@ class NewtonVisualizer(BaseVisualizer):
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
                             return
                         self._viewer.log_state(self._state)
+                        contacts = NewtonManager.get_contacts()
+                        if contacts is not None:
+                            self._viewer.log_contacts(contacts, self._state)
+                        else:
+                            self._log_scene_contact_sensor_arrows(num_envs)
                         if self.cfg.enable_markers:
                             render_newton_visualization_markers(
                                 self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
@@ -510,6 +525,115 @@ class NewtonVisualizer(BaseVisualizer):
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
         self._is_closed = True
+
+    def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
+        """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
+        if self._viewer is None:
+            return
+        if not self._viewer.show_contacts:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+        contact_sensors = (
+            self._scene_data_provider.get_contact_sensors() if self._scene_data_provider is not None else {}
+        )
+        if not contact_sensors:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+
+        starts: list[torch.Tensor] = []
+        ends: list[torch.Tensor] = []
+        for sensor in contact_sensors.values():
+            sensor_starts, sensor_ends = self._contact_sensor_arrow_tensors(sensor, num_envs)
+            if sensor_starts is not None and sensor_ends is not None:
+                starts.append(sensor_starts)
+                ends.append(sensor_ends)
+
+        if not starts:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+
+        starts_t = torch.cat(starts, dim=0).detach().to(dtype=torch.float32, device="cpu").contiguous()
+        ends_t = torch.cat(ends, dim=0).detach().to(dtype=torch.float32, device="cpu").contiguous()
+        self._viewer.log_arrows(
+            CONTACT_ARROW_PATH,
+            wp.array(starts_t.numpy(), dtype=wp.vec3, device=self._viewer.device),
+            wp.array(ends_t.numpy(), dtype=wp.vec3, device=self._viewer.device),
+            CONTACT_ARROW_COLOR,
+        )
+
+    def _contact_sensor_arrow_tensors(self, sensor, num_envs: int) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        """Build Newton-style arrow starts/ends from an Isaac Lab contact sensor."""
+        try:
+            data = sensor.data
+            net_forces_proxy = data.net_forces_w
+            net_forces = net_forces_proxy.torch if net_forces_proxy is not None else None
+        except (AttributeError, NotImplementedError, RuntimeError):
+            return None, None
+
+        if net_forces is None or net_forces.numel() == 0:
+            return None, None
+        net_forces = self._filter_visible_env_tensor(net_forces, num_envs)
+
+        force_threshold = getattr(getattr(sensor, "cfg", None), "force_threshold", None)
+        if force_threshold is None:
+            force_threshold = 0.0
+
+        try:
+            contact_pos = getattr(data, "contact_pos_w", None)
+            force_matrix = getattr(data, "force_matrix_w", None)
+        except NotImplementedError:
+            contact_pos = None
+            force_matrix = None
+        if contact_pos is not None and force_matrix is not None:
+            contact_pos_t = self._filter_visible_env_tensor(contact_pos.torch, num_envs)
+            force_matrix_t = self._filter_visible_env_tensor(force_matrix.torch, num_envs)
+            if contact_pos_t.numel() != 0 and force_matrix_t.numel() != 0:
+                force_norm = torch.linalg.norm(force_matrix_t, dim=-1)
+                finite_pos = torch.isfinite(contact_pos_t).all(dim=-1)
+                active = (force_norm > force_threshold) & finite_pos
+                if torch.any(active):
+                    starts = contact_pos_t[active]
+                    directions = torch.nn.functional.normalize(force_matrix_t[active], dim=-1)
+                    return starts, starts + directions * CONTACT_ARROW_LENGTH
+
+        origins = self._contact_sensor_origin_positions(sensor, data, net_forces)
+        if origins is None:
+            return None, None
+        origins = self._filter_visible_env_tensor(origins, num_envs)
+
+        force_norm = torch.linalg.norm(net_forces, dim=-1)
+        active = force_norm > force_threshold
+        if not torch.any(active):
+            return None, None
+
+        starts = origins[active]
+        directions = torch.nn.functional.normalize(net_forces[active], dim=-1)
+        return starts, starts + directions * CONTACT_ARROW_LENGTH
+
+    def _contact_sensor_origin_positions(self, sensor, data, net_forces: torch.Tensor) -> torch.Tensor | None:
+        """Return per-sensor origins for contact arrow starts."""
+        try:
+            pos_w = getattr(data, "pos_w", None)
+        except NotImplementedError:
+            pos_w = None
+        if pos_w is not None:
+            return pos_w.torch
+
+        body_physx_view = getattr(sensor, "body_physx_view", None)
+        if body_physx_view is None:
+            return None
+        try:
+            pose = body_physx_view.get_transforms()
+        except RuntimeError:
+            return None
+        return wp.to_torch(pose).view(*net_forces.shape[:-1], 7)[..., :3]
+
+    def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
+        """Apply Newton visualizer visible-world filtering to a sensor tensor."""
+        if self._resolved_visible_env_ids is None or tensor.ndim == 0 or tensor.shape[0] != num_envs:
+            return tensor
+        ids = torch.as_tensor(self._resolved_visible_env_ids, dtype=torch.long, device=tensor.device)
+        return tensor.index_select(0, ids)
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping.

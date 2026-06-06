@@ -27,6 +27,7 @@ EXTRAS_REQUIRE = {
         "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.5",
+        "typing-extensions>=4.15.0",
     ],
     "rerun": [
         "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.0",

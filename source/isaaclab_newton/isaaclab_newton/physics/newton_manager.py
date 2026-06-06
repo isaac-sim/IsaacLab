@@ -1574,6 +1574,11 @@ class NewtonManager(PhysicsManager):
         return cls.get_state_0()
 
     @classmethod
+    def get_contacts(cls) -> Contacts | None:
+        """Get the current Newton contact buffer, if the active solver exposes one."""
+        return cls._contacts
+
+    @classmethod
     def get_num_envs(cls) -> int:
         return cls._num_envs
 
