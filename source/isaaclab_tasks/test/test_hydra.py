@@ -1423,3 +1423,91 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 
     with pytest.raises(ValueError, match="[Cc]ycl"):
         resolve_presets(RootCyclicA())
+
+
+# =============================================================================
+# Tests: typed-selector validation (physics=/renderer= must hit their type)
+# =============================================================================
+
+from isaaclab.physics import PhysicsCfg as _RealPhysicsCfg  # noqa: E402
+
+from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
+
+
+@configclass
+class _NewtonPhysicsCfg(_RealPhysicsCfg):
+    """Minimal real ``PhysicsCfg`` subclass so isinstance bucketing routes to PHYSICS."""
+
+    dt: float = 0.002
+
+
+@configclass
+class _PhysxPhysicsCfg(_RealPhysicsCfg):
+    dt: float = 0.005
+
+
+def test_validate_typed_presets_passes_when_selector_hits_its_type():
+    """``physics=newton_mjwarp`` that landed on a PhysicsCfg does not raise."""
+    hydra_mod._validate_typed_presets(
+        {PresetTarget.PHYSICS: {"newton_mjwarp"}},
+        typed_hits={"newton_mjwarp": {PresetTarget.PHYSICS}},
+    )
+
+
+def test_validate_typed_presets_raises_when_selector_misses_its_type():
+    """``physics=newton_mjwarp`` that never landed on a PhysicsCfg must raise."""
+    with pytest.raises(ValueError, match="physics=newton_mjwarp"):
+        hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits={})
+
+
+def test_validate_typed_presets_ignores_broadcast_presets():
+    """A plain ``presets=`` broadcast is never in ``requested``, so it is trusted."""
+    # No typed selectors requested -> nothing to validate, even with no hits.
+    hydra_mod._validate_typed_presets({}, typed_hits={})
+
+
+def test_resolve_active_presets_records_physics_hit_for_selector():
+    """End-to-end: selecting a name that resolves to a real PhysicsCfg records a PHYSICS hit."""
+
+    @configclass
+    class PhysicsPresetCfg(PresetCfg):
+        default: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
+        newton_mjwarp: _NewtonPhysicsCfg = _NewtonPhysicsCfg()
+
+    @configclass
+    class EnvWithPhysicsCfg:
+        physics: PhysicsPresetCfg = PhysicsPresetCfg()
+
+    typed_hits: dict[str, set[PresetTarget]] = {}
+    hydra_mod._resolve_active_presets(
+        EnvWithPhysicsCfg(), ["newton_mjwarp"], {}, root_path="env", typed_hits=typed_hits
+    )
+    assert PresetTarget.PHYSICS in typed_hits.get("newton_mjwarp", set())
+    # physics=newton_mjwarp therefore validates.
+    hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+
+
+def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
+    """A name resolving only to a scalar records no typed hit, so a physics= selector raises."""
+
+    @configclass
+    class EnvWithScalarOnlyCfg:
+        # ``newton_mjwarp`` here only tunes a scalar -- no PhysicsCfg involved.
+        armature: PresetCfg = preset(default=0.0, newton_mjwarp=0.01)
+
+    consumed: set[str] = set()
+    typed_hits: dict[str, set[PresetTarget]] = {}
+    hydra_mod._resolve_active_presets(
+        EnvWithScalarOnlyCfg(),
+        ["newton_mjwarp"],
+        {},
+        root_path="env",
+        consumed_selected=consumed,
+        typed_hits=typed_hits,
+    )
+    assert "newton_mjwarp" in consumed and PresetTarget.PHYSICS not in typed_hits.get("newton_mjwarp", set())
+    # presets=newton_mjwarp (broadcast) is trusted: no entry in ``requested`` -> no error.
+    hydra_mod._validate_typed_presets({}, typed_hits)
+    # physics=newton_mjwarp (typed selector) must error.
+    with pytest.raises(ValueError, match="physics=newton_mjwarp"):
+        hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)

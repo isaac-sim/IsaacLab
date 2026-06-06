@@ -43,8 +43,9 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
     add_launcher_args,
-    fold_preset_tokens,
     launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -81,7 +82,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True

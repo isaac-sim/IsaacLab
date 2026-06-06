@@ -3,23 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the typed-preset CLI translator.
+"""Tests for the typed-preset CLI front-end.
 
-Two functions cover the translator:
+:func:`setup_preset_cli` registers the preset-selection help description and
+runs ``parse_known_args``, returning the verbatim remainder. The
+``physics=``/``renderer=``/``presets=`` tokens are passed through unchanged;
+Hydra's :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly.
 
-* :func:`setup_preset_cli` -- register help description and parse argv.
-  Returns the raw pre-fold remainder; no folding happens inside.
-* :func:`fold_preset_tokens` -- fold typed selectors (``physics=``,
-  ``renderer=``) and free-form ``presets=`` into a single
-  ``presets=<csv>`` token consumed by Hydra's resolver.
-
-Splitting parse from fold lets callers (notably ``rsl_rl/{train,play}.py``)
-intersect the pre-fold remainder with an ``--external_callback`` return list
-in matching vocabulary before folding once at the end. Tests below cover both
-functions individually plus the bug-fix scenario they were split for.
-
-Name validation, alias rewriting, and resolution all live in
-:mod:`isaaclab_tasks.utils.hydra` and have their own tests in
+Name validation, alias rewriting, typed-selector enforcement, and resolution
+all live in :mod:`isaaclab_tasks.utils.hydra` and have their own tests in
 ``test_hydra.py``; this file does not re-cover them.
 """
 
@@ -84,9 +76,9 @@ def test_setup_preset_cli_returns_remainder_only(monkeypatch):
 
 
 def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
-    """``setup_preset_cli`` no longer folds; preset tokens come back in
-    their original ``physics=`` / ``renderer=`` / ``presets=`` form so callers
-    can intersect with callback returns in matching vocabulary before folding."""
+    """Preset tokens come back in their original ``physics=`` / ``renderer=`` /
+    ``presets=`` form so hydra can parse them directly and callers can intersect
+    with callback returns in matching vocabulary."""
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -113,15 +105,15 @@ def test_setup_preset_cli_does_not_mutate_sys_argv(monkeypatch):
     """``setup_preset_cli`` must not mutate ``sys.argv`` -- mutation is the
     caller's responsibility. Locks the contract that ``rsl_rl/{train,play}.py``
     rely on so an ``--external_callback`` hook invoked after ``setup_preset_cli``
-    can still read the user's original command line and return pre-fold tokens
-    that the caller intersects against the pre-fold remainder."""
+    can still read the user's original command line and return tokens that the
+    caller intersects against the remainder."""
     original = ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "env.sim.dt=0.001"]
     monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
     _, remaining = setup_preset_cli(_make_parser())
     assert sys.argv == original
-    # Remainder is pre-fold (typed selector unchanged).
+    # Remainder carries the typed selector unchanged.
     assert remaining == ["physics=newton_mjwarp", "env.sim.dt=0.001"]
 
 
@@ -177,180 +169,26 @@ def test_setup_preset_cli_does_not_leak_into_app_launcher_sim_app_intersection(m
 
 
 # ---------------------------------------------------------------------------
-# fold_preset_tokens: typed + broadcast tokens fold into one presets=<csv> token
-# ---------------------------------------------------------------------------
-
-
-def test_fold_returns_empty_input_unchanged():
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens([]) == []
-
-
-def test_fold_no_preset_tokens_returns_input_unchanged():
-    """Path-targeted overrides and unknown ``--flag``s pass through verbatim."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["env.sim.dt=0.001"]) == ["env.sim.dt=0.001"]
-    assert fold_preset_tokens(["--my_flag=42", "agent.lr=3e-4"]) == ["--my_flag=42", "agent.lr=3e-4"]
-
-
-def test_fold_physics_token_to_presets_token():
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["physics=newton_mjwarp", "env.sim.dt=0.001"]) == [
-        "presets=newton_mjwarp",
-        "env.sim.dt=0.001",
-    ]
-
-
-def test_fold_three_selectors_merge_into_one_token():
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(
-        [
-            "physics=newton_mjwarp",
-            "renderer=newton_renderer",
-            "presets=albedo,depth",
-        ]
-    ) == ["presets=newton_mjwarp,newton_renderer,albedo,depth"]
-
-
-def test_fold_dedupes_repeated_names():
-    """A name appearing in both a typed selector and the broadcast list
-    survives once in the folded token."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["physics=newton_mjwarp", "presets=newton_mjwarp,albedo"]) == [
-        "presets=newton_mjwarp,albedo"
-    ]
-
-
-def test_fold_path_targeted_overrides_pass_through():
-    """``env.sim.physics=NAME`` is a Hydra path-targeted override (dotted key)
-    not a typed preset selector (bare ``physics``); it must pass through the
-    fold untouched and reach the resolver in its original form."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["physics=newton_mjwarp", "env.sim.physics=newton_mjwarp", "env.lr=3e-4"]) == [
-        "presets=newton_mjwarp",
-        "env.sim.physics=newton_mjwarp",
-        "env.lr=3e-4",
-    ]
-
-
-def test_fold_unknown_argparse_flag_passes_through():
-    """Anything starting with ``--`` is not a preset token; the fold leaves
-    callback-owned flags in place so the caller's intersection step can drop
-    them via the callback's claim."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["--my_callback_flag=42", "physics=newton_mjwarp"]) == [
-        "presets=newton_mjwarp",
-        "--my_callback_flag=42",
-    ]
-
-
-def test_fold_unknown_name_passes_through_silently(capsys):
-    """A name unknown to the registry is passed through verbatim with no
-    warning. The resolver has the loaded task's full vocabulary and produces
-    the rich error at resolve time if the name truly doesn't exist."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["physics=newton_mujoco"]) == ["presets=newton_mujoco"]
-    assert capsys.readouterr().err == ""
-
-
-def test_fold_custom_task_preset_via_broadcast_passes_through(capsys):
-    """A task-local custom preset name (e.g. Dexsuite's ``cube``) is accepted
-    via the broadcast selector with no fuss -- the registry is a hint, not a gate."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["presets=cube,peg_insert_4mm,mayank_solver"]) == [
-        "presets=cube,peg_insert_4mm,mayank_solver"
-    ]
-    assert capsys.readouterr().err == ""
-
-
-def test_fold_keeps_relative_order_of_non_preset_tokens():
-    """Non-preset tokens retain their relative order; the folded
-    ``presets=<csv>`` token is prepended."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["env.a=1", "physics=newton_mjwarp", "env.b=2", "env.c=3"]) == [
-        "presets=newton_mjwarp",
-        "env.a=1",
-        "env.b=2",
-        "env.c=3",
-    ]
-
-
-def test_fold_drops_empty_typed_value():
-    """An empty typed-selector value (``physics=``) is skipped, not folded
-    as an empty name."""
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    assert fold_preset_tokens(["physics=", "env.sim.dt=0.001"]) == ["env.sim.dt=0.001"]
-
-
-# ---------------------------------------------------------------------------
-# Bug fix regression: intersection-then-fold preserves typed preset selections
+# External-callback intersection: typed selectors survive on the raw remainder
 #
-# Reproduces the rsl_rl/{train,play}.py + --external_callback failure mode
-# (PR #5587 review): a callback that reads the user's pre-fold sys.argv and
-# returns pre-fold tokens must be intersected before folding so vocabularies
-# match. Folding first would put ``presets=NAME`` on one side and
-# ``physics=NAME`` on the other, dropping the preset by string mismatch.
+# rsl_rl/{train,play}.py intersect the parsed remainder with an
+# ``--external_callback`` return list before assigning ``sys.argv``. Because
+# nothing rewrites the tokens, both sides share the same vocabulary and a typed
+# selector present in both survives the intersection unchanged.
 # ---------------------------------------------------------------------------
 
 
-def test_intersection_then_fold_preserves_typed_selection():
-    """The bug-fix order: list_intersection on pre-fold tokens, then fold once.
-
-    Models the rsl_rl callback path. With this order, a typed selector
-    (``physics=newton_mjwarp``) appearing in both the main remainder and the
-    callback's pre-fold return survives the intersection and folds correctly.
-    """
+def test_intersection_preserves_typed_selection():
+    """A typed selector present in both the remainder and the callback return
+    survives ``list_intersection`` verbatim; a callback-owned flag is dropped."""
     from isaaclab.utils.string import list_intersection
 
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
+    main_remainder = ["physics=newton_mjwarp", "--my_callback_flag=42", "env.lr=3e-4"]
+    callback_remainder = ["physics=newton_mjwarp", "env.lr=3e-4"]
 
-    main_remainder_pre_fold = [
-        "physics=newton_mjwarp",
-        "--my_callback_flag=42",  # main parser doesn't know this; callback owns it
-        "env.lr=3e-4",
-    ]
-    # Callback reads (untouched) sys.argv, consumes its --my_callback_flag, returns the rest.
-    callback_remainder_pre_fold = ["physics=newton_mjwarp", "env.lr=3e-4"]
+    intersected = list_intersection(main_remainder, callback_remainder)
 
-    intersected = list_intersection(main_remainder_pre_fold, callback_remainder_pre_fold)
-    folded = fold_preset_tokens(intersected)
-
-    # Preset selection survives; callback-owned flag is correctly dropped.
-    assert folded == ["presets=newton_mjwarp", "env.lr=3e-4"]
-
-
-def test_fold_then_intersection_would_lose_typed_selection():
-    """Document the wrong order. If the caller folded first and intersected
-    second, the post-fold ``presets=newton_mjwarp`` would not match the
-    callback's pre-fold ``physics=newton_mjwarp`` and the preset would be
-    silently dropped. This test pins the bug shape so a future caller doesn't
-    accidentally re-introduce it.
-    """
-    from isaaclab.utils.string import list_intersection
-
-    from isaaclab_tasks.utils.preset_cli import fold_preset_tokens
-
-    main_remainder_pre_fold = ["physics=newton_mjwarp", "--my_callback_flag=42", "env.lr=3e-4"]
-    callback_remainder_pre_fold = ["physics=newton_mjwarp", "env.lr=3e-4"]
-
-    # Wrong order: fold main first, then intersect against pre-fold callback.
-    folded_first = fold_preset_tokens(main_remainder_pre_fold)
-    intersected = list_intersection(folded_first, callback_remainder_pre_fold)
-
-    # Preset is gone -- this is exactly the bug to avoid in rsl_rl scripts.
-    assert intersected == ["env.lr=3e-4"]
-    assert "presets=newton_mjwarp" not in intersected
+    assert intersected == ["physics=newton_mjwarp", "env.lr=3e-4"]
 
 
 # ---------------------------------------------------------------------------

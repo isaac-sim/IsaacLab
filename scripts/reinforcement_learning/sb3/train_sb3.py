@@ -67,14 +67,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
-    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+    from isaaclab_tasks.utils import setup_preset_cli
 
     add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args;
-    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse.
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
-    set_hydra_args(fold_preset_tokens(hydra_args))
+    set_hydra_args(hydra_args)
     return args_cli
 
 

@@ -66,7 +66,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RSL-RL training arguments."""
     from isaaclab.utils.string import list_intersection, string_to_callable
 
-    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+    from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
     add_common_train_args(
@@ -90,8 +90,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
         remaining_args_env_registration = external_callback_function()
 
-    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse
-    set_hydra_args(fold_preset_tokens(list_intersection(remaining_args, remaining_args_env_registration)))
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later
+    set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli
 
 

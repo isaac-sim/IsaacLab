@@ -30,7 +30,10 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
     add_launcher_args,
-    fold_preset_tokens,
+    get_checkpoint_path,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
     get_checkpoint_path,
     launch_simulation,
     resolve_task_config,
@@ -89,7 +92,7 @@ args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.video:
     args_cli.enable_cameras = True
 
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 # -- check skrl version ------------------------------------------------------
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
