@@ -489,7 +489,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     """Decorator for Hydra config with REPLACE-only preset semantics.
 
     Args:
-        task_name: Task name (e.g., "Isaac-Reach-Franka-v0")
+        task_name: Task name (e.g., "Isaac-Reach-Franka")
         agent_cfg_entry_point: Agent config entry point key
 
     Returns:

@@ -180,7 +180,7 @@ full:
       episode_length: 150
     upper_thresholds:
       duration: 1500
-  Isaac-Reach-Franka-OSC-v0:
+  Isaac-Reach-Franka-OSC:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25
@@ -217,7 +217,7 @@ full:
     upper_thresholds:
       duration: 1800
   # Manipulation tasks - UR10
-  Isaac-Reach-UR10-v0:
+  Isaac-Reach-UR10:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25

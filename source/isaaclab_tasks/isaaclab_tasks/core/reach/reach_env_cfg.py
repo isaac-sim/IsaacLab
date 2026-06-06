@@ -8,6 +8,7 @@ from dataclasses import MISSING
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices import DevicesCfg
@@ -24,18 +25,15 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import CollisionPropertiesCfg, RigidBodyPropertiesCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-import isaaclab_tasks.core.reach.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
@@ -50,6 +48,8 @@ class ReachPhysicsCfg(PresetCfg):
         debug_mode=False,
     )
 
+    default = physx
+
 
 ##
 # Scene definition
@@ -61,7 +61,7 @@ class TableCfg(PresetCfg):
     physx = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0, 0, 0.707, 0.707)),
-        spawn=UsdFileCfg(
+        spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
         ),
     )
@@ -73,8 +73,8 @@ class TableCfg(PresetCfg):
         ),
         spawn=sim_utils.CuboidCfg(
             size=(0.9, 1.3, 1.00),
-            collision_props=CollisionPropertiesCfg(),
-            rigid_props=RigidBodyPropertiesCfg(rigid_body_enabled=True),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
         ),
         actuators={},
         articulation_root_prim_path="",

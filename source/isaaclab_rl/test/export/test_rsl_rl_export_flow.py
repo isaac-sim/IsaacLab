@@ -78,10 +78,10 @@ TASKS = [
     "Isaac-Velocity-Rough-Unitree-Go2-v0",
     "Isaac-Velocity-Rough-Unitree-Go2-Play-v0",
     # Manipulation Reach
-    "Isaac-Reach-Franka-v0",
-    "Isaac-Reach-Franka-Play-v0",
-    "Isaac-Reach-UR10-v0",
-    "Isaac-Reach-UR10-Play-v0",
+    "Isaac-Reach-Franka",
+    "Isaac-Reach-Franka-Play",
+    "Isaac-Reach-UR10",
+    "Isaac-Reach-UR10-Play",
     # Manipulation Lift
     "Isaac-Lift-Cube-Franka-v0",
     "Isaac-Lift-Cube-Franka-Play-v0",
