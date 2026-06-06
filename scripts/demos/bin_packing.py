@@ -63,7 +63,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.string import string_to_callable
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObjectCollection
@@ -371,7 +370,7 @@ def main() -> None:
         # Design scene
         scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=True)
         with Timer("[INFO] Time to create scene: "):
-            scene = string_to_callable("isaaclab.scene:InteractiveScene")(scene_cfg)
+            scene = scene_cfg.class_type(scene_cfg)
 
         # Play the simulator
         sim.reset()
