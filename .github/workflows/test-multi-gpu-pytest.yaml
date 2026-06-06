@@ -59,9 +59,14 @@ jobs:
   build:
     name: Build / cache image
     needs: [config]
-    # Build only needs Docker + ECR access, not multi-GPU. Aligns with the
-    # build jobs in build.yaml that also publish the per-commit image.
-    runs-on: [self-hosted, gpu]
+    # Must run on the SAME pool as the test job. The ECR cache repo is resolved
+    # per runner pool (single-GPU `gpu` runners -> gitci-docker-cache; multi-GPU
+    # runners -> multigpu-docker-cache). If this built on `[self-hosted, gpu]`
+    # the image would land in gitci-docker-cache, which the multi-GPU test job
+    # cannot see, so it would rebuild from scratch on the scarce multi-GPU
+    # runner. Building here populates multigpu-docker-cache so the test job's
+    # pull hits.
+    runs-on: [self-hosted, linux, x64, multi-gpu]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
