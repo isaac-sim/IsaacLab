@@ -46,6 +46,7 @@ docker/artifacts/
 # Doc Outputs
 **/docs/_build/*
 **/generated/*
+docs/_intersphinx/
 
 # Isaac-Sim packman
 _isaac_sim*

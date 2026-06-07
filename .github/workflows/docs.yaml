@@ -60,8 +60,16 @@ jobs:
         uv pip install -r docs/requirements.txt
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
+    - name: Pre-fetch intersphinx inventories
+      # Warm the local inventory cache with retries to avoid flaky servers
+      env:
+        ISAACLAB_INTERSPHINX_CACHE: ${{ github.workspace }}/docs/_intersphinx
+      run: python docs/_extensions/intersphinx_inventories.py
+
     - name: Build current version docs
       working-directory: ./docs
+      env:
+        ISAACLAB_INTERSPHINX_CACHE: ${{ github.workspace }}/docs/_intersphinx
       run: make current-docs
 
     - name: Upload docs artifact
@@ -92,9 +100,15 @@ jobs:
         uv pip install -r docs/requirements.txt
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
+    - name: Pre-fetch intersphinx inventories
+      env:
+        ISAACLAB_INTERSPHINX_CACHE: ${{ github.workspace }}/docs/_intersphinx
+      run: python docs/_extensions/intersphinx_inventories.py
+
     - name: Generate multi-version docs
       working-directory: ./docs
       env:
+        ISAACLAB_INTERSPHINX_CACHE: ${{ github.workspace }}/docs/_intersphinx
         # "deploy" branches build the full set of versions so every page
         # has a complete version dropdown: main, develop, tags >= v2.0.0
         # (including pre-release suffixes like -beta or -rc1). v1.x tags and

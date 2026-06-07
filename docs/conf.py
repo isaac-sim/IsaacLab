@@ -151,18 +151,11 @@ autodoc_default_options = {
 }
 
 # generate links to the documentation of objects in external projects
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "trimesh": ("https://trimesh.org/", None),
-    # NOTE: pinned to /docs/2.11/ because /docs/stable/objects.inv currently 404s
-    "torch": ("https://docs.pytorch.org/docs/2.11/", None),
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
-    "gymnasium": ("https://gymnasium.farama.org/", None),
-    # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
-    "warp": ("https://nvidia.github.io/warp/stable/", None),
-    "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
-}
+#
+# Each inventory is pre-fetched locally to avoid flaky external servers.
+from intersphinx_inventories import build_intersphinx_mapping
+
+intersphinx_mapping = build_intersphinx_mapping()
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = []
