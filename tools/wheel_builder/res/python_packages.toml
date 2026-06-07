@@ -39,7 +39,7 @@ pyproject.dependencies.all = [
     "flaky",
     "packaging",
     # visualizers
-    "imgui-bundle==1.92.4",
+    "imgui-bundle==1.92.601",
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",
     # viser is intentionally not a base dep: viser>=1.0.16 pulls websockets>=13.1,
@@ -82,13 +82,13 @@ pyproject.dependencies.all = [
 ]
 pyproject.optional-dependencies.all = [
     # Isaac Sim
-    { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.*"] },
+    { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.1"] },
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
     # ================================================================================
     { "newton" = [
         "warp-lang==1.13.0",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.1rc2",
+        "newton[sim]==1.2.1",
         "PyOpenGL-accelerate==3.1.10"
     ] },
     # ================================================================================

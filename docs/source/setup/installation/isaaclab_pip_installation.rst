@@ -30,7 +30,7 @@ pip extras include:
    * - Extra
      - What it installs
    * - ``isaacsim``
-     - Isaac Sim (``isaacsim[all,extscache]==6.0.0.*``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
+     - Isaac Sim (``isaacsim[all,extscache]==6.0.0.1``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
    * - ``all``
      - RL frameworks (SB3, SKRL, RL-Games, RSL-RL). Combine with ``isaacsim`` for a full install.
 

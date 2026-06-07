@@ -482,10 +482,12 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | (Manager-based only)         |
     |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | (Manager-based only)         |
     |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             | **physics=** ``physx``,      |
