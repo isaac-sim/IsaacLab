@@ -39,7 +39,7 @@ pyproject.dependencies.all = [
     "flaky",
     "packaging",
     # visualizers
-    "imgui-bundle==1.92.4",
+    "imgui-bundle==1.92.601",
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",
     # viser is intentionally not a base dep: viser>=1.0.16 pulls websockets>=13.1,
