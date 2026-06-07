@@ -47,8 +47,6 @@ from isaaclab_tasks.utils import (
     launch_simulation,
     resolve_task_config,
     setup_preset_cli,
-    resolve_task_config,
-    setup_preset_cli,
 )
 
 logger = logging.getLogger(__name__)

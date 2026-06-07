@@ -34,10 +34,6 @@ from isaaclab_tasks.utils import (
     launch_simulation,
     resolve_task_config,
     setup_preset_cli,
-    get_checkpoint_path,
-    launch_simulation,
-    resolve_task_config,
-    setup_preset_cli,
 )
 
 # PLACEHOLDER: Extension template (do not remove this comment)

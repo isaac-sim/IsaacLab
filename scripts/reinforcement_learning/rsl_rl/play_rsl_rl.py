@@ -37,9 +37,6 @@ from isaaclab_tasks.utils import (
     get_checkpoint_path,
     launch_simulation,
     setup_preset_cli,
-    get_checkpoint_path,
-    launch_simulation,
-    setup_preset_cli,
 )
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
