@@ -28,6 +28,7 @@ EXTRAS_REQUIRE = {
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.601",
         "typing-extensions==4.12.2",
+        "pydantic>=2.7,<2.12",
     ],
     "rerun": [
         "newton[sim]==1.2.1",

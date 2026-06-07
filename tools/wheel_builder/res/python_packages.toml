@@ -47,6 +47,8 @@ pyproject.dependencies.all = [
     # visualizer install isaaclab[viser] explicitly (see the optional-dependencies
     # block below).
     "typing_extensions==4.12.2",
+    # pydantic>=2.12 needs typing_extensions>=4.14.1; cap for isaacsim/kit-less coexistence.
+    "pydantic>=2.7,<2.12",
     "lazy_loader>=0.4",
     "pin ; platform_system == 'Linux'",
     "pin-pink>=2.3.6 ; platform_system == 'Linux'",

@@ -55,8 +55,10 @@ INSTALL_REQUIRES = [
     "psutil",
     # cross-platform file locking (used to serialize USD spawn across distributed ranks)
     "filelock",
-    # keep consistent with isaac sim version
+    # Match isaacsim-core. pydantic>=2.12 pulls pydantic-core>=2.37, which needs
+    # typing_extensions>=4.14.1 (Sentinel); cap pydantic for kit-less coexistence.
     "typing_extensions==4.12.2",
+    "pydantic>=2.7,<2.12",
     "lazy_loader>=0.4",
 ]
 

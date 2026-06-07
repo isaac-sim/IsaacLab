@@ -21,6 +21,8 @@ EXTRAS_REQUIRE = {
         # -- safe to resolve alongside isaaclab core --
         "ray[default]>=2.47.0",
         "av>=12.3.0",
+        # numpydantic pulls pydantic>=2.7; cap for typing_extensions==4.12.2 (see isaaclab).
+        "pydantic>=2.7,<2.12",
         "numpydantic>=1.7.0",
         "albumentations>=1.4.18",
         "decord2",
