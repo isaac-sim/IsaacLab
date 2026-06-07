@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.configclass import configclass
 
-from .newton_collision_cfg import NewtonCollisionPipelineCfg
+from .newton_collision_cfg import NewtonCollisionPipelineCfg, SDFCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -142,6 +142,15 @@ class NewtonCfg(PhysicsCfg):
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
     construction via :func:`~isaaclab.utils.checked_apply`. See
     :class:`NewtonShapeCfg` for the declared fields.
+    """
+
+    sdf_cfg: SDFCfg | None = None
+    """SDF mesh collision configuration.
+
+    When set, matched bodies/shapes receive SDF collision and optional
+    hydroelastic stiffness. See :class:`~isaaclab_newton.physics.SDFCfg`
+    for the declared fields. When ``None`` (default), no SDF collision is
+    configured.
     """
 
     def __post_init__(self):
