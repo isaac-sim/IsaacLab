@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
@@ -15,16 +14,20 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import CoupledMJWarpVBDSolverCfg, NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg
 
+from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from . import mdp
-from .franka_soft_env_cfg import DeformableNewtonCfg, FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+from .franka_soft_env_cfg import (
+    DeformableNewtonCfg,
+    FrankaSoftEnvCfg,
+    _FrankaSoftSceneCfg,
+    coupled_mjwarp_vbd_solver_cfg,
+)
 from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
 
 ##
@@ -40,27 +43,10 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    # Newton physics: MJWarp rigid + VBD soft, one-way coupled
+    # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vdb: DeformableNewtonCfg = DeformableNewtonCfg(
-        solver_cfg=CoupledMJWarpVBDSolverCfg(
-            rigid_solver_cfg=MJWarpSolverCfg(
-                njmax=40,
-                nconmax=20,
-                ls_iterations=20,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-                ccd_iterations=100,
-            ),
-            soft_solver_cfg=VBDSolverCfg(
-                iterations=10,
-                integrate_with_external_rigid_solver=True,
-                particle_enable_self_contact=False,
-                particle_collision_detection_interval=-1,
-            ),
-            coupling_mode="two_way",
-        ),
+    newton_mjwarp_vbd: DeformableNewtonCfg = DeformableNewtonCfg(
+        solver_cfg=coupled_mjwarp_vbd_solver_cfg(),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e3,
             soft_contact_kd=1e-5,
@@ -73,14 +59,14 @@ class PhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
 
-    default = newton_mjwarp_vdb
+    default = newton_mjwarp_vbd
 
 
 @configclass
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
-    newton_mjwarp_vdb: DeformableObjectCfg = DeformableObjectCfg(
+    newton_mjwarp_vbd: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="/World/envs/env_.*/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
         spawn=sim_utils.MeshRectangleCfg(
@@ -100,7 +86,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
-    default = newton_mjwarp_vdb
+    default = newton_mjwarp_vbd
 
 
 @configclass
@@ -139,52 +125,6 @@ class ActionsCfg:
 
 
 @configclass
-class RewardsCfg:
-    """Lift-to-target reward for a deformable object."""
-
-    reaching_deformable = RewTerm(
-        func=mdp.deformable_ee_distance,
-        params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
-        weight=5.0,
-    )
-    lifting_deformable = RewTerm(
-        func=mdp.deformable_lifted,
-        params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("deformable")},
-        weight=5.0,
-    )
-    deformable_goal_tracking = RewTerm(
-        func=mdp.deformable_com_goal_distance,
-        params={
-            "std": 0.3,
-            "minimal_height": 0.075,
-            "command_name": "deformable_pose",
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
-        weight=16.0,
-    )
-    deformable_goal_tracking_fine_grained = RewTerm(
-        func=mdp.deformable_com_goal_distance,
-        params={
-            "std": 0.05,
-            "minimal_height": 0.075,
-            "command_name": "deformable_pose",
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
-        weight=5.0,
-    )
-
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-2)
-    gripper_close = RewTerm(
-        func=mdp.gripper_close_action,
-        params={"action_name": "gripper_action"},
-        weight=-1.0,
-    )
-    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-1e-2)
-    joint_torque = RewTerm(func=mdp.joint_torques_l2, weight=-1e-4)
-    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-1e-4)
-
-
-@configclass
 class EventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
 
@@ -215,7 +155,6 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     # Basic settings
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
     events: EventCfg = EventCfg()
 
     def __post_init__(self) -> None:
