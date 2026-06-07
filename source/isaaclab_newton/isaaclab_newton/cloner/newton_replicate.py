@@ -37,7 +37,9 @@ def _build_newton_builder_from_mapping(
         positions: Optional per-environment world positions.
         quaternions: Optional per-environment orientations in xyzw order.
         up_axis: Up axis for the Newton model builder.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
+        simplify_meshes: Whether to honor per-shape ``physics:approximation`` tokens
+            authored on colliders during import. SDF colliders are never approximated
+            regardless of this flag.
 
     Returns:
         Tuple of the populated Newton model builder, stage metadata returned
@@ -85,16 +87,17 @@ def _build_newton_builder_from_mapping(
     for src_path in sources:
         p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
+        # Honor per-shape ``physics:approximation`` tokens so callers can opt
+        # individual mesh colliders into convex-hull or decomposition handling while
+        # leaving SDF and primitive colliders untouched.
         p.add_usd(
             stage,
             root_path=src_path,
             load_visual_shapes=True,
-            skip_mesh_approximation=True,
+            skip_mesh_approximation=not simplify_meshes,
             schema_resolvers=schema_resolvers,
             ignore_paths=_deformable_ignore_paths if _deformable_ignore_paths else None,
         )
-        if simplify_meshes:
-            p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
     # Inject registered sites into prototypes (and global sites into main builder)
@@ -286,7 +289,9 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         device: Device used by the finalized Newton model builder.
         up_axis: Up axis for the Newton model builder.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
+        simplify_meshes: Whether to honor per-shape ``physics:approximation`` tokens
+            authored on colliders during import. SDF colliders are never approximated
+            regardless of this flag.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
@@ -344,7 +349,9 @@ def newton_visualizer_prebuild(
         quaternions: Optional per-environment orientations in xyzw order.
         device: Device used by the finalized Newton model.
         up_axis: Up axis for the Newton model builder.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
+        simplify_meshes: Whether to honor per-shape ``physics:approximation`` tokens
+            authored on colliders during import. SDF colliders are never approximated
+            regardless of this flag.
 
     Returns:
         Tuple of finalized Newton model and state.
