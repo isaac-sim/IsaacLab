@@ -55,8 +55,8 @@ INSTALL_REQUIRES = [
     "psutil",
     # cross-platform file locking (used to serialize USD spawn across distributed ranks)
     "filelock",
-    # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
-    "typing_extensions>=4.14.0",
+    # keep consistent with isaac sim version
+    "typing_extensions==4.12.2",
     "lazy_loader>=0.4",
 ]
 
