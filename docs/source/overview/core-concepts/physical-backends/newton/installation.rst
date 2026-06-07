@@ -53,7 +53,7 @@ Ensure pip is up to date:
 
 .. code-block:: bash
 
-    uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+    uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
 Install the correct version of torch and torchvision:
 

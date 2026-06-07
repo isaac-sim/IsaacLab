@@ -82,7 +82,7 @@ BROAD_CASES = (
     Case("cartpole_rgb_direct", "Isaac-Cartpole-Camera-Direct", None, ("presets=rgb",)),
     Case("ant_manager", "Isaac-Ant"),
     Case("humanoid_manager", "Isaac-Humanoid", "rsl_rl_cfg_entry_point"),
-    Case("franka_reach", "Isaac-Reach-Franka-v0"),
+    Case("franka_reach", "Isaac-Reach-Franka"),
     Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka-v0", "sb3_cfg_entry_point"),
     Case("kuka_allegro_lift", "Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point"),
     Case(

@@ -5,9 +5,9 @@
 
 import math
 
+import isaaclab.envs.mdp as mdp
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.core.reach.mdp as mdp
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 
 ##

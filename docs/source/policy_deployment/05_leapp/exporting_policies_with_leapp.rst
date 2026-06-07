@@ -104,7 +104,7 @@ For example, to export a UR10 reach policy:
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-             --task Isaac-Reach-UR10-v0 \
+             --task Isaac-Reach-UR10 \
              --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -113,7 +113,7 @@ For example, to export a UR10 reach policy:
       .. code-block:: batch
 
          isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-             --task Isaac-Reach-UR10-v0 ^
+             --task Isaac-Reach-UR10 ^
              --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The

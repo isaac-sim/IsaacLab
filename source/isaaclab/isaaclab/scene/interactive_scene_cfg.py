@@ -3,9 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from .interactive_scene import InteractiveScene
 
 
 @configclass
@@ -65,6 +71,12 @@ class InteractiveSceneCfg:
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 500.0)),
             )
 
+    """
+
+    class_type: type[InteractiveScene] | str = "{DIR}.interactive_scene:InteractiveScene"
+    """The class to use for the interactive scene.
+
+    Defaults to :class:`isaaclab.scene.InteractiveScene`.
     """
 
     num_envs: int = MISSING

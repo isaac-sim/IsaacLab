@@ -13,7 +13,7 @@ class FrankaReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 1000
     save_interval = 50
-    experiment_name = "franka_reach"
+    experiment_name = "reach_franka"
     run_name = ""
     actor = RslRlMLPModelCfg(
         hidden_dims=[64, 64],
