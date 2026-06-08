@@ -199,7 +199,7 @@ def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dt
         actor_state = (zeros.clone(), zeros.clone())
     else:
         actor_state = zeros
-    memory.hidden_state = actor_state
+    memory.hidden_states = actor_state
     return actor_state
 
 
@@ -329,7 +329,7 @@ def export_rsl_rl_agent(
                     )
                     actor_memory = get_actor_memory_module(policy_nn)
                     if actor_memory is not None:
-                        actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
+                        actor_memory.hidden_states = actor_hidden_from_registered(registered_state, actor_hidden)
 
                 actions = policy(obs)
 
