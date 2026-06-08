@@ -14,12 +14,3 @@ Added
   the caller doesn't pass ``device=``. Lets the multi-GPU CI workflow
   boot Kit on a non-default GPU without editing every test's
   :class:`~isaaclab.app.AppLauncher` call site.
-
-* Added ``py-spy`` + ``gdb`` stack capture in ``tools/conftest.py`` on
-  ``shutdown_hang`` / ``startup_hang`` / ``timeout`` detection. Walks the test
-  subprocess's process group (cap 8 pids), captures both Python and C++ frames
-  before ``SIGKILL`` erases them, attaches the output to the JUnit error
-  report. Makes Kit binary hangs observable in CI logs; safe no-op when
-  ``py-spy``/``gdb`` are missing. Workflow side adds ``--cap-add=SYS_PTRACE``
-  on the per-shard ``docker run`` (required to attach) and adds ``py-spy`` to
-  the in-container ``pip install`` list.

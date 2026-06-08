@@ -25,7 +25,7 @@
 # is set to the comma-separated MIG-UUID list only on MIG-mode hosts; discrete
 # runners rely on ``--gpus all``.
 
-set +e
+set +e  # keep going on errors so the reconciler below always runs and reports
 host_uid="$(id -u)"
 host_gid="$(id -g)"
 host_user="$(id -un)"
@@ -37,6 +37,7 @@ host_user="$(id -un)"
 # — no concurrent creators.
 rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
 
+# unique per-run temp dir (RUNNER_TEMP if set, else /tmp; XXXXXX -> random suffix)
 runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mgpu-runtime.XXXXXX")"
 mkdir -p "$runtime_dir"
 
@@ -57,11 +58,11 @@ mkdir -p "$runtime_dir"
 # claimed but crashed mid-test).
 queue_root="$runtime_dir/queue"
 mkdir -p "$queue_root/queue" "$queue_root/inflight" "$queue_root/done"
-IFS=',' read -ra _paths <<< "$PATHS"
+IFS=',' read -ra _paths <<< "$PATHS"  # split the comma-separated PATHS into the _paths array
 for path in "${_paths[@]}"; do
-  [ -n "$path" ] || continue
-  slug="${path//\//__}"
-  : > "$queue_root/queue/$slug"
+  [ -n "$path" ] || continue          # skip empty entries (PATHS has a trailing comma)
+  slug="${path//\//__}"               # flatten to a filename: replace every '/' with '__'
+  : > "$queue_root/queue/$slug"       # create an empty marker file (':' = no-op, '>' creates it)
 done
 echo "::notice::seeded work queue with $(ls -1 "$queue_root/queue" | wc -l) entries"
 
@@ -75,17 +76,17 @@ mkdir -p "$logs_dir"
 # same parent GPU.
 cvd_args=()
 if nvidia-smi -L | grep -q "^  MIG "; then
+  # read each MIG slice's UUID into the MIGS array (one element per line)
   mapfile -t MIGS < <(nvidia-smi -L | awk -F'UUID: ' '/^  MIG /{print $2}' | tr -d ')')
-  MIG_LIST=$(IFS=,; echo "${MIGS[*]}")
-  cvd_args=(-e "CUDA_VISIBLE_DEVICES=${MIG_LIST}")
+  MIG_LIST=$(IFS=,; echo "${MIGS[*]}")               # join the array into a comma-separated string
+  cvd_args=(-e "CUDA_VISIBLE_DEVICES=${MIG_LIST}")    # stays empty on discrete hosts -> no flag added
   echo "::notice::MIG mode: ${#MIGS[@]} slices — overriding CUDA_VISIBLE_DEVICES"
 else
   echo "::notice::discrete GPU mode — relying on --gpus all"
 fi
 
-# --cap-add=SYS_PTRACE for py-spy/gdb hang capture in conftest.
+# "${cvd_args[@]}" expands to the CUDA_VISIBLE_DEVICES flag on MIG hosts, nothing otherwise.
 docker run --rm --gpus all --network=host \
-  --cap-add=SYS_PTRACE \
   --entrypoint bash \
   --user "${host_uid}:${host_gid}" \
   --name "isaac-lab-mgpu-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
@@ -110,11 +111,11 @@ docker run --rm --gpus all --network=host \
   -v "$PWD/.github/actions/multi-gpu/multi_gpu_shard_runner.sh:/multi_gpu_shard_runner.sh:ro" \
   "$IMAGE_TAG" \
   /multi_gpu_shard_runner.sh
-docker_rc=$?
+docker_rc=$?  # $? = exit code of the docker run above
 
 # Grouped re-print of per-shard logs (preserved across the host).
 for log in "$logs_dir"/cuda-*.log; do
-  cuda=$(basename "$log" .log | sed s/cuda-//)
+  cuda=$(basename "$log" .log | sed s/cuda-//)  # extract N from "cuda-N.log"
   echo "::group::shard cuda:${cuda} log"
   cat "$log"
   echo "::endgroup::"
@@ -126,19 +127,19 @@ done
 # silent-drop signal that the docker exit alone can't surface. Fail the job and
 # name the orphans.
 echo "::group::work-queue reconciler"
-unclaimed=$(ls -1 "$queue_root/queue" 2>/dev/null | wc -l)
+unclaimed=$(ls -1 "$queue_root/queue" 2>/dev/null | wc -l)  # files still pending (never claimed)
 if [ "$unclaimed" -gt 0 ]; then
   echo "::error::${unclaimed} test(s) never claimed by any shard:"
-  ls -1 "$queue_root/queue" | sed 's|__|/|g; s/^/  /'
+  ls -1 "$queue_root/queue" | sed 's|__|/|g; s/^/  /'  # decode '__' back to '/', indent for the log
 fi
 orphans=0
-for shard_dir in "$queue_root/inflight"/*/; do
-  [ -d "$shard_dir" ] || continue
+for shard_dir in "$queue_root/inflight"/*/; do  # each inflight/<shard>/ dir (the /*/ matches dirs only)
+  [ -d "$shard_dir" ] || continue               # skip if the glob matched nothing
   count=$(ls -1 "$shard_dir" 2>/dev/null | wc -l)
   if [ "$count" -gt 0 ]; then
     echo "::error::$(basename "$shard_dir") claimed but never finished ${count} test(s):"
-    ls -1 "$shard_dir" | sed 's|__|/|g; s/^/  /'
-    orphans=$((orphans + count))
+    ls -1 "$shard_dir" | sed 's|__|/|g; s/^/  /'  # decode '__' back to '/', indent
+    orphans=$((orphans + count))                  # $(( )) = integer arithmetic
   fi
 done
 done_total=$(find "$queue_root/done" -type f 2>/dev/null | wc -l)
@@ -148,11 +149,11 @@ echo "::endgroup::"
 # Treat reconciler signals as fatal even if all shards exited 0.
 if [ "$unclaimed" -gt 0 ] || [ "$orphans" -gt 0 ]; then
   echo "::error::silent-drop detected — see reconciler group above"
-  [ "$docker_rc" -eq 0 ] && docker_rc=2
+  [ "$docker_rc" -eq 0 ] && docker_rc=2  # clean docker exit but drops found -> force a non-zero code
 fi
 
 # Export the runtime directory so the downstream "Aggregated test summary" step
 # can locate the done/<shard>/<slug> work distribution and the per-shard logs.
-echo "MGPU_RUNTIME_DIR=$runtime_dir" >> "$GITHUB_ENV"
+echo "MGPU_RUNTIME_DIR=$runtime_dir" >> "$GITHUB_ENV"  # export to later workflow steps via GitHub's env file
 
 exit "$docker_rc"
