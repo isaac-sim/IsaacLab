@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -47,6 +47,10 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
+        num_substeps=2,
+    )
 
     default = physx
 
@@ -69,7 +73,7 @@ class TableCfg(PresetCfg):
     newton_mjwarp: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Table",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.5, 0.15, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
+            pos=(0.5, 0, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
         ),
         spawn=sim_utils.CuboidCfg(
             size=(0.9, 1.3, 1.00),
@@ -80,6 +84,7 @@ class TableCfg(PresetCfg):
         articulation_root_prim_path="",
     )
 
+    newton_kamino = newton_mjwarp
     default = physx
 
 

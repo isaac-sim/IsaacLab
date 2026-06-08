@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -38,6 +38,7 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 

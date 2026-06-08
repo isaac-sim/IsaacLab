@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -42,6 +42,7 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
 
 
 ##
