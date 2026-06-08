@@ -131,7 +131,7 @@ Next Steps
 ----------
 
 - List registered environments: ``python scripts/environments/list_envs.py``
-- Scaffold a new project: ``./isaaclab.sh --new``
+- Scaffold a new project: ``./isaaclab.sh --new`` (Linux) or ``isaaclab.bat --new`` (Windows)
 - Walk through tutorials: :doc:`/source/tutorials/index`
 - Browse all environments: :doc:`/source/overview/environments`
 
