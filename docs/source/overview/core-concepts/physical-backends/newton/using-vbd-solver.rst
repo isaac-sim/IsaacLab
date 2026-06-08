@@ -73,7 +73,7 @@ MJWarp and VBD:
     :language: python
     :start-at: class PhysicsCfg
     :end-at: default = newton_mjwarp_vbd
-    :emphasize-lines: 4-32
+    :emphasize-lines: 3-15
 
 The important pieces are:
 
