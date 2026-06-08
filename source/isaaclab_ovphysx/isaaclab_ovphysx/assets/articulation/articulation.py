@@ -23,6 +23,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -30,6 +31,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
+from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .articulation_data import ArticulationData
@@ -84,6 +86,8 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_ovphysx_replication(cfg)
         # bindings are populated eagerly in ``_initialize_impl``; the dict
         # also caches any tensor type the user explicitly queries later
         self._bindings: dict[int, Any] = {}

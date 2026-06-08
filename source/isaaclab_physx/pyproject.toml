@@ -16,9 +16,7 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "physx"]
 requires-python = ">=3.12"
-dependencies = [
-    "isaaclab_ppisp",
-]
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
@@ -26,7 +24,7 @@ Repository = "https://github.com/isaac-sim/IsaacLab"
 
 [project.optional-dependencies]
 newton = [
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.1rc2",
+    "newton[sim]==1.2.1",
 ]
 
 [tool.setuptools]

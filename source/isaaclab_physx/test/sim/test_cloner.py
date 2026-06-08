@@ -17,17 +17,37 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.cloner import physx_replicate
+from isaaclab_physx.cloner import PhysxReplicateContext, physx_replicate
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
     _fabric_notices,
     disabled_fabric_change_notifies,
-    make_clone_plan,
     sequential,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
+
+
+def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str, device: str):
+    """Build a flat (sources, destinations, clone_mask) tuple for tests using sequential mapping.
+
+    The PhysX test_cloner tests intentionally bypass cfg-driven planning and exercise
+    physx_replicate / usd_replicate against a hand-built per-variant mask. This helper
+    captures the small amount of flat-plan logic the tests need without re-introducing
+    the legacy ``make_clone_plan(sources, destinations, num_clones, ...)`` signature.
+    """
+    chosen = sequential(
+        torch.arange(num_variants, dtype=torch.long, device=device).unsqueeze(1),
+        num_clones,
+        device,
+    ).view(-1)
+    mask = torch.zeros((num_variants, num_clones), dtype=torch.bool, device=device)
+    mask[chosen, torch.arange(num_clones, device=device)] = True
+    sources = tuple(destination.format(i) for i in range(num_variants))
+    destinations = tuple([destination] * num_variants)
+    return sources, destinations, mask
+
 
 wp.init()
 
@@ -107,6 +127,29 @@ def _make_mock_physx_rep_detailed():
     return mock_rep, replicate_calls, attach_excluded
 
 
+def test_physx_replicate_context_queue_and_replicate(sim):
+    """PhysxReplicateContext queues mapping rows and replicates them through attach_end_fn."""
+    from unittest.mock import patch
+
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/envs", "Xform")
+    for i in range(3):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
+
+    mock_rep, replicate_calls = _make_mock_physx_rep()
+    with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
+        ctx = PhysxReplicateContext(stage)
+        ctx.queue_mapping(
+            sources=["/World/envs/env_0/Object"],
+            destinations=["/World/envs/env_{}/Object"],
+            env_ids=torch.arange(3, dtype=torch.long),
+            mapping=torch.ones((1, 3), dtype=torch.bool),
+        )
+        ctx.replicate()
+
+    assert replicate_calls == [2]
+
+
 @pytest.mark.parametrize(
     "num_envs,src,expected_worlds",
     [
@@ -135,7 +178,7 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
     mock_rep, replicate_calls = _make_mock_physx_rep()
-    with patch("isaaclab_physx.cloner.physx_replicate.get_physx_replicator_interface", return_value=mock_rep):
+    with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         physx_replicate(
             stage,
             sources=[src],
@@ -217,7 +260,7 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
     mapping[2, [7, 11]] = True
 
     mock_rep, replicate_calls, attach_excluded = _make_mock_physx_rep_detailed()
-    with patch("isaaclab_physx.cloner.physx_replicate.get_physx_replicator_interface", return_value=mock_rep):
+    with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         physx_replicate(
             stage,
             sources=["/World/envs/env_0/Object", "/World/envs/env_5/Object", "/World/envs/env_7/Object"],
@@ -271,15 +314,13 @@ def test_direct_clone_plan_multi_asset(sim):
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
     )
-    sources, destinations, clone_mask = make_clone_plan(
-        [[f"/World/envs/env_{i}/Object" for i in range(len(cfg.assets_cfg))]],
-        ["/World/envs/env_{}/Object"],
-        num_clones,
-        sequential,
-        sim.cfg.device,
+    sources, destinations, clone_mask = _make_flat_clone_plan(
+        num_variants=len(cfg.assets_cfg),
+        num_clones=num_clones,
+        destination="/World/envs/env_{}/Object",
+        device=sim.cfg.device,
     )
-    spawn_paths: list[str | None] = list(sources)
-    cfg.spawn_paths = spawn_paths
+    cfg.spawn_paths = list(sources)
     prim = cfg.func("/World/unused", cfg)
     assert prim.IsValid()
 
@@ -315,16 +356,14 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
 
     num_variants = len(asset_cfg.assets_cfg) if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg) else 1
-    sources, destinations, clone_mask = make_clone_plan(
-        [[f"/World/envs/env_{i}/Object" for i in range(num_variants)]],
-        ["/World/envs/env_{}/Object"],
-        num_clones,
-        sequential,
-        sim.cfg.device,
+    sources, destinations, clone_mask = _make_flat_clone_plan(
+        num_variants=num_variants,
+        num_clones=num_clones,
+        destination="/World/envs/env_{}/Object",
+        device=sim.cfg.device,
     )
     if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg):
-        spawn_paths: list[str | None] = list(sources)
-        asset_cfg.spawn_paths = spawn_paths
+        asset_cfg.spawn_paths = list(sources)
         prim = asset_cfg.func("/World/unused", asset_cfg)
     else:
         prim = asset_cfg.func(sources[0], asset_cfg)

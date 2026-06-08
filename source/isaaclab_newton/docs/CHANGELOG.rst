@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.15.3 (2026-06-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale Newton sensor site registrations leaking across simulation context teardown.
+
+
 0.15.2 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~~
 
