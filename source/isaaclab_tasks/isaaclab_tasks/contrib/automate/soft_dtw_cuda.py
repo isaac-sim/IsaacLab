@@ -27,13 +27,46 @@
 # ----------------------------------------------------------------------------------------------------------------------
 
 import math
+import warnings
 
-import numba.cuda as cuda
 import numpy as np
 import torch
 import torch.cuda
-from numba import jit, prange
 from torch.autograd import Function
+
+
+def _identity_jit(*jit_args, **jit_kwargs):
+    """Return the wrapped function unchanged when Numba is unavailable."""
+    if jit_args and callable(jit_args[0]) and len(jit_args) == 1 and not jit_kwargs:
+        return jit_args[0]
+
+    def decorator(func):
+        return func
+
+    return decorator
+
+
+try:
+    from numba import jit, prange
+except (AttributeError, ImportError):
+    jit = _identity_jit
+    prange = range
+
+try:
+    import numba.cuda as cuda
+except (AttributeError, ImportError) as exc:
+    _CUDA_IMPORT_ERROR = exc
+
+    class _UnavailableCuda:
+        @staticmethod
+        def jit(*jit_args, **jit_kwargs):
+            return _identity_jit(*jit_args, **jit_kwargs)
+
+    cuda = _UnavailableCuda()
+else:
+    _CUDA_IMPORT_ERROR = None
+
+_CUDA_FALLBACK_WARNED = False
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -316,6 +349,8 @@ class SoftDTW(torch.nn.Module):
         """
         Checks the inputs and selects the proper implementation to use.
         """
+        global _CUDA_FALLBACK_WARNED
+
         bx, lx, dx = x.shape
         by, ly, dy = y.shape
         # Make sure the dimensions match
@@ -323,6 +358,18 @@ class SoftDTW(torch.nn.Module):
         assert dx == dy  # Equal feature dimensions
 
         use_cuda = self.use_cuda
+
+        if use_cuda and _CUDA_IMPORT_ERROR is not None:
+            if not _CUDA_FALLBACK_WARNED:
+                warnings.warn(
+                    "SoftDTW CUDA backend is unavailable because numba.cuda failed to import "
+                    f"({type(_CUDA_IMPORT_ERROR).__name__}: {_CUDA_IMPORT_ERROR}). "
+                    "Falling back to CPU SoftDTW.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                _CUDA_FALLBACK_WARNED = True
+            use_cuda = False
 
         if use_cuda and (lx > 1024 or ly > 1024):  # We should be able to spawn enough threads in CUDA
             print(
