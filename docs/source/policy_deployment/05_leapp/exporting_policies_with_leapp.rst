@@ -285,12 +285,28 @@ Run the deployment script with the task name and the exported LEAPP ``.yaml`` fi
 By default, Isaac Lab launches headless when no visualization option is selected. If you expect
 to see the policy running in a viewport, pass a visualization option such as ``--viz kit``:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
-       --task <TASK_NAME> \
-       --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz kit
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
+             --task <TASK_NAME> \
+             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+             --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
+             --task <TASK_NAME> ^
+             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+             --viz kit
 
 For Direct workflow policies, see the
 :doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.
