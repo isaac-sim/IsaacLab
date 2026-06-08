@@ -136,15 +136,48 @@ pre-processed URDF and the original URDF are:
 The following shows the steps to clone the repository and run the converter:
 
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   # clone a repository with URDF files
-   git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-   # go to top of the Isaac Lab repository
-   cd IsaacLab
-   # run the converter
-   python scripts/tools/convert_urdf.py ../anymal_d_simple_description/urdf/anymal.urdf source/isaaclab_assets/data/Robots/ANYbotics/ --merge-joints --joint-stiffness 0.0 --joint-damping 0.0 --joint-target-type none --viz kit
+      .. code-block:: bash
+
+         # clone a repository with URDF files
+         git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         python scripts/tools/convert_urdf.py \
+           ../anymal_d_simple_description/urdf/anymal.urdf \
+           source/isaaclab_assets/data/Robots/ANYbotics/ \
+           --merge-joints \
+           --joint-stiffness 0.0 \
+           --joint-damping 0.0 \
+           --joint-target-type none \
+           --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         :: clone a repository with URDF files
+         git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         python scripts\tools\convert_urdf.py ^
+           ..\anymal_d_simple_description\urdf\anymal.urdf ^
+           source\isaaclab_assets\data\Robots\ANYbotics\ ^
+           --merge-joints ^
+           --joint-stiffness 0.0 ^
+           --joint-damping 0.0 ^
+           --joint-target-type none ^
+           --viz kit
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -257,15 +290,42 @@ In this example, we use the MuJoCo model of the Unitree's H1 humanoid robot in t
 The following shows the steps to clone the repository and run the converter:
 
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   # clone a repository with MJCF files
-   git clone git@github.com:google-deepmind/mujoco_menagerie.git
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-   # go to top of the Isaac Lab repository
-   cd IsaacLab
-   # run the converter
-   python scripts/tools/convert_mjcf.py ../mujoco_menagerie/unitree_h1/h1.xml source/isaaclab_assets/data/Robots/Unitree/h1.usd --merge-mesh --viz kit
+      .. code-block:: bash
+
+         # clone a repository with MJCF files
+         git clone git@github.com:google-deepmind/mujoco_menagerie.git
+
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         python scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --merge-mesh \
+           --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         :: clone a repository with MJCF files
+         git clone git@github.com:google-deepmind/mujoco_menagerie.git
+
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         python scripts\tools\convert_mjcf.py ^
+           ..\mujoco_menagerie\unitree_h1\h1.xml ^
+           source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
+           --merge-mesh ^
+           --viz kit
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -366,15 +426,44 @@ Example Usage
 We use an OBJ file of a cube to demonstrate the usage of the mesh converter. The following shows
 the steps to clone the repository and run the converter:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   # clone a repository with mesh files
-   git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-   # go to top of the Isaac Lab repository
-   cd IsaacLab
-   # run the converter
-   python scripts/tools/convert_mesh.py ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd --make-instanceable --collision-approximation convexDecomposition --mass 1.0
+      .. code-block:: bash
+
+         # clone a repository with mesh files
+         git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         python scripts/tools/convert_mesh.py \
+           ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
+           source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+           --make-instanceable \
+           --collision-approximation convexDecomposition \
+           --mass 1.0
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         :: clone a repository with mesh files
+         git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         python scripts\tools\convert_mesh.py ^
+           ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
+           source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
+           --make-instanceable ^
+           --collision-approximation convexDecomposition ^
+           --mass 1.0
 
 You may need to press 'F' to zoom in on the asset after import.
 
