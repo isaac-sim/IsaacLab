@@ -208,7 +208,7 @@ class TaskSpaceEventCfg:
             "plug_cfg": SceneEntityCfg("dp_plug"),
             "socket_cfg": SceneEntityCfg("dp_socket"),
             "at_goal_prob": 0.8,
-            "insertion_axis": [0.0, 0.0, -1.0],
+            "insertion_axis": [1.0, 0.0, 0.0],
             "insertion_length": _INSERTION_LENGTH,
             "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
             "plug_insertion_offset": PLUG_INSERTION_OFFSET,
@@ -285,9 +285,7 @@ class Rizon4sTaskSpaceDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
         # EEF / grasp settings (same as joint-space variant)
         self.end_effector_body_name = "flange"
         self.num_arm_joints = 7
-        # CALIBRATE: flange position in the DisplayPort plug's local frame
-        # (see joint_pos_env_cfg.py). Verify the grasp in sim before training.
-        self.grasp_offset = [0.0, 0.0, -0.17]
+        self.grasp_offset = [0.0025, 0.0, -0.1875]
         self.grasp_rot_offset = [0.0, 0.0, 0.0, 1.0]
         self.gripper_joint_setter_func = set_finger_joint_pos_grav
 
