@@ -12,6 +12,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
@@ -124,6 +125,7 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the navigation environment."""
 
     # environment settings
+    sim: SimulationCfg = LOW_LEVEL_ENV_CFG.sim
     scene: SceneEntityCfg = LOW_LEVEL_ENV_CFG.scene
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
