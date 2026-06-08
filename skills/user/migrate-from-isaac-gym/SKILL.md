@@ -47,7 +47,7 @@ For skill changes, run:
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/direct_ant/` and `source/isaaclab_tasks/isaaclab_tasks/core/direct_humanoid/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/` and `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 

@@ -38,7 +38,7 @@ Use camera or tiled-camera examples before adding visual observations to trainin
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/cartpole_camera_presets_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py`
 - `docs/source/tutorials/04_sensors/add_sensors_on_robot.rst`
 
 Validation checklist:

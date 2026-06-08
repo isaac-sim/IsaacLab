@@ -106,4 +106,4 @@ Inspect these maintained examples before adding new preset patterns:
 
 - `source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py`
-- `source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/cartpole_camera_presets_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py`

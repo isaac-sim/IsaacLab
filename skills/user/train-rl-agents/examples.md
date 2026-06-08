@@ -64,7 +64,6 @@ Resume example:
 
 Agent configs live near the task implementation, for example:
 
-- `source/isaaclab_tasks/isaaclab_tasks/core/manager_cartpole/agents/`
-- `source/isaaclab_tasks/isaaclab_tasks/core/direct_cartpole/agents/`
+- `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/agents/`
 
 Do not mix framework formats: RSL-RL configs are Python classes, while RL-Games, SKRL, and SB3 commonly use YAML or framework-specific config files.
