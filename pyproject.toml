@@ -220,7 +220,7 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-override-dependencies = ["numpy>=2"]
+override-dependencies = ["numpy>=2,<2.5"]
 python-preference = "only-managed"
 package = false
 
