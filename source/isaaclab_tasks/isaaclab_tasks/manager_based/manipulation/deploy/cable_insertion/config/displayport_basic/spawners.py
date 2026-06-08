@@ -168,17 +168,16 @@ def spawn_usd_with_physics(
 
     # Pick the mesh collision approximation per body.
     #
-    # Socket (kinematic): an exact triangle-mesh collider preserves the concave
-    # receptacle cavity (a convex hull would fill the opening, leaving no hole
-    # for the blade). Triangle mesh also does not require a watertight surface,
-    # which the converted CAD meshes are not.
+    # Socket (kinematic): exact triangle-mesh preserves the concave receptacle
+    # cavity (a convex hull would fill the opening). Triangle mesh also does not
+    # require a watertight surface, which the converted CAD meshes are not.
     #
-    # Plug (dynamic): must use SDF, not a convex approximation. The blade (Body1)
-    # is a hollow shroud whose recess RECEIVES the socket tongue (Body5); a convex
-    # hull fills that recess solid (it spans 92% of the blade bbox) and rams the
-    # tongue, ejecting the plug. SDF preserves the concave recess. PhysX forbids
-    # triangle-mesh colliders on dynamic bodies, so SDF is the only concave option.
-    # High resolution is needed for the connector's thin shroud / fine features.
+    # Plug (dynamic): convexDecomposition. ConvexHull fills the blade shroud recess
+    # solid (spans 92% of bbox) and rams the socket tongue (Body5), ejecting the
+    # plug. SDF at 512 resolution is leaky on the 0.4 mm shroud walls, causing the
+    # plug to float or fall through. ConvexDecomposition gives solid convex pieces
+    # (reliable contact) while preserving the gross concavity of the blade recess
+    # and overmold underside so they mate correctly with the socket.
     is_kinematic = cfg.rigid_props is not None and bool(cfg.rigid_props.kinematic_enabled)
     if is_kinematic:
         mesh_collision_cfg = schemas_cfg.TriangleMeshPropertiesCfg()
