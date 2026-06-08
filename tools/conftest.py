@@ -518,6 +518,19 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
 
+        # Multi-GPU lane only: make the device-selection plugin importable in this
+        # per-file subprocess (injected via ``-p`` below, not as a repo-root
+        # conftest). Detect a shard by the runtime device mask excluding cpu
+        # (position 0) and cuda:0 (position 1) -- the same ISAACLAB_TEST_DEVICES the
+        # plugin and test_devices() read. The plugin re-checks this; the cheap
+        # prefix test here leaves single-GPU CI's command (mask unset or "11...")
+        # unchanged.
+        _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
+        _inject_shard_select = _mask[:2] == "00"
+        if _inject_shard_select:
+            _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
+            env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
+
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
         # Read the test file once for cold-cache check.
@@ -559,6 +572,11 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             f"--junitxml={report_file}",
             "--tb=short",
         ]
+        if _inject_shard_select:
+            cmd += [
+                "-p",
+                "mgpu_shard_select",
+            ]  # multi-GPU lane test-selection plugin (importable via PYTHONPATH set above)
 
         if isaacsim_ci:
             cmd.append("-m")

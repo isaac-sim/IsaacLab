@@ -6,8 +6,8 @@
 """Test-time helpers for Isaac Lab.
 
 Exposes :func:`test_devices` for selecting the device list to parametrize tests
-over. The set is ``scope ∩ budget``: ``scope`` is the call-site argument (the
-devices the test is valid on), ``budget`` is the ``ISAACLAB_TEST_DEVICES`` env
+over. The set is ``scope ∩ runtime``: ``scope`` is the call-site argument (the
+devices the test is valid on), the runtime is the ``ISAACLAB_TEST_DEVICES`` env
 var (the devices the run may use).
 """
 
