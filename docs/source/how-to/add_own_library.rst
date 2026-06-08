@@ -48,16 +48,16 @@ For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output
 
 .. code-block:: bash
 
-  Name: rsl_rl
-  Version: 3.0.1
-  Summary: Fast and simple RL algorithms implemented in pytorch
-  Home-page: https://github.com/leggedrobotics/rsl_rl
-  Author: ETH Zurich, NVIDIA CORPORATION
-  Author-email:
-  License: BSD-3
-  Location: /home/user/git/rsl_rl
-  Requires: torch, torchvision, numpy, GitPython, onnx
-  Required-by:
+   Name: rsl_rl
+   Version: 3.0.1
+   Summary: Fast and simple RL algorithms implemented in pytorch
+   Home-page: https://github.com/leggedrobotics/rsl_rl
+   Author: ETH Zurich, NVIDIA CORPORATION
+   Author-email:
+   License: BSD-3
+   Location: /home/user/git/rsl_rl
+   Requires: torch, torchvision, numpy, GitPython, onnx
+   Required-by:
 
 
 Integrating a new library

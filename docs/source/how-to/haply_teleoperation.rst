@@ -184,13 +184,10 @@ Customize the demo with command-line arguments:
 .. code:: bash
 
    # Use custom WebSocket URI
-   python scripts/demos/haply_teleoperation.py \
-       --websocket_uri ws://192.168.1.100:10001
+   python scripts/demos/haply_teleoperation.py --websocket_uri ws://192.168.1.100:10001
 
    # Adjust position sensitivity (default: 1.0)
-   python scripts/demos/haply_teleoperation.py \
-        --websocket_uri ws://localhost:10001 \
-        --pos_sensitivity 2.0
+   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
 
 Demo Features
 ~~~~~~~~~~~~~

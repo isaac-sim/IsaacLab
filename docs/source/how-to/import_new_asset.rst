@@ -144,14 +144,7 @@ The following shows the steps to clone the repository and run the converter:
    # go to top of the Isaac Lab repository
    cd IsaacLab
    # run the converter
-   python scripts/tools/convert_urdf.py \
-     ../anymal_d_simple_description/urdf/anymal.urdf \
-     source/isaaclab_assets/data/Robots/ANYbotics/ \
-     --merge-joints \
-     --joint-stiffness 0.0 \
-     --joint-damping 0.0 \
-     --joint-target-type none \
-     --viz kit
+   python scripts/tools/convert_urdf.py ../anymal_d_simple_description/urdf/anymal.urdf source/isaaclab_assets/data/Robots/ANYbotics/ --merge-joints --joint-stiffness 0.0 --joint-damping 0.0 --joint-target-type none --viz kit
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -272,11 +265,7 @@ The following shows the steps to clone the repository and run the converter:
    # go to top of the Isaac Lab repository
    cd IsaacLab
    # run the converter
-   python scripts/tools/convert_mjcf.py \
-     ../mujoco_menagerie/unitree_h1/h1.xml \
-     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-     --merge-mesh \
-     --viz kit
+   python scripts/tools/convert_mjcf.py ../mujoco_menagerie/unitree_h1/h1.xml source/isaaclab_assets/data/Robots/Unitree/h1.usd --merge-mesh --viz kit
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -385,12 +374,7 @@ the steps to clone the repository and run the converter:
    # go to top of the Isaac Lab repository
    cd IsaacLab
    # run the converter
-   python scripts/tools/convert_mesh.py \
-     ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-     source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
-     --make-instanceable \
-     --collision-approximation convexDecomposition \
-     --mass 1.0
+   python scripts/tools/convert_mesh.py ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd --make-instanceable --collision-approximation convexDecomposition --mass 1.0
 
 You may need to press 'F' to zoom in on the asset after import.
 

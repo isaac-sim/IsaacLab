@@ -54,8 +54,7 @@ In standalone Isaac Lab environments, pass the ``--disable_fabric`` flag:
 
 .. code-block:: bash
 
-   python scripts/environments/state_machine/lift_cube_sm.py \
-     --num_envs 8 --device cpu --disable_fabric --viz kit
+   python scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric --viz kit
 
 After launching, the Isaac Lab UI window will display a "Record Animation" button.
 Click to begin recording. Click again to stop.
@@ -115,10 +114,7 @@ To record an animation:
 
 .. code-block:: bash
 
-   python scripts/tutorials/03_envs/run_cartpole_rl_env.py \
-     --anim_recording_enabled \
-     --anim_recording_start_time 1 \
-     --anim_recording_stop_time 3
+   python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3
 
 .. note::
 
