@@ -303,7 +303,11 @@ class ExportPatcher:
                         group_name,
                         term_name,
                         observation_input_semantics,
+                        term_cfg,
                     )
+                    term_cfg.modifiers = None
+                    term_cfg.clip = None
+                    term_cfg.scale = None
                 elif func_name == "last_action":
                     self._uses_last_action_state = True
                     term_cfg.func = self._wrap_last_action(original_func)
@@ -326,13 +330,25 @@ class ExportPatcher:
 
         obs_manager.compute = patched_compute
 
-    def _wrap_observation_input(self, original_func, real_env, group_name: str, term_name: str, semantics):
+    @staticmethod
+    def _apply_observation_post_processing(obs: torch.Tensor, term_cfg) -> torch.Tensor:
+        """Apply deterministic observation post-processing configured on a term."""
+        if term_cfg.modifiers is not None:
+            for modifier in term_cfg.modifiers:
+                obs = modifier.func(obs, **modifier.params)
+        if term_cfg.clip:
+            obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
+        if term_cfg.scale is not None:
+            obs = obs.mul_(term_cfg.scale)
+        return obs
+
+    def _wrap_observation_input(self, original_func, real_env, group_name: str, term_name: str, semantics, term_cfg):
         """Wrap a full observation term as an explicit LEAPP input tensor.
 
         Some policy inputs are task-level observation terms, not single raw
-        scene state properties. Calling the original term with the real env keeps
-        task-specific computation intact while making the term a live LEAPP
-        deployment input whenever the term opts in with LEAPP metadata.
+        scene state properties. Calling the original term with the real env and
+        applying deterministic post-processing keeps the configured observation
+        boundary intact while making the term a live LEAPP deployment input.
         """
         task_name = self.task_name
         element_names = resolve_leapp_element_names(semantics, original_func)
@@ -343,6 +359,7 @@ class ExportPatcher:
             else:
                 args = (real_env,)
             result = original_func(*args, **kwargs)
+            result = self._apply_observation_post_processing(result, term_cfg)
             sem = TensorSemantics(
                 name=term_name,
                 ref=result,

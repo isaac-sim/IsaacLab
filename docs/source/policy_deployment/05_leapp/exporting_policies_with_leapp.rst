@@ -188,6 +188,51 @@ configuration are needed.
      NumPy operations cannot be traced by LEAPP.
 
 
+Observation-Term Input Boundaries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, the manager-based export path discovers policy inputs by tracing observation terms
+through Isaac Lab proxies. This works well for standard observations that read annotated simulator
+state, such as ``robot.data.joint_pos`` or ``robot.data.joint_vel``. In those cases, the exported
+LEAPP input is the lower-level simulator state and any PyTorch preprocessing in the observation
+term is included in the exported graph.
+
+Some deployment workflows should expose a higher-level observation term instead of the simulator
+or task-internal tensors used to compute it. This is useful when the deployment system already
+produces the policy-facing observation value directly, or when the term depends on bookkeeping that
+should not become part of the exported runtime interface. In that case, mark the observation term
+with ``leapp_observation_input``:
+
+.. code-block:: python
+
+   from isaaclab.utils.leapp import XYZ_ELEMENT_NAMES, leapp_observation_input
+
+
+   @leapp_observation_input(kind="state/body/position", element_names=[XYZ_ELEMENT_NAMES])
+   class object_position_w(ManagerTermBase):
+       ...
+
+During export, Isaac Lab computes the configured observation term, applies deterministic
+post-processing such as modifiers, clipping, and scaling, disables observation noise, and registers
+that term value as the LEAPP input boundary. The generated metadata uses an
+``observation:{group}:{term}`` connection, for example:
+
+.. code-block:: text
+
+   observation:policy:gear_shaft_pos
+   observation:policy:gear_shaft_quat
+
+When running the exported policy with :class:`~envs.LeappDeploymentEnv`, Isaac Lab constructs an
+``ObservationManager`` only when the LEAPP YAML declares ``observation:*`` inputs and computes the
+named terms from the task configuration. External runtimes should provide the same term values with
+the same ordering, units, frames, and shape used by the policy observation group.
+
+For example, a gear assembly deployment may provide shaft pose from perception or calibration,
+while the training environment computes it from gear type state, fixture offsets, and environment
+origins. Marking ``gear_shaft_pos_w`` and ``gear_shaft_quat_w`` with
+``leapp_observation_input`` exports those final shaft-pose terms as the policy inputs.
+
+
 Verifying an Export
 -------------------
 
