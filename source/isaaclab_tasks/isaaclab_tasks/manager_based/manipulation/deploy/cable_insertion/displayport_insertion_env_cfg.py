@@ -361,7 +361,8 @@ class DisplayportInsertionEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         self.episode_length_s = 6.66
-        self.viewer.eye = (3.5, 3.5, 3.5)
+        self.viewer.eye = (0.5, -1.8, 1.2)
+        self.viewer.lookat = (0.5, 0.0, 0.5)
         self.decimation = 8
         self.sim.render_interval = self.decimation
         self.sim.dt = 1.0 / 240.0
