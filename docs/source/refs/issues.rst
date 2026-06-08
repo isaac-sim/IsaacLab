@@ -93,6 +93,32 @@ message and continue with terminating the process. On Windows systems, please us
 ``Ctrl+Break`` or ``Ctrl+fn+B`` to terminate the process.
 
 
+.. _known-issues-closed-loop-newton:
+
+Closed-loop articulations on Newton (e.g. Agility Digit)
+--------------------------------------------------------
+
+Robots whose USD encodes a closed kinematic loop -- such as the achilles rod and
+toe push-rods on the Agility Digit -- do not currently run correctly on the
+``newton_mjwarp`` physics preset, even though they work on ``physx``. This affects:
+
+* ``Isaac-Velocity-Flat-Digit-v0`` / ``Isaac-Velocity-Flat-Digit-Play-v0``
+* ``Isaac-Velocity-Rough-Digit-v0`` / ``Isaac-Velocity-Rough-Digit-Play-v0``
+* ``Isaac-Tracking-LocoManip-Digit-v0`` / ``Isaac-Tracking-LocoManip-Digit-Play-v0``
+
+The root cause sits inside Newton's :class:`~newton.selection.ArticulationView`. When
+it builds its per-link axis it walks each joint in the articulation's joint range and
+appends ``model.joint_child[joint_id]`` without deduplicating. A body that is the
+child of multiple joints (the standard closed-loop encoding) therefore occupies
+multiple slots on that axis, so ``view.link_count`` is larger than the number of
+unique physical bodies in the model. On Digit this is 49 link slots versus 43 actual
+bodies (the four loop-closed bodies -- left/right ``tarsus`` and left/right
+``toe_roll`` -- account for the six extra slots).
+
+Until the upstream fix lands in Newton, please use the ``physx`` preset for
+Digit-based environments.
+
+
 URDF Importer: Unresolved references for fixed joints
 -----------------------------------------------------
 

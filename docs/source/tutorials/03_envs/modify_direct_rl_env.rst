@@ -111,7 +111,7 @@ After the minor modification has been done, and similar to the previous tutorial
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-H1-Direct-v0 --headless
+  ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0 --headless
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
@@ -119,7 +119,7 @@ where you started the simulation.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
+  ./isaaclab.sh play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
 .. figure:: ../../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center

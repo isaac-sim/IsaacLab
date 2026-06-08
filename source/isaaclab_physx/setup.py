@@ -16,11 +16,13 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Minimum dependencies required prior to installation
-INSTALL_REQUIRES = [
-    # INTENTIONALLY disabled to avoid circular dependency with isaaclab_physx, which also depends on isaaclab_newton.
-    # This will be re-enabled once we move to UV and pyproject.toml-based packaging.
-    # f"isaaclab_newton @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_newton')}",
-]
+INSTALL_REQUIRES = ["isaaclab_ppisp"]
+
+EXTRAS_REQUIRE = {
+    "newton": [
+        "newton[sim]==1.2.1",
+    ],
+}
 
 # Installation operation
 setup(
@@ -34,8 +36,9 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.11",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     packages=[
         "isaaclab_physx",
         "isaaclab_physx.assets",
@@ -47,11 +50,14 @@ setup(
         "isaaclab_physx.cloner",
         "isaaclab_physx.physics",
         "isaaclab_physx.renderers",
-        "isaaclab_physx.scene_data_providers",
         "isaaclab_physx.sensors",
         "isaaclab_physx.sensors.contact_sensor",
         "isaaclab_physx.sensors.frame_transformer",
         "isaaclab_physx.sensors.imu",
+        "isaaclab_physx.sim",
+        "isaaclab_physx.sim.schemas",
+        "isaaclab_physx.sim.spawners",
+        "isaaclab_physx.sim.spawners.materials",
         "isaaclab_physx.test",
         "isaaclab_physx.test.benchmark",
         "isaaclab_physx.test.mock_interfaces",
@@ -60,10 +66,7 @@ setup(
     ],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

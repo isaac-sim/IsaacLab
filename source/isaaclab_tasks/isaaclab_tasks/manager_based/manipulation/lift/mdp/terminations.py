@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms
@@ -48,11 +47,11 @@ def object_reached_goal(
     # compute the desired position in the world frame
     des_pos_b = command[:, :3]
     # Convert to torch for combine_frame_transforms (robot data may be Warp arrays under Newton)
-    root_pos_w = wp.to_torch(robot.data.root_pos_w)
-    root_quat_w = wp.to_torch(robot.data.root_quat_w)
+    root_pos_w = robot.data.root_pos_w.torch
+    root_quat_w = robot.data.root_quat_w.torch
     des_pos_w, _ = combine_frame_transforms(root_pos_w, root_quat_w, des_pos_b)
     # distance of the end-effector to the object: (num_envs,)
-    object_pos_w = wp.to_torch(object.data.root_pos_w)
+    object_pos_w = object.data.root_pos_w.torch
     distance = torch.linalg.norm(des_pos_w - object_pos_w[:, :3], dim=1)
 
     # rewarded if the object is lifted above the threshold

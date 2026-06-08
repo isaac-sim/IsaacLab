@@ -1,6 +1,711 @@
 Changelog
 ---------
 
+1.1.1 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Fabric topology rebuild logging to debug level when tiled camera
+  visualizer updates refresh view mappings.
+* Bumped the ``newton[sim]`` pin used by the optional ``[newton]`` extra from ``v1.2.0`` to ``v1.2.1rc2``.
+
+Fixed
+^^^^^
+
+* Fixed excessive PhysX tensor warnings from Ant tasks with ``JointWrenchSensor``
+  by sourcing scene-data transforms for articulation links from Isaac Lab
+  articulation views instead of a global PhysX rigid-body view.
+
+
+1.1.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`, sourced from the Replicator ``HdrColor`` annotator.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch buffer and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+* Added a :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` override on :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` that authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each camera prim so RTX-side tonemapping does not double-process the ISP output.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sim.views.FabricFrameView` falling back to
+  the slow USD path on every CUDA device other than ``cuda:0``.  USDRT
+  ``SelectPrims`` now accepts any CUDA device index, so Fabric acceleration
+  runs on the simulation device the view was constructed with (e.g.
+  ``cuda:1``).  This unblocks distributed training where each rank is
+  pinned to a non-primary GPU.
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
+  :class:`~isaaclab_physx.sensors.Pva`, and :class:`~isaaclab_physx.sensors.JointWrenchSensor`
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each sensor's ``reset()`` now marks
+  the reset envs as up to date after zeroing ``_data``, so an immediate read returns those
+  zeros rather than re-fetching a physics buffer that has not been stepped since the reset.
+* Fixed PhysX scene-data rigid-body view creation to use exact rigid-body prim
+  paths, avoiding spurious warnings for assets whose joint prims share body names.
+* Restored wildcard PhysX scene-data rigid-body view patterns to keep Newton
+  visualizers updating live PhysX transforms.
+* Fixed PhysX tensor imports when using wheel-installed Isaac Sim packages.
+
+
+1.0.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX-specific deformable property and material cfgs.
+
+Changed
+^^^^^^^
+
+* Reworded the FF-routing comments in
+  :class:`~isaaclab_physx.assets.Articulation` to refer to "actuated DOFs"
+  rather than splitting on implicit vs explicit, since the
+  ``synch_torque_and_apply_implicit_feedforwards`` kernel operates on the full
+  actuated DOF set.
+* **Breaking:** Moved deformable body schema and material APIs from
+  :mod:`isaaclab_physx.sim` to :mod:`isaaclab.sim`, and moved deformable object
+  configuration from :mod:`isaaclab_physx.assets` to :mod:`isaaclab.assets`.
+  Import :class:`~isaaclab.sim.DeformableBodyPropertiesCfg`,
+  :func:`~isaaclab.sim.define_deformable_body_properties`,
+  :func:`~isaaclab.sim.modify_deformable_body_properties`,
+  :class:`~isaaclab.sim.DeformableObjectSpawnerCfg`,
+  :class:`~isaaclab.sim.DeformableBodyMaterialCfg`,
+  :class:`~isaaclab.sim.SurfaceDeformableBodyMaterialCfg`, and
+  :func:`~isaaclab.sim.spawn_deformable_body_material` from :mod:`isaaclab.sim`
+  instead of :mod:`isaaclab_physx.sim`; import
+  :class:`~isaaclab.assets.DeformableObjectCfg` from :mod:`isaaclab.assets`
+  instead of :mod:`isaaclab_physx.assets`.
+* Changed PhysX deformable API documentation to direct users to the
+  backend-neutral :mod:`isaaclab.assets` and :mod:`isaaclab.sim` imports.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated generic PhysX deformable cfg aliases in favor of
+  ``PhysxDeformableBodyPropertiesCfg``, ``PhysxDeformableBodyMaterialCfg``,
+  and ``PhysxSurfaceDeformableBodyMaterialCfg``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.DeformableObject` state writer methods
+  to accept ``ProxyArray`` inputs without requiring manual conversion.
+
+
+0.9.0 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX backend for :class:`~isaaclab.sensors.ray_caster.RayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster` /
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`. Sensor
+  body and tracked target meshes both run off ``RigidObjectView`` —
+  per-step compose via small warp kernels, no
+  :class:`~isaaclab_physx.sim.views.FabricFrameView` path. Static
+  parents/targets serve cached per-env ``wp.transformf`` arrays.
+
+Fixed
+^^^^^
+
+* Fixed all four ray-caster sensors (:class:`~isaaclab.sensors.ray_caster.RayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.RayCasterCamera`,
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCaster`,
+  :class:`~isaaclab.sensors.ray_caster.MultiMeshRayCasterCamera`) returning
+  their spawn-time pose forever when parented under a rigid body. Previous
+  path went through :class:`~isaaclab_physx.sim.views.FabricFrameView`
+  which regressed in #5179; the new backend reads body pose directly from
+  PhysX. The same fix applies to tracked target meshes
+  (``track_mesh_transforms=True``) parented under rigid bodies.
+* Fixed PhysX tracked target mesh updates to write directly into Warp mesh
+  pose tables instead of staging through torch views.
+
+
+0.8.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the optional ``[newton]`` extra to ``v1.2.0`` (stable) so the
+  pin matches :mod:`isaaclab_newton`.
+* Updated :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  accessed via ``.warp`` directly, avoiding intermediate :func:`warp.from_torch` conversions.
+
+
+0.7.1 (2026-05-15)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the acceleration-arrow debug visualizer in
+  :class:`~isaaclab_physx.sensors.pva.Pva` drawing arrows in undefined directions for
+  bodies with effectively zero acceleration. Such bodies are now skipped from the
+  visualization.
+
+
+0.7.0 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX implementations of
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`, and
+  :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  on :class:`~isaaclab_physx.assets.ArticulationData`. The COM
+  variant is a passthrough to ``physx.ArticulationView.get_jacobians``;
+  the link-origin variant applies a new
+  :func:`~isaaclab_physx.assets.articulation.kernels.shift_jacobian_com_to_origin`
+  Warp kernel to convert the COM-referenced linear-velocity rows to
+  link-origin references using each body's pose and COM offset. All
+  four properties preserve the full DoF axis, including the 6 leading
+  floating-base columns/rows PhysX's raw tensor view prepends on
+  floating-base assets — matching the cross-library industry convention
+  (Pinocchio, Drake, MuJoCo, RBDL, OCS2, iDynTree) and Newton's
+  ``ArticulationView`` layout.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.pre_render` so the
+  PhysX backend can drive
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  once per render frame when the active visualizer/renderer set requires a
+  Newton model.
+
+Changed
+^^^^^^^
+
+* Switched the Newton install spec to ``newton[sim]`` in the ``newton``
+  extra so the MuJoCo solver dependencies are pulled in transitively.
+  Required because pip resolves a git-URL requirement once for the URL;
+  a bare ``newton @ git+...`` here would shadow the ``[sim]`` extra
+  requested elsewhere.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_physx.scene_data_providers`` package
+  (``PhysxSceneDataProvider``). The Warp-native
+  :class:`~isaaclab.scene_data.SceneDataProvider` now exposes
+  PhysX rigid-body transforms via
+  :class:`~isaaclab_physx.physics.PhysxSceneDataBackend`, and the
+  PhysX→Newton state sync used by Newton visualizers/renderers moved to
+  :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`.
+
+Fixed
+^^^^^
+
+* Fixed a latent correctness bug in IK / OSC controllers on the PhysX
+  backend, where the previously-exposed Jacobian was COM-referenced but
+  the controllers used :attr:`~isaaclab_physx.assets.ArticulationData.body_link_pose_w`
+  as the EE pose setpoint. The frame mismatch caused tracking error on
+  bodies whose COM offset is non-trivial. The new
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+  applies the COM→origin shift so the Jacobian and pose share a
+  reference point.
+
+
+0.6.4 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton extra to depend on the packaged Newton 1.2.0 release
+  candidate instead of a Git commit.
+
+
+0.6.3 (2026-05-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed rigid object collection spawning to honor planned ``spawn_path``
+  values while falling back to ``prim_path`` for direct construction.
+
+
+0.6.2 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.Articulation` joint friction docs to distinguish legacy coefficients from
+  PhysX 5 static and dynamic friction efforts.
+* Fixed PhysX backend tests to use current contact sensor and asset API names,
+  removing deprecation warnings from scoped test runs.
+
+
+0.6.1 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the optional ``[newton]`` extra to ``v1.2.0rc2`` so the Newton
+  scene representation built by
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`
+  for the OV/Rerun/Viser visualizers stays in sync with the version
+  pinned in :mod:`isaaclab_newton` and :mod:`isaaclab_visualizers`.
+
+
+0.6.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sensors.JointWrenchSensor` for reading PhysX
+  incoming joint reaction wrenches as split force [N] and torque [N·m] buffers.
+  The sensor accepts asset prim paths whose articulation root is nested below
+  the configured prim and converts PhysX's native body-frame wrench to the
+  shared child-side joint-frame convention.
+* Added :class:`PhysxRigidBodyMaterialCfg`, a subclass of
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` carrying the
+  ``PhysxMaterialAPI`` schema fields (``compliant_contact_stiffness``,
+  ``compliant_contact_damping``, ``friction_combine_mode``, ``restitution_combine_mode``).
+  Use this when authoring PhysX-specific material knobs; use the base class when only the
+  UsdPhysics-standard friction/restitution fields are needed.
+* Added :class:`PhysxCollisionPropertiesCfg`, a subclass of
+  :class:`~isaaclab.sim.schemas.CollisionBaseCfg` carrying the PhysX-specific
+  ``torsional_patch_radius`` / ``min_torsional_patch_radius`` friction approximations.
+  These fields have no Newton equivalent.
+* Added :class:`PhysxDeformableCollisionPropertiesCfg`, renaming the previous
+  ``PhysXCollisionPropertiesCfg`` (capital X) for clarity. Used internally by
+  :class:`DeformableBodyPropertiesCfg`.
+* Added :class:`PhysxArticulationRootPropertiesCfg`, a subclass of
+  :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` carrying the PhysX-specific
+  ``enabled_self_collisions``, ``solver_position_iteration_count``,
+  ``solver_velocity_iteration_count``, ``sleep_threshold``, ``stabilization_threshold``.
+* Added :class:`PhysxConvexHullPropertiesCfg`, :class:`PhysxConvexDecompositionPropertiesCfg`,
+  :class:`PhysxTriangleMeshPropertiesCfg`,
+  :class:`PhysxTriangleMeshSimplificationPropertiesCfg`, and
+  :class:`PhysxSDFMeshPropertiesCfg` -- the PhysX-cooking-specific mesh collision
+  subclasses. Each declares its own PhysxSchema cooking API via class-level
+  ``_usd_applied_schema`` metadata and inherits ``mesh_approximation_name`` from
+  :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`.
+* Added :class:`PhysxFixedTendonPropertiesCfg` and :class:`PhysxSpatialTendonPropertiesCfg`,
+  the relocated PhysX-only tendon cfg classes. Same fields as the legacy core-side classes;
+  no field-level split.
+
+Changed
+^^^^^^^
+
+* Modified the isaac rtx renderer to use the new patterns from renderer/camera decoupling.
+* **Breaking:** Removed the ``sync_usd_on_fabric_write`` keyword argument from
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`.  Fabric writes
+  (``set_world_poses``, ``set_scales``) now notify the renderer via
+  ``PrepareForReuse()`` on the underlying ``PrimSelection`` instead of writing
+  back to USD, which is ~200x faster and avoids the stale USD shadow state the
+  old path produced.  Callers passing ``sync_usd_on_fabric_write=True`` should
+  remove the argument; if they relied on USD reflecting Fabric writes, they
+  should now read Fabric poses directly via the view's getters or refresh USD
+  explicitly.
+* Removed the ``max_velocity`` field and USD metadata
+  (``_usd_applied_schema``, ``_usd_namespace``, ``_usd_attr_name_map``) from
+  :class:`PhysxJointDrivePropertiesCfg`. The field moved to
+  :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`; ``PhysxJointDrivePropertiesCfg``
+  inherits it. Existing instantiations continue to work unchanged.
+* Removed the ``disable_gravity`` field from :class:`PhysxRigidBodyPropertiesCfg`.
+  The field moved to :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`;
+  ``PhysxRigidBodyPropertiesCfg`` inherits it. Existing instantiations continue
+  to work unchanged.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`RigidBodyMaterialCfg` in favor of
+  :class:`PhysxRigidBodyMaterialCfg` (PhysX-specific) or
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common).
+  The legacy name remains as a concrete subclass of :class:`PhysxRigidBodyMaterialCfg`
+  that emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`CollisionPropertiesCfg` in favor of
+  :class:`PhysxCollisionPropertiesCfg` (PhysX-specific) or
+  :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common). The legacy name remains
+  as a concrete subclass of :class:`PhysxCollisionPropertiesCfg` that emits
+  ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`PhysXCollisionPropertiesCfg` (capital X, deformable-body) in favor of
+  :class:`PhysxDeformableCollisionPropertiesCfg`. The capital-X name is preserved as a
+  deprecation alias (concrete subclass) and is scheduled for removal in 5.0.
+* Deprecated :class:`ArticulationRootPropertiesCfg` in favor of
+  :class:`PhysxArticulationRootPropertiesCfg` (PhysX-specific) or
+  :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` (solver-common). The legacy name
+  remains as a concrete subclass of :class:`PhysxArticulationRootPropertiesCfg` that emits
+  ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`MeshCollisionPropertiesCfg`, :class:`ConvexHullPropertiesCfg`,
+  :class:`ConvexDecompositionPropertiesCfg`, :class:`TriangleMeshPropertiesCfg`,
+  :class:`TriangleMeshSimplificationPropertiesCfg`, and :class:`SDFMeshPropertiesCfg` in
+  favor of :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` or the new ``Physx*``
+  subclasses. Legacy names remain as concrete subclasses that emit ``DeprecationWarning``
+  on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`FixedTendonPropertiesCfg` in favor of
+  :class:`PhysxFixedTendonPropertiesCfg`. Legacy name remains as a concrete subclass that
+  emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`SpatialTendonPropertiesCfg` in favor of
+  :class:`PhysxSpatialTendonPropertiesCfg`. Legacy name remains as a concrete subclass
+  that emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+
+Removed
+^^^^^^^
+
+* Removed ``ArticulationData.body_incoming_joint_wrench_b``. Add
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.SurfaceGripper` initialization on
+  non-CPU simulation backends to raise before loading the surface gripper
+  extension, avoiding hangs during startup.
+
+
+0.5.29 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
+  that writes joint position and velocity in a single kernel launch instead of two.
+* Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
+  composer views in ``write_data_to_sim`` to avoid per-call wrapper allocations.
+* Pre-allocated pinned CPU buffers for all joint property and body property writers,
+  replacing per-call ``wp.clone(device="cpu")`` allocations with ``wp.copy`` into
+  reusable pinned memory.
+
+
+0.5.28 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed camera observation hang when a visualizer (e.g. KitVisualizer for XR
+  teleop) is active and ``--enable_cameras`` is set.
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`
+  now performs the initial ``app.update()`` on the very first call for a new
+  :class:`~isaaclab.sim.SimulationContext`, even when a visualizer reports that
+  it pumps the Kit app loop, because the visualizer has not had a chance to pump
+  yet at that point.
+
+
+0.5.27 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``Simulation view object is invalidated and cannot be used again to call
+  getDofVelocities`` raised on the first ``scene.update()`` after ``sim.reset()``
+  with recent Isaac Sim ``develop`` builds. Isaac Sim's
+  ``isaacsim.core.simulation_manager.SimulationManager`` recently became reactive
+  to timeline ``STOP`` events (after its ``_on_stop`` was decorated with
+  ``@staticmethod`` upstream), and its ``invalidate_physics()`` was clobbering
+  the shared ``omni.physics.tensors`` simulation view that
+  :class:`~isaaclab_physx.physics.PhysxManager` and PhysX articulation views
+  rely on. The ``isaaclab_physx`` package init now disables the original Isaac
+  Sim ``SimulationManager``'s default timeline/stage callbacks via
+  ``enable_all_default_callbacks(False)`` before swapping the module attribute,
+  so :class:`PhysxManager` is the single owner of the simulation lifecycle.
+
+
+0.5.26 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``import isaaclab_physx`` eagerly importing ``isaacsim``, ``omni``,
+  and ``carb`` backend modules when used for pure-data config loading before
+  ``SimulationApp`` has launched. The ``SimulationManager`` patch now checks
+  ``sys.modules`` lazily instead of force-importing the target module, allowing
+  env-cfg classes that reference :class:`~isaaclab_physx.physics.PhysxCfg` to
+  be constructed without a running Kit instance (regression caught by
+  ``test_env_cfg_no_forbidden_imports``).
+
+Changed
+^^^^^^^
+
+* Migrated :func:`~isaaclab_physx.renderers.kit_viewport_utils.set_kit_renderer_camera_view`
+  off the deprecated ``isaacsim.core.utils.viewports.set_camera_view`` to
+  ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view``, matching the
+  pattern used by the Kit perspective video helper.
+
+
+0.5.25 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated imports of the PhysX tensors API from ``omni.physics.tensors.impl.api`` to
+  ``omni.physics.tensors.api`` to track the upstream Isaac Sim module relocation
+  (the ``impl`` submodule was removed).
+* Migrated the PhysX scene data provider, PhysX asset micro-benchmarks, and cross-backend asset
+  interface tests off ``isaacsim.core.simulation_manager.SimulationManager`` to
+  :class:`~isaaclab_physx.physics.PhysxManager` (imported as ``SimulationManager`` to mirror the
+  Newton backend's ``NewtonManager as SimulationManager`` convention).
+* Updated optional-extension enablement and Kit perspective capture helpers to use non-deprecated
+  Isaac Sim module paths (``isaacsim.core.experimental.utils.app`` and ``isaacsim.core.rendering_manager``).
+
+
+0.5.24 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab_physx.sim.views.FabricFrameView` to match the new
+  :class:`~isaaclab.sim.views.BaseFrameView` ProxyArray return contract. See
+  the ``isaaclab`` 4.6.15 changelog for migration guidance.
+
+
+0.5.23 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Properties on the following data classes now return
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
+  :class:`~isaaclab_physx.assets.articulation.ArticulationData`,
+  :class:`~isaaclab_physx.assets.rigid_object.RigidObjectData`,
+  :class:`~isaaclab_physx.assets.rigid_object_collection.RigidObjectCollectionData`,
+  :class:`~isaaclab_physx.assets.deformable_object.DeformableObjectData`,
+  :class:`~isaaclab_physx.sensors.contact_sensor.ContactSensorData`,
+  :class:`~isaaclab_physx.sensors.frame_transformer.FrameTransformerData`,
+  :class:`~isaaclab_physx.sensors.imu.ImuData`, and
+  :class:`~isaaclab_physx.sensors.pva.PvaData`.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
+  the underlying ``wp.array``. Implicit torch operations (arithmetic,
+  ``torch.*`` functions) work during the deprecation period but emit a warning.
+
+
+0.5.22 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``RuntimeError: NewtonWarpRenderer requires a Newton model but the scene data provider
+  returned None`` when a Direct env (e.g. ``ShadowHandVisionEnv``, ``CartpoleCameraEnv``)
+  uses ``physx`` physics with the ``newton_warp`` renderer. The
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider` now falls back to a
+  USD-traversal Newton build when the cloner-time prebuilt artifact is absent, and stashes
+  the freshly built artifact on the simulation context so subsequent providers reuse it.
+
+
+0.5.21 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.views.XformPrimView` providing the PhysX/Fabric
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_physx.sim.views.FabricXformPrimView` to
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.20 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and :class:`~isaaclab_physx.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied to PhysX with ``is_global=False`` after body-frame composition.
+
+
+0.5.19 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton ``shape_color`` not reflecting the post-clone USD stage when the
+  PhysX scene data provider builds or reloads the Newton model by calling
+  :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors` on
+  the artifact, per-environment, and filtered Newton models in
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
+
+0.5.18 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flaky first-frame textured rendering by replacing the event-based RTX
+  streaming subscription with a synchronous
+  ``UsdContext.get_stage_streaming_status()`` query in
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`.
+
+
+0.5.17 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg` with
+  namespace-aware property routing. Properties are organized into
+  ``omniphysics:``, ``physxDeformableBody:``, and ``physxCollision:`` prefixed
+  parent classes, allowing correct USD attribute mapping for the updated PhysX
+  deformable body schema.
+* Added :func:`~isaaclab_physx.sim.schemas.define_deformable_body_properties` and
+  :func:`~isaaclab_physx.sim.schemas.modify_deformable_body_properties` to
+  ``isaaclab_physx.sim.schemas``, supporting both surface and volume deformable
+  types via the ``deformable_type`` parameter.
+* Added :class:`~isaaclab_physx.sim.spawners.materials.DeformableBodyMaterialCfg`
+  and :class:`~isaaclab_physx.sim.spawners.materials.SurfaceDeformableBodyMaterialCfg`
+  with namespace-aware property routing for ``omniphysics:`` and
+  ``physxDeformableBody:`` material attributes.
+* Added :class:`~isaaclab_physx.sim.spawners.spawner_cfg.DeformableObjectSpawnerCfg`
+  for configuring deformable body properties and materials when spawning.
+* Added surface deformable body support to
+  :class:`~isaaclab_physx.assets.DeformableObject`. The asset now detects whether
+  the deformable is a surface or volume type based on the applied material API
+  and creates the appropriate PhysX tensor view
+  (``create_surface_deformable_body_view`` vs ``create_volume_deformable_body_view``).
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_physx.assets.DeformableObject.root_view` return type
+  from ``physx.SoftBodyView`` to ``physx.DeformableBodyView`` to align with the
+  updated PhysX API.
+* Changed :attr:`~isaaclab_physx.assets.DeformableObject.material_physx_view`
+  return type from ``physx.SoftBodyMaterialView`` to
+  ``physx.DeformableMaterialView``.
+* Changed deformable body root prim discovery to check for
+  ``OmniPhysicsDeformableBodyAPI`` instead of ``PhysxDeformableBodyAPI``.
+* Changed material prim discovery to check for ``OmniPhysicsDeformableMaterialAPI``
+  instead of ``PhysxDeformableBodyMaterialAPI``.
+* Changed PhysX view API calls to use updated method names:
+  ``get_simulation_nodal_positions``, ``set_simulation_nodal_positions``,
+  ``set_simulation_nodal_velocities``, ``get_simulation_nodal_kinematic_targets``,
+  ``set_simulation_nodal_kinematic_targets``.
+* Changed property accessors to use updated PhysX view attributes:
+  ``max_simulation_elements_per_body``, ``max_collision_elements_per_body``,
+  ``max_simulation_nodes_per_body``, ``max_collision_nodes_per_body``.
+* Changed kinematic target operations to raise ``ValueError`` when called on
+  surface deformable bodies, which do not support kinematic targets.
+
+
+0.5.16 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the PhysX IMU sensor implementation to
+  :class:`~isaaclab_physx.sensors.Pva`. The ``isaaclab_physx.sensors.imu``
+  module now contains a new lightweight IMU sensor that only provides angular
+  velocity and linear acceleration.
+* Changed :class:`~isaaclab_physx.sensors.Pva` to no longer accept a
+  ``gravity_bias`` parameter. Linear acceleration is now pure finite
+  differencing of velocity without any gravity contribution.
+* Changed :class:`~isaaclab_physx.sensors.Imu` to unconditionally include
+  gravity in accelerometer readings. The gravity vector is queried from the
+  PhysX simulation at initialization instead of being user-configured.
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sensors.Imu` PhysX backend for the new
+  lightweight IMU sensor with simplified Warp kernels that only compute
+  angular velocity and linear acceleration.
+
+Fixed
+^^^^^
+
+* Fixed unused ``body_pos`` variable in the IMU Warp kernel.
+* Fixed ``phsyx`` typo in :class:`~isaaclab.sensors.pva.BasePva` docstring.
+
+
+0.5.15 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_physx.assets.RigidObject.set_material_properties_index`,
+  :meth:`~isaaclab_physx.assets.RigidObject.set_material_properties_mask`,
+  :meth:`~isaaclab_physx.assets.Articulation.set_material_properties_index`,
+  :meth:`~isaaclab_physx.assets.Articulation.set_material_properties_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_material_properties_index`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_material_properties_mask`
+  methods for setting collision shape material properties (friction, restitution).
+  These methods follow the standard ``_index``/``_mask`` pattern, providing a unified
+  API across PhysX and Newton backends.
+
+
+0.5.14 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the simulation training loop not pausing when the Kit GUI timeline is
+  paused. :meth:`~isaaclab_physx.physics.PhysxManager.wait_for_playing` now
+  blocks and keeps the GUI responsive until the timeline is resumed or stopped.
+* Fixed articulation visualization freezing after pausing and unpausing the
+  simulation through the headed GUI in Isaac Sim 5.1+. Articulation meshes now
+  remain visually updated after resuming.
+
+
+0.5.13 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed device mismatch in :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_view_to_data_2d`
+  and :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_view_to_data_3d` that caused
+  ``wp.clone`` to fail with CUDA errors when PhysX returns data on CPU (e.g., masses, COMs, inertias)
+  while the simulation runs on GPU. The strided view now correctly uses ``data.device`` instead of
+  ``self.device``, matching the fix already present in :class:`~isaaclab_physx.assets.RigidObjectCollectionData`.
+
+
+0.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``test_body_incoming_joint_wrench_b_single_joint`` computing the expected
+  wrench in the parent body's frame instead of the child body's frame. The expected
+  wrench is now expressed in
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b`'s
+  actual convention (child body frame) and body indices are resolved by name to be
+  robust across backends. Also corrected the docstring for
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b` to
+  accurately describe the frame convention.
+
+
 0.5.11 (2026-03-13)
 ~~~~~~~~~~~~~~~~~~~
 

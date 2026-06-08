@@ -21,6 +21,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
+import warp as wp
 
 import carb
 import omni.kit.app
@@ -28,10 +29,11 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import Sdf
+from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
@@ -153,6 +155,86 @@ class AnimationRecorder:
                 f.write(content)
 
 
+class PhysxSceneDataBackend(SceneDataBackend):
+    def __init__(self):
+        self._simulation_view: omni.physics.tensors.SimulationView | None = None
+        self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
+        self._scene_data = SceneDataFormat.Transform()
+
+    @property
+    def simulation_view(self) -> omni.physics.tensors.SimulationView | None:
+        return self._simulation_view
+
+    @simulation_view.setter
+    def simulation_view(self, simulation_view: omni.physics.tensors.SimulationView | None):
+        self._simulation_view = simulation_view
+        self._rigid_body_view = None
+
+    def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
+        """Lazily create a rigid body view covering all rigid bodies in the scene.
+
+        Discovers exact rigid body prims by traversing USD, then compacts cloned
+        environment paths into wildcard patterns. If a rigid body name is also
+        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
+        the wildcard to the non-rigid prim.
+        """
+        if self._rigid_body_view is not None:
+            return self._rigid_body_view
+
+        if self._simulation_view is None:
+            return None
+
+        stage: Usd.Stage = omni.usd.get_context().get_stage()
+        if stage is None:
+            return None
+
+        rigid_body_paths: list[str] = []
+        non_rigid_body_names: set[str] = set()
+        for prim in stage.Traverse():
+            prim_path = prim.GetPath().pathString
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                rigid_body_paths.append(prim_path)
+            elif re.search(r"/World/envs/env_\d+/", prim_path):
+                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
+
+        patterns: set[str] = set()
+        exact_paths: list[str] = []
+        for prim_path in rigid_body_paths:
+            body_name = prim_path.rsplit("/", 1)[-1]
+            if body_name in non_rigid_body_names:
+                exact_paths.append(prim_path)
+            else:
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
+
+        body_paths = [*sorted(patterns), *exact_paths]
+        if not body_paths:
+            return None
+
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
+        return self._rigid_body_view
+
+    @property
+    def transforms(self) -> SceneDataFormat.Transform:
+        """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
+        if view := self.get_rigid_body_view():
+            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
+        return self._scene_data
+
+    @property
+    def transform_count(self) -> int:
+        """Return the number of rigid body transforms in the PhysX sim."""
+        if view := self.get_rigid_body_view():
+            return view.count
+        return 0
+
+    @property
+    def transform_paths(self) -> list[str]:
+        """Return the prim paths for each rigid body transform."""
+        if view := self.get_rigid_body_view():
+            return list(view.prim_paths)
+        return []
+
+
 class PhysxManager(PhysicsManager):
     """Manages PhysX physics simulation lifecycle.
 
@@ -165,6 +247,7 @@ class PhysxManager(PhysicsManager):
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
     _physx: ClassVar[omni.physx.IPhysx] = omni.physx.get_physx_interface()
     _physx_sim: ClassVar[omni.physx.IPhysxSimulation] = omni.physx.get_physx_simulation_interface()
+    _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
 
     _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
     _view_warp: ClassVar[omni.physics.tensors.SimulationView | None] = None
@@ -210,6 +293,7 @@ class PhysxManager(PhysicsManager):
         cls._configure_physics()
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context)
+        cls._scene_data_backend = PhysxSceneDataBackend()
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -249,6 +333,11 @@ class PhysxManager(PhysicsManager):
             cls._update_fabric(0.0, 0.0)
 
     @classmethod
+    def get_scene_data_backend(cls) -> SceneDataBackend:
+        """Return the SceneDataBackend for the SceneDataProvider."""
+        return cls._scene_data_backend
+
+    @classmethod
     def step(cls) -> None:
         """Step the physics simulation."""
         sim = PhysicsManager._sim
@@ -262,7 +351,6 @@ class PhysxManager(PhysicsManager):
 
         cls._physx_sim.simulate(sim.cfg.dt, 0.0)
         cls._physx_sim.fetch_results()
-
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -275,6 +363,7 @@ class PhysxManager(PhysicsManager):
         cls._timeline.play()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
+        cls._sync_fabric_after_resume()
 
     @classmethod
     def pause(cls) -> None:
@@ -289,6 +378,35 @@ class PhysxManager(PhysicsManager):
         cls._timeline.stop()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
+
+    @classmethod
+    def wait_for_playing(cls) -> None:
+        """Block until the timeline is playing, keeping the GUI responsive.
+
+        After resume, forces a fabric re-sync so articulation meshes unfreeze.
+        See: https://github.com/isaac-sim/IsaacLab/issues/4279
+        """
+        if cls._timeline.is_playing():
+            return
+        app = omni.kit.app.get_app()
+        while not cls._timeline.is_playing():
+            app.update()
+            if cls._timeline.is_stopped():
+                break
+        cls._sync_fabric_after_resume()
+
+    @classmethod
+    def _sync_fabric_after_resume(cls) -> None:
+        """Force Fabric to show current articulation transforms after timeline resume."""
+        if cls._timeline.is_stopped():
+            return
+        # detach/attach resets the FabricManager, then immediately push current
+        # poses so the first render after resume shows correct state.
+        cls._re_sync_fabric()
+        if cls._view is not None:
+            cls._view.update_articulations_kinematic()
+        if cls._update_fabric is not None:
+            cls._update_fabric(0.0, 0.0)
 
     @classmethod
     def close(cls) -> None:
@@ -586,6 +704,42 @@ class PhysxManager(PhysicsManager):
         sim.set_setting("/physics/visualizationDisplaySimulationOutput", False)  # type: ignore[union-attr]
 
     @classmethod
+    def _re_sync_fabric(cls) -> None:
+        """Force the PhysX fabric extension to re-synchronize after a pause/resume transition.
+
+        Starting with PhysX fabric 107.3.21 (Isaac Sim 5.1), the FabricManager skips writing
+        initial articulation poses to fabric on subsequent resumes, causing articulation meshes
+        to freeze visually while physics continues to run.
+
+        The workaround detaches and re-attaches the USD stage on the fabric interface, forcing
+        the FabricManager to fully reinitialize and write transforms into fabric so that Hydra
+        picks them up.
+        """
+        if cls._fabric is None:
+            return
+        sim = PhysicsManager._sim
+        if sim is None:
+            return
+        stage = sim.stage
+        if stage is None:
+            return
+        stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
+        if stage_id <= 0:
+            return
+        try:
+            cls._fabric.detach_stage()
+        except Exception:
+            logger.warning("Failed to detach fabric stage during re-sync. Articulation visuals may be stale.")
+            return
+        try:
+            cls._fabric.attach_stage(stage_id)
+        except Exception:
+            logger.error(
+                "Could not re-attach fabric stage. Articulation visuals will be broken until next reset.",
+                exc_info=True,
+            )
+
+    @classmethod
     def _warmup_and_create_views(cls) -> None:
         """Warm-start physics and create simulation views."""
         if not cls._warmup_needed:
@@ -629,6 +783,7 @@ class PhysxManager(PhysicsManager):
         # Final update after view creation
         cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
+        cls._scene_data_backend.simulation_view = cls._view
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})

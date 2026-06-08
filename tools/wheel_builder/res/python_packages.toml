@@ -1,0 +1,138 @@
+[isaaclab]
+# pyproject.toml
+pyproject.description = "Isaac Lab"
+pyproject.keywords = ["nvidia", "omniverse", "isaacsim", "isaaclab"]
+pyproject.dependencies.all = [
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab/setup.py
+    # ================================================================================
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
+    "prettytable==3.3.0",
+    "toml",
+    # devices
+    "hidapi==0.14.0.post2",
+    # reinforcement learning
+    "gymnasium==1.2.0",
+    # procedural-generation
+    "trimesh",
+    "pyglet>=2.1.6",
+    # image processing
+    "transformers==4.57.6",
+    "einops",  # needed for transformers, doesn't always auto-install
+    "warp-lang==1.13.0",
+    "matplotlib>=3.10.3",
+    # make sure this is consistent with isaac sim version
+    "pillow==12.1.1",
+    "botocore",
+    # livestream
+    # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
+    "starlette>=0.46.0,<0.50",
+    "omniverseclient==2.71.1.7015",
+    # testing
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flatdict==4.0.0",
+    "flaky",
+    "packaging",
+    # visualizers
+    "imgui-bundle==1.92.601",
+    "rerun-sdk>=0.29.0",
+    "pyarrow==22.0.0",
+    # viser is intentionally not a base dep: viser>=1.0.16 pulls websockets>=13.1,
+    # but isaacsim-kernel==6.0.0.0 pins websockets==12.0. Users who want the viser
+    # visualizer install isaaclab[viser] explicitly (see the optional-dependencies
+    # block below).
+    "typing_extensions==4.12.2",
+    # pydantic>=2.12 needs typing_extensions>=4.14.1; cap for isaacsim/kit-less coexistence.
+    "pydantic>=2.7,<2.12",
+    "lazy_loader>=0.4",
+    "pin ; platform_system == 'Linux'",
+    "pin-pink>=2.3.6 ; platform_system == 'Linux'",
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_rl/setup.py
+    # ================================================================================
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
+    "protobuf>=4.25.8,!=5.26.0",
+    # configuration management
+    "hydra-core",
+    # data collection
+    "h5py",
+    # basic logger
+    "tensorboard",
+    # video recording
+    "moviepy",
+    "packaging<24",
+    "tqdm==4.67.1",
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/setup.py
+    # ================================================================================
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
+    "protobuf>=4.25.8,!=5.26.0",
+    # basic logger
+    "tensorboard",
+    "numba>=0.63.1",
+]
+pyproject.optional-dependencies.all = [
+    # Isaac Sim
+    { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.1"] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
+    # ================================================================================
+    { "newton" = [
+        "warp-lang==1.13.0",
+        "newton[sim]==1.2.1",
+        "PyOpenGL-accelerate==3.1.10"
+    ] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_rl/setup.py
+    # ================================================================================
+    # RL libraries
+    { "sb3" = ["stable-baselines3>=2.6", "tqdm", "rich"] },
+    { "skrl" = ["skrl>=2.1.0"] },
+    # Do not pin aiohttp here: isaacsim-kernel==6.0.0.0 pins aiohttp==3.12.14.
+    { "rl-games" = [
+        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+        "gym",
+        "standard-distutils",
+    ] },
+    { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
+    { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/setup.py
+    # ================================================================================
+    # Viser visualizer (opt-in: viser pulls websockets>=13.1 which collides with
+    # isaacsim-kernel==6.0.0.0's websockets==12.0; do not include in [all]).
+    { "viser" = ["viser>=1.0.16"] },
+    # RL libraries (all) — use with ``isaacsim`` for full installs; Newton comes from
+    # ``isaacsim-core``. Do not add git Newton here (conflicts with Isaac Sim pins).
+    { "all" = [
+        "stable-baselines3>=2.6",
+        "tqdm",
+        "rich",
+        "skrl>=2.1.0",
+        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+        "gym",
+        "standard-distutils",
+        "rsl-rl-lib==5.0.1",
+        "onnxscript>=0.5",
+    ] },
+]
+# inventory (relative to the `source_folder` config)
+inventory.includes.all = [
+    # Isaac Lab
+    "apps",
+    "source",
+    # python package/module
+    [ "../source/python_packages/isaaclab/__init__.py", "." ],
+    [ "../source/python_packages/isaaclab/__main__.py", "." ],
+]

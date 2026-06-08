@@ -12,6 +12,7 @@ Main data generation script.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils.string import list_intersection, string_to_callable
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")
@@ -30,22 +31,45 @@ parser.add_argument(
 parser.add_argument(
     "--pause_subtask",
     action="store_true",
-    help="pause after every subtask during generation for debugging - only useful with render flag",
+    help="Pause after every subtask during generation for debugging - only useful with render flag",
 )
 parser.add_argument(
     "--use_skillgen",
     action="store_true",
     default=False,
-    help="use skillgen to generate motion trajectories",
+    help="Use skillgen to generate motion trajectories",
 )
+parser.add_argument(
+    "--disable_dataset_compression",
+    action="store_true",
+    default=False,
+    help="Disables dataset compression",
+)
+parser.add_argument(
+    "--external_callback",
+    default=None,
+    help="Fully qualified path to an externally defined callback.",
+)
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli = parser.parse_args()
+args_cli, remaining_args = parser.parse_known_args()
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
+# Call an external callback if requested.
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
+# Error on unrecognized arguments.
+unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
+if unrecognized_args:
+    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
 """Rest everything follows."""
 
@@ -88,6 +112,7 @@ def main():
         num_envs=num_envs,
         device=args_cli.device,
         generation_num_trials=args_cli.generation_num_trials,
+        dataset_compression=not args_cli.disable_dataset_compression,
     )
 
     # Create environment
@@ -158,6 +183,7 @@ def main():
                 async_components["action_queue"],
                 async_components["info_pool"],
                 async_components["event_loop"],
+                data_gen_tasks=data_gen_tasks,
             )
         except asyncio.CancelledError:
             print("Tasks were cancelled.")

@@ -20,10 +20,11 @@ import torch
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import usd_replicate
-from isaaclab.cloner.cloner_utils import resolve_visualizer_clone_fn
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
+from isaaclab.cloner import ClonePlan, make_clone_plan, sequential, usd_replicate
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.sim import build_simulation_context
+
+pytestmark = pytest.mark.isaacsim_ci
 
 
 @pytest.fixture(params=["cpu", "cuda"])
@@ -221,79 +222,117 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_resolve_visualizer_clone_fn_returns_none_when_not_physx_backend():
-    """Resolver should ignore non-PhysX backends."""
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="newton",
-        requirements=SceneDataRequirement(requires_newton_model=True),
-        stage=object(),
-        set_visualizer_artifact=lambda artifact: artifact,
-    )
-    assert hook is None
-
-
-def test_resolve_visualizer_clone_fn_returns_none_when_newton_model_not_required():
-    """Resolver should not load optional hook when requirement is not requested."""
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="physx",
-        requirements=SceneDataRequirement(requires_newton_model=False),
-        stage=object(),
-        set_visualizer_artifact=lambda artifact: artifact,
-    )
-    assert hook is None
-
-
-def test_resolve_visualizer_clone_fn_returns_callable_when_available(sim):
-    """Resolver should return a callable hook when backend helper is available."""
-    pytest.importorskip("isaaclab_newton.cloner.newton_replicate")
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="physx",
-        requirements=SceneDataRequirement(requires_newton_model=True),
-        stage=sim_utils.get_current_stage(),
-        set_visualizer_artifact=lambda artifact: artifact,
-    )
-    assert callable(hook)
-
-
-def test_physx_newton_requirement_hook_populates_prebuilt_artifact(sim, monkeypatch: pytest.MonkeyPatch):
-    """PhysX + Newton requirement path should populate prebuilt visualizer artifact."""
-    newton_replicate = pytest.importorskip("isaaclab_newton.cloner.newton_replicate")
-
-    class _FakeModel:
-        body_label = ["/World/envs/env_0/A", "/World/envs/env_1/A"]
-        articulation_label = ["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"]
-
-    fake_model = _FakeModel()
-    fake_state = object()
-
-    def _fake_prebuild(*args, **kwargs):
-        return fake_model, fake_state
-
-    monkeypatch.setattr(newton_replicate, "newton_visualizer_prebuild", _fake_prebuild)
-
-    captured: list[VisualizerPrebuiltArtifacts] = []
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="physx",
-        requirements=SceneDataRequirement(requires_newton_model=True),
-        stage=sim_utils.get_current_stage(),
-        set_visualizer_artifact=lambda artifact: captured.append(artifact),
+def test_make_clone_plan_returns_flat_source_rows(sim):
+    """make_clone_plan exposes the flat source-to-env mask used by scene cloning."""
+    sources, destinations, clone_mask = make_clone_plan(
+        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
+        ["/World/envs/env_{}/Object"],
+        num_clones=4,
+        clone_strategy=sequential,
+        device=sim.cfg.device,
     )
 
-    assert callable(hook)
-    hook(
-        stage=sim_utils.get_current_stage(),
-        sources=["/World/template/A"],
-        destinations=["/World/envs/env_{}/A"],
-        env_ids=torch.tensor([0, 1], dtype=torch.long),
-        mapping=torch.ones((1, 2), dtype=torch.bool),
-        device="cpu",
+    assert sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
+    assert destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
+    assert clone_mask.shape == (2, 4)
+    assert clone_mask.dtype == torch.bool
+    assert torch.all(clone_mask.sum(dim=0) == 1)
+    actual_source_idx = clone_mask.to(torch.int).argmax(dim=0).cpu()
+    assert torch.equal(actual_source_idx, torch.tensor([0, 1, 0, 1]))
+
+
+def test_iter_clone_plan_matches(sim):
+    """ClonePlan entries can be matched by destination path expression."""
+    sources, destinations, clone_mask = make_clone_plan(
+        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
+        ["/World/envs/env_{}/Object"],
+        num_clones=4,
+        clone_strategy=sequential,
+        device=sim.cfg.device,
+    )
+    plan = ClonePlan(sources=sources, destinations=destinations, clone_mask=clone_mask)
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_0/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_0/Object/Body/Camera",
+            (0, 2),
+        ),
+        (
+            "/World/envs/env_1/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_1/Object/Body/Camera",
+            (1, 3),
+        ),
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_3/Object",),
+        destinations=("/World/envs/env_{}/Object",),
+        clone_mask=torch.tensor([[False, False, True, True]], device=sim.cfg.device),
     )
 
-    assert len(captured) == 1
-    artifact = captured[0]
-    assert isinstance(artifact, VisualizerPrebuiltArtifacts)
-    assert artifact.model is fake_model
-    assert artifact.state is fake_state
-    assert artifact.rigid_body_paths == fake_model.body_label
-    assert artifact.articulation_paths == fake_model.articulation_label
-    assert artifact.num_envs == 2
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_3/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_3/Object/Body/Camera",
+            (2, 3),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/source/Object",),
+        destinations=("/World/scenes/{}/Object",),
+        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/source/Object",
+            "/World/scenes/{}/Object",
+            "/World/source/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/source",),
+        destinations=("/World/scenes/{}",),
+        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/source",
+            "/World/scenes/{}",
+            "/World/source/Object/Body/Camera",
+            (0, 1),
+        )
+    ]
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_0", "/World/envs/env_0/Object"),
+        destinations=("/World/envs/env_{}", "/World/envs/env_{}/Object"),
+        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
+    )
+
+    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+
+    assert matches == [
+        (
+            "/World/envs/env_0/Object",
+            "/World/envs/env_{}/Object",
+            "/World/envs/env_0/Object/Body/Camera",
+            (0, 1),
+        )
+    ]

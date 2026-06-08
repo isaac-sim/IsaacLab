@@ -29,33 +29,36 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet>=2.1.6",
-    "mujoco>=3.5",
-    "mujoco-warp>=3.5",
+    "pyglet>=2.1.6,<3",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.12.0",
+    "warp-lang==1.13.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",
     # required by omni.replicator.core S3 backend
     "botocore",
     # livestream
-    "starlette==0.49.1",
-    "omniverseclient",
+    # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
+    "starlette>=0.46.0,<0.50",
+    "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
     "pytest-mock",
     "junitparser",
     "coverage==7.6.1",
     "debugpy>=1.8.20",
-    "flatdict==4.0.0",
+    "flatdict>=4.1.0",
     "flaky",
     "packaging",
     "psutil",
-    # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
-    "typing_extensions>=4.14.0",
+    # cross-platform file locking (used to serialize USD spawn across distributed ranks)
+    "filelock",
+    # Match isaacsim-core. pydantic>=2.12 pulls pydantic-core>=2.37, which needs
+    # typing_extensions>=4.14.1 (Sentinel); cap pydantic for kit-less coexistence.
+    "typing_extensions==4.12.2",
+    "pydantic>=2.7,<2.12",
     "lazy_loader>=0.4",
 ]
 
@@ -64,15 +67,23 @@ SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
 SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
+    f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
-    f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    f"usd-core==25.8.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-core==25.11.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+]
+
+# pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on
+# aarch64 (CMake hardcodes -m64).  Gate it on x86_64 so the ARM64 docker image
+# build is not blocked; tetrahedralize callers already degrade gracefully via
+# an "install pytetwild" message when the package is missing.
+# (pinned to 0.2.3: >=0.3 unconditionally imports pyvista at package import time.)
+INSTALL_REQUIRES += [
+    f"pytetwild==0.2.3 ; ({SUPPORTED_ARCHS})",
 ]
 
 # Pin hf-xet to avoid broken tarball (hf_xet-1.1.8.dev2) cached on NVIDIA Artifactory.
@@ -87,32 +98,24 @@ INSTALL_REQUIRES += [
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
-# Isaac Lab subpackages + Isaac Sim
+# Optional extras for pip/uv installs.
+# Use ``pip install isaaclab[isaacsim]`` to add Isaac Sim, or
+# ``pip install isaaclab[all]`` to pull in all sub-packages and extras.
 EXTRAS_REQUIRE = {
     "isaacsim": ["isaacsim[all,extscache]==5.1.0"],
-    # Individual Isaac Lab sub-packages
-    "assets": ["isaaclab_assets"],
-    "physx": ["isaaclab_physx"],
-    "contrib": ["isaaclab_contrib"],
-    "mimic": ["isaaclab_mimic"],
-    "newton": ["isaaclab_newton"],
-    "rl": ["isaaclab_rl"],
-    "tasks": ["isaaclab_tasks"],
-    "teleop": ["isaaclab_teleop"],
-    "visualizers": ["isaaclab_visualizers[all]"],
-    "visualizers-kit": ["isaaclab_visualizers[kit]"],
-    "visualizers-newton": ["isaaclab_visualizers[newton]"],
-    "visualizers-rerun": ["isaaclab_visualizers[rerun]"],
-    "visualizers-viser": ["isaaclab_visualizers[viser]"],
-    # Convenience: all sub-packages (does not include isaacsim)
     "all": [
+        "isaacsim[all,extscache]==5.1.0",
         "isaaclab_assets",
-        "isaaclab_physx",
         "isaaclab_contrib",
+        "isaaclab_experimental",
         "isaaclab_mimic",
-        "isaaclab_newton",
-        "isaaclab_rl",
+        "isaaclab_newton[all]",
+        "isaaclab_ov",
+        "isaaclab_ovphysx",
+        "isaaclab_physx[newton]",
+        "isaaclab_rl[all]",
         "isaaclab_tasks",
+        "isaaclab_tasks_experimental",
         "isaaclab_teleop",
         "isaaclab_visualizers[all]",
     ],
@@ -130,16 +133,20 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
+    entry_points={
+        "console_scripts": [
+            "isaaclab=isaaclab.cli:cli",
+            "play=isaaclab.cli:play",
+            "train=isaaclab.cli:train",
+        ],
+    },
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

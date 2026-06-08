@@ -44,15 +44,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg
+from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -95,14 +94,14 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         ),
         offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
-    tiled_camera = TiledCameraCfg(
+    tiled_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
         update_period=0.1,
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane"],
         spawn=None,  # the camera is already spawned in the scene
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
     raycast_camera = RayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
@@ -192,15 +191,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_pose = wp.to_torch(scene["robot"].data.default_root_pose).clone()
+            root_pose = scene["robot"].data.default_root_pose.torch.clone()
             root_pose[:, :3] += scene.env_origins
             scene["robot"].write_root_pose_to_sim_index(root_pose=root_pose)
-            root_vel = wp.to_torch(scene["robot"].data.default_root_vel).clone()
+            root_vel = scene["robot"].data.default_root_vel.torch.clone()
             scene["robot"].write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
             joint_pos, joint_vel = (
-                wp.to_torch(scene["robot"].data.default_joint_pos).clone(),
-                wp.to_torch(scene["robot"].data.default_joint_vel).clone(),
+                scene["robot"].data.default_joint_pos.torch.clone(),
+                scene["robot"].data.default_joint_vel.torch.clone(),
             )
             joint_pos += torch.rand_like(joint_pos) * 0.1
             scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
@@ -210,7 +209,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             print("[INFO]: Resetting robot state...")
         # Apply default actions to the robot
         # -- generate actions/commands
-        targets = wp.to_torch(scene["robot"].data.default_joint_pos)
+        targets = scene["robot"].data.default_joint_pos.torch
         # -- apply action to the robot
         scene["robot"].set_joint_position_target_index(target=targets)
         # -- write data to sim

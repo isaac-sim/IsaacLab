@@ -16,7 +16,7 @@ from pxr import Usd, UsdPhysics
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
-from ..materials import DeformableBodyMaterialCfg, RigidBodyMaterialCfg
+from ..materials import DeformableBodyMaterialBaseCfg, RigidBodyMaterialCfg, SurfaceDeformableBodyMaterialBaseCfg
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -256,6 +256,52 @@ def spawn_mesh_cone(
     return stage.GetPrimAtPath(prim_path)
 
 
+@clone
+def spawn_mesh_rectangle(
+    prim_path: str,
+    cfg: meshes_cfg.MeshRectangleCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Create a USD-Mesh 2D rectangle prim with the given attributes.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The created prim.
+
+    Raises:
+        ValueError: If a prim already exists at the given path.
+    """
+    # create a 2D triangle mesh grid
+    from omni.physx.scripts import deformableUtils
+
+    vertices, faces = deformableUtils.create_triangle_mesh_square(cfg.resolution[0], cfg.resolution[1], scale=1.0)
+    vertices = np.array([(v[0] * cfg.size[0], v[1] * cfg.size[1], v[2]) for v in vertices], dtype=np.float32)
+    grid = trimesh.Trimesh(vertices=vertices, faces=np.array(faces).reshape(-1, 3), process=False)
+
+    # obtain stage handle
+    stage = get_current_stage()
+    # spawn the rectangle as a mesh
+    _spawn_mesh_geom_from_mesh(prim_path, cfg, grid, translation, orientation, None, stage=stage)
+    # return the prim
+    return stage.GetPrimAtPath(prim_path)
+
+
 """
 Helper functions.
 """
@@ -318,7 +364,7 @@ def _spawn_mesh_geom_from_mesh(
         raise ValueError("Cannot use both deformable and collision properties at the same time.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
-        if not isinstance(cfg.physics_material, DeformableBodyMaterialCfg):
+        if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
             raise ValueError("Deformable properties require a deformable physics material.")
     if cfg.rigid_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, RigidBodyMaterialCfg):
@@ -342,14 +388,19 @@ def _spawn_mesh_geom_from_mesh(
         stage=stage,
     )
 
-    # note: in case of deformable objects, we need to apply the deformable properties to the mesh prim.
-    #   this is different from rigid objects where we apply the properties to the parent prim.
     if cfg.deformable_props is not None:
-        # apply mass properties
-        if cfg.mass_props is not None:
-            schemas.define_mass_properties(mesh_prim_path, cfg.mass_props, stage=stage)
         # apply deformable body properties
-        schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props, stage=stage)
+        deformable_type = (
+            "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
+        )
+        schemas.define_deformable_body_properties(
+            prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
+        )
+        if cfg.mass_props is not None:
+            raise ValueError(
+                """MassPropertiesCfg are not supported for deformable bodies
+                and should be set through deformable_props with mass=<value>."""
+            )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
         if cfg.__class__.__name__ == "MeshSphereCfg":
@@ -386,7 +437,7 @@ def _spawn_mesh_geom_from_mesh(
         # create material
         cfg.physics_material.func(material_path, cfg.physics_material)
         # apply material
-        bind_physics_material(mesh_prim_path, material_path, stage=stage)
+        bind_physics_material(prim_path, material_path, stage=stage)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     if cfg.rigid_props is not None:

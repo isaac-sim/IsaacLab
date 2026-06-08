@@ -5,6 +5,16 @@
 
 """Script to train RL agent with RL-Games."""
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/rl_games/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library rl_games --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import logging
@@ -25,11 +35,17 @@ from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +86,11 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True
-
-sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main():
@@ -84,7 +99,12 @@ def main():
     with launch_simulation(env_cfg, args_cli):
         # override configurations with non-hydra CLI arguments
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+        # For distributed training, launch_simulation() already resolved the
+        # correct per-rank device; only apply a CLI --device override for
+        # non-distributed runs (the default "cuda:0" would clobber the
+        # per-rank device otherwise).
+        if not args_cli.distributed:
+            env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
         if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
             raise ValueError(
                 "Distributed training is not supported when using CPU device. "
@@ -110,12 +130,12 @@ def main():
 
         # multi-gpu training config
         if args_cli.distributed:
-            local_rank = int(os.getenv("LOCAL_RANK", "0"))
             agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
-            agent_cfg["params"]["config"]["device"] = f"cuda:{local_rank}"
-            agent_cfg["params"]["config"]["device_name"] = f"cuda:{local_rank}"
+            # env_cfg.sim.device is resolved by launch_simulation() which
+            # accounts for CUDA_VISIBLE_DEVICES restrictions.
+            agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
+            agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
             agent_cfg["params"]["config"]["multi_gpu"] = True
-            env_cfg.sim.device = f"cuda:{local_rank}"
 
         # set the environment seed (after multi-gpu config for updated rank from agent seed)
         env_cfg.seed = agent_cfg["params"]["seed"]
@@ -202,6 +222,11 @@ def main():
             runner = Runner(observers)
         else:
             runner = Runner(IsaacAlgoObserver())
+
+        # configure_seed must be called after Runner() so that PyTorch deterministic settings
+        # do not interfere with Runner's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         runner.load(agent_cfg)
         runner.reset()

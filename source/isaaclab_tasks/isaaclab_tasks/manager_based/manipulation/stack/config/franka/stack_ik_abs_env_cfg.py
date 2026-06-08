@@ -7,7 +7,7 @@ import logging
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 try:
     import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime

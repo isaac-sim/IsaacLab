@@ -26,7 +26,7 @@ INSTALL_REQUIRES = [
     # configuration management
     "hydra-core",
     # data collection
-    "h5py",
+    "h5py==3.15.1",
     # basic logger
     "tensorboard",
     # video recording
@@ -40,7 +40,7 @@ PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
-    "skrl": ["skrl>=1.4.3"],
+    "skrl": ["skrl>=2.1.0"],
     "rl-games": [
         "aiohttp==3.13.3",
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
@@ -69,17 +69,14 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     dependency_links=PYTORCH_INDEX_URL,
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_rl"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

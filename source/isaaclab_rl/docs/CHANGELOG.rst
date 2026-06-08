@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+0.5.3 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``skrl`` optional dependency floor to ``2.1.0`` for
+  compatibility with ``warp-lang`` 1.13.
+
+
+0.5.2 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added RSL-RL LEAPP export scripts and integration tests for exporting trained
+  policies with semantic input, output, and state annotations.
+
+
+0.5.1 (2026-04-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Locked h5py dependency to last stable version 3.15.1 to prevent package import errors on Windows with version 3.16.0.
+* Updated skrl wrapper to support the new version of skrl 2.0.
+
+
 0.5.0 (2026-3-04)
 ~~~~~~~~~~~~~~~~~~
 

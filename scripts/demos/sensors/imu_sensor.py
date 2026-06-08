@@ -26,13 +26,12 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ImuCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -42,7 +41,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 @configclass
 class ImuSensorSceneCfg(InteractiveSceneCfg):
-    """Design the scene with sensors on the robot."""
+    """Design the scene with IMU sensors on the robot."""
 
     # ground plane
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -55,9 +54,9 @@ class ImuSensorSceneCfg(InteractiveSceneCfg):
     # robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    imu_RF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
+    imu_RF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT")
 
-    imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", gravity_bias=(0, 0, 0), debug_vis=True)
+    imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT")
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -73,18 +72,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset counter
             count = 0
             # reset the scene entities
-            # root state
-            # we offset the root state by the origin since the states are written in simulation world frame
-            # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_pose = wp.to_torch(scene["robot"].data.default_root_pose).clone()
+            root_pose = scene["robot"].data.default_root_pose.torch.clone()
             root_pose[:, :3] += scene.env_origins
             scene["robot"].write_root_link_pose_to_sim_index(root_pose=root_pose)
-            root_vel = wp.to_torch(scene["robot"].data.default_root_vel).clone()
+            root_vel = scene["robot"].data.default_root_vel.torch.clone()
             scene["robot"].write_root_com_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
             joint_pos, joint_vel = (
-                wp.to_torch(scene["robot"].data.default_joint_pos).clone(),
-                wp.to_torch(scene["robot"].data.default_joint_vel).clone(),
+                scene["robot"].data.default_joint_pos.torch.clone(),
+                scene["robot"].data.default_joint_vel.torch.clone(),
             )
             joint_pos += torch.rand_like(joint_pos) * 0.1
             scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
@@ -93,11 +89,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             scene.reset()
             print("[INFO]: Resetting robot state...")
         # Apply default actions to the robot
-        # -- generate actions/commands
-        targets = wp.to_torch(scene["robot"].data.default_joint_pos)
-        # -- apply action to the robot
+        targets = scene["robot"].data.default_joint_pos.torch
         scene["robot"].set_joint_position_target_index(target=targets)
-        # -- write data to sim
         scene.write_data_to_sim()
         # perform step
         sim.step()
@@ -110,16 +103,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # print information from the sensors
         print("-------------------------------")
         print(scene["imu_LF"])
-        print("Received linear velocity: ", scene["imu_LF"].data.lin_vel_b)
         print("Received angular velocity: ", scene["imu_LF"].data.ang_vel_b)
         print("Received linear acceleration: ", scene["imu_LF"].data.lin_acc_b)
-        print("Received angular acceleration: ", scene["imu_LF"].data.ang_acc_b)
         print("-------------------------------")
         print(scene["imu_RF"])
-        print("Received linear velocity: ", scene["imu_RF"].data.lin_vel_b)
         print("Received angular velocity: ", scene["imu_RF"].data.ang_vel_b)
         print("Received linear acceleration: ", scene["imu_RF"].data.lin_acc_b)
-        print("Received angular acceleration: ", scene["imu_RF"].data.ang_acc_b)
 
 
 def main():

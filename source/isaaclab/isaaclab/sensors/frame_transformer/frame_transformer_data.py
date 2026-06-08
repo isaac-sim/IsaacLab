@@ -14,12 +14,17 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_frame_transformer_data import BaseFrameTransformerData
 
 if TYPE_CHECKING:
+    from isaaclab_newton.sensors.frame_transformer.frame_transformer_data import (
+        FrameTransformerData as NewtonFrameTransformerData,
+    )
     from isaaclab_physx.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
 
 
 class FrameTransformerData(FactoryBase, BaseFrameTransformerData):
     """Factory for creating frame transformer data instances."""
 
-    def __new__(cls, *args, **kwargs) -> BaseFrameTransformerData | PhysXFrameTransformerData:
+    def __new__(
+        cls, *args, **kwargs
+    ) -> BaseFrameTransformerData | NewtonFrameTransformerData | PhysXFrameTransformerData:
         """Create a new instance of a frame transformer data based on the backend."""
         return super().__new__(cls, *args, **kwargs)

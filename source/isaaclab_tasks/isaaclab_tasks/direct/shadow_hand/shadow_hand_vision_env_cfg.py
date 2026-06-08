@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -18,8 +18,8 @@ from .shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
 @configclass
-class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
-    """Base tiled camera configuration for the shadow hand vision environment.
+class _ShadowHandBaseTiledCameraCfg(CameraCfg):
+    """Base camera configuration for the shadow hand vision environment.
 
     This is an internal config used by :class:`ShadowHandVisionTiledCameraCfg` presets and
     by derived env configs that hard-code a specific data type. It embeds
@@ -28,7 +28,7 @@ class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
     """
 
     prim_path: str = "/World/envs/env_.*/Camera"
-    offset: TiledCameraCfg.OffsetCfg = TiledCameraCfg.OffsetCfg(
+    offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
         pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
     )
     data_types: list[str] = []
@@ -102,6 +102,11 @@ class ShadowHandVisionTiledCameraCfg(PresetCfg):
             presets=depth,newton_renderer     # depth rendering with Newton renderer
             presets=depth,ovrtx_renderer    # depth rendering with OVRTX renderer
     """
+
+    semantic_segmentation: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
+        data_types=["semantic_segmentation"]
+    )
+    """Semantic segmentation (3 CNN input channels)."""
 
 
 @configclass

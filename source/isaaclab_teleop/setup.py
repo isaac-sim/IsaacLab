@@ -6,7 +6,6 @@
 """Installation script for the 'isaaclab_teleop' python package."""
 
 import os
-import platform
 
 import toml
 from setuptools import find_packages, setup
@@ -16,12 +15,15 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-# Minimum dependencies required prior to installation
-INSTALL_REQUIRES = []
+SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 
-# nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels
-if platform.machine() != "aarch64":
-    INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
+# Minimum dependencies required prior to installation
+INSTALL_REQUIRES = [
+    # IsaacTeleop is only available on Linux x86_64
+    f"isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+    f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+]
 
 # Installation operation
 setup(
@@ -33,19 +35,13 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
-    package_data={"": ["*.pyi"]},
-    python_requires=">=3.10",
+    package_data={"": ["*.pyi", "*.env"]},
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
-    extras_require={
-        "teleop": ["isaacteleop"],
-    },
     packages=find_packages(),
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

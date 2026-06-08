@@ -5,12 +5,11 @@
 
 """Installation script for the 'isaaclab_mimic' python package."""
 
-import itertools
 import os
 import platform
 
 import toml
-from setuptools import setup
+from setuptools import find_namespace_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -23,29 +22,22 @@ INSTALL_REQUIRES = [
     # jupyter notebook
     "ipywidgets==8.1.5",
     # data collection
-    "h5py",
+    "h5py==3.15.1",
 ]
 
 # nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels
 if platform.machine() != "aarch64":
     INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
 
-# Extra dependencies for IL agents
-EXTRAS_REQUIRE = {"robomimic": []}
-
-# Check if the platform is Linux and add the dependency
+# robomimic has no Windows/macOS wheels; only add it on Linux
 if platform.system() == "Linux":
-    EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0")
+    INSTALL_REQUIRES.append("robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0")
 
-# Cumulation of all extra-requires
-EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
-# Remove duplicates in the all list to avoid double installations
-EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 # Installation operation
 setup(
     name="isaaclab_mimic",
-    packages=["isaaclab_mimic"],
+    packages=find_namespace_packages(include=["isaaclab_mimic", "isaaclab_mimic.*"]),
     author=EXTENSION_TOML_DATA["package"]["author"],
     maintainer=EXTENSION_TOML_DATA["package"]["maintainer"],
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -53,16 +45,12 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     install_requires=INSTALL_REQUIRES,
-    extras_require=EXTRAS_REQUIRE,
     license="Apache-2.0",
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

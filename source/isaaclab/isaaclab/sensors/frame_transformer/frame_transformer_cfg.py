@@ -9,7 +9,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 

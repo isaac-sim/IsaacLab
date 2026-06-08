@@ -142,7 +142,7 @@ multirotor_cfg = MultirotorCfg(
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 @configclass
@@ -208,11 +208,11 @@ The `ThrustAction` term provides flexible preprocessing to support all modes thr
 
 ### Demo Script
 
-A complete demonstration of quadcopter simulation is available:
+A complete demonstration of multirotor simulation is available:
 
 ```bash
-# Run quadcopter demo
-./isaaclab.sh -p scripts/demos/quadcopter.py
+# Run multirotor demo
+./isaaclab.sh -p scripts/demos/arl_robot_1.py
 ```
 
 ## TacSL Tactile Sensor (Detailed)
@@ -256,7 +256,7 @@ The TacSL tactile sensor system includes:
 
 ```python
 import isaaclab.sim as sim_utils
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
@@ -287,8 +287,8 @@ tactile_sensor_cfg = VisuoTactileSensorCfg(
     friction_coefficient=2.0,        # Surface friction
     tangential_stiffness=0.1,        # Tangential stiffness
 
-    # Camera configuration (must match render_cfg dimensions)
-    camera_cfg=TiledCameraCfg(
+    # Camera configuration (dimensions must match GELSIGHT_R15_CFG which provides the render_cfg)
+    camera_cfg=CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
         height=GELSIGHT_R15_CFG.image_height,
         width=GELSIGHT_R15_CFG.image_width,
@@ -424,9 +424,11 @@ The RGB tactile rendering follows this pipeline:
 For accurate tactile sensing, configure PhysX parameters:
 
 ```python
+from isaaclab_physx.physics import PhysxCfg
+
 sim_cfg = sim_utils.SimulationCfg(
     dt=0.005,  # 5ms timestep for stable contact simulation
-    physx=sim_utils.PhysxCfg(
+    physics=PhysxCfg(
         gpu_collision_stack_size=2**30,  # Increase for contact-rich scenarios
     ),
 )
@@ -478,7 +480,7 @@ The extension includes comprehensive unit tests for all contributed components:
 # Test multirotor components
 python -m pytest source/isaaclab_contrib/test/assets/test_multirotor.py
 python -m pytest source/isaaclab_contrib/test/actuators/test_thruster.py
-
+python -m pytest source/isaaclab_contrib/test/assets/test_drone_geometric_controllers.py
 # Run all contrib tests
 python -m pytest source/isaaclab_contrib/test/
 ```

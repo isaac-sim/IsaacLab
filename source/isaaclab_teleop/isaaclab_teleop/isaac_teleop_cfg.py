@@ -9,11 +9,23 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaacteleop.teleop_session_manager import DeadlinePacingConfig, RetargetingExecutionConfig
 
+from isaaclab.utils.configclass import configclass
+
+from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg
+
+_CLOUDXR_ENV_DIR = Path(__file__).resolve().parent
+
+CLOUDXR_AVP_ENV: str = str(_CLOUDXR_ENV_DIR / "avp-cloudxr.env")
+"""Absolute path to the Apple Vision Pro CloudXR ``.env`` profile (``auto-native``)."""
+
+CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
+"""Absolute path to the CloudXR JS (Quest/Pico) ``.env`` profile (``auto-webrtc``)."""
 
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
@@ -85,6 +97,19 @@ class IsaacTeleopCfg:
     sim_device: str = "cuda:0"
     """Torch device string for placing output action tensors."""
 
+    retargeting_execution: RetargetingExecutionConfig = field(
+        default_factory=lambda: RetargetingExecutionConfig(
+            mode="pipelined",
+            pacing=DeadlinePacingConfig(safety_margin_s=0.025),
+        )
+    )
+    """IsaacTeleop retargeting execution settings.
+
+    Isaac Lab opts into IsaacTeleop's pipelined execution by default. Set this
+    to ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
+    retargeting while debugging or comparing behavior.
+    """
+
     teleoperation_active_default: bool = False
     """Whether teleoperation should be active by default when the session starts.
 
@@ -106,6 +131,45 @@ class IsaacTeleopCfg:
     have a ``ParameterState`` (i.e. tunable parameters) will appear.
 
     If ``None``, the tuning UI will not be opened.
+    """
+
+    control_channel_uuid: bytes | None = TELEOP_CONTROL_CHANNEL_UUID
+    """16-byte UUID for the teleop control message channel.
+
+    Defaults to :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
+    (``uuid5(NAMESPACE_DNS, "teleop_command")``), which is the well-known
+    channel both the Isaac Lab server and CloudXR JS client use to
+    exchange start/stop/reset commands.
+
+    When set, a ``teleop_control_pipeline`` is created automatically
+    using :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+    and :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+    The remote client sends UTF-8 control commands over the OpenXR opaque
+    data channel identified by this UUID, and the results are exposed via
+    :func:`~isaaclab_teleop.poll_control_events`.
+
+    Set to ``None`` to disable the control channel entirely.
+    """
+
+    target_frame_prim_path: str | None = None
+    """Optional USD prim path whose world frame becomes the target coordinate
+    frame for all output poses.
+
+    When set, the device automatically reads this prim's world transform each
+    frame and uses its inverse as the ``target_T_world`` rebase matrix in
+    :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`.  An explicit
+    ``target_T_world`` argument to :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`
+    takes precedence over this config.
+
+    Typical usage: set to the robot base link prim path so that an IK
+    controller receives end-effector poses in the robot's base frame.
+
+    Example::
+
+        IsaacTeleopCfg(
+            target_frame_prim_path="/World/envs/env_0/Robot/base_link",
+            ...
+        )
     """
 
     app_name: str = "IsaacLabTeleop"

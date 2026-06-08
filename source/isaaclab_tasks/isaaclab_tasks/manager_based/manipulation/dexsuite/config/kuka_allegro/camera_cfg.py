@@ -9,8 +9,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import TiledCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
@@ -22,9 +22,9 @@ from ... import mdp
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 
 
-BASE_CAMERA_CFG = TiledCameraCfg(
+BASE_CAMERA_CFG = CameraCfg(
     prim_path="/World/envs/env_.*/Camera",
-    offset=TiledCameraCfg.OffsetCfg(
+    offset=CameraCfg.OffsetCfg(
         pos=(0.57, -0.8, 0.5),
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
         convention="opengl",
@@ -36,9 +36,9 @@ BASE_CAMERA_CFG = TiledCameraCfg(
     renderer_cfg=MultiBackendRendererCfg(),
 )
 
-WRIST_CAMERA_CFG = TiledCameraCfg(
+WRIST_CAMERA_CFG = CameraCfg(
     prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
-    offset=TiledCameraCfg.OffsetCfg(
+    offset=CameraCfg.OffsetCfg(
         pos=(0.038, -0.38, -0.18),
         rot=(0.641, 0.641, -0.299, 0.299),
         convention="opengl",
@@ -48,6 +48,54 @@ WRIST_CAMERA_CFG = TiledCameraCfg(
     width=MISSING,
     height=MISSING,
     renderer_cfg=MultiBackendRendererCfg(),
+)
+
+RAY_PATTERN = patterns.PinholeCameraPatternCfg(focal_length=24.0, horizontal_aperture=20.955)
+
+RAYCASTER_CAMERA_MESH_PRIM_PATHS = [
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/envs/env_.*/table",
+        track_mesh_transforms=False,
+    ),
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/GroundPlane",
+        track_mesh_transforms=False,
+    ),
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/envs/env_.*/Object",
+        track_mesh_transforms=True,
+    ),
+    MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
+        prim_expr="/World/envs/env_.*/Robot/.*/visuals",
+        track_mesh_transforms=True,
+    ),
+]
+
+BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
+    prim_path="/World/envs/env_.*/Camera",
+    offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+        pos=(0.57, -0.8, 0.5),
+        rot=(0.6124, 0.3536, 0.3536, 0.6124),
+        convention="opengl",
+    ),
+    mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
+    max_distance=2.5,
+    data_types=["distance_to_image_plane"],
+    pattern_cfg=MISSING,
+)
+
+WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
+    prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
+    offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+        pos=(0.038, -0.38, -0.18),
+        rot=(0.641, 0.641, -0.299, 0.299),
+        convention="opengl",
+    ),
+    mesh_prim_paths=RAYCASTER_CAMERA_MESH_PRIM_PATHS,
+    max_distance=2.5,
+    data_types=["distance_to_image_plane"],
+    pattern_cfg=MISSING,
+    debug_vis=False,
 )
 
 
@@ -85,6 +133,13 @@ class BaseTiledCameraCfg(PresetCfg):
     simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
     simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
     simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
+    semantic_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
+    semantic_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
+    semantic_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
+    # raycaster camera presets
+    raycaster_depth64 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=64, height=64))
+    raycaster_depth128 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=128, height=128))
+    raycaster_depth256 = BASE_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=256, height=256))
     default = rgb64
 
 
@@ -101,27 +156,34 @@ class WristTiledCameraCfg(PresetCfg):
     albedo64 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=64, height=64)
     albedo128 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=128, height=128)
     albedo256 = WRIST_CAMERA_CFG.replace(data_types=["albedo"], width=256, height=256)
-    simple_shading_constant_diffuse64 = BASE_CAMERA_CFG.replace(
+    simple_shading_constant_diffuse64 = WRIST_CAMERA_CFG.replace(
         data_types=["simple_shading_constant_diffuse"], width=64, height=64
     )
-    simple_shading_constant_diffuse128 = BASE_CAMERA_CFG.replace(
+    simple_shading_constant_diffuse128 = WRIST_CAMERA_CFG.replace(
         data_types=["simple_shading_constant_diffuse"], width=128, height=128
     )
-    simple_shading_constant_diffuse256 = BASE_CAMERA_CFG.replace(
+    simple_shading_constant_diffuse256 = WRIST_CAMERA_CFG.replace(
         data_types=["simple_shading_constant_diffuse"], width=256, height=256
     )
-    simple_shading_diffuse_mdl64 = BASE_CAMERA_CFG.replace(
+    simple_shading_diffuse_mdl64 = WRIST_CAMERA_CFG.replace(
         data_types=["simple_shading_diffuse_mdl"], width=64, height=64
     )
-    simple_shading_diffuse_mdl128 = BASE_CAMERA_CFG.replace(
+    simple_shading_diffuse_mdl128 = WRIST_CAMERA_CFG.replace(
         data_types=["simple_shading_diffuse_mdl"], width=128, height=128
     )
-    simple_shading_diffuse_mdl256 = BASE_CAMERA_CFG.replace(
+    simple_shading_diffuse_mdl256 = WRIST_CAMERA_CFG.replace(
         data_types=["simple_shading_diffuse_mdl"], width=256, height=256
     )
-    simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
-    simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
-    simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
+    simple_shading_full_mdl64 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
+    simple_shading_full_mdl128 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
+    simple_shading_full_mdl256 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
+    semantic_segmentation64 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
+    semantic_segmentation128 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
+    semantic_segmentation256 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
+    # raycaster camera presets
+    raycaster_depth64 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=64, height=64))
+    raycaster_depth128 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=128, height=128))
+    raycaster_depth256 = WRIST_RAYCASTER_CAMERA_CFG.replace(pattern_cfg=RAY_PATTERN.replace(width=256, height=256))
     default = rgb64
 
 

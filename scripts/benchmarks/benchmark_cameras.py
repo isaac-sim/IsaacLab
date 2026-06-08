@@ -25,6 +25,7 @@ through the auto-tune functionality.
 
 import argparse
 from collections.abc import Callable
+from dataclasses import MISSING
 
 from isaaclab.app import AppLauncher
 
@@ -265,8 +266,6 @@ from isaaclab.sensors import (
     CameraCfg,
     RayCasterCamera,
     RayCasterCameraCfg,
-    TiledCamera,
-    TiledCameraCfg,
     patterns,
 )
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
@@ -279,53 +278,63 @@ Camera Creation
 """
 
 
+def _get_camera_class_name(camera_cfg: type[CameraCfg]) -> str:
+    """Return the configured camera sensor class name."""
+    class_type_field = camera_cfg.__dataclass_fields__["class_type"]
+    if class_type_field.default is not MISSING:
+        class_type = class_type_field.default
+    elif class_type_field.default_factory is not MISSING:
+        class_type = class_type_field.default_factory()
+    else:
+        raise AttributeError(f"{camera_cfg.__name__} has no default class_type.")
+
+    if hasattr(class_type, "__name__"):
+        return class_type.__name__
+    return str(class_type).rsplit(":", maxsplit=1)[-1]
+
+
 def create_camera_base(
-    camera_cfg: type[CameraCfg | TiledCameraCfg],
+    camera_cfg: type[CameraCfg],
     num_cams: int,
     data_types: list[str],
     height: int,
     width: int,
     prim_path: str | None = None,
     instantiate: bool = True,
-) -> Camera | TiledCamera | CameraCfg | TiledCameraCfg | None:
+) -> Camera | CameraCfg | None:
     """Generalized function to create a camera or tiled camera sensor."""
-    # Determine prim prefix based on the camera class
-    name = camera_cfg.class_type.__name__
+    # If valid camera settings are provided, create the camera
+    if num_cams <= 0 or len(data_types) <= 0 or height <= 0 or width <= 0:
+        return None
 
+    name = _get_camera_class_name(camera_cfg)
+    cfg = camera_cfg(
+        prim_path=prim_path if prim_path is not None else f"/World/{name}_.*/{name}",
+        update_period=0,
+        height=height,
+        width=width,
+        data_types=data_types,
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
+        ),
+    )
     if instantiate:
         # Create the necessary prims
         for idx in range(num_cams):
             sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
-    if prim_path is None:
-        prim_path = f"/World/{name}_.*/{name}"
-    # If valid camera settings are provided, create the camera
-    if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
-        cfg = camera_cfg(
-            prim_path=prim_path,
-            update_period=0,
-            height=height,
-            width=width,
-            data_types=data_types,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
-            ),
-        )
-        if instantiate:
-            return camera_cfg.class_type(cfg=cfg)
-        else:
-            return cfg
-    else:
-        return None
+        return cfg.class_type(cfg=cfg)
+
+    return cfg
 
 
 def create_tiled_cameras(
     num_cams: int = 2, data_types: list[str] | None = None, height: int = 100, width: int = 120
-) -> TiledCamera | None:
+) -> Camera | None:
     if data_types is None:
         data_types = ["rgb", "depth"]
-    """Defines the tiled camera sensor to add to the scene."""
+    """Defines the camera sensor to add to the scene."""
     return create_camera_base(
-        camera_cfg=TiledCameraCfg,
+        camera_cfg=CameraCfg,
         num_cams=num_cams,
         data_types=data_types,
         height=height,
@@ -381,10 +390,10 @@ def create_ray_caster_cameras(
         return None
 
 
-def create_tiled_camera_cfg(prim_path: str) -> TiledCameraCfg:
-    """Grab a simple tiled camera config for injecting into task environments."""
+def create_tiled_camera_cfg(prim_path: str) -> CameraCfg:
+    """Grab a simple camera config for injecting into task environments."""
     return create_camera_base(
-        TiledCameraCfg,
+        CameraCfg,
         num_cams=args_cli.num_tiled_cameras,
         data_types=args_cli.tiled_camera_data_types,
         width=args_cli.width,

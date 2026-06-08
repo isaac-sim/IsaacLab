@@ -5,11 +5,6 @@
 
 """Test cases for LocalFrameTask class."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 from pathlib import Path
 
 import numpy as np

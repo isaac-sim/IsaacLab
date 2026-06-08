@@ -108,13 +108,16 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # reset robots
             for index, robot in enumerate(entities.values()):
                 # root state
-                root_state = robot.data.default_root_state.clone()
+                root_state = robot.data.default_root_state.torch.clone()
                 root_state[:, :3] += origins[index]
                 root_state[:, :2] += torch.randn_like(root_state[:, :2]) * 0.25
                 robot.write_root_pose_to_sim(root_state[:, :7])
                 robot.write_root_velocity_to_sim(root_state[:, 7:])
                 # joint state
-                joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+                joint_pos, joint_vel = (
+                    robot.data.default_joint_pos.torch.clone(),
+                    robot.data.default_joint_vel.torch.clone(),
+                )
                 robot.write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset the internal state
                 robot.reset()
@@ -124,7 +127,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             if count % 200 == 0:
                 print("Name: ", name, "is_fixed_base: ", robot.is_fixed_base)
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
+            joint_pos_target = robot.data.default_joint_pos.torch + torch.randn_like(robot.data.joint_pos.torch) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim

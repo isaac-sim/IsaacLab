@@ -14,13 +14,13 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
 from pxr import UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -34,6 +34,8 @@ from .kernels import (
 )
 
 if TYPE_CHECKING:
+    import omni.physics.tensors as physx
+
     from .deformable_object_cfg import DeformableObjectCfg
 
 # import logger
@@ -55,7 +57,7 @@ class DeformableObject(AssetBase):
     The state of a deformable object comprises of its nodal positions and velocities, and not the object's root
     position and orientation. The nodal positions and velocities are in the simulation frame.
 
-    Soft bodies can be `partially kinematic`_, where some nodes are driven by kinematic targets, and the rest are
+    Volume deformables can be `partially kinematic`_, where some nodes are driven by kinematic targets, and the rest are
     simulated. The kinematic targets are the desired positions of the nodes, and the simulation drives the nodes
     towards these targets. This is useful for partial control of the object, such as moving a stuffed animal's
     head while the rest of the body is simulated.
@@ -80,6 +82,8 @@ class DeformableObject(AssetBase):
         super().__init__(cfg)
         # Register custom vec6f type for nodal state validation.
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
+        # initialize deformable type to None, should be set to either surface or volume on initialization
+        self._deformable_type: str | None = None
 
     """
     Properties
@@ -102,7 +106,7 @@ class DeformableObject(AssetBase):
         return 1
 
     @property
-    def root_view(self) -> physx.SoftBodyView:
+    def root_view(self) -> physx.DeformableBodyView:
         """Deformable body view for the asset.
 
         .. note::
@@ -111,7 +115,7 @@ class DeformableObject(AssetBase):
         return self._root_physx_view
 
     @property
-    def root_physx_view(self) -> physx.SoftBodyView:
+    def root_physx_view(self) -> physx.DeformableBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""
         logger.warning(
             "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
@@ -119,7 +123,7 @@ class DeformableObject(AssetBase):
         return self.root_view
 
     @property
-    def material_physx_view(self) -> physx.SoftBodyMaterialView | None:
+    def material_physx_view(self) -> physx.DeformableMaterialView | None:
         """Deformable material view for the asset (PhysX).
 
         This view is optional and may not be available if the material is not bound to the deformable body.
@@ -133,22 +137,22 @@ class DeformableObject(AssetBase):
     @property
     def max_sim_elements_per_body(self) -> int:
         """The maximum number of simulation mesh elements per deformable body."""
-        return self.root_view.max_sim_elements_per_body
+        return self.root_view.max_simulation_elements_per_body
 
     @property
     def max_collision_elements_per_body(self) -> int:
         """The maximum number of collision mesh elements per deformable body."""
-        return self.root_view.max_elements_per_body
+        return self.root_view.max_collision_elements_per_body
 
     @property
     def max_sim_vertices_per_body(self) -> int:
         """The maximum number of simulation mesh vertices per deformable body."""
-        return self.root_view.max_sim_vertices_per_body
+        return self.root_view.max_simulation_nodes_per_body
 
     @property
     def max_collision_vertices_per_body(self) -> int:
         """The maximum number of collision mesh vertices per deformable body."""
-        return self.root_view.max_vertices_per_body
+        return self.root_view.max_collision_nodes_per_body
 
     """
     Operations.
@@ -177,7 +181,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_state_to_sim_index(
         self,
-        nodal_state: torch.Tensor | wp.array,
+        nodal_state: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -192,8 +196,10 @@ class DeformableObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
-        # Convert warp to torch if needed
-        if isinstance(nodal_state, wp.array):
+        # Convert array wrappers to torch for slicing into position and velocity views.
+        if isinstance(nodal_state, ProxyArray):
+            nodal_state = nodal_state.torch
+        elif isinstance(nodal_state, wp.array):
             nodal_state = wp.to_torch(nodal_state)
         # set into simulation
         self.write_nodal_pos_to_sim_index(nodal_state[..., :3], env_ids=env_ids, full_data=full_data)
@@ -201,7 +207,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_state_to_sim_mask(
         self,
-        nodal_state: torch.Tensor | wp.array,
+        nodal_state: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the nodal state over selected environment mask into the simulation.
@@ -222,7 +228,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_pos_to_sim_index(
         self,
-        nodal_pos: torch.Tensor | wp.array,
+        nodal_pos: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -239,6 +245,8 @@ class DeformableObject(AssetBase):
         """
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
+        if isinstance(nodal_pos, ProxyArray):
+            nodal_pos = nodal_pos.warp
         if full_data:
             self.assert_shape_and_dtype(
                 nodal_pos, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos"
@@ -264,11 +272,11 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_sim_nodal_positions(self._data._nodal_pos_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_positions(self._get_nodal_pos_w_f32(), indices=env_ids)
 
     def write_nodal_pos_to_sim_mask(
         self,
-        nodal_pos: torch.Tensor | wp.array,
+        nodal_pos: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the nodal positions over selected environment mask into the simulation.
@@ -289,7 +297,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_velocity_to_sim_index(
         self,
-        nodal_vel: torch.Tensor | wp.array,
+        nodal_vel: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -307,6 +315,8 @@ class DeformableObject(AssetBase):
         """
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
+        if isinstance(nodal_vel, ProxyArray):
+            nodal_vel = nodal_vel.warp
         if full_data:
             self.assert_shape_and_dtype(
                 nodal_vel, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel"
@@ -332,11 +342,11 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_vel_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_sim_nodal_velocities(self._data._nodal_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_velocities(self._get_nodal_vel_w_f32(), indices=env_ids)
 
     def write_nodal_velocity_to_sim_mask(
         self,
-        nodal_vel: torch.Tensor | wp.array,
+        nodal_vel: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the nodal velocity over selected environment mask into the simulation.
@@ -358,7 +368,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_kinematic_target_to_sim_index(
         self,
-        targets: torch.Tensor | wp.array,
+        targets: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -377,8 +387,13 @@ class DeformableObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
+        if self._deformable_type != "volume":
+            raise ValueError("Kinematic targets can only be set for volume deformable bodies.")
+
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
+        if isinstance(targets, ProxyArray):
+            targets = targets.warp
         if full_data:
             self.assert_shape_and_dtype(
                 targets, (self.num_instances, self.max_sim_vertices_per_body), wp.vec4f, "targets"
@@ -397,15 +412,17 @@ class DeformableObject(AssetBase):
             write_nodal_vec4f_to_buffer,
             dim=(env_ids.shape[0], self.max_sim_vertices_per_body),
             inputs=[targets, env_ids, full_data],
-            outputs=[self._data.nodal_kinematic_target],
+            outputs=[self._data.nodal_kinematic_target.warp],
             device=self.device,
         )
         # set into simulation
-        self.root_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_kinematic_targets(
+            self._data.nodal_kinematic_target.warp.view(wp.float32), indices=env_ids
+        )
 
     def write_nodal_kinematic_target_to_sim_mask(
         self,
-        targets: torch.Tensor | wp.array,
+        targets: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the kinematic targets of the simulation mesh for the deformable bodies using mask.
@@ -434,7 +451,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_state_to_sim(
         self,
-        nodal_state: torch.Tensor | wp.array,
+        nodal_state: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Please use :meth:`write_nodal_state_to_sim_index` instead."""
@@ -447,7 +464,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_kinematic_target_to_sim(
         self,
-        targets: torch.Tensor | wp.array,
+        targets: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Please use :meth:`write_nodal_kinematic_target_to_sim_index` instead."""
@@ -461,7 +478,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_pos_to_sim(
         self,
-        nodal_pos: torch.Tensor | wp.array,
+        nodal_pos: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Please use :meth:`write_nodal_pos_to_sim_index` instead."""
@@ -474,7 +491,7 @@ class DeformableObject(AssetBase):
 
     def write_nodal_velocity_to_sim(
         self,
-        nodal_vel: torch.Tensor | wp.array,
+        nodal_vel: torch.Tensor | wp.array | ProxyArray,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Please use :meth:`write_nodal_velocity_to_sim_index` instead."""
@@ -519,43 +536,68 @@ class DeformableObject(AssetBase):
     Internal helper.
     """
 
+    def _get_nodal_pos_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_pos_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_pos_w_f32 is None:
+            self._nodal_pos_w_f32 = self._data._nodal_pos_w.data.view(wp.float32)
+        return self._nodal_pos_w_f32
+
+    def _get_nodal_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_vel_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_vel_w_f32 is None:
+            self._nodal_vel_w_f32 = self._data._nodal_vel_w.data.view(wp.float32)
+        return self._nodal_vel_w_f32
+
     def _resolve_env_ids(self, env_ids):
-        """Resolve environment indices to a warp int32 array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
+        """Resolve environment indices to a warp array.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices.
+        """
+        if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        elif isinstance(env_ids, list):
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
         return env_ids
 
     def _initialize_impl(self):
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
 
-        # find deformable root prims
+        def has_deformable_body_api(prim) -> bool:
+            return "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas()
+
+        matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+        asset_prim, root_expr = matches[0]
+        walk_root = asset_prim.GetPath().pathString
         root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: "PhysxDeformableBodyAPI" in prim.GetAppliedSchemas(),
-            traverse_instance_prims=False,
+            walk_root, predicate=has_deformable_body_api, traverse_instance_prims=False
         )
-        if len(root_prims) == 0:
+        if len(root_prims) != 1:
+            matched = [p.GetPath().pathString for p in root_prims]
             raise RuntimeError(
-                f"Failed to find a deformable body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'PhysxDeformableBodyAPI' applied."
+                f"Expected exactly one OmniPhysicsDeformableBodyAPI prim under '{walk_root}'"
+                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
             )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single deformable body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one deformable body in the prim path tree."
-            )
-        # we only need the first one from the list
         root_prim = root_prims[0]
 
         # find deformable material prims
@@ -571,27 +613,69 @@ class DeformableObject(AssetBase):
             if len(material_paths) > 0:
                 for mat_path in material_paths:
                     mat_prim = root_prim.GetStage().GetPrimAtPath(mat_path)
-                    if "PhysxDeformableBodyMaterialAPI" in mat_prim.GetAppliedSchemas():
+                    if "OmniPhysicsDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
                         material_prim = mat_prim
+                        # determine deformable material type
+                        if "PhysxSurfaceDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
+                            self._deformable_type = "surface"
+                        elif "PhysxDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
+                            self._deformable_type = "volume"
                         break
+
         if material_prim is None:
-            logger.info(
+            logger.warning(
                 f"Failed to find a deformable material binding for '{root_prim.GetPath().pathString}'."
-                " The material properties will be set to default values and are not modifiable at runtime."
-                " If you want to modify the material properties, please ensure that the material is bound"
-                " to the deformable body."
+                " The material properties will be set to default values and are not modifiable "
+                "at runtime. If you want to modify the material properties, please ensure that the material is "
+                "bound to the deformable body."
             )
 
-        # resolve root path back into regex expression
-        # -- root prim expression
-        root_prim_path = root_prim.GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        # fall back to prim hierarchy heuristic when material type detection was inconclusive
+        if self._deformable_type is None:
+            # volume deformables must have a tetmesh in the hierarchy
+            has_tetmesh = (
+                len(sim_utils.get_all_matching_child_prims(root_prim.GetPath(), lambda p: p.GetTypeName() == "TetMesh"))
+                > 0
+            )
+            if has_tetmesh:
+                self._deformable_type = "volume"
+            else:
+                # surface deformables must have a mesh in the hierarchy
+                has_mesh = (
+                    len(
+                        sim_utils.get_all_matching_child_prims(root_prim.GetPath(), lambda p: p.GetTypeName() == "Mesh")
+                    )
+                    > 0
+                )
+                if has_mesh:
+                    self._deformable_type = "surface"
+
+        # resolve root path back into the destination glob expression
+        root_prim_path_expr = root_expr + root_prim.GetPath().pathString[len(walk_root) :]
         # -- object view
-        self._root_physx_view = self._physics_sim_view.create_soft_body_view(root_prim_path_expr.replace(".*", "*"))
+        if self._deformable_type == "surface":
+            # surface deformable
+            self._root_physx_view = self._physics_sim_view.create_surface_deformable_body_view(
+                root_prim_path_expr.replace(".*", "*")
+            )
+        elif self._deformable_type == "volume":
+            # volume deformable
+            self._root_physx_view = self._physics_sim_view.create_volume_deformable_body_view(
+                root_prim_path_expr.replace(".*", "*")
+            )
+        else:
+            raise RuntimeError(
+                f"Failed to determine deformable material type for '{root_prim.GetPath().pathString}'."
+                " Please ensure that the material has either 'PhysxSurfaceDeformableMaterialAPI' or "
+                "'PhysxDeformableMaterialAPI' applied, or that a valid tetmesh is found under the root prim."
+            )
 
         # Return if the asset is not found
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create deformable body at: {self.cfg.prim_path}. Please check PhysX logs.")
+        # Check validity of deformables in view
+        if not self._root_physx_view.check():
+            logger.warning(f"Deformable body view is not valid for: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # resolve material path back into regex expression
         if material_prim is not None:
@@ -599,12 +683,12 @@ class DeformableObject(AssetBase):
             material_prim_path = material_prim.GetPath().pathString
             # check if the material prim is under the template prim
             # if not then we are assuming that the single material prim is used for all the deformable bodies
-            if template_prim_path in material_prim_path:
-                material_prim_path_expr = self.cfg.prim_path + material_prim_path[len(template_prim_path) :]
+            if walk_root in material_prim_path:
+                material_prim_path_expr = root_expr + material_prim_path[len(walk_root) :]
             else:
                 material_prim_path_expr = material_prim_path
             # -- material view
-            self._material_physx_view = self._physics_sim_view.create_soft_body_material_view(
+            self._material_physx_view = self._physics_sim_view.create_deformable_material_view(
                 material_prim_path_expr.replace(".*", "*")
             )
         else:
@@ -638,10 +722,15 @@ class DeformableObject(AssetBase):
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
 
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # Safe because DeformableObjectData uses wp.copy into stable buffers.
+        self._nodal_pos_w_f32: wp.array | None = None
+        self._nodal_vel_w_f32: wp.array | None = None
+
         # default state
         # we use the initial nodal positions at spawn time as the default state
         # note: these are all in the simulation frame
-        nodal_positions_raw = self.root_view.get_sim_nodal_positions()  # (N, V, 3) float32
+        nodal_positions_raw = self.root_view.get_simulation_nodal_positions()  # (N, V, 3) float32
         nodal_positions = nodal_positions_raw.view(wp.vec3f).reshape(
             (self.num_instances, self.max_sim_vertices_per_body)
         )
@@ -649,31 +738,35 @@ class DeformableObject(AssetBase):
             (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec3f, device=self.device
         )
         # compute default nodal state as vec6f
-        self._data.default_nodal_state_w = wp.zeros(
+        default_nodal_state = wp.zeros(
             (self.num_instances, self.max_sim_vertices_per_body), dtype=vec6f, device=self.device
         )
         wp.launch(
             compute_nodal_state_w,
             dim=(self.num_instances, self.max_sim_vertices_per_body),
             inputs=[nodal_positions, nodal_velocities],
-            outputs=[self._data.default_nodal_state_w],
+            outputs=[default_nodal_state],
             device=self.device,
         )
+        self._data.default_nodal_state_w = ProxyArray(default_nodal_state)
 
-        # kinematic targets — allocate our own buffer and copy from PhysX
-        kinematic_raw = self.root_view.get_sim_kinematic_targets()  # (N, V, 4) float32
-        kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
-        self._data.nodal_kinematic_target = wp.zeros(
-            (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
-        )
-        wp.copy(self._data.nodal_kinematic_target, kinematic_view)
-        # set all nodes as non-kinematic targets by default (flag = 1.0)
-        wp.launch(
-            set_kinematic_flags_to_one,
-            dim=(self.num_instances * self.max_sim_vertices_per_body,),
-            inputs=[self._data.nodal_kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))],
-            device=self.device,
-        )
+        # kinematic targets (only for volume deformables, surface deformables do not support kinematic targets)
+        if self._deformable_type == "volume":
+            # kinematic targets — allocate our own buffer and copy from PhysX
+            kinematic_raw = self.root_view.get_simulation_nodal_kinematic_targets()  # (N, V, 4) float32
+            kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
+            kinematic_target = wp.zeros(
+                (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
+            )
+            wp.copy(kinematic_target, kinematic_view)
+            # set all nodes as non-kinematic targets by default (flag = 1.0)
+            wp.launch(
+                set_kinematic_flags_to_one,
+                dim=(self.num_instances * self.max_sim_vertices_per_body,),
+                inputs=[kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))],
+                device=self.device,
+            )
+            self._data.nodal_kinematic_target = ProxyArray(kinematic_target)
 
     """
     Internal simulation callbacks.
@@ -692,10 +785,12 @@ class DeformableObject(AssetBase):
                 self.target_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
-        # check where to visualize
-        kinematic_target_torch = wp.to_torch(self.data.nodal_kinematic_target)
-        targets_enabled = kinematic_target_torch[:, :, 3] == 0.0
-        num_enabled = int(torch.sum(targets_enabled).item())
+        # check where to visualize, kinematic targets only supported for volume deformables
+        num_enabled = 0
+        if self._deformable_type == "volume":
+            kinematic_target_torch = self.data.nodal_kinematic_target.torch
+            targets_enabled = kinematic_target_torch[:, :, 3] == 0.0
+            num_enabled = int(torch.sum(targets_enabled).item())
         # get positions if any targets are enabled
         if num_enabled == 0:
             # create a marker below the ground

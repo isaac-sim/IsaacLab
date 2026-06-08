@@ -359,11 +359,11 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
 
         # Simulation bindings
         # Note: these are direct memory views into the Newton simulation data, they should not be modified directly
-        self.joint_pos = self.robot.data.joint_pos
-        self.joint_vel = self.robot.data.joint_vel
-        self.root_pose_w = self.robot.data.root_pose_w
-        self.root_vel_w = self.robot.data.root_vel_w
-        self.soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits
+        self.joint_pos = self.robot.data.joint_pos.warp
+        self.joint_vel = self.robot.data.joint_vel.warp
+        self.root_pose_w = self.robot.data.root_pose_w.warp
+        self.root_vel_w = self.robot.data.root_vel_w.warp
+        self.soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits.warp
 
         # Buffers
         self.observations = wp.zeros(
@@ -548,8 +548,8 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             reset_root,
             dim=self.num_envs,
             inputs=[
-                self.robot.data.default_root_pose,
-                self.robot.data.default_root_vel,
+                self.robot.data.default_root_pose.warp,
+                self.robot.data.default_root_vel.warp,
                 self.env_origins,
                 self.cfg.sim.dt,
                 self.targets,
@@ -564,8 +564,8 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             reset_joints,
             dim=(self.num_envs, self.robot.num_joints),
             inputs=[
-                self.robot.data.default_joint_pos,
-                self.robot.data.default_joint_vel,
+                self.robot.data.default_joint_pos.warp,
+                self.robot.data.default_joint_vel.warp,
                 self.joint_pos,
                 self.joint_vel,
                 mask,

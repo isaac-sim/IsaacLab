@@ -6,7 +6,7 @@
 
 import torch
 
-from isaacsim.replicator.mobility_gen.impl.path_planner import compress_path, generate_paths
+from isaacsim.replicator.experimental.mobility_gen.impl.path_planner import compress_path, generate_paths
 
 from .occupancy_map_utils import OccupancyMap
 from .scene_utils import HasPose2d

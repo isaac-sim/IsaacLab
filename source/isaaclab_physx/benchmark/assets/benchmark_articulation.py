@@ -39,6 +39,7 @@ parser.add_argument("--num_joints", type=int, default=11, help="Number of joints
 parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor)")
 parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
 parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
+parser.add_argument("--no_shape_checks", action="store_true", help="Disable shape/dtype assertions")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -63,7 +64,7 @@ import torch
 _mock_physics_sim_view = MagicMock()
 _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 import warp as wp
@@ -124,6 +125,7 @@ def create_test_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
 
     # Create ArticulationData instance (SimulationManager already mocked at module level)
     data = ArticulationData(mock_view, device)
@@ -138,20 +140,61 @@ def create_test_articulation(
     # Set up other required attributes
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(articulation, "_ALL_INDICES", torch.arange(num_instances, dtype=torch.int32, device=device))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES", torch.arange(num_bodies, dtype=torch.int32, device=device))
-    object.__setattr__(articulation, "_ALL_JOINT_INDICES", torch.arange(num_joints, dtype=torch.int32, device=device))
+
+    # Use warp arrays for _ALL_* indices (matching real _create_buffers)
+    import numpy as np
+
+    all_indices_wp = wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    all_joint_indices_wp = wp.array(np.arange(num_joints, dtype=np.int32), device=device)
+    all_body_indices_wp = wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+    object.__setattr__(articulation, "_ALL_INDICES", all_indices_wp)
+    object.__setattr__(articulation, "_ALL_JOINT_INDICES", all_joint_indices_wp)
+    object.__setattr__(articulation, "_ALL_BODY_INDICES", all_body_indices_wp)
 
     # Warp arrays for set_external_force_and_torque
-    all_indices = torch.arange(num_instances, dtype=torch.int32, device=device)
-    all_body_indices = torch.arange(num_bodies, dtype=torch.int32, device=device)
-    object.__setattr__(articulation, "_ALL_INDICES_WP", wp.from_torch(all_indices, dtype=wp.int32))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", wp.from_torch(all_body_indices, dtype=wp.int32))
+    object.__setattr__(articulation, "_ALL_INDICES_WP", all_indices_wp)
+    object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", all_body_indices_wp)
 
     # Initialize joint targets
     object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
+
+    # Cached .view() wrappers
+    object.__setattr__(articulation, "_root_link_pose_w_f32", None)
+    object.__setattr__(articulation, "_root_com_vel_w_f32", None)
+    object.__setattr__(articulation, "_root_link_vel_w_f32", None)
+
+    # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
+    N, J, B = num_instances, num_joints, num_bodies
+    object.__setattr__(articulation, "_cpu_env_ids_all", wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True))
+    wp.copy(articulation._cpu_env_ids_all, all_indices_wp)
+    object.__setattr__(
+        articulation, "_cpu_joint_stiffness", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(
+        articulation, "_cpu_joint_damping", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(
+        articulation, "_cpu_joint_pos_limits", wp.zeros((N, J, 2), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(
+        articulation, "_cpu_joint_vel_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(
+        articulation, "_cpu_joint_effort_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(
+        articulation, "_cpu_joint_armature", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(
+        articulation, "_cpu_joint_friction_props", wp.zeros((N, J, 3), dtype=wp.float32, device="cpu", pinned=True)
+    )
+    object.__setattr__(articulation, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(
+        articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
+    )
 
     return articulation, mock_view, None
 
@@ -857,6 +900,62 @@ BENCHMARKS = [
 ]
 
 
+# =============================================================================
+# Fill-Ratio Benchmarks (5%, 95%, 100% of env_ids filled)
+# =============================================================================
+
+FILL_RATIOS = {"5pct": 0.05, "95pct": 0.95, "100pct": 1.0}
+
+
+def _make_fill_ratio_generator(base_gen_fn, fill_ratio):
+    """Create a generator that subsets env_ids to a given fill ratio.
+
+    Only env_ids are subsetted — joint_ids and body_ids remain full-range.
+    Data tensors keyed on env count are sliced to match.
+    """
+
+    def generator(config):
+        n = max(1, int(config.num_instances * fill_ratio))
+        base_inputs = base_gen_fn(config)
+        inputs = {}
+        for key, val in base_inputs.items():
+            if key == "env_ids":
+                inputs[key] = (
+                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(torch.int32)
+                )
+            elif isinstance(val, torch.Tensor) and val.dim() >= 1 and val.shape[0] == config.num_instances:
+                inputs[key] = val[:n]
+            else:
+                inputs[key] = val
+        return inputs
+
+    return generator
+
+
+def _build_fill_benchmarks():
+    """Auto-generate fill-ratio benchmark definitions from the torch_tensor generators."""
+    fill_benchmarks = []
+    for bm in BENCHMARKS:
+        if "torch_tensor" not in bm.input_generators:
+            continue
+        base_gen = bm.input_generators["torch_tensor"]
+        generators = {}
+        for suffix, ratio in FILL_RATIOS.items():
+            generators[f"tensor_{suffix}"] = _make_fill_ratio_generator(base_gen, ratio)
+        fill_benchmarks.append(
+            MethodBenchmarkDefinition(
+                name=bm.name,
+                method_name=bm.method_name,
+                input_generators=generators,
+                category=f"{bm.category}_fill",
+            )
+        )
+    return fill_benchmarks
+
+
+FILL_BENCHMARKS = _build_fill_benchmarks()
+
+
 def main():
     """Main entry point for the benchmarking script."""
     config = MethodBenchmarkRunnerConfig(
@@ -892,6 +991,12 @@ def main():
     )
 
     runner.run_benchmarks(BENCHMARKS, articulation)
+
+    print("\n" + "=" * 80)
+    print("Fill-Ratio Benchmarks (env_ids at 5%, 95%, 100% fill)")
+    print("=" * 80)
+
+    runner.run_benchmarks(FILL_BENCHMARKS, articulation)
     runner.finalize()
 
     # Close the simulation app

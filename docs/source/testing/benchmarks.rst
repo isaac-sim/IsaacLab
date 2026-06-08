@@ -154,6 +154,96 @@ Measure asset method and property performance using mock interfaces:
 For detailed documentation on micro-benchmarks, including available benchmark files,
 input modes, and how to add new benchmarks, see :ref:`testing_micro_benchmarks`.
 
+Startup Profiling Benchmark
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Profile the startup sequence of an IsaacLab environment using ``cProfile``. Each
+startup stage is wrapped in its own profiling session and the top functions by
+own-time are reported. This is useful for investigating startup regressions and
+understanding where time is spent during initialization.
+
+.. code-block:: bash
+
+   # Basic usage — reports top 30 functions per phase
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
+       --task Isaac-Ant-v0 \
+       --num_envs 4096 \
+       --headless \
+       --benchmark_backend summary
+
+The script profiles five phases independently:
+
+- **app_launch**: ``launch_simulation()`` context entry (Kit/USD/PhysX init)
+- **python_imports**: importing gymnasium, torch, isaaclab_tasks, etc.
+- **task_config**: ``resolve_task_config()`` (Hydra config resolution)
+- **env_creation**: ``gym.make()`` + ``env.reset()`` (scene creation, sim start)
+- **first_step**: a single ``env.step()`` call
+
+Each phase records a wall-clock time plus per-function own-time and cumulative
+time as ``SingleMeasurement`` entries. Only IsaacLab functions and first-level
+calls into external libraries are included (deep internals of torch, USD, etc.
+are filtered out).
+
+**Whitelist mode** — For dashboard time-series comparisons across runs, use a
+YAML whitelist config to report a fixed set of functions instead of top-N.
+Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
+
+.. code-block:: yaml
+
+   # Example whitelist config
+   app_launch:
+     - "isaaclab.utils.configclass:_custom_post_init"
+     - "isaaclab.sim.*:__init__"
+   env_creation:
+     - "isaaclab.cloner.*:usd_replicate"
+     - "isaaclab.cloner.*:filter_collisions"
+     - "isaaclab.scene.*:_init_scene"
+   first_step:
+     - "isaaclab.actuators.*:compute"
+     - "warp.*:launch"
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
+       --task Isaac-Ant-v0 \
+       --num_envs 4096 \
+       --headless \
+       --benchmark_backend omniperf \
+       --whitelist_config scripts/benchmarks/startup_whitelist.yaml
+
+Phases listed in the YAML use the whitelist; phases not listed fall back to
+``--top_n`` (default: 5 in whitelist mode, 30 otherwise). Patterns that match
+no profiled function emit ``0.0`` placeholders so the output always contains
+the same keys.
+
+A default whitelist is provided at ``scripts/benchmarks/startup_whitelist.yaml``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Argument
+     - Default
+     - Description
+   * - ``--task``
+     - required
+     - Environment task name
+   * - ``--num_envs``
+     - from config
+     - Number of parallel environments
+   * - ``--top_n``
+     - 30 (5 with whitelist)
+     - Max functions per non-whitelisted phase
+   * - ``--whitelist_config``
+     - None
+     - Path to YAML whitelist file
+   * - ``--benchmark_backend``
+     - ``omniperf``
+     - Output backend (``json``, ``osmo``, ``omniperf``, ``summary``)
+   * - ``--output_path``
+     - ``.``
+     - Directory for output files
+
 Command Line Arguments
 ----------------------
 
@@ -399,9 +489,12 @@ Output structure:
 Summary Backend
 ~~~~~~~~~~~~~~~
 
-Human-readable console report plus JSON file. Prints a formatted summary (runtime,
-startup, train, frametime, and system info) to the terminal while also writing
-the same data as JSON. Use when you want a quick readout without opening the JSON:
+Human-readable console report plus JSON file. Prints a formatted summary to the
+terminal while also writing the same data as JSON. Standard phases (runtime,
+startup, train, frametime, system info) are rendered with specialized formatting;
+any additional phases (e.g., from the startup profiling benchmark) are rendered
+automatically with their ``SingleMeasurement`` and ``StatisticalMeasurement``
+entries. Use when you want a quick readout without opening the JSON:
 
 .. code-block:: bash
 

@@ -290,6 +290,86 @@ def test_render():
     assert sim.is_playing()
 
 
+@pytest.mark.isaacsim_ci
+def test_render_pumps_app_update_without_visualizer():
+    """Regression test for issue #5052: headless video must pump Kit when no visualizer does.
+
+    Originally ``SimulationContext.render()`` called ``omni.kit.app.get_app().update()`` when
+    no visualizer had ``pumps_app_update()`` (see PR #5056). The same contract is now implemented
+    from :func:`~isaaclab.envs.utils.recording_hooks.run_recording_hooks_after_visualizers`, which calls
+    :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.pump_kit_app_for_headless_video_render_if_needed`
+    when ``/isaaclab/video/enabled`` is set (as with ``--video``), which in turn calls
+    ``ensure_isaac_rtx_render_update()`` (guarded by ``is_rendering`` and the no-pumping-visualizer check).
+
+    Without this path, replicator render products used for ``rgb_array`` / RecordVideo stay stale (black frames).
+    """
+    from unittest.mock import MagicMock, patch
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    sim.set_setting("/isaaclab/video/enabled", True)
+    sim.set_setting("/isaaclab/render/rtx_sensors", True)
+
+    mock_app = MagicMock()
+    mock_app.is_running.return_value = True
+
+    with (
+        patch("isaaclab.utils.version.has_kit", return_value=True),
+        patch(
+            "isaaclab_physx.renderers.isaac_rtx_renderer_utils._get_stage_streaming_busy",
+            return_value=False,
+        ),
+        patch("omni.kit.app.get_app", return_value=mock_app),
+    ):
+        sim.render()
+
+    mock_app.update.assert_called_once()
+
+
+@pytest.mark.isaacsim_ci
+def test_render_skips_app_update_when_visualizer_pumps_it():
+    """Regression test: do not pump Kit in the headless-video path when a visualizer already does.
+
+    A visualizer with ``pumps_app_update() == True`` (e.g. KitVisualizer) calls ``app.update()`` in
+    its own ``step()``. The recording-hook pump must then skip
+    ``ensure_isaac_rtx_render_update`` so we do not double-pump the Kit loop.
+    """
+    from unittest.mock import MagicMock, patch
+
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    sim.set_setting("/isaaclab/video/enabled", True)
+    sim.set_setting("/isaaclab/render/rtx_sensors", True)
+
+    mock_viz = MagicMock(spec=BaseVisualizer)
+    mock_viz.pumps_app_update.return_value = True
+    mock_viz.is_closed = False
+    mock_viz.is_running.return_value = True
+    mock_viz.is_rendering_paused.return_value = False
+    mock_viz.is_training_paused.return_value = False
+    mock_viz.get_rendering_dt.return_value = None
+    sim._visualizers = [mock_viz]
+
+    mock_app = MagicMock()
+    mock_app.is_running.return_value = True
+
+    with (
+        patch("isaaclab.utils.version.has_kit", return_value=True),
+        patch("omni.kit.app.get_app", return_value=mock_app),
+    ):
+        sim.render()
+
+    mock_app.update.assert_not_called()
+
+    sim._visualizers = []
+
+
 """
 Stage Operations Tests
 """

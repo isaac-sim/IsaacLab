@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .actuator_pd_cfg import DCMotorCfg
 

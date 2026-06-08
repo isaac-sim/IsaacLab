@@ -39,7 +39,7 @@ def cubes_stacked(
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
 
-    pos_diff_c12 = wp.to_torch(cube_1.data.root_pos_w) - wp.to_torch(cube_2.data.root_pos_w)
+    pos_diff_c12 = cube_1.data.root_pos_w.torch - cube_2.data.root_pos_w.torch
 
     # Compute cube position difference in x-y plane
     xy_dist_c12 = torch.linalg.norm(pos_diff_c12[:, :2], dim=1)
@@ -54,7 +54,7 @@ def cubes_stacked(
 
     if cube_3_cfg is not None:
         cube_3: RigidObject = env.scene[cube_3_cfg.name]
-        pos_diff_c23 = wp.to_torch(cube_2.data.root_pos_w) - wp.to_torch(cube_3.data.root_pos_w)
+        pos_diff_c23 = cube_2.data.root_pos_w.torch - cube_3.data.root_pos_w.torch
 
         # Compute cube position difference in x-y plane
         xy_dist_c23 = torch.linalg.norm(pos_diff_c23[:, :2], dim=1)
@@ -81,7 +81,7 @@ def cubes_stacked(
 
             stacked = torch.logical_and(
                 torch.isclose(
-                    wp.to_torch(robot.data.joint_pos)[:, gripper_joint_ids[0]],
+                    robot.data.joint_pos.torch[:, gripper_joint_ids[0]],
                     torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
                     atol=atol,
                     rtol=rtol,
@@ -90,7 +90,7 @@ def cubes_stacked(
             )
             stacked = torch.logical_and(
                 torch.isclose(
-                    wp.to_torch(robot.data.joint_pos)[:, gripper_joint_ids[1]],
+                    robot.data.joint_pos.torch[:, gripper_joint_ids[1]],
                     torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
                     atol=atol,
                     rtol=rtol,

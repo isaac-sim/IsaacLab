@@ -13,20 +13,30 @@ INSTALL_REQUIRES = [
     "numpy",
 ]
 
+# Every Newton declaration in the repo must use the SAME extra spec (`newton[sim]`).
+# Pip resolves a git-URL requirement once per URL: if any package declares bare
+# `newton @ git+...` while another declares `newton[sim] @ git+...`, the first
+# resolution wins and silently drops the `[sim]` extra. That breaks `isaaclab_newton`
+# at import time because `mujoco` / `mujoco-warp` go missing. So even the rerun/viser
+# extras — which don't use the MuJoCo solver directly — must pin `newton[sim]` to
+# stay consistent with `isaaclab_newton`.
 EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton",
+        "newton[sim]==1.2.1",
         "PyOpenGL-accelerate",
-        "imgui-bundle>=1.92.5",
+        "imgui-bundle>=1.92.601",
+        "typing-extensions==4.12.2",
+        "pydantic>=2.7,<2.12",
     ],
     "rerun": [
-        "newton",
+        "newton[sim]==1.2.1",
         "rerun-sdk>=0.29.0",
+        "pyarrow==22.0.0",
     ],
     "viser": [
-        "newton",
+        "newton[sim]==1.2.1",
         "viser>=1.0.16",
     ],
 }
@@ -44,16 +54,13 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.11",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_visualizers"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

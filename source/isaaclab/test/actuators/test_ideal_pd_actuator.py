@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# if not AppLauncher.instance():
-simulation_app = AppLauncher(headless=HEADLESS).app
-
-"""Rest of imports follows"""
-
 import pytest
 import torch
 

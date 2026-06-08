@@ -13,12 +13,15 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
 from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
-from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import StackEnvCfg
+from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import (
+    StackEnvCfg,
+    raise_if_surface_gripper_on_newton,
+)
 
 from isaaclab_assets.robots.universal_robots import (  # isort: skip
     UR10_LONG_SUCTION_CFG,
@@ -81,6 +84,10 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
     marker_cfg = FRAME_MARKER_CFG.copy()
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     marker_cfg.prim_path = "/Visuals/FrameTransformer"
+
+    def validate_config(self):
+        # Surface grippers used by these suction robots are PhysX-only.
+        raise_if_surface_gripper_on_newton(self)
 
     def __post_init__(self):
         # post init of parent

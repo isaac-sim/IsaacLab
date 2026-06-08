@@ -43,6 +43,7 @@ import sys
 import textwrap
 
 import gymnasium
+import isaaclab_tasks_experimental  # noqa: F401 -- triggers experimental task registration
 import pytest
 
 import isaaclab_tasks  # noqa: F401 -- triggers task registration
@@ -77,6 +78,7 @@ def _build_batch_script(task_names: list[str]) -> str:
         task_names = {task_names!r}
 
         import isaaclab_tasks  # noqa: F401
+        import isaaclab_tasks_experimental  # noqa: F401
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         results = {{}}

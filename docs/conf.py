@@ -18,16 +18,23 @@
 import os
 import sys
 
+sys.path.insert(0, os.path.abspath("_extensions"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental/isaaclab_tasks_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx/isaaclab_physx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx/isaaclab_ovphysx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
@@ -52,6 +59,16 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
     full_version = f.read().strip()
     version = ".".join(full_version.split(".")[:3])
 
+# Latest release branch referenced by installation documentation.
+isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "release/3.0.0-beta2")
+
+# Copy buttons on highlighted code blocks (including nested directive output).
+copybutton_selector = "div.highlight pre"
+
+rst_prolog = f"""
+.. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
+"""
+
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -75,6 +92,7 @@ extensions = [
     "sphinx_design",
     "sphinx_tabs.tabs",  # backwards compatibility for building docs on v1.0.0
     "sphinx_multiversion",
+    "isaaclab_docs",
 ]
 
 # mathjax hacks
@@ -136,10 +154,12 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
-    "torch": ("https://docs.pytorch.org/docs/stable/", None),
+    # NOTE: pinned to /docs/2.11/ because /docs/stable/objects.inv currently 404s
+    "torch": ("https://docs.pytorch.org/docs/2.11/", None),
     "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
-    "warp": ("https://nvidia.github.io/warp/", None),
+    # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
+    "warp": ("https://nvidia.github.io/warp/stable/", None),
     "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
@@ -149,13 +169,23 @@ templates_path = []
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store", "README.md", "licenses/*", "plans"]
+exclude_patterns = [
+    "_build",
+    "_redirect",
+    "_templates",
+    "Thumbs.db",
+    ".DS_Store",
+    "README.md",
+    "licenses/*",
+    "plans",
+    # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
+    "source/setup/installation/include/*",
+]
 
 # Mock out modules that are not available on RTD
 autodoc_mock_imports = [
     "torch",
     "torchvision",
-    "numpy",
     "matplotlib",
     "scipy",
     "carb",
@@ -169,15 +199,16 @@ autodoc_mock_imports = [
     "omni.client",
     "omni.physx",
     "omni.physics",
+    "ovphysx",
     "usdrt",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
-    "isaacsim",
-    "isaacsim.core.api",
     "isaacsim.core.cloner",
     "isaacsim.core.version",
-    "isaacsim.core.utils",
+    "isaacsim.core.experimental.prims",
+    "isaacsim.core.experimental.utils",
+    "isaacsim.core.rendering_manager",
     "isaacsim.robot_motion.motion_generation",
     "isaacsim.gui.components",
     "isaacsim.asset.importer.urdf",
@@ -186,6 +217,7 @@ autodoc_mock_imports = [
     "omni.timeline",
     "omni.ui",
     "gym",
+    "gymnasium",
     "skrl",
     "stable_baselines3",
     "rsl_rl",
@@ -200,8 +232,10 @@ autodoc_mock_imports = [
     "toml",
     "pink",
     "pinocchio",
+    "qpsolvers",
     "nvidia.srl",
     "flatdict",
+    "filelock",
     "IPython",
     "cv2",
     "imageio",
@@ -209,6 +243,11 @@ autodoc_mock_imports = [
     "mpl_toolkits",
     "isaacteleop",
     "scipy",
+    "hydra",
+    "hydra.core",
+    "hydra.core.config_store",
+    "omegaconf",
+    "newton",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
@@ -300,8 +339,10 @@ templates_path = [
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
 smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop|release/.*)$")
-# Whitelist pattern for tags (set to None to ignore all tags)
-smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
+# Whitelist pattern for tags (set to None to ignore all tags).
+# Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
+# so tags like v3.0.0-beta show up in the version selector.
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$")
 html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }

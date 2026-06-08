@@ -27,7 +27,7 @@ class HumanoidAmpEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         # action offset and scale
-        soft_joint_pos_limits = wp.to_torch(self.robot.data.soft_joint_pos_limits)
+        soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits.torch
         dof_lower_limits = soft_joint_pos_limits[0, :, 0]
         dof_upper_limits = soft_joint_pos_limits[0, :, 1]
         self.action_offset = 0.5 * (dof_upper_limits + dof_lower_limits)
@@ -86,13 +86,13 @@ class HumanoidAmpEnv(DirectRLEnv):
     def _get_observations(self) -> dict:
         # build task observation
         obs = compute_obs(
-            wp.to_torch(self.robot.data.joint_pos),
-            wp.to_torch(self.robot.data.joint_vel),
-            wp.to_torch(self.robot.data.body_pos_w)[:, self.ref_body_index],
-            wp.to_torch(self.robot.data.body_quat_w)[:, self.ref_body_index],
-            wp.to_torch(self.robot.data.body_lin_vel_w)[:, self.ref_body_index],
-            wp.to_torch(self.robot.data.body_ang_vel_w)[:, self.ref_body_index],
-            wp.to_torch(self.robot.data.body_pos_w)[:, self.key_body_indexes],
+            self.robot.data.joint_pos.torch,
+            self.robot.data.joint_vel.torch,
+            self.robot.data.body_pos_w.torch[:, self.ref_body_index],
+            self.robot.data.body_quat_w.torch[:, self.ref_body_index],
+            self.robot.data.body_lin_vel_w.torch[:, self.ref_body_index],
+            self.robot.data.body_ang_vel_w.torch[:, self.ref_body_index],
+            self.robot.data.body_pos_w.torch[:, self.key_body_indexes],
         )
 
         # update AMP observation history
@@ -110,7 +110,7 @@ class HumanoidAmpEnv(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         if self.cfg.early_termination:
-            died = wp.to_torch(self.robot.data.body_pos_w)[:, self.ref_body_index, 2] < self.cfg.termination_height
+            died = self.robot.data.body_pos_w.torch[:, self.ref_body_index, 2] < self.cfg.termination_height
         else:
             died = torch.zeros_like(time_out)
         return died, time_out
@@ -142,12 +142,12 @@ class HumanoidAmpEnv(DirectRLEnv):
     # reset strategies
 
     def _reset_strategy_default(self, env_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids].clone()
-        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids].clone()
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
         root_state = torch.cat([default_root_pose, default_root_vel], dim=-1)
-        joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
-        joint_vel = self.robot.data.default_joint_vel[env_ids].clone()
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
         return root_state, joint_pos, joint_vel
 
     def _reset_strategy_random(
@@ -170,8 +170,8 @@ class HumanoidAmpEnv(DirectRLEnv):
         motion_torso_index = self._motion_loader.get_body_index(["torso"])[0]
         root_state = torch.cat(
             [
-                wp.to_torch(self.robot.data.default_root_pose)[env_ids],
-                wp.to_torch(self.robot.data.default_root_vel)[env_ids],
+                self.robot.data.default_root_pose.torch[env_ids],
+                self.robot.data.default_root_vel.torch[env_ids],
             ],
             dim=-1,
         ).clone()

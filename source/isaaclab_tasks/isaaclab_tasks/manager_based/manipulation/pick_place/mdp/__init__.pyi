@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "get_all_robot_link_pose",
     "get_all_robot_link_state",
+    "get_all_robot_link_velocity",
     "get_eef_pos",
     "get_eef_quat",
     "get_robot_joint_state",
@@ -16,7 +18,9 @@ __all__ = [
 ]
 
 from .observations import (
+    get_all_robot_link_pose,
     get_all_robot_link_state,
+    get_all_robot_link_velocity,
     get_eef_pos,
     get_eef_quat,
     get_robot_joint_state,

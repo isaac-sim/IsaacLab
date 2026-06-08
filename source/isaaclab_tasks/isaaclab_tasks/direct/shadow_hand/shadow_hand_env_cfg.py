@@ -17,8 +17,8 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -120,7 +120,7 @@ class PhysxEventCfg:
 @configclass
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
-    newton = NewtonEventCfg()
+    newton_mjwarp = NewtonEventCfg()
     default = physx
 
 
@@ -133,7 +133,7 @@ class ShadowHandRobotCfg(PresetCfg):
             joint_pos={".*": 0.0},
         )
     )
-    newton = ArticulationCfg(
+    newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
             # newton requires implicitactuators be specified in usd and there's a bug with physx tendons
@@ -217,11 +217,12 @@ class ObjectCfg(PresetCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
-    newton = ArticulationCfg(
+    newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             mass_props=sim_utils.MassPropertiesCfg(density=400.0),
+            semantic_tags=[("class", "cube")],
             scale=(0.9, 0.9, 0.9),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
@@ -244,7 +245,7 @@ class ShadowHandSceneCfg(PresetCfg):
     physx: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
     )
-    newton: InteractiveSceneCfg = InteractiveSceneCfg(
+    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
     default: InteractiveSceneCfg = physx
@@ -257,7 +258,7 @@ class PhysicsCfg(PresetCfg):
         gpu_max_rigid_contact_count=2**23,
         gpu_max_rigid_patch_count=2**23,
     )
-    newton = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
@@ -336,7 +337,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
             )
         },
     )
-    # scene — use ShadowHandSceneCfg so that presets=newton disables clone_in_fabric automatically
+    # scene — use ShadowHandSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
     scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
 
     # reset
@@ -354,6 +355,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     vel_obs_scale = 0.2
     success_tolerance = 0.1
     max_consecutive_success = 0
+    success_count_threshold: int = 1
+    """Minimum number of goals reached in an episode to count it as a successful episode."""
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0

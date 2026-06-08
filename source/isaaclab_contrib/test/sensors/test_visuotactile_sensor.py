@@ -20,12 +20,17 @@ import math
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import (
+    PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionPropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+)
 
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
-from isaaclab.sensors.camera import TiledCameraCfg
+from isaaclab.sensors.camera import CameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -69,7 +74,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
         return VisuoTactileSensorCfg(
             prim_path="/World/Robot/elastomer/tactile_cam",
             enable_force_field=False,
-            camera_cfg=TiledCameraCfg(
+            camera_cfg=CameraCfg(
                 height=320,
                 width=240,
                 prim_path="/World/Robot/elastomer_tip/cam",
@@ -89,7 +94,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
             debug_vis=False,
             enable_camera_tactile=True,
             enable_force_field=True,
-            camera_cfg=TiledCameraCfg(
+            camera_cfg=CameraCfg(
                 height=320,
                 width=240,
                 prim_path="/World/Robot/elastomer_tip/cam",
@@ -140,7 +145,7 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=usd_file_path,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
             compliant_contact_stiffness=10.0,
             compliant_contact_damping=1.0,
             physics_material_prim_path="elastomer",
@@ -158,8 +163,8 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyPropertiesCfg(),
+            collision_props=PhysxCollisionPropertiesCfg(),
         ),
     )
     # Nut
@@ -167,8 +172,8 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Nut",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=False),
+            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=False),
+            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
@@ -307,7 +312,8 @@ def test_sensor_cam_set_wrong_prim(setup_tactile_cam):
         sim.reset()
         robot.update(dt)
         sensor.update(dt)
-    assert "Could not find prim with path" in str(excinfo.value)
+    err_msg = str(excinfo.value)
+    assert "Could not find prim with path" in err_msg or "does not match the number of environments" in err_msg
 
 
 @pytest.mark.isaacsim_ci

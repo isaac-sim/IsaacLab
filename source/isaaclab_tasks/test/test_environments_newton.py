@@ -32,10 +32,10 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
         teleop_envs=False,
         cartpole_showcase_envs=False,
         pickplace_stack_envs=False,
-        newton_envs=True,
+        newton_mjwarp_envs=True,
     ),
 )
 @pytest.mark.newton_ci
 def test_environments_newton(task_name, num_envs, device):
-    # run environments with newton physics preset
-    _run_environments(task_name, device, num_envs, physics_preset_name="newton", create_stage_in_memory=False)
+    # run environments with MJWarp physics preset
+    _run_environments(task_name, device, num_envs, physics_preset_name="newton_mjwarp", create_stage_in_memory=False)

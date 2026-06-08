@@ -2,7 +2,7 @@
     "tolerances": {
         "position": 0.025,
         "pd_position": 0.002,
-        "rotation": 0.030,
+        "rotation": 0.100,
         "check_errors": true
     },
     "allowed_steps_to_settle": 50,

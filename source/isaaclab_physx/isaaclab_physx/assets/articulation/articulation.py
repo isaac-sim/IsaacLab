@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import warnings
 from collections.abc import Sequence
@@ -22,11 +23,18 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.sim.utils.queries import (
+    find_first_matching_prim,
+    get_all_matching_child_prims,
+    resolve_matching_prims_from_source,
+)
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
+
+_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
+
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
@@ -35,7 +43,9 @@ from isaaclab_physx.physics import PhysxManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.impl.api as physx
+    from isaaclab_newton.actuators import NewtonActuatorAdapter
+
+    import omni.physics.tensors as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
@@ -111,7 +121,12 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
         super().__init__(cfg)
+
+        sim_ctx = SimulationContext.instance()
+        self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
 
     """
     Properties
@@ -217,9 +232,15 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset actuators
+        # reset actuators (including Newton-native adapter which owns its states)
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
+        # Reset Newton-actuator per-env states (delay queues, neural hidden state, etc.).
+        # The adapter is per-articulation on PhysX and is not part of ``self.actuators``.
+        # ``getattr`` guards subclasses (e.g. ``Multirotor``) that override
+        # ``_process_actuators_cfg`` and never initialize these attributes.
+        if getattr(self, "_has_newton_actuators", False) and getattr(self, "newton_actuator_adapter", None) is not None:
+            self.newton_actuator_adapter.reset(env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -237,40 +258,42 @@ class Articulation(BaseArticulation):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
+                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=False,
+            )
         self._instantaneous_wrench_composer.reset()
 
-        # apply actuator models
-        self._apply_actuator_model()
-        # write actions into simulation
-        self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
-        # position and velocity targets only for implicit actuators
-        if self._has_implicit_actuators:
-            self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-            self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+        if getattr(self, "_has_newton_actuators", False):
+            # Newton fast path: pos/vel targets pass straight through; the
+            # in-graph kernel inside ``_apply_actuator_model_newton`` merges
+            # Newton's actuator output (explicit DOFs) with user FF
+            # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
+            # to PhysX as the actuation force.
+            self._apply_actuator_model_newton()
+            self.root_view.set_dof_actuation_forces(
+                self._physx_actuator_wrapper.joint_f_2d,
+                self._ALL_INDICES,
+            )
+            if self._has_implicit_actuators:
+                self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
+                self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
+        else:
+            # Standard Lab actuator path: per-group ``actuator.compute()`` may
+            # transform targets, so we push the staging buffers PhysX-side.
+            self._apply_actuator_model()
+            self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+            if self._has_implicit_actuators:
+                self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
+                self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -382,7 +405,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -406,7 +429,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -431,7 +454,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -460,8 +483,6 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -474,6 +495,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors: body-frame Jacobian + gravity comp depend on root orientation;
+        # mass_matrix does not (configuration-space).
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -488,7 +513,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -517,7 +542,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -550,9 +575,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -566,6 +588,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors: body-frame Jacobian + gravity comp depend on root orientation;
+        # mass_matrix does not (configuration-space).
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -581,7 +607,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -611,7 +637,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -638,7 +664,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -666,7 +692,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -697,8 +723,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -722,7 +746,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -753,7 +777,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -788,9 +812,6 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -815,7 +836,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -831,6 +852,75 @@ class Articulation(BaseArticulation):
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
 
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint positions and velocities in a single fused kernel launch.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        if full_data:
+            self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
+            self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
+        else:
+            self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+            self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate buffers
+        self.data._body_com_vel_w.timestamp = -1.0
+        self.data._body_link_vel_w.timestamp = -1.0
+        self.data._body_com_pose_b.timestamp = -1.0
+        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._body_link_pose_w.timestamp = -1.0
+        self.data._body_state_w.timestamp = -1.0
+        self.data._body_link_state_w.timestamp = -1.0
+        self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors all depend on joint state.
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._mass_matrix.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
+        # set into simulation
+        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
+        self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
+
     def write_joint_state_to_sim_mask(
         self,
         *,
@@ -842,7 +932,7 @@ class Articulation(BaseArticulation):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -869,7 +959,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -913,6 +1003,10 @@ class Articulation(BaseArticulation):
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
+        # Task-space accessors all depend on joint state.
+        self.data._body_com_jacobian_w.timestamp = -1.0
+        self.data._mass_matrix.timestamp = -1.0
+        self.data._gravity_compensation_forces.timestamp = -1.0
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
 
@@ -926,7 +1020,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -954,7 +1048,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities to the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1003,7 +1097,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1035,7 +1129,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1098,7 +1192,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1181,6 +1275,103 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
+
+    def write_actuator_stiffness_to_sim(
+        self,
+        *,
+        stiffness: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write actuator kp at the (env_ids, joint_ids) sub-grid and propagate to controllers.
+
+        Iterates the per-articulation adapter's Newton actuators and uses
+        :data:`patch_actuator_param_kernel` to overwrite each
+        controller's ``kp`` array at the ``(env_ids × joint_ids)``
+        cells. DOFs not owned by an actuator are skipped by the kernel's
+        per-slot index mapping.
+
+        Args:
+            stiffness: Sub-grid of new kp values, shape ``(len(env_ids), len(joint_ids))``.
+            env_ids: 1D torch tensor of env indices.
+            joint_ids: 1D torch tensor of articulation-local joint indices.
+
+        No-op when no Newton actuators are registered for this articulation.
+        """
+        self._write_actuator_param("kp", stiffness, env_ids, joint_ids)
+
+    def write_actuator_damping_to_sim(
+        self,
+        *,
+        damping: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write actuator kd at the (env_ids, joint_ids) sub-grid and propagate to controllers."""
+        self._write_actuator_param("kd", damping, env_ids, joint_ids)
+
+    def _write_actuator_param(
+        self,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Shared body for :meth:`write_actuator_stiffness_to_sim` / :meth:`write_actuator_damping_to_sim`."""
+        adapter = self.newton_actuator_adapter
+        if adapter is None:
+            return
+
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
+        env_id_pos = torch.full(
+            (self.num_instances,),
+            -1,
+            dtype=torch.int32,
+            device=self.device,
+        )
+        env_id_pos[env_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            env_ids.shape[0],
+            dtype=torch.int32,
+            device=self.device,
+        )
+        joint_id_pos = torch.full(
+            (self.num_joints,),
+            -1,
+            dtype=torch.int32,
+            device=self.device,
+        )
+        joint_id_pos[joint_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            joint_ids.shape[0],
+            dtype=torch.int32,
+            device=self.device,
+        )
+
+        values_wp = wp.from_torch(
+            values.to(self.device, dtype=torch.float32).contiguous(),
+            dtype=wp.float32,
+        )
+        env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
+        joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
+
+        for act in adapter.actuators:
+            ctrl = act.controller
+            if not hasattr(ctrl, attr):
+                continue
+            wp.launch(
+                actuator_kernels.patch_actuator_param_kernel,
+                dim=act.indices.shape[0],
+                inputs=[
+                    act.indices,
+                    env_id_pos_wp,
+                    joint_id_pos_wp,
+                    values_wp,
+                    0,
+                    self.num_joints,
+                ],
+                outputs=[getattr(ctrl, attr)],
+                device=self.device,
+            )
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -3088,12 +3279,12 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
-            self.data.fixed_tendon_stiffness,
-            self.data.fixed_tendon_damping,
-            self.data.fixed_tendon_limit_stiffness,
-            self.data.fixed_tendon_pos_limits,
-            self.data.fixed_tendon_rest_length,
-            self.data.fixed_tendon_offset,
+            self.data.fixed_tendon_stiffness.warp,
+            self.data.fixed_tendon_damping.warp,
+            self.data.fixed_tendon_limit_stiffness.warp,
+            self.data.fixed_tendon_pos_limits.warp,
+            self.data.fixed_tendon_rest_length.warp,
+            self.data.fixed_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3545,10 +3736,10 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
-            self.data.spatial_tendon_stiffness,
-            self.data.spatial_tendon_damping,
-            self.data.spatial_tendon_limit_stiffness,
-            self.data.spatial_tendon_offset,
+            self.data.spatial_tendon_stiffness.warp,
+            self.data.spatial_tendon_damping.warp,
+            self.data.spatial_tendon_limit_stiffness.warp,
+            self.data.spatial_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3582,42 +3773,27 @@ class Articulation(BaseArticulation):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         if self.cfg.articulation_root_prim_path is not None:
-            # The articulation root prim path is specified explicitly, so we can just use this.
             root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
         else:
-            # No articulation root prim path was specified, so we need to search
-            # for it. We search for this in the first environment and then
-            # create a regex that matches all environments.
-            first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-            if first_env_matching_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-            first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
 
-            # Find all articulation root prims in the first environment.
-            first_env_root_prims = get_all_matching_child_prims(
-                first_env_matching_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-                and prim.GetAttribute("physxArticulation:articulationEnabled").Get() is not False,
-                traverse_instance_prims=False,
+            def has_articulation_root_api(prim) -> bool:
+                return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+            matches = resolve_matching_prims_from_source(self.cfg.prim_path)
+            if not matches:
+                raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
+            asset_prim, root_expr = matches[0]
+            walk_root = asset_prim.GetPath().pathString
+            root_prims = get_all_matching_child_prims(
+                walk_root, predicate=has_articulation_root_api, traverse_instance_prims=False
             )
-            if len(first_env_root_prims) == 0:
+            if len(root_prims) != 1:
+                matched = [p.GetPath().pathString for p in root_prims]
                 raise RuntimeError(
-                    f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
-                    " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
+                    f"Expected exactly one ArticulationRootAPI prim under '{walk_root}'"
+                    f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
                 )
-            if len(first_env_root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
-                    f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
-                    " Please ensure that there is only one articulation in the prim path tree."
-                )
-
-            # Now we convert the found articulation root from the first
-            # environment back into a regex that matches all environments.
-            first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
-            root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
-            root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
-
+            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         # -- articulation
         self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 
@@ -3738,165 +3914,143 @@ class Articulation(BaseArticulation):
         """Process and apply articulation joint properties."""
         # create actuators
         self.actuators = dict()
+        self._physx_actuator_wrapper = None
+        # Per-articulation Newton actuator adapter and the frozen kp/kd
+        # snapshot consumed by ``randomize_actuator_gains``. ``None`` for
+        # articulations not on the Newton fast path or with only implicit
+        # Lab actuators.
+        self.newton_actuator_adapter: NewtonActuatorAdapter | None = None
+        self.newton_default_stiffness: torch.Tensor | None = None
+        self.newton_default_damping: torch.Tensor | None = None
+        self.newton_managed_local_joints: torch.Tensor | slice | None = None
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+        self._has_newton_actuators = False
+        # Per-DOF implicit/explicit mask consumed by the
+        # ``sync_torque_telemetry`` kernel. ``None`` when no Newton fast path
+        # is active.
+        self._implicit_dof_mask: wp.array | None = None
 
-        # iterate over all actuator configurations
-        for actuator_name, actuator_cfg in self.cfg.actuators.items():
-            # type annotation for type checkers
-            actuator_cfg: ActuatorBaseCfg
-            # create actuator group
-            joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
-            # check if any joints are found
-            if len(joint_names) == 0:
-                raise ValueError(
-                    f"No joints found for actuator group: {actuator_name} with joint name expression:"
-                    f" {actuator_cfg.joint_names_expr}."
+        _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
+
+        if _use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
+            logger.warning(
+                "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available."
+                " Newton-native actuators will be disabled and the simulation will fall back to the"
+                " Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
+            )
+
+        if _HAS_NEWTON_ACTUATORS and _use_newton_actuators:
+            from isaaclab_newton.actuators import (  # noqa: PLC0415
+                NewtonActuatorAdapter,
+                PhysxActuatorWrapper,
+                build_implicit_dof_mask,
+                build_newton_actuator_defaults,
+            )
+
+            from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+
+            # Enable the fast path even for all-implicit articulations:
+            # PhysX runs PD internally; Lab only forwards targets.
+            self._has_newton_actuators = True
+
+            # Author Newton actuator prims only if any explicit Lab group exists.
+            has_explicit = any(
+                not (
+                    "ImplicitActuator" in actuator_cfg.class_type
+                    if isinstance(actuator_cfg.class_type, str)
+                    else issubclass(actuator_cfg.class_type, ImplicitActuator)
                 )
-            # resolve joint indices
-            # we pass a slice if all joints are selected to avoid indexing overhead
-            if len(joint_names) == self.num_joints:
-                joint_ids = slice(None)
-            else:
-                joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
-            # create actuator collection
-            # note: for efficiency avoid indexing when over all indices
-            actuator: ActuatorBase = actuator_cfg.class_type(
-                cfg=actuator_cfg,
-                joint_names=joint_names,
-                joint_ids=joint_ids,
-                num_envs=self.num_instances,
-                device=self.device,
-                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
-                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
-                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
-                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
-                viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
-                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
-                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+                for actuator_cfg in self.cfg.actuators.values()
             )
-            # store actuator group
-            self.actuators[actuator_name] = actuator
-            # Store the configured values from the actuator model
-            # note: this is the value configured in the actuator model (for implicit and explicit actuators)
-            joint_ids = actuator.joint_indices
-            if joint_ids == slice(None):
-                joint_ids = self._ALL_JOINT_INDICES
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.stiffness,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_stiffness,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.damping,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_damping,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.armature,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_armature,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.dynamic_friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_dynamic_friction_coeff,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.viscous_friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_viscous_friction_coeff,
-                ],
-                device=self.device,
-            )
-            # set the passed gains and limits into the simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
-            # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(
-                limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices
+            # Always allocate the wrapper so ``_apply_actuator_model_newton``
+            # has a ``joint_f_2d`` buffer to merge effort into, even when
+            # there are no explicit Newton actuators (implicit-only case).
+            self._physx_actuator_wrapper = PhysxActuatorWrapper.create(
+                num_envs=self.num_instances,
+                num_joints=self.num_joints,
+                device=self.device,
             )
-            self.write_joint_velocity_limit_to_sim_index(
-                limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices
+
+            if has_explicit:
+                first_prim = find_first_matching_prim(self.cfg.prim_path)
+                art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
+
+                adapter = NewtonActuatorAdapter.from_usd(
+                    stage=get_current_stage(),
+                    joint_names=self.joint_names,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    device=self.device,
+                    articulation_prim_path=art_prim_path,
+                )
+
+                # Bind the wrapper's flat aliases of state/input buffers once.
+                # The underlying wp.arrays alias stable PhysX-owned GPU memory
+                # whose device pointer is fixed for the articulation's lifetime,
+                # so the views remain valid for every subsequent step.
+                w = self._physx_actuator_wrapper
+                w.joint_q = self._data.joint_pos.warp.reshape(-1)
+                w.joint_qd = self._data.joint_vel.warp.reshape(-1)
+                w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
+                w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
+                w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
+                adapter.finalize(w)
+                self.newton_actuator_adapter = adapter
+                (
+                    self.newton_default_stiffness,
+                    self.newton_default_damping,
+                    self.newton_managed_local_joints,
+                ) = build_newton_actuator_defaults(
+                    actuators=adapter.actuators,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    dof_offset=0,
+                    device=self.device,
+                )
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
+
+            for actuator_name, actuator_cfg in self.cfg.actuators.items():
+                cls_type = actuator_cfg.class_type
+                is_implicit = (
+                    "ImplicitActuator" in cls_type
+                    if isinstance(cls_type, str)
+                    else issubclass(cls_type, ImplicitActuator)
+                )
+                if is_implicit:
+                    self._create_lab_actuator(actuator_name, actuator_cfg)
+                else:
+                    self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
+
+            # ``_implicit_dof_mask_owner`` is the underlying torch tensor that owns
+            # the GPU memory aliased by ``_implicit_dof_mask``. We keep it as an
+            # instance attribute so the memory isn't freed while a CUDA graph
+            # holds a captured pointer into it.
+            self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
+                self.actuators,
+                self.num_joints,
+                self.device,
             )
-            self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(
-                joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_dynamic_friction_coefficient_to_sim_index(
-                joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_viscous_friction_coefficient_to_sim_index(
-                joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices
-            )
+            # Per-articulation view of the adapter's pre-clamp computed-effort
+            # buffer (or zero fallback when there are no explicit Newton
+            # actuators). Set once here so ``_apply_actuator_model_newton``
+            # passes it straight to ``sync_torque_telemetry``.
+            if self.newton_actuator_adapter is not None:
+                self._data._sim_bind_joint_computed_effort = self.newton_actuator_adapter.computed_effort_2d
+            else:
+                self._data._sim_bind_joint_computed_effort = wp.zeros(
+                    (self.num_instances, self.num_joints),
+                    dtype=wp.float32,
+                    device=self.device,
+                )
+            return
+
+        # --- Standard Isaac Lab actuator path ---
+        for actuator_name, actuator_cfg in self.cfg.actuators.items():
+            self._create_lab_actuator(actuator_name, actuator_cfg)
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -3907,8 +4061,14 @@ class Articulation(BaseArticulation):
             )
 
         if self.cfg.actuator_value_resolution_debug_print:
+            if _HAS_NEWTON_ACTUATORS:
+                from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+            else:
+                NewtonActuatorAdapter = None  # type: ignore[assignment]
             t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
             for actuator_group, actuator in self.actuators.items():
+                if NewtonActuatorAdapter is not None and isinstance(actuator, NewtonActuatorAdapter):
+                    continue
                 group_count = 0
                 for property, resolution_details in actuator.joint_property_resolution_table.items():
                     for prop_idx, resolution_detail in enumerate(resolution_details):
@@ -3918,6 +4078,106 @@ class Articulation(BaseArticulation):
                         t.add_row([actuator_group_str, property_str, *fmt])
                         group_count += 1
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+
+    def _create_lab_actuator(
+        self,
+        actuator_name: str,
+        actuator_cfg: ActuatorBaseCfg,
+        *,
+        properties_only: bool = False,
+    ) -> None:
+        """Instantiate a single Lab actuator from its config and write properties to sim.
+
+        Args:
+            actuator_name: Name for the actuator group.
+            actuator_cfg: Configuration for the actuator.
+            properties_only: When ``True``, only write physical joint properties
+                (armature, limits, friction) without registering the actuator or
+                writing stiffness/damping. Used for explicit joints managed by
+                Newton actuators.
+        """
+        joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
+        if len(joint_names) == 0:
+            raise ValueError(
+                f"No joints found for actuator group: {actuator_name} with joint name expression:"
+                f" {actuator_cfg.joint_names_expr}."
+            )
+        if len(joint_names) == self.num_joints:
+            joint_ids = slice(None)
+        else:
+            joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
+
+        actuator: ActuatorBase = actuator_cfg.class_type(
+            cfg=actuator_cfg,
+            joint_names=joint_names,
+            joint_ids=joint_ids,
+            num_envs=self.num_instances,
+            device=self.device,
+            stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
+            damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
+            armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
+            friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
+            dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
+            viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
+            effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
+            velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+        )
+
+        # Write physical joint properties (armature, limits, friction) — always needed.
+        self.write_joint_effort_limit_to_sim_index(
+            limits=actuator.effort_limit_sim,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_velocity_limit_to_sim_index(
+            limits=actuator.velocity_limit_sim,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff=actuator.friction,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_dynamic_friction_coefficient_to_sim_index(
+            joint_dynamic_friction_coeff=actuator.dynamic_friction,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=actuator.viscous_friction,
+            joint_ids=actuator.joint_indices,
+        )
+
+        if properties_only:
+            return
+
+        self.actuators[actuator_name] = actuator
+
+        # Store the configured values from the actuator model
+        j_ids = actuator.joint_indices
+        if j_ids == slice(None):
+            j_ids = self._ALL_JOINT_INDICES
+        for attr, buf in (
+            (actuator.stiffness, self.data._joint_stiffness),
+            (actuator.damping, self.data._joint_damping),
+            (actuator.armature, self.data._joint_armature),
+            (actuator.friction, self.data._joint_friction_coeff),
+            (actuator.dynamic_friction, self.data._joint_dynamic_friction_coeff),
+            (actuator.viscous_friction, self.data._joint_viscous_friction_coeff),
+        ):
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, j_ids.shape[0]),
+                inputs=[attr, self._ALL_INDICES, j_ids, False],
+                outputs=[buf],
+                device=self.device,
+            )
+
+        if isinstance(actuator, ImplicitActuator):
+            self._has_implicit_actuators = True
+            self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
+        else:
+            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
@@ -3957,16 +4217,16 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
+                joint_positions=self._data.joint_pos_target.torch[:, actuator.joint_indices],
+                joint_velocities=self._data.joint_vel_target.torch[:, actuator.joint_indices],
+                joint_efforts=self._data.joint_effort_target.torch[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
+                joint_pos=self._data.joint_pos.torch[:, actuator.joint_indices],
+                joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
             joint_indices = actuator.joint_indices
@@ -4012,6 +4272,47 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
 
+    def _apply_actuator_model_newton(self):
+        """Pre-fill effort buffer with FF, step Newton actuators, sync telemetry.
+
+        Pre-fills ``w.joint_f_2d`` with the user's effort target across all
+        DOFs. ``newton_adapter.step`` (no-op if no explicit Newton actuators
+        exist) then zeroes ``joint_f_2d`` at explicit DOFs and overwrites
+        them with each actuator's computed effort, while implicit DOFs keep
+        the FF. The :func:`sync_torque_telemetry` kernel then fills
+        ``_data._computed_torque`` / ``_data._applied_torque`` from the
+        resulting buffer. The final ``joint_f_2d`` is what gets pushed to
+        PhysX as the actuation force in :meth:`write_data_to_sim`.
+        """
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
+        w = self._physx_actuator_wrapper
+        w.joint_f_2d.assign(self._data._joint_effort_target)
+        if self.newton_actuator_adapter is not None:
+            self.newton_actuator_adapter.step(w, w, SimulationManager.get_physics_dt())
+
+        wp.launch(
+            actuator_kernels.sync_torque_telemetry,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data.joint_pos.warp,
+                self._data.joint_vel.warp,
+                self._data._joint_pos_target,
+                self._data._joint_vel_target,
+                self._data.joint_stiffness.warp,
+                self._data.joint_damping.warp,
+                self._data.joint_effort_limits.warp,
+                self._implicit_dof_mask,
+                w.joint_f_2d,
+                self._data._sim_bind_joint_computed_effort,
+            ],
+            outputs=[
+                self._data._computed_torque,
+                self._data._applied_torque,
+            ],
+            device=self.device,
+        )
+
     """
     Internal helpers -- Debugging.
     """
@@ -4026,8 +4327,8 @@ class Articulation(BaseArticulation):
         """
         # check that the default values are within the limits
         joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
-        out_of_range = wp.to_torch(self._data.default_joint_pos)[0] < joint_pos_limits[:, 0]
-        out_of_range |= wp.to_torch(self._data.default_joint_pos)[0] > joint_pos_limits[:, 1]
+        out_of_range = self._data.default_joint_pos.torch[0] < joint_pos_limits[:, 0]
+        out_of_range |= self._data.default_joint_pos.torch[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
@@ -4036,14 +4337,14 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = joint_pos_limits[idx]
-                joint_pos = wp.to_torch(self._data.default_joint_pos)[0, idx]
+                joint_pos = self._data.default_joint_pos.torch[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
         joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
-        out_of_range = torch.abs(wp.to_torch(self._data.default_joint_vel)[0]) > joint_max_vel
+        out_of_range = torch.abs(self._data.default_joint_vel.torch[0]) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
             # prepare message for violated joints
@@ -4051,7 +4352,7 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
-                joint_vel = wp.to_torch(self._data.default_joint_vel)[0, idx]
+                joint_vel = self._data.default_joint_vel.torch[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
@@ -4082,23 +4383,23 @@ class Articulation(BaseArticulation):
         # -- gains
         # Use data properties which have already been cloned and stored during initialization
         # This avoids issues with indexedarray or empty arrays from root_view
-        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
-        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
+        stiffnesses = self.data.joint_stiffness.torch[0].cpu().tolist()
+        dampings = self.data.joint_damping.torch[0].cpu().tolist()
         # -- properties
-        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
+        armatures = self.data.joint_armature.torch[0].cpu().tolist()
         # For friction, use the individual components from data
-        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
-        dynamic_friction_coeff = wp.to_torch(self.data.joint_dynamic_friction_coeff)[0].cpu()
-        viscous_friction_coeff = wp.to_torch(self.data.joint_viscous_friction_coeff)[0].cpu()
+        friction_coeff = self.data.joint_friction_coeff.torch[0].cpu()
+        dynamic_friction_coeff = self.data.joint_dynamic_friction_coeff.torch[0].cpu()
+        viscous_friction_coeff = self.data.joint_viscous_friction_coeff.torch[0].cpu()
         static_frictions = friction_coeff.tolist()
         dynamic_frictions = dynamic_friction_coeff.tolist()
         viscous_frictions = viscous_friction_coeff.tolist()
         # -- limits
         # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
-        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
+        position_limits_torch = self.data.joint_pos_limits.torch[0].cpu()  # shape: (num_joints, 2)
         position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
-        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
-        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
+        velocity_limits = self.data.joint_vel_limits.torch[0].cpu().tolist()
+        effort_limits = self.data.joint_effort_limits.torch[0].cpu().tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -4139,15 +4440,15 @@ class Articulation(BaseArticulation):
         if self.num_fixed_tendons > 0:
             # -- gains
             # Use data properties which have already been cloned and stored during initialization
-            ft_stiffnesses = wp.to_torch(self.data.fixed_tendon_stiffness)[0].cpu().tolist()
-            ft_dampings = wp.to_torch(self.data.fixed_tendon_damping)[0].cpu().tolist()
+            ft_stiffnesses = self.data.fixed_tendon_stiffness.torch[0].cpu().tolist()
+            ft_dampings = self.data.fixed_tendon_damping.torch[0].cpu().tolist()
             # -- limits
-            ft_limit_stiffnesses = wp.to_torch(self.data.fixed_tendon_limit_stiffness)[0].cpu().tolist()
+            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.torch[0].cpu().tolist()
             # fixed_tendon_pos_limits is vec2f array
-            ft_limits_torch = wp.to_torch(self.data.fixed_tendon_pos_limits)[0].cpu()
+            ft_limits_torch = self.data.fixed_tendon_pos_limits.torch[0].cpu()
             ft_limits = [tuple(limit.tolist()) for limit in ft_limits_torch]
-            ft_rest_lengths = wp.to_torch(self.data.fixed_tendon_rest_length)[0].cpu().tolist()
-            ft_offsets = wp.to_torch(self.data.fixed_tendon_offset)[0].cpu().tolist()
+            ft_rest_lengths = self.data.fixed_tendon_rest_length.torch[0].cpu().tolist()
+            ft_offsets = self.data.fixed_tendon_offset.torch[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -4191,11 +4492,11 @@ class Articulation(BaseArticulation):
         if self.num_spatial_tendons > 0:
             # -- gains
             # Use data properties which have already been cloned and stored during initialization
-            st_stiffnesses = wp.to_torch(self.data.spatial_tendon_stiffness)[0].cpu().tolist()
-            st_dampings = wp.to_torch(self.data.spatial_tendon_damping)[0].cpu().tolist()
+            st_stiffnesses = self.data.spatial_tendon_stiffness.torch[0].cpu().tolist()
+            st_dampings = self.data.spatial_tendon_damping.torch[0].cpu().tolist()
             # -- limits
-            st_limit_stiffnesses = wp.to_torch(self.data.spatial_tendon_limit_stiffness)[0].cpu().tolist()
-            st_offsets = wp.to_torch(self.data.spatial_tendon_offset)[0].cpu().tolist()
+            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.torch[0].cpu().tolist()
+            st_offsets = self.data.spatial_tendon_offset.torch[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"

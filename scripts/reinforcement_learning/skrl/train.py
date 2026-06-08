@@ -10,6 +10,16 @@ Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples s
 a more user-friendly way.
 """
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/skrl/train.py is deprecated. Use "
+    "`./isaaclab.sh train --rl_library skrl --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import logging
@@ -27,11 +37,17 @@ from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +55,7 @@ logger = logging.getLogger(__name__)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
-SKRL_VERSION = "1.4.3"
+SKRL_VERSION = "2.1.0"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with skrl.")
@@ -68,7 +84,7 @@ parser.add_argument(
     "--ml_framework",
     type=str,
     default="torch",
-    choices=["torch", "jax", "jax-numpy"],
+    choices=["torch", "jax"],
     help="The ML framework used for training the skrl agent.",
 )
 parser.add_argument(
@@ -82,12 +98,11 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True
-
-sys.argv = [sys.argv[0]] + hydra_args
 
 # -- check skrl version ------------------------------------------------------
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
@@ -117,7 +132,12 @@ def main():
 
         # override configurations with non-hydra CLI arguments
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+        # For distributed training, launch_simulation() already resolved the
+        # correct per-rank device; only apply a CLI --device override for
+        # non-distributed runs (the default "cuda:0" would clobber the
+        # per-rank device otherwise).
+        if not args_cli.distributed:
+            env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
         if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
             raise ValueError(
@@ -127,9 +147,9 @@ def main():
 
         # multi-gpu training config
         if args_cli.distributed:
-            local_rank = int(os.getenv("LOCAL_RANK", "0"))
             global_rank = int(os.getenv("RANK", "0"))
-            env_cfg.sim.device = f"cuda:{local_rank}"
+            # env_cfg.sim.device is resolved by launch_simulation() which
+            # accounts for CUDA_VISIBLE_DEVICES restrictions.
         # max iterations for training
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
@@ -208,6 +228,10 @@ def main():
 
         # configure and instantiate the skrl runner
         runner = Runner(env, agent_cfg)
+        # configure_seed must be called after Runner() so that PyTorch deterministic settings
+        # do not interfere with Runner's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
 
         # load checkpoint (if specified)
         if resume_path:

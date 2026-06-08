@@ -43,7 +43,7 @@ Vectorized environment wrapper.
 
 def SkrlVecEnvWrapper(
     env: ManagerBasedRLEnv | DirectRLEnv | DirectMARLEnv,
-    ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch",
+    ml_framework: Literal["torch", "jax", "warp"] = "torch",
     wrapper: Literal["auto", "isaaclab", "isaaclab-single-agent", "isaaclab-multi-agent"] = "isaaclab",
 ):
     """Wraps around Isaac Lab environment for skrl.
@@ -70,10 +70,22 @@ def SkrlVecEnvWrapper(
     # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
     from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 
-    if not isinstance(env.unwrapped, (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)):
+    try:
+        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+    except ImportError:
+        DirectRLEnvWarp = None
+        ManagerBasedRLEnvWarp = None
+
+    allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)
+    if DirectRLEnvWarp is not None:
+        allowed_types += (DirectRLEnvWarp,)
+    if ManagerBasedRLEnvWarp is not None:
+        allowed_types += (ManagerBasedRLEnvWarp,)
+
+    if not isinstance(env.unwrapped, allowed_types):
         raise ValueError(
-            "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv or DirectMARLEnv. Environment type:"
-            f" {type(env)}"
+            "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv,"
+            f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env)}"
         )
 
     # import statements according to the ML framework
@@ -81,9 +93,11 @@ def SkrlVecEnvWrapper(
         from skrl.envs.wrappers.torch import wrap_env
     elif ml_framework.startswith("jax"):
         from skrl.envs.wrappers.jax import wrap_env
+    elif ml_framework.startswith("warp"):
+        from skrl.envs.wrappers.warp import wrap_env
     else:
-        ValueError(
-            f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax' or 'jax-numpy'"
+        raise ValueError(
+            f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax', 'warp'"
         )
 
     # wrap and return the environment

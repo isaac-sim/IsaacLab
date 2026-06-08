@@ -26,11 +26,15 @@ interpretation of the prim paths for different sensor types:
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Contact Sensor      | /World/robot/feet_*       | Leaf is available and checks if the schema exists             |
 +---------------------+---------------------------+---------------------------------------------------------------+
-| Ray Caster          | /World/robot/base         | Leaf exists and is a physics body (Articulation / Rigid Body) |
+| Ray Caster          | /World/robot/base/raycast | ``spawn`` creates an Xform leaf; else the leaf must exist     |
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Frame Transformer   | /World/robot/base         | Leaf exists and is a physics body (Articulation / Rigid Body) |
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Imu                 | /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
++---------------------+---------------------------+---------------------------------------------------------------+
+| Pva                 | /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
++---------------------+---------------------------+---------------------------------------------------------------+
+| Joint Wrench Sensor | /World/robot              | Leaf exists and is an articulation                            |
 +---------------------+---------------------------+---------------------------------------------------------------+
 
 """

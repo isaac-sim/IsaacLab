@@ -28,7 +28,7 @@ models:
     clip_actions: False
     network:
       - name: net
-        input: OBSERVATIONS
+        input: STATES
         layers: [32, 32]
         activations: elu
     output: ONE
@@ -54,10 +54,10 @@ agent:
   learning_rate_scheduler: KLAdaptiveLR
   learning_rate_scheduler_kwargs:
     kl_threshold: 0.008
+  observation_preprocessor: RunningStandardScaler
+  observation_preprocessor_kwargs: null
   state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs: null
-  shared_state_preprocessor: RunningStandardScaler
-  shared_state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
   value_preprocessor_kwargs: null
   random_timesteps: 0

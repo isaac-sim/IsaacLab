@@ -6,70 +6,17 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab.assets import Articulation
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
-
-
-@configclass
-class CartpoleWarpEnvCfg(DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    action_scale = 100.0  # [N]
-    action_space = 1
-    observation_space = 4
-    state_space = 0
-
-    solver_cfg = MJWarpSolverCfg(
-        njmax=5,
-        nconmax=3,
-        cone="pyramidal",
-        integrator="implicitfast",
-        impratio=1,
-    )
-
-    newton_cfg = NewtonCfg(
-        solver_cfg=solver_cfg,
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=newton_cfg)
-
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
-    )
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [x pi rad]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_pole_pos = -1.0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_vel = -0.005
+if TYPE_CHECKING:
+    from .cartpole_warp_env_cfg import CartpoleWarpEnvCfg
 
 
 @wp.kernel
@@ -226,8 +173,8 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
         # Simulation bindings
         # Note: these are direct memory views into the Newton simulation data, they should not be modified directly
-        self.joint_pos = self.cartpole.data.joint_pos
-        self.joint_vel = self.cartpole.data.joint_vel
+        self.joint_pos = self.cartpole.data.joint_pos.warp
+        self.joint_vel = self.cartpole.data.joint_vel.warp
 
         # Buffers
         self.observations = wp.zeros((self.num_envs), dtype=wp.vec4f, device=self.device)
@@ -344,8 +291,8 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
             reset,
             dim=self.num_envs,
             inputs=[
-                self.cartpole.data.default_joint_pos,
-                self.cartpole.data.default_joint_vel,
+                self.cartpole.data.default_joint_pos.warp,
+                self.cartpole.data.default_joint_vel.warp,
                 self.joint_pos,
                 self.joint_vel,
                 self._cart_dof_idx[0],

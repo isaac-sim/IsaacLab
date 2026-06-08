@@ -1,0 +1,166 @@
+[
+    {
+        "_comment": "=== PYTHON IMPORTS (tracks module loading) ===",
+        "domain": "Python-Imports",
+        "color": "0x9E9E9E",
+        "module": "importlib",
+        "functions": ["import_module"]
+    },
+    {
+        "domain": "Python-Imports",
+        "color": "0x9E9E9E",
+        "module": "importlib._bootstrap",
+        "functions": ["_find_and_load", "_load_unlocked"]
+    },
+    {
+        "_comment": "=== WARP (verified working) ===",
+        "domain": "Warp",
+        "color": "0xF44336",
+        "module": "warp",
+        "functions": ["launch", "synchronize", "copy", "zeros", "empty"]
+    },
+    {
+        "_comment": "=== PYTORCH (verified working) ===",
+        "domain": "PyTorch",
+        "color": "0x3F51B5",
+        "module": "torch.autograd",
+        "functions": ["backward"]
+    },
+    {
+        "_comment": "=== USD (verified working) ===",
+        "domain": "USD",
+        "color": "0x795548",
+        "module": "pxr.UsdGeom",
+        "functions": ["Xform", "Mesh", "Sphere", "Cube"]
+    },
+    {
+        "_comment": "=== ISAACLAB ENVIRONMENTS ===",
+        "domain": "IsaacLab-Env",
+        "color": "0x9C27B0",
+        "module": "isaaclab.envs.manager_based_rl_env",
+        "functions": [
+            {"function": "ManagerBasedRLEnv.__init__", "color": "0x9C27B0"},
+            {"function": "ManagerBasedRLEnv.step", "color": "0xAB47BC"}
+        ]
+    },
+    {
+        "domain": "IsaacLab-Env",
+        "color": "0x9C27B0",
+        "module": "isaaclab.envs.manager_based_env",
+        "functions": [
+            {"function": "ManagerBasedEnv.__init__", "color": "0x9C27B0"},
+            {"function": "ManagerBasedEnv.step", "color": "0xAB47BC"},
+            {"function": "ManagerBasedEnv.reset", "color": "0xBA68C8"},
+            {"function": "ManagerBasedEnv._reset_idx", "color": "0xCE93D8"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB SIMULATION ===",
+        "domain": "IsaacLab-Sim",
+        "color": "0x4CAF50",
+        "module": "isaaclab.sim.simulation_context",
+        "functions": [
+            {"function": "SimulationContext.__init__", "color": "0x4CAF50"},
+            {"function": "SimulationContext.reset", "color": "0x66BB6A"},
+            {"function": "SimulationContext.step", "color": "0x81C784"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB SCENE ===",
+        "domain": "IsaacLab-Scene",
+        "color": "0x2196F3",
+        "module": "isaaclab.scene.interactive_scene",
+        "functions": [
+            {"function": "InteractiveScene.__init__", "color": "0x2196F3"},
+            {"function": "InteractiveScene.reset", "color": "0x42A5F5"},
+            {"function": "InteractiveScene.write_data_to_sim", "color": "0x64B5F6"},
+            {"function": "InteractiveScene.update", "color": "0x90CAF9"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB MANAGERS ===",
+        "domain": "IsaacLab-Managers",
+        "color": "0xFF9800",
+        "module": "isaaclab.managers.observation_manager",
+        "functions": [
+            {"function": "ObservationManager.__init__", "color": "0xFF9800"},
+            {"function": "ObservationManager.reset", "color": "0xFFA726"},
+            {"function": "ObservationManager.compute", "color": "0xFFB74D"}
+        ]
+    },
+    {
+        "domain": "IsaacLab-Managers",
+        "color": "0xFF9800",
+        "module": "isaaclab.managers.action_manager",
+        "functions": [
+            {"function": "ActionManager.__init__", "color": "0xFF9800"},
+            {"function": "ActionManager.reset", "color": "0xFFA726"},
+            {"function": "ActionManager.process_action", "color": "0xFFB74D"},
+            {"function": "ActionManager.apply_action", "color": "0xFFCC80"}
+        ]
+    },
+    {
+        "domain": "IsaacLab-Managers",
+        "color": "0xFF9800",
+        "module": "isaaclab.managers.reward_manager",
+        "functions": [
+            {"function": "RewardManager.__init__", "color": "0xFF9800"},
+            {"function": "RewardManager.reset", "color": "0xFFA726"},
+            {"function": "RewardManager.compute", "color": "0xFFB74D"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB ASSETS ===",
+        "domain": "IsaacLab-Assets",
+        "color": "0x607D8B",
+        "module": "isaaclab.assets.articulation.articulation",
+        "functions": [
+            {"function": "Articulation.__init__", "color": "0x607D8B"},
+            {"function": "Articulation.reset", "color": "0x78909C"},
+            {"function": "Articulation.write_data_to_sim", "color": "0x90A4AE"},
+            {"function": "Articulation.update", "color": "0xB0BEC5"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB SENSORS ===",
+        "domain": "IsaacLab-Sensors",
+        "color": "0x00BCD4",
+        "module": "isaaclab.sensors.camera.camera",
+        "functions": [
+            {"function": "Camera.__init__", "color": "0x00BCD4"},
+            {"function": "Camera.reset", "color": "0x26C6DA"},
+            {"function": "Camera.update", "color": "0x4DD0E1"}
+        ]
+    },
+    {
+        "_comment": "=== RSL-RL ===",
+        "domain": "RSL-RL",
+        "color": "0x673AB7",
+        "module": "rsl_rl.runners.on_policy_runner",
+        "functions": [
+            {"function": "OnPolicyRunner.__init__", "color": "0x673AB7"},
+            {"function": "OnPolicyRunner.learn", "color": "0x7E57C2"}
+        ]
+    },
+    {
+        "domain": "RSL-RL",
+        "color": "0x673AB7",
+        "module": "rsl_rl.algorithms.ppo",
+        "functions": [
+            {"function": "PPO.__init__", "color": "0x673AB7"},
+            {"function": "PPO.act", "color": "0x7E57C2"},
+            {"function": "PPO.update", "color": "0x9575CD"}
+        ]
+    },
+    {
+        "_comment": "=== NEWTON WARP RENDERER ===",
+        "domain": "NewtonWarpRenderer",
+        "color": "0xE91E63",
+        "module": "isaaclab_newton.renderers.newton_warp_renderer",
+        "functions": [
+            {"function": "NewtonWarpRenderer.update_transforms", "color": "0x2196F3"},
+            {"function": "NewtonWarpRenderer.render", "color": "0x4CAF50"},
+            {"function": "NewtonWarpRenderer.read_output", "color": "0xFF9800"}
+        ]
+    }
+]

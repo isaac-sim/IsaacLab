@@ -13,13 +13,12 @@ import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import numpy as np
-import torch
 import warp as wp
 from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -137,31 +136,10 @@ class ContactSensor(BaseContactSensor):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        # resolve mask via the shared helper (uses self._reset_mask, persistent across calls).
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timers and counters
-        super().reset(env_ids, env_mask)
-
-        # Resolve env_mask (same logic as base class)
-        if env_ids is None and env_mask is None:
-            env_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
-        elif env_mask is None:
-            if isinstance(env_ids, torch.Tensor):
-                env_ids_torch = env_ids.to(device=self._device, dtype=torch.long).reshape(-1)
-                mask_torch = torch.zeros(self._num_envs, dtype=torch.bool, device=self._device)
-                if env_ids_torch.numel() > 0:
-                    mask_torch[env_ids_torch] = True
-                env_mask = wp.from_torch(mask_torch, dtype=wp.bool)
-            elif isinstance(env_ids, wp.array):
-                env_ids_np = np.asarray(env_ids.numpy(), dtype=np.int64).reshape(-1)
-                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
-                if env_ids_np.size > 0:
-                    mask_np[env_ids_np] = True
-                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
-            else:
-                env_ids_np = np.asarray(env_ids, dtype=np.int64).reshape(-1)
-                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
-                if env_ids_np.size > 0:
-                    mask_np[env_ids_np] = True
-                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
+        super().reset(None, env_mask)
 
         # Compute num_filter_objects
         num_filter_objects = self._num_filter_objects
@@ -207,7 +185,7 @@ class ContactSensor(BaseContactSensor):
             )
         return string_utils.resolve_matching_names(name_keys, sensor_names, preserve_order)
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if sensors that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the sensors have established contact within the last :attr:`dt` seconds
@@ -246,9 +224,9 @@ class ContactSensor(BaseContactSensor):
             outputs=[self._data._first_transition],
             device=self._device,
         )
-        return self._data._first_transition
+        return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if sensors that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the sensors have broken contact within the last :attr:`dt` seconds
@@ -288,7 +266,7 @@ class ContactSensor(BaseContactSensor):
             outputs=[self._data._first_transition],
             device=self._device,
         )
-        return self._data._first_transition
+        return self._data._first_transition_ta
 
     """
     Implementation.
@@ -321,17 +299,17 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError(self._init_error) from err
 
     def _create_buffers(self):
-        # Get Newton sensor shape: (n_sensors * n_envs, n_counterparts)
-        newton_shape = self.contact_view.shape
+        # Get Newton sensor count from total force: (n_sensors * n_envs)
+        total_sensor_count = self.contact_view.total_force.shape[0]
 
         # resolve the true count of sensors
-        self._num_sensors = newton_shape[0] // self._num_envs
+        self._num_sensors = total_sensor_count // self._num_envs
 
         # Check that number of sensors is an integer
-        if newton_shape[0] % self._num_envs != 0:
+        if total_sensor_count % self._num_envs != 0:
             raise RuntimeError(
                 "Number of sensors is not an integer multiple of the number of environments. Received:"
-                f" {newton_shape[0]} sensors across {self._num_envs} environments."
+                f" {total_sensor_count} sensors across {self._num_envs} environments."
             )
         if self._num_sensors == 0:
             raise RuntimeError(
@@ -345,29 +323,47 @@ class ContactSensor(BaseContactSensor):
         body_labels = self._get_model_labels("body")
         shape_labels = self._get_model_labels("shape")
 
-        def get_name(idx, kind):
-            kind_name = getattr(kind, "name", None)
-            kind_value = getattr(kind, "value", kind)
-            if kind_name == "BODY" or kind_value == 2:
-                return body_labels[idx].split("/")[-1]
-            if kind_name == "SHAPE" or kind_value == 1:
-                return shape_labels[idx].split("/")[-1]
-            return "MATCH_ANY"
-
-        flat_sensing = [obj for world_objs in self.contact_view.sensing_objs for obj in world_objs]
-        self._sensor_names = [get_name(idx, kind) for idx, kind in flat_sensing]
+        s_kind = self.contact_view.sensing_obj_type
+        if s_kind == "body":
+            s_labels = body_labels
+        elif s_kind == "shape":
+            s_labels = shape_labels
+        else:
+            raise RuntimeError(f"Unexpected Newton sensing_obj_type {s_kind!r}; expected 'body' or 'shape'.")
+        self._sensor_names = [s_labels[i].split("/")[-1] for i in self.contact_view.sensing_obj_idx]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
-        flat_counterparts = [obj for world_objs in self.contact_view.counterparts for obj in world_objs]
-        self._filter_object_names = [get_name(idx, kind) for idx, kind in flat_counterparts]
 
-        # Number of filter objects (counterparts minus the total column)
-        self._num_filter_objects = max(newton_shape[1] - 1, 0)
+        c_kind = self.contact_view.counterpart_type
+        c_idx_per_sensor = self.contact_view.counterpart_indices
+        if c_kind is None:
+            if self._generate_force_matrix:
+                raise RuntimeError("Filter expressions were configured but Newton reports no counterpart type.")
+            self._filter_object_names = []
+        else:
+            if c_kind == "body":
+                c_labels = body_labels
+            elif c_kind == "shape":
+                c_labels = shape_labels
+            else:
+                raise RuntimeError(f"Unexpected Newton counterpart_type {c_kind!r}; expected 'body' or 'shape'.")
+            # Envs are homogeneous: every sensor row sees the same counterpart list. Take row 0.
+            row0 = c_idx_per_sensor[0] if c_idx_per_sensor else []
+            self._filter_object_names = [c_labels[i].split("/")[-1] for i in row0]
+            if self._generate_force_matrix and not self._filter_object_names:
+                logger.warning("Filter expressions matched zero counterpart objects; force matrix will be empty.")
 
-        # Store reshaped Newton net_force view for copying data
-        # Newton net_force shape: (n_sensors * n_envs, n_counterparts)
-        # Reshaped to: (n_envs, n_sensors, n_counterparts)
-        self._newton_forces_view = self.contact_view.net_force.reshape((self._num_envs, self._num_sensors, -1))
+        force_matrix = self.contact_view.force_matrix
+        force_matrix_shape = force_matrix.shape if force_matrix is not None else (total_sensor_count, 0)
+        # Number of filter objects.
+        self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
+        if self._num_filter_objects > 0 and force_matrix is None:
+            raise RuntimeError("Filter counterparts present but Newton force_matrix is None.")
+
+        # Store flat Newton force views for copying data. These may be non-contiguous
+        # views, so the copy kernel indexes them without reshaping.
+        self._newton_total_force_view = self.contact_view.total_force
+        self._newton_force_matrix_view = force_matrix if self._num_filter_objects > 0 else None
 
         # prepare data buffers
         logger.info(
@@ -412,7 +408,10 @@ class ContactSensor(BaseContactSensor):
             dim=(self._num_envs, self._num_sensors, max(self._num_filter_objects, 1)),
             inputs=[
                 env_mask,
-                self._newton_forces_view,
+                self._num_sensors,
+                self._newton_total_force_view,
+                self._newton_force_matrix_view,
+                self._timestamp,
             ],
             outputs=[
                 self._data._net_forces_w,

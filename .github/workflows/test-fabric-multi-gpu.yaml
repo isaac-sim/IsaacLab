@@ -1,0 +1,69 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# FabricFrameView multi-GPU unit tests
+#
+# Runs the cuda:1-parameterized unit tests in
+# source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py on the
+# dedicated multi-GPU runner.  Kept separate from test-multi-gpu.yaml so
+# changes to FabricFrameView do not gate distributed-training validation and
+# vice versa.  Runner preconditions (label, install step, GPU pre-flight) are
+# identical to the training workflow.
+
+name: FabricFrameView Multi-GPU Tests
+
+# DISABLED: No self-hosted runner with the 'multi-gpu' label is currently
+# registered.  All runs queue indefinitely.  Re-enable once infra provisions
+# a multi-GPU runner (see also .github/workflows/test-multi-gpu.yaml which
+# has the same issue).
+#
+# on:
+#   pull_request:
+#     paths:
+#       - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
+#       - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
+#       - ".github/workflows/test-fabric-multi-gpu.yaml"
+#   workflow_dispatch:
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-fabric-multi-gpu:
+    name: FabricFrameView multi-GPU unit tests
+    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Isaac Lab
+        run: ./isaaclab.sh --install
+
+      - name: Verify multi-GPU availability
+        # Fail loud if the runner regressed to a single GPU.  Without this, the
+        # test helper's ``_skip_if_unavailable`` would skip every ``cuda:1`` case
+        # and the job would go green with no real coverage.
+        run: |
+          echo "=== GPU Info ==="
+          nvidia-smi --query-gpu=index,name,memory.total --format=csv
+
+          GPU_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())")
+          echo "Detected $GPU_COUNT GPU(s)"
+
+          if [ "$GPU_COUNT" -lt 2 ]; then
+            echo "::error::At least 2 GPUs required for Fabric multi-GPU tests, found $GPU_COUNT"
+            exit 1
+          fi
+
+      - name: Run FabricFrameView multi-GPU unit tests
+        env:
+          ISAACLAB_TEST_MULTI_GPU: "1"
+        run: |
+          ./isaaclab.sh -p -m pytest \
+            source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v

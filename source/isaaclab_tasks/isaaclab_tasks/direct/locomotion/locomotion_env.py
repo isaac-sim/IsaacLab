@@ -8,6 +8,7 @@ from __future__ import annotations
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -79,7 +80,7 @@ class LocomotionEnv(DirectRLEnv):
         self.action_scale = self.cfg.action_scale
         # Resolve the joint gears based on the physics type, since they do not have the same joint ordering.
         if isinstance(self.cfg.joint_gears, dict):
-            if isinstance(self.cfg.sim.physics, PhysxCfg):
+            if isinstance(self.cfg.sim.physics, (PhysxCfg, OvPhysxCfg)):
                 joint_gears = self.cfg.joint_gears["physx"]
             elif isinstance(self.cfg.sim.physics, NewtonCfg):
                 joint_gears = self.cfg.joint_gears["newton"]
@@ -132,14 +133,14 @@ class LocomotionEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self):
         self.torso_position, self.torso_rotation = (
-            wp.to_torch(self.robot.data.root_pos_w),
-            wp.to_torch(self.robot.data.root_quat_w),
+            self.robot.data.root_pos_w.torch,
+            self.robot.data.root_quat_w.torch,
         )
         self.velocity, self.ang_velocity = (
-            wp.to_torch(self.robot.data.root_lin_vel_w),
-            wp.to_torch(self.robot.data.root_ang_vel_w),
+            self.robot.data.root_lin_vel_w.torch,
+            self.robot.data.root_ang_vel_w.torch,
         )
-        self.dof_pos, self.dof_vel = wp.to_torch(self.robot.data.joint_pos), wp.to_torch(self.robot.data.joint_vel)
+        self.dof_pos, self.dof_vel = self.robot.data.joint_pos.torch, self.robot.data.joint_vel.torch
 
         (
             self.up_proj,
@@ -162,8 +163,8 @@ class LocomotionEnv(DirectRLEnv):
             self.velocity,
             self.ang_velocity,
             self.dof_pos,
-            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 0],
-            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 1],
+            self.robot.data.soft_joint_pos_limits.torch[0, :, 0],
+            self.robot.data.soft_joint_pos_limits.torch[0, :, 1],
             self.inv_start_rot,
             self.basis_vec0,
             self.basis_vec1,
@@ -222,13 +223,18 @@ class LocomotionEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
             env_ids = wp.to_torch(self.robot._ALL_INDICES)
+
+        # Log survival success rate (survived = timed out without falling)
+        survived = self.reset_time_outs[env_ids].float()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids].clone()
-        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids].clone()
-        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids].clone()
-        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids].clone()
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
         self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)

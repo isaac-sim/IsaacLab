@@ -33,19 +33,13 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-INSTALL_REQUIRES = [
-    # INTENTIONALLY disabled to avoid circular dependency with isaaclab_physx, which also depends on isaaclab_newton.
-    # This will be re-enabled once we move to UV and pyproject.toml-based packaging.
-    # f"isaaclab_physx @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_physx')}",
-]
+INSTALL_REQUIRES = ["isaaclab_ppisp"]
 
 EXTRAS_REQUIRE = {
     "all": [
         "prettytable==3.3.0",
-        "mujoco==3.5.0",
-        "mujoco-warp==3.5.0.2",
         "PyOpenGL-accelerate==3.1.10",
-        "newton==1.0.0",
+        "newton[sim]==1.2.1",
     ],
 }
 
@@ -61,11 +55,12 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.11",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     packages=[
         "isaaclab_newton",
+        "isaaclab_newton.actuators",
         "isaaclab_newton.assets",
         "isaaclab_newton.assets.articulation",
         "isaaclab_newton.assets.rigid_object",
@@ -73,7 +68,6 @@ setup(
         "isaaclab_newton.cloner",
         "isaaclab_newton.physics",
         "isaaclab_newton.renderers",
-        "isaaclab_newton.scene_data_providers",
         "isaaclab_newton.sensors",
         "isaaclab_newton.sensors.contact_sensor",
         "isaaclab_newton.sensors.frame_transformer",
@@ -83,10 +77,7 @@ setup(
     ],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

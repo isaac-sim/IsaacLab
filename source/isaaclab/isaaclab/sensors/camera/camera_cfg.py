@@ -5,19 +5,31 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import MISSING, field
-from typing import TYPE_CHECKING, Literal
-
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
+from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
     from .camera import Camera
+
+# Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
+# backward compatibility. These mirror the defaults on
+# :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`.
+_DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
+    "semantic_filter": "*:*",
+    "colorize_semantic_segmentation": True,
+    "colorize_instance_id_segmentation": True,
+    "colorize_instance_segmentation": True,
+    "semantic_segmentation_mapping": {},
+    "depth_clipping_behavior": "none",
+}
 
 
 @configclass
@@ -67,6 +79,11 @@ class CameraCfg(SensorBaseCfg):
     - ``"max"``: Values are clipped to the maximum value.
     - ``"zero"``: Values are clipped to zero.
     - ``"none``: No clipping is applied. Values will be returned as ``inf``.
+
+    .. deprecated:: 4.6.22
+        This field is RTX-specific. Set
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`
+        on :attr:`renderer_cfg` instead.
     """
 
     data_types: list[str] = ["rgb"]
@@ -85,7 +102,7 @@ class CameraCfg(SensorBaseCfg):
     """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
 
     If True, the latest camera pose is updated in the camera's data which will slow down performance
-    due to the use of :class:`XformPrimView`.
+    due to the use of :class:`FrameView`.
     If False, the pose of the camera during initialization is returned.
     """
 
@@ -108,6 +125,11 @@ class CameraCfg(SensorBaseCfg):
         For more information on the semantics filter, see the documentation on `Replicator Semantics Schema Editor`_.
 
     .. _Replicator Semantics Schema Editor: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
+
+    .. deprecated:: 4.6.22
+        This field is RTX-specific. Set
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` on
+        :attr:`renderer_cfg` instead.
     """
 
     colorize_semantic_segmentation: bool = True
@@ -115,6 +137,11 @@ class CameraCfg(SensorBaseCfg):
 
     If True, semantic segmentation is converted to an image where semantic IDs are mapped to colors
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
+
+    .. deprecated:: 4.6.22
+        This field is RTX-specific. Set
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_semantic_segmentation`
+        on :attr:`renderer_cfg` instead.
     """
 
     colorize_instance_id_segmentation: bool = True
@@ -122,6 +149,11 @@ class CameraCfg(SensorBaseCfg):
 
     If True, instance id segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
+
+    .. deprecated:: 4.6.22
+        This field is RTX-specific. Set
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_id_segmentation`
+        on :attr:`renderer_cfg` instead.
     """
 
     colorize_instance_segmentation: bool = True
@@ -129,6 +161,11 @@ class CameraCfg(SensorBaseCfg):
 
     If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
+
+    .. deprecated:: 4.6.22
+        This field is RTX-specific. Set
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_segmentation`
+        on :attr:`renderer_cfg` instead.
     """
 
     semantic_segmentation_mapping: dict = {}
@@ -147,7 +184,66 @@ class CameraCfg(SensorBaseCfg):
             "class:robot": (61, 178, 255, 255),
         }
 
+    .. deprecated:: 4.6.22
+        This field is RTX-specific. Set
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`
+        on :attr:`renderer_cfg` instead.
     """
 
-    renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)
+    renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
+
+    isp_cfg: Any | CameraISPMode | None = None
+    """Post-render ISP cfg applied by the renderer backend after it produces HDR output.
+
+    Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
+    :class:`CameraISPMode` sentinel — see below.
+
+    Accepted values:
+
+    * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
+      tonemapping flags are flipped.
+    * A :class:`CameraISPMode` sentinel — the renderer backend walks the USD stage to
+      discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
+    * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
+
+    The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
+    scalar coefficients, so every cloned view in a tiled batch shares the same
+    ISP configuration — there is no per-view ISP today.
+
+    :mod:`isaaclab.sensors.camera` does not depend on any ISP implementation; the
+    annotation is intentionally loose (``Any``) so the sensor layer can carry the
+    cfg through to a renderer that knows what to do with it.
+    """
+
+    def __post_init__(self):
+        """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
+
+        Each deprecated field set to a non-default value emits a
+        :class:`DeprecationWarning` and is copied onto ``self.renderer_cfg``
+        when that cfg defines the same-named field.
+        """
+        # TODO when Camera.__init__ moves rtx_sensor setting out of camera initialization
+        # the default renderer config instantiation can be moved into the render factory
+        # and get_default_render_cfg method can be removed from backend_utils
+        renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
+        if renderer_type == "default":
+            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+
+            self.renderer_cfg = get_default_renderer_cfg()
+        # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
+        for field_name, default in _DEPRECATED_RENDERER_FIELD_DEFAULTS.items():
+            value = getattr(self, field_name)
+            if value == default:
+                continue
+            warnings.warn(
+                f"CameraCfg.{field_name} is deprecated and will be removed in a future release."
+                f" Set this field on CameraCfg.renderer_cfg instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if hasattr(self.renderer_cfg, field_name):
+                setattr(self.renderer_cfg, field_name, value)
+            # Reset to default so re-runs of ``__post_init__`` (via ``SensorBase.__init__``'s
+            # ``cfg.copy()``) don't re-forward and clobber a user-set ``renderer_cfg`` field.
+            setattr(self, field_name, default)

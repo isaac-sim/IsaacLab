@@ -7,8 +7,6 @@ import logging
 import tempfile
 from dataclasses import MISSING
 
-import torch
-
 try:
     from isaaclab_teleop import XrCfg
 
@@ -31,8 +29,8 @@ from isaaclab.sensors import CameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from . import mdp
 
@@ -310,48 +308,44 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3),
     #                 right arm quat (4), left/right hand joint pos (22)]
-    idle_action = torch.tensor(
-        [
-            [
-                -0.22878,
-                0.2536,
-                1.0953,
-                0.5,
-                -0.5,
-                0.5,
-                0.5,
-                0.22878,
-                0.2536,
-                1.0953,
-                0.5,
-                -0.5,
-                0.5,
-                0.5,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-            ]
-        ]
-    )
+    idle_action = [
+        -0.22878,
+        0.2536,
+        1.0953,
+        0.5,
+        -0.5,
+        0.5,
+        0.5,
+        0.22878,
+        0.2536,
+        1.0953,
+        0.5,
+        -0.5,
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
 
     def __post_init__(self):
         """Post initialization."""

@@ -7,9 +7,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -25,42 +25,77 @@ class VisualizerCfg:
         RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
     """
 
-    visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
+    # Primary interactive camera settings
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Interactive visualizer camera eye position in world coordinates."""
 
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Interactive visualizer camera look-at target in world coordinates."""
+
+    focal_length: float = 12.0
+    """Camera focal length in millimeters for visualizer camera views."""
+
+    # Tiled camera settings
+    tiled_cam_view: bool = False
+    """Enable a non-interactive tiled camera image view."""
+
+    tiled_cam_num: int = 16
+    """Number of camera tiles to show when tiled_cam_env_indices is None, capped at 100."""
+
+    tiled_cam_env_indices: list[int] | None = None
+    """Env ids to show in tiled camera view; capped at 100 entries.
+
+    If ``None``, envs are randomly sampled from all visible envs.
+    """
+
+    tiled_cam_prim_path: str | None = None
+    """Existing Isaac Lab Camera sensor prim path to display.
+
+    If ``None``, the visualizer creates generated tiled cameras. If set, it should
+    point to an existing camera sensor, for example ``"/World/envs/*/Camera"``.
+    """
+
+    tiled_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Offset of the camera eye from tiled_cam_target_prim_path for generated tiled cameras.
+
+    The camera follows the target prim and always maintains this fixed offset relative to it.
+    """
+
+    tiled_cam_target_prim_path: str = "/World/envs/*/Robot"
+    """Prim path that generated tiled cameras follow and look at.
+
+    For example, ``"/World/envs/*/Robot"``.
+    """
+
+    # Partial visualization settings
+    max_visible_envs: int | None = None
+    """Upper bound on how many envs are shown.
+
+    * If visible_env_indices is not None, then this field will apply also
+      to the explicit env indices set to the visible_env_indices.
+    """
+
+    visible_env_indices: list[int] | None = None
+    """env indices to visualize in order (out-of-range indices are dropped)."""
+
+    randomly_sample_visible_envs: bool = True
+    """If ``max_visible_envs`` is provided, when enabled, selected visible envs are randomly sampled.
+       If disabled, the first ``max_visible_envs`` envs are selected.
+
+    * Note: ``visible_env_indices`` overrides this field.
+    """
+
+    # Visualization Markers
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
 
+    # Live Plots
     enable_live_plots: bool = True
     """Enable live plotting of data."""
 
-    camera_position: tuple[float, float, float] = (8.0, 8.0, 3.0)
-    """Initial camera position (x, y, z) in world coordinates."""
-
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera target/look-at point (x, y, z) in world coordinates."""
-
-    camera_source: Literal["cfg", "usd_path"] = "cfg"
-    """Camera source mode: 'cfg' uses camera_position/target, 'usd_path' follows a USD camera prim."""
-
-    camera_usd_path: str = "/World/envs/env_0/Camera"
-    """Absolute USD path to a camera prim when camera_source='usd_path'."""
-
-    env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
-    """Env filter mode: 'none', 'env_ids', or 'random_n'."""
-
-    env_filter_random_n: int = 64
-    """If env_filter_mode='random_n', number of envs to sample."""
-
-    env_filter_seed: int = 0
-    """Seed for deterministic env sampling."""
-
-    env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
-    """If env_filter_mode='env_ids', only these env indices are shown.
-
-    This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
-    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
-    """
+    # Internal
+    visualizer_type: str | None = None
+    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.

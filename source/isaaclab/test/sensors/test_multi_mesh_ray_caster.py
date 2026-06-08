@@ -6,11 +6,6 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app. Used for warp.
-app_launcher = AppLauncher(headless=True)
-
 import numpy as np
 import pytest
 import torch

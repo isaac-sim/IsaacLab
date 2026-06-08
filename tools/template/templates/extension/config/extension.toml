@@ -25,6 +25,11 @@ keywords = ["extension", "template", "isaaclab"]
 [[python.module]]
 name = "{{ name }}"
 
+# UI extension module: Kit imports this submodule directly and scans it for ``omni.ext.IExt``
+# subclasses. Kept separate from the package root so ``import {{ name }}`` stays omni-free headless.
+[[python.module]]
+name = "{{ name }}.ui_extension_example"
+
 [isaac_lab_settings]
 # TODO: Uncomment and list any apt dependencies here.
 #       If none, leave it commented out.
@@ -33,3 +38,8 @@ name = "{{ name }}"
 #       with rosdeps to be installed. If none,
 #       leave it commented out.
 # ros_ws = "path/from/extension_root/to/ros_ws"
+# TODO: Uncomment and list install_requires dependency names that should be upgraded
+#       after this extension is installed with ./isaaclab.sh --install.
+#       List package names only; version ranges, extras, and platform markers
+#       come from this extension's setup.py metadata.
+# pip_upgrade_dependencies = ["example_package"]

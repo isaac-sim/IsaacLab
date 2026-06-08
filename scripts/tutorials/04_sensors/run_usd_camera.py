@@ -12,7 +12,7 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras --viz kit
 
     # Usage with headless
     ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --headless --enable_cameras
@@ -65,6 +65,7 @@ import random
 
 import numpy as np
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import omni.replicator.core as rep
 
@@ -97,9 +98,11 @@ def define_sensor() -> Camera:
             "instance_segmentation_fast",
             "instance_id_segmentation_fast",
         ],
-        colorize_semantic_segmentation=True,
-        colorize_instance_id_segmentation=True,
-        colorize_instance_segmentation=True,
+        renderer_cfg=IsaacRtxRendererCfg(
+            colorize_semantic_segmentation=True,
+            colorize_instance_id_segmentation=True,
+            colorize_instance_segmentation=True,
+        ),
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
@@ -173,9 +176,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     rep_writer = rep.BasicWriter(
         output_dir=output_dir,
         frame_padding=0,
-        colorize_instance_id_segmentation=camera.cfg.colorize_instance_id_segmentation,
-        colorize_instance_segmentation=camera.cfg.colorize_instance_segmentation,
-        colorize_semantic_segmentation=camera.cfg.colorize_semantic_segmentation,
+        colorize_instance_id_segmentation=camera.cfg.renderer_cfg.colorize_instance_id_segmentation,
+        colorize_instance_segmentation=camera.cfg.renderer_cfg.colorize_instance_segmentation,
+        colorize_semantic_segmentation=camera.cfg.renderer_cfg.colorize_semantic_segmentation,
     )
 
     # Camera positions, targets, orientations
@@ -232,12 +235,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                 {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
             )
 
-            # Extract the other information
-            single_cam_info = camera.data.info[camera_index]
-
             # Pack data back into replicator format to save them using its writer
             rep_output = {"annotators": {}}
-            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+            for key, data in single_cam_data.items():
+                info = camera.data.info.get(key)
                 if info is not None:
                     rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:

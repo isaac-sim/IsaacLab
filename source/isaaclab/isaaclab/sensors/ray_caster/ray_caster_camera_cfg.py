@@ -8,7 +8,7 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .patterns import PinholeCameraPatternCfg
 from .ray_caster_cfg import RayCasterCfg
@@ -54,8 +54,8 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     - ``"max"``: Values are clipped to the maximum value.
     - ``"zero"``: Values are clipped to zero.
-    - ``"none``: No clipping is applied. Values will be returned as ``inf`` for ``distance_to_camera`` and ``nan``
-      for ``distance_to_image_plane`` data type.
+    - ``"none"``: No clipping is applied. Values will be returned as ``inf`` for missed rays in both
+      ``distance_to_camera`` and ``distance_to_image_plane`` data types.
     """
 
     pattern_cfg: PinholeCameraPatternCfg = MISSING

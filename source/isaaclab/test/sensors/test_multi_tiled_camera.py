@@ -21,6 +21,7 @@ import random
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
 
 import omni.replicator.core as rep
@@ -28,6 +29,10 @@ from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
+
+# Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
+# the deprecation mechanism itself is validated in test_tiled_camera.py.
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
 
 
 @pytest.fixture()
@@ -95,19 +100,13 @@ def test_multi_tiled_camera_init(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
-        assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.quat_w_ros.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_opengl.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -193,19 +192,13 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
         assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
-        assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.quat_w_ros.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_opengl.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -242,17 +235,17 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # access image data and compare dtype
         output = camera.data.output
         info = camera.data.info
-        assert output["rgb"].dtype == torch.uint8
-        assert output["rgba"].dtype == torch.uint8
-        assert output["albedo"].dtype == torch.uint8
-        assert output["depth"].dtype == torch.float
-        assert output["distance_to_camera"].dtype == torch.float
-        assert output["distance_to_image_plane"].dtype == torch.float
-        assert output["normals"].dtype == torch.float
-        assert output["motion_vectors"].dtype == torch.float
-        assert output["semantic_segmentation"].dtype == torch.uint8
-        assert output["instance_segmentation_fast"].dtype == torch.uint8
-        assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+        assert output["rgb"].dtype == wp.uint8
+        assert output["rgba"].dtype == wp.uint8
+        assert output["albedo"].dtype == wp.uint8
+        assert output["depth"].dtype == wp.float32
+        assert output["distance_to_camera"].dtype == wp.float32
+        assert output["distance_to_image_plane"].dtype == wp.float32
+        assert output["normals"].dtype == wp.float32
+        assert output["motion_vectors"].dtype == wp.float32
+        assert output["semantic_segmentation"].dtype == wp.uint8
+        assert output["instance_segmentation_fast"].dtype == wp.uint8
+        assert output["instance_id_segmentation_fast"].dtype == wp.uint8
         assert isinstance(info["semantic_segmentation"], dict)
         assert isinstance(info["instance_segmentation_fast"], dict)
         assert isinstance(info["instance_id_segmentation_fast"], dict)
@@ -295,19 +288,13 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
-        assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.quat_w_ros.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_opengl.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -424,12 +411,6 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
     # Play sim
     sim.reset()
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     # Simulate physics
     for _ in range(10):

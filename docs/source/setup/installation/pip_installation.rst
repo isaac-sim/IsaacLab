@@ -51,7 +51,7 @@ Installing dependencies
 
    .. code-block:: bash
 
-      uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
+      uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
@@ -95,7 +95,7 @@ Installing dependencies
             .. code-block:: bash
 
                unset LD_PRELOAD
-               export LD_PRELOAD="$LD_PRELOAD:/lib/aarch64-linux-gnu/libgomp.so.1"
+               export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 
             This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
             removing the preload warnings during runtime.

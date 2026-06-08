@@ -58,16 +58,16 @@ def randomize_joint_by_gaussian_offset(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Add gaussian noise to joint states
-    joint_pos = wp.to_torch(asset.data.default_joint_pos)[env_ids].clone()
-    joint_vel = wp.to_torch(asset.data.default_joint_vel)[env_ids].clone()
+    joint_pos = asset.data.default_joint_pos.torch[env_ids].clone()
+    joint_vel = asset.data.default_joint_vel.torch[env_ids].clone()
     joint_pos += math_utils.sample_gaussian(mean, std, joint_pos.shape, joint_pos.device)
 
     # Clamp joint pos to limits
-    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[env_ids]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[env_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
 
     # Don't noise the gripper poses
-    joint_pos[:, -2:] = wp.to_torch(asset.data.default_joint_pos)[env_ids, -2:]
+    joint_pos[:, -2:] = asset.data.default_joint_pos.torch[env_ids, -2:]
 
     # Set into the physics simulation
     asset.set_joint_position_target_index(target=joint_pos, env_ids=env_ids)
@@ -296,7 +296,7 @@ def randomize_visual_texture_material(
         # textures = [default_texture]
 
     # enable replicator extension if not already enabled
-    from isaacsim.core.utils.extensions import enable_extension
+    from isaacsim.core.experimental.utils.app import enable_extension
 
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator

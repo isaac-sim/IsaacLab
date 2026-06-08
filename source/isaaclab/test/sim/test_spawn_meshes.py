@@ -18,6 +18,8 @@ import pytest
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture
 def sim():
@@ -117,110 +119,26 @@ def test_spawn_sphere(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
 
 
+@pytest.mark.parametrize("resolution", [(1, 1), (3, 2)])
+@pytest.mark.parametrize("size", [(1.0, 1.0), (1.5, 0.8)])
+def test_spawn_rectangle(sim, resolution, size):
+    """Test spawning of UsdGeomMesh as a rectangle prim."""
+    # Spawn rectangle
+    cfg = sim_utils.MeshRectangleCfg(size=size, resolution=resolution)
+    prim = cfg.func("/World/Rectangle", cfg)
+
+    # Check validity
+    assert prim.IsValid()
+    assert sim.stage.GetPrimAtPath("/World/Rectangle").IsValid()
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+    # Check properties
+    prim = sim.stage.GetPrimAtPath("/World/Rectangle/geometry/mesh")
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
+
+
 """
 Physics properties.
 """
-
-
-def test_spawn_cone_with_deformable_props(sim):
-    """Test spawning of UsdGeomMesh prim for a cone with deformable body API."""
-    # Spawn cone
-    cfg = sim_utils.MeshConeCfg(
-        radius=1.0,
-        height=2.0,
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
-    )
-    prim = cfg.func("/World/Cone", cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
-
-    # Check properties
-    # Unlike rigid body, deformable body properties are on the mesh prim
-    prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physxDeformable:deformableEnabled").Get() == cfg.deformable_props.deformable_enabled
-
-
-def test_spawn_cone_with_deformable_and_mass_props(sim):
-    """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API."""
-    # Spawn cone
-    cfg = sim_utils.MeshConeCfg(
-        radius=1.0,
-        height=2.0,
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    )
-    prim = cfg.func("/World/Cone", cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
-    # Check properties
-    prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
-
-    # check sim playing
-    sim.play()
-    for _ in range(10):
-        sim.step()
-
-
-def test_spawn_cone_with_deformable_and_density_props(sim):
-    """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API.
-
-    Note:
-        In this case, we specify the density instead of the mass. In that case, physics need to know
-        the collision shape to compute the mass. Thus, we have to set the collider properties. In
-        order to not have a collision shape, we disable the collision.
-    """
-    # Spawn cone
-    cfg = sim_utils.MeshConeCfg(
-        radius=1.0,
-        height=2.0,
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
-        mass_props=sim_utils.MassPropertiesCfg(density=10.0),
-    )
-    prim = cfg.func("/World/Cone", cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
-    # Check properties
-    prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physics:density").Get() == cfg.mass_props.density
-    # check sim playing
-    sim.play()
-    for _ in range(10):
-        sim.step()
-
-
-def test_spawn_cone_with_all_deformable_props(sim):
-    """Test spawning of UsdGeomMesh prim for a cone with all deformable properties."""
-    # Spawn cone
-    cfg = sim_utils.MeshConeCfg(
-        radius=1.0,
-        height=2.0,
-        mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.DeformableBodyMaterialCfg(),
-    )
-    prim = cfg.func("/World/Cone", cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Cone/geometry/material").IsValid()
-    # Check properties
-    # -- deformable body
-    prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
-    assert prim.GetAttribute("physxDeformable:deformableEnabled").Get() is True
-
-    # check sim playing
-    sim.play()
-    for _ in range(10):
-        sim.step()
 
 
 def test_spawn_cone_with_all_rigid_props(sim):

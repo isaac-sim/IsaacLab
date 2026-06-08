@@ -5,16 +5,17 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import os
 import tempfile
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from filelock import FileLock
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -31,6 +32,8 @@ from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
+
     from . import from_files_cfg
 
 # import logger
@@ -234,6 +237,8 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
+        from pxr import Gf, Sdf  # noqa: PLC0415
+
         # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
@@ -245,6 +250,8 @@ def spawn_ground_plane(
     # It isn't bright enough and messes up with the user's lighting settings
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
     if light_prim.IsValid():
+        from pxr import UsdGeom  # noqa: PLC0415
+
         imageable = UsdGeom.Imageable(light_prim)
         imageable.MakeInvisible()
 
@@ -312,10 +319,10 @@ def _spawn_from_usd_file(
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
     if _world_size > 1:
-        lock_path = os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock")
-        lock_fd = open(lock_path, "w")  # noqa: SIM115
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
-    try:
+        lock = FileLock(os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock"))
+    else:
+        lock = nullcontext()
+    with lock:
         if file_status == 2:
             usd_path = retrieve_file_path(usd_path, force_download=False)
         stage = get_current_stage()
@@ -330,10 +337,6 @@ def _spawn_from_usd_file(
             )
         else:
             logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
-    finally:
-        if _world_size > 1:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:
@@ -361,11 +364,42 @@ def _spawn_from_usd_file(
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.
     if cfg.joint_drive_props is not None:
+        # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested
+        # without it — actuatorgravcomp has no effect since there are no forces to route.
+        # Only auto-populates when the user did not already set ``gravcomp`` themselves;
+        # an explicit ``MujocoRigidBodyPropertiesCfg(gravcomp=0.5)`` is preserved as-is.
+        from isaaclab_newton.sim.schemas.schemas_cfg import MujocoJointDrivePropertiesCfg, MujocoRigidBodyPropertiesCfg
+
+        body_gravcomp_unset = (
+            not isinstance(cfg.rigid_props, MujocoRigidBodyPropertiesCfg) or cfg.rigid_props.gravcomp is None
+        )
+        if (
+            isinstance(cfg.joint_drive_props, MujocoJointDrivePropertiesCfg)
+            and cfg.joint_drive_props.actuatorgravcomp
+            and body_gravcomp_unset
+        ):
+            logger.info(
+                "Joint-level actuator gravity compensation requires body-level gravcomp."
+                " Auto-setting MujocoRigidBodyPropertiesCfg(gravcomp=1.0)."
+            )
+            schemas.modify_rigid_body_properties(prim_path, MujocoRigidBodyPropertiesCfg(gravcomp=1.0))
         schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
 
-    # modify deformable body properties
+    # define deformable body properties, or modify if deformable body API is present (PhysX only)
     if cfg.deformable_props is not None:
-        schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props)
+        prim = stage.GetPrimAtPath(prim_path)
+        deformable_type = (
+            "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
+        )
+        if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
+            schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
+        else:
+            schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
+        if cfg.mass_props is not None:
+            raise ValueError(
+                """MassPropertiesCfg are not supported for deformable bodies
+                and should be set through deformable_props with mass=<value>."""
+            )
 
     # apply visual material
     if cfg.visual_material is not None:
@@ -380,6 +414,17 @@ def _spawn_from_usd_file(
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
         bind_visual_material(prim_path, material_path, stage=stage)
+
+    # apply physics material
+    if cfg.physics_material is not None:
+        if not cfg.physics_material_path.startswith("/"):
+            material_path = f"{prim_path}/{cfg.physics_material_path}"
+        else:
+            material_path = cfg.physics_material_path
+        # create material
+        cfg.physics_material.func(material_path, cfg.physics_material)
+        # apply material
+        bind_physics_material(prim_path, material_path, stage=stage)
 
     # return the prim
     return stage.GetPrimAtPath(prim_path)
@@ -434,7 +479,7 @@ def spawn_from_usd_with_compliant_contact_material(
             material_kwargs["compliant_contact_stiffness"] = stiff
         if damp is not None:
             material_kwargs["compliant_contact_damping"] = damp
-        material_cfg = RigidBodyMaterialCfg(**material_kwargs)
+        material_cfg = PhysxRigidBodyMaterialCfg(**material_kwargs)
 
         for path in prim_paths:
             if not path.startswith("/"):

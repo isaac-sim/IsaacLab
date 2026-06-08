@@ -9,6 +9,7 @@ __all__ = [
     "DeformableObjectData",
 ]
 
+from isaaclab.assets.deformable_object import DeformableObjectCfg
+
 from .deformable_object import DeformableObject
-from .deformable_object_cfg import DeformableObjectCfg
 from .deformable_object_data import DeformableObjectData

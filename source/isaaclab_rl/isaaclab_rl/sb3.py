@@ -18,6 +18,7 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 # needed to import for allowing type-hinting: torch.Tensor | dict[str, torch.Tensor]
 from __future__ import annotations
 
+import contextlib
 import warnings
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +32,9 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+
+    with contextlib.suppress(ImportError):
+        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 # remove SB3 warnings because PPO with bigger net actually benefits from GPU
 warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
@@ -150,9 +154,22 @@ class Sb3VecEnvWrapper(VecEnv):
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
         from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
-        if not isinstance(env.unwrapped, (ManagerBasedRLEnv, DirectRLEnv)):
+        try:
+            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+        except ImportError:
+            DirectRLEnvWarp = None
+            ManagerBasedRLEnvWarp = None
+
+        allowed_types = (ManagerBasedRLEnv, DirectRLEnv)
+        if DirectRLEnvWarp is not None:
+            allowed_types += (DirectRLEnvWarp,)
+        if ManagerBasedRLEnvWarp is not None:
+            allowed_types += (ManagerBasedRLEnvWarp,)
+
+        if not isinstance(env.unwrapped, allowed_types):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
                 f" {type(env)}"
             )
         # initialize the wrapper
@@ -186,7 +203,7 @@ class Sb3VecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.

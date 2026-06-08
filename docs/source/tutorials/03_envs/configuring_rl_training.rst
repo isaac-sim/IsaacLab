@@ -84,23 +84,23 @@ The second code block is equivalent to the first one, but it leads to import of 
 class which slows down the import time. This is why we recommend using strings for the configuration
 entry point.
 
-All the scripts in the ``scripts/reinforcement_learning`` directory are configured by default to read the
+The reinforcement learning entrypoints are configured by default to read the
 ``<library_name>_cfg_entry_point`` from the ``kwargs`` dictionary to retrieve the configuration instance.
 
-For instance, the following code block shows how the ``train.py`` script reads the configuration
-instance for the Stable-Baselines3 library:
+For instance, the following code block shows how the Stable-Baselines3 training implementation
+reads the configuration instance:
 
-.. dropdown:: Code for train.py with SB3
+.. dropdown:: Code for train_sb3.py with SB3
     :icon: code
 
-    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train.py
+    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
       :language: python
-      :emphasize-lines: 26-28, 102-103
       :linenos:
+      :emphasize-lines: 56-60, 97-98
 
-The argument ``--agent`` is used to specify the learning library to use. This is used to
-retrieve the configuration instance from the ``kwargs`` dictionary. You can manually specify
-alternate configuration instances by passing the ``--agent`` argument.
+The argument ``--rl_library`` selects the reinforcement learning library. The ``--agent``
+argument selects the library-specific configuration entry point from the ``kwargs``
+dictionary, so you can manually specify alternate configuration instances.
 
 The Code Execution
 ------------------
@@ -113,7 +113,7 @@ we can use the ``--agent`` argument to specify the configuration instance to use
   .. code-block:: bash
 
     # standard PPO training
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless \
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless \
       --run_name ppo
 
 * Training with the PPO configuration with symmetry augmentation:
@@ -121,12 +121,12 @@ we can use the ``--agent`` argument to specify the configuration instance to use
   .. code-block:: bash
 
     # PPO training with symmetry augmentation
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless \
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless \
       --agent rsl_rl_with_symmetry_cfg_entry_point \
       --run_name ppo_with_symmetry_data_augmentation
 
     # you can use hydra to disable symmetry augmentation but enable mirror loss computation
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless \
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless \
       --agent rsl_rl_with_symmetry_cfg_entry_point \
       --run_name ppo_without_symmetry_data_augmentation \
       agent.algorithm.symmetry_cfg.use_data_augmentation=false

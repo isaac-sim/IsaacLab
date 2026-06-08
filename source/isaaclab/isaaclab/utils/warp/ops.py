@@ -19,6 +19,10 @@ wp.init()
 
 from . import kernels
 
+# Cache of all-True env masks keyed by (n_envs, device) to avoid per-call allocations in
+# raycast_dynamic_meshes. Populated lazily on first call with a given (n_envs, device) pair.
+_all_env_mask_cache: dict[tuple[int, str], wp.array] = {}
+
 
 def raycast_mesh(
     ray_starts: torch.Tensor,
@@ -335,11 +339,19 @@ def raycast_dynamic_meshes(
             mesh_orientations_w = mesh_orientations_w.to(dtype=torch.float32, device=torch_device).contiguous()
             mesh_quat_wp_w = wp.from_torch(mesh_orientations_w, dtype=wp.quat)
 
+        # All environments active when called through this public API.
+        # Cache the mask by (n_envs, device) to avoid a per-call allocation.
+        cache_key = (n_envs, str(torch_device))
+        if cache_key not in _all_env_mask_cache:
+            _all_env_mask_cache[cache_key] = wp.from_torch(torch.ones(n_envs, dtype=torch.bool, device=torch_device))
+        all_env_mask = _all_env_mask_cache[cache_key]
+
         # launch the warp kernel
         wp.launch(
             kernel=kernels.raycast_dynamic_meshes_kernel,
             dim=[n_meshes, n_envs, n_rays_per_env],
             inputs=[
+                all_env_mask,
                 mesh_ids_wp,
                 ray_starts_wp,
                 ray_directions_wp,

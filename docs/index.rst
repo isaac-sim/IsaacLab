@@ -52,7 +52,7 @@ For more information about the framework, please refer to the `technical report 
 
 
 License
-=======
+========
 
 The Isaac Lab framework is open-sourced under the BSD-3-Clause license,
 with certain parts under Apache-2.0 license. Please refer to :ref:`license` for more details.
@@ -100,7 +100,6 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
-   source/setup/quick_installation
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
@@ -131,10 +130,8 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
-   source/features/visualization
 
 
 .. toctree::
@@ -142,7 +139,8 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
-   source/experimental-features/newton-physics-integration/index
+   source/experimental-features/visuo_tactile_sensor
+   source/experimental-features/rlinf_vla_posttraining
 
 .. toctree::
    :maxdepth: 1
@@ -157,6 +155,7 @@ Table of Contents
    :titlesonly:
 
    source/migration/migrating_to_isaaclab_3-0
+   source/migration/migrating_deformables
    source/migration/migrating_from_isaacgymenvs
    source/migration/migrating_from_omniisaacgymenvs
    source/migration/migrating_from_orbit

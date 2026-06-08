@@ -41,7 +41,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client>`__; see :ref:`connection guide <connect-quest-pico>`
+     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)
@@ -115,16 +115,116 @@ and Isaac Lab. It composes three collaborators:
   Isaac Sim's XR bridge, creates the ``TeleopSession``, and steps it each frame to produce an
   action tensor.
 
-* **CommandHandler** -- registers and dispatches START / STOP / RESET callbacks triggered by XR UI
-  buttons or the message bus.
+* **CommandHandler** -- lightweight callback registry for START / STOP / RESET commands.  Scripts
+  can register callbacks via :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback`, but the
+  primary control path uses :func:`~isaaclab_teleop.poll_control_events` (see
+  :ref:`isaac-teleop-control-states`).
 
 .. dropdown:: Session lifecycle details
 
-   The session uses **deferred creation**: if the user has not yet clicked "Start AR" in the Isaac
+   The session uses **deferred creation**: if the user has not yet clicked "Start XR" in the Isaac
    Sim UI, the session is not created immediately. Instead, each call to ``advance()`` retries
    session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
    flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
    the session is not yet ready or has been torn down.
+
+
+.. _isaac-teleop-control-states:
+
+Teleop Control States (Start / Stop / Reset)
+---------------------------------------------
+
+Isaac Lab supports remote teleop control commands -- **start**, **stop**, and **reset** -- sent
+from the XR headset to the simulation.  These are used to begin and end demonstration recording,
+pause the robot, or reset the environment without touching the simulation host.
+
+How it works
+~~~~~~~~~~~~
+
+By default, every :class:`~isaaclab_teleop.IsaacTeleopCfg` enables a control message channel
+using the well-known UUID ``uuid5(NAMESPACE_DNS, "teleop_command")``.  The channel is created as
+a ``teleop_control_pipeline`` inside TeleopCore's :class:`TeleopSession`, which means:
+
+1. A :class:`~isaacteleop.retargeting_engine.deviceio_source_nodes.MessageChannelSource` opens an
+   OpenXR opaque data channel (``XR_NV_opaque_data_channel``) with the agreed-upon UUID.
+2. The CloudXR JS client (or any other client) discovers the channel by UUID and sends UTF-8
+   JSON commands::
+
+       {"type": "teleop_command", "message": {"command": "start teleop"}}
+       {"type": "teleop_command", "message": {"command": "stop teleop"}}
+       {"type": "teleop_command", "message": {"command": "reset teleop"}}
+
+3. A :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor` parses these
+   payloads and produces boolean pulse signals (``run_toggle``, ``kill``, ``reset``).
+4. :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager` consumes the
+   boolean signals, runs its state machine (edge detection, fail-safe), and produces
+   ``teleop_state`` (one-hot) and ``reset_event`` (bool pulse) outputs.
+5. TeleopCore decodes these outputs into ``ExecutionEvents`` and injects them into every
+   retargeter's ``ComputeContext``, so stateful retargeters can react to state changes
+   (e.g. reinitializing cross-step state on reset).
+
+Polling control events in your script
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :func:`~isaaclab_teleop.poll_control_events` to read the latest control state each frame:
+
+.. code-block:: python
+
+   from isaaclab_teleop import poll_control_events
+
+   with IsaacTeleopDevice(cfg) as device:
+       running = False
+       while sim_app.is_running():
+           action = device.advance()
+
+           ctrl = poll_control_events(device)
+           if ctrl.is_active is not None:
+               running = ctrl.is_active      # True after "start", False after "stop"
+           if ctrl.should_reset:
+               env.reset()                    # "reset" command received this frame
+
+           if action is not None and running:
+               env.step(action.repeat(num_envs, 1))
+           else:
+               env.sim.render()
+
+:class:`~isaaclab_teleop.ControlEvents` has two fields:
+
+* ``is_active`` -- ``True`` after a "start" command, ``False`` after "stop", ``None`` when no
+  command has been received yet (callers should leave their own flag unchanged).
+* ``should_reset`` -- ``True`` for exactly one frame after a "reset" command.
+
+Disabling the control channel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you do not need headset-driven start/stop/reset (e.g. keyboard-only workflows), set
+``control_channel_uuid=None`` in your config:
+
+.. code-block:: python
+
+   IsaacTeleopCfg(
+       pipeline_builder=_build_my_pipeline,
+       control_channel_uuid=None,   # no opaque data channel created
+   )
+
+Using a custom channel UUID
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To use a different channel UUID (e.g. for a separate control protocol), pass any 16-byte
+``bytes`` value:
+
+.. code-block:: python
+
+   import uuid
+
+   MY_UUID = uuid.uuid5(uuid.NAMESPACE_DNS, "my_custom_control").bytes
+
+   IsaacTeleopCfg(
+       pipeline_builder=_build_my_pipeline,
+       control_channel_uuid=MY_UUID,
+   )
+
+The CloudXR JS client must be updated to discover this UUID when sending commands.
 
 
 .. _isaac-teleop-retargeting:
@@ -379,6 +479,12 @@ follows.
      - **Arm:** end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+
+       **Note:** With the RMPFlow controller, avoid colliding with
+       the cubes during teleoperation: contact forces cause the
+       controller to overtune and the arm to drift. Move the
+       end-effector close to and just above the cube, stop, then
+       close the suction cup.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -585,12 +691,106 @@ Key ``IsaacTeleopCfg`` fields:
 * ``xr_cfg`` -- :class:`~isaaclab_teleop.XrCfg` for anchor configuration (see below).
 * ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
 * ``sim_device`` -- torch device string (default ``"cuda:0"``).
+* ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
+  Defaults to ``RetargetingExecutionConfig(mode="pipelined")`` with
+  ``DeadlinePacingConfig(safety_margin_s=0.025)`` so retargeting can run on
+  the IsaacTeleop worker instead of blocking the simulation loop.
+  The 25 ms safety margin staggers IsaacTeleop's Python work behind Isaac
+  Lab's step Python, giving native work such as rendering time to overlap
+  instead of having both Python stacks contend for the GIL at the start of
+  the step.
 
 .. warning::
 
    ``pipeline_builder`` and ``retargeters_to_tune`` must be **callables** (functions or lambdas),
    not pre-built objects. The ``@configclass`` decorator deep-copies mutable attributes, which
    would break pre-built pipeline graphs.
+
+
+.. _isaac-teleop-cloudxr-profiles:
+
+CloudXR Environment Profiles
+-----------------------------
+
+Isaac Lab ships two ``.env`` profiles that configure the CloudXR runtime for different XR devices.
+These are bundled inside the ``isaaclab_teleop`` package and can be referenced via constants:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 24 20 18 20
+
+   * - Constant
+     - File
+     - ``NV_DEVICE_PROFILE``
+     - ``NV_CXR_ENABLE_PUSH_DEVICES``
+     - ``NV_ENABLE_POSE_WAIT``
+   * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
+     - ``cloudxrjs-cloudxr.env``
+     - ``auto-webrtc``
+     - ``0``
+     - ``0``
+   * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
+     - ``avp-cloudxr.env``
+     - ``auto-native``
+     - ``0``
+     - ``0``
+
+Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
+tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
+this to ``1`` in a custom profile (see below).
+They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
+times spike. This favors lower latency over CloudXR's pose-wait smoothing.
+
+Override at launch time
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` selects which
+``.env`` profile to use. The default is ``cloudxrjs`` (Quest/Pico). Use the ``avp`` shorthand
+for Apple Vision Pro, or pass a full file path for a custom profile:
+
+.. code-block:: bash
+
+   # Use the AVP profile
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr \
+       --cloudxr_env avp
+
+Create a custom profile
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Copy a shipped profile and edit it:
+
+.. code-block:: bash
+
+   # Start from the Quest/Pico profile
+   cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
+
+Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
+Manus gloves), then pass it via ``--cloudxr_env ~/my-cloudxr.env``.
+
+Disable auto-launch
+~~~~~~~~~~~~~~~~~~~
+
+If you prefer to run the CloudXR runtime manually in a separate terminal
+(``python -m isaacteleop.cloudxr``), you can disable auto-launch in several ways:
+
+* **CLI flag**: ``--no-auto_launch_cloudxr`` on the teleop script.
+* **Disable CloudXR entirely**: ``--cloudxr_env none``.
+* **Environment variable**: ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` overrides the CLI flag at runtime.
+
+.. code-block:: bash
+
+   # Disable via CLI flag
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr \
+       --no-auto_launch_cloudxr
+
+   # Or disable via environment variable
+   ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr
 
 
 .. _isaac-teleop-xr-anchor:
@@ -767,9 +967,9 @@ Optimize XR Performance
 .. dropdown:: Configure the physics and render time step
    :open:
 
-   Ensure the simulation render time step roughly matches the XR device display time step and can
-   be sustained in real time. Apple Vision Pro runs at 90 Hz; we recommend a simulation dt of 90 Hz
-   with a render interval of 2 (rendering at 45 Hz):
+   Ensure the simulation render time step roughly matches the XR device's display rate and can
+   be sustained in real time. Quest 3 and Pico 4 Ultra typically run at 90 Hz, so we recommend a
+   simulation ``dt`` of 90 Hz with a ``render_interval`` of 2 (rendering at 45 Hz):
 
    .. code-block:: python
 
@@ -777,17 +977,160 @@ Optimize XR Performance
       class XrTeleopEnvCfg(ManagerBasedRLEnvCfg):
 
           def __post_init__(self):
-              self.sim.dt = 1.0 / 90
-              self.sim.render_interval = 2
+              self.sim.dt = 1.0 / 90        # physics steps at 90 Hz
+              self.sim.render_interval = 2  # one render per 2 physics steps -> 45 Hz
 
-   If render times are highly variable, set ``NV_PACER_FIXED_TIME_STEP_MS`` as an environment
-   variable when starting the CloudXR runtime to use fixed pacing.
+   ``sim.render_interval`` is the number of physics simulation steps that occur between
+   renders. Increasing it reduces rendering frequency (and GPU cost) without changing physics
+   behavior -- useful when physics can keep up but rendering cannot.
 
-.. dropdown:: Try running physics on CPU
+   The choice of ``sim.dt`` is a trade-off between stability and performance: a smaller ``dt``
+   (e.g. ``1.0 / 120``) integrates contacts more accurately and is more stable for stiff
+   contact-rich tasks, but each step costs more wall-clock time and lowers achievable frame
+   rate. A larger ``dt`` (e.g. ``1.0 / 60``) is cheaper but can introduce contact jitter or
+   instabilities. Pick the largest ``dt`` your task tolerates.
+
+.. dropdown:: Switch the viewport to the RTX - Minimal renderer
    :open:
 
-   Running teleoperation scripts with ``--device cpu`` may reduce latency when only a single
-   environment is present, since it avoids GPU contention with rendering.
+   The RTX - Minimal renderer trades image fidelity for substantially lower per-frame GPU cost.
+   It is the recommended choice when the simulation cannot sustain the XR device's display rate
+   in real time -- for example on lower-spec GPUs, in scenes with many lights or complex
+   materials, or when you have already configured ``sim.dt`` and ``sim.render_interval`` and
+   still see dropped frames.
+
+   To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
+   select **RTX - Minimal**:
+
+   .. figure:: ../_static/teleop/recommended-render-select.jpg
+      :width: 80%
+      :alt: Viewport renderer dropdown with RTX - Minimal selected
+
+      Selecting the **RTX - Minimal** renderer from the viewport dropdown.
+
+   For best results, open **Render Settings** from the top-right of the Isaac Lab UI, switch to
+   the **Minimal** tab, and set **Minimal Shading Mode** to **Diffuse/Glossy/Emission**:
+
+   .. figure:: ../_static/teleop/recommended-render-settings.jpg
+      :width: 80%
+      :alt: Render Settings panel showing the Minimal Shading Mode options
+
+      The **Render Settings** panel with the **Minimal Shading Mode** dropdown open
+      (recommended: **Diffuse/Glossy/Emission**).
+
+   .. note::
+
+      The RTX Minimal renderer currently only supports ``DistantLight`` prims for scene
+      illumination -- ``DomeLight`` prims are ignored. If your environment uses a ``DomeLight``,
+      swap (or supplement) it with a ``DistantLight`` so the scene is lit when running under
+      RTX Minimal:
+
+      .. code-block:: python
+
+         import isaaclab.sim as sim_utils
+         from isaaclab.assets import AssetBaseCfg
+
+         light = AssetBaseCfg(
+             prim_path="/World/light",
+             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+         )
+
+      Depending on your environment, the default ``DistantLight`` orientation may cast shadows
+      that overlap the robot and reduce visibility during teleoperation. If you encounter this,
+      adjust the light's orientation via ``init_state`` on :class:`~isaaclab.assets.AssetBaseCfg`
+      to position the light source at an angle that gives clear visibility:
+
+      .. code-block:: python
+
+         import isaaclab.sim as sim_utils
+         from isaaclab.assets import AssetBaseCfg
+
+         light = AssetBaseCfg(
+             prim_path="/World/light",
+             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+             init_state=AssetBaseCfg.InitialStateCfg(
+                 rot=(0.0, 0.0, 0.0, 1.0),  # quaternion (x, y, z, w); adjust to reduce shadow overlap
+             ),
+         )
+
+      Experiment with different orientations in your scene to find an angle that avoids
+      shadow overlap on the robot. A slight tilt away from the camera viewpoint is a good
+      starting point.
+
+.. dropdown:: Lower the XR render resolution
+   :open:
+
+   The XR render resolution multiplier scales the size of the render buffers that are then
+   upscaled to the headset's recommended display resolution. Lowering it trades image
+   sharpness for substantially lower per-frame GPU cost, which can help sustain real-time
+   frame rates on lower-spec GPUs or in heavy scenes.
+
+   In the Isaac Lab UI, open the **XR** tab on the right-side panel, expand
+   **Advanced Settings -> Render Resolution**, and drag the **Resolution Multiplier** slider:
+
+   .. figure:: ../_static/teleop/xr-resolution-slider.jpg
+      :width: 80%
+      :alt: XR Render Resolution slider in the Advanced Settings panel
+
+      The **Resolution Multiplier** under **XR -> Advanced Settings -> Render Resolution**.
+      Values below ``1.0`` reduce the render-buffer size before upscaling to the headset.
+
+   A value around ``0.8`` is usually a good starting point: noticeable GPU savings with minimal
+   perceptible quality loss. Reduce further only if you still cannot hit the headset's display
+   rate.
+
+.. dropdown:: Configure retargeting execution
+   :open:
+
+   Isaac Teleop can run retargeting either synchronously on the application thread or
+   asynchronously through a pipelined worker. This is controlled by
+   ``RetargetingExecutionConfig``.
+
+   In synchronous mode, retargeting runs inline with the simulation step. This can be the
+   best choice for lightweight retargeting or retargeting implemented mostly in Python,
+   since a background Python worker can still contend with the application thread through
+   the GIL.
+
+   In pipelined mode, Isaac Teleop submits retargeting work to a background worker and the
+   application uses the most recent completed result. This is useful when retargeting has
+   enough native work to overlap with simulation or rendering, or when the retargeting cost
+   is large enough that running it inline would directly extend the frame.
+
+   .. code-block:: python
+
+      retargeting_execution=RetargetingExecutionConfig(
+          mode="pipelined",
+          pacing=DeadlinePacingConfig(safety_margin_s=0.025),
+      )
+
+   ``DeadlinePacingConfig`` intentionally delays the background retargeting work until
+   closer to when the next result is needed, instead of starting it immediately when the
+   request is submitted. This helps avoid competing with the Python work Isaac Lab performs
+   at the beginning of the frame, and tends to line the retargeting work up with rendering
+   or other native work where overlap is more useful.
+
+   The ``safety_margin_s`` value controls how early retargeting starts before the predicted
+   deadline. A larger margin starts retargeting earlier, which gives heavier or more variable
+   retargeting work more time to finish before the next frame consumes the result. The
+   trade-off is that the input sample may be slightly older, and Python-heavy retargeting
+   may introduce more GIL contention.
+
+   If retargeting is mostly Python and lightweight, consider ``mode="sync"``. If retargeting
+   performs substantial native work or has occasional long spikes, use ``mode="pipelined"``
+   and increase ``safety_margin_s`` so the work starts earlier.
+
+.. dropdown:: Check CloudXR frame pacing
+   :open:
+
+   The CloudXR Runtime frame pacer attempts to keep the client experience smooth. If the
+   application has repeated frame-time spikes, the pacer may settle at a lower stable frame
+   rate instead of oscillating between rates. This can make a connected client appear slower
+   even when Isaac Lab profiling does not show a proportional simulation-side regression.
+
+   The shipped CloudXR profiles set ``NV_ENABLE_POSE_WAIT=0`` to mitigate this case, favoring lower
+   latency over pose-wait smoothing. If you use a custom ``.env`` file, copy that setting into the
+   custom profile, then point ``teleop_se3_agent.py`` or ``record_demos.py`` at it with
+   ``--cloudxr_env``. See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
 
 
 .. _isaac-teleop-known-issues:
@@ -827,6 +1170,10 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 * :class:`~isaaclab_teleop.IsaacTeleopCfg`
 * :class:`~isaaclab_teleop.IsaacTeleopDevice`
 * :func:`~isaaclab_teleop.create_isaac_teleop_device`
+* :class:`~isaaclab_teleop.ControlEvents`
+* :class:`~isaaclab_teleop.SupportsControlEvents`
+* :func:`~isaaclab_teleop.poll_control_events`
+* :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
 * :class:`~isaaclab_teleop.XrCfg`
 * :class:`~isaaclab_teleop.XrAnchorRotationMode`
 

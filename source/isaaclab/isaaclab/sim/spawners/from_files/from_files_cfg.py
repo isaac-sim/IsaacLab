@@ -11,8 +11,8 @@ from dataclasses import MISSING
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -43,7 +43,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     spatial_tendons_props: schemas.SpatialTendonPropertiesCfg | None = None
     """Properties to apply to the spatial tendons (if any)."""
 
-    joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
+    joint_drive_props: schemas.JointDriveBaseCfg | None = None
     """Properties to apply to a joint.
 
     .. note::
@@ -65,6 +65,20 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Note:
         If None, then no visual material will be added.
+    """
+
+    physics_material_path: str = "material"
+    """Path to the physics material to use for the prim. Defaults to "material".
+
+    If the path is relative, then it will be relative to the prim's path.
+    This parameter is ignored if `physics_material` is not None.
+    """
+
+    physics_material: materials.PhysicsMaterialCfg | None = None
+    """Physics material properties.
+
+    Note:
+        If None, then no custom physics material will be added.
     """
 
 

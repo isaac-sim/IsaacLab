@@ -14,10 +14,10 @@ top of the repository:
 
          # Option 1: Using the isaaclab.sh executable
          # note: this works for both the bundled python and the virtual environment
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
+         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
 
          # Option 2: Using python in your virtual environment
-         python scripts/tutorials/00_sim/create_empty.py
+         python scripts/tutorials/00_sim/create_empty.py --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -26,10 +26,10 @@ top of the repository:
 
          :: Option 1: Using the isaaclab.bat executable
          :: note: this works for both the bundled python and the virtual environment
-         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py
+         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
 
          :: Option 2: Using python in your virtual environment
-         python scripts\tutorials\00_sim\create_empty.py
+         python scripts\tutorials\00_sim\create_empty.py --viz kit
 
 
 The above command should launch the simulator and display a window with a black
@@ -65,14 +65,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Ant-v0 --headless
 
 ... Or a robot dog!
 
@@ -84,17 +84,17 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be.
-Take a look at our :ref:`how-to` guides like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.
+Take a look at our :ref:`how-to` like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.
 
 .. figure:: /source/_static/setup/isaac_ants_example.jpg
     :align: center

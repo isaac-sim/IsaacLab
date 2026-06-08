@@ -20,7 +20,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors.camera import Camera, TiledCamera
+from isaaclab.sensors.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import quat_apply, quat_inv
@@ -66,7 +66,8 @@ class VisuoTactileSensor(SensorBase):
         The following requirements must be satisfied for proper sensor operation:
 
         **Camera Tactile Imaging**
-            If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (TiledCameraCfg) must be
+            If ``enable_camera_tactile=True``, a valid ``camera_cfg``
+            (:class:`~isaaclab.sensors.CameraCfg`) must be
             provided with appropriate camera parameters.
 
         **Force Field Computation**
@@ -98,7 +99,7 @@ class VisuoTactileSensor(SensorBase):
         self._data: VisuoTactileSensorData = VisuoTactileSensorData()
 
         # Camera-based tactile sensing
-        self._camera_sensor: Camera | TiledCamera | None = None
+        self._camera_sensor: Camera | None = None
         self._nominal_tactile: dict | None = None
 
         # Force field tactile sensing
@@ -262,7 +263,7 @@ class VisuoTactileSensor(SensorBase):
         self._tactile_rgb_render = GelsightRender(self.cfg.render_cfg, device=self.device)
 
         # Create camera sensor
-        self._camera_sensor = TiledCamera(self.cfg.camera_cfg)
+        self._camera_sensor = Camera(self.cfg.camera_cfg)
 
         # Initialize camera
         if not self._camera_sensor.is_initialized:
@@ -318,7 +319,15 @@ class VisuoTactileSensor(SensorBase):
             c. Creates rigid body view for object
 
         """
-        elastomer_pattern = self._parent_prims[0].GetPath().pathString.replace("env_0", "env_*")
+        # Resolve the elastomer's destination expression (multi-env glob form for PhysX views).
+        # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
+        # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
+        elastomer_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+        matches = sim_utils.resolve_matching_prims_from_source(elastomer_expr)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{elastomer_expr}'.")
+        elastomer_dest_expr = matches[0][1]
+        elastomer_pattern = elastomer_dest_expr.replace(".*", "*")
         self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
         # Get elastomer COM for velocity correction
         self._elastomer_com_b = (
@@ -415,8 +424,14 @@ class VisuoTactileSensor(SensorBase):
 
         """
 
-        # Get the elastomer prim path
-        elastomer_prim_path = self._parent_prims[0].GetPath().pathString
+        # Resolve the elastomer's source-side env prim and use it as the walk root.
+        # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
+        # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
+        elastomer_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+        matches = sim_utils.resolve_matching_prims_from_source(elastomer_expr)
+        if not matches:
+            raise RuntimeError(f"No prim found at '{elastomer_expr}'.")
+        elastomer_prim_path = matches[0][0].GetPath().pathString
 
         def is_visual_mesh(prim) -> bool:
             """Check if a mesh prim has visual properties (visual mesh, not collision mesh)."""

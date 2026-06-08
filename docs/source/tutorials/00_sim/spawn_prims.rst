@@ -139,7 +139,8 @@ default to the default values set by USD Physics.
 Lastly, we spawn a cuboid ``CuboidDeformable`` which contains deformable body physics properties. Unlike the
 rigid body simulation, a deformable body can have relative motion between its vertices. This is useful for simulating
 soft bodies like cloth, rubber, or jello. It is important to note that deformable bodies are only supported in
-GPU simulation and require a mesh object to be spawned with the deformable body physics properties.
+GPU simulation and require a mesh object to be spawned with deformable body physics properties and a deformable
+physics material. This example uses the PhysX-specific deformable property and material cfgs.
 
 .. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
@@ -188,5 +189,5 @@ demonstrates the basic concepts of scene designing in Isaac Lab and how to use t
 we will now look at how to interact with the scene and the simulation.
 
 
-.. _`USD documentation`: https://openusd.org/docs/index.html
+.. _`USD documentation`: https://openusd.org/release/index.html
 .. _`different light prims`: https://youtu.be/c7qyI8pZvF4?feature=shared

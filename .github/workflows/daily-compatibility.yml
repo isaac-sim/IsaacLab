@@ -29,9 +29,29 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
 
 jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+
   setup-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -52,7 +72,7 @@ jobs:
           fi
 
   test-isaaclab-tasks-compat:
-    needs: setup-versions
+    needs: [setup-versions, config]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -70,7 +90,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
@@ -79,7 +99,7 @@ jobs:
       uses: ./.github/actions/docker-build
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run IsaacLab Tasks Tests
@@ -91,6 +111,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "ovrtx ovphysx==0.4.13"
 
     - name: Copy All Test Results from IsaacLab Tasks Container
       run: |
@@ -101,7 +122,7 @@ jobs:
         fi
 
     - name: Upload IsaacLab Tasks Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: isaaclab-tasks-compat-results-${{ matrix.isaacsim_version }}
@@ -110,7 +131,7 @@ jobs:
         compression-level: 9
 
   test-general-compat:
-    needs: setup-versions
+    needs: [setup-versions, config]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     strategy:
@@ -127,7 +148,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
@@ -136,7 +157,7 @@ jobs:
       uses: ./.github/actions/docker-build
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run General Tests
@@ -158,7 +179,7 @@ jobs:
         fi
 
     - name: Upload General Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: general-tests-compat-results-${{ matrix.isaacsim_version }}
@@ -173,7 +194,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: false
@@ -185,7 +206,7 @@ jobs:
         mkdir -p reports
 
     - name: Download All Test Results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: '*-compat-results-*'
         path: reports/
@@ -199,7 +220,7 @@ jobs:
         output-file: "reports/combined-compat-results.xml"
 
     - name: Upload Combined Test Results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: daily-compat-${{ github.run_id }}-combined-test-results
@@ -208,7 +229,7 @@ jobs:
         compression-level: 9
 
     - name: Report Test Results
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2.6.0
       if: always()
       with:
         name: IsaacLab Compatibility Test Results (${{ github.event_name }})
@@ -224,7 +245,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: false
@@ -253,7 +274,7 @@ jobs:
         echo "*This report was generated automatically by the daily compatibility workflow.*" >> compatibility-report.md
 
     - name: Upload Compatibility Report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: compatibility-report-${{ github.run_id }}

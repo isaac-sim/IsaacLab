@@ -20,7 +20,7 @@ In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--vi
 to determine whether viewer apps are launched with an Isaac Lab command.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/features/visualization`).
+(see :doc:`/source/overview/core-concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
@@ -32,6 +32,42 @@ The details below describe how CLI visualizer arguments resolve together with
 
 For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
 and ``--headless``, see :ref:`visualization-common-modes`.
+
+
+Reinforcement Learning CLI Entrypoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 provides unified reinforcement learning entrypoints for training
+and play. Instead of launching library-specific scripts under
+``scripts/reinforcement_learning/<library>/``, select the library with
+``--rl_library``.
+
+.. code-block:: bash
+
+   # Isaac Lab 2.x/deprecated
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless
+
+   # Isaac Lab 3.0
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless
+
+The same pattern applies to the play workflow:
+
+.. code-block:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
+
+Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
+``sb3``, and ``rlinf``. The old per-library ``train.py`` and ``play.py`` scripts
+remain available as deprecated compatibility entrypoints and emit a
+``DeprecationWarning`` when used.
+
+For distributed launchers that execute a Python script directly, use the unified
+script path and pass ``--rl_library`` to it:
+
+.. code-block:: bash
+
+   python -m torch.distributed.run --nproc_per_node=2 scripts/reinforcement_learning/train.py \
+      --rl_library rsl_rl --task Isaac-Cartpole --headless --distributed
 
 
 Multi-Backend Architecture
@@ -69,9 +105,9 @@ New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 
 Two new backend extensions have been introduced:
 
-- **``isaaclab_physx``** — PhysX-specific implementations of all asset and sensor classes.
-- **``isaaclab_newton``** — Newton-specific implementations of asset classes (Articulation and
-  RigidObject).
+- **``isaaclab_physx``** — PhysX-specific implementations of asset and sensor classes.
+- **``isaaclab_newton``** — Newton-specific implementations of supported asset classes, including
+  articulations, rigid objects, and deformable objects.
 
 The following classes have been moved to ``isaaclab_physx``:
 
@@ -81,12 +117,6 @@ The following classes have been moved to ``isaaclab_physx``:
 
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
-   * - ``from isaaclab.assets import DeformableObject``
-     - ``from isaaclab_physx.assets import DeformableObject``
-   * - ``from isaaclab.assets import DeformableObjectCfg``
-     - ``from isaaclab_physx.assets import DeformableObjectCfg``
-   * - ``from isaaclab.assets import DeformableObjectData``
-     - ``from isaaclab_physx.assets import DeformableObjectData``
    * - ``from isaaclab.assets import SurfaceGripper``
      - ``from isaaclab_physx.assets import SurfaceGripper``
    * - ``from isaaclab.assets import SurfaceGripperCfg``
@@ -94,8 +124,219 @@ The following classes have been moved to ``isaaclab_physx``:
 
 .. note::
 
+   Deformable object public APIs remain in the backend-neutral ``isaaclab``
+   package. Continue importing :class:`~isaaclab.assets.DeformableObject`,
+   :class:`~isaaclab.assets.DeformableObjectCfg`, and
+   :class:`~isaaclab.assets.DeformableObjectData` from ``isaaclab.assets``.
+
+.. note::
+
    The ``isaaclab_physx`` extension is installed automatically with Isaac Lab. No additional
    installation steps are required.
+
+
+.. _schemas-cfg-refactor:
+
+Schema Configuration Class Refactor
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Lab 3.0, the spawner schema cfg classes are split into solver-common
+**base classes** (in ``isaaclab.sim.schemas``) and **backend-specific subclasses**
+in ``isaaclab_physx.sim.schemas`` and ``isaaclab_newton.sim.schemas``. This makes
+the same asset cfg portable across PhysX and Newton backends, and adds slots
+for backend-specific asset-level knobs (e.g., MuJoCo gravity compensation).
+
+For the full design, see :ref:`schema-cfgs`.
+
+**Class moves and renames**
+
+The following 2.x class names are kept as deprecated aliases. They forward to
+the new location and will be removed in 4.0.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``RigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` (solver-common fields) +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` (PhysX-specific)
+   * - ``JointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`
+   * - ``CollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.CollisionBaseCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`
+   * - ``ArticulationRootPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`
+   * - ``RigidBodyMaterialCfg``
+     - :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` +
+       :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
+   * - ``MeshCollisionPropertiesCfg`` family (``ConvexHullPropertiesCfg``,
+       ``ConvexDecompositionPropertiesCfg``, ``TriangleMeshPropertiesCfg``,
+       ``TriangleMeshSimplificationPropertiesCfg``, ``SDFMeshPropertiesCfg``)
+     - :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` +
+       ``Physx*PropertiesCfg`` family in :mod:`isaaclab_physx.sim.schemas`
+   * - ``FixedTendonPropertiesCfg``, ``SpatialTendonPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
+
+**Code migration**
+
+Existing 2.x code continues to work via the deprecation aliases (with a
+``DeprecationWarning``; removed in 4.0):
+
+.. code-block:: python
+
+   # Isaac Lab 2.x
+   import isaaclab.sim as sim_utils
+   rigid_props = sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
+
+Recommended 3.0 pattern when targeting PhysX:
+
+.. code-block:: python
+
+   # Isaac Lab 3.0 — PhysX backend
+   from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
+   rigid_props = PhysxRigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.1)
+
+Backend-portable 3.0 pattern (universal-physics fields only):
+
+.. code-block:: python
+
+   # Isaac Lab 3.0 — backend-portable
+   from isaaclab.sim.schemas import RigidBodyBaseCfg
+   rigid_props = RigidBodyBaseCfg(rigid_body_enabled=True, disable_gravity=True)
+
+**Field renames on** ``JointDriveBaseCfg``
+
+Two cfg fields were renamed so their snake_case names map identity-style to the
+USD camelCase attribute names. The old names remain as deprecated dataclass
+fields on :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (so
+``dataclasses.fields()`` still sees them) and are forwarded to the new fields
+in ``__post_init__`` with a ``DeprecationWarning``. Setting **both** the old
+and new field on the same instance is silent — the canonical (new) field
+wins; the old field's value is discarded after the warning. Both aliases are
+scheduled for removal in 4.0.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+     - USD attribute (unchanged)
+   * - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_velocity`
+     - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_joint_velocity`
+     - ``physxJoint:maxJointVelocity``
+   * - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_effort`
+     - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
+     - ``drive:<axis>:physics:maxForce``
+
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0)
+
+Recommended 3.0 pattern, backend-portable:
+
+.. code-block:: python
+
+   from isaaclab.sim.schemas import JointDriveBaseCfg
+   JointDriveBaseCfg(max_force=80.0, max_joint_velocity=5.0)
+
+Recommended 3.0 pattern, PhysX-targeted:
+
+.. code-block:: python
+
+   from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg
+   PhysxJointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0)
+
+**New Newton and MuJoCo cfg classes**
+
+For the Newton backend (and Newton's MuJoCo solver), new cfg classes are
+available under :mod:`isaaclab_newton.sim.schemas`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Class
+     - Use case
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg`
+     - ``newton:contactMargin`` / ``newton:contactGap`` via ``NewtonCollisionAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg`
+     - ``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`
+     - ``newton:torsionalFriction`` / ``newton:rollingFriction`` via ``NewtonMaterialAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.NewtonArticulationRootPropertiesCfg`
+     - ``newton:selfCollisionEnabled`` via ``NewtonArticulationRootAPI``
+   * - :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg`
+     - ``mjc:gravcomp`` (body-level gravity compensation, MuJoCo solver only)
+   * - :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg`
+     - ``mjc:actuatorgravcomp`` via ``MjcJointAPI`` (joint-level routing)
+
+The MuJoCo cfgs subclass their Newton parent because MuJoCo is one of Newton's
+solver options.
+
+.. note::
+
+   Spawners auto-enable body-level gravity compensation when joint-level
+   ``actuatorgravcomp=True`` is requested but no Mujoco rigid-body cfg is
+   provided — without ``gravcomp`` on the bodies, ``actuatorgravcomp`` is a
+   no-op (no forces to route). To override, pass an explicit
+   ``MujocoRigidBodyPropertiesCfg`` in ``rigid_props``. See
+   :ref:`schema-cfgs-gravcomp` for details.
+
+For complete tables of which fields live on which class and where each lands in
+USD, see :ref:`schema-cfgs`.
+
+
+Renaming of ``XformPrimView`` to ``FrameView``
+-----------------------------------------------
+
+Isaac Lab's ``XformPrimView`` and related classes have been renamed to ``FrameView`` to
+better reflect their purpose and avoid confusion with Isaac Sim's ``XFormPrim`` class
+hierarchy. The old ``XformPrimView`` name is kept as a deprecated alias.
+
+The rename applies across all backends:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``BaseXformPrimView``
+     - :class:`~isaaclab.sim.views.BaseFrameView`
+   * - ``UsdXformPrimView``
+     - :class:`~isaaclab.sim.views.UsdFrameView`
+   * - ``XformPrimView``
+     - :class:`~isaaclab.sim.views.FrameView`
+   * - ``FabricXformPrimView``
+     - :class:`~isaaclab_physx.sim.views.FabricFrameView`
+   * - ``NewtonSiteXformPrimView``
+     - :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
+
+For most users, the only change needed is updating imports:
+
+.. code-block:: python
+
+   # Before
+   from isaaclab.sim.views import XformPrimView
+
+   # After
+   from isaaclab.sim.views import FrameView
+
+The :class:`~isaaclab.sim.views.FrameView` factory automatically dispatches to the correct
+backend (:class:`~isaaclab_physx.sim.views.FabricFrameView` for PhysX,
+:class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` for Newton) based on the active
+physics backend. The deprecated ``XformPrimView`` alias continues to work but will be
+removed in a future release.
 
 
 Unchanged Imports
@@ -113,10 +354,20 @@ The following sensor classes also remain in the ``isaaclab`` package with unchan
 
 - :class:`~isaaclab.sensors.ContactSensor`, :class:`~isaaclab.sensors.ContactSensorCfg`, :class:`~isaaclab.sensors.ContactSensorData`
 - :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.ImuCfg`, :class:`~isaaclab.sensors.ImuData`
+- :class:`~isaaclab.sensors.Pva`, :class:`~isaaclab.sensors.PvaCfg`, :class:`~isaaclab.sensors.PvaData`
 - :class:`~isaaclab.sensors.FrameTransformer`, :class:`~isaaclab.sensors.FrameTransformerCfg`, :class:`~isaaclab.sensors.FrameTransformerData`
+- :class:`~isaaclab.sensors.JointWrenchSensor`, :class:`~isaaclab.sensors.JointWrenchSensorCfg`,
+  :class:`~isaaclab.sensors.JointWrenchSensorData`
 
 These sensor classes now use factory patterns that automatically instantiate the appropriate backend
 implementation (PhysX by default), maintaining full backward compatibility.
+
+.. note::
+
+   The ``Imu`` sensor in Isaac Lab 3.0 is **not** the same as the ``Imu`` sensor in 2.x.
+   The old ``Imu`` (full state sensor) has been renamed to :class:`~isaaclab.sensors.Pva`.
+   The new :class:`~isaaclab.sensors.Imu` is a lightweight sensor that only provides angular velocity
+   and linear acceleration. See :ref:`imu-to-pva-migration` below for details.
 
 If you need to import the PhysX sensor implementations directly (e.g., for type hints or subclassing),
 you can import from ``isaaclab_physx.sensors``:
@@ -126,7 +377,9 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
+   from isaaclab_physx.sensors import Pva, PvaData
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
+   from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
 
 
 New ``isaaclab_newton`` Extension
@@ -136,6 +389,8 @@ A new extension ``isaaclab_newton`` provides Newton physics backend implementati
 
 - :class:`~isaaclab_newton.assets.Articulation` and :class:`~isaaclab_newton.assets.ArticulationData`
 - :class:`~isaaclab_newton.assets.RigidObject` and :class:`~isaaclab_newton.assets.RigidObjectData`
+- :class:`~isaaclab_newton.sensors.JointWrenchSensor` and
+  :class:`~isaaclab_newton.sensors.JointWrenchSensorData`
 
 These classes implement the same base interfaces as their PhysX counterparts
 (:class:`~isaaclab.assets.BaseArticulation`, :class:`~isaaclab.assets.BaseRigidObject`),
@@ -156,11 +411,108 @@ If you need to import Newton implementations directly (e.g., for type hints or s
    from isaaclab_newton.assets import RigidObject as NewtonRigidObject
 
 
+Deformable Object API Changes
+------------------------------
+
+Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
+release. The old soft body API has been deprecated and replaced by two distinct deformable
+types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
+triangle cloth meshes). The deformable type is determined by the physics material assigned:
+
+- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
+- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
+- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
+- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface
+  deformables.
+
+Deformable property and material cfgs are backend-specific. Several properties on
+:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` have been removed or added to
+match the new Omni Physics schema. The common
+:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; OmniPhysics
+deformable body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
+
+For a comprehensive guide covering the full deformable API migration — including removed and
+added properties, material changes, code examples for both volume and surface deformables, and
+current limitations — see :ref:`migrating-deformables`.
+
+
+.. _imu-to-pva-migration:
+
+IMU Sensor Renamed to PVA; New Lightweight IMU Sensor
+-----------------------------------------------------
+
+The old ``Imu`` sensor has been renamed to **PVA** (Pose Velocity Acceleration) because it provided
+full pose, velocity, and acceleration data — far more than a real inertial measurement unit measures.
+A new lightweight **IMU** sensor has been introduced that only provides the two physical quantities
+a real IMU measures: angular velocity (gyroscope) and linear acceleration (accelerometer).
+
+If you were using the old ``Imu`` sensor, you need to decide which new sensor to use:
+
+- Use :class:`~isaaclab.sensors.Pva` / :class:`~isaaclab.sensors.PvaCfg` if you need full state
+  data (pose, linear velocity, angular velocity, linear and angular acceleration, projected gravity).
+- Use :class:`~isaaclab.sensors.Imu` / :class:`~isaaclab.sensors.ImuCfg` if you only need angular
+  velocity and linear acceleration (as a real IMU provides).
+
+For configuration and data access examples, see the :ref:`overview_sensors_pva`.
+
+**Import changes:**
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x) — the old IMU provided full state
+   from isaaclab.sensors import Imu, ImuCfg, ImuData
+
+   # After (Isaac Lab 3.x) — use PVA for the same full-state sensor
+   from isaaclab.sensors import Pva, PvaCfg, PvaData
+
+   # Or use the new lightweight IMU for angular velocity + linear acceleration only
+   from isaaclab.sensors import Imu, ImuCfg, ImuData
+
+**Configuration changes:**
+
+The ``gravity_bias`` configuration parameter has been removed from both sensors:
+
+- **PVA** reports raw kinematic acceleration (no gravity contribution), as the acceleration
+  is derived from finite differencing of velocities which do not include gravity.
+- **IMU** unconditionally includes gravity in its accelerometer readings, matching the behavior
+  of a real accelerometer. The gravity vector is automatically queried from the simulation.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   imu_cfg = ImuCfg(
+       prim_path="{ENV_REGEX_NS}/Robot/base",
+       gravity_bias=(0.0, 0.0, 9.81),  # had to be configured manually
+   )
+
+   # After (Isaac Lab 3.x) — PVA (no gravity in acceleration)
+   pva_cfg = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/base")
+
+   # After (Isaac Lab 3.x) — IMU (gravity always included automatically)
+   imu_cfg = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/base")
+
+**Observation function changes:**
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab.envs.mdp import imu_orientation, imu_projected_gravity
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.mdp import pva_orientation, pva_projected_gravity
+
+**Data property changes:**
+
+The new ``ImuData`` only provides ``ang_vel_b`` and ``lin_acc_b``. If you were accessing other
+properties (``pos_w``, ``quat_w``, ``lin_vel_b``, ``ang_acc_b``, ``projected_gravity_b``), switch
+to :class:`~isaaclab.sensors.PvaData` which provides all of them.
+
+
 Sensor Pose Properties Deprecation
 ----------------------------------
 
 The ``pose_w``, ``pos_w``, and ``quat_w`` properties on :class:`~isaaclab.sensors.ContactSensorData`
-and :class:`~isaaclab.sensors.ImuData` are deprecated and will be removed in a future release.
+are deprecated and will be removed in a future release.
 
 If you need to track sensor poses in world frame, please use a dedicated sensor such as
 :class:`~isaaclab.sensors.FrameTransformer` instead.
@@ -188,6 +540,77 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
+Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
+-------------------------------------------------------------
+
+The ``ArticulationData.body_incoming_joint_wrench_b`` property has been removed. In
+Isaac Lab 3.0, incoming joint reaction wrenches are exposed through
+:class:`~isaaclab.sensors.JointWrenchSensor`, which has PhysX and Newton backend
+implementations and returns separate force [N] and torque [N·m] buffers.
+The sensor reports wrenches in the child-side incoming joint frame, with torque
+referenced at the child-side joint anchor.
+
+For configuration and data access examples, see the :ref:`overview_sensors_joint_wrench`.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   wrench_b = robot.data.body_incoming_joint_wrench_b.torch[:, body_ids]
+
+**After (Isaac Lab 3.x):**
+
+.. code-block:: python
+
+   import torch
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sensors import JointWrenchSensorCfg
+
+   class MySceneCfg(InteractiveSceneCfg):
+       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+   sensor = env.scene.sensors["joint_wrench"]
+   data = sensor.data
+   wrench_j = torch.cat(
+       (
+           data.force.torch[:, body_ids],
+           data.torque.torch[:, body_ids],
+       ),
+       dim=-1,
+   )
+
+Use :attr:`~isaaclab.sensors.BaseJointWrenchSensor.body_names` or
+:meth:`~isaaclab.sensors.BaseJointWrenchSensor.find_bodies` to map sensor entries to
+articulation body names. PhysX reports one entry for every link, including the articulation
+root link. Newton reports the child bodies of reportable incoming joints.
+
+For manager-based environments, update observations that used the articulation data property to
+depend on the joint-wrench sensor instead:
+
+.. code-block:: python
+
+   import isaaclab.envs.mdp as mdp
+   from isaaclab.managers import SceneEntityCfg
+   from isaaclab.managers import ObservationTermCfg as ObsTerm
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sensors import JointWrenchSensorCfg
+
+   class MySceneCfg(InteractiveSceneCfg):
+       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+   feet_body_forces = ObsTerm(
+       func=mdp.body_incoming_wrench,
+       params={
+           "sensor_cfg": SceneEntityCfg(
+               "joint_wrench",
+               body_names=["left_foot", "right_foot"],
+           )
+       },
+   )
+
+
 Multi-Backend Support: PresetCfg Pattern
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -207,23 +630,24 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab_tasks.utils import PresetCfg
-   from isaaclab.utils import configclass
+   from isaaclab.utils.configclass import configclass
 
    @configclass
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       newton:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=newton`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
+The legacy ``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton
+   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
@@ -256,7 +680,7 @@ subclass that carries both a PhysX and a Newton variant.
    class ReachPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
        physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       newton:  NewtonCfg = NewtonCfg(
+       newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
                cone="pyramidal", ls_parallel=True,
@@ -328,7 +752,7 @@ We can provide a Newton-specific config such as:
    class EnvEventCfg(PresetCfg):
        default: EventCfg = EventCfg()
        physx:   EventCfg = EventCfg()
-       newton:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
+       newton_mjwarp:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
 
 Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEventCfg``:
 
@@ -495,7 +919,7 @@ Here's a complete example showing how to update your code:
 
 .. code-block:: python
 
-   from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
+   from isaaclab.assets import DeformableObject, DeformableObjectCfg
    from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
    from isaaclab.assets import RigidObjectCollection  # unchanged
 
@@ -605,7 +1029,7 @@ Run the tool to scan your code for potential quaternions:
    python scripts/tools/find_quaternions.py --path my_project/
 
    # Compare against a different branch
-   python scripts/tools/find_quaternions.py --base develop
+   python scripts/tools/find_quaternions.py --base release/3.0.0-beta2
 
 .. tip::
   We recommend always running the tool with a custom base branch *and* a specific path.
@@ -746,6 +1170,56 @@ Best Practices for Migration
 
 6. **Check documentation** - Update any docs or comments that mention quaternion format.
 
+
+Using the Runtime Quaternion Access Detector
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The quaternion finder tool above covers hard-coded values in source files,
+but it cannot see quaternions that are *read* from asset/sensor data at
+runtime. For those, Isaac Lab ships a
+runtime detector hook on :class:`~isaaclab.utils.warp.ProxyArray` that flags
+every ``.torch`` access on a ``wp.quatf``-typed property and points at the
+exact call site. Use it after the source-level migration to catch the cases
+the finder tool can't reach.
+
+Enable it by setting an environment variable before launching your script:
+
+.. code-block:: bash
+
+   export WARN_ON_TORCH_QUATF_ACCESS=1
+   ./isaaclab.sh -p my_script.py
+
+Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
+dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
+
+.. code-block:: text
+
+   Reading .torch on a wp.quatf-typed ProxyArray. The Isaac Lab quaternion
+   convention changed from (w, x, y, z) in 2.x to (x, y, z, w) in 3.x. If
+   your code assumes the old order, this is likely the source of incorrect
+   rotations. Unset WARN_ON_TORCH_QUATF_ACCESS to silence this warning.
+
+The warning's traceback points at the exact line that performed the access
+(via ``stacklevel=2``), so you can walk through the matches in your code and
+confirm each one uses the new ``(x, y, z, w)`` order.
+
+Typical workflow:
+
+1. Run a representative scene or task with the env var set.
+2. Triage every warning location — check whether the call site assumes
+   ``(w, x, y, z)`` (Lab 2.x) or ``(x, y, z, w)`` (Lab 3.x).
+3. Migrate the call sites that still expect the old order.
+4. Re-run with the env var still set; the warnings should be gone (or only
+   come from intentionally-handled call sites).
+5. Unset the env var for production runs — the detector adds an
+   ``os.environ`` lookup per ``.torch`` access, which is cheap but not free.
+
+The detector covers only ``ProxyArray.torch`` reads. Direct accesses on the
+underlying ``wp.array`` (via ``ProxyArray.warp``) are not flagged, because
+warp uses ``(x, y, z, w)`` natively and so a warp-side read is unaffected
+by the convention change.
+
+
 API Changes
 ~~~~~~~~~~~
 
@@ -779,22 +1253,21 @@ quaternions in XYZW format:
 - And all other quaternion utilities
 
 
-Warp Backend for Asset and Sensor Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ProxyArray Backend for Asset and Sensor Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All ``.data.*`` properties on asset and sensor classes now return ``wp.array`` instead of
-``torch.Tensor``. This change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
+All ``.data.*`` properties on asset and sensor classes now return
+:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. ``ProxyArray`` wraps
+the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
+change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
-:class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
+:class:`~isaaclab.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
-:class:`~isaaclab_physx.sensors.FrameTransformer`).
+:class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
-To convert back to ``torch.Tensor`` for use with PyTorch operations, wrap the property
-access with ``wp.to_torch()``:
+To use a data property as a ``torch.Tensor``, append ``.torch``:
 
 .. code-block:: python
-
-   import warp as wp
 
    # Before (Isaac Lab 2.x)
    root_pos = robot.data.root_pos_w             # torch.Tensor
@@ -802,14 +1275,14 @@ access with ``wp.to_torch()``:
    contact_forces = sensor.data.net_forces_w     # torch.Tensor
 
    # After (Isaac Lab 3.x)
-   root_pos = robot.data.root_pos_w              # wp.array
-   joint_pos = robot.data.joint_pos              # wp.array
-   contact_forces = sensor.data.net_forces_w     # wp.array
+   root_pos = robot.data.root_pos_w              # ProxyArray
+   joint_pos = robot.data.joint_pos              # ProxyArray
+   contact_forces = sensor.data.net_forces_w     # ProxyArray
 
-   # To use with torch operations, wrap with wp.to_torch()
-   root_pos_torch = wp.to_torch(robot.data.root_pos_w)        # torch.Tensor
-   joint_pos_torch = wp.to_torch(robot.data.joint_pos)        # torch.Tensor
-   contact_torch = wp.to_torch(sensor.data.net_forces_w)      # torch.Tensor
+   # To use with torch operations, access .torch
+   root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
+   joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
+   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
@@ -819,19 +1292,19 @@ Common patterns that need updating:
    # Before:
    pos = robot.data.root_pos_w.clone()
    # After:
-   pos = wp.to_torch(robot.data.root_pos_w).clone()
+   pos = robot.data.root_pos_w.torch.clone()
 
    # Creating zero tensors with matching shape
    # Before:
    zeros = torch.zeros_like(robot.data.root_pos_w)
    # After:
-   zeros = torch.zeros_like(wp.to_torch(robot.data.root_pos_w))
+   zeros = torch.zeros_like(robot.data.root_pos_w.torch)
 
    # Assertions in tests
    # Before:
    torch.testing.assert_close(robot.data.root_pos_w, expected)
    # After:
-   torch.testing.assert_close(wp.to_torch(robot.data.root_pos_w), expected)
+   torch.testing.assert_close(robot.data.root_pos_w.torch, expected)
 
 .. list-table:: Affected classes
    :header-rows: 1
@@ -845,31 +1318,152 @@ Common patterns that need updating:
      - ``isaaclab`` / ``isaaclab_physx``
    * - :class:`~isaaclab.assets.RigidObjectCollection`
      - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.assets.DeformableObject`
-     - ``isaaclab_physx``
+   * - :class:`~isaaclab.assets.DeformableObject`
+     - ``isaaclab`` / ``isaaclab_physx`` / ``isaaclab_newton``
    * - :class:`~isaaclab_physx.sensors.ContactSensor`
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.Imu`
      - ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.sensors.Pva`
+     - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.FrameTransformer`
      - ``isaaclab_physx``
+   * - :class:`~isaaclab.sensors.RayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.RayCasterCamera`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
+     - ``isaaclab``
 
 .. note::
 
-   An automated migration tool is provided at ``scripts/tools/wrap_warp_to_torch.py``.
-   It scans Python files for ``.data.<property>`` accesses and wraps them with
-   ``wp.to_torch()``. Usage:
+   ``wp.to_torch(proxy_array)`` is temporarily supported by a compatibility shim. It returns
+   the same zero-copy tensor as ``proxy_array.torch`` and emits a one-time
+   ``DeprecationWarning``. This shim exists for older migration code and will be removed in a
+   future release; prefer ``.torch`` in new code.
 
-   .. code-block:: bash
 
-      # Dry run (preview changes)
-      python scripts/tools/wrap_warp_to_torch.py path/to/your/code --dry-run
+Ray Caster Warp Backend
+~~~~~~~~~~~~~~~~~~~~~~~
 
-      # Apply changes in-place
-      python scripts/tools/wrap_warp_to_torch.py path/to/your/code
+The :class:`~isaaclab.sensors.RayCaster`, :class:`~isaaclab.sensors.RayCasterCamera`,
+:class:`~isaaclab.sensors.MultiMeshRayCaster`, and
+:class:`~isaaclab.sensors.MultiMeshRayCasterCamera` sensors have been transitioned from a
+PyTorch/USD-based backend to a native Warp kernel pipeline. This improves performance by
+eliminating per-step tensor allocations and torch-to-warp conversions, but introduces several
+breaking changes.
 
-   Always review the changes after running the tool, as some accesses (e.g., those
-   already passed to warp-native functions) should not be wrapped.
+
+RayCasterData Return Types
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+:attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+:attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` properties now return
+:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. This follows the same
+pattern as the general ProxyArray backend migration described above.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   ray_hits = ray_caster.data.ray_hits_w        # torch.Tensor
+   sensor_pos = ray_caster.data.pos_w            # torch.Tensor
+
+   # After (Isaac Lab 3.x)
+   ray_hits = ray_caster.data.ray_hits_w         # ProxyArray
+   sensor_pos = ray_caster.data.pos_w            # ProxyArray
+
+   # To use with torch operations, access .torch
+   ray_hits_torch = ray_caster.data.ray_hits_w.torch
+   sensor_pos_torch = ray_caster.data.pos_w.torch
+
+
+Ray Alignment Configuration
+----------------------------
+
+The ``attach_yaw_only`` boolean parameter on :class:`~isaaclab.sensors.RayCasterCfg` has been
+deprecated in favor of the new ``ray_alignment`` parameter, which accepts one of three string
+values:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (2.x)
+     - New (3.0)
+     - Behavior
+   * - ``attach_yaw_only=False``
+     - ``ray_alignment="base"``
+     - Rays follow the full sensor orientation.
+   * - ``attach_yaw_only=True``
+     - ``ray_alignment="yaw"``
+     - Rays follow only the yaw component of the sensor orientation.
+   * - *(not available)*
+     - ``ray_alignment="world"``
+     - Rays are always cast in the world frame (no rotation applied).
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   cfg = RayCasterCfg(attach_yaw_only=True, ...)
+
+   # After (Isaac Lab 3.x)
+   cfg = RayCasterCfg(ray_alignment="yaw", ...)
+
+
+Raycasting Kernel Signature Change
+-----------------------------------
+
+The :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel` Warp kernel now requires
+an ``env_mask`` parameter as its first argument. This is a ``wp.array(dtype=wp.bool)`` that
+controls which environments are updated. The public Python wrapper
+:func:`~isaaclab.utils.warp.ops.raycast_dynamic_meshes` has been updated to inject an all-True
+mask automatically, so code using the wrapper is unaffected.
+
+If you call the kernel directly, update your launch call:
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+   # After (Isaac Lab 3.x) -- env_mask is now the first input
+   env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[env_mask, ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+
+RayCaster.meshes Cache Key
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCaster.meshes` class variable, which caches warp meshes across
+all :class:`~isaaclab.sensors.RayCaster` instances, is now keyed by ``(prim_path, device)`` tuples
+instead of by ``prim_path`` alone. This prevents a mesh that was built on one device (e.g. CPU)
+from being reused by a sensor running on a different device (e.g. CUDA), which caused illegal
+memory accesses on systems without unified memory.
+
+Code that reads or writes this cache directly must update both the type annotation and the key:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   meshes: ClassVar[dict[str, wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[prim_path]
+
+   # After (Isaac Lab 3.x)
+   meshes: ClassVar[dict[tuple[str, str], wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[(prim_path, device)]
 
 
 Write Method Index/Mask Split
@@ -1062,7 +1656,8 @@ automatically by the importer based on the robot name and cannot be overridden.
      /output/dir \
      --fix-base \
      --joint-stiffness 100.0 \
-     --joint-damping 1.0
+     --joint-damping 1.0 \
+     --viz kit
 
 .. note::
 
@@ -1216,7 +1811,8 @@ are no longer available.
      ../mujoco_menagerie/unitree_h1/h1.xml \
      source/isaaclab_assets/data/Robots/Unitree/h1.usd \
      --merge-mesh \
-     --self-collision
+     --self-collision \
+     --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 
@@ -1394,6 +1990,204 @@ The old classes still exist and will issue ``DeprecationWarning`` when used:
 
 Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
 compatibility. These will be removed in a future release.
+
+
+.. _torcharray-migration:
+
+ProxyArray Interop and Temporary Compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Asset and sensor data class properties return :class:`~isaaclab.utils.warp.ProxyArray`, a
+lightweight wrapper with explicit ``.torch`` and ``.warp`` accessors:
+
+.. code-block:: python
+
+   # BEFORE (2.x) — properties returned torch.Tensor directly
+   joint_pos = robot.data.joint_pos          # torch.Tensor
+   root_pos = robot.data.root_pos_w          # torch.Tensor
+
+   # AFTER (3.0) — properties return ProxyArray, use .torch for the tensor
+   joint_pos = robot.data.joint_pos.torch    # cached zero-copy torch.Tensor
+   root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
+   joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
+
+**Automatic interop — in many cases, no changes are needed:**
+
+- **Warp kernels:** ``ProxyArray`` implements ``__cuda_array_interface__``, so it can be passed
+  directly to ``wp.launch()`` without calling ``.warp``:
+
+  .. code-block:: python
+
+     # Just works — no .warp needed
+     wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)
+
+- **Torch functions:** ``ProxyArray`` implements ``__torch_function__``, so ``torch.*`` operations
+  accept it directly. During the deprecation period this emits a one-time warning, but works:
+
+  .. code-block:: python
+
+     # Works (emits DeprecationWarning once, then silent)
+     mean_pos = torch.mean(robot.data.joint_pos, dim=1)
+     clipped = torch.clamp(robot.data.joint_pos, -3.14, 3.14)
+
+**What to change:**
+
+1. Append ``.torch`` where you need an explicit ``torch.Tensor`` (e.g., for indexing, slicing,
+   or passing to non-torch libraries).
+2. Warp kernel calls need no changes — ``ProxyArray`` works transparently.
+3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
+4. Replace legacy ``wp.to_torch(proxy_array)`` calls with ``proxy_array.torch``.
+
+.. note::
+
+   The ``__torch_function__`` bridge and the temporary ``wp.to_torch(proxy_array)`` shim will
+   be removed in a future release. We recommend migrating to explicit ``.torch`` access now.
+
+For a complete guide, see :doc:`/source/how-to/proxy_array`.
+
+
+Migration off Deprecated Isaac Sim APIs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Sim 6.0, the legacy ``isaacsim.core.*``, ``isaacsim.sensors.*``, and
+``isaacsim.robot.wheeled_robots`` Python module paths are **deprecated** in favor of their
+``isaacsim.core.experimental.*`` (and ``*.experimental.*``) equivalents. Isaac Lab 3.0 has
+been migrated off the deprecated paths so that Isaac Lab continues to load and run when
+those modules are removed in a future Isaac Sim release.
+
+This is mostly a transparent change for users — Isaac Lab's own public Python API
+(:mod:`isaaclab`, :mod:`isaaclab_physx`, :mod:`isaaclab_tasks`, :mod:`isaaclab_teleop`,
+:mod:`isaaclab_mimic`) is unchanged. The migration is only user-visible if you:
+
+1. Import Isaac Sim symbols **directly** in your project, or
+2. Maintain a custom Kit experience (``.kit`` file) that lists Isaac Sim extension
+   dependencies, or
+3. Imported ``SimulationManager`` from ``isaacsim.core.simulation_manager`` in your own
+   PhysX-backed code.
+
+
+Python module renames
+---------------------
+
+Update direct imports in your own code as follows. **Where Isaac Lab provides an in-tree
+replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`` fallback:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Deprecated Isaac Sim path
+     - Recommended replacement
+   * - ``isaacsim.core.utils.stage``
+     - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
+       ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
+       ``clear_stage``, ``update_stage``, ``use_stage``)
+   * - ``isaacsim.core.utils.prims``
+     - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
+       ``change_prim_property``, ``bind_visual_material``,
+       ``bind_physics_material``, ``add_usd_reference``)
+   * - ``isaacsim.core.utils.queries``
+     - :mod:`isaaclab.sim.utils.queries` (e.g. ``find_matching_prims``,
+       ``find_matching_prim_paths``, ``get_first_matching_child_prim``)
+   * - ``isaacsim.core.utils.transforms``
+     - :mod:`isaaclab.sim.utils.transforms`
+   * - ``isaacsim.core.utils.semantics``
+     - :mod:`isaaclab.sim.utils.semantics`
+   * - ``isaacsim.core.utils.extensions.enable_extension``
+     - ``isaacsim.core.experimental.utils.app.enable_extension`` (no Isaac Lab equivalent)
+   * - ``isaacsim.core.utils.viewports.set_camera_view``
+     - ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view`` (or
+       ``omni.kit.viewport.utility.camera_state.ViewportCameraState`` for lower-level control)
+   * - ``isaacsim.core.prims.XFormPrim`` / ``XFormPrimView``
+     - :class:`~isaaclab.sim.views.FrameView` (Isaac Lab in-tree view; see
+       :ref:`migrating-to-isaaclab-3-0` ``Renaming of XformPrimView to FrameView`` above).
+       For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
+   * - ``isaacsim.core.simulation_manager.SimulationManager``
+     - :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
+       ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see local-alias
+       pattern below.
+   * - ``isaacsim.core.cloner``
+     - :mod:`isaaclab.cloner` (Isaac Lab in-tree cloner)
+   * - ``isaacsim.replicator.mobility_gen``
+     - ``isaacsim.replicator.experimental.mobility_gen``
+   * - ``isaacsim.sensors.<name>``
+     - ``isaacsim.sensors.experimental.<name>``
+   * - ``isaacsim.robot.wheeled_robots``
+     - ``isaacsim.robot.experimental.wheeled_robots`` (and
+       ``isaacsim.robot.wheeled_robots.nodes`` for OmniGraph nodes)
+
+To keep call-site code symmetric across backends when migrating off
+``isaacsim.core.simulation_manager.SimulationManager``, use the local-alias pattern:
+
+.. code-block:: python
+
+   from isaaclab_physx.physics import PhysxManager as SimulationManager
+   # or, for the Newton backend
+   from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+
+Kit experience (``.kit``) updates
+---------------------------------
+
+If you maintain a custom Kit experience derived from one of the Isaac Lab apps under
+``apps/``:
+
+* **Stop registering deprecated extension search paths.** The ``extsDeprecated`` search
+  path entry has been removed from all stock Isaac Lab Kit experiences (headless,
+  rendering, XR variants). Mirror that change in your own experience.
+* **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
+  listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``).
+* **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
+  no longer depends on those, and keeping them resurrects the deprecated stack.
+
+
+``SimulationManager`` is no longer re-exported
+----------------------------------------------
+
+Earlier internal previews of this migration briefly exposed
+``isaaclab_physx.physics.SimulationManager`` as a public alias of
+:class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
+:class:`~isaaclab_physx.physics.PhysxManager` directly (with ``as SimulationManager`` at
+the import site if you want backend-agnostic call-site code, as shown above).
+
+
+Retired standalone reproducers
+------------------------------
+
+A handful of legacy reproducers under ``source/isaaclab/test/deps/isaacsim`` that
+depended on the deprecated Isaac Sim core extensions have been retired:
+``check_camera.py``, ``check_floating_base_made_fixed.py``,
+``check_legged_robot_clone.py``, ``check_rep_texture_randomizer.py``, and
+``check_ref_count.py``. Use :mod:`isaaclab.sim` together with the new
+``isaacsim.core.experimental.*`` APIs for the same debugging workflows.
+
+
+PhysX Tensors API Module Path
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Recent Isaac Sim releases removed the internal ``impl`` submodule of
+``omni.physics.tensors`` and now expose the PhysX Tensor API types
+(``ArticulationView``, ``RigidBodyView``, ``SimulationView``, etc.) directly
+under ``omni.physics.tensors.api``. Importing from the old path raises
+``ModuleNotFoundError: No module named 'omni.physics.tensors.impl'`` at import
+time.
+
+Isaac Lab has been updated to import from the new path. Downstream code
+(custom assets, sensors, or scripts) that imported from the old path must be
+updated:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x / older Isaac Sim)
+   import omni.physics.tensors.impl.api as physx
+
+   # After (Isaac Lab 3.x / current Isaac Sim)
+   import omni.physics.tensors.api as physx
+
+The class identities are unchanged — only the module path moved. Type hints
+referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
+should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
 
 
 Need Help?

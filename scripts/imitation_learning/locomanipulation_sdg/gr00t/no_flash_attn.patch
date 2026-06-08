@@ -1,0 +1,63 @@
+diff --git a/gr00t/model/backbone/eagle2_hg_model/config.json b/gr00t/model/backbone/eagle2_hg_model/config.json
+index 3894adf..f1b95aa 100644
+--- a/gr00t/model/backbone/eagle2_hg_model/config.json
++++ b/gr00t/model/backbone/eagle2_hg_model/config.json
+@@ -1,5 +1,5 @@
+ {
+-    "_attn_implementation": "flash_attention_2",
++    "_attn_implementation": "sdpa",
+     "_commit_hash": null,
+     "architectures": [
+         "Eagle2_5_VLForConditionalGeneration"
+diff --git a/gr00t/model/backbone/eagle2_hg_model/modeling_eagle2_5_vl.py b/gr00t/model/backbone/eagle2_hg_model/modeling_eagle2_5_vl.py
+index a9649d5..d99b496 100755
+--- a/gr00t/model/backbone/eagle2_hg_model/modeling_eagle2_5_vl.py
++++ b/gr00t/model/backbone/eagle2_hg_model/modeling_eagle2_5_vl.py
+@@ -108,7 +108,7 @@ class Eagle2_5_VLForConditionalGeneration(Eagle2_5_VLPreTrainedModel, Generation
+             self.vision_model = vision_model
+         else:
+             if config.vision_config.model_type == "siglip_vision_model":
+-                config.vision_config._attn_implementation = "flash_attention_2"
++                config.vision_config._attn_implementation = "sdpa"
+                 self.vision_model = SiglipVisionModel(config.vision_config)
+             elif config.vision_config.model_type == "radio":
+                 self.vision_model = RADIOModel(config.vision_config)
+@@ -124,9 +124,7 @@ class Eagle2_5_VLForConditionalGeneration(Eagle2_5_VLPreTrainedModel, Generation
+                 raise NotImplementedError("Phi3 is not implemented.")
+                 # self.language_model = Phi3ForCausalLM(config.text_config)
+             elif config.text_config.architectures[0] == "Qwen2ForCausalLM":
+-                assert (
+-                    config.text_config._attn_implementation == "flash_attention_2"
+-                ), f"Qwen2 must use flash_attention_2 but got {config.text_config._attn_implementation}"
++                config.text_config._attn_implementation = "sdpa"
+                 self.language_model = Qwen2ForCausalLM(config.text_config)
+             elif config.text_config.architectures[0] == "Qwen3ForCausalLM":
+                 self.language_model = Qwen3ForCausalLM(config.text_config)
+diff --git a/gr00t/model/backbone/eagle2_hg_model/radio_model.py b/gr00t/model/backbone/eagle2_hg_model/radio_model.py
+index 2df0415..eb9b741 100644
+--- a/gr00t/model/backbone/eagle2_hg_model/radio_model.py
++++ b/gr00t/model/backbone/eagle2_hg_model/radio_model.py
+@@ -44,12 +44,18 @@ from transformers.utils import ModelOutput
+
+ try:  # v1
+     from flash_attn.flash_attn_interface import flash_attn_unpadded_qkvpacked_func
+-except ImportError:  # v2
+-    from flash_attn.flash_attn_interface import (
+-        flash_attn_varlen_qkvpacked_func as flash_attn_unpadded_qkvpacked_func,
+-    )
++except ImportError:
++    try:  # v2
++        from flash_attn.flash_attn_interface import (
++            flash_attn_varlen_qkvpacked_func as flash_attn_unpadded_qkvpacked_func,
++        )
++    except ImportError:  # flash-attn unavailable — RADIO vision won't work, SigLIP does
++        flash_attn_unpadded_qkvpacked_func = None
+
+-from flash_attn.bert_padding import pad_input, unpad_input
++try:
++    from flash_attn.bert_padding import pad_input, unpad_input
++except ImportError:
++    pad_input = unpad_input = None
+
+
+ class FlashAttention(nn.Module):

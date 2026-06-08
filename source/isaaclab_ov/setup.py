@@ -5,11 +5,19 @@
 
 """Installation script for the 'isaaclab_ov' python package."""
 
+import os
+
+import toml
 from setuptools import setup
+
+# Obtain the extension data from the extension.toml file
+EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
+# Read the extension.toml file
+EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 EXTRAS_REQUIRE = {
     "ovrtx": [
-        "ovrtx>=0.2.0,<0.3.0",
+        "ovrtx>=0.3.0,<0.4.0",
     ],
 }
 
@@ -18,21 +26,20 @@ EXTRAS_REQUIRE["all"] = sorted(set(dep for deps in EXTRAS_REQUIRE.values() for d
 
 setup(
     name="isaaclab_ov",
-    version="0.1.1",
     author="Isaac Lab Project Developers",
     maintainer="Isaac Lab Project Developers",
-    url="https://github.com/isaac-sim/IsaacLab",
-    description="Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for IsaacLab.",
-    keywords=["robotics", "simulation", "rendering", "ovrtx", "omniverse"],
+    url=EXTENSION_TOML_DATA["package"]["repository"],
+    version=EXTENSION_TOML_DATA["package"]["version"],
+    description=EXTENSION_TOML_DATA["package"]["description"],
+    keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
-    python_requires=">=3.11",
-    install_requires=[],
+    python_requires=">=3.12",
+    install_requires=["isaaclab_ppisp"],
     extras_require=EXTRAS_REQUIRE,
     packages=["isaaclab_ov"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
     zip_safe=False,

@@ -17,12 +17,16 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
 from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
-from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import ObservationsCfg, StackEnvCfg
+from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import (
+    ObservationsCfg,
+    StackEnvCfg,
+    raise_if_surface_gripper_on_newton,
+)
 
 ##
 # Pre-defined configs
@@ -333,6 +337,10 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
 
 @configclass
 class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
+    def validate_config(self):
+        # The right-arm suction cup uses a PhysX-only surface gripper.
+        raise_if_surface_gripper_on_newton(self)
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

@@ -6,13 +6,22 @@
 """Script to run an environment with zero action agent."""
 
 import argparse
+import contextlib
 import sys
 
 import gymnasium as gym
 import torch
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    launch_simulation,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Zero agent for Isaac Lab environments.")
@@ -23,10 +32,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 add_launcher_args(parser)
-# parse the arguments
-args_cli, hydra_args = parser.parse_known_args()
-
-# pass remaining args to Hydra
+args_cli, hydra_args = setup_preset_cli(parser)
 sys.argv = [sys.argv[0]] + hydra_args
 
 # PLACEHOLDER: Extension template (do not remove this comment)
@@ -38,7 +44,7 @@ def main():
 
     torch.manual_seed(42)
 
-    # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton)
+    # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
 
     with launch_simulation(env_cfg, args_cli):

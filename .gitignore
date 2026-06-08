@@ -65,7 +65,7 @@ _build
 /datasets/
 
 # Tests
-tests/
+/tests/
 
 # Docker history
 .isaac-lab-docker-history
@@ -79,3 +79,12 @@ tests/
 
 # Ruff cache
 **/.ruff_cache/
+
+# Dev-time files, generated stuff
+**/__*
+
+# Isaac Lab CI environments in native mode
+**/_isaaclab_install_ci_*
+
+# Superpowers (Claude Code plugin artifacts)
+docs/superpowers/

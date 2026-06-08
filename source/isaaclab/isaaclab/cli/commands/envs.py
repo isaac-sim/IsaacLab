@@ -702,7 +702,8 @@ def command_setup_uv(env_name: str) -> None:
 
     print_info("Added environment hooks to uv activation scripts.")
 
-    print_info(f"Created uv environment named '{env_name}'.\n")
+    print_info(f"Created uv environment named '{env_name}'.")
+    print()
     if is_windows():
         print(f"\t\t1. To activate the environment, run:                {env_name}\\Scripts\\activate")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")
@@ -713,4 +714,3 @@ def command_setup_uv(env_name: str) -> None:
         print("\t\t2. To install Isaac Lab extensions, run:            ./isaaclab.sh -i")
         print("\t\t3. To perform formatting, run:                      ./isaaclab.sh -f")
         print("\t\t4. To deactivate the environment, run:              deactivate")
-    print("\n")

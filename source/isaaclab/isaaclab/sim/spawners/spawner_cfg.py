@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -85,10 +85,10 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     mass_props: schemas.MassPropertiesCfg | None = None
     """Mass properties."""
 
-    rigid_props: schemas.RigidBodyPropertiesCfg | None = None
+    rigid_props: schemas.RigidBodyBaseCfg | None = None
     """Rigid body properties.
 
-    For making a rigid object static, set the :attr:`schemas.RigidBodyPropertiesCfg.kinematic_enabled`
+    For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
     as True. This will make the object static and will not be affected by gravity or other forces.
     """
 
@@ -120,5 +120,5 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     mass_props: schemas.MassPropertiesCfg | None = None
     """Mass properties."""
 
-    deformable_props: schemas.DeformableBodyPropertiesCfg | None = None
+    deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = None
     """Deformable body properties."""

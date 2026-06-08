@@ -7,7 +7,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from ..mdp.actions import AgileBasedLowerBodyAction

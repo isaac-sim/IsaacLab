@@ -21,6 +21,11 @@ __all__ = [
     "RigidObjectCollection",
     "RigidObjectCollectionCfg",
     "RigidObjectCollectionData",
+    "BaseDeformableObject",
+    "BaseDeformableObjectData",
+    "DeformableObject",
+    "DeformableObjectCfg",
+    "DeformableObjectData",
 ]
 
 from .articulation import (
@@ -45,4 +50,11 @@ from .rigid_object_collection import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
     RigidObjectCollectionData,
+)
+from .deformable_object import (
+    BaseDeformableObject,
+    BaseDeformableObjectData,
+    DeformableObject,
+    DeformableObjectCfg,
+    DeformableObjectData,
 )

@@ -12,7 +12,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.events as gear_assembly_events
@@ -239,6 +239,8 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        self.scene.num_envs = 2048
 
         # Robot-specific parameters (can be overridden for other robots)
         self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks

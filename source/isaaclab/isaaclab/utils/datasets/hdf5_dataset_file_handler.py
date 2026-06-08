@@ -3,18 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import json
 import os
 from collections.abc import Iterable
 
-import h5py
 import numpy as np
 import torch
 
@@ -59,6 +53,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
 
     def open(self, file_path: str, mode: str = "r"):
         """Open an existing dataset file."""
+        import h5py
+
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
         self._hdf5_file_stream = h5py.File(file_path, mode)
@@ -67,6 +63,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
 
     def create(self, file_path: str, env_name: str = None):
         """Create a new dataset file."""
+        import h5py
+
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
         if not file_path.endswith(".hdf5"):
@@ -168,6 +166,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         Returns:
             The loaded episode data, or None if the episode doesn't exist.
         """
+        import h5py
+
         self._raise_if_not_initialized()
         if episode_name not in self._hdf5_data_group:
             return None
@@ -210,7 +210,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
 
         return episode
 
-    def write_episode(self, episode: EpisodeData, demo_id: int | None = None):
+    def write_episode(self, episode: EpisodeData, demo_id: int | None = None, dataset_compression: bool = True):
         """Add an episode to the dataset.
 
         Args:
@@ -251,7 +251,10 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
                 for sub_key, sub_value in value.items():
                     create_dataset_helper(key_group, sub_key, sub_value)
             else:
-                group.create_dataset(key, data=value.cpu().numpy(), compression="gzip")
+                if dataset_compression:
+                    group.create_dataset(key, data=value.cpu().numpy(), compression="gzip", compression_opts=2)
+                else:
+                    group.create_dataset(key, data=value.cpu().numpy())
 
         for key, value in episode.data.items():
             create_dataset_helper(h5_episode_group, key, value)
@@ -299,6 +302,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
             FileNotFoundError: If the input file does not exist.
             ValueError: If the dataset is already in XYZW format.
         """
+        import h5py
+
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input dataset file not found: {input_path}")
 

@@ -5,6 +5,7 @@
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -18,9 +19,9 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import CapsuleCfg, ConeCfg, CuboidCfg, RigidBodyMaterialCfg, SphereCfg
-from isaaclab.utils import configclass
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
@@ -37,26 +38,32 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 )
 
 
+OBJECT_PHYSICS = {
+    "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
+    "collision_props": sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
+}
+
+
 @configclass
 class ObjectCfg(PresetCfg):
     shapes = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
-            CuboidCfg(size=(0.05, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            SphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            SphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CapsuleCfg(radius=0.04, height=0.01, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CapsuleCfg(radius=0.04, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CapsuleCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CapsuleCfg(radius=0.025, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            CapsuleCfg(radius=0.01, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            ConeCfg(radius=0.05, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            ConeCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            MeshCuboidCfg(size=(0.05, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.05, 0.05, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.05, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.025, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.01, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshSphereCfg(radius=0.05, **OBJECT_PHYSICS),
+            MeshSphereCfg(radius=0.025, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.025, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.01, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.1, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.025, height=0.2, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.01, height=0.2, **OBJECT_PHYSICS),
+            MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
+            MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
         ],
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,
@@ -105,7 +112,7 @@ class SceneCfg(InteractiveSceneCfg):
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
         collision_group=-1,
     )
 
@@ -217,8 +224,8 @@ class ObservationsCfg:
 
 
 @configclass
-class StartupEventCfg:
-    """Startup-mode domain randomization (PhysX only — Newton does not support startup events)."""
+class EventCfg:
+    """Reset-mode events (shared by all physics backends)."""
 
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -241,6 +248,17 @@ class StartupEventCfg:
             "dynamic_friction_range": [0.5, 1.0],
             "restitution_range": [0.0, 0.0],
             "num_buckets": 250,
+        },
+    )
+
+    object_physics_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "inertia_distribution_params": [0.01, 0.01],
+            "operation": "add",
+            "diagonal_only": True,
         },
     )
 
@@ -274,11 +292,6 @@ class StartupEventCfg:
             "operation": "scale",
         },
     )
-
-
-@configclass
-class EventCfg:
-    """Reset-mode events (shared by all physics backends)."""
 
     # Gravity scheduling is a deliberate curriculum trick — starting with no
     # gravity (easy) and gradually introducing full gravity (hard) makes learning
@@ -409,6 +422,36 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    default = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_max_rigid_patch_count=4 * 5 * 2**15,
+        gpu_found_lost_pairs_capacity=2**26,
+    )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=300,
+            nconmax=200,
+            impratio=10.0,
+            cone="elliptic",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=15,
+            ls_parallel=False,
+            use_mujoco_contacts=False,
+            ccd_iterations=35,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    physx = default
+
+
+@configclass
 class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     """Dexsuite reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
 
@@ -422,26 +465,18 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = MISSING  # type: ignore
+    events: EventCfg = EventCfg()
     curriculum: CurriculumCfg | None = CurriculumCfg()
 
     def validate_config(self):
         """Check for invalid preset combinations after resolution."""
-        is_newton = not isinstance(self.sim.physics, PhysxCfg)
-        is_multi_asset = isinstance(self.scene.object.spawn, sim_utils.MultiAssetSpawnerCfg)
-
-        if is_newton and is_multi_asset:
-            raise ValueError(
-                "Newton physics does not support multi-asset spawning."
-                " Use a single-geometry object preset (e.g. presets=cube) instead of 'shapes'."
-            )
 
         warp_supported = {"rgb", "depth", "distance_to_image_plane"}
         for cam_attr in ("base_camera", "wrist_camera"):
             cam = getattr(self.scene, cam_attr, None)
             if cam is None:
                 continue
-            renderer_type = getattr(cam.renderer_cfg, "renderer_type", None)
+            renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
             if renderer_type == "newton_warp":
                 unsupported = set(cam.data_types) - warp_supported
                 if unsupported:
@@ -465,11 +500,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            gpu_max_rigid_patch_count=4 * 5 * 2**15,
-            gpu_found_lost_pairs_capacity=2**26,
-        )
+        self.sim.physics = PhysicsCfg()
 
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):

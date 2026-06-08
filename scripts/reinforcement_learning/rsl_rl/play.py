@@ -5,6 +5,16 @@
 
 """Script to play a checkpoint if an RL agent from RSL-RL."""
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/rsl_rl/play.py is deprecated. Use "
+    "`./isaaclab.sh play --rl_library rsl_rl --task <TASK>` instead. "
+    "Example: `./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole-v0`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import contextlib
 import importlib.metadata as metadata
@@ -20,6 +30,8 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
+from isaaclab.utils.seed import configure_seed
+from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
@@ -31,7 +43,12 @@ from isaaclab_rl.rsl_rl import (
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    get_checkpoint_path,
+    launch_simulation,
+    setup_preset_cli,
+)
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # local imports
@@ -60,14 +77,29 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, remaining_args = setup_preset_cli(parser)
 
 if args_cli.video:
     args_cli.enable_cameras = True
 
-sys.argv = [sys.argv[0]] + hydra_args
+
+# Call an external callback if requested. This gives opportunity to external code to register the environments
+# The function is expected to return a list of arguments that were not consumed by the callback.
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
+# clear out sys.argv for Hydra
+# The remaining arguments are the arguments that were not consumed by both this scripts
+# argparser and (optionally) the external callback function. Both sides of this
+# intersection are pre-fold (the callback reads the user's original sys.argv), so
+# preset tokens like ``physics=NAME`` compare correctly here. Fold runs after.
+remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + remaining_args
 
 # Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")
@@ -144,6 +176,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+        # configure_seed must be called after runner construction so that PyTorch deterministic settings
+        # do not interfere with the runner's internal initialization.
+        if args_cli.deterministic:
+            configure_seed(env_cfg.seed, True)
         runner.load(resume_path)
 
         # obtain the trained policy for inference

@@ -5,122 +5,269 @@
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
 import math
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+import re
+from collections.abc import Iterator, Sequence
 
 import torch
 
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
-import isaaclab.sim as sim_utils
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
-
-if TYPE_CHECKING:
-    from .cloner_cfg import TemplateCloneCfg
+from . import _fabric_notices
+from .clone_plan import ClonePlan
 
 logger = logging.getLogger(__name__)
 
 
-def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
-    """Clone assets from a template root into per-environment destinations.
+def get_suffix(path_expr: str, destination_template: str) -> str | None:
+    """Return the part of ``path_expr`` below a destination template's env-instance root.
 
-    This utility discovers prototype prims under ``cfg.template_root`` whose names start with
-    ``cfg.template_prototype_identifier``, builds a per-prototype mapping across
-    ``num_clones`` environments (random or modulo), and then performs USD and/or PhysX replication
-    according to the flags in ``cfg``.
+    The template's ``"{}"`` slot matches exactly one path segment (a concrete id like ``env_3``
+    or a wildcard like ``env_.*``).
+
+    Example:
+        >>> tmpl = "/World/scenes/{}/Robot"
+        >>> get_suffix("/World/scenes/env_3/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/.*/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/env_3/Robot", tmpl)
+        ''
+        >>> get_suffix("/World/scenes/env_3/Sensor", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/RobotArm", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/sub/Robot/base", tmpl) is None
+        True
+    """
+    pattern = re.compile(r"[^/]+".join(re.escape(part) for part in destination_template.split("{}")))
+    match = pattern.match(path_expr)
+    if match is None:
+        return None
+    suffix = path_expr[match.end() :]
+    return None if suffix and not suffix.startswith("/") else suffix
+
+
+def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
+    """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
+
+    Finds the rows whose destination template owns ``path_expr`` (same matching
+    logic as :func:`iter_clone_plan_matches`), OR-merges their
+    :attr:`~isaaclab.cloner.ClonePlan.clone_mask` rows, and splits the
+    expression at the row's destination template so the asset-relative suffix is
+    returned for downstream walks.
 
     Args:
-        stage: The USD stage to author into.
-        num_clones: Number of environments to clone to (typically equals ``cfg.num_clones``).
-        template_clone_cfg: Configuration describing template location, destination pattern,
-            and replication/mapping behavior.
+        path_expr: Destination-side path expression (e.g., a sensor's ``prim_path``,
+            with ``.*`` env wildcard).
+        plan: Active clone plan.
+
+    Returns:
+        Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)``. The
+        ``asset_suffix`` is the part of ``path_expr`` beyond the matching row's
+        destination template (empty when ``path_expr`` equals the row's template).
+        Returns ``None`` when ``path_expr`` matches no row in the plan, letting
+        callers fall back to direct stage resolution (e.g. for sensor frames
+        mounted at the env root rather than under a planned asset).
+
+    Raises:
+        ValueError: When ``path_expr``'s matching rows span multiple distinct
+            destination templates.
+        NotImplementedError: When the union of matching rows' clone masks does not
+            cover every env (partial-env heterogeneous coverage is unsupported).
     """
-    cfg: TemplateCloneCfg = template_clone_cfg
-    world_indices = torch.arange(num_clones, device=cfg.device)
-    clone_path_fmt = cfg.clone_regex.replace(".*", "{}")
-    prototype_id = cfg.template_prototype_identifier
-    prototypes = sim_utils.get_all_matching_child_prims(
-        cfg.template_root,
-        predicate=lambda prim: str(prim.GetPath()).split("/")[-1].startswith(prototype_id),
-    )
-    if len(prototypes) > 0:
-        prototype_root_set = {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
-        # discover prototypes per root then make a clone plan
-        src: list[list[str]] = []
-        dest: list[str] = []
+    matching_template: str | None = None
+    matching_rows: list[int] = []
+    matching_suffix: str | None = None
+    for source_index, destination_template in enumerate(plan.destinations):
+        if "{}" not in destination_template:
+            continue
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
+            continue
+        if matching_template is None:
+            matching_template = destination_template
+            matching_suffix = suffix
+        elif destination_template != matching_template:
+            raise ValueError(
+                f"path_expr {path_expr!r}: matches multiple destination templates"
+                f" {matching_template!r} and {destination_template!r}."
+            )
+        matching_rows.append(source_index)
+    if matching_template is None:
+        return None
+    if not plan.clone_mask[matching_rows].any(dim=0).all():
+        raise NotImplementedError(
+            f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"
+            " matching rows must collectively cover all envs."
+        )
+    return plan.sources[matching_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
 
-        for prototype_root in prototype_root_set:
-            protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
-            protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
-            src.append(protos)
-            dest.append(prototype_root.replace(cfg.template_root, clone_path_fmt))
 
-        src_paths, dest_paths, clone_masking = make_clone_plan(src, dest, num_clones, cfg.clone_strategy, cfg.device)
+def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
+    """Yield clone-plan entries whose destinations own a path expression.
 
-        # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
-        # will be served as sources for usd and physics replication.
-        proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
-        proto_mask = torch.zeros_like(clone_masking)
-        proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
-        usd_replicate(stage, src_paths, dest_paths, world_indices, proto_mask)
-        stage.GetPrimAtPath(cfg.template_root).SetActive(False)
-        get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
-        positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
-        # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
-        if torch.all(proto_idx == 0):
-            mapping = clone_masking.new_ones(1, num_clones)
-            replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
-            if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.visualizer_clone_fn is not None:
-                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.clone_usd:
-                # parse env_origins directly from clone_path
-                usd_replicate(stage, *replicate_args, positions=positions)
+    Example:
+        For an entry with source root ``"/World/source/Robot"``, destination
+        template ``"/World/scenes/{}/Robot"``, and populated env ids
+        ``(0, 2)``, querying ``"/World/scenes/.*/Robot/base"`` yields
+        ``("/World/source/Robot", "/World/scenes/{}/Robot",
+        "/World/source/Robot/base", (0, 2))``.
 
-        else:
-            selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
-            replicate_args = selected_src, dest_paths, world_indices, clone_masking
-            if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.visualizer_clone_fn is not None:
-                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.clone_usd:
-                usd_replicate(stage, *replicate_args)
+    Args:
+        plan: Clone plan to query.
+        path_expr: Destination prim path or path expression. Expressions are
+            matched against each clone-plan destination template by treating
+            the template's ``"{}"`` field as the populated environment slot.
+
+    Yields:
+        Tuples ``(source_root, destination_template, source_path, env_ids)``
+        for the nearest matching destination root. Multiple source variants
+        with the same destination root are preserved.
+    """
+    matches: list[tuple[str, str, str, tuple[int, ...]]] = []
+    for source_index, (source_root, destination_template) in enumerate(zip(plan.sources, plan.destinations)):
+        if "{}" not in destination_template:
+            continue
+
+        env_ids = tuple(int(i) for i in plan.clone_mask[source_index].nonzero(as_tuple=False).flatten().tolist())
+        if not env_ids:
+            continue
+
+        source_root = source_root.rstrip("/") or "/"
+        destination_template = destination_template.rstrip("/") or "/"
+
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
+            continue
+        source_path = source_root + suffix if source_root != "/" else suffix or "/"
+
+        matches.append((source_root, destination_template, source_path, env_ids))
+
+    matches.sort(key=lambda match: len(match[1].format(match[3][0])), reverse=True)
+    if matches:
+        owner_length = len(matches[0][1].format(matches[0][3][0]))
+        yield from (match for match in matches if len(match[1].format(match[3][0])) == owner_length)
+
+
+@contextlib.contextmanager
+def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -> Iterator[None]:
+    """Suspend the ``IFabricUsd`` USD notice listener for the body of the ``with`` block.
+
+    Targets the same handler that :meth:`isaacsim.core.cloner.Cloner.disable_change_listener`
+    toggles, but goes through ``omni::fabric::IFabricUsd`` directly so we don't take an
+    ``isaacsim.core.simulation_manager`` dependency.
+
+    The listener is a global ``TfNotice`` registered when ``omni.fabric`` loads; it
+    short-circuits via a soft flag (``IFabricUsd.cpp:739``). Toggling that flag is what
+    skips the per-``Sdf.CopySpec`` Fabric sync that dominates cloning time on large scenes.
+
+    When this provides a measurable speedup
+    ----------------------------------------
+    Bisection on the regression test (see ``test_cloner.py``) shows the listener cost is
+    only on the critical path when **all** of these hold:
+
+    1. The clone happens through the ``InteractiveScene`` path with ``replicate_physics=True``.
+       Calling :func:`usd_replicate` directly on a stage produces no measurable gap; with
+       ``replicate_physics=False`` the gap drops to ~1.19x. The PhysX replication path is
+       what amplifies per-spec listener work.
+    2. The cloned prims carry PhysX rigid-body schemas (e.g. ``UsdPhysics.RigidBodyAPI``,
+       authored via ``rigid_props`` on a spawn cfg). Plain Xforms or geometry without
+       physics schemas produce ~1.0x — the listener has no Fabric-tracked state to sync.
+       ``mass_props`` and ``collision_props`` add nothing beyond ``rigid_props``.
+    3. Total per-``Sdf.CopySpec`` firings reach ~32K — i.e. ``num_bodies × num_envs`` is
+       large enough to dominate scene-init cost. Below this the speedup sinks into noise.
+
+    Conditions outside this envelope (no PhysX schemas, single-env scenes, raw
+    ``usd_replicate`` calls, ``replicate_physics=False``) won't see a perf win — the
+    suspension is correct but its effect is lost in the rest of the work.
+
+    Re-entrant: if the flag is already off on entry, ``__exit__`` leaves it off. Falls
+    through to a no-op if the Carbonite interface can't be acquired (e.g. outside a live
+    Kit application) — the caller never breaks, it just doesn't get the perf win.
+
+    Args:
+        stage: USD stage whose Fabric notice handler should be suspended.
+        restore: When ``True`` (default), re-enable the handler on exit. Set to ``False``
+            inside a known clone-then-``sim.reset`` window where the downstream Fabric
+            resync happens anyway and re-enabling here would trigger a redundant
+            ``forceMinimalPopulate`` batch — see ``PluginInterface.cpp:337``.
+
+    Yields:
+        None.
+    """
+    bindings = _fabric_notices.get_bindings()
+    if bindings is None:
+        yield
+        return
+
+    # usdrt only works with a live Kit app — defer import so module load stays cheap.
+    import usdrt
+
+    # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
+    # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
+    # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
+    fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+    # First-call ABI sanity check — if the toggle doesn't actually round-trip the flag
+    # (e.g. Kit's vtable shifted), fall through to a no-op rather than corrupting state.
+    if not bindings.validate_with(fabric_id):
+        logger.warning("Fabric notice toggle failed round-trip check — suspension disabled")
+        yield
+        return
+    was_enabled = bindings.is_enabled(fabric_id)
+    if was_enabled:
+        bindings.set_enable(fabric_id, False)
+    try:
+        yield
+    finally:
+        if restore and was_enabled:
+            bindings.set_enable(fabric_id, True)
 
 
 def make_clone_plan(
-    sources: list[list[str]],
-    destinations: list[str],
+    sources: Sequence[Sequence[str]],
+    destinations: Sequence[str],
     num_clones: int,
     clone_strategy: callable,
     device: str = "cpu",
-) -> tuple[list[str], list[str], torch.Tensor]:
-    """Construct a cloning plan mapping prototype prims to per-environment destinations.
+) -> tuple[tuple[str, ...], tuple[str, ...], torch.Tensor]:
+    """Compute the flat source/destination/mask components of a clone plan.
 
-    The plan enumerates all combinations of prototypes, selects a combination per environment using ``clone_strategy``,
-    and builds a boolean masking matrix indicating which prototype populates each environment slot.
+    Enumerates all combinations of prototypes, selects a combination per environment using
+    ``clone_strategy``, and builds the boolean masking matrix that indicates which prototype
+    populates each environment slot. The caller composes the returned tuple into a
+    :class:`ClonePlan`.
 
     Args:
-        sources: Prototype prim paths grouped by asset type (e.g., [[robot_a, robot_b], [obj_x]]).
+        sources: Prototype prim paths grouped by asset type (e.g., ``[[robot_a, robot_b], [obj_x]]``).
         destinations: Destination path templates (one per group) with ``"{}"`` placeholder for env id.
         num_clones: Number of environments to populate.
         clone_strategy: Function that picks a prototype combo per environment; signature
             ``clone_strategy(combos: Tensor, num_clones: int, device: str) -> Tensor[num_clones, num_groups]``.
-        device: Torch device for tensors in the plan. Defaults to ``"cpu"``.
+        device: Torch device for the returned mask. Defaults to ``"cpu"``.
 
     Returns:
-        tuple: ``(src, dest, masking)`` where ``src`` and ``dest`` are flattened lists of prototype and
-            destination paths, and ``masking`` is a ``[num_src, num_clones]`` boolean tensor with True
-            when source ``src[i]`` is used for clone ``j``.
+        A tuple ``(sources, destinations, clone_mask)`` where ``sources`` and ``destinations``
+        are flattened per-source entries (one entry per prototype) and ``clone_mask`` is a
+        ``[num_src, num_clones]`` boolean tensor on ``device``.
     """
-    # 1) Flatten into src and dest lists
-    src = [p for group in sources for p in group]
-    dest = [dst for dst, group in zip(destinations, sources) for _ in group]
+    if len(sources) != len(destinations):
+        raise ValueError(f"Expected one destination per source group, got {len(destinations)} and {len(sources)}.")
+    if not sources:
+        raise ValueError("Expected at least one source group.")
     group_sizes = [len(group) for group in sources]
+    if any(size == 0 for size in group_sizes):
+        raise ValueError("Source groups must not be empty.")
+
+    # 1) Flatten into src and dest lists
+    src = tuple(p for group in sources for p in group)
+    dest = tuple(dst for dst, group in zip(destinations, sources) for _ in group)
 
     # 2) Enumerate all combinations of "one prototype per group"
     #    all_combos: list of tuples (g0_idx, g1_idx, ..., g_{G-1}_idx)
@@ -143,8 +290,8 @@ def make_clone_plan(
 
 def usd_replicate(
     stage: Usd.Stage,
-    sources: list[str],
-    destinations: list[str],
+    sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mask: torch.Tensor | None = None,
     positions: torch.Tensor | None = None,
@@ -381,37 +528,3 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     ori = torch.zeros((N, 4), device=device)
     ori[:, 3] = 1.0  # w=1 for identity quaternion
     return pos, ori
-
-
-def resolve_visualizer_clone_fn(
-    physics_backend: str,
-    requirements: SceneDataRequirement,
-    stage,
-    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
-):
-    """Return an optional visualizer prebuild hook for clone workflows.
-
-    Args:
-        physics_backend: Active physics backend name.
-        requirements: Aggregated scene-data requirements.
-        stage: USD stage used by the clone callback.
-        set_visualizer_artifact: Callback for storing prebuilt visualizer artifacts.
-
-    Returns:
-        Clone callback when the prebuild path is supported; otherwise ``None``.
-    """
-    if "physx" not in physics_backend or not requirements.requires_newton_model:
-        return None
-    try:
-        from isaaclab_newton.cloner.newton_replicate import (
-            create_newton_visualizer_prebuild_clone_fn,
-        )
-    except (ImportError, ModuleNotFoundError) as exc:
-        logger.warning("Visualizer prebuild hook unavailable: failed to import backend helper.")
-        logger.debug("Visualizer prebuild import failure details: %s", exc)
-        return None
-
-    return create_newton_visualizer_prebuild_clone_fn(
-        stage=stage,
-        set_visualizer_artifact=set_visualizer_artifact,
-    )

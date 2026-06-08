@@ -26,6 +26,17 @@ Note:
     are too large to run on a single GPU without FSDP.
 """
 
+import warnings
+
+warnings.warn(
+    "scripts/reinforcement_learning/rlinf/play.py is deprecated. Use "
+    "`./isaaclab.sh play --rl_library rlinf --config_name <CONFIG_NAME>` instead. "
+    "Example: `./isaaclab.sh play --rl_library rlinf "
+    "--config_name isaaclab_ppo_gr00t_assemble_trocar`.",
+    DeprecationWarning,
+    stacklevel=1,
+)
+
 import argparse
 import logging
 import os
@@ -57,8 +68,8 @@ args_cli = parser.parse_args()
 # Resolve config path and name from CLI args
 if not args_cli.config_name:
     parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
-config_dir = args_cli.config_path or str(SCRIPT_DIR)
 config_name = args_cli.config_name
+config_dir = cli_args.resolve_config_dir(config_name, args_cli.config_path)
 os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")
 
 # Add config dir to PYTHONPATH so that Ray rollout workers can resolve
@@ -100,7 +111,8 @@ def main():
     print(f"[INFO] Task: {task_id}")
 
     # Setup logging directory
-    timestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S")
+    # Use hyphens instead of colons in time — colons are invalid in Windows paths.
+    timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = SCRIPT_DIR / "logs" / "rlinf" / "eval" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] Logging to: {log_dir}")
@@ -115,6 +127,8 @@ def main():
         # Override checkpoint if provided via CLI
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
+        if args_cli.rl_model_path:
+            cfg.rollout.model.rl_model_path = args_cli.rl_model_path
 
         # Enable video saving if requested
         if args_cli.video:

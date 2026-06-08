@@ -61,7 +61,7 @@ The oscillations in the values reported by the sensor are a direct result of of 
 .. code-block:: bash
 
   Imu sensor @ '/World/envs/env_.*/Robot/LF_FOOT':
-          view type         : <class 'omni.physics.tensors.impl.api.RigidBodyView'>
+          view type         : <class 'omni.physics.tensors.api.RigidBodyView'>
           update period (s) : 0.0
           number of sensors : 1
 
@@ -71,7 +71,7 @@ The oscillations in the values reported by the sensor are a direct result of of 
   Received angular acceleration:  tensor([[-0.0389, -0.0262, -0.0045]], device='cuda:0')
   -------------------------------
   Imu sensor @ '/World/envs/env_.*/Robot/RF_FOOT':
-          view type         : <class 'omni.physics.tensors.impl.api.RigidBodyView'>
+          view type         : <class 'omni.physics.tensors.api.RigidBodyView'>
           update period (s) : 0.0
           number of sensors : 1
 

@@ -8,22 +8,32 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
+import inspect
 import logging
 import socket
 import webbrowser
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+import newton
 import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
+from isaaclab_visualizers.newton_adapter import (
+    apply_viewer_visible_worlds,
+    log_geo_with_expanded_plane_scale,
+    resolve_visible_env_indices,
+)
+
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +92,32 @@ def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
 
 def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
     """Return rerun web UI URL with prefilled endpoint."""
-    return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe='')}"
+    # Keep the nested URL readable while still encoding '+' in the rerun+http scheme.
+    return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe=':/')}"
 
 
 class NewtonViewerRerun(ViewerRerun):
     """Wrapper around Newton's ViewerRerun with rendering pause controls."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, open_browser: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
-        super().__init__(*args, **kwargs)
+        if open_browser:
+            super().__init__(*args, **kwargs)
+        else:
+            original_serve_web_viewer = rr.serve_web_viewer
+
+            # Rerun Viewer launches a browser automatically, so here we suppress that behavior
+            def _serve_web_viewer_without_browser(*serve_args, **serve_kwargs):
+                with contextlib.suppress(TypeError, ValueError):
+                    supports_open_browser = "open_browser" in inspect.signature(original_serve_web_viewer).parameters
+                    if supports_open_browser:
+                        serve_kwargs.setdefault("open_browser", False)
+                return original_serve_web_viewer(*serve_args, **serve_kwargs)
+
+            with contextlib.ExitStack() as stack:
+                rr.serve_web_viewer = _serve_web_viewer_without_browser
+                stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
+                super().__init__(*args, **kwargs)
         self._paused_rendering = False
 
     def is_rendering_paused(self) -> bool:
@@ -112,6 +139,29 @@ class NewtonViewerRerun(ViewerRerun):
             if imgui.button("Pause Rendering" if not self._paused_rendering else "Resume Rendering"):
                 self._paused_rendering = not self._paused_rendering
 
+    def log_geo(
+        self,
+        name: str,
+        geo_type: int,
+        geo_scale: tuple[float, ...],
+        geo_thickness: float,
+        geo_is_solid: bool,
+        geo_src=None,
+        hidden: bool = False,
+    ):
+        """Log geometry, preserving large render extents for infinite ground planes."""
+        return log_geo_with_expanded_plane_scale(
+            super().log_geo,
+            newton.GeoType.PLANE,
+            name,
+            geo_type,
+            geo_scale,
+            geo_thickness,
+            geo_is_solid,
+            geo_src,
+            hidden,
+        )
+
 
 class RerunVisualizer(BaseVisualizer):
     """Rerun visualizer for Isaac Lab."""
@@ -129,32 +179,25 @@ class RerunVisualizer(BaseVisualizer):
         self._step_counter = 0
         self._model = None
         self._state = None
-        self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._resolved_visible_env_ids: list[int] | None = None
 
-    def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if self._is_initialized:
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
-        metadata = scene_data_provider.get_metadata()
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
-            get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
-            if callable(get_filtered_model):
-                self._model = get_filtered_model(self._env_ids)
-            else:
-                self._model = scene_data_provider.get_newton_model()
-        else:
-            self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(self._env_ids)
+        self._model = NewtonManager.get_model()
+        self._state = NewtonManager.get_state(self._scene_data_provider)
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -178,32 +221,44 @@ class RerunVisualizer(BaseVisualizer):
             keep_historical_data=self.cfg.keep_historical_data,
             keep_scalar_history=self.cfg.keep_scalar_history,
             record_to_rrd=self.cfg.record_to_rrd,
+            open_browser=self.cfg.open_browser,
         )
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         viewer_host = _normalize_host(bind_address)
         viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
+        print()
+        self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
-        self._viewer.set_model(self._model, max_worlds=self.cfg.max_worlds)
+        self._viewer.set_model(self._model)
+        apply_viewer_visible_worlds(
+            self._viewer,
+            env_ids=self._env_ids,
+            max_visible_envs=self.cfg.max_visible_envs,
+            num_envs=num_envs,
+        )
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        self._apply_camera_pose(self._resolve_initial_camera_pose())
+        initial_pose = self._resolve_initial_camera_pose()
+        self._apply_camera_pose(initial_pose)
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0
         self._viewer._paused = False
 
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
+        )
         self._log_initialization_table(
             logger=logger,
             title="RerunVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
-                ("camera_source", self.cfg.camera_source),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
+                ("focal_length", f"{self.cfg.focal_length} (not applied: Rerun EyeControls3D has no FOV field)"),
                 ("num_visualized_envs", num_visualized_envs),
                 ("endpoint", f"http://{viewer_host}:{web_port}"),
-                ("viewer_url", viewer_url),
                 ("bind_address", bind_address),
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),
@@ -221,26 +276,31 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
+        from isaaclab_newton.physics import NewtonManager
+
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
         self._sim_time += dt
         self._step_counter += 1
 
-        if self.cfg.camera_source == "usd_path":
-            self._update_camera_from_usd_path()
-
-        self._state = self._scene_data_provider.get_newton_state(self._env_ids)
+        self._state = NewtonManager.get_state(self._scene_data_provider)
+        num_envs = NewtonManager.get_num_envs()
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)
-            if self._state is not None:
-                body_q = getattr(self._state, "body_q", None)
-                if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                    self._viewer.end_frame()
-                    return
-                self._viewer.log_state(self._state)
-            self._viewer.end_frame()
+            try:
+                if self._state is not None:
+                    body_q = getattr(self._state, "body_q", None)
+                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                        return
+                    self._viewer.log_state(self._state)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
+            finally:
+                self._viewer.end_frame()
 
     def close(self) -> None:
         """Close viewer/session resources."""
@@ -274,12 +334,8 @@ class RerunVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.camera_source == "usd_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
-            if pose is not None:
-                return pose
-        return self.cfg.camera_position, self.cfg.camera_target
+        """Resolve initial camera pose from config."""
+        return self._resolve_cfg_camera_pose("RerunVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera pose to rerun's 3D view controls.
@@ -305,18 +361,9 @@ class RerunVisualizer(BaseVisualizer):
         )
         self._last_camera_pose = (cam_pos, cam_target)
 
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
-        if pose is None:
-            return
-        if self._last_camera_pose == pose:
-            return
-        self._apply_camera_pose(pose)
-
     def supports_markers(self) -> bool:
-        """Rerun backend currently does not expose Isaac Lab marker primitives."""
-        return False
+        """Rerun backend supports Isaac Lab markers through Newton viewer primitives."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Rerun backend currently does not expose Isaac Lab live-plot widgets."""

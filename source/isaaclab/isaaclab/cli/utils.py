@@ -17,6 +17,12 @@ ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
 
+# Short script names supported by ``isaaclab -p``.
+_PYTHON_SCRIPT_ALIASES = {
+    "train.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+    "play.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
+}
+
 # ANSI colors.
 _ANSI_COLOR_RESET = "\033[0m"
 _ANSI_COLOR_INFO = "\033[36m"  # cyan
@@ -146,29 +152,39 @@ def _print_debug_env(prefix: str, env: dict[str, str] | None) -> None:
 _CMD_METACHARACTERS = frozenset("<>|&^")
 
 
-def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> str | list[str]:
-    """
-    Quote ``cmd.exe`` metacharacters when invoking ``.bat``/``.cmd`` files.
+def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> list[str]:
+    """Wrap .bat/.cmd calls in cmd.exe /c so args with < > | & ^ stay literal.
 
-    Returns a command string (not list) so ``subprocess.run`` bypasses
-    ``list2cmdline`` which doesn't escape cmd.exe metacharacters (<, >, |, &, ^).
+    Uses cmd.exe caret-escaping (``^<``) for metacharacters in args without
+    whitespace; double-quotes args that contain whitespace. Avoids wrapping a
+    metacharacter-bearing arg in double quotes -- ``cmd.exe /c "...\"X<Y\""``
+    leaks the literal quotes through to the inner program because cmd.exe and
+    Python's subprocess.list2cmdline don't share a quoting convention, and
+    pip then sees the literal ``"setuptools<82.0.0"`` and rejects it.
     """
-    # Only .bat/.cmd files are executed via cmd.exe.
+    # only .bat/.cmd needs wrapping
     exe = str(cmd[0]).lower()
     if not (exe.endswith(".bat") or exe.endswith(".cmd")):
         return list(cmd)
 
-    # Wrap args that contain metacharacters or whitespace in double quotes.
     parts: list[str] = []
     for arg in cmd:
         s = str(arg)
-        if any(c in s for c in _CMD_METACHARACTERS) or " " in s or "\t" in s:
+        has_meta = any(c in s for c in _CMD_METACHARACTERS)
+        has_space = " " in s or "\t" in s
+        # Args with spaces fall back to double-quoting: cmd.exe does not
+        # interpret metacharacters inside "..." but the literal quotes can
+        # leak through the python.bat hop. Bypass python.bat entirely (see
+        # extract_python_exe) for the common case; pip args with spaces and
+        # metacharacters in the same token are not currently used.
+        if has_space:
             parts.append(f'"{s}"')
+        elif has_meta:
+            parts.append("".join(f"^{c}" if c in _CMD_METACHARACTERS else c for c in s))
         else:
             parts.append(s)
 
-    # Return a string so subprocess skips list2cmdline.
-    return " ".join(parts)
+    return ["cmd.exe", "/c", " ".join(parts)]
 
 
 def run_command(
@@ -229,24 +245,40 @@ def run_command(
         sys.exit(130)
 
 
+def _is_virtualenv_python(python_exe: str | Path) -> bool:
+    """Check whether a Python executable belongs to a virtual environment.
+
+    Args:
+        python_exe: Python executable path.
+
+    Returns:
+        True when the executable is inside a Python virtual environment.
+    """
+    python_path = Path(python_exe)
+    return (python_path.parent.parent / "pyvenv.cfg").is_file()
+
+
 def get_pip_command(python_exe: str | None = None) -> list[str]:
     """Return the base pip command tokens for the current environment.
 
     When ``uv`` is available and a virtual environment is active, returns
-    ``["uv", "pip"]``.  Otherwise returns ``[python_exe, "-m", "pip"]``
-    so that the target interpreter's own pip is used (e.g. Isaac Sim's
-    bundled ``python.sh``).
+    ``["uv", "pip"]``.  When the target Python belongs to a virtual
+    environment, ``UV_PYTHON`` is set so ``uv pip`` installs into that
+    environment even if the process itself is not activated.  Otherwise returns
+    ``[python_exe, "-m", "pip"]`` so that the target interpreter's own pip is
+    used (e.g. Isaac Sim's bundled ``python.sh``).
 
     Args:
         python_exe: Python executable path.  Resolved via
             :func:`extract_python_exe` when ``None``.
     """
-    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
-    if shutil.which("uv") and in_venv:
-        return ["uv", "pip"]
-
     if python_exe is None:
         python_exe = extract_python_exe()
+
+    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
+    if shutil.which("uv") and (in_venv or _is_virtualenv_python(python_exe)):
+        os.environ["UV_PYTHON"] = python_exe
+        return ["uv", "pip"]
 
     return [python_exe, "-m", "pip"]
 
@@ -290,17 +322,22 @@ def extract_python_exe() -> str:
         else:
             print_debug("extract_python_exe(): No CONDA_PREFIX found.")
 
-    # Try the default Isaac Lab uv venv (env_isaaclab/) in the repo root.
+    # Try the current interpreter when already inside a virtual environment.
+    if (not python_exe or not Path(python_exe).exists()) and sys.prefix != sys.base_prefix:
+        python_exe = Path(sys.executable)
+        print_debug(f"extract_python_exe(): Using active virtual environment python: {python_exe}")
+
+    # Try repo-local virtual environments.
     if not python_exe or not Path(python_exe).exists():
-        default_venv = ISAACLAB_ROOT / "env_isaaclab"
-        if default_venv.is_dir():
+        for default_venv in (ISAACLAB_ROOT / "env_isaaclab", ISAACLAB_ROOT / ".venv"):
             if is_windows():
                 candidate = default_venv / "Scripts" / "python.exe"
             else:
                 candidate = default_venv / "bin" / "python"
             if candidate.exists():
-                print_debug(f"extract_python_exe(): Found default venv python: {candidate}")
+                print_debug(f"extract_python_exe(): Found repo-local venv python: {candidate}")
                 python_exe = candidate
+                break
 
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
@@ -310,7 +347,16 @@ def extract_python_exe() -> str:
 
         if isaacsim_path is not None:
             if is_windows():
-                python_exe = isaacsim_path / "python.bat"
+                # Prefer the underlying python.exe over python.bat so we avoid
+                # cmd.exe metacharacter-quoting hazards on pip args like
+                # ``setuptools<82.0.0``. isaaclab.bat already sources
+                # setup_conda_env.bat before reaching the CLI, so children
+                # inherit the right env without going back through python.bat.
+                kit_python_exe = isaacsim_path / "kit" / "python" / "python.exe"
+                if kit_python_exe.exists():
+                    python_exe = kit_python_exe
+                else:
+                    python_exe = isaacsim_path / "python.bat"
             else:
                 python_exe = isaacsim_path / "python.sh"
 
@@ -506,6 +552,8 @@ def run_python_command(
 
     if is_module:
         cmd.append("-m")
+    else:
+        script_or_module = _PYTHON_SCRIPT_ALIASES.get(str(script_or_module), script_or_module)
 
     cmd.append(str(script_or_module))
     cmd.extend(args)

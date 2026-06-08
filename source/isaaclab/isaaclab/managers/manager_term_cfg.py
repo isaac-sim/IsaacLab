@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 
@@ -117,6 +117,11 @@ class CommandTermCfg:
     """Time before commands are changed [s]."""
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
+
+    cmd_kind: str | None = None
+    """Type hint for the command for deployment."""
+    element_names: list[str] | list[list[str]] | None = None
+    """Element names for the command for deployment."""
 
 
 ##

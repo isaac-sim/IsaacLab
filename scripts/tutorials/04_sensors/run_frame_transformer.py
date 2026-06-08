@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
 
 """
 
@@ -27,7 +27,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -35,9 +35,12 @@ simulation_app = app_launcher.app
 import math
 
 import torch
-import warp as wp
 
-import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
+from isaacsim.core.experimental.utils.app import enable_extension
+
+enable_extension("isaacsim.util.debug_draw")
+
+from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -52,6 +55,9 @@ from isaaclab.sim import SimulationContext
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
+ROBOT_PRIM_PATH = "/World/envs/env_0/Robot"
+ROBOT_PRIM_PATH_EXPR = "/World/envs/env_.*/Robot"
+
 
 def define_sensor() -> FrameTransformer:
     """Defines the FrameTransformer sensor to add to the scene."""
@@ -61,11 +67,11 @@ def define_sensor() -> FrameTransformer:
 
     # Example using .* to get full body + LF_FOOT
     frame_transformer_cfg = FrameTransformerCfg(
-        prim_path="/World/Robot/base",
+        prim_path=f"{ROBOT_PRIM_PATH_EXPR}/base",
         target_frames=[
-            FrameTransformerCfg.FrameCfg(prim_path="/World/Robot/.*"),
+            FrameTransformerCfg.FrameCfg(prim_path=f"{ROBOT_PRIM_PATH_EXPR}/.*"),
             FrameTransformerCfg.FrameCfg(
-                prim_path="/World/Robot/LF_SHANK",
+                prim_path=f"{ROBOT_PRIM_PATH_EXPR}/LF_SHANK",
                 name="LF_FOOT_USER",
                 offset=OffsetCfg(pos=tuple(pos_offset.tolist()), rot=tuple(rot_offset[0].tolist())),
             ),
@@ -87,7 +93,7 @@ def design_scene() -> dict:
     cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
     # -- Robot
-    robot = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Robot"))
+    robot = Articulation(ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH))
     # -- Sensors
     frame_transformer = define_sensor()
 
@@ -124,7 +130,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Simulate physics
     while simulation_app.is_running():
         # perform this loop at policy control freq (50 Hz)
-        robot.set_joint_position_target_index(target=wp.to_torch(robot.data.default_joint_pos).clone())
+        robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch.clone())
         robot.write_data_to_sim()
         # perform step
         sim.step()
@@ -147,10 +153,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                 print(f"Displaying Frame ID {frame_index}: {frame_names[frame_index]}")
 
             # visualize frame
-            source_pos = wp.to_torch(frame_transformer.data.source_pos_w)
-            source_quat = wp.to_torch(frame_transformer.data.source_quat_w)
-            target_pos = wp.to_torch(frame_transformer.data.target_pos_w)[:, frame_index]
-            target_quat = wp.to_torch(frame_transformer.data.target_quat_w)[:, frame_index]
+            source_pos = frame_transformer.data.source_pos_w.torch
+            source_quat = frame_transformer.data.source_quat_w.torch
+            target_pos = frame_transformer.data.target_pos_w.torch[:, frame_index]
+            target_quat = frame_transformer.data.target_quat_w.torch[:, frame_index]
             # draw the frames
             transform_visualizer.visualize(
                 torch.cat([source_pos, target_pos], dim=0), torch.cat([source_quat, target_quat], dim=0)

@@ -56,7 +56,7 @@ for the convenience of users.
      .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
 
-        .. code:: bash
+        .. code:: batch
 
            cd IsaacSim
            build.bat
@@ -78,7 +78,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: bash
 
          # Isaac Sim root directory
-         export ISAACSIM_PATH="${pwd}/_build/linux-x86_64/release"
+         export ISAACSIM_PATH="${PWD}/_build/linux-x86_64/release"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
@@ -101,8 +101,6 @@ Installing Isaac Lab
 .. include:: include/src_clone_isaaclab.rst
 
 .. include:: include/src_symlink_isaacsim.rst
-
-.. include:: include/src_python_virtual_env.rst
 
 .. include:: include/src_build_isaaclab.rst
 

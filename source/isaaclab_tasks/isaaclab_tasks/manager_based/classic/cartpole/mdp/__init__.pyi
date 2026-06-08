@@ -5,7 +5,8 @@
 
 __all__ = [
     "joint_pos_target_l2",
+    "survival_success_rate",
 ]
 
-from .rewards import joint_pos_target_l2
+from .rewards import joint_pos_target_l2, survival_success_rate
 from isaaclab.envs.mdp import *

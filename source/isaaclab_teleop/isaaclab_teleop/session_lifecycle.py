@@ -8,20 +8,83 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import torch
 
 if TYPE_CHECKING:
+    from isaacteleop.cloudxr import CloudXRLauncher
     from isaacteleop.oxr import OpenXRSessionHandles
+    from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents
     from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
     from isaacteleop.teleop_session_manager import TeleopSession
 
+from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
+from .teleop_message_processor import TeleopMessageProcessor
+
+
+class SupportsDLPack(Protocol):
+    """Duck type for objects supporting the DLPack buffer protocol.
+
+    Satisfied by :class:`torch.Tensor`, :class:`numpy.ndarray` (>= 1.22),
+    ``wp.array``, CuPy arrays, JAX arrays, and other frameworks.
+    """
+
+    def __dlpack__(self, *, stream: Any = ...) -> Any: ...
+
+    def __dlpack_device__(self) -> tuple[int, int]: ...
+
 
 logger = logging.getLogger(__name__)
+
+_DLDEVICE_CPU = 1
+
+
+def _to_numpy_4x4(mat: np.ndarray | torch.Tensor | SupportsDLPack) -> np.ndarray:
+    """Convert a (4, 4) transform to a float32 numpy array.
+
+    Prefers the DLPack buffer protocol (``__dlpack__``) for zero-copy
+    interop with torch, warp, cupy, jax, and other frameworks.
+
+    Args:
+        mat: A (4, 4) transform matrix.
+
+    Returns:
+        A (4, 4) float32 :class:`numpy.ndarray`.
+    """
+    if isinstance(mat, np.ndarray):
+        return np.asarray(mat, dtype=np.float32)
+    if isinstance(mat, torch.Tensor):
+        return np.asarray(np.from_dlpack(mat.detach().cpu()), dtype=np.float32)
+    if hasattr(mat, "__dlpack_device__"):
+        device_type, _ = mat.__dlpack_device__()
+        if device_type == _DLDEVICE_CPU:
+            return np.asarray(np.from_dlpack(mat), dtype=np.float32)
+        # Non-CPU DLPack source (e.g. CUDA wp.array): .numpy() typically
+        # handles the device-to-host transfer internally.
+        if hasattr(mat, "numpy"):
+            return np.asarray(mat.numpy(), dtype=np.float32)  # type: ignore[union-attr]
+        raise TypeError(f"Cannot convert non-CPU DLPack array of type {type(mat).__name__} to numpy")
+    if hasattr(mat, "numpy"):
+        return np.asarray(mat.numpy(), dtype=np.float32)  # type: ignore[union-attr]
+    return np.asarray(mat, dtype=np.float32)
+
+
+def _execution_events_to_control(ee: ExecutionEvents) -> ControlEvents:
+    """Map TeleopCore :class:`ExecutionEvents` to the script-facing :class:`ControlEvents`."""
+    from isaacteleop.retargeting_engine.interface.execution_events import ExecutionState
+
+    if ee.execution_state == ExecutionState.RUNNING:
+        is_active: bool | None = True
+    elif ee.execution_state in (ExecutionState.PAUSED, ExecutionState.STOPPED):
+        is_active = False
+    else:
+        is_active = None
+    return ControlEvents(is_active=is_active, should_reset=ee.reset)
 
 
 class TeleopSessionLifecycle:
@@ -31,11 +94,13 @@ class TeleopSessionLifecycle:
 
     1. Building the retargeting pipeline from configuration
     2. Adding a parallel ``ControllersSource`` for button-state access
-    3. Acquiring OpenXR handles from Kit's XR bridge extension
-    4. Creating, entering, and exiting the ``TeleopSession``
-    5. Building external inputs for pipeline leaf nodes (e.g. world-to-anchor transform)
-    6. Stepping the session and extracting the flattened action tensor
-    7. Managing the optional retargeting tuning UI
+    3. Building the optional ``teleop_control_pipeline`` for headset-driven
+       start/stop/reset via a message channel
+    4. Acquiring OpenXR handles from Kit's XR bridge extension
+    5. Creating, entering, and exiting the ``TeleopSession``
+    6. Building external inputs for pipeline leaf nodes (e.g. world-to-anchor transform)
+    7. Stepping the session and extracting the flattened action tensor
+    8. Managing the optional retargeting tuning UI
     """
 
     WORLD_T_ANCHOR_INPUT_NAME = "world_T_anchor"
@@ -45,53 +110,108 @@ class TeleopSessionLifecycle:
     _CONTROLLER_RIGHT_KEY = "_controller_right"
     """Internal pipeline output key for the right controller ``TensorGroup``."""
 
-    def __init__(self, cfg: IsaacTeleopCfg):
+    def __init__(
+        self,
+        cfg: IsaacTeleopCfg,
+        cloudxr_env_file: str | None = None,
+        auto_launch_cloudxr: bool = True,
+        mcap_record_path: str | None = None,
+        mcap_replay_path: str | None = None,
+    ):
         """Initialize the session lifecycle manager.
 
         Args:
             cfg: Configuration for IsaacTeleop settings.
+            cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
+                When provided, the CloudXR runtime is launched automatically
+                during :meth:`start` (unless *auto_launch_cloudxr* is
+                ``False``).  When ``None``, no CloudXR runtime is launched.
+            auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
+                when *cloudxr_env_file* is set.  Ignored when
+                *cloudxr_env_file* is ``None``.
+            mcap_record_path: Optional path to an MCAP file the live teleop
+                session should be recorded into.  Mutually exclusive with
+                *mcap_replay_path*.  Debug-grade only -- see the Isaac Lab
+                teleop migration doc for the limitations of the produced
+                file (no per-episode segmentation, no world-frame anchor,
+                etc.).
+            mcap_replay_path: Optional path to an MCAP file to replay.  When
+                set, the session runs in :class:`SessionMode.REPLAY` with no
+                OpenXR connection and feeds the recorded tracker stream
+                through the pipeline.  Mutually exclusive with
+                *mcap_record_path*.
+
+        Raises:
+            ValueError: If both *mcap_record_path* and *mcap_replay_path*
+                are provided.
         """
+        if mcap_record_path is not None and mcap_replay_path is not None:
+            raise ValueError(
+                "mcap_record_path and mcap_replay_path are mutually exclusive; "
+                "set at most one to switch the session between LIVE recording and REPLAY playback."
+            )
+
         self._cfg = cfg
         self._device = torch.device(cfg.sim_device)
+        self._cloudxr_env_file = cloudxr_env_file
+        self._auto_launch_cloudxr = auto_launch_cloudxr
+        self._mcap_record_path = mcap_record_path
+        self._mcap_replay_path = mcap_replay_path
+        self._is_replay = mcap_replay_path is not None
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
         self._pipeline = None
+        self._teleop_control_pipeline = None
+        self._message_processor: TeleopMessageProcessor | None = None
         self._last_right_controller = None
         self._session_start_deferred_logged = False
+        # Fallback for host-initiated resets when no control pipeline is configured
+        self._pending_reset = False
+
+        # CloudXR runtime launcher (created in start if configured, stopped in stop)
+        self._cloudxr_launcher: CloudXRLauncher | None = None
 
         # Retargeting tuning UI (created in start, closed in stop)
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
 
-        try:
-            # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
-            import isaacsim.kit.xr.teleop.bridge as bridge
+        # Replay sessions never talk to Kit's XR system, so skip all XR
+        # extension subscriptions; they would only generate noise and could
+        # mis-fire if a parallel live session ever toggled /xr/enabled.
+        if not self._is_replay:
+            try:
+                # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
+                import isaacsim.kit.xr.teleop.bridge as bridge
 
-            subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
-            if callable(subscribe_required_extensions):
-                self._required_extensions_subscription = subscribe_required_extensions(
-                    self._on_request_required_extensions
-                )
-            else:
+                subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
+                if callable(subscribe_required_extensions):
+                    self._required_extensions_subscription = subscribe_required_extensions(
+                        self._on_request_required_extensions
+                    )
+                else:
+                    logger.info(
+                        "isaacsim.kit.xr.teleop.bridge.subscribe_required_extensions not available; "
+                        "skipping required extensions subscription"
+                    )
+            except (ImportError, ModuleNotFoundError):
                 logger.info(
-                    "isaacsim.kit.xr.teleop.bridge.subscribe_required_extensions not available; "
-                    "skipping required extensions subscription"
+                    "isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session"
                 )
-        except (ImportError, ModuleNotFoundError):
-            logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
 
-        try:
-            import carb.settings
+            try:
+                import carb.settings
 
-            # Subscribe to the setting (may not fire when Kit closes; see pre-shutdown below)
-            self._xr_enabled_subscription = carb.settings.get_settings().subscribe_to_node_change_events(
-                "/xr/enabled",
-                self._on_xr_enabled_changed,
-            )
-        except (ImportError, ModuleNotFoundError):
-            logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
+                # Subscribe to the setting (may not fire when Kit closes; see pre-shutdown below)
+                self._xr_enabled_subscription = carb.settings.get_settings().subscribe_to_node_change_events(
+                    "/xr/enabled",
+                    self._on_xr_enabled_changed,
+                )
+            except (ImportError, ModuleNotFoundError):
+                logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
 
+        # Pre-shutdown is still wanted in replay mode so the MCAP writer/reader
+        # gets a chance to flush before Kit tears down its event loop.
         try:
             import omni.kit.app
             from carb.eventdispatcher import get_eventdispatcher
@@ -128,6 +248,48 @@ class TeleopSessionLifecycle:
         """
         return self._last_right_controller
 
+    @property
+    def has_control_channel(self) -> bool:
+        """Whether a message-channel-based control pipeline is configured."""
+        return self._message_processor is not None
+
+    @property
+    def last_control_events(self) -> ControlEvents:
+        """Control events from the most recent :meth:`step`.
+
+        When a ``teleop_control_pipeline`` is configured, derives
+        :class:`ControlEvents` from
+        ``session.last_context.execution_events``.  Otherwise returns a
+        default (no-op) :class:`ControlEvents`.
+        """
+        if self._message_processor is None:
+            return _NO_OP_EVENTS
+        if self._session is None:
+            return _NO_OP_EVENTS
+        ctx = self._session.last_context
+        if ctx is None:
+            return _NO_OP_EVENTS
+        return _execution_events_to_control(ctx.execution_events)
+
+    def request_reset(self) -> None:
+        """Schedule a reset for the next pipeline step.
+
+        When a control pipeline is configured, the reset flows through
+        :meth:`TeleopMessageProcessor.inject_reset` so
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`
+        processes it normally.  Otherwise falls back to an
+        ``execution_events`` override on the next :meth:`step` call.
+
+        If the control channel already processed a reset this frame,
+        this method is a no-op to avoid a redundant second reset pulse.
+        """
+        if self.last_control_events.should_reset:
+            return
+        if self._message_processor is not None:
+            self._message_processor.inject_reset()
+        else:
+            self._pending_reset = True
+
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
     # ------------------------------------------------------------------
@@ -135,15 +297,28 @@ class TeleopSessionLifecycle:
     def start(self) -> None:
         """Build the pipeline and attempt to start the session.
 
+        If a CloudXR env file was provided and auto-launch is enabled,
+        the CloudXR runtime and WSS proxy are launched first.
+
         Builds the retargeting pipeline, wraps it with a parallel
-        ``ControllersSource`` for button-state access, attempts to acquire
-        OpenXR handles, and opens the retargeting tuning UI if retargeters
-        are configured.
+        ``ControllersSource`` for button-state access, builds the optional
+        ``teleop_control_pipeline`` for message-channel control, attempts
+        to acquire OpenXR handles, and opens the retargeting tuning UI if
+        retargeters are configured.
 
         If the OpenXR handles are not yet available (e.g. user hasn't clicked
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
+        # CloudXR is per-run, not per-mode: when the caller passes a profile
+        # we spawn the runtime so a real client has something to attach to.
+        # This is true for live recording (operator wears the headset) and
+        # for spectate-on-replay (operator wears the headset to view a
+        # captured trajectory). Pure CI replay leaves cloudxr_env_file at
+        # None and gets the previous no-launcher behavior.
+        if self._cloudxr_env_file is not None:
+            self._ensure_cloudxr_runtime()
+
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
         from isaacteleop.retargeting_engine.interface import OutputCombiner
 
@@ -152,12 +327,24 @@ class TeleopSessionLifecycle:
         self._last_right_controller = None
 
         button_controllers = ControllersSource("_button_controllers")
-        self._pipeline = OutputCombiner(
-            {
-                "action": user_pipeline.output("action"),
-                self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
-            }
-        )
+        pipeline_outputs: dict[str, Any] = {
+            "action": user_pipeline.output("action"),
+            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+        }
+        self._pipeline = OutputCombiner(pipeline_outputs)
+
+        # Build the optional teleop_control_pipeline for message-channel control.
+        # Live and replay both build it: in replay mode the underlying
+        # MessageChannelTracker is fed by TeleopCore's
+        # ReplayMessageChannelTrackerImpl from the recorded
+        # ``_teleop_control_source`` channel, so START / STOP / RESET edges
+        # surface through ``poll_control_events`` the same way they do live.
+        self._teleop_control_pipeline = None
+        self._message_processor = None
+        if self._cfg.control_channel_uuid is not None:
+            self._teleop_control_pipeline, self._message_processor = self._build_control_pipeline(
+                self._cfg.control_channel_uuid
+            )
 
         # Try to start the session now; it may be deferred
         self._try_start_session()
@@ -199,21 +386,86 @@ class TeleopSessionLifecycle:
                 # expected and safe to suppress.
                 logger.debug(f"Suppressed error during IsaacTeleop session cleanup: {e}")
             self._session = None
-            self._pipeline = None
+
+        # Always clear pipeline state (session may never have been created if
+        # OpenXR handles were never available).
+        self._pipeline = None
+        self._teleop_control_pipeline = None
+        self._message_processor = None
+
+        if self._cloudxr_launcher is not None:
+            try:
+                self._cloudxr_launcher.stop()
+            except RuntimeError:
+                logger.warning("CloudXR runtime process could not be terminated; handle retained for atexit cleanup")
+            else:
+                self._cloudxr_launcher = None
+                logger.info("CloudXR runtime stopped")
+
         logger.info("IsaacTeleop session ended")
+
+    # ------------------------------------------------------------------
+    # Control pipeline construction
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_control_pipeline(channel_uuid: bytes) -> tuple[Any, TeleopMessageProcessor]:
+        """Build a ``teleop_control_pipeline`` from a message channel UUID.
+
+        Wires ``MessageChannelSource`` -> :class:`TeleopMessageProcessor`
+        -> :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+
+        Args:
+            channel_uuid: 16-byte UUID for the OpenXR opaque data channel.
+
+        Returns:
+            A ``(teleop_control_pipeline, message_processor)`` tuple.
+        """
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import message_channel_config
+        from isaacteleop.teleop_session_manager import DefaultTeleopStateManager
+
+        source, _sink = message_channel_config(
+            name="_teleop_control",
+            channel_uuid=channel_uuid,
+        )
+
+        processor = TeleopMessageProcessor(name="_teleop_msg_processor")
+        processor_graph = processor.connect({processor.INPUT_MESSAGES: source.output("messages_tracked")})
+
+        state_manager = DefaultTeleopStateManager(name="_teleop_state")
+        teleop_control_pipeline = state_manager.connect(
+            {
+                state_manager.INPUT_KILL: processor_graph.output("kill"),
+                state_manager.INPUT_RUN_TOGGLE: processor_graph.output("run_toggle"),
+                state_manager.INPUT_RESET: processor_graph.output("reset"),
+            }
+        )
+
+        return teleop_control_pipeline, processor
+
+    # ------------------------------------------------------------------
+    # Extension / XR lifecycle callbacks
+    # ------------------------------------------------------------------
 
     def _on_request_required_extensions(self) -> list[str]:
         """Callback for required extensions subscription.
+
+        Inspects both the main pipeline and the ``teleop_control_pipeline``
+        (if configured) so that extensions required by the control channel
+        (e.g. ``XR_NV_opaque_data_channel``) are included.
 
         Returns:
             A list of required extensions.
         """
         from isaacteleop.teleop_session_manager.helpers import get_required_oxr_extensions_from_pipeline
 
-        required_extensions = (
-            get_required_oxr_extensions_from_pipeline(self._pipeline) if self._pipeline is not None else []
-        )
+        required_extensions: list[str] = []
+        if self._pipeline is not None:
+            required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._pipeline))
+        if self._teleop_control_pipeline is not None:
+            required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._teleop_control_pipeline))
 
+        required_extensions = sorted(set(required_extensions))
         logger.info(f"Required extensions: {required_extensions}")
         return required_extensions
 
@@ -227,10 +479,16 @@ class TeleopSessionLifecycle:
             self._teardown_dead_session()
 
     def _on_pre_shutdown(self, _event):
-        """Called when Kit is closing; run full cleanup since the app is exiting."""
+        """Called when Kit is closing; tear down the session but leave the
+        pipeline intact so the main loop can exit via its own control flow
+        (``simulation_app.is_running()`` will go ``False``).
+
+        Full resource cleanup happens later when the context manager's
+        ``__exit__`` calls :meth:`stop`.
+        """
         logger.info("Shutting down IsaacTeleop session due to Kit close")
         self._pre_shutdown_subscription = None
-        self.stop()
+        self._teardown_dead_session()
 
     # ------------------------------------------------------------------
     # Deferred session creation
@@ -247,12 +505,16 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        Tries to acquire OpenXR handles from Kit's XR bridge.  If the
-        handles are available, creates and enters the ``TeleopSession``.
-        If the handles are not yet complete — either because the XR session
-        has not started or because the bridge component has not finished
-        registering — session creation is deferred and will be retried on
-        the next :meth:`step` call.
+        In live mode, tries to acquire OpenXR handles from Kit's XR bridge.
+        If the handles are available, creates and enters the
+        :class:`TeleopSession`.  If the handles are not yet complete — either
+        because the XR session has not started or because the bridge
+        component has not finished registering — session creation is deferred
+        and will be retried on the next :meth:`step` call.
+
+        In replay mode, starts a :class:`SessionMode.REPLAY` session backed
+        by the MCAP file passed via ``mcap_replay_path``; no Kit XR handles
+        are needed.
 
         Returns:
             ``True`` if the session was successfully started (or was already
@@ -261,11 +523,9 @@ class TeleopSessionLifecycle:
         if self._session is not None:
             return True
 
-        # In headless mode the AR profile setting is deliberately omitted
-        # from the .kit file so that all extensions (including the teleop
-        # bridge and its BridgeComponent) can load and register before Kit
-        # creates the OpenXR instance.  We enable it here, after extensions
-        # are loaded; Kit will process the change on the next event-loop tick.
+        if self._is_replay:
+            return self._start_replay_session()
+
         self._ensure_xr_ar_profile_enabled()
 
         from isaacteleop.oxr import OpenXRSessionHandles
@@ -287,26 +547,90 @@ class TeleopSessionLifecycle:
                 self._session_start_deferred_logged = True
             return False
 
+        mcap_config = None
+        if self._mcap_record_path is not None:
+            from isaacteleop.deviceio_session import McapRecordingConfig
+
+            mcap_config = McapRecordingConfig(self._mcap_record_path)
+
+        # Pipeline is built by start() before any _try_start_session call.
+        assert self._pipeline is not None, "pipeline must be built before starting the session"
+
         session_config = TeleopSessionConfig(
             app_name=self._cfg.app_name,
             trackers=[],
             pipeline=self._pipeline,
+            teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
+            retargeting_execution=self._cfg.retargeting_execution,
+            mcap_config=mcap_config,
         )
 
         # Create and enter the TeleopSession
         self._session = TeleopSession(session_config)
         self._session.__enter__()
 
-        logger.info(f"IsaacTeleop session started: {self._cfg.app_name}")
+        if self._mcap_record_path is not None:
+            logger.info(f"IsaacTeleop session started: {self._cfg.app_name} (recording to {self._mcap_record_path})")
+        else:
+            logger.info(f"IsaacTeleop session started: {self._cfg.app_name}")
+        return True
+
+    def _start_replay_session(self) -> bool:
+        """Start an MCAP-backed :class:`SessionMode.REPLAY` session.
+
+        Unlike the live path, replay never waits for Kit XR handles or
+        pumps the OpenXR runtime: ``TeleopSession`` builds a
+        :class:`isacteleop.deviceio_session.ReplaySession` that feeds the
+        pipeline directly from the captured tracker stream.
+
+        Returns:
+            Always ``True`` -- replay sessions start synchronously.
+        """
+        from isaacteleop.deviceio_session import McapReplayConfig
+        from isaacteleop.teleop_session_manager import SessionMode, TeleopSession, TeleopSessionConfig
+
+        # Narrow Optional types for the type checker; both fields are
+        # guaranteed non-None by start() / __init__ when this branch runs.
+        assert self._mcap_replay_path is not None, "replay path missing in replay mode"
+        assert self._pipeline is not None, "pipeline must be built before starting the session"
+
+        # Fail fast on a missing MCAP file
+        if not os.path.exists(self._mcap_replay_path):
+            raise FileNotFoundError(
+                f"MCAP replay file not found: '{self._mcap_replay_path}'. "
+                "Check the ``mcap_replay_path`` passed to ``create_isaac_teleop_device`` "
+                "(or the ``--replay_file`` CLI arg on the replay agent)."
+            )
+
+        mcap_config = McapReplayConfig(self._mcap_replay_path)
+        session_config = TeleopSessionConfig(
+            app_name=self._cfg.app_name,
+            trackers=[],
+            pipeline=self._pipeline,
+            teleop_control_pipeline=self._teleop_control_pipeline,
+            plugins=self._cfg.plugins,
+            retargeting_execution=self._cfg.retargeting_execution,
+            mode=SessionMode.REPLAY,
+            mcap_config=mcap_config,
+        )
+
+        self._session = TeleopSession(session_config)
+        self._session.__enter__()
+
+        logger.info(f"IsaacTeleop replay session started: {self._cfg.app_name} (replaying {self._mcap_replay_path})")
         return True
 
     # ------------------------------------------------------------------
     # Stepping
     # ------------------------------------------------------------------
 
-    def step(self, anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None) -> torch.Tensor | None:
+    def step(
+        self,
+        anchor_world_matrix_fn: Callable[[], np.ndarray] | None = None,
+        target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None,
+    ) -> torch.Tensor | None:
         """Execute one step of the teleop session and return the action tensor.
 
         If the session has not been started yet (because OpenXR handles were
@@ -323,6 +647,14 @@ class TeleopSessionLifecycle:
             anchor_world_matrix_fn: Optional callable returning the (4, 4)
                 world-to-anchor transform.  Used to build external inputs
                 for ``ValueInput`` leaf nodes in the pipeline.
+            target_T_world: Optional (4, 4) transform matrix that rebases
+                pipeline poses into a target coordinate frame.  When provided,
+                the anchor matrix is left-multiplied by this transform
+                (``target_T_world @ world_T_anchor``) so all output poses
+                are expressed in the target frame.  Accepts any object
+                supporting the DLPack buffer protocol (``__dlpack__``),
+                including :class:`numpy.ndarray`, :class:`torch.Tensor`,
+                and ``wp.array``.
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -342,7 +674,16 @@ class TeleopSessionLifecycle:
 
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.
-        external_inputs = self._build_external_inputs(anchor_world_matrix_fn)
+        external_inputs = self._build_external_inputs(anchor_world_matrix_fn, target_T_world)
+
+        # When no control pipeline is configured, host-initiated resets use
+        # the execution_events override as a fallback path.
+        execution_events = None
+        if self._pending_reset:
+            from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents, ExecutionState
+
+            execution_events = ExecutionEvents(reset=True, execution_state=ExecutionState.RUNNING)
+            self._pending_reset = False
 
         # Execute one step of the teleop session.
         # If the underlying OpenXR session was destroyed externally (e.g.
@@ -351,7 +692,10 @@ class TeleopSessionLifecycle:
         # can continue rendering (or wait for the session to restart).
         assert self._session is not None  # guaranteed by _try_start_session above
         try:
-            result = self._session.step(external_inputs=external_inputs)
+            result = self._session.step(
+                external_inputs=external_inputs,
+                execution_events=execution_events,
+            )
         except Exception as e:
             logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
@@ -360,11 +704,12 @@ class TeleopSessionLifecycle:
         # Store the right controller TensorGroup for button polling
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
 
-        # Extract the flattened action array from TensorReorderer output
-        action_np = result["action"][0]
-
-        # Convert to torch tensor and move to device
-        action = torch.from_numpy(np.asarray(action_np, dtype=np.float32)).to(self._device)
+        # Extract the flattened action array (DLPack-compatible) from
+        # TensorReorderer and move to the simulation device.
+        action_array = result["action"][0]
+        action = torch.from_dlpack(action_array).to(  # type: ignore[attr-defined]
+            dtype=torch.float32, device=self._device
+        )
 
         return action
 
@@ -395,16 +740,27 @@ class TeleopSessionLifecycle:
     # External input building
     # ------------------------------------------------------------------
 
-    def _build_external_inputs(self, anchor_world_matrix_fn: Callable[[], np.ndarray] | None) -> dict | None:
+    def _build_external_inputs(
+        self,
+        anchor_world_matrix_fn: Callable[[], np.ndarray] | None,
+        target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None,
+    ) -> dict | None:
         """Build external inputs for non-DeviceIO leaf nodes in the pipeline.
 
         Checks whether the active ``TeleopSession`` has external (non-DeviceIO)
         leaf nodes and, for each recognized leaf, constructs the corresponding
         ``TensorGroup`` data.
 
+        When *target_T_world* is provided, the anchor matrix is left-multiplied
+        by the rebase transform so that all pipeline poses are expressed in
+        the target coordinate frame:
+        ``target_T_world @ world_T_anchor = target_T_anchor``.
+
         Args:
             anchor_world_matrix_fn: Callable returning the (4, 4)
                 world-to-anchor transform matrix.
+            target_T_world: Optional (4, 4) rebase transform.  See
+                :meth:`step` for details.
 
         Returns:
             A dict suitable for ``TeleopSession.step(external_inputs=...)``,
@@ -425,6 +781,8 @@ class TeleopSessionLifecycle:
                     anchor_matrix = anchor_world_matrix_fn()
                 else:
                     anchor_matrix = np.eye(4, dtype=np.float32)
+                if target_T_world is not None:
+                    anchor_matrix = _to_numpy_4x4(target_T_world) @ anchor_matrix
                 xform_tg = TensorGroup(TransformMatrix())
                 xform_tg[0] = anchor_matrix
                 external_inputs[leaf_name] = {ValueInput.VALUE: xform_tg}
@@ -435,6 +793,44 @@ class TeleopSessionLifecycle:
                 )
 
         return external_inputs if external_inputs else None
+
+    # ------------------------------------------------------------------
+    # CloudXR runtime auto-launch
+    # ------------------------------------------------------------------
+
+    def _ensure_cloudxr_runtime(self) -> None:
+        """Launch the CloudXR runtime and WSS proxy if configured.
+
+        Uses :class:`~isaacteleop.cloudxr.CloudXRLauncher` to set up the
+        environment, spawn the native runtime process, and start the WSS
+        TLS proxy in a background thread.  The launcher is stored in
+        ``self._cloudxr_launcher`` and shut down in :meth:`stop`.
+
+        Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
+        or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
+        set (the env var takes precedence).
+        """
+        if self._cloudxr_launcher is not None:
+            return
+
+        if os.environ.get("ISAACLAB_CXR_SKIP_AUTOLAUNCH", "").strip() == "1":
+            logger.info("CloudXR auto-launch skipped (ISAACLAB_CXR_SKIP_AUTOLAUNCH=1)")
+            return
+
+        if not self._auto_launch_cloudxr:
+            logger.info("CloudXR auto-launch disabled (auto_launch_cloudxr=False)")
+            return
+
+        from pathlib import Path
+
+        from isaacteleop.cloudxr import CloudXRLauncher as _CloudXRLauncher
+
+        self._cloudxr_launcher = _CloudXRLauncher(
+            install_dir=str(Path.home() / ".cloudxr"),
+            env_config=self._cloudxr_env_file,
+            accept_eula=False,
+        )
+        logger.info("CloudXR runtime auto-launched")
 
     # ------------------------------------------------------------------
     # OpenXR handle acquisition
