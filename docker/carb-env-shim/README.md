@@ -34,33 +34,35 @@ Carb / Kit / Omni plugins call `getenv()` from worker threads while the
 main thread (or Python's startup, or another plugin) is still mutating
 the environment.
 
-## Prebuilt binaries
+## Where the binary comes from
 
-Isaac Lab ships prebuilt shims under:
+The shim ships inside Isaac Sim's Carbonite, so Isaac Lab no longer vendors a
+prebuilt binary. `docker/Dockerfile.base` copies it out of the Isaac Sim
+install tree at image-build time, looking for it under the Carbonite locations:
 
 ```text
-docker/carb-env-shim/linux-x86_64/libcarb.env.shim.so
-docker/carb-env-shim/linux-aarch64/libcarb.env.shim.so   # add when available
+${ISAACSIM_ROOT_PATH}/kit/kernel/plugins/libcarb.env.shim.so
+${ISAACSIM_ROOT_PATH}/kit/libcarb.env.shim.so
+${ISAACSIM_ROOT_PATH}/_build/linux-x86_64/release/kit/kernel/plugins/libcarb.env.shim.so
+${ISAACSIM_ROOT_PATH}/_build/target-deps/carb_sdk_plugins/_build/linux-x86_64/release/libcarb.env.shim.so
 ```
 
-The x86_64 binary is built from Carbonite (Kit) and exports the env
-wrappers listed above. Rebuild and refresh the committed copy when bumping
-the Carbonite version used by Isaac Sim.
-
-To rebuild locally from a Kit tree:
-
-```bash
-# After a Kit release build:
-cp kit/_build/linux-x86_64/release/kernel/plugins/libcarb.env.shim.so \
-   docker/carb-env-shim/linux-x86_64/libcarb.env.shim.so
-```
+The first match is used, with a recursive `find` under `${ISAACSIM_ROOT_PATH}`
+as a fallback. If no shim is found, the build proceeds without registering
+`/etc/ld.so.preload`. Because the source is the Carbonite that Isaac Sim was
+built against, the shim automatically tracks the Isaac Sim version — there is
+nothing to rebuild or refresh in this repo.
 
 ## Activation in Docker
 
-Our `docker/Dockerfile.base` and
-`source/isaaclab/test/install_ci/Dockerfile.installci` install the shim to
-`/usr/local/lib/libcarb.env.shim.so` and register it via
+`docker/Dockerfile.base` installs the shim to
+`/usr/local/lib/libcarb.env.shim.so` and registers it via
 `/etc/ld.so.preload` at image-build time.
+
+`source/isaaclab/test/install_ci/Dockerfile.installci` does **not** register
+the shim: it installs Isaac Sim per-test via pip into throwaway uv/conda
+environments, so there is no Carbonite install tree to copy from at
+image-build time. The shim ships bundled with the pip-installed `isaacsim`.
 
 We use `/etc/ld.so.preload` instead of `ENV LD_PRELOAD` because Isaac Sim's
 `_isaac_sim/python.sh` unconditionally overwrites `LD_PRELOAD` with
@@ -90,7 +92,8 @@ LD_PRELOAD= some-command
 
 ## Updating an existing container image
 
-`/etc/ld.so.preload` is baked in at image-build time. Rebuild the image
-after updating the committed binary. On self-hosted CI runners that cache
+`/etc/ld.so.preload` is baked in at image-build time, copied from the Isaac
+Sim Carbonite then in use. Rebuild the image after bumping the Isaac Sim base
+image to pick up a newer shim. On self-hosted CI runners that cache
 previously-built images, a fresh commit SHA forces a rebuild. You can also
 force-rebuild manually with `docker build --no-cache`.
