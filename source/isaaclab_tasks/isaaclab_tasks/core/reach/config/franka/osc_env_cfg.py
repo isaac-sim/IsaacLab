@@ -9,11 +9,6 @@ from isaaclab.utils.configclass import configclass
 
 from . import joint_pos_env_cfg
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
-
 
 @configclass
 class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
@@ -21,9 +16,7 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Set Franka as robot
-        # We remove stiffness and damping for the shoulder and forearm joints for effort control
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # Remove stiffness and damping for the shoulder and forearm joints for effort control
         self.scene.robot.actuators["panda_shoulder"].stiffness = 0.0
         self.scene.robot.actuators["panda_shoulder"].damping = 0.0
         self.scene.robot.actuators["panda_forearm"].stiffness = 0.0

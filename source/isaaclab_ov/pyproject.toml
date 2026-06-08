@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_ov"
-version = "0.4.2"
+version = "0.4.3"
 description = "Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for tiled camera rendering."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]

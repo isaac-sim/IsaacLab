@@ -18,7 +18,7 @@ from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 _RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
 if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
@@ -363,9 +363,8 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -
     from isaaclab_tasks.utils.hydra import hydra_task_config
 
     original_argv = sys.argv
-    # Fold typed preset selectors into a single ``presets=<csv>`` token before
-    # Hydra reads sys.argv; remainder still carries plain Hydra path overrides.
-    sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+    # Hydra reads the preset tokens (physics=/renderer=/presets=) from sys.argv directly.
+    sys.argv = [sys.argv[0]] + hydra_args
     exported = False
 
     try:

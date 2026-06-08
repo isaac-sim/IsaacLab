@@ -101,7 +101,8 @@ def run(argv: list[str]) -> None:
     task_id = cfg.env.train.init_params.id
     print(f"[INFO] Task: {task_id}")
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S")
+    # Use hyphens instead of colons in time — colons are invalid in Windows paths.
+    timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = RLINF_DIR / "logs" / "rlinf" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] Logging to: {log_dir}")

@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+0.1.4 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.newton.NewtonVisualizer.set_camera_view` so
+  the Newton visualizer follows :meth:`~isaaclab.sim.SimulationContext.set_camera_view`
+  camera updates.
+
+
+0.1.3 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the visualizer tiled camera tutorial support to keep generated Kit
+  tiled camera views synchronized with their target robots.
+
+Fixed
+^^^^^
+
+* Fixed Newton visualizer contact rendering by logging Newton contact buffers
+  when available and falling back to scene contact sensors for PhysX-backed
+  scenes.
+* Fixed Newton visualizer HUD dependency checks by requiring
+  ``typing-extensions>=4.15.0`` for the Newton visualizer extra and failing
+  integration tests when Newton reports that ``imgui_bundle`` could not be
+  imported. Removed the legacy ``setup.py`` for ``isaaclab_visualizers`` now that
+  ``pyproject.toml`` carries the package metadata.
+
+* Fixed Rerun and Viser visualizers rendering Newton infinite ground planes too
+  small by expanding non-positive plane extents to the same large finite size
+  used by Newton GL.
+
+* Fixed Viser visualizer ground-grid flickering by reusing unchanged plane grid
+  line segments instead of removing and re-adding them every frame.
+
+
 0.1.2 (2026-06-05)
 ~~~~~~~~~~~~~~~~~~
 

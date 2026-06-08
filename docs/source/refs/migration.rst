@@ -157,7 +157,7 @@ Two key patterns support this:
    initialized.
 
 For full details, examples, and the ``{DIR}`` placeholder convention, see the
-:ref:`contributing` guide — in particular the
+:doc:`contributing` guide — in particular the
 `Lazy Loading & Module Exports <contributing.html#lazy-loading-module-exports>`__,
 `Resolvable Strings <contributing.html#resolvable-strings>`__, and
 `Config + Implementation File Split <contributing.html#config-implementation-file-split>`__
@@ -197,7 +197,7 @@ With this in place, ``import my_package`` will not eagerly import any submodules
 are loaded on first access, giving ``SimulationApp`` time to initialize and auto-detect the
 correct backend.
 
-For more details, refer to the :ref:`contributing` guide.
+For more details, refer to the :doc:`contributing` guide.
 
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

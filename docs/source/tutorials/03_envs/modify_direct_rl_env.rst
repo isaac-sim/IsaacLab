@@ -19,12 +19,12 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 The Base Code
 ~~~~~~~~~~~~~
 
-For this tutorial, we start from the direct workflow Humanoid environment defined in ``isaaclab_tasks.core.direct_humanoid`` module.
+For this tutorial, we start from the direct workflow Humanoid environment defined in ``isaaclab_tasks.core.locomotion.humanoid`` module.
 
-.. dropdown:: Code for humanoid_env.py
+.. dropdown:: Code for humanoid_direct_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/direct_humanoid/humanoid_env.py
+   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py
       :language: python
       :linenos:
 
@@ -37,8 +37,8 @@ Duplicating the file and registering a new task
 
 To avoid modifying the code of the existing task, we will make a copy of the file containing the Python
 code and perform the modification on this copy. Then, in the Isaac Lab project
-``source/isaaclab_tasks/isaaclab_tasks/core/direct_humanoid``
-folder we make a copy of the ``humanoid_env.py`` file and rename it to ``h1_env.py``.
+``source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid``
+folder we make a copy of the ``humanoid_direct_env.py`` file and rename it to ``h1_env.py``.
 
 Open the ``h1_env.py`` file in a code editor and replace all the humanoid task name (``HumanoidEnv``) and its configuration
 (``HumanoidEnvCfg``) instances to ``H1Env`` and ``H1EnvCfg`` respectively.

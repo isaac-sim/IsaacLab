@@ -75,8 +75,8 @@ parser.add_argument(
     help="""
 A job consists of a workflow and a task name, separated by a colon (wildcards are optional). Examples:
 
-    rl_games:Isaac-Humanoid-*v0      # Wildcard for any Humanoid version
-    rsl_rl:Isaac-Ant-*-v0            # Wildcard for any Ant environment
+    rl_games:Isaac-Humanoid-*        # Wildcard for any Humanoid version
+    rsl_rl:Isaac-Ant-*               # Wildcard for any Ant environment
     *:Isaac-Velocity-Flat-Spot-v0    # Wildcard for any workflow, specific task
 
 Wildcards can be used in either the workflow or task name to match multiple entries.

@@ -65,14 +65,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant-v0 --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Ant-v0 --headless
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Ant --headless
 
 ... Or a robot dog!
 

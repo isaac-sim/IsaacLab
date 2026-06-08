@@ -216,7 +216,7 @@ override is given:
 .. code-block:: bash
 
     # Use Newton physics backend
-    python train.py --task=Isaac-Reach-Franka-v0 env.physics=newton_mjwarp
+    python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -236,10 +236,10 @@ disabled unless explicitly selected:
 .. code-block:: bash
 
     # camera is None -- no camera overhead
-    python train.py --task=Isaac-Reach-Franka-v0
+    python train.py --task=Isaac-Reach-Franka
 
     # activate camera with the "large" preset
-    python train.py --task=Isaac-Reach-Franka-v0 env.scene.camera=large
+    python train.py --task=Isaac-Reach-Franka env.scene.camera=large
 
 
 .. _hydra-backend-solver-presets:
@@ -305,7 +305,7 @@ is currently beta.
     python train.py --task=Isaac-Cartpole env.sim.physics=newton_kamino
 
 The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct``,
-``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole``, and ``Isaac-Ant-v0``. Passing
+``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. Passing
 ``presets=newton_kamino`` to a task without a ``newton_kamino`` preset does not enable Kamino;
 add and validate a task-specific preset first.
 

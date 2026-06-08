@@ -22,6 +22,7 @@ import argparse
 from collections.abc import Callable
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils.string import list_intersection, string_to_callable
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
@@ -53,16 +54,33 @@ parser.add_argument(
     default=True,
     help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
 )
+parser.add_argument(
+    "--external_callback",
+    default=None,
+    help="Fully qualified path to an externally defined callback.",
+)
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli = parser.parse_args()
+args_cli, remaining_args = parser.parse_known_args()
 
 app_launcher_args = vars(args_cli)
 
 # launch omniverse app
 app_launcher = AppLauncher(app_launcher_args)
 simulation_app = app_launcher.app
+
+# Call an external callback if requested.
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
+# Error on unrecognized arguments.
+unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
+if unrecognized_args:
+    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
 """Rest everything follows."""
 
