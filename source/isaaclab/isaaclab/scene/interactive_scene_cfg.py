@@ -124,15 +124,8 @@ class InteractiveSceneCfg:
     """
 
     clone_in_fabric: bool = False
-    """Enable/disable cloning in fabric. Default is False.
+    """Deprecated legacy Fabric cloning flag. Default is False.
 
-    Omniverse Fabric is a more optimized method for performing cloning in scene creation. This reduces the time
-    taken to create the scene. However, it limits flexibility in accessing the stage through USD APIs and instead,
-    the stage must be accessed through USDRT.
-
-    .. note::
-        Cloning in fabric can only be enabled if :attr:`replicated_physics` is also enabled.
-        If :attr:`replicated_physics` is ``False``, cloning in Fabric will automatically
-        default to ``False``.
-
+    Queued replication no longer forwards this flag to the PhysX replicator;
+    ``useFabricForReplication`` is always ``False``.
     """

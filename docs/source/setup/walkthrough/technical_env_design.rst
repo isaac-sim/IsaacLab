@@ -105,11 +105,10 @@ replace the contents of the ``__init__`` and ``_setup_scene`` methods with the f
           self.dof_idx, _ = self.robot.find_joints(self.cfg.dof_names)
 
       def _setup_scene(self):
-          self.robot = Articulation(self.cfg.robot_cfg)
-          # add ground plane
-          spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-          # clone and replicate
-          self.scene.clone_environments(copy_from_source=False)
+          with cloner.ReplicateSession():
+              self.robot = Articulation(self.cfg.robot_cfg)
+              # add ground plane
+              spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
           # add articulation to scene
           self.scene.articulations["robot"] = self.robot
           # add lights

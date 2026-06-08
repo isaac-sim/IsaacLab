@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
@@ -82,9 +83,11 @@ class CartpoleCameraEnv(CartpoleEnv):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
         self.cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = Camera(self.cfg.tiled_camera)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
 
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
         if self.device == "cpu":
             # we need to explicitly filter collisions for CPU simulation
             self.scene.filter_collisions(global_prim_paths=[])
