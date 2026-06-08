@@ -9,4 +9,3 @@ keywords = ["robotics", "simulation", "rendering", "ovrtx", "omniverse"]
 
 [dependencies]
 "isaaclab" = {}
-"isaaclab_ppisp" = {}

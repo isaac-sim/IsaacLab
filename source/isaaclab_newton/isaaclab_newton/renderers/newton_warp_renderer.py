@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import newton
 import torch
@@ -30,6 +30,20 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)
+
+_PPISP_IMPORT_ERROR_MESSAGE = (
+    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
+    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "isaaclab-ppisp extension from the Isaac Lab source checkout."
+)
+
+
+def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
+    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
+    # unrelated missing modules should surface unchanged for easier debugging.
+    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
+        raise exc
+    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
 class RenderData:
@@ -68,10 +82,13 @@ class RenderData:
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalised by Camera by the time it reaches here.
+        # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
+            try:
+                from isaaclab_ppisp import PpispPipeline
+            except ModuleNotFoundError as exc:
+                _raise_missing_ppisp_error(exc)
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
         self._hdr_scratch_wp: wp.array | None = None
@@ -263,7 +280,10 @@ class NewtonWarpRenderer(BaseRenderer):
         """
         if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
-        from isaaclab_ppisp import resolve_and_normalize
+        try:
+            from isaaclab_ppisp import resolve_and_normalize
+        except ModuleNotFoundError as exc:
+            _raise_missing_ppisp_error(exc)
 
         spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
 

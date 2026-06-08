@@ -16,9 +16,7 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "physx"]
 requires-python = ">=3.12"
-dependencies = [
-    "isaaclab_ppisp",
-]
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
