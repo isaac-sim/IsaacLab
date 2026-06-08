@@ -311,6 +311,7 @@ class Articulation(BaseArticulation):
             # Standard Lab actuator path
             self._apply_actuator_model()
             self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
+            self.data._sim_bind_joint_act.assign(self._joint_act_target_sim)
             if self._has_implicit_actuators:
                 self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
                 self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
@@ -510,7 +511,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._get_root_view_articulation_ids())
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -567,7 +568,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._get_root_view_articulation_ids())
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -632,7 +633,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._get_root_view_articulation_ids())
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -693,7 +694,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._get_root_view_articulation_ids())
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -1124,7 +1125,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._get_root_view_articulation_ids())
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1182,7 +1183,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._get_root_view_articulation_ids())
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -3501,8 +3502,59 @@ class Articulation(BaseArticulation):
 
             asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
             walk_root = asset_prim.GetPath().pathString
-            root_prims = get_all_matching_child_prims(walk_root, has_articulation_root_api, expected_num_matches=1)
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+
+            # Find all articulation root prims in the first environment.
+            first_env_root_prims = get_all_matching_child_prims(
+                walk_root,
+                predicate=has_articulation_root_api,
+                traverse_instance_prims=False,
+            )
+            from isaaclab_newton.cloner.newton_replicate import _prim_has_closed_kinematic_loops
+
+            has_closed_loops = _prim_has_closed_kinematic_loops(asset_prim)
+            if len(first_env_root_prims) == 0 or has_closed_loops:
+                # Closed-loop robots (e.g. DR Legs) have cyclic joint graphs that cannot
+                # form a tree-structured Newton ``ArticulationView``. Use ``ClosedLoopView``
+                # which provides strided views into the global Newton model arrays instead.
+                from .closed_loop_view import ClosedLoopView
+
+                if has_closed_loops and len(first_env_root_prims) > 0:
+                    logger.info(
+                        "Closed kinematic loops detected under '%s'; using ClosedLoopView despite"
+                        " ArticulationRootAPI presence.",
+                        walk_root,
+                    )
+                else:
+                    logger.info(
+                        "No ArticulationRootAPI found under '%s'. Using ClosedLoopView for closed-loop robot support.",
+                        walk_root,
+                    )
+                self._root_view = ClosedLoopView(
+                    SimulationManager.get_model(),
+                    self.cfg.prim_path.replace(".*", "*"),
+                )
+                SimulationManager.get_physics_sim_view().append(self._root_view)
+                self._data = ArticulationData(self.root_view, self.device)
+                self._physics_ready_handle = SimulationManager.register_callback(
+                    lambda _: self._data._create_simulation_bindings(),
+                    PhysicsEvent.PHYSICS_READY,
+                    name=f"articulation_rebind_{self.cfg.prim_path}",
+                )
+                self._create_buffers()
+                self._process_cfg()
+                self._process_actuators_cfg()
+                self._process_tendons()
+                # Let the articulation data know that it is fully instantiated and ready to use.
+                self.data.is_primed = True
+                return
+            if len(first_env_root_prims) > 1:
+                raise RuntimeError(
+                    f"Failed to find a single articulation when resolving '{walk_root}'."
+                    f" Found multiple '{first_env_root_prims}' under '{walk_root}'."
+                    " Please ensure that there is only one articulation in the prim path tree."
+                )
+
+            root_prim_path_expr = root_expr + first_env_root_prims[0].GetPath().pathString[len(walk_root) :]
         # -- articulation
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
@@ -3538,6 +3590,17 @@ class Articulation(BaseArticulation):
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
 
+    def _get_root_view_articulation_ids(self) -> wp.array | None:
+        """Return the root view's ``articulation_ids``, or ``None`` for closed-loop assets.
+
+        :class:`ClosedLoopView` exposes an empty ``(world_count, 0)`` array, so returning
+        ``None`` makes the reset machinery scope by ``env_ids`` / ``env_mask`` instead.
+        """
+        art_ids = getattr(self._root_view, "articulation_ids", None)
+        if art_ids is None or art_ids.ndim < 2 or art_ids.shape[1] == 0:
+            return None
+        return art_ids
+
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks, including the physics-ready rebind handle."""
         super()._clear_callbacks()
@@ -3572,6 +3635,7 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
         self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
         self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_act_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
@@ -3975,6 +4039,9 @@ class Articulation(BaseArticulation):
                 gear_ratio = actuator.gear_ratio
             else:
                 gear_ratio = None
+            target_torque_buf = (
+                self._joint_act_target_sim if actuator.route_torque_to == "joint_act" else self._joint_effort_target_sim
+            )
             wp.launch(
                 articulation_kernels.update_targets,
                 dim=(self.num_instances, joint_indices.shape[0]),
@@ -3987,7 +4054,7 @@ class Articulation(BaseArticulation):
                 outputs=[
                     self._joint_pos_target_sim,
                     self._joint_vel_target_sim,
-                    self._joint_effort_target_sim,
+                    target_torque_buf,
                 ],
                 device=self.device,
             )

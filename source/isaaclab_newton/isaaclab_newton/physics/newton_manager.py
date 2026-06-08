@@ -108,13 +108,13 @@ def _sync_particle_points(
 def _or_reset_masks_from_mask(
     env_mask: wp.array(dtype=wp.bool),
     articulation_ids: wp.array2d(dtype=int),
-    world_mask: wp.array(dtype=wp.int32),
+    world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
     """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
     world, arti = wp.tid()
     if env_mask[world]:
-        world_mask[world] = wp.int32(1)
+        world_mask[world] = True
         fk_mask[articulation_ids[world, arti]] = True
 
 
@@ -122,14 +122,37 @@ def _or_reset_masks_from_mask(
 def _scatter_reset_masks_from_ids(
     env_ids: wp.array(dtype=int),
     articulation_ids: wp.array2d(dtype=int),
-    world_mask: wp.array(dtype=wp.int32),
+    world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
     """Scatter-set world_mask and fk_mask from sparse env_ids."""
     i, arti = wp.tid()
     world = env_ids[i]
-    world_mask[world] = wp.int32(1)
+    world_mask[world] = True
     fk_mask[articulation_ids[world, arti]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _or_world_mask_from_env_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    world_mask: wp.array(dtype=wp.bool),
+):
+    """OR env_mask into world_mask. Used when articulation_ids is unavailable
+    (e.g. closed-loop assets whose root view does not expose them)."""
+    world = wp.tid()
+    if env_mask[world]:
+        world_mask[world] = True
+
+
+@wp.kernel(enable_backward=False)
+def _scatter_world_mask_from_ids(
+    env_ids: wp.array(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
+):
+    """Scatter-set world_mask from sparse env_ids. Used when articulation_ids
+    is unavailable (e.g. closed-loop assets whose root view does not expose them)."""
+    i = wp.tid()
+    world_mask[env_ids[i]] = True
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -228,8 +251,11 @@ class NewtonManager(PhysicsManager):
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     # Per-world reset masks (allocated in start_simulation, consumed in step)
-    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.int32 — for SolverKamino.reset(world_mask=...)
+    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
+    # Set by ``invalidate_fk`` and consumed by ``NewtonKaminoManager.step`` / ``forward``
+    # so the Kamino solver reset only runs on steps where a reset actually occurred.
+    _kamino_needs_reset: bool = False
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
@@ -679,6 +705,7 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
+        NewtonManager._kamino_needs_reset = False
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._newton_stage_path = None
@@ -933,6 +960,9 @@ class NewtonManager(PhysicsManager):
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
 
+        # Flag a pending Kamino solver reset; consumed by NewtonKaminoManager.
+        NewtonManager._kamino_needs_reset = True
+
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
                 _or_reset_masks_from_mask,
@@ -949,9 +979,33 @@ class NewtonManager(PhysicsManager):
                 outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
                 device=PhysicsManager._device,
             )
+        elif env_mask is not None:
+            # No articulation_ids (e.g. closed-loop assets whose root view does not expose
+            # them): scope the world reset to the dirty envs only. Do NOT fall back to
+            # ``fill_(1)`` here — that would snap every env's body_q to the base state on the
+            # next Kamino reset, leaking one env's reset into its peers.
+            wp.launch(
+                _or_world_mask_from_env_mask,
+                dim=env_mask.shape,
+                inputs=[env_mask],
+                outputs=[NewtonManager._world_reset_mask],
+                device=PhysicsManager._device,
+            )
+            # Closed-loop assets have articulation_count == 0, so this is a no-op on a
+            # zero-length array; for tree assets it conservatively refreshes all FK.
+            NewtonManager._fk_reset_mask.fill_(True)
+        elif env_ids is not None:
+            wp.launch(
+                _scatter_world_mask_from_ids,
+                dim=env_ids.shape,
+                inputs=[env_ids],
+                outputs=[NewtonManager._world_reset_mask],
+                device=PhysicsManager._device,
+            )
+            NewtonManager._fk_reset_mask.fill_(True)
         else:
-            # Fallback: no topology info — mark everything dirty
-            NewtonManager._world_reset_mask.fill_(1)
+            # True fallback: no topology AND no env info — mark everything dirty.
+            NewtonManager._world_reset_mask.fill_(True)
             NewtonManager._fk_reset_mask.fill_(True)
 
     @classmethod
@@ -982,8 +1036,13 @@ class NewtonManager(PhysicsManager):
         if cls._pending_extended_state_attributes:
             cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
             NewtonManager._pending_extended_state_attributes = set()
+        # Kamino works in maximal coordinates with closed loops, so assets without an
+        # ArticulationRootAPI (e.g. DR Legs) legitimately have joints outside any
+        # articulation; skip the tree-joint validation for Kamino only.
+        _solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        _skip_joint_validation = getattr(_solver_cfg, "solver_type", "") == "kamino"
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
-            NewtonManager._model = cls._builder.finalize(device=device)
+            NewtonManager._model = cls._builder.finalize(device=device, skip_validation_joints=_skip_joint_validation)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
@@ -1007,7 +1066,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._use_newton_actuators_active = False
 
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset)
-        NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.int32, device=device)
+        NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls._model.articulation_count, dtype=wp.bool, device=device)
 
         logger.info("Dispatching PHYSICS_READY callbacks")
