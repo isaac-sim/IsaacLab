@@ -44,6 +44,11 @@ SUPPORTED_TILED_VISUALIZERS = {"kit", "newton"}
 UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
 
 
+def _resolve_env_regex_path(prim_path: str) -> str:
+    """Resolve scene config env namespace macros to the cloned-env regex."""
+    return prim_path.format(ENV_REGEX_NS="/World/envs/env_.*")
+
+
 def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
     """Return requested visualizers, defaulting to Kit for this tutorial."""
     visualizers = args_cli.visualizer or ["kit"]
@@ -63,13 +68,21 @@ def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
     return visualizers
 
 
-def _make_kit_visualizer_cfg(args_cli: argparse.Namespace):
-    """Create generated tiled cameras that follow each Anymal-D base."""
+def _make_kit_visualizer_cfg(env_cfg):
+    """Create the Kit tiled-camera visualizer for the selected task."""
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     visualizer_cfg = KitVisualizerCfg()
     visualizer_cfg.tiled_cam_view = True
     visualizer_cfg.tiled_cam_num = 36
+
+    ego_cam_cfg = getattr(env_cfg.scene, "ego_cam", None)
+    if ego_cam_cfg is not None:
+        visualizer_cfg.tiled_cam_prim_path = _resolve_env_regex_path(ego_cam_cfg.prim_path)
+        visualizer_cfg.tiled_cam_eye = None
+        visualizer_cfg.tiled_cam_target_prim_path = None
+        return visualizer_cfg
+
     visualizer_cfg.tiled_cam_prim_path = None
     # Here is an alternative eye position for a top down view
     # visualizer_cfg.tiled_cam_eye = (0.0, 0.0, 5.0)
@@ -99,7 +112,7 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
     visualizers = _requested_visualizers(args_cli)
     args_cli.visualizer = visualizers
     env_cfg.sim.visualizer_cfgs = [
-        _make_kit_visualizer_cfg(args_cli) if visualizer == "kit" else _make_newton_visualizer_cfg()
+        _make_kit_visualizer_cfg(env_cfg) if visualizer == "kit" else _make_newton_visualizer_cfg()
         for visualizer in visualizers
     ]
 
