@@ -78,11 +78,11 @@ def test_backend_unset_is_noop():
 
 
 def _inject_preset_with_validation(args_cli, hydra_args: list[str], has_physics_preset_fn) -> list[str]:
-    """Mirror of the new gated injection in benchmark_rsl_rl.py.
+    """Mirror of the gated injection in benchmark_rsl_rl.py.
 
     has_physics_preset_fn is the only injection point — the test passes
-    a stub returning True / False; the production caller passes the real
-    has_physics_preset(raw_cfg, name) closure.
+    a stub returning True / False. In production this is the membership test
+    ``name in enumerate_task_presets(task)[PresetTarget.PHYSICS]``.
     """
     import sys
 
@@ -94,9 +94,7 @@ def _inject_preset_with_validation(args_cli, hydra_args: list[str], has_physics_
         return hydra_args
     if not has_physics_preset_fn(args_cli.backend):
         sys.stderr.write(
-            f"[ERROR] preset_unsupported: task {args_cli.task!r} has no "
-            f"{args_cli.backend!r} preset. Inspect raw_cfg.sim.physics or "
-            f"re-enumerate {{physx,newton}}_envs.yaml.\n"
+            f"[ERROR] preset_unsupported: task {args_cli.task!r} has no {args_cli.backend!r} physics preset.\n"
         )
         sys.exit(2)
     return [f"presets={args_cli.backend}"] + hydra_args
@@ -138,11 +136,13 @@ def _inject_preset_with_validation_v2(
     has_physics_preset_fn,
     native_backend_matches_fn,
 ) -> list[str]:
-    """Mirror of the new gated injection in benchmark_rsl_rl.py (post native-backend fix).
+    """Mirror of the gated injection in benchmark_rsl_rl.py (with native-backend fallback).
 
     Two stub injection points:
-      - has_physics_preset_fn(name) -> bool (existing)
-      - native_backend_matches_fn(name) -> bool (new)
+      - has_physics_preset_fn(name) -> bool: production is
+        ``name in enumerate_task_presets(task)[PresetTarget.PHYSICS]``
+      - native_backend_matches_fn(name) -> bool: production is
+        ``_native_backend_matches(raw_cfg, name)``
     """
     import sys
 
@@ -163,8 +163,8 @@ def _inject_preset_with_validation_v2(
         return hydra_args
     sys.stderr.write(
         f"[ERROR] preset_unsupported: task {args_cli.task!r} has no "
-        f"{args_cli.backend!r} preset. Inspect raw_cfg.sim.physics or "
-        f"re-enumerate {{physx,newton}}_envs.yaml.\n"
+        f"{args_cli.backend!r} physics preset and does not run on "
+        f"{args_cli.backend!r} natively.\n"
     )
     raise SystemExit(2)
 

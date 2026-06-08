@@ -157,45 +157,53 @@ if args_cli.video:
 
 # Map --backend X to hydra presets=X so the physics preset is applied
 # at config-resolve time.  Validate the request first: if the task does
-# not have an X preset, exit fast with a stable stderr prefix the
-# Asgard worker classifier matches on.  An explicit presets=... on
-# the CLI bypasses validation (operator override).
+# not advertise an X physics preset, exit fast with a stable
+# ``preset_unsupported`` stderr prefix.  An explicit presets=... on the
+# CLI bypasses validation (operator override).
 if args_cli.backend is not None:
     existing_presets = [a for a in hydra_args if a.startswith("presets=")]
     if existing_presets:
         print(f"[WARNING] --backend={args_cli.backend} ignored because {existing_presets[0]} was explicitly passed.")
     else:
-        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-        from isaaclab_tasks.utils.presets import has_physics_preset
+        from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
+        from isaaclab_tasks.utils.preset_target import PresetTarget
 
-        try:
-            _raw_cfg = load_cfg_from_registry(args_cli.task, "env_cfg_entry_point")
-        except Exception as exc:  # noqa: BLE001 — fall through to original behaviour
-            print(
-                f"[WARNING] could not load raw cfg for {args_cli.task!r} "
-                f"to validate preset support ({type(exc).__name__}: {exc}); "
-                f"injecting presets={args_cli.backend} unchecked.",
-                file=sys.stderr,
-            )
+        preset_map = enumerate_task_presets(args_cli.task)
+        physics_presets = preset_map.get(PresetTarget.PHYSICS, []) if preset_map is not None else []
+        if args_cli.backend in physics_presets:
             hydra_args = [f"presets={args_cli.backend}"] + hydra_args
         else:
-            if has_physics_preset(_raw_cfg, args_cli.backend):
-                hydra_args = [f"presets={args_cli.backend}"] + hydra_args
-            elif _native_backend_matches(_raw_cfg, args_cli.backend):
+            # No advertised <backend> physics preset. The task may still run on
+            # that backend natively (sim.physics is already that type), in which
+            # case no injection is needed; otherwise the request is unsupported.
+            from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+            try:
+                _raw_cfg = load_cfg_from_registry(args_cli.task, "env_cfg_entry_point")
+            except Exception as exc:  # noqa: BLE001 — fall through to unchecked injection
                 print(
-                    f"[INFO] task {args_cli.task!r} has no '{args_cli.backend}' "
-                    f"preset; running on native {args_cli.backend} backend (no "
-                    f"injection).",
+                    f"[WARNING] could not load raw cfg for {args_cli.task!r} "
+                    f"to validate preset support ({type(exc).__name__}: {exc}); "
+                    f"injecting presets={args_cli.backend} unchecked.",
                     file=sys.stderr,
                 )
-                # No injection — hydra_args unchanged.
+                hydra_args = [f"presets={args_cli.backend}"] + hydra_args
             else:
-                sys.stderr.write(
-                    f"[ERROR] preset_unsupported: task {args_cli.task!r} has no "
-                    f"{args_cli.backend!r} preset. Inspect raw_cfg.sim.physics or "
-                    f"re-enumerate {{physx,newton}}_envs.yaml.\n"
-                )
-                sys.exit(2)
+                if _native_backend_matches(_raw_cfg, args_cli.backend):
+                    print(
+                        f"[INFO] task {args_cli.task!r} has no '{args_cli.backend}' "
+                        f"preset; running on native {args_cli.backend} backend (no "
+                        f"injection).",
+                        file=sys.stderr,
+                    )
+                    # No injection — hydra_args unchanged.
+                else:
+                    sys.stderr.write(
+                        f"[ERROR] preset_unsupported: task {args_cli.task!r} has no "
+                        f"{args_cli.backend!r} physics preset and does not run on "
+                        f"{args_cli.backend!r} natively.\n"
+                    )
+                    sys.exit(2)
 
 # Re-set sys.argv so the --backend coercion above propagates to Hydra.
 sys.argv = [sys.argv[0]] + hydra_args
