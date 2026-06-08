@@ -59,7 +59,7 @@ To run the tutorial with the args for this example, use:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
      --enable_cameras \
      --task Isaac-Velocity-Rough-Anymal-D-v0 \
      --num_envs 256 \
@@ -110,7 +110,7 @@ To launch this example, run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
      --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 \
      --num_envs 25 \
      --viz newton

@@ -115,7 +115,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   python scripts/environments/teleoperation/teleop_se3_agent.py \
        --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
        --visualizer kit \
        --xr
@@ -150,7 +150,7 @@ use the ``--cloudxr_env`` flag:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   python scripts/environments/teleoperation/teleop_se3_agent.py \
        --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
        --visualizer kit \
        --xr \
@@ -273,7 +273,7 @@ choose the tab that matches your hardware.
 
          .. code-block:: bash
 
-            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+            python scripts/environments/teleoperation/teleop_se3_agent.py \
                 --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
                 --visualizer kit --xr \
                 --cloudxr_env avp
@@ -400,16 +400,36 @@ hand tracking from the headset is occluded or when higher-precision finger data 
    (optimised for headset optical hand tracking). To use Manus gloves, create a custom
    ``.env`` file with the value set to ``1`` and pass it via ``--cloudxr_env``:
 
-   .. code-block:: bash
+   .. tab-set::
+      :sync-group: os
 
-      # Copy a shipped profile and enable push devices
-      cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
-      sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
 
-      ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
-          --visualizer kit --xr \
-          --cloudxr_env ~/manus.env
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            python scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code-block:: batch
+
+            REM Copy a shipped profile and enable push devices
+            for /f "delims=" %%i in ('python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)"') do copy "%%i" %USERPROFILE%\manus.env
+            powershell -Command "(Get-Content $env:USERPROFILE\manus.env) -replace 'NV_CXR_ENABLE_PUSH_DEVICES=0','NV_CXR_ENABLE_PUSH_DEVICES=1' | Set-Content $env:USERPROFILE\manus.env"
+
+            python scripts\environments\teleoperation\teleop_se3_agent.py ^
+                --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 ^
+                --visualizer kit --xr ^
+                --cloudxr_env %USERPROFILE%\manus.env
 
    See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
 
@@ -452,7 +472,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
+   python scripts/tools/record_demos.py \
      --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
      --num_demos 5 \
      --dataset_file ./datasets/dataset.hdf5 \

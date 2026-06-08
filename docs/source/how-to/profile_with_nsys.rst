@@ -28,7 +28,7 @@ Prerequisites
 
   .. code-block:: bash
 
-     ./isaaclab.sh -p -m pip install nvtx
+     python -m pip install nvtx
 
 
 Running a Profile
@@ -88,7 +88,7 @@ After editing the JSON, run the sync test to confirm every entry resolves:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p -m pytest scripts/benchmarks/test/test_nsys_trace.py
+   python -m pytest scripts/benchmarks/test/test_nsys_trace.py
 
 
 Troubleshooting
@@ -96,7 +96,7 @@ Troubleshooting
 
 - **An expected domain doesn't appear in the timeline:**
 
-  - Confirm ``nvtx`` is installed in your Isaac Lab environment (``./isaaclab.sh -p -m pip show nvtx``).
+  - Confirm ``nvtx`` is installed in your Isaac Lab environment (``python -m pip show nvtx``).
   - Make sure the function is actually called during the profiled run.
   - Verify the JSON entry by running the sync test (above).
 
