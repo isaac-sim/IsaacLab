@@ -55,7 +55,7 @@ RUN apt-get update && \
 # mutate the environment, which intermittently crashes CI with
 # `libc.so.6!getenv+0x56` SIGSEGVs. The shim now ships inside Isaac Sim's
 # Carbonite, so we copy it out of the install tree rather than vendoring a
-# prebuilt binary. See docker/carb-env-shim/README.md.
+# prebuilt binary.
 #
 # Activation uses /etc/ld.so.preload (not ENV LD_PRELOAD) because Isaac Sim's
 # `_isaac_sim/python.sh` unconditionally overwrites LD_PRELOAD with

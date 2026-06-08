@@ -81,14 +81,6 @@ ARG ISAACLAB_PATH=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH}
 COPY . ${ISAACLAB_PATH}
 
-# NOTE: The Carbonite env shim (libcarb.env.shim.so) that serializes glibc's
-# environment functions now ships inside Isaac Sim's Carbonite. This install_ci
-# image installs Isaac Sim later, per-test, via pip into throwaway uv/conda
-# environments, so there is no Carbonite install tree to copy the shim out of at
-# image-build time. The shim therefore comes bundled with the pip-installed
-# `isaacsim` and is not registered via /etc/ld.so.preload here. See
-# docker/carb-env-shim/README.md.
-
 # Fix line endings in .sh files (Win git may add \r)
 RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
