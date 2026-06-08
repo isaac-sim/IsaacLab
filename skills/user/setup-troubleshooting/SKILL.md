@@ -17,7 +17,7 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 
 ## Workflow
 
-1. Identify the install mode: pip, source, binary, cloud, kitless, or backend-specific setup.
+1. Identify the install mode: pip, uv, source, binary, cloud, kitless, or backend-specific setup.
 2. Identify OS, Python environment, GPU/driver context, Isaac Sim source, and target backend.
 3. Read the matching installation guide and troubleshooting reference before prescribing commands.
 4. Use documented Isaac Lab wrapper commands such as `./isaaclab.sh -p` for Python and tests.

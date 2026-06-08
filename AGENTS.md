@@ -91,6 +91,7 @@ Proper workflow:
 
 - Repo-owned agent skills live under `skills/`.
 - Developer workflow skills live under `skills/developer/`; user-facing skills live under `skills/user/`.
+- For PR preparation, follow the `isaaclab-preparing-pr-workflow` skill at `skills/developer/pr-workflow/SKILL.md`.
 - Keep `SKILL.md` files concise and link to one-level reference files for longer details.
 - Keep official docs and maintained source examples as the source of truth; skills should route agents through those references instead of duplicating them.
 - Validate skills with `./isaaclab.sh -p tools/skills/cli.py check` before opening a PR that changes `skills/`.

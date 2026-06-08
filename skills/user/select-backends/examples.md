@@ -31,7 +31,7 @@ If the preset name is not listed, do not guess. Add or update the task's backend
 Once reset/step behavior is stable on the selected backend:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Ant-v0 physics=physx
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Ant-v0 physics=physx
 ```
 
 Repeat the same small smoke test on every backend before comparing training curves.

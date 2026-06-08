@@ -1,5 +1,11 @@
 .. _tutorial-create-direct-rl-env:
 
+.. seealso::
+
+   This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
+   (`skills/user/domain-randomization-events/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/domain-randomization-events/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/overview/developer-guide/agent_skills`.
 
 Creating a Direct Workflow RL Environment
 =========================================

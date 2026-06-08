@@ -60,4 +60,4 @@ Known failure modes:
 
 - Answers only with a link to the training guide.
 - Uses the SB3 command for an RSL-RL request.
-- Omits `./isaaclab.sh -p`.
+- Uses deprecated per-library scripts under `scripts/reinforcement_learning/`.

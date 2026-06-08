@@ -14,6 +14,7 @@ Ask which install path the user is following before prescribing commands:
 | User context | First reference |
 | --- | --- |
 | Source checkout | `docs/source/setup/installation/source_installation.rst` |
+| uv-managed environment | `docs/source/setup/quickstart.rst` and `docs/source/setup/installation/uv_run.rst` |
 | Pip package | `docs/source/setup/installation/pip_installation.rst` |
 | Isaac Lab pip package | `docs/source/setup/installation/isaaclab_pip_installation.rst` |
 | Binary package | `docs/source/setup/installation/binaries_installation.rst` |
@@ -39,7 +40,7 @@ For task import and stepping:
 For training entry points:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --max_iterations 1
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --max_iterations 1
 ```
 
 ## Common Failure Routing

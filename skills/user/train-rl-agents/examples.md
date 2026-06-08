@@ -9,25 +9,25 @@ Training runs headless by default; omit any visualizer flag for fastest training
 RSL-RL:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --run_name ppo
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --run_name ppo
 ```
 
 RL-Games direct Cartpole:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0
+./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Direct-v0
 ```
 
 Stable Baselines 3:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
+./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0 --num_envs 64
 ```
 
 SKRL:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Cartpole-v0
+./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole-v0
 ```
 
 ## Before Training
@@ -51,13 +51,13 @@ TensorBoard example:
 Play example:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Cartpole-v0 --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
+./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole-v0 --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
 ```
 
 Resume example:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --resume --load_run RUN_NAME --checkpoint model_100.pt
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
 
 ## Config Lookup

@@ -18,7 +18,7 @@ Smoke-test pattern:
 Training pattern:
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-Cartpole-Direct-v0
+./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Direct-v0
 ```
 
 ## Manager-Based Workflow
