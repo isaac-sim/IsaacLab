@@ -29,11 +29,11 @@ For instance, if you want to use your own modified version of the `rsl-rl`_ libr
 
    .. code-block:: bash
 
-      # Assuming you are in the root directory of the Isaac Lab repository
-      cd IsaacLab
+     # Assuming you are in the root directory of the Isaac Lab repository
+     cd IsaacLab
 
-      # Note: If you are using a virtual environment, make sure to activate it before running the following command
-      python -m pip install -e /path/to/rsl_rl
+     # Note: If you are using a virtual environment, make sure to activate it before running the following command
+     python -m pip install -e /path/to/rsl_rl
 
 In this case, the ``rsl-rl`` library will be installed in the Python environment used by Isaac Lab. You can now use the
 ``rsl-rl`` library in your experiments. To check the library version and other details, you can use the following
