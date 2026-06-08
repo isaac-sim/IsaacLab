@@ -24,6 +24,7 @@ from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_mat
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
@@ -59,6 +60,7 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_newton_physics_replication(cfg)
 
     """
     Properties

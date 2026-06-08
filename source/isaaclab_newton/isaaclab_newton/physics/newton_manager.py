@@ -608,8 +608,8 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def close(cls) -> None:
         """Clean up Newton physics resources."""
-        cls.clear()
         super().close()
+        cls.clear()
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend | None:

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.5 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton deformable clone replication and Fabric particle sync setup.
+
+
 0.4.4 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 

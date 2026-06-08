@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.4 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.newton.NewtonVisualizer.set_camera_view` so
+  the Newton visualizer follows :meth:`~isaaclab.sim.SimulationContext.set_camera_view`
+  camera updates.
+
+
 0.1.3 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 
