@@ -160,29 +160,41 @@ def spawn_usd_with_physics(
     # (handles preprocessed/fixed USDs with no collision setup).
     # If some meshes already have it (simready), only those get a collider.
     root_prim = stage.GetPrimAtPath(prim_path)
-    has_any_collision = any(
-        p.HasAPI(UsdPhysics.CollisionAPI)
-        for p in Usd.PrimRange(root_prim)
-        if p.IsA(UsdGeom.Mesh)
-    )
+    has_any_collision = any(p.HasAPI(UsdPhysics.CollisionAPI) for p in Usd.PrimRange(root_prim) if p.IsA(UsdGeom.Mesh))
     if not has_any_collision:
         for p in Usd.PrimRange(root_prim):
             if p.IsA(UsdGeom.Mesh):
                 UsdPhysics.CollisionAPI.Apply(p)
 
-    # Pick the mesh collision approximation per body. Kinematic (fixed) bodies
-    # such as the socket can use an exact triangle-mesh collider, which - unlike
-    # SDF - does not require a watertight surface. The converted CAD socket
-    # meshes are not watertight (open boundary edges), so an SDF collider yields
-    # a leaky signed-distance field and unstable contact. PhysX does not allow
-    # triangle-mesh colliders on dynamic bodies, so the dynamic plug keeps SDF.
+    # Pick the mesh collision approximation per body.
+    #
+    # Socket (kinematic): an exact triangle-mesh collider preserves the concave
+    # receptacle cavity (a convex hull would fill the opening, leaving no hole
+    # for the blade). Triangle mesh also does not require a watertight surface,
+    # which the converted CAD meshes are not.
+    #
+    # Plug (dynamic): must use SDF, not a convex approximation. The blade (Body1)
+    # is a hollow shroud whose recess RECEIVES the socket tongue (Body5); a convex
+    # hull fills that recess solid (it spans 92% of the blade bbox) and rams the
+    # tongue, ejecting the plug. SDF preserves the concave recess. PhysX forbids
+    # triangle-mesh colliders on dynamic bodies, so SDF is the only concave option.
+    # High resolution is needed for the connector's thin shroud / fine features.
     is_kinematic = cfg.rigid_props is not None and bool(cfg.rigid_props.kinematic_enabled)
     if is_kinematic:
         mesh_collision_cfg = schemas_cfg.TriangleMeshPropertiesCfg()
     else:
-        # Higher SDF resolution resolves the connector's thin shell / fine
-        # features; default (256) is marginal for sub-millimetre mating geometry.
-        mesh_collision_cfg = schemas_cfg.SDFMeshPropertiesCfg(sdf_resolution=512)
+        # convexDecomposition: solid convex pieces give reliable (non-leaky)
+        # contact, while the decomposition preserves the gross concavity (blade
+        # shroud recess + overmold underside recess) that the socket tongue and
+        # top face must tuck into. High voxel resolution + small min_thickness so
+        # the 0.4 mm shroud walls and recesses are not merged solid.
+        mesh_collision_cfg = schemas_cfg.ConvexDecompositionPropertiesCfg(
+            max_convex_hulls=128,
+            voxel_resolution=1_000_000,
+            min_thickness=0.0001,
+            hull_vertex_limit=64,
+            shrink_wrap=True,
+        )
     _apply_mesh_collision_to_meshes(stage, prim_path, mesh_collision_cfg)
 
     if cfg.collision_props is not None:

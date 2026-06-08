@@ -73,13 +73,23 @@ class DisplayPortPlug(RigidObjectCfg):
     prim_path = "{ENV_REGEX_NS}/DisplayPortPlug"
     spawn = sim_utils.UsdFileCfg(
         func=_SPAWNER,
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_plug.usd"),
-        scale=(0.01, 0.01, 0.01),
+        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_plug.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),
+        # The simready asset's raw geometry is in INCHES; its root carries an
+        # `xformOp:scale:meter_normalization=(0.0254,...)` (inch->metre). Isaac
+        # Lab's create_prim REPLACES that op with cfg.scale, so cfg.scale must be
+        # 0.0254 to reproduce the asset's intended real size (mating cavity
+        # ~16.7 mm = real DisplayPort). Earlier values were wrong: 1.0 -> 40x too
+        # big (~1.5 m); 0.01 -> 39% of true size (~6.6 mm cavity).
+        scale=(0.0254, 0.0254, 0.0254),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             kinematic_enabled=False,
-            max_depenetration_velocity=5.0,
+            # Gentle depenetration: a high value (5.0) turns any residual contact
+            # overlap at the tight mate into an explosive ejection. 0.5 lets PhysX
+            # resolve overlaps smoothly without launching the plug.
+            max_depenetration_velocity=0.5,
             linear_damping=0.0,
             angular_damping=0.0,
             max_linear_velocity=1000.0,
@@ -87,13 +97,22 @@ class DisplayPortPlug(RigidObjectCfg):
             enable_gyroscopic_forces=True,
             solver_position_iteration_count=128,
             solver_velocity_iteration_count=1,
-            max_contact_impulse=1e32,
+            # No max-impulse cap (1e32 effectively uncapped it but combined with a
+            # high depenetration velocity amplified contact blow-ups). Use the
+            # PhysX default by leaving it unset.
+            max_contact_impulse=None,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.001, rest_offset=0.0),
+        # Tight DP mate: cavity-to-blade clearance is ~0.5 mm per side, so a 1 mm
+        # contact_offset kept the blade's contact shell permanently overlapping the
+        # cavity walls and slowly pushed the plug out. Use 0.3 mm.
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0003, rest_offset=0.0),
     )
+    # NOTE: seated pose under verification (scripts/dp_verify_seated_geometry.py).
+    # The dp_insertion_test.py best-of-24 solver pose was geometrically wrong
+    # (blade floated ~22 mm beside the socket, not in the hole). rot is (w,x,y,z).
     init_state = RigidObjectCfg.InitialStateCfg(
-        pos=(0.0, 0.0, SOCKET_HEIGHT + 0.05),
+        pos=(0.0, 0.0, 0.2096),
         rot=PLUG_DROP_ROT,
     )
 
@@ -106,8 +125,11 @@ class DisplayPortSocket(RigidObjectCfg):
     spawn = sim_utils.UsdFileCfg(
         func=_SPAWNER,
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584N111_Displayport Cord_socket_screws_removed_material_physics.usd"),
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_socket.usd"),
-        scale=(0.01, 0.01, 0.01),
+        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_socket.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),
+        # See plug note: asset geometry is in inches; cfg.scale restores the
+        # importer's inch->metre normalization (0.0254) clobbered by create_prim.
+        scale=(0.0254, 0.0254, 0.0254),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -123,7 +145,8 @@ class DisplayPortSocket(RigidObjectCfg):
             max_contact_impulse=1e32,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=None),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.001, rest_offset=0.0),
+        # Match the plug's tight contact_offset (see plug note).
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0003, rest_offset=0.0),
     )
     init_state = RigidObjectCfg.InitialStateCfg(
         pos=(0.0, 0.0, SOCKET_HEIGHT),
