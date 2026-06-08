@@ -216,7 +216,7 @@ will automatically be created for the actor. This avoids the need to separately 
 |     super().set_up_scene(scene)                                              |     # add ground plane                                                 |
 |                                                                              |     spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg() |
 |     self._cartpoles = ArticulationView(                                      |     # clone, filter, and replicate                                     |
-|                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     self.scene.clone_environments(copy_from_source=False)              |
+|                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     # assets are built inside ReplicateSession                         |
 |                  name="cartpole_view", reset_xform_properties=False          |     self.scene.filter_collisions(global_prim_paths=[])                 |
 |     )                                                                        |     # add articulation to scene                                        |
 |     scene.add(self._cartpoles)                                               |     self.scene.articulations["cartpole"] = self.cartpole               |
@@ -633,8 +633,8 @@ Adding actors to the scene has been replaced by ``self.scene.articulations["cart
 |     super().set_up_scene(scene)                           |     spawn_ground_plane(prim_path="/World/ground",        |
 |     self._cartpoles = ArticulationView(                   |         cfg=GroundPlaneCfg())                            |
 |         prim_paths_expr="/World/envs/.*/Cartpole",        |     # clone, filter, and replicate                       |
-|         name="cartpole_view",                             |     self.scene.clone_environments(                       |
-|         reset_xform_properties=False                      |         copy_from_source=False)                          |
+|         name="cartpole_view",                             |     # assets are built inside ReplicateSession           |
+|         reset_xform_properties=False                      |                                                          |
 |     )                                                     |     self.scene.filter_collisions(                        |
 |     scene.add(self._cartpoles)                            |         global_prim_paths=[])                            |
 |     return                                                |     # add articulation to scene                          |

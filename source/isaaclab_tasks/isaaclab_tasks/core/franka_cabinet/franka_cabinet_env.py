@@ -11,6 +11,7 @@ import warp as wp
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.utils.stage import get_current_stage
@@ -134,9 +135,11 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
 
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])

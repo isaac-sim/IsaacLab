@@ -20,6 +20,7 @@ from pxr import UsdPhysics
 
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -27,6 +28,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
+from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .rigid_object_data import RigidObjectData
@@ -62,6 +64,8 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_ovphysx_replication(cfg)
         # Bindings are created lazily (on first access) to avoid allocating
         # handles for tensor types the user never queries.
         self._bindings: dict[int, Any] = {}

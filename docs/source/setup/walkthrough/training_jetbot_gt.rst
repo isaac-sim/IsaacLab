@@ -67,11 +67,10 @@ Next, we need to expand the initialization and setup steps to construct the data
 .. code-block:: python
 
     def _setup_scene(self):
-        self.robot = Articulation(self.cfg.robot_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
+        with cloner.ReplicateSession():
+            self.robot = Articulation(self.cfg.robot_cfg)
+            # add ground plane
+            spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # add articulation to scene
         self.scene.articulations["robot"] = self.robot
         # add lights

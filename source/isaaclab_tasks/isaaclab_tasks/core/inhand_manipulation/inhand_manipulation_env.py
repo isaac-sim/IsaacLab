@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
@@ -101,8 +102,10 @@ class InHandManipulationEnv(DirectRLEnv):
             self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate (no need to filter for this environment)
-        self.scene.clone_environments(copy_from_source=False)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object

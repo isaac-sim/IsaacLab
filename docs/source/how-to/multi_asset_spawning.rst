@@ -125,7 +125,7 @@ To execute the script with multiple environments and randomized assets, use the 
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/demos/multi_asset.py --num_envs 2048
+   python scripts/demos/multi_asset.py --num_envs 2048
 
 This command runs the simulation with 2048 environments, each with randomly selected assets.
 To stop the simulation, you can close the window, or press ``Ctrl+C`` in the terminal.
