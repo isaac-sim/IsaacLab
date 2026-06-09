@@ -11,8 +11,6 @@ import argparse
 import sys
 import types
 
-import pytest
-
 import isaaclab_tasks.utils.sim_launcher as sim_launcher
 
 
@@ -79,18 +77,3 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
         pass
 
     assert captured == {"types": "", "explicit": True, "disable_all": True}
-
-
-def test_livestream_injects_kit_visualizer_when_missing():
-    args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=False)
-
-    sim_launcher._ensure_livestream_kit_visualizer(args)
-
-    assert args.visualizer == ["kit"]
-
-
-def test_livestream_rejects_disabled_visualizers():
-    args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=True)
-
-    with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-        sim_launcher._ensure_livestream_kit_visualizer(args)

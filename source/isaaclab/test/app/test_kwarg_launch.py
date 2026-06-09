@@ -9,7 +9,7 @@ import pytest
 
 import isaaclab.app.app_launcher as app_launcher_module
 from isaaclab.app import AppLauncher
-from isaaclab.app.sim_launcher import _ensure_livestream_kit_visualizer
+from isaaclab_tasks.utils.sim_launcher import _ensure_livestream_kit_visualizer
 
 
 @pytest.mark.usefixtures("mocker")
