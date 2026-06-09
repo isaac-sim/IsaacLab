@@ -1138,9 +1138,7 @@ class AppLauncher:
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         # Detect a known incompatibility between Isaac Lab and Isaac Sim full-app experiences.
-        if self._livestream in {1, 2} and self._experience_depends_on_isaacsim_exp_full(
-            self._sim_experience_file
-        ):
+        if self._livestream in {1, 2} and self._experience_depends_on_isaacsim_exp_full(self._sim_experience_file):
             raise ValueError(
                 "The experience file depends on 'isaacsim.exp.full', which is known to hang or invalidate PhysX "
                 "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
