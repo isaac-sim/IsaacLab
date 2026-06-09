@@ -27,6 +27,15 @@ import warp as wp
 # CI pipelines that pattern-match ``isaaclab_ov*`` may try to collect these
 # tests without the ovphysx wheel installed. Skip gracefully in that case.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+_TT_module = pytest.importorskip(
+    "isaaclab_ovphysx.tensor_types",
+    reason="isaaclab_ovphysx.tensor_types not importable",
+)
+if not hasattr(_TT_module, "RIGID_BODY_POSE"):
+    pytest.skip(
+        "ovphysx wheel does not yet expose RIGID_BODY_POSE",
+        allow_module_level=True,
+    )
 
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 
@@ -42,6 +51,8 @@ from isaaclab.utils.configclass import configclass  # noqa: E402
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 
 # ---------------------------------------------------------------------------
