@@ -83,8 +83,8 @@ TASKS = [
     "Isaac-Reach-UR10",
     "Isaac-Reach-UR10-Play",
     # Manipulation Lift
-    "Isaac-Lift-Cube-Franka-v0",
-    "Isaac-Lift-Cube-Franka-Play-v0",
+    "Isaac-Lift-Cube-Franka",
+    "Isaac-Lift-Cube-Franka-Play",
     # Manipulation Cabinet
     "Isaac-Open-Drawer-Franka-v0",
     "Isaac-Open-Drawer-Franka-Play-v0",

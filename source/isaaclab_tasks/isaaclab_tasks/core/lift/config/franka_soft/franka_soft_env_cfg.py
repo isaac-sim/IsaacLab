@@ -3,13 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Franka deformable lifting environment.
-
-The scene mirrors ``newton/examples/softbody/example_softbody_franka.py``:
-a Franka Panda manipulator on a tabletop with a tetrahedral deformable object simulated
-by VBD. The RL task is to lift the deformable object's centre of mass to a randomised target
-position sampled in the robot's root frame.
-"""
+"""Configuration for the Franka deformable lifting environment."""
 
 from __future__ import annotations
 
@@ -42,9 +36,8 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import CoupledMJWarpVBDSolverCfg, NewtonModelCfg, VBDSolverCfg
 
+from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
-
-from . import mdp
 
 ##
 # Pre-defined configs
@@ -61,6 +54,28 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 # Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 8e4
 POISSONS_RATIO = 0.25
+
+
+def coupled_mjwarp_vbd_solver_cfg() -> CoupledMJWarpVBDSolverCfg:
+    """MJWarp-rigid + VBD-soft, two-way coupled solver shared by the soft and cloth lift tasks."""
+    return CoupledMJWarpVBDSolverCfg(
+        rigid_solver_cfg=MJWarpSolverCfg(
+            njmax=40,
+            nconmax=20,
+            ls_iterations=20,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+            ccd_iterations=100,
+        ),
+        soft_solver_cfg=VBDSolverCfg(
+            iterations=10,
+            integrate_with_external_rigid_solver=True,
+            particle_enable_self_contact=False,
+            particle_collision_detection_interval=-1,
+        ),
+        coupling_mode="two_way",
+    )
 
 
 @configclass
@@ -118,27 +133,9 @@ class DeformableCfg(PresetCfg):
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    # Newton physics: MJWarp rigid + VBD soft, one-way coupled
-    # (matches newton/examples/softbody/example_softbody_franka.py)
+    # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     newton_mjwarp_vbd: DeformableNewtonCfg = DeformableNewtonCfg(
-        solver_cfg=CoupledMJWarpVBDSolverCfg(
-            rigid_solver_cfg=MJWarpSolverCfg(
-                njmax=40,
-                nconmax=20,
-                ls_iterations=20,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-                ccd_iterations=100,
-            ),
-            soft_solver_cfg=VBDSolverCfg(
-                iterations=10,
-                integrate_with_external_rigid_solver=True,
-                particle_enable_self_contact=False,
-                particle_collision_detection_interval=-1,
-            ),
-            coupling_mode="two_way",
-        ),
+        solver_cfg=coupled_mjwarp_vbd_solver_cfg(),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e4,
             soft_contact_kd=1e-5,
@@ -199,10 +196,6 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    # dome_light: AssetBaseCfg = AssetBaseCfg(
-    #     prim_path="/World/light",
-    #     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2000.0),
-    # )
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(
