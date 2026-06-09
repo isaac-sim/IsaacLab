@@ -206,7 +206,7 @@ def _run_git_command(command: list[str]) -> None:
         RuntimeError: When git is missing or the command fails.
     """
     try:
-        subprocess.run(command, check=True)
+        subprocess.run(command, check=True, capture_output=True)
     except FileNotFoundError as exc:
         raise RuntimeError("git is required to clone git asset repositories.") from exc
     except subprocess.CalledProcessError as exc:
