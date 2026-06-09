@@ -962,7 +962,7 @@ class SimulationContext:
 def build_simulation_context(
     create_new_stage: bool = True,
     gravity_enabled: bool = True,
-    device: str = "cuda:0",
+    device: str | None = None,
     dt: float = 0.01,
     sim_cfg: SimulationCfg | None = None,
     add_ground_plane: bool = False,
@@ -975,7 +975,11 @@ def build_simulation_context(
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.
         gravity_enabled: Whether to enable gravity. Defaults to True.
-        device: Device to run the simulation on. Defaults to "cuda:0".
+        device: Device to run the simulation on. When given alongside ``sim_cfg``,
+            overrides ``sim_cfg.device`` so the caller's explicit choice wins
+            (most test callers pass both, expecting this behavior). Defaults to
+            ``None``, meaning ``sim_cfg.device`` is left untouched and a freshly
+            built ``sim_cfg`` uses :class:`SimulationCfg`'s default device.
         dt: Time step for the simulation. Defaults to 0.01.
         sim_cfg: SimulationCfg to use. Defaults to None.
         add_ground_plane: Whether to add a ground plane. Defaults to False.
@@ -997,7 +1001,17 @@ def build_simulation_context(
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-            sim_cfg = SimulationCfg(device=device, dt=dt, gravity=gravity)
+            sim_cfg = SimulationCfg(dt=dt, gravity=gravity)
+        if device is not None:
+            # Honor the explicit device kwarg in both branches: when sim_cfg is
+            # freshly built, this picks the device; when sim_cfg is passed in,
+            # this overrides its (possibly default) device. Without the override,
+            # callers passing both ``sim_cfg=<built-with-default-device>`` and
+            # ``device=cuda:N`` silently got sim_cfg's device, causing warp
+            # kernel-launch mismatches when test fixtures allocated tensors on
+            # the requested device while assets resolved their device from the
+            # untouched sim_cfg.
+            sim_cfg.device = device
 
         sim = SimulationContext(sim_cfg)
 

@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-import os
 import re
 import subprocess
 import sys
@@ -57,11 +56,10 @@ def main():
     parser.add_argument("--max_iterations", type=int, default=1500, help="Number of iteration for policy learning.")
     args = parser.parse_args()
 
-    update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval)
+    if args.assembly_id == "ASSEMBLY_ID":
+        parser.error("replace ASSEMBLY_ID with an AutoMate assembly ID, for example 00032")
 
-    # avoid the warning of low GPU occupancy for SoftDTWCUDA function
-    env = os.environ.copy()
-    env["NUMBA_CUDA_LOW_OCCUPANCY_WARNINGS"] = "0"
+    update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval)
 
     # build the command
     if sys.platform.startswith("win"):
@@ -91,7 +89,7 @@ def main():
         command.append(f"--checkpoint={args.checkpoint}")
 
     # Run the command
-    subprocess.run(command, env=env, check=True)
+    subprocess.run(command, check=True)
 
 
 if __name__ == "__main__":

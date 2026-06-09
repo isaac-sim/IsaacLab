@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.15.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+* Fixed incorrect camera pose in :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`.
+
+
 0.15.3 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~~
 
