@@ -31,23 +31,34 @@ SIMPLE_SHADING_TYPES = {
 class CartpoleCameraEnv(CartpoleEnv):
     """Cartpole environment driven by camera observations.
 
-    Uses temporal observations for the Newton + Warp combo as it does not have the same implicit benefit
-    as the RTX renderer (implicit temporal anti-aliasing).
+    Stacks frames to supply the temporal cue Newton needs when the render lacks one; see
+    :meth:`_resolve_frame_stack_default`.
     """
 
     cfg: CartpoleCameraEnvCfg
 
     @staticmethod
     def _resolve_frame_stack_default(camera_cfg, physics_cfg) -> int:
-        """Return ``2`` for the Newton + Warp combo (no implicit damping, no temporal AA),
-        ``1`` otherwise."""
+        """Default frame-stack size for the physics + renderer + data-type combo.
+
+        Newton has no implicit damping, so the policy needs a temporal cue to infer velocity.
+        Returns ``2`` when the render carries none, else ``1``:
+
+        - Non-Newton (PhysX / OV-PhysX): damping suffices -> ``1``.
+        - Newton + Warp (no temporal AA) -> ``2``.
+        - Newton + RTX: ``rgb`` gets it from DLSS -> ``1``; ``depth`` / ``albedo`` /
+          ``simple_shading`` bypass DLSS -> ``2``.
+        """
         from isaaclab_newton.physics import NewtonCfg
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
-        is_newton_warp = isinstance(physics_cfg, NewtonCfg) and isinstance(
-            getattr(camera_cfg, "renderer_cfg", None), NewtonWarpRendererCfg
-        )
-        return 2 if is_newton_warp else 1
+        if not isinstance(physics_cfg, NewtonCfg):
+            return 1
+        if isinstance(getattr(camera_cfg, "renderer_cfg", None), NewtonWarpRendererCfg):
+            return 2
+        data_types = getattr(camera_cfg, "data_types", None) or []
+        data_type = data_types[0] if data_types else ""
+        return 2 if data_type.startswith(("depth", "albedo", "simple_shading")) else 1
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         # Flatten preset wrappers so the frame-stack resolution below sees concrete types.
