@@ -28,6 +28,11 @@ class _LulaRmpFlow:
     backends -- Kit and kitless (e.g. the Newton visualizer) -- since ``lula`` is importable in both.
     It assumes IsaacLab conventions: a meter-scaled stage and an identity robot base pose (the
     controller never relocates the base), and it does not manage obstacles or visuals.
+
+    Note:
+        ``lula`` is deprecated as of Isaac Sim 6.0 and slated for removal in a future release; cuMotion
+        (``isaacsim.robot_motion.cumotion``) is the long-term replacement. See the migration notes at
+        :data:`isaaclab.controllers.utils._LULA_EXT_NAME`.
     """
 
     def __init__(
