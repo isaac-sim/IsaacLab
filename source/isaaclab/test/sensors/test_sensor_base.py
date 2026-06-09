@@ -21,6 +21,8 @@ import pytest
 import torch
 import warp as wp
 
+from pxr import UsdPhysics
+
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.utils.configclass import configclass
@@ -228,3 +230,25 @@ def test_sensor_reset(create_dummy_sensor, device):
             sensor.data.count[cont_ids],
             torch.tensor(k + 6, device=device, dtype=torch.int32).repeat(len(cont_ids)),
         )
+
+
+@pytest.mark.parametrize("device", ("cpu",))
+def test_rigid_body_ancestor_expr_trims_only_terminal_suffix(create_dummy_sensor, device):
+    """Test that ancestor expression trimming keeps repeated path segments above the sensor."""
+    sensor_cfg, _, _ = create_dummy_sensor
+
+    parent_path = "/World/envs/env_00/Robot/link"
+    child_path = parent_path + "/link"
+    sim_utils.create_prim(parent_path, "Xform")
+    sim_utils.create_prim(child_path, "Xform")
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.get_current_stage().GetPrimAtPath(parent_path))
+    sim_utils.update_stage()
+
+    sensor_cfg.prim_path = "/World/envs/env_.*/Robot/link/link"
+    sensor = DummySensor(cfg=sensor_cfg)
+
+    rigid_parent_expr, fixed_pos_b, fixed_quat_b = sensor._resolve_rigid_body_ancestor_expr()
+
+    assert rigid_parent_expr == "/World/envs/env_.*/Robot/link"
+    assert fixed_pos_b is not None
+    assert fixed_quat_b is not None
