@@ -744,6 +744,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
+        self._ensure_fk_fresh()
         return self._body_com_vel_w_ta
 
     @property
@@ -755,6 +756,7 @@ class ArticulationData(BaseArticulationData):
 
         All values are relative to the world.
         """
+        self._ensure_fk_fresh()
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.derive_body_acceleration_from_body_com_velocities,

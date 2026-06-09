@@ -1241,6 +1241,20 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Joint velocities affect body spatial velocities, so FK/body-velocity state
+        # must be recomputed before consumers read state.body_qd again.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_acc_w is not None:
+            self.data._body_com_acc_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1281,6 +1295,20 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Joint velocities affect body spatial velocities, so FK/body-velocity state
+        # must be recomputed before consumers read state.body_qd again.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_acc_w is not None:
+            self.data._body_com_acc_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     """
     Operations - Simulation Parameters Writers.
