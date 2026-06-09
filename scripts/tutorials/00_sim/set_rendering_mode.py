@@ -39,13 +39,21 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
+def add_remote_usd_reference(prim_path: str, usd_path: str) -> None:
+    """Add a remote USD reference without localizing it through the temp asset cache."""
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim(prim_path, "Xform")
+    if not prim.GetReferences().AddReference(usd_path):
+        raise RuntimeError(f"Unable to add USD reference to '{prim_path}' from '{usd_path}'.")
+
+
 def main():
     """Main function."""
 
     # rendering modes include performance, balanced, and quality
     # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over
     # this Render Config setting
-    rendering_mode = "performance"
+    rendering_mode = "balanced"
 
     # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting
     carb_settings = {"rtx.reflections.enabled": True}
@@ -65,8 +73,7 @@ def main():
 
     # Load hospital scene
     hospital_usd_path = f"{ISAAC_NUCLEUS_DIR}/Environments/Hospital/hospital.usd"
-    cfg = sim_utils.UsdFileCfg(usd_path=hospital_usd_path)
-    cfg.func("/Scene", cfg)
+    add_remote_usd_reference("/Scene", hospital_usd_path)
 
     # Play the simulator
     sim.reset()
