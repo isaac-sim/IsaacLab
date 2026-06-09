@@ -29,8 +29,8 @@
 import torch
 
 
-def _soft_dtw(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
-    """Compute SoftDTW from a batched pairwise distance matrix using Torch ops."""
+def _soft_dtw_autograd(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
+    """Compute SoftDTW using Torch ops that preserve autograd."""
     batch_size, len_x, len_y = D.shape
     inf = torch.full((batch_size,), float("inf"), device=D.device, dtype=D.dtype)
     prev_row = [inf] * (len_y + 2)
@@ -52,6 +52,78 @@ def _soft_dtw(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
         prev_row = curr_row
 
     return prev_row[len_y]
+
+
+def _soft_dtw_no_grad(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
+    """Compute SoftDTW by evaluating each dynamic-programming anti-diagonal in one batched op."""
+    batch_size, len_x, len_y = D.shape
+    R = torch.full((batch_size, len_x + 2, len_y + 2), float("inf"), device=D.device, dtype=D.dtype)
+    R[:, 0, 0] = 0
+
+    for diag in range(2, len_x + len_y + 1):
+        i = torch.arange(max(1, diag - len_y), min(len_x, diag - 1) + 1, device=D.device)
+        j = diag - i
+
+        if 0 < bandwidth:
+            keep = torch.abs(i - j) <= bandwidth
+            i = i[keep]
+            j = j[keep]
+            if i.numel() == 0:
+                continue
+
+        if gamma == 0:
+            softmin = torch.minimum(torch.minimum(R[:, i - 1, j - 1], R[:, i - 1, j]), R[:, i, j - 1])
+        else:
+            previous_costs = torch.stack((R[:, i - 1, j - 1], R[:, i - 1, j], R[:, i, j - 1]))
+            softmin = -gamma * torch.logsumexp(-previous_costs / gamma, dim=0)
+
+        R[:, i, j] = D[:, i - 1, j - 1] + softmin
+
+    return R[:, len_x, len_y]
+
+
+def _soft_dtw_variable_y_no_grad(
+    D: torch.Tensor, y_lengths: torch.Tensor, gamma: float, bandwidth: float
+) -> torch.Tensor:
+    """Compute SoftDTW for a batch where each Y sequence can have a different length."""
+    batch_size, len_x, len_y = D.shape
+    y_lengths = y_lengths.to(device=D.device, dtype=torch.long)
+    if y_lengths.min().item() < 1 or y_lengths.max().item() > len_y:
+        raise ValueError("y_lengths entries must be in [1, len_y]")
+
+    R = torch.full((batch_size, len_x + 2, len_y + 2), float("inf"), device=D.device, dtype=D.dtype)
+    R[:, 0, 0] = 0
+
+    for diag in range(2, len_x + len_y + 1):
+        i = torch.arange(max(1, diag - len_y), min(len_x, diag - 1) + 1, device=D.device)
+        j = diag - i
+
+        if 0 < bandwidth:
+            keep = torch.abs(i - j) <= bandwidth
+            i = i[keep]
+            j = j[keep]
+            if i.numel() == 0:
+                continue
+
+        if gamma == 0:
+            softmin = torch.minimum(torch.minimum(R[:, i - 1, j - 1], R[:, i - 1, j]), R[:, i, j - 1])
+        else:
+            previous_costs = torch.stack((R[:, i - 1, j - 1], R[:, i - 1, j], R[:, i, j - 1]))
+            softmin = -gamma * torch.logsumexp(-previous_costs / gamma, dim=0)
+
+        values = D[:, i - 1, j - 1] + softmin
+        valid_y = j.unsqueeze(0) <= y_lengths.unsqueeze(1)
+        R[:, i, j] = torch.where(valid_y, values, torch.full_like(values, float("inf")))
+
+    batch_ids = torch.arange(batch_size, device=D.device)
+    return R[batch_ids, len_x, y_lengths]
+
+
+def _soft_dtw(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
+    """Compute SoftDTW from a batched pairwise distance matrix using Torch ops."""
+    if torch.is_grad_enabled() and D.requires_grad:
+        return _soft_dtw_autograd(D, gamma, bandwidth)
+    return _soft_dtw_no_grad(D, gamma, bandwidth)
 
 
 class SoftDTW(torch.nn.Module):
@@ -107,3 +179,17 @@ class SoftDTW(torch.nn.Module):
 
         D_xy = self.dist_func(X, Y)
         return _soft_dtw(D_xy, self.gamma, self.bandwidth)
+
+    def forward_with_lengths(self, X, Y, y_lengths):
+        """Compute SoftDTW when each Y sequence is padded to a per-sample length."""
+        if self.normalize:
+            raise ValueError("forward_with_lengths does not support normalize=True")
+
+        if torch.is_grad_enabled() and (X.requires_grad or Y.requires_grad):
+            outputs = []
+            for batch_id, y_length in enumerate(y_lengths.tolist()):
+                outputs.append(self.forward(X[batch_id : batch_id + 1], Y[batch_id : batch_id + 1, : int(y_length)]))
+            return torch.cat(outputs)
+
+        D_xy = self.dist_func(X, Y)
+        return _soft_dtw_variable_y_no_grad(D_xy, y_lengths, self.gamma, self.bandwidth)
