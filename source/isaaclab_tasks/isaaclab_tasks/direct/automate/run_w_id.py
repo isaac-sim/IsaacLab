@@ -56,6 +56,9 @@ def main():
     parser.add_argument("--max_iterations", type=int, default=1500, help="Number of iteration for policy learning.")
     args = parser.parse_args()
 
+    if args.assembly_id == "ASSEMBLY_ID":
+        parser.error("replace ASSEMBLY_ID with an AutoMate assembly ID, for example 00032")
+
     update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval)
 
     # build the command
