@@ -32,6 +32,7 @@ import isaaclab_tasks  # noqa: F401
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab.app import add_launcher_args, launch_simulation
+
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-Anymal-D-v0"
