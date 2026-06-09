@@ -857,7 +857,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - **Workflow**
       - **RL Library**
       - **Presets**
-    * - Isaac-Ant-Direct-Warp-v0
+    * - Isaac-Ant-Direct-Warp
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -867,7 +867,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Ant-Warp-v0
+    * - Isaac-Ant-Warp
       -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
@@ -1055,7 +1055,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **skrl** (AMP)
       -
-    * - Isaac-Humanoid-Direct-Warp-v0
+    * - Isaac-Humanoid-Direct-Warp
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

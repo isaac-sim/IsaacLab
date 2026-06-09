@@ -16,7 +16,7 @@ import gymnasium as gym
 stable_agents = "isaaclab_tasks.core.locomotion.humanoid.agents"
 
 gym.register(
-    id="Isaac-Humanoid-Direct-Warp-v0",
+    id="Isaac-Humanoid-Direct-Warp",
     entry_point=f"{__name__}.humanoid_warp_env:HumanoidWarpEnv",
     disable_env_checker=True,
     kwargs={

@@ -16,7 +16,7 @@ import gymnasium as gym
 stable_agents = "isaaclab_tasks.core.locomotion.ant.agents"
 
 gym.register(
-    id="Isaac-Ant-Direct-Warp-v0",
+    id="Isaac-Ant-Direct-Warp",
     entry_point=f"{__name__}.ant_env_warp:AntWarpEnv",
     disable_env_checker=True,
     kwargs={

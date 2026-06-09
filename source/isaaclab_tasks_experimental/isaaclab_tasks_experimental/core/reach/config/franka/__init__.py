@@ -21,7 +21,7 @@ _stable_pkg = agents.__name__.rsplit(".", 1)[0]
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-Warp-v0",
+    id="Isaac-Reach-Franka-Warp",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={
@@ -33,7 +33,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-Warp-Play-v0",
+    id="Isaac-Reach-Franka-Warp-Play",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={

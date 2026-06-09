@@ -21,7 +21,7 @@ _stable_pkg = agents.__name__.rsplit(".", 1)[0]
 ##
 
 gym.register(
-    id="Isaac-Ant-Warp-v0",
+    id="Isaac-Ant-Warp",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={

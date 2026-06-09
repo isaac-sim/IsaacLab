@@ -32,8 +32,8 @@ Direct Warp Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
-- ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
-- ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
+- ``Isaac-Ant-Direct-Warp`` — Ant locomotion
+- ``Isaac-Humanoid-Direct-Warp`` — Humanoid locomotion
 - ``Isaac-Repose-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube repose
 
 
@@ -43,8 +43,8 @@ Manager-Based Warp Environments
 **Classic**
 
 - ``Isaac-Cartpole-Warp-v0``
-- ``Isaac-Ant-Warp-v0``
-- ``Isaac-Humanoid-Warp-v0``
+- ``Isaac-Ant-Warp``
+- ``Isaac-Humanoid-Warp``
 
 **Locomotion (Flat)**
 
@@ -61,7 +61,7 @@ Manager-Based Warp Environments
 
 **Manipulation**
 
-- ``Isaac-Reach-Franka-Warp-v0``
+- ``Isaac-Reach-Franka-Warp``
 - ``Isaac-Reach-UR10-Warp-v0``
 
 
