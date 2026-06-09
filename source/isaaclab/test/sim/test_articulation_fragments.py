@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
+
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -182,6 +184,67 @@ def test_apply_articulation_root_properties_toggles_existing_fixed_joint():
         fix_root_link=False,
     )
     assert joint.GetJointEnabledAttr().Get() is False
+
+
+# -------------------------------------------------------------------------------------
+# fix_root_link spawner-level flag: creates a fixed joint and reparents the root
+# -------------------------------------------------------------------------------------
+
+
+def test_apply_articulation_root_properties_creates_fixed_joint_and_reparents_root():
+    """fix_root_link=True with no existing fixed joint: a fixed joint is created and the
+    articulation root is moved from the rigid-body root link to its parent (PhysX parser
+    limitation -- a fixed joint on a rigid body is otherwise treated as a maximal-coordinate tree).
+    """
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    # parent xform + a rigid-body root link carrying the articulation root
+    _make_xform(stage, "/World/Robot")
+    root = _make_xform(stage, "/World/Robot/base")
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    # no existing global fixed joint -> the writer must create one
+    assert not any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
+
+    apply_articulation_root_properties(
+        "/World/Robot",
+        [PhysxArticulationCfg(articulation_enabled=True)],
+        stage,
+        fix_root_link=True,
+    )
+
+    parent = stage.GetPrimAtPath("/World/Robot")
+    # a fixed joint was created ...
+    assert any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
+    # ... and the articulation root was moved from the root link to its parent
+    assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not root.HasAPI(UsdPhysics.ArticulationRootAPI)
+
+
+def test_apply_articulation_root_properties_fix_root_link_requires_rigid_body():
+    """fix_root_link=True on a non-rigid-body root raises NotImplementedError: the writer cannot
+    determine the first rigid body link to anchor the fixed joint to."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    root = _make_xform(stage, "/World/Robot2")
+    UsdPhysics.ArticulationRootAPI.Apply(root)  # articulation root but NOT a rigid body
+    with pytest.raises(NotImplementedError):
+        apply_articulation_root_properties(
+            "/World/Robot2",
+            [PhysxArticulationCfg(articulation_enabled=True)],
+            stage,
+            fix_root_link=True,
+        )
 
 
 # -------------------------------------------------------------------------------------
