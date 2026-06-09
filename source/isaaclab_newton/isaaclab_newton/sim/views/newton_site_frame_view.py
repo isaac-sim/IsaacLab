@@ -14,7 +14,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab.cloner.cloner_utils import get_suffix, iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.utils.string import resolve_matching_names
@@ -321,7 +321,13 @@ class NewtonSiteFrameView(BaseFrameView):
                 return body_patterns, wp.transform(pos, quat), False, env_ids
             body_prim = body_prim.GetParent()
 
-        ref_prim = stage.GetPrimAtPath(source_root) if source_root is not None else None
+        ref_path = source_root
+        if source_root is not None and destination_template is not None:
+            instance_template = destination_template.partition("{}")[0] + "{}"
+            source_suffix = get_suffix(source_root, instance_template)
+            if source_suffix is not None:
+                ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
+        ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
         return None, wp.transform(pos, quat), source_root is not None, env_ids
 
