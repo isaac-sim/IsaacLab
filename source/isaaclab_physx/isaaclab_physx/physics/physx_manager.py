@@ -188,12 +188,11 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return None
 
-        articulation_body_paths = self._get_articulation_body_paths()
         rigid_body_paths: list[str] = []
         non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
             prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and prim_path not in articulation_body_paths:
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 rigid_body_paths.append(prim_path)
             elif re.search(r"/World/envs/env_\d+/", prim_path):
                 non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
