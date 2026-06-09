@@ -267,6 +267,32 @@ Articulation root properties.
 """
 
 
+def _find_articulation_root_prim(prim: Usd.Prim) -> Usd.Prim | None:
+    """Return the first prim at or under ``prim`` that already has ``UsdPhysics.ArticulationRootAPI``.
+
+    USD assets author the articulation root on a child prim (the root link / fixed joint), so the
+    search descends the subtree like the legacy ``@apply_nested`` writer. Nested articulation roots
+    are not allowed, so the search stops at the first match per branch. Instanced prims are skipped
+    (their prototypes cannot be authored on). Returns ``None`` when no prim in the subtree carries
+    the articulation root.
+
+    Args:
+        prim: The root of the subtree to search.
+
+    Returns:
+        The prim that owns ``UsdPhysics.ArticulationRootAPI``, or ``None`` if none is found.
+    """
+    queue = [prim]
+    while queue:
+        current = queue.pop(0)
+        if current.IsInstance():
+            continue
+        if current.HasAPI(UsdPhysics.ArticulationRootAPI):
+            return current
+        queue.extend(current.GetChildren())
+    return None
+
+
 def apply_articulation_root_properties(
     prim_path: str,
     fragments,
@@ -275,15 +301,23 @@ def apply_articulation_root_properties(
 ) -> bool:
     """Apply a list of articulation-root fragments to a prim.
 
-    Applies ``UsdPhysics.ArticulationRootAPI`` as the anchor (presence-gated: this writer only
-    runs when the ``articulation_props`` slot carries fragments), then dispatches each fragment
-    via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry
-    backend-specific funcs, so core never imports a backend. Finally, if ``fix_root_link`` is not
-    ``None``, the world-to-root fixed-joint logic from the legacy
-    :func:`modify_articulation_root_properties` writer is applied.
+    Resolves the articulation root before writing: USD assets author
+    ``UsdPhysics.ArticulationRootAPI`` on a child prim (the root link / fixed joint), so this
+    writer descends the subtree under ``prim_path`` and tunes the existing root in place (matching
+    the legacy :func:`modify_articulation_root_properties` writer). Only when no prim in the
+    subtree carries the root does it apply ``UsdPhysics.ArticulationRootAPI`` on ``prim_path``
+    itself (define-fresh, e.g. for primitive or programmatic spawns). This guarantees exactly one
+    articulation root rather than stamping a duplicate on the input prim.
+
+    Each fragment is then dispatched to the resolved root via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend. Finally, if ``fix_root_link`` is not ``None``, the
+    world-to-root fixed-joint logic from the legacy :func:`modify_articulation_root_properties`
+    writer is applied to the resolved root.
 
     Args:
-        prim_path: The prim path to apply the articulation-root schemas on.
+        prim_path: The prim path to search for the articulation root under (the root may be on a
+            descendant); the schemas are applied to the resolved root prim.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.ArticulationRootFragment` instances.
         stage: The stage where to find the prim. Defaults to None, in which case the current
             stage is used.
@@ -296,42 +330,54 @@ def apply_articulation_root_properties(
         True if the properties were successfully set.
 
     Raises:
+        ValueError: When the prim path is not valid.
         NotImplementedError: When the root prim is not a rigid body and a fixed joint is to be created.
     """
     if stage is None:
         stage = get_current_stage()
-    articulation_prim = stage.GetPrimAtPath(prim_path)
-    # apply the defining anchor (presence-gated by the caller)
-    if not UsdPhysics.ArticulationRootAPI(articulation_prim):
-        UsdPhysics.ArticulationRootAPI.Apply(articulation_prim)
-    # dispatch each fragment via its own applier (backend funcs live in backend packages)
+    input_prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not input_prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # USD assets author the ArticulationRootAPI on a child prim, and nested roots are not allowed,
+    # so tune the single existing root in place (matching the legacy @apply_nested writer) rather
+    # than stamping a duplicate on the input prim. Only define a fresh root on the input prim when
+    # the subtree has none (e.g. primitive or programmatic spawns). This keeps exactly one
+    # ArticulationRootAPI in the tree.
+    articulation_prim = _find_articulation_root_prim(input_prim)
+    if articulation_prim is None:
+        UsdPhysics.ArticulationRootAPI.Apply(input_prim)
+        articulation_prim = input_prim
+    root_path = articulation_prim.GetPath().pathString
+    # dispatch each fragment via its own applier to the resolved root prim (backend funcs live in
+    # backend packages, so core never imports a backend)
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, prim_path, stage)
+        func(cfg, root_path, stage)
 
     # fix root link based on input
     # we do the fixed joint processing later to not interfere with setting other properties.
     # this logic is reproduced from the legacy ``modify_articulation_root_properties`` writer.
     if fix_root_link is not None:
-        # check if a global fixed joint exists under the root prim
-        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
+        # check if a global fixed joint exists under the resolved root prim
+        existing_fixed_joint_prim = find_global_fixed_joint_prim(root_path)
 
         # if we found a fixed joint, enable/disable it based on the input
         # otherwise, create a fixed joint between the world and the root link
         if existing_fixed_joint_prim is not None:
             logger.info(
-                f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
+                f"Found an existing fixed joint for the articulation: '{root_path}'. Setting it to: {fix_root_link}."
             )
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
-            logger.info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
+            logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
 
             # note: we have to assume that the root prim is a rigid body,
             #   i.e. we don't handle the case where the root prim is not a rigid body but has articulation api on it
             # Currently, there is no obvious way to get first rigid body link identified by the PhysX parser
             if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 raise NotImplementedError(
-                    f"The articulation prim '{prim_path}' does not have the RigidBodyAPI applied."
+                    f"The articulation prim '{root_path}' does not have the RigidBodyAPI applied."
                     " To create a fixed joint, we need to determine the first rigid body link in"
                     " the articulation tree. However, this is not implemented yet."
                 )

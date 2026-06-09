@@ -116,6 +116,44 @@ def test_apply_articulation_root_properties_composes_namespaces():
 
 
 # -------------------------------------------------------------------------------------
+# Regression: root on a CHILD prim (USD assets) must be tuned in place, not duplicated
+# -------------------------------------------------------------------------------------
+
+
+def test_apply_articulation_root_properties_tunes_existing_child_root():
+    """When the articulation root lives on a child prim (as in USD assets), the writer must tune
+    that existing root rather than stamp a second ``ArticulationRootAPI`` on the input (top) prim
+    -- a duplicate root mis-writes the properties and violates the 'exactly one root' invariant.
+    """
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    top = _make_xform(stage, "/World/Asset")
+    child = _make_xform(stage, "/World/Asset/base")
+    UsdPhysics.ArticulationRootAPI.Apply(child)  # asset already carries its root on a child prim
+
+    apply_articulation_root_properties(
+        "/World/Asset",
+        [PhysxArticulationCfg(solver_position_iteration_count=8)],
+        stage,
+    )
+
+    # the existing child root is tuned ...
+    assert child.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert child.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8
+    # ... and NO duplicate root / stray write is added on the top prim
+    assert not top.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not top.GetAttribute("physxArticulation:solverPositionIterationCount").HasAuthoredValue()
+    # exactly one ArticulationRootAPI exists in the subtree
+    roots = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert len(roots) == 1 and roots[0] == child
+
+
+# -------------------------------------------------------------------------------------
 # fix_root_link spawner-level flag: toggles an existing fixed joint
 # -------------------------------------------------------------------------------------
 
