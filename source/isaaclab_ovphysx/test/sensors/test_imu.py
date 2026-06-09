@@ -559,13 +559,16 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
 
     sensor: Imu = scene["imu_cube"]
 
-    # Let the cube fall so the native rigid-body velocity buffer becomes non-zero.
-    for _ in range(30):
-        scene.write_data_to_sim()
-        sim_ctx.step()
-        scene.update(dt=sim_ctx.get_physics_dt())
+    # Drive the native rigid-body velocity buffer non-zero. A freely falling body
+    # can read zero proper acceleration, so assert the cached velocity instead.
+    cube: RigidObject = scene["cube"]
+    nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device)
+    cube.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
+    scene.write_data_to_sim()
+    sim_ctx.step()
+    scene.update(dt=sim_ctx.get_physics_dt())
 
-    assert torch.any(sensor.data.lin_acc_b.torch != 0), "expected non-zero data before reset"
+    assert torch.any(wp.to_torch(sensor._prev_lin_vel_w) != 0), "expected non-zero cached velocity before reset"
 
     # Reset without another physics step. The public accessor must keep reset outputs
     # instead of lazy-refetching stale native velocity.
