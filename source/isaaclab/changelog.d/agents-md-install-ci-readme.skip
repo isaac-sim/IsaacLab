@@ -1,0 +1,2 @@
+Docs-only: moved the install_ci test conventions from AGENTS.md to a co-located
+source/isaaclab/test/install_ci/README.md. No user-facing or API change.
