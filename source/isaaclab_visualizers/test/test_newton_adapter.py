@@ -9,8 +9,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import torch
+import warp as wp
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -99,6 +102,59 @@ def test_apply_viewer_visible_worlds_delegates_to_resolved():
 
     apply_viewer_visible_worlds(_V(), env_ids=None, max_visible_envs=None, num_envs=3)
     assert calls[-1] is None
+
+
+def test_newton_visualizer_cfg_exposes_particle_options():
+    cfg = NewtonVisualizerCfg(show_particles=True, particle_color=(0.1, 0.2, 0.3))
+
+    assert cfg.show_particles is True
+    assert cfg.particle_color == (0.1, 0.2, 0.3)
+
+
+def test_newton_viewer_particle_color_override(monkeypatch):
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.device = "cpu"
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    viewer._particle_color_buffer = None
+    viewer._particle_color_buffer_count = 0
+    viewer._particle_color_buffer_value = None
+    points = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, points, radii, colors, hidden))
+
+    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
+
+    viewer.log_points("/model/particles", points, colors=None)
+
+    name, _, _, colors, hidden = calls[-1]
+    assert name == "/model/particles"
+    assert hidden is False
+    assert isinstance(colors, wp.array)
+    assert colors.shape[0] == 4
+    np.testing.assert_allclose(colors.numpy()[0], np.array([0.1, 0.2, 0.3], dtype=np.float32), rtol=1.0e-6)
+
+
+def test_newton_viewer_particle_color_override_leaves_other_points_unchanged(monkeypatch):
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    points = wp.zeros(1, dtype=wp.vec3, device="cpu")
+    original_colors = object()
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, colors))
+
+    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
+
+    viewer.log_points("/debug/points", points, colors=original_colors)
+
+    assert calls[-1] == ("/debug/points", original_colors)
 
 
 class _BodyQ:
