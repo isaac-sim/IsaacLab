@@ -76,9 +76,9 @@ jobs:
     - name: Login to NGC
       run: |
         # Only attempt NGC login if API key is available
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+        if [ -n "$NGC_API_KEY" ]; then
           echo "🔵 Logging into NGC registry..."
-          if ! docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io; then
+          if ! echo "$NGC_API_KEY" | docker login -u '$oauthtoken' --password-stdin nvcr.io; then
             echo "🔴 Failed to log into NGC registry"
             exit 1
           fi

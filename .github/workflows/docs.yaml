@@ -19,6 +19,11 @@ on:
     # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
     # additionally, we have a check that determines what version of docs will be built
     types: [opened, synchronize, reopened]
+  # Nightly multi-version rebuild + deploy from develop tip. Picks up every
+  # develop commit accumulated since the previous nightly in a single run.
+  schedule:
+    - cron: '0 3 * * *'  # 7pm PST / 8pm PDT
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
