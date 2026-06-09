@@ -76,6 +76,10 @@ class NewtonViewerGL(ViewerGL):
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
         self._color_edit3_prefers_sequence: bool | None = None
+        self.particle_color: tuple[float, float, float] | None = None
+        self._particle_color_buffer: wp.array | None = None
+        self._particle_color_buffer_count = 0
+        self._particle_color_buffer_value: tuple[float, float, float] | None = None
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -147,6 +151,37 @@ class NewtonViewerGL(ViewerGL):
         if hasattr(color, "x") and hasattr(color, "y") and hasattr(color, "z"):
             return (float(color.x), float(color.y), float(color.z))
         return (float(color[0]), float(color[1]), float(color[2]))
+
+    def _particle_color_array(self, count: int) -> wp.array:
+        """Return a cached Warp color array for Newton's particle point batch."""
+        color = self._coerce_color3(self.particle_color)
+        if (
+            self._particle_color_buffer is None
+            or self._particle_color_buffer_count != count
+            or self._particle_color_buffer_value != color
+        ):
+            self._particle_color_buffer = wp.full(
+                shape=count,
+                value=wp.vec3(*color),
+                dtype=wp.vec3,
+                device=self.device,
+            )
+            self._particle_color_buffer_count = count
+            self._particle_color_buffer_value = color
+        return self._particle_color_buffer
+
+    def log_points(self, name, points, radii=None, colors=None, hidden=False):
+        """Apply configured model-particle appearance while preserving Newton's point logging.
+
+        The configured particle color only applies to Newton's canonical
+        ``/model/particles`` point batch. User-defined point clouds retain the
+        colors provided by their own ``log_points`` calls.
+        """
+        if name != "/model/particles" or points is None or self.particle_color is None:
+            return super().log_points(name, points, radii, colors, hidden)
+
+        colors = self._particle_color_array(len(points))
+        return super().log_points(name, points, radii, colors, hidden)
 
     def _color_edit3_compat(self, imgui, label: str, color):
         """
@@ -228,6 +263,9 @@ class NewtonViewerGL(ViewerGL):
 
                     show_com = self.show_com
                     changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
+
+                    show_particles = self.show_particles
+                    changed, self.show_particles = imgui.checkbox("Show Particles", show_particles)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Rendering Options"):
@@ -430,6 +468,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_springs = self.cfg.show_springs
             self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
             self._viewer.show_com = self.cfg.show_com
+            self._viewer.show_particles = self.cfg.show_particles
+            self._viewer.particle_color = self.cfg.particle_color
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
@@ -459,6 +499,8 @@ class NewtonVisualizer(BaseVisualizer):
                 ("tiled_cam_num", self.cfg.tiled_cam_num),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
+                ("show_particles", self.cfg.show_particles),
+                ("particle_color", self.cfg.particle_color),
             ],
         )
         self._is_initialized = True
