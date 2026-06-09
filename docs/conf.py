@@ -18,6 +18,7 @@
 import os
 import sys
 
+sys.path.insert(0, os.path.abspath("_extensions"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
@@ -42,6 +43,13 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
     full_version = f.read().strip()
     version = ".".join(full_version.split(".")[:3])
 
+# Latest branch referenced by installation documentation.
+isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "main")
+
+rst_prolog = f"""
+.. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
+"""
+
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -65,6 +73,7 @@ extensions = [
     "sphinx_design",
     "sphinx_tabs.tabs",  # backwards compatibility for building docs on v1.0.0
     "sphinx_multiversion",
+    "isaaclab_docs",
 ]
 
 # mathjax hacks
