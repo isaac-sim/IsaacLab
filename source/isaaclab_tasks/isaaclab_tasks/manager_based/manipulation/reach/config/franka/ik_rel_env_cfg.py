@@ -4,6 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.devices import DevicesCfg
+from isaaclab.devices.gamepad import Se3GamepadCfg
+from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils.configclass import configclass
 
@@ -33,6 +37,27 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+        )
+
+        # Native delta teleoperation devices. Keyboard, gamepad, and spacemouse all emit a 6D
+        # SE(3) delta command, which matches the relative IK action (6D). These devices are
+        # configured here rather than on the absolute IK variant, whose 7D pose action they
+        # cannot drive.
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "keyboard": Se3KeyboardCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+                "gamepad": Se3GamepadCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+                "spacemouse": Se3SpaceMouseCfg(
+                    gripper_term=False,
+                    sim_device=self.sim.device,
+                ),
+            },
         )
 
 
