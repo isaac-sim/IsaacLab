@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import logging
+
 from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -27,6 +28,15 @@ from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import (
     StackEnvCfg,
     raise_if_surface_gripper_on_newton,
 )
+
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 ##
 # Pre-defined configs
@@ -328,11 +338,12 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # IsaacTeleop-based teleoperation pipeline (left hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
 
 
 @configclass
@@ -373,8 +384,9 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
         # IsaacTeleop-based teleoperation pipeline (right hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
