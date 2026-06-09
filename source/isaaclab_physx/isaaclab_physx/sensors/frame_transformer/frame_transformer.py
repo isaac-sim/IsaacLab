@@ -242,7 +242,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         # Convert each tracked prim path to PhysX glob form for ``create_rigid_body_view``.
         # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
-        # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
+        # ``env_0`` paths; chain both substitutions so each mode normalizes to ``env_*``.
         body_names_regex = [
             tracked_prim_path.replace(".*", "*").replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
         ]
@@ -281,9 +281,12 @@ class FrameTransformer(BaseFrameTransformer):
                 )
             ]
 
-            # Only need 0th env as the names and their ordering are the same across environments
+            # Only need one representative env as the names and their ordering are the same across environments.
+            # Use the lowest env index present (not necessarily env_0 when clone combinations restrict cloning).
+            first_env_id = extract_env_num_and_prim_path(all_prim_paths[self._per_env_indices[0]])[0]
+            first_env_seg = f"/env_{first_env_id}/"
             sorted_prim_paths = [
-                all_prim_paths[index] for index in self._per_env_indices if "env_0" in all_prim_paths[index]
+                all_prim_paths[index] for index in self._per_env_indices if first_env_seg in all_prim_paths[index]
             ]
 
         else:

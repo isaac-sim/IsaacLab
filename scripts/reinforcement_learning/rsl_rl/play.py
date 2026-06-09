@@ -34,6 +34,8 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
 
+import isaaclab_contrib.tasks  # noqa: F401
+
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
     RslRlVecEnvWrapper,

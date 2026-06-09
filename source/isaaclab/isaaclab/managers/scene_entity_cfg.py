@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+import torch
+
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
@@ -115,6 +117,29 @@ class SceneEntityCfg:
 
     """
 
+    selector: str | None = None
+    """Selector term name resolved through :class:`~isaaclab.scene.Selector`.
+
+    When set, :meth:`resolve` populates :attr:`env_ids` and :attr:`view_ids`
+    with indices covering only the selected environments for this entity.
+    When ``None`` (default), both default to ``slice(None)`` (all envs).
+    """
+
+    env_ids: slice | torch.Tensor = slice(None)
+    """Global env indices for indexing into ``(num_envs, ...)`` output buffers.
+
+    Populated by :meth:`resolve`. Defaults to ``slice(None)`` (all envs).
+    """
+
+    view_ids: slice | torch.Tensor = slice(None)
+    """Indices into the asset's data buffer (the view).
+
+    Populated by :meth:`resolve`. Defaults to ``slice(None)`` (all envs).
+    """
+
+    _resolved: bool = False
+    """Internal flag to prevent double resolution."""
+
     def resolve(self, scene: InteractiveScene):
         """Resolves the scene entity and converts the joint and body names to indices.
 
@@ -133,8 +158,19 @@ class SceneEntityCfg:
             ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
                 are not consistent.
         """
+        # idempotency guard: skip if already resolved
+        if self._resolved:
+            return
+        self._resolved = True
+
         # check if the entity is valid
         if self.name not in scene.keys():
+            if self.selector is not None:
+                # Asset belongs to a zero-weight combination that was not spawned; resolve to empty
+                # indices so @scatterable terms fast-path silently rather than crash.
+                self.env_ids = torch.tensor([], dtype=torch.long, device=scene.device)
+                self.view_ids = torch.tensor([], dtype=torch.long, device=scene.device)
+                return
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 
         # convert joint names to indices based on regex
@@ -148,6 +184,9 @@ class SceneEntityCfg:
 
         # convert object collection names to indices based on regex
         self._resolve_object_collection_names(scene)
+
+        # resolve group patterns into env_ids and view_ids
+        self._resolve_views(scene)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -293,3 +332,18 @@ class SceneEntityCfg:
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
                 self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
+
+    def _resolve_views(self, scene: InteractiveScene):
+        """Resolve a selector term into env_ids and view_ids via the scene selector.
+
+        Args:
+            scene: The interactive scene instance.
+
+        Raises:
+            ValueError: If the selector cannot be resolved for this entity.
+        """
+        if self.selector is None:
+            return
+        env_to_view_map = scene.selector.get(self.selector, asset=self.name)
+        self.env_ids = env_to_view_map.env_ids
+        self.view_ids = env_to_view_map.view_ids

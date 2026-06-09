@@ -20,12 +20,42 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.cloner import CloneCfg
+from isaaclab.cloner import CloneCfg, InclusionSet, make_clone_plan, sequential
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg, Selector, SelectorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+
+def _make_selector(num_envs: int) -> Selector:
+    return Selector(SelectorCfg(), num_envs=num_envs, device="cpu")
+
+
+def _prepare_unit_scene(monkeypatch: pytest.MonkeyPatch, num_envs: int, **assets) -> InteractiveScene:
+    scene = object.__new__(InteractiveScene)
+    scene.cfg = SimpleNamespace(num_envs=num_envs, clone_cfg=CloneCfg(), selector_cfg=SelectorCfg(), **assets)
+    scene.cloner_cfg = CloneCfg(clone_strategy=sequential)
+    scene._env_ns = "/World/envs"
+    scene._env_regex_ns = "/World/envs/env_.*"
+    scene._selector = _make_selector(num_envs)
+    scene._inactive_selector_assets = set()
+    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+    return scene
+
+
+def _build_unit_plan(scene: InteractiveScene):
+    cfgs = scene._collect_asset_cfgs()
+    plan = make_clone_plan(
+        cfgs,
+        num_clones=scene.cfg.num_envs,
+        env_spacing=1.0,
+        device="cpu",
+        clone_strategy=scene.cloner_cfg.clone_strategy,
+        valid_set=scene._clone_valid_set,
+    )
+    scene._apply_selector_from_clone_plan(plan)
+    return plan
 
 
 @configclass
@@ -158,9 +188,8 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
     assert stage is scene.stage
 
 
-def test_collect_asset_cfgs_resolves_env_regex_macros():
+def test_collect_asset_cfgs_resolves_env_regex_macros(monkeypatch: pytest.MonkeyPatch):
     """_collect_asset_cfgs rewrites {ENV_REGEX_NS} macros and expands collections."""
-    scene = object.__new__(InteractiveScene)
     cube_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
@@ -171,11 +200,11 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
             assets_cfg=[sim_utils.ConeCfg(radius=0.1, height=0.2), sim_utils.SphereCfg(radius=0.1)]
         ),
     )
-    scene.cfg = SimpleNamespace(
-        num_envs=2,
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        2,
         objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
     )
-    scene.cloner_cfg = CloneCfg()
 
     cfgs = scene._collect_asset_cfgs()
 
@@ -183,20 +212,224 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
     assert prim_paths == ["/World/envs/env_.*/Cube", "/World/envs/env_.*/Shape"]
 
 
-def test_collect_asset_cfgs_orders_sensors_last():
+def test_collect_asset_cfgs_orders_sensors_last(monkeypatch: pytest.MonkeyPatch):
     """Non-sensor cfgs precede sensor cfgs in _collect_asset_cfgs output."""
     from isaaclab.sensors import ContactSensorCfg
 
-    scene = object.__new__(InteractiveScene)
     sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     body = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot")
-    scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor, body=body)
-    scene.cloner_cfg = CloneCfg()
+    scene = _prepare_unit_scene(monkeypatch, 1, sensor=sensor, body=body)
 
     cfgs = scene._collect_asset_cfgs()
 
     # Sensors come after non-sensor entities so they can bind to spawned bodies.
     assert cfgs.index(body) < cfgs.index(sensor)
+
+
+def test_reset_filters_global_env_ids_to_selector_entity_indices(monkeypatch: pytest.MonkeyPatch):
+    """Scene reset passes asset-local ids to selector-scoped assets and sensors."""
+    scene = object.__new__(InteractiveScene)
+    scene._selector = _make_selector(4)
+    scene._selector.register("left", torch.tensor([0, 2]))
+    scene._selector.register("right", torch.tensor([1, 3]))
+    scene._selector.register_asset("robot", "left")
+    scene._selector.register_asset("wrist_sensor", "right")
+    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+
+    calls: dict[str, torch.Tensor | None] = {}
+
+    def _recorder(name):
+        return SimpleNamespace(reset=lambda env_ids=None: calls.setdefault(name, env_ids))
+
+    scene._articulations = {"robot": _recorder("robot")}
+    scene._deformable_objects = {}
+    scene._rigid_objects = {"shared": _recorder("shared")}
+    scene._surface_grippers = {}
+    scene._rigid_object_collections = {}
+    scene._sensors = {"wrist_sensor": _recorder("wrist_sensor")}
+
+    scene.reset(torch.tensor([0, 1, 2, 3]))
+
+    assert calls["robot"].tolist() == [0, 1]
+    assert calls["wrist_sensor"].tolist() == [0, 1]
+    assert calls["shared"].tolist() == [0, 1, 2, 3]
+
+
+def test_collect_asset_cfgs_sets_valid_clone_combinations(monkeypatch: pytest.MonkeyPatch):
+    """Scene collection builds a valid set from clone-combination config."""
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        4,
+        object=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[sim_utils.ConeCfg(radius=0.1, height=0.2), sim_utils.SphereCfg(radius=0.1)]
+            ),
+        ),
+        robot=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        ),
+    )
+    scene.cloner_cfg = CloneCfg(
+        clone_strategy=sequential,
+        clone_combinations=[
+            InclusionSet(assets=["object"], weight=1),
+            InclusionSet(assets=["robot"], weight=1),
+        ],
+    )
+
+    scene._collect_asset_cfgs()
+
+    assert scene._clone_valid_set.tolist() == [[0, -1], [1, -1], [-1, 0]]
+
+
+def test_clone_combinations_register_selector_asset_rows(monkeypatch: pytest.MonkeyPatch):
+    """Selector asset rows are derived from the same valid combos used by ClonePlan."""
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        4,
+        object=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[sim_utils.ConeCfg(radius=0.1, height=0.2), sim_utils.SphereCfg(radius=0.1)]
+            ),
+        ),
+        robot=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        ),
+    )
+    scene.cloner_cfg = CloneCfg(
+        clone_strategy=sequential,
+        clone_combinations=[
+            InclusionSet(assets=["object"], weight=1),
+            InclusionSet(assets=["robot"], weight=1),
+        ],
+    )
+
+    plan = _build_unit_plan(scene)
+
+    assert scene.selector["object"].env_ids.tolist() == [0, 1, 3]
+    assert scene.selector["robot"].env_ids == slice(2, 3)
+    assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_2/Robot"
+    assert plan.sources == (
+        "/World/envs/env_0/Object",
+        "/World/envs/env_1/Object",
+        "/World/envs/env_2/Robot",
+    )
+    assert plan.clone_mask.tolist() == [
+        [True, False, False, True],
+        [False, True, False, False],
+        [False, False, True, False],
+    ]
+
+
+def test_clone_combinations_skip_assets_with_no_sampled_envs(monkeypatch: pytest.MonkeyPatch):
+    """A zero-weight-only asset is omitted from spawning based on the planned mask."""
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        4,
+        robot=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        ),
+        cabinet=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Cabinet",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        ),
+    )
+    scene.cloner_cfg = CloneCfg(
+        clone_strategy=sequential,
+        clone_combinations=[
+            InclusionSet(assets=["robot"], weight=1),
+            InclusionSet(assets=["cabinet"], weight=0),
+        ],
+    )
+
+    plan = _build_unit_plan(scene)
+
+    assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
+    assert scene.cfg.cabinet.spawn.spawn_path is None
+    assert scene._inactive_selector_assets == {"cabinet"}
+    assert plan.clone_mask.tolist() == [
+        [True, True, True, True],
+        [False, False, False, False],
+    ]
+
+
+def test_add_entities_from_cfg_skips_inactive_selector_assets(monkeypatch: pytest.MonkeyPatch):
+    """Entities with no sampled envs are not constructed."""
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        4,
+        cabinet=SimpleNamespace(prim_path="{ENV_REGEX_NS}/Cabinet", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))),
+    )
+    scene._inactive_selector_assets = {"cabinet"}
+    scene._terrain = None
+    scene._articulations = {}
+    scene._deformable_objects = {}
+    scene._rigid_objects = {}
+    scene._rigid_object_collections = {}
+    scene._sensors = {}
+    scene._surface_grippers = {}
+    scene._extras = {}
+
+    scene._add_entities_from_cfg()
+
+    assert "cabinet" not in scene.keys()
+
+
+def test_make_clone_plan_sets_collection_member_paths(monkeypatch: pytest.MonkeyPatch):
+    """Rigid object collection members are planned independently."""
+    cube_cfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+    )
+    shape_cfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Shape",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[sim_utils.ConeCfg(radius=0.1, height=0.2), sim_utils.SphereCfg(radius=0.1)]
+        ),
+    )
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        4,
+        objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
+    )
+
+    plan = _build_unit_plan(scene)
+
+    planned_cube = scene.cfg.objects.rigid_objects["cube"]
+    planned_shape = scene.cfg.objects.rigid_objects["shape"]
+    assert planned_cube.spawn.spawn_path == "/World/envs/env_0/Cube"
+    assert planned_shape.spawn.spawn_paths == ["/World/envs/env_0/Shape", "/World/envs/env_1/Shape"]
+    assert "/World/envs/env_{}/Cube" in plan.destinations
+    assert "/World/envs/env_{}/Shape" in plan.destinations
+
+
+def test_make_clone_plan_marks_unused_variants(monkeypatch: pytest.MonkeyPatch):
+    """Unused variants keep a mask row but do not get spawned."""
+    scene = _prepare_unit_scene(
+        monkeypatch,
+        2,
+        object=SimpleNamespace(
+            prim_path="{ENV_REGEX_NS}/Object",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    sim_utils.ConeCfg(radius=0.1, height=0.2),
+                    sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+                    sim_utils.SphereCfg(radius=0.1),
+                ]
+            ),
+        ),
+    )
+
+    plan = _build_unit_plan(scene)
+
+    assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object", None]
+    assert plan.clone_mask[2].sum() == 0
 
 
 def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
@@ -266,5 +499,5 @@ def assert_state_different(s1: dict, s2: dict, path=""):
         else:
             assert isinstance(v1, torch.Tensor) and isinstance(v2, torch.Tensor), f"Expected tensors at {subpath}"
             if not torch.equal(v1, v2):
-                return  # found a difference → success
+                return  # found a difference -> success
     pytest.fail(f"No differing tensor found in nested state at {path}")

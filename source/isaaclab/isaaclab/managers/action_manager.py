@@ -71,6 +71,18 @@ class ActionTerm(ManagerTermBase):
     """
 
     @property
+    def num_envs(self) -> int:
+        """Number of instances for this action term's asset.
+
+        .. note::
+            This returns ``asset.num_instances`` rather than ``env.num_envs``
+            because partial-env assets may have fewer instances than total
+            environments.  The action manager should be updated to handle
+            this distinction explicitly rather than relying on this override.
+        """
+        return self._asset.num_instances
+
+    @property
     @abstractmethod
     def action_dim(self) -> int:
         """Dimension of the action term."""

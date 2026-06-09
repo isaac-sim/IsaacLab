@@ -4,9 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "EnvToViewMap",
     "InteractiveScene",
     "InteractiveSceneCfg",
+    "Selector",
+    "SelectorCfg",
+    "SelectorTermCfg",
 ]
 
+from .env_view_index import EnvToViewMap
 from .interactive_scene import InteractiveScene
 from .interactive_scene_cfg import InteractiveSceneCfg
+from .selector import Selector
+from .selector_cfg import SelectorCfg, SelectorTermCfg

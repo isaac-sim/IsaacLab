@@ -10,18 +10,16 @@ import itertools
 import logging
 import math
 import re
-from collections.abc import Callable, Iterable, Iterator
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import Any
 
 import torch
 
 from pxr import Sdf, Usd, UsdGeom
 
 from .clone_plan import ClonePlan
+from .cloner_cfg import CloneGroup
 from .cloner_strategies import sequential
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +192,61 @@ def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[s
         yield from (match for match in matches if len(match[1].format(match[3][0])) == owner_length)
 
 
+def make_valid_clone_combinations(
+    asset_names: Sequence[str],
+    variant_counts: Sequence[int],
+    clone_combinations: Sequence[CloneGroup] | None = None,
+    device: str = "cpu",
+) -> torch.Tensor:
+    """Build the valid clone-combination variant tensor.
+
+    Args:
+        asset_names: Unique scene asset names, one per tensor column.
+        variant_counts: Number of spawn variants for each asset.
+        clone_combinations: Legal clone combinations. Each combination marks
+            which assets are active; assets not mentioned by any combination
+            are active in every row.
+        device: Torch device for the output tensor. Defaults to ``"cpu"``.
+
+    Returns:
+        A ``[num_valid_combinations, num_assets]`` tensor. Each entry is the
+        source variant index for that asset, or ``-1`` when the asset is absent.
+
+    Raises:
+        ValueError: If the asset and variant-count inputs do not match, if a
+            variant count is invalid, or if no valid rows can be produced.
+    """
+    if len(asset_names) != len(variant_counts):
+        raise ValueError(f"Expected one variant count per asset, got {len(variant_counts)} and {len(asset_names)}.")
+    if not asset_names:
+        raise ValueError("Expected at least one asset name.")
+    if any(count <= 0 for count in variant_counts):
+        raise ValueError("Variant counts must be positive.")
+
+    if not clone_combinations:
+        rows = itertools.product(*[range(count) for count in variant_counts])
+        return torch.tensor(list(rows), dtype=torch.long, device=device)
+
+    all_asset_names = list(asset_names)
+    combination_assets = [set(combination.resolve_assets(all_asset_names)) for combination in clone_combinations]
+    claimed_assets = set().union(*combination_assets) if combination_assets else set()
+
+    rows = []
+    for combination, active_assets in zip(clone_combinations, combination_assets):
+        if combination.weight <= 0:
+            continue
+        variant_ranges = []
+        for asset_name, count in zip(asset_names, variant_counts):
+            is_active = asset_name not in claimed_assets or asset_name in active_assets
+            variant_ranges.append(range(count) if is_active else (-1,))
+        for variants in itertools.product(*variant_ranges):
+            rows.extend(tuple(variants) for _ in range(combination.weight))
+
+    if not rows:
+        raise ValueError("Clone combinations produced no valid clone rows.")
+    return torch.tensor(rows, dtype=torch.long, device=device)
+
+
 def make_clone_plan(
     cfgs: Iterable[Any],
     num_clones: int,
@@ -245,6 +298,9 @@ def make_clone_plan(
             spawn_cfg.spawn_paths = paths
         else:
             active = [p for p in paths if p is not None]
+            if len(active) == 0:
+                spawn_cfg.spawn_path = None
+                return
             if len(active) != 1:
                 raise ValueError("Single spawner expects exactly one planned source path.")
             spawn_cfg.spawn_path = active[0]
@@ -282,7 +338,7 @@ def make_clone_plan(
         )
 
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
-    if all(count == 1 for _, _, _, count in groups):
+    if valid_set is None and all(count == 1 for _, _, _, count in groups):
         for cfg, spawn_cfg, destination, _ in groups:
             set_spawn_paths(spawn_cfg, [destination.format(0)])
         cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
@@ -304,13 +360,19 @@ def make_clone_plan(
         combos = valid_set.to(device=device, dtype=torch.long)
     chosen = clone_strategy(combos, num_clones, device)
 
+    if chosen.shape[1] != len(group_sizes):
+        raise ValueError(f"Expected clone strategy to return {len(group_sizes)} columns, got {chosen.shape[1]}.")
+
     group_offsets = torch.tensor([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=torch.long, device=device)
+    active = chosen >= 0
     rows = (chosen + group_offsets).view(-1)
     cols = torch.arange(num_clones, device=device).view(-1, 1).expand(-1, len(group_sizes)).reshape(-1)
+    active_flat = active.view(-1)
 
     num_rows = sum(group_sizes)
     clone_mask = torch.zeros((num_rows, num_clones), dtype=torch.bool, device=device)
-    clone_mask[rows, cols] = True
+    if active_flat.any():
+        clone_mask[rows[active_flat], cols[active_flat]] = True
 
     sources_list: list[str] = []
     destinations_list: list[str] = []

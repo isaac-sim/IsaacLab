@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import inspect
 import weakref
 from abc import ABC, abstractmethod
@@ -401,7 +402,7 @@ class ManagerBase(ABC):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
     def _resolve_param_value(self, term_name: str, key: str | int, value: Any):
-        """Recursively resolve a single param value (SceneEntityCfg, nested term cfgs, dicts, lists)."""
+        """Recursively resolve a single param value (SceneEntityCfg, nested term cfgs, dicts, lists, dataclasses)."""
         if isinstance(value, SceneEntityCfg):
             try:
                 value.resolve(self._env.scene)
@@ -415,3 +416,7 @@ class ManagerBase(ABC):
         elif isinstance(value, (list, tuple)):
             for i, item in enumerate(value):
                 self._resolve_param_value(f"{term_name}.{key}", i, item)
+        elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+            for field in dataclasses.fields(value):
+                field_value = getattr(value, field.name)
+                self._resolve_param_value(f"{term_name}.{key}", field.name, field_value)

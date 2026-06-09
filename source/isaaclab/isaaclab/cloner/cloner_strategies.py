@@ -44,3 +44,22 @@ def sequential(combinations: torch.Tensor, num_clones: int, device: str) -> torc
     """
     chosen = combinations[torch.arange(num_clones, device=device) % len(combinations)]
     return chosen
+
+
+def interleaved(combinations: torch.Tensor, num_clones: int, device: str) -> torch.Tensor:
+    """Assign prototype combinations to environments in round-robin order.
+
+    This is an explicit alias for :func:`sequential` kept for readability in
+    heterogeneous layout configs where users think of alternating task groups.
+
+    Args:
+        combinations: Tensor of shape (num_combos, num_prototypes) containing all possible
+            prototype combinations.
+        num_clones: Number of environments to assign combinations to.
+        device: Torch device on which the output tensor is allocated.
+
+    Returns:
+        Tensor of shape (num_clones, num_prototypes) containing the chosen prototype
+        combination for each environment.
+    """
+    return sequential(combinations, num_clones, device)
