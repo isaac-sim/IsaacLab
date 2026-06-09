@@ -121,37 +121,6 @@ def _resolve_cloudxr_env(value: str | None) -> str | None:
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
-def _assert_teleop_action_dim(env: gym.Env, action: torch.Tensor, task: str) -> None:
-    """Raise a clear error when a teleop command does not match the task's action dimension.
-
-    Native delta devices (keyboard, spacemouse, gamepad) emit a 6D SE(3) delta that only
-    matches relative-IK tasks. Absolute-IK tasks expect a 7D pose and are driven by the
-    IsaacTeleop (XR) pipeline. Raising here (caught by the simulation loop) avoids a cryptic
-    failure deep in the action manager.
-
-    Args:
-        env: The environment whose action manager defines the expected dimension.
-        action: A single (unbatched) teleop command tensor.
-        task: The task name, used in the diagnostic message.
-
-    Raises:
-        ValueError: When the command dimension does not match the task's action dimension.
-    """
-    if not hasattr(env, "action_manager"):
-        return
-    expected_dim = env.action_manager.total_action_dim
-    received_dim = action.shape[-1]
-    if received_dim == expected_dim:
-        return
-    raise ValueError(
-        f"Teleop device produces a {received_dim}-D command but task '{task}' expects a"
-        f" {expected_dim}-D action. Native delta devices (keyboard/spacemouse/gamepad) emit a 6D"
-        " SE(3) delta that only matches relative-IK ('-IK-Rel-') tasks. Use the relative-IK task"
-        " variant for these devices, or omit --teleop_device to drive absolute-IK tasks with the"
-        " IsaacTeleop (XR) pipeline."
-    )
-
-
 def _create_builtin_device(device_name: str, sensitivity: float) -> object | None:
     """Create a built-in teleop device by name, or return None if unrecognized."""
     name = device_name.lower()
@@ -369,10 +338,6 @@ def main() -> None:
                     if action is None:
                         env.sim.render()
                     elif teleoperation_active:
-                        # Surface a clear, actionable message (caught below) when the device
-                        # command does not match the task's action space, instead of a cryptic
-                        # error deep in the action manager.
-                        _assert_teleop_action_dim(env, action, args_cli.task)
                         # process actions
                         actions = action.repeat(env.num_envs, 1)
                         # apply actions

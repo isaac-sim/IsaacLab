@@ -334,10 +334,6 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Controllers
-     - Right
-     - **Arm:** right controller grip pose drives end-effector. No gripper.
    * - ``Isaac-PickPlace-GR1T2-Abs-v0``
      - Hand tracking
      - Both

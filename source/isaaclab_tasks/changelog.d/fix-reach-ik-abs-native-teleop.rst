@@ -6,4 +6,4 @@ Fixed
   are now configured on ``Isaac-Reach-Franka-IK-Rel-v0`` instead of the shared ``ReachEnvCfg`` base.
   Previously the absolute-IK variant (``Isaac-Reach-Franka-IK-Abs-v0``, 7D pose action) and the
   joint-position variant inherited these devices and raised an invalid action shape error when
-  teleoperated. The absolute-IK variant is teleoperated via the IsaacTeleop (XR) pipeline.
+  teleoperated.

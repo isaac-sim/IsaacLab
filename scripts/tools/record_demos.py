@@ -312,37 +312,6 @@ def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.En
         exit(1)
 
 
-def _validate_teleop_action_dim(env: gym.Env, action: torch.Tensor) -> bool:
-    """Check that a teleop command matches the task's expected action dimension.
-
-    Native delta devices (keyboard, spacemouse, gamepad) emit a 6D SE(3) delta that only
-    matches relative-IK tasks. Absolute-IK tasks expect a 7D pose and are driven by the
-    IsaacTeleop (XR) pipeline. Surfacing the mismatch here avoids a cryptic failure deep in
-    the action manager.
-
-    Args:
-        env: The environment whose action manager defines the expected dimension.
-        action: A single (unbatched) teleop command tensor.
-
-    Returns:
-        ``True`` when the dimensions match (or cannot be determined), ``False`` otherwise.
-    """
-    if not hasattr(env, "action_manager"):
-        return True
-    expected_dim = env.action_manager.total_action_dim
-    received_dim = action.shape[-1]
-    if received_dim == expected_dim:
-        return True
-    logger.error(
-        f"Teleop device produces a {received_dim}-D command but task '{args_cli.task}' expects a"
-        f" {expected_dim}-D action. Native delta devices (keyboard/spacemouse/gamepad) emit a 6D"
-        " SE(3) delta that only matches relative-IK ('-IK-Rel-') tasks. Use the relative-IK task"
-        " variant for these devices, or omit --teleop_device to drive absolute-IK tasks with the"
-        " IsaacTeleop (XR) pipeline."
-    )
-    return False
-
-
 def _create_builtin_device(device_name: str) -> object | None:
     """Create a built-in teleop device by name, or return None if unrecognized."""
     name = device_name.lower()
@@ -590,9 +559,6 @@ def run_simulation_loop(
         if use_isaac_teleop:
             from isaaclab_teleop import poll_control_events
 
-        # Validate the teleop command dimension against the task only once.
-        action_dim_validated = False
-
         with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
@@ -608,14 +574,6 @@ def run_simulation_loop(
                 if action is None:
                     env.sim.render()
                     continue
-
-                # Surface a clear, actionable message when the device command does not match the
-                # task's action space, instead of a cryptic error deep in the action manager.
-                if not action_dim_validated:
-                    if not _validate_teleop_action_dim(env, action):
-                        break
-                    action_dim_validated = True
-
                 # Expand to batch dimension
                 actions = action.repeat(env.num_envs, 1)
 
