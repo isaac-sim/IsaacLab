@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from pxr import UsdGeom
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
@@ -118,6 +118,31 @@ def test_usd_replicate_context_queue_and_replicate(sim):
 
     assert stage.GetPrimAtPath("/World/envs/env_0/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
+
+
+def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatch):
+    """Fabric notice suspension no-ops when Carbonite bindings exist but ``usdrt`` does not."""
+    import builtins
+
+    from isaaclab.cloner import _fabric_notices
+
+    class _FakeBindings:
+        def validate_with(self, fabric_id: int) -> bool:
+            raise AssertionError("missing usdrt should prevent fabric-id lookup")
+
+    monkeypatch.setattr(_fabric_notices, "get_bindings", lambda: _FakeBindings())
+
+    real_import = builtins.__import__
+
+    def _import_without_usdrt(name, *args, **kwargs):
+        if name == "usdrt":
+            raise ModuleNotFoundError("No module named 'usdrt'", name="usdrt")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _import_without_usdrt)
+
+    with _fabric_notices.disabled_fabric_change_notifies(Usd.Stage.CreateInMemory()):
+        pass
 
 
 def test_usd_replicate_depth_order_parent_child(sim):
