@@ -16,6 +16,7 @@ import webbrowser
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+import newton
 import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
@@ -23,7 +24,11 @@ from newton.viewer import ViewerRerun
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import (
+    apply_viewer_visible_worlds,
+    log_geo_with_expanded_plane_scale,
+    resolve_visible_env_indices,
+)
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
@@ -133,6 +138,29 @@ class NewtonViewerRerun(ViewerRerun):
         if imgui.collapsing_header("IsaacLab Controls"):
             if imgui.button("Pause Rendering" if not self._paused_rendering else "Resume Rendering"):
                 self._paused_rendering = not self._paused_rendering
+
+    def log_geo(
+        self,
+        name: str,
+        geo_type: int,
+        geo_scale: tuple[float, ...],
+        geo_thickness: float,
+        geo_is_solid: bool,
+        geo_src=None,
+        hidden: bool = False,
+    ):
+        """Log geometry, preserving large render extents for infinite ground planes."""
+        return log_geo_with_expanded_plane_scale(
+            super().log_geo,
+            newton.GeoType.PLANE,
+            name,
+            geo_type,
+            geo_scale,
+            geo_thickness,
+            geo_is_solid,
+            geo_src,
+            hidden,
+        )
 
 
 class RerunVisualizer(BaseVisualizer):

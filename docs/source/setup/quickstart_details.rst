@@ -33,24 +33,24 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
       .. code-block:: bash
 
          # Kit-less: Newton MJWarp + Newton visualizer
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=newton_mjwarp --visualizer newton
 
          # With Isaac Sim: PhysX
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
 
          # Camera task: physics + renderer + domain preset
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Camera-Direct \
            physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
          # OVRTX rendering (kit-less, no Kit visualizer)
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
            --headless --enable_cameras --num_envs=16 --max_iterations=10 \
            physics=newton_mjwarp renderer=ovrtx_renderer presets=simple_shading_diffuse_mdl
@@ -60,7 +60,7 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
 
       .. code-block:: batch
 
-         isaaclab.bat -p scripts\reinforcement_learning\rsl_rl\train.py ^
+         isaaclab.bat train --rl_library rsl_rl ^
            --task=Isaac-Cartpole-Direct ^
            --num_envs=4096 ^
            physics=newton_mjwarp --visualizer newton
@@ -119,8 +119,8 @@ Example output:
 .. code-block:: bash
 
    +--------+----------------------+--------------------------------------------+...
-   |   2    | Isaac-Ant-Direct-v0  |  isaaclab_tasks.core.direct_ant.ant_env:AntEnv  |...
-   |   48   | Isaac-Ant-v0         | isaaclab.envs:ManagerBasedRLEnv            |...
+   |   2    | Isaac-Ant-Direct  |  isaaclab_tasks.core.locomotion.ant.ant_direct_env:AntEnv  |...
+   |   48   | Isaac-Ant         | isaaclab.envs:ManagerBasedRLEnv            |...
 
 Each task may appear in **Direct** and **ManagerBased** variants — see
 :ref:`feature-workflows` for the two primary workflows.

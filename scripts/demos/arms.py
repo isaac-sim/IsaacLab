@@ -8,53 +8,55 @@ This script demonstrates different single-arm manipulators.
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/arms.py
+
+    # Usage with Newton visualizer and default PhysX physics.
+    ./isaaclab.sh -p scripts/demos/arms.py --visualizer newton
+
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/arms.py --physics newton_mjwarp
+
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
+    ./isaaclab.sh -p scripts/demos/arms.py --visualizer newton --physics newton_mjwarp
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different single-arm manipulators.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different single-arm manipulators.",
+    conflict_handler="resolve",
+)
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
 ##
-# isort: off
-from isaaclab_assets import (
-    FRANKA_PANDA_CFG,
-    UR10_CFG,
-    KINOVA_JACO2_N7S300_CFG,
-    KINOVA_JACO2_N6S300_CFG,
-    KINOVA_GEN3_N7_CFG,
-    SAWYER_CFG,
-)
+from isaaclab.physics import PhysicsCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-# isort: on
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets.robots.kinova import KINOVA_GEN3_N7_CFG, KINOVA_JACO2_N6S300_CFG, KINOVA_JACO2_N7S300_CFG  # isort:skip
+from isaaclab_assets.robots.sawyer import SAWYER_CFG  # isort:skip
+from isaaclab_assets.robots.universal_robots import UR10_CFG  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -93,7 +95,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    franka_panda = Articulation(cfg=franka_arm_cfg)
+    franka_panda = franka_arm_cfg.class_type(franka_arm_cfg)
 
     # Origin 2 with UR10
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
@@ -105,7 +107,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     ur10_cfg = UR10_CFG.replace(prim_path="/World/Origin2/Robot")
     ur10_cfg.init_state.pos = (0.0, 0.0, 1.03)
-    ur10 = Articulation(cfg=ur10_cfg)
+    ur10 = ur10_cfg.class_type(ur10_cfg)
 
     # Origin 3 with Kinova JACO2 (7-Dof) arm
     sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
@@ -115,7 +117,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     kinova_arm_cfg = KINOVA_JACO2_N7S300_CFG.replace(prim_path="/World/Origin3/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
-    kinova_j2n7s300 = Articulation(cfg=kinova_arm_cfg)
+    kinova_j2n7s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
     # Origin 4 with Kinova JACO2 (6-Dof) arm
     sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
@@ -125,7 +127,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     kinova_arm_cfg = KINOVA_JACO2_N6S300_CFG.replace(prim_path="/World/Origin4/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
-    kinova_j2n6s300 = Articulation(cfg=kinova_arm_cfg)
+    kinova_j2n6s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
     # Origin 5 with Sawyer
     sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
@@ -135,7 +137,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     kinova_arm_cfg = KINOVA_GEN3_N7_CFG.replace(prim_path="/World/Origin5/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    kinova_gen3n7 = Articulation(cfg=kinova_arm_cfg)
+    kinova_gen3n7 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
     # Origin 6 with Kinova Gen3 (7-Dof) arm
     sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
@@ -147,7 +149,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     sawyer_arm_cfg = SAWYER_CFG.replace(prim_path="/World/Origin6/Robot")
     sawyer_arm_cfg.init_state.pos = (0.0, 0.0, 1.03)
-    sawyer = Articulation(cfg=sawyer_arm_cfg)
+    sawyer = sawyer_arm_cfg.class_type(sawyer_arm_cfg)
 
     # return the scene information
     scene_entities = {
@@ -161,14 +163,14 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
-    # Simulate physics
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         # reset
         if count % 200 == 0:
             # reset counters
@@ -214,24 +216,34 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 
 def main():
     """Main function."""
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # The default newton mjwarp solver configuration needs to be tuned for these arms.
+        if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
+            physics_cfg.solver_cfg.njmax = 70
+            physics_cfg.solver_cfg.nconmax = 70
+            physics_cfg.solver_cfg.ls_iterations = 40
+            physics_cfg.solver_cfg.cone = "elliptic"
+            physics_cfg.solver_cfg.impratio = 100
+            physics_cfg.solver_cfg.ls_parallel = False
+            physics_cfg.solver_cfg.integrator = "implicitfast"
+            physics_cfg.num_substeps = 2
+
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
+        # design scene
+        scene_entities, scene_origins = design_scene()
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

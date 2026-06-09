@@ -421,7 +421,7 @@ Before starting full training, launch a quick visualization run to verify the en
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -430,7 +430,7 @@ Before starting full training, launch a quick visualization run to verify the en
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -465,7 +465,7 @@ Launch full training with many parallel environments in headless mode:
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
                 --headless \
                 --num_envs 4096 \
@@ -475,7 +475,7 @@ Launch full training with many parallel environments in headless mode:
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/train.py \
+            ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
                 --headless \
                 --num_envs 4096 \
@@ -575,7 +575,7 @@ Once training completes, evaluate the policy in the play environment:
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/play.py \
+            ./isaaclab.sh play --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-UR10e-Play-v0 \
                 --num_envs 50 \
                 --visualizer kit
@@ -584,7 +584,7 @@ Once training completes, evaluate the policy in the play environment:
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/rsl_rl/play.py \
+            ./isaaclab.sh play --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-Rizon4s-Play-v0 \
                 --num_envs 50 \
                 --visualizer kit
@@ -593,19 +593,21 @@ The play environments disable observation corruption for cleaner evaluation and 
 
 **Checkpoint Loading:**
 
-By default, ``play.py`` automatically loads the most recent checkpoint from the most recent training run. The script searches in ``logs/rsl_rl/<experiment_name>/`` and selects the latest run folder and checkpoint file (sorted alphabetically).
+By default, the play command automatically loads the most recent checkpoint from the most recent training run.
+It searches in ``logs/rsl_rl/<experiment_name>/`` and selects the latest run folder and checkpoint file
+(sorted alphabetically).
 
 To load a specific checkpoint, use these arguments:
 
 .. code-block:: bash
 
     # Load from a specific run folder
-    python scripts/reinforcement_learning/rsl_rl/play.py \
+    ./isaaclab.sh play --rl_library rsl_rl \
         --task Isaac-Deploy-Reach-UR10e-Play-v0 \
         --load_run 2025-01-15_14-30-00
 
     # Load a specific checkpoint file
-    python scripts/reinforcement_learning/rsl_rl/play.py \
+    ./isaaclab.sh play --rl_library rsl_rl \
         --task Isaac-Deploy-Reach-UR10e-Play-v0 \
         --checkpoint /path/to/model_1500.pt
 

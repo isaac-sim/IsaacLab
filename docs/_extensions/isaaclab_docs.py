@@ -160,7 +160,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv venv --python 3.12 --seed env_isaaclab
    source env_isaaclab/bin/activate
    uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]==6.0.0" \\
+   uv pip install "isaacsim[all,extscache]==6.0.0.1" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match --prerelease=allow
    uv pip install -U torch==2.10.0 torchvision==0.25.0 \\
@@ -178,7 +178,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv venv --python 3.12 --seed env_isaaclab
    env_isaaclab\\Scripts\\activate
    uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]==6.0.0" ^
+   uv pip install "isaacsim[all,extscache]==6.0.0.1" ^
      --extra-index-url https://pypi.nvidia.com ^
      --index-strategy unsafe-best-match --prerelease=allow
    uv pip install -U torch==2.10.0 torchvision==0.25.0 ^

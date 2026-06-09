@@ -75,15 +75,12 @@ def _make_kit_visualizer_cfg(env_cfg):
     ego_cam_cfg = getattr(env_cfg.scene, "ego_cam", None)
     if ego_cam_cfg is not None:
         visualizer_cfg.tiled_cam_prim_path = _resolve_env_regex_path(ego_cam_cfg.prim_path)
-        visualizer_cfg.tiled_cam_eye = None
         visualizer_cfg.tiled_cam_target_prim_path = None
         return visualizer_cfg
 
     visualizer_cfg.tiled_cam_prim_path = None
     # Here is an alternative eye position for a top down view
     # visualizer_cfg.tiled_cam_eye = (0.0, 0.0, 5.0)
-    visualizer_cfg.tiled_cam_eye = (3.0, 3.0, 3.0)
-    visualizer_cfg.tiled_cam_target_prim_path = "/World/envs/*/Robot/base"
     return visualizer_cfg
 
 

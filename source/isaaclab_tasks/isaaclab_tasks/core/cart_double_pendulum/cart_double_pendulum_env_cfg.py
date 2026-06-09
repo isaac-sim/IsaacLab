@@ -16,6 +16,8 @@ from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
 
 @configclass
 class CartDoublePendulumEnvCfg(DirectMARLEnvCfg):
+    """Configuration for the multi-agent cart-double-pendulum balancing environment."""
+
     # env
     decimation = 2
     episode_length_s = 5.0
@@ -48,7 +50,6 @@ class CartDoublePendulumEnvCfg(DirectMARLEnvCfg):
     # reward scales
     rew_scale_alive = 1.0
     rew_scale_terminated = -2.0
-    rew_scale_cart_pos = 0
     rew_scale_cart_vel = -0.01
     rew_scale_pole_pos = -1.0
     rew_scale_pole_vel = -0.01

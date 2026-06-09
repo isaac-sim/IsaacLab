@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+0.15.3 (2026-06-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale Newton sensor site registrations leaking across simulation context teardown.
+
+
+0.15.2 (2026-06-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``NewtonManager.get_contacts()`` accessor so visualizers can render
+  Newton contact buffers without reaching into manager internals.
+
+
+0.15.1 (2026-06-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin from ``v1.2.0`` to ``v1.2.1rc2``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the MuJoCo Warp parallel line search config option. Setting it
+  emits a warning and is ignored; use
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.ls_iterations` to tune the
+  iterative line search path.
+
+
 0.15.0 (2026-06-04)
 ~~~~~~~~~~~~~~~~~~~
 

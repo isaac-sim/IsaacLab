@@ -79,7 +79,7 @@ def main():
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim.set_setting("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create environment clones using Lab's cloner utilities
     num_envs = args_cli.num_robots
@@ -108,7 +108,7 @@ def main():
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance
-    physics_scene_path = sim.get_physics_context().prim_path
+    physics_scene_path = sim.cfg.physics_prim_path
     lab_cloner.filter_collisions(
         sim.stage, physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
     )

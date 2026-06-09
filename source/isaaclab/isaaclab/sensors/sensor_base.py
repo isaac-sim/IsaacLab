@@ -60,6 +60,7 @@ class SensorBase(ABC):
         # check that the config is valid
         cfg.validate()
         # store inputs
+        self._source_cfg = cfg
         self.cfg = cfg.copy()
         # flag for whether the sensor is initialized
         self._is_initialized = False
@@ -225,7 +226,8 @@ class SensorBase(ABC):
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments.
+        # Count number of environments. Prefer the active simulation's clone plan when USD
+        # only carries the env_0 prototype (e.g. Newton clones solver-side).
         self._clone_plan = sim.get_clone_plan()
         clone_plan = self._clone_plan
         clone_plan_matches = ()
@@ -234,6 +236,10 @@ class SensorBase(ABC):
         if clone_plan_matches:
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
+        elif clone_plan is not None:
+            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
+            self._num_envs = int(clone_plan.env_ids.numel())
         else:
             env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)

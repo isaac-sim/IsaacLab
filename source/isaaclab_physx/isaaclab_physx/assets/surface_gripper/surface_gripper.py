@@ -17,7 +17,10 @@ from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+
+from isaaclab_physx.cloner import queue_physx_replication
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -97,6 +100,9 @@ class SurfaceGripper(AssetBase):
         # flag for whether the sensor is initialized
         self._is_initialized = False
         self._debug_vis_handle = None
+
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
 
         # register various callback functions
         self._register_callbacks()
