@@ -6,7 +6,7 @@
 """Standalone validation script for the OVPhysX IMU sensor.
 
 Run with:
-    ./scripts/run_ovphysx.sh source/isaaclab_ovphysx/test/sensors/check_imu.py
+    ./isaaclab.sh -p source/isaaclab_ovphysx/test/sensors/check_imu.py
 
 Spawns a free-falling sphere with an IMU attached, steps the simulation for
 100 steps, and prints the angular velocity and linear acceleration in the
@@ -15,7 +15,7 @@ acts on the body), so the IMU reading should be approximately ``[0, 0, 0]``
 — the finite-difference world-frame acceleration ``(-g)`` cancels the IMU's
 gravity bias ``(+g)``.
 
-Runs kitless under ``run_ovphysx.sh`` — no AppLauncher needed.
+Runs kitless under ``./isaaclab.sh -p`` — no AppLauncher needed.
 """
 
 from __future__ import annotations

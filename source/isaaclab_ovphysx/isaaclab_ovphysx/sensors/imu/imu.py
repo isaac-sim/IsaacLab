@@ -194,9 +194,11 @@ class Imu(BaseImu):
         # ``_*_view`` are float32 aliases of the structured-dtype buffers below.
         self._pose_binding.read(self._transforms_view)
         self._vel_binding.read(self._velocities_view)
-        # COM is CPU-resident in ovphysx; stage on CPU, then copy into the GPU buffer.
-        self._com_binding.read(self._coms_cpu_view)
-        wp.copy(self._coms_gpu_view, self._coms_cpu_view)
+        # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
+        # For GPU simulations, stage on CPU then copy into the kernel buffer.
+        self._com_binding.read(self._coms_read_view)
+        if self._coms_read_view is not self._coms_gpu_view:
+            wp.copy(self._coms_gpu_view, self._coms_read_view)
 
         wp.launch(
             imu_update_kernel,
@@ -211,6 +213,7 @@ class Imu(BaseImu):
                 self._gravity_bias_w,
                 self._prev_lin_vel_w,
                 1.0 / self._dt,
+                self._timestamp,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],
@@ -254,4 +257,7 @@ class Imu(BaseImu):
             device=self._device,
             copy=False,
         )
-        self._coms_cpu_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu")
+        if self._device == "cpu":
+            self._coms_read_view = self._coms_gpu_view
+        else:
+            self._coms_read_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu", pinned=True)
