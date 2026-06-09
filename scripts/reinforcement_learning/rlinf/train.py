@@ -129,7 +129,8 @@ def main():
     print(f"[INFO] Task: {task_id}")
 
     # Setup logging directory
-    timestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S")
+    # Use hyphens instead of colons in time — colons are invalid in Windows paths.
+    timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = SCRIPT_DIR / "logs" / "rlinf" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] Logging to: {log_dir}")

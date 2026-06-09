@@ -28,13 +28,13 @@ Prerequisites
 
   .. code-block:: bash
 
-     ./isaaclab.sh -p -m pip install nvtx
+     python -m pip install nvtx
 
 
 Running a Profile
 ~~~~~~~~~~~~~~~~~
 
-The following command shows how to capture a profile for the ``Isaac-Cartpole-v0`` task via the ``rsl_rl`` training framework with 3 iterations:
+The following command shows how to capture a profile for the ``Isaac-Cartpole`` task via the ``rsl_rl`` training framework with 3 iterations:
 
 .. code-block:: bash
 
@@ -42,8 +42,8 @@ The following command shows how to capture a profile for the ``Isaac-Cartpole-v0
        -t nvtx,cuda \
        --python-functions-trace=scripts/benchmarks/nsys_trace.json \
        -o my_profile \
-       ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole-v0 \
+       ./isaaclab.sh train --rl_library rsl_rl \
+           --task=Isaac-Cartpole \
            --headless \
            --max_iterations=3
 
@@ -88,7 +88,7 @@ After editing the JSON, run the sync test to confirm every entry resolves:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p -m pytest scripts/benchmarks/test/test_nsys_trace.py
+   python -m pytest scripts/benchmarks/test/test_nsys_trace.py
 
 
 Troubleshooting
@@ -96,7 +96,7 @@ Troubleshooting
 
 - **An expected domain doesn't appear in the timeline:**
 
-  - Confirm ``nvtx`` is installed in your Isaac Lab environment (``./isaaclab.sh -p -m pip show nvtx``).
+  - Confirm ``nvtx`` is installed in your Isaac Lab environment (``python -m pip show nvtx``).
   - Make sure the function is actually called during the profiled run.
   - Verify the JSON entry by running the sync test (above).
 

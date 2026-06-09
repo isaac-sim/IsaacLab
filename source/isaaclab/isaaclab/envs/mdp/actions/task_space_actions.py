@@ -340,7 +340,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             def has_rigid_body_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-            matches = resolve_matching_prims_from_source(self._asset.cfg.prim_path)
+            matches = resolve_matching_prims_from_source(self._asset.cfg.prim_path, raise_if_no_matches=False)
             if not matches:
                 raise ValueError(f"No prim found at '{self._asset.cfg.prim_path}'.")
             asset_prim, root_expr = matches[0]

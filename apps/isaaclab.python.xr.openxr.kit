@@ -31,6 +31,7 @@ renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render
 app.useFabricSceneDelegate = true
 # Temporary, should be enabled by default in Kit soon
 rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+renderer.scenePartitioning.enabled = true # Enable before RTX initialization so env-root partitions are honored
 
 # xr optimizations
 xr.skipInputDeviceUSDWrites = true
@@ -97,6 +98,6 @@ UJITSO.enabled = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

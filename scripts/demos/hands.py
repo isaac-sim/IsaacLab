@@ -8,43 +8,53 @@ This script demonstrates different dexterous hands.
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/hands.py
+
+    # Usage with Newton visualizer and default PhysX physics.
+    ./isaaclab.sh -p scripts/demos/hands.py --visualizer newton
+
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/hands.py --physics newton_mjwarp
+
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
+    ./isaaclab.sh -p scripts/demos/hands.py --visualizer newton --physics newton_mjwarp
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different dexterous hands.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different dexterous hands.",
+    conflict_handler="resolve",
+)
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
 
 ##
 # Pre-defined configs
 ##
+from isaaclab.physics import PhysicsCfg
+
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
+from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -78,12 +88,15 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 1 with Allegro Hand
     sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
-    allegro = Articulation(ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot"))
+    allegro_cfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
+    allegro = allegro_cfg.class_type(allegro_cfg)
 
     # Origin 2 with Shadow Hand
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    shadow_hand = Articulation(SHADOW_HAND_CFG.replace(prim_path="/World/Origin2/Robot"))
+    shadow_hand_cfg = ShadowHandRobotCfg().newton_mjwarp if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_CFG
+    shadow_hand_cfg = shadow_hand_cfg.replace(prim_path="/World/Origin2/Robot")
+    shadow_hand = shadow_hand_cfg.class_type(shadow_hand_cfg)
 
     # return the scene information
     scene_entities = {
@@ -93,7 +106,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -101,8 +114,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
     count = 0
     # Start with hand open
     grasp_mode = 0
-    # Simulate physics
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         # reset
         if count % 1000 == 0:
             # reset counters
@@ -149,24 +162,34 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 
 def main():
     """Main function."""
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.2, 0.5])
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # The default newton mjwarp solver configuration needs to be tuned for these hands.
+        if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
+            physics_cfg.solver_cfg.njmax = 200
+            physics_cfg.solver_cfg.nconmax = 70
+            physics_cfg.solver_cfg.impratio = 10.0
+            physics_cfg.solver_cfg.cone = "elliptic"
+            physics_cfg.solver_cfg.update_data_interval = 2
+            physics_cfg.solver_cfg.ccd_iterations = 50
+            physics_cfg.num_substeps = 2
+            physics_cfg.debug_mode = False
+
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.05, 0.45])
+        # design scene
+        scene_entities, scene_origins = design_scene()
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
     # run the main execution
     main()
-    # close sim app
-    simulation_app.close()

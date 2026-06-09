@@ -66,8 +66,8 @@ YAML configuration example-1:
     py_modules: ["my_package/my_package"]
     concurrent: false
     tasks:
-      - name: "Isaac-Cartpole-v0"
-        py_args: "-m torch.distributed.run --nnodes=1 --nproc_per_node=2  --rdzv_endpoint=localhost:29501 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --max_iterations 200 --headless --distributed"
+      - name: "Isaac-Cartpole"
+        py_args: "-m torch.distributed.run --nnodes=1 --nproc_per_node=2  --rdzv_endpoint=localhost:29501 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole --max_iterations 200 --headless --distributed"
         num_gpus: 2
         num_cpus: 10
         memory: 10737418240
@@ -86,16 +86,16 @@ YAML configuration example-2:
     py_modules: ["my_package/my_package"]
     concurrent: true
     tasks:
-    - name: "Isaac-Cartpole-v0-multi-node-train-1"
-        py_args: "-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000"
+    - name: "Isaac-Cartpole-multi-node-train-1"
+        py_args: "-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole --headless --distributed --max_iterations 1000"
         num_gpus: 1
         num_cpus: 10
         memory: 10*1024*1024*1024
         node:
           specific: "hostname"
           hostname: "xxx"
-    - name: "Isaac-Cartpole-v0-multi-node-train-2"
-        py_args: "-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=x.x.x.x:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --max_iterations 1000"
+    - name: "Isaac-Cartpole-multi-node-train-2"
+        py_args: "-m torch.distributed.run --nproc_per_node=1 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=x.x.x.x:5555 /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole --headless --distributed --max_iterations 1000"
         num_gpus: 1
         num_cpus: 10
         memory: 10*1024*1024*1024

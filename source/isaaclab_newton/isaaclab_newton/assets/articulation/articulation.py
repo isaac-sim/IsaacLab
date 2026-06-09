@@ -38,6 +38,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -121,6 +122,7 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
+        queue_newton_physics_replication(cfg)
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -3499,20 +3501,9 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            matches = resolve_matching_prims_from_source(self.cfg.prim_path)
-            if not matches:
-                raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
+            asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
             walk_root = asset_prim.GetPath().pathString
-            root_prims = get_all_matching_child_prims(
-                walk_root, predicate=has_articulation_root_api, traverse_instance_prims=False
-            )
-            if len(root_prims) != 1:
-                matched = [p.GetPath().pathString for p in root_prims]
-                raise RuntimeError(
-                    f"Expected exactly one ArticulationRootAPI prim under '{walk_root}'"
-                    f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
-                )
+            root_prims = get_all_matching_child_prims(walk_root, has_articulation_root_api, expected_num_matches=1)
             root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         # -- articulation
         self._root_view = ArticulationView(

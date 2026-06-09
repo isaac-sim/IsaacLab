@@ -111,7 +111,8 @@ def main():
     print(f"[INFO] Task: {task_id}")
 
     # Setup logging directory
-    timestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S")
+    # Use hyphens instead of colons in time — colons are invalid in Windows paths.
+    timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = SCRIPT_DIR / "logs" / "rlinf" / "eval" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] Logging to: {log_dir}")
@@ -126,6 +127,8 @@ def main():
         # Override checkpoint if provided via CLI
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
+        if args_cli.rl_model_path:
+            cfg.rollout.model.rl_model_path = args_cli.rl_model_path
 
         # Enable video saving if requested
         if args_cli.video:

@@ -786,8 +786,8 @@ def rendering_test_shadow_hand(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
-    from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
-    from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
+    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
+    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
@@ -832,10 +832,10 @@ def rendering_test_cartpole(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-    env_cfg = CartpoleCameraPresetsEnvCfg()
+    env_cfg = CartpoleCameraEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(
         env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
     )
@@ -878,7 +878,7 @@ def rendering_test_dexsuite_kuka(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 

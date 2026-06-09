@@ -1,6 +1,127 @@
 Changelog
 ---------
 
+0.15.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+* Fixed incorrect camera pose in :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`.
+
+
+0.15.3 (2026-06-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale Newton sensor site registrations leaking across simulation context teardown.
+
+
+0.15.2 (2026-06-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``NewtonManager.get_contacts()`` accessor so visualizers can render
+  Newton contact buffers without reaching into manager internals.
+
+
+0.15.1 (2026-06-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin from ``v1.2.0`` to ``v1.2.1rc2``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the MuJoCo Warp parallel line search config option. Setting it
+  emits a warning and is ignored; use
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.ls_iterations` to tune the
+  iterative line search path.
+
+
+0.15.0 (2026-06-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NewtonSDFCollisionPropertiesCfg`` for authoring Newton SDF and hydroelastic collision USD attributes.
+
+
+0.14.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_newton.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
+0.14.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+*  Updates articulation to support passive tendons properties
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` to
+  re-invoke the Newton collision pipeline every ``N`` solver substeps within
+  a physics tick. Defaults to ``0`` (legacy: one collide per tick). When set
+  to ``0 < N < num_substeps``, the substep loop in
+  :meth:`~isaaclab_newton.physics.NewtonManager._run_solver_substeps` calls
+  the collision pipeline again at the matching substep boundaries so contact
+  normals reflect the bodies' just-integrated poses. The last substep is
+  intentionally skipped — its contact set would only feed the next tick.
+  :meth:`~isaaclab_newton.physics.NewtonCfg.__post_init__` warns when
+  ``collision_decimation >= num_substeps`` (the gate is silently bypassed).
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.ContactSensor`, :class:`~isaaclab_newton.sensors.Imu`,
+  :class:`~isaaclab_newton.sensors.Pva`, and :class:`~isaaclab_newton.sensors.JointWrenchSensor`
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each sensor's ``reset()`` now marks
+  the reset envs as up to date after zeroing ``_data``, so an immediate read returns those
+  zeros rather than re-fetching a physics buffer that has not been stepped since the reset.
+* Fixed particle self-contact configuration in the Newton deformables demo to prevent inter-penetration.
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.GRAVITY_VEC_W` (and the
+  matching attribute on :class:`~isaaclab_newton.assets.RigidObjectData` and
+  :class:`~isaaclab_newton.assets.RigidObjectCollectionData`) to bind directly
+  to Newton's per-world ``model.gravity`` array. Previously the constructor
+  snapshotted env 0's gravity as a unit vector and broadcast it to every
+  environment, so per-env gravity randomization (e.g.
+  :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity`) was invisible to
+  every consumer of ``GRAVITY_VEC_W`` and to the lazily-recomputed
+  :attr:`~isaaclab_newton.assets.ArticulationData.projected_gravity_b`.
+  ``GRAVITY_VEC_W`` now carries the actual world-frame gravity vector
+  (m/s\\ :sup:`2`); ``projected_gravity_b`` continues to expose a unit vector
+  in the body frame via a new dedicated kernel that normalizes internally.
+* Fixed Newton frame-view and ray-caster sensor resolution to use clone-plan
+  source paths and Newton model labels instead of cloned destination USD prims.
+* Fixed Newton Warp camera preparation to avoid requiring PPISP when camera ISP
+  is disabled.
+
+
 0.13.0 (2026-05-21)
 ~~~~~~~~~~~~~~~~~~~
 

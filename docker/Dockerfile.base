@@ -49,6 +49,43 @@ RUN apt-get update && \
     git \
     wget
 
+# Install the Carbonite env shim (libcarb.env.shim.so) that serializes glibc's
+# environment functions (getenv/setenv/putenv/unsetenv/secure_getenv/clearenv).
+# Carb/Kit/Omni plugins call these from worker threads while other threads
+# mutate the environment, which intermittently crashes CI with
+# `libc.so.6!getenv+0x56` SIGSEGVs. The shim now ships inside Isaac Sim's
+# Carbonite, so we copy it out of the install tree rather than vendoring a
+# prebuilt binary.
+#
+# Activation uses /etc/ld.so.preload (not ENV LD_PRELOAD) because Isaac Sim's
+# `_isaac_sim/python.sh` unconditionally overwrites LD_PRELOAD with
+# `kit/libcarb.so` before exec'ing the interpreter, which would strip our
+# shim. /etc/ld.so.preload is read by the dynamic linker for every process
+# and cannot be turned off by env-var manipulation.
+RUN install_carb_env_shim() { \
+      local dst=/usr/local/lib/libcarb.env.shim.so; \
+      local src=""; \
+      for c in \
+        "${ISAACSIM_ROOT_PATH}/kit/kernel/plugins/libcarb.env.shim.so" \
+        "${ISAACSIM_ROOT_PATH}/kit/libcarb.env.shim.so" \
+        "${ISAACSIM_ROOT_PATH}/_build/linux-x86_64/release/kit/kernel/plugins/libcarb.env.shim.so" \
+        "${ISAACSIM_ROOT_PATH}/_build/target-deps/carb_sdk_plugins/_build/linux-x86_64/release/libcarb.env.shim.so" \
+      ; do \
+        if [ -f "${c}" ]; then src="${c}"; break; fi; \
+      done; \
+      if [ -z "${src}" ]; then \
+        src="$(find "${ISAACSIM_ROOT_PATH}" -name libcarb.env.shim.so -type f 2>/dev/null | head -n1)"; \
+      fi; \
+      if [ -n "${src}" ] && [ -f "${src}" ]; then \
+        install -m 0755 "${src}" "${dst}" && \
+        echo "${dst}" > /etc/ld.so.preload && \
+        echo "installed carb env shim from ${src}"; \
+      else \
+        echo "no carb env shim found under ${ISAACSIM_ROOT_PATH}; skipping /etc/ld.so.preload" >&2; \
+      fi; \
+    }; \
+    install_carb_env_shim
+
 # arm64-only build deps:
 # - imgui-bundle has no prebuilt arm64 wheel; needs GL/X11 dev headers.
 # - swig is required for the nlopt source build (see arm64 nlopt step below).

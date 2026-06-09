@@ -1,0 +1,27 @@
+[package]
+
+# Semantic Versioning is used: https://semver.org/
+version = "0.1.4"
+
+# Description
+category = "isaaclab"
+readme = "README.md"
+
+title = "Isaac Lab Visualizers"
+author = "Isaac Lab Project Developers"
+maintainer = "Isaac Lab Project Developers"
+description = "Visualizer backends for Isaac Lab (Kit, Newton, Rerun, Viser)."
+repository = "https://github.com/isaac-sim/IsaacLab.git"
+keywords = ["extension", "isaaclab", "visualization"]
+
+[dependencies]
+"isaaclab" = {}
+# NOTE: Add additional dependencies here
+
+[core]
+reloadable = false
+
+[[python.module]]
+name = "isaaclab_visualizers"
+
+[isaaclab_settings]

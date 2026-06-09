@@ -21,7 +21,7 @@ Example usage:
 
 .. code-block:: shell
 
-    python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
+    ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --headless --video --video_length 100 --video_interval 500
 
 
 The recorded videos will be saved in the same directory as the training checkpoints, under
@@ -81,10 +81,10 @@ the Rerun visualizer rather than producing ``--video`` clips, and Viser does not
 ``--video`` recording backend.
 
 Set ``VideoRecorderCfg.backend_source = "renderer"`` to ignore active visualizers and choose from the
-physics/renderer stack instead. In that mode, PhysX physics (``presets=physx,...``) or Isaac RTX
-(``presets=isaac_rtx_renderer,...``) selects the Kit path. Newton physics (``presets=newton_mjwarp,...``) or
-the Newton Warp renderer (``presets=newton_renderer,...``) selects the Newton GL path when no Kit
-signal is present. OVRTX (``presets=ovrtx_renderer,...`` from ``isaaclab_ov``) can pair with IsaacSim
+physics/renderer stack instead. In that mode, PhysX physics (``physics=physx``) or Isaac RTX
+(``renderer=isaacsim_rtx_renderer``) selects the Kit path. Newton physics (``physics=newton_mjwarp``) or
+the Newton Warp renderer (``renderer=newton_renderer``) selects the Newton GL path when no Kit
+signal is present. OVRTX (``renderer=ovrtx_renderer`` from ``isaaclab_ov``) can pair with IsaacSim
 or Newton physics; in that case the video backend is selected via the physics preset. If both Kit and
 Newton GL signals are present, the Kit path is chosen.
 
@@ -143,16 +143,16 @@ Summary
    :widths: 40 22 38
    :header-rows: 1
 
-   * - Stack example (``presets=...``)
+   * - Stack example (``physics=`` / ``renderer=``)
      - Video backend
      - Capture mechanism
-   * - ``physx,...`` or ``isaac_rtx_renderer,...``
+   * - ``physics=physx`` or ``renderer=isaacsim_rtx_renderer``
      - Kit (``"kit"``)
      - ``/OmniverseKit_Persp`` + Replicator RGB
-   * - ``newton_mjwarp,...`` or ``newton_renderer,...`` (no Kit signals)
+   * - ``physics=newton_mjwarp`` or ``renderer=newton_renderer`` (no Kit signals)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
-   * - ``newton_mjwarp,...,ovrtx_renderer,...`` (OVRTX + Newton physics)
+   * - ``physics=newton_mjwarp`` + ``renderer=ovrtx_renderer`` (OVRTX + Newton physics)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
    * - ``--visualizer kit`` with default ``backend_source``

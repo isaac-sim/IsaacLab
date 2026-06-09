@@ -41,7 +41,7 @@ First, run
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h
+   python scripts/benchmarks/benchmark_cameras.py -h
 
 to see all possible parameters you can vary with this utility.
 
@@ -61,12 +61,9 @@ only in RGB mode, run
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
-   --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
-   --task_num_cameras_per_env 2 \
-   --tiled_camera_data_types rgb
+   python scripts/benchmarks/benchmark_cameras.py --task Isaac-Cartpole --num_tiled_cameras 100 --task_num_cameras_per_env 2 --tiled_camera_data_types rgb
 
-If you have pynvml installed, (``./isaaclab.sh -p -m pip install pynvml``), you can also
+If you have pynvml installed, (``python -m pip install pynvml``), you can also
 find the maximum number of cameras that you could run in the specified environment up to
 a certain performance threshold (specified by max CPU utilization percent, max RAM utilization percent,
 max GPU compute percent, and max GPU memory percent). For example, to find the maximum number of cameras
@@ -74,11 +71,7 @@ you can run with cartpole, you could run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
-   --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
-   --task_num_cameras_per_env 2 \
-   --tiled_camera_data_types rgb --autotune \
-   --autotune_max_percentage_util 100 80 50 50
+   python scripts/benchmarks/benchmark_cameras.py --task Isaac-Cartpole --num_tiled_cameras 100 --task_num_cameras_per_env 2 --tiled_camera_data_types rgb --autotune --autotune_max_percentage_util 100 80 50 50
 
 Autotune may lead to the program crashing, which means that it tried to run too many cameras at once.
 However, the max percentage utilization parameter is meant to prevent this from happening.
@@ -97,10 +90,7 @@ For example, to view 100 random objects with 2 standard cameras, one could run
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py \
-   --height 100 --width 100 --num_standard_cameras 2 \
-   --standard_camera_data_types instance_segmentation_fast normals --num_objects 100 \
-   --experiment_length 100
+   python scripts/benchmarks/benchmark_cameras.py --height 100 --width 100 --num_standard_cameras 2 --standard_camera_data_types instance_segmentation_fast normals --num_objects 100 --experiment_length 100
 
 If your system cannot handle this due to performance reasons, then the process will be killed.
 It's recommended to monitor CPU/RAM utilization and GPU utilization while running this script, to get

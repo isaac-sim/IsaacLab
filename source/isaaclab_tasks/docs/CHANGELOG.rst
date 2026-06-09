@@ -1,6 +1,367 @@
 Changelog
 ---------
 
+5.0.0 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Consolidated the rigid and soft Franka lifting tasks into a single
+  :mod:`isaaclab_tasks.core.lift` package. The former ``isaaclab_tasks.core.lift_franka_soft``
+  package moved under :mod:`isaaclab_tasks.core.lift.config.franka_soft`, alongside the existing
+  rigid ``franka`` config, to keep the rigid and soft variants separated. Update imports such as
+  ``from isaaclab_tasks.core.lift_franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg`` to
+  ``from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg``.
+  The deformable MDP terms were merged into the shared :mod:`isaaclab_tasks.core.lift.mdp` package
+  (rather than a separate per-variant ``mdp``); import them from there, e.g.
+  ``from isaaclab_tasks.core.lift.mdp import deformable_lifted``.
+* **Breaking:** Renamed the lift Gym environment IDs to drop the ``-v0`` version suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Lift-Cube-Franka-v0`` → ``Isaac-Lift-Cube-Franka``.
+  * ``Isaac-Lift-Cube-Franka-Play-v0`` → ``Isaac-Lift-Cube-Franka-Play``.
+  * ``Isaac-Lift-Soft-Franka-v0`` → ``Isaac-Lift-Soft-Franka``.
+  * ``Isaac-Lift-Cloth-Franka-v0`` → ``Isaac-Lift-Cloth-Franka``.
+
+Fixed
+^^^^^
+
+* Increased the AutoMate assembly and disassembly PhysX GPU collision stack to avoid dropped contacts at the default 128 environments.
+* Updated AutoMate run helpers and docs to reject placeholder assembly IDs before launching simulation.
+* Renamed the ``Isaac-Lift-Cloth-Franka`` physics preset from the misspelled ``newton_mjwarp_vdb``
+  to ``newton_mjwarp_vbd``, matching the soft-body task and the underlying VBD solver. The cloth
+  ``RewardsCfg``, which duplicated the soft task's rewards verbatim, is now inherited instead of
+  redefined.
+* Removed AutoMate's Numba dependency by replacing the SoftDTW helper with a
+  Torch implementation.
+
+
+4.0.0 (2026-06-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the reach Gym environment IDs to drop the ``-v0`` version suffix. The
+  robot name is kept in the ID and the manager-based workflow carries no workflow suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Reach-Franka-v0`` → ``Isaac-Reach-Franka``.
+  * ``Isaac-Reach-Franka-Play-v0`` → ``Isaac-Reach-Franka-Play``.
+  * ``Isaac-Reach-Franka-OSC-v0`` → ``Isaac-Reach-Franka-OSC``.
+  * ``Isaac-Reach-Franka-OSC-Play-v0`` → ``Isaac-Reach-Franka-OSC-Play``.
+  * ``Isaac-Reach-UR10-v0`` → ``Isaac-Reach-UR10``.
+  * ``Isaac-Reach-UR10-Play-v0`` → ``Isaac-Reach-UR10-Play``.
+* Renamed the RSL-RL experiment name for the Franka reach task from ``franka_reach`` to
+  ``reach_franka`` so it matches the other Franka reach agent configs and the UR10 reach task.
+* **Breaking:** Moved the reach pose-tracking reward terms ``position_command_error``,
+  ``position_command_error_tanh`` and ``orientation_command_error`` to the shared
+  :mod:`isaaclab.envs.mdp` terms and removed the ``isaaclab_tasks.core.reach.mdp`` package. Import
+  these terms from :mod:`isaaclab.envs.mdp` instead, e.g. replace
+  ``import isaaclab_tasks.core.reach.mdp as mdp`` with ``import isaaclab.envs.mdp as mdp``.
+
+
+3.0.0 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validation for the typed preset selectors ``physics=NAME`` and
+  ``renderer=NAME`` during Hydra resolution. A typed selector is now enforced
+  to resolve against a config of that type (a
+  :class:`~isaaclab.physics.PhysicsCfg` / renderer config) at least once;
+  selecting one on a task that only exposes the name as an unrelated preset
+  (e.g. a scalar or sensor variant) raises a descriptive :class:`ValueError`
+  instead of silently leaving the backend unchanged. The free-form
+  ``presets=NAME`` broadcast is trusted and not enforced.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Grouped the ant and humanoid locomotion tasks under a new
+  :mod:`isaaclab_tasks.core.locomotion` package, each as a subpackage
+  (:mod:`isaaclab_tasks.core.locomotion.ant` and :mod:`isaaclab_tasks.core.locomotion.humanoid`).
+  The two subpackages share the direct-workflow base environment
+  (:mod:`isaaclab_tasks.core.locomotion.locomotion_direct_env`, previously
+  ``isaaclab_tasks.core.direct_locomotion.locomotion_env``) and the manager-workflow MDP terms
+  (:mod:`isaaclab_tasks.core.locomotion.mdp`, previously
+  ``isaaclab_tasks.core.manager_humanoid.mdp``).
+* **Breaking:** Merged the direct-workflow and manager-based-workflow ant and humanoid task
+  packages into the per-task subpackages above; the former ``isaaclab_tasks.core.direct_ant``,
+  ``isaaclab_tasks.core.manager_ant``, ``isaaclab_tasks.core.direct_humanoid`` and
+  ``isaaclab_tasks.core.manager_humanoid`` packages were removed. Module files now carry a
+  ``_direct_`` or ``_manager_`` infix to disambiguate the two workflows. Update imports, e.g.:
+
+  * ``from isaaclab_tasks.core.direct_ant.ant_env import AntEnv`` →
+    ``from isaaclab_tasks.core.locomotion.ant.ant_direct_env import AntEnv``.
+  * ``from isaaclab_tasks.core.manager_humanoid.humanoid_env_cfg import HumanoidEnvCfg`` →
+    ``from isaaclab_tasks.core.locomotion.humanoid.humanoid_manager_env_cfg import HumanoidEnvCfg``.
+
+  The near-identical per-workflow ``rsl_rl_ppo_cfg`` modules were consolidated; each subpackage's
+  ``agents.rsl_rl_ppo_cfg`` now exposes a manager-based runner cfg (:class:`AntPPORunnerCfg` /
+  :class:`HumanoidPPORunnerCfg`) and a direct-workflow subclass (:class:`AntDirectPPORunnerCfg` /
+  :class:`HumanoidDirectPPORunnerCfg`).
+* **Breaking:** Renamed the ant and humanoid Gym environment IDs to drop the ``-v0`` version suffix
+  and mark the direct-workflow tasks with an explicit ``-Direct`` suffix. The manager-based workflow
+  is the default and carries no workflow suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Ant-Direct-v0`` → ``Isaac-Ant-Direct``.
+  * ``Isaac-Ant-v0`` → ``Isaac-Ant``.
+  * ``Isaac-Humanoid-Direct-v0`` → ``Isaac-Humanoid-Direct``.
+  * ``Isaac-Humanoid-v0`` → ``Isaac-Humanoid``.
+* **Breaking:** Renamed the cart double pendulum Gym environment ID to drop the ``-v0`` version
+  suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Cart-Double-Pendulum-Direct-v0`` → ``Isaac-Cart-Double-Pendulum-Direct``.
+* Changed :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_camera_env.CartpoleCameraEnv`
+  to route image normalization through
+  :func:`isaaclab.utils.images.normalize_camera_image` and defer the normalize past the
+  frame-stack buffer for RGB-like data types, improving cartpole-camera frame-stacking
+  throughput.
+* **Breaking:** Removed ``isaaclab_tasks.utils.fold_preset_tokens``.
+  :func:`~isaaclab_tasks.utils.preset_cli.setup_preset_cli` now returns the
+  ``physics=`` / ``renderer=`` / ``presets=`` tokens verbatim, and
+  :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly.
+  Scripts assign the remainder to ``sys.argv`` unchanged (drop the
+  ``fold_preset_tokens(...)`` wrapper).
+
+Removed
+^^^^^^^
+
+* Removed the unused ``rew_scale_cart_pos`` field from
+  :class:`~isaaclab_tasks.core.cart_double_pendulum.cart_double_pendulum_env_cfg.CartDoublePendulumEnvCfg`.
+  It defaulted to ``0`` and was never applied to any reward term, so removing it does not change
+  training behavior.
+
+
+2.0.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton task presets to rely on iterative MuJoCo Warp line search.
+
+
+2.0.2 (2026-06-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added rsl_rl vision training configs for the cartpole camera tasks. The
+  :obj:`Isaac-Cartpole-Camera-Direct` and :obj:`Isaac-Cartpole-Camera` tasks
+  now expose an ``rsl_rl_cfg_entry_point`` using a CNN policy for the raw
+  RGB/depth pipelines, and :obj:`Isaac-Cartpole-Camera` additionally exposes an
+  ``rsl_rl_feature_cfg_entry_point`` with an MLP policy for the pretrained
+  ResNet18 and Theia-Tiny feature pipelines.
+
+Changed
+^^^^^^^
+
+* Consolidated the direct cartpole camera env and config into a single
+  ``CartpoleCameraEnv`` / ``CartpoleCameraEnvCfg`` pair (in
+  ``cartpole_direct_camera_env`` / ``cartpole_direct_camera_env_cfg``). The
+  separate ``CartpoleCameraPresetsEnv`` env class and
+  ``cartpole_direct_camera_presets_env`` /
+  ``cartpole_direct_camera_presets_env_cfg`` modules were removed; frame
+  stacking is now built into ``CartpoleCameraEnv`` and stays gated on the
+  Newton + Warp backend combo. ``CartpoleCameraEnv`` now subclasses
+  :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_env.CartpoleEnv` and
+  ``CartpoleCameraEnvCfg`` subclasses
+  :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg.CartpoleEnvCfg`,
+  overriding only the camera-specific fields to remove duplication.
+* Reworked the manager-based cartpole camera env into a preset-driven
+  :class:`~isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg.CartpoleCameraEnvCfg`,
+  mirroring the direct env. The camera data type and rendering backend (RTX,
+  OmniverseRTX, Newton + Warp) are now selectable through the ``presets=``
+  selector, e.g. ``presets=depth`` or ``presets=newton_renderer``.
+* Consolidated the cartpole physics-backend presets into a single shared
+  ``CartpolePhysicsCfg``. The direct camera task (:obj:`Isaac-Cartpole-Camera-Direct`)
+  now uses the same tuned Newton solver settings as the other cartpole tasks
+  instead of the solver defaults.
+* **Breaking:** The cartpole camera tasks (:obj:`Isaac-Cartpole-Camera-Direct`
+  and :obj:`Isaac-Cartpole-Camera`) now emit channel-first ``[C, H, W]`` image
+  observations instead of channel-last ``[H, W, C]``, matching the layout
+  expected by the rsl_rl CNN policy. The bundled rl_games and skrl configs were
+  updated accordingly (``permute_input: False`` / no input permute); custom
+  agent configs that assumed channel-last observations must drop their
+  NHWC-to-NCHW permute.
+
+Removed
+^^^^^^^
+
+* Removed the orphaned per-datatype direct cartpole camera cfg subclasses
+  ``CartpoleDepthCameraEnvCfg``, ``CartpoleAlbedoCameraEnvCfg``,
+  ``CartpoleSimpleShadingConstantCameraEnvCfg``,
+  ``CartpoleSimpleShadingDiffuseCameraEnvCfg`` and
+  ``CartpoleSimpleShadingFullCameraEnvCfg``. These were left over from the
+  pre-preset design and no longer back any task. Select the datatype through
+  the preset-based :obj:`Isaac-Cartpole-Camera-Direct` task instead, e.g.
+  ``presets=depth`` or ``presets=albedo``.
+* Removed ``CartpoleRGBCameraEnvCfg`` from
+  ``isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg``. The cartpole
+  camera showcase now defines its own equivalent base cfg.
+* Removed the per-pipeline manager cartpole camera cfg subclasses
+  ``CartpoleRGBCameraEnvCfg``, ``CartpoleDepthCameraEnvCfg``,
+  ``CartpoleResNet18CameraEnvCfg`` and ``CartpoleTheiaTinyCameraEnvCfg`` along
+  with their dedicated scene cfgs. Select the pipeline through the preset-based
+  :obj:`Isaac-Cartpole-Camera` task instead, e.g. ``presets=rgb``,
+  ``presets=depth``, ``presets=resnet18`` or ``presets=theia_tiny``.
+
+
+2.0.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab_tasks.utils.sim_launcher`` module alias and the
+  ``add_launcher_args``, ``launch_simulation``, and ``make_physics_cfg`` re-exports from
+  ``isaaclab_tasks.utils``. Import them from :mod:`isaaclab.app` instead, e.g.
+  ``from isaaclab.app import launch_simulation``.
+
+
+2.0.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validation in :mod:`isaaclab_tasks.utils.sim_launcher` that raises a descriptive
+  error when an unsupported physics/renderer/visualizer combination is requested
+  (e.g. the kitless OVRTX renderer paired with Isaac Sim PhysX or the Kit visualizer),
+  pointing users at the correct preset instead of failing later with an opaque runtime error.
+*  Updates shadow hand newton scene to use MJCF version of the hand
+* Added four consolidated Cartpole perception tasks that subsume 35
+  per-variant task IDs via the typed preset CLI (#5587):
+  ``Isaac-Cartpole-Camera-Direct-v0``, ``Isaac-Cartpole-Camera-v0``,
+  ``Isaac-Cartpole-Showcase-Direct-v0``, and
+  ``Isaac-Cartpole-Camera-Showcase-Direct-v0``. Variant (data type,
+  observation pipeline, gym-space shape) selected at runtime via
+  ``presets=<name>``; agent yaml selected via
+  ``--agent=<entry_point_name>`` for the manager perception feature
+  policies and all non-default showcase shapes.
+* Added a ``deprecated`` convention for retired gym task registrations:
+  a ``gym.register`` kwarg with shape
+  ``{"alias": "--task=NEW [--agent=NAME] presets=NAME"}`` holding the
+  equivalent migration command. The dict shape is open for future
+  fields (``reason``, ``removed_in``, ...). :func:`isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry`
+  reads ``kwargs["deprecated"]["alias"]`` when loading an
+  ``env_cfg_entry_point`` and emits a :class:`FutureWarning`
+  naming the new command.
+
+Changed
+^^^^^^^
+
+* Changed the default number of environments for
+  ``Isaac-Navigation-3DObstacles-ARL-Robot-1-v0`` to ``1024``. Set
+  ``--num_envs`` or ``env.scene.num_envs`` to use a different value.
+* **Breaking:** Restructured :mod:`isaaclab_tasks` into a flat ``core`` / ``contrib`` layout.
+  Task families now live directly under :mod:`isaaclab_tasks.core` (maintained tasks) or
+  :mod:`isaaclab_tasks.contrib` (contributed tasks), replacing the previous
+  ``direct`` / ``manager_based`` workflow grouping and the ``classic`` / ``manipulation`` /
+  ``locomotion`` domain sub-packages. Registered Gym environment IDs are unchanged, so
+  ``gym.make("Isaac-...")`` calls continue to work; only Python import paths changed.
+  Update imports such as
+  ``from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg`` to
+  ``from isaaclab_tasks.core.lift.lift_env_cfg import LiftEnvCfg``, and
+  ``from isaaclab_tasks.manager_based.manipulation.stack...`` to
+  ``from isaaclab_tasks.contrib.stack...``. Tasks that exist in both workflows are now
+  disambiguated by a workflow prefix (e.g. :mod:`isaaclab_tasks.core.manager_cartpole` and
+  :mod:`isaaclab_tasks.core.direct_cartpole`).
+* **Breaking:** Removed 35 per-variant Cartpole task IDs (7 Direct camera,
+  4 manager-based camera, 15 proprioceptive showcase, 9 camera-based
+  showcase) and the ``deprecated`` ``gym.register`` kwarg that flagged
+  them as aliases. Use the consolidated tasks
+  (``Isaac-Cartpole-Camera-Direct``, ``Isaac-Cartpole-Camera``,
+  ``Isaac-Cartpole-Showcase-Direct``,
+  ``Isaac-Cartpole-Camera-Showcase-Direct``) with ``presets=<name>``
+  to select the variant:
+
+  * ``Isaac-Cartpole-{RGB,Depth,Albedo,SimpleShading-*}-Camera-Direct-v0``
+    and ``Isaac-Cartpole-Camera-Presets-Direct-v0`` →
+    ``--task=Isaac-Cartpole-Camera-Direct [presets=<rgb|depth|albedo|simple_shading_*>]``.
+  * ``Isaac-Cartpole-{RGB,Depth}-v0`` →
+    ``--task=Isaac-Cartpole-Camera [presets=<rgb|depth>]``.
+  * ``Isaac-Cartpole-RGB-{ResNet18,TheiaTiny}-v0`` →
+    ``--task=Isaac-Cartpole-Camera --agent=rl_games_feature_cfg_entry_point presets=<resnet18|theia_tiny>``.
+  * ``Isaac-Cartpole-Showcase-<Obs>-<Action>-Direct-v0`` →
+    ``--task=Isaac-Cartpole-Showcase-Direct [--agent=skrl_<obs>_<action>_cfg_entry_point] presets=<obs>_<action>``.
+  * ``Isaac-Cartpole-Camera-Showcase-<Obs>-<Action>-Direct-v0`` →
+    ``--task=Isaac-Cartpole-Camera-Showcase-Direct [--agent=skrl_<obs>_<action>_cfg_entry_point] presets=<obs>_<action>``.
+* **Breaking:** Dropped the ``-Manager`` suffix from the manager-based cartpole task IDs so the
+  default (manager-based) workflow carries no workflow suffix; the direct-workflow tasks keep
+  their explicit ``-Direct`` suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Cartpole-Manager`` → ``Isaac-Cartpole``.
+  * ``Isaac-Cartpole-Camera-Manager`` → ``Isaac-Cartpole-Camera``.
+* **Breaking:** Merged the direct-workflow and manager-based-workflow cartpole task packages
+  (``isaaclab_tasks.core.direct_cartpole`` and ``isaaclab_tasks.core.manager_cartpole``) into a
+  single flat :mod:`isaaclab_tasks.core.cartpole` package. Module files now carry a ``_direct_``
+  or ``_manager_`` infix to disambiguate the two workflows. Update imports such as
+  ``from isaaclab_tasks.core.direct_cartpole.cartpole_env import CartpoleEnv`` to
+  ``from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv``, and
+  ``from isaaclab_tasks.core.manager_cartpole.cartpole_env_cfg import CartpoleEnvCfg`` to
+  ``from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg``.
+* **Breaking:** Renamed the cartpole Gym environment IDs to drop the ``-v0`` version suffix
+  and mark the direct-workflow tasks with an explicit ``-Direct`` suffix. The manager-based
+  workflow is the default and carries no workflow suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Cartpole-Direct-v0`` → ``Isaac-Cartpole-Direct``.
+  * ``Isaac-Cartpole-Camera-Direct-v0`` → ``Isaac-Cartpole-Camera-Direct``.
+  * ``Isaac-Cartpole-v0`` → ``Isaac-Cartpole``.
+  * ``Isaac-Cartpole-Camera-v0`` → ``Isaac-Cartpole-Camera``.
+  * ``Isaac-Cartpole-Showcase-Direct-v0`` → ``Isaac-Cartpole-Showcase-Direct``.
+  * ``Isaac-Cartpole-Camera-Showcase-Direct-v0`` → ``Isaac-Cartpole-Camera-Showcase-Direct``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated 35 per-variant Cartpole task IDs (7 Direct-backend camera,
+  4 manager-based camera, 15 proprioceptive showcase, 9 camera-based
+  showcase) in favor of the four consolidated tasks above. Each retired
+  ID still loads and emits a :class:`FutureWarning` naming the
+  consolidated task and the equivalent ``presets=<name>`` (plus
+  ``--agent=<entry_point_name>`` where required) invocation. The
+  ``env_cfg_entry_point`` of each retired ID keeps pointing at the
+  historical per-variant cfg subclass so retired IDs stay bit-for-bit
+  identical to their pre-deprecation behavior; only the deprecation
+  warning is layered on top via the new ``deprecated`` kwarg. The historical subclasses (e.g. ``CartpoleRGBCameraEnvCfg``,
+  ``CartpoleAlbedoCameraEnvCfg``, ``BoxBoxEnvCfg``, ...) are kept for
+  one release alongside the consolidated cfgs and will be removed
+  together with the retired task IDs. Full migration table is in the
+  PR description.
+
+Removed
+^^^^^^^
+
+* Removed the ``Isaac-Quadcopter-Direct-v0``, ``Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0``,
+  ``Isaac-Repose-Cube-Allegro-NoVelObs-v0`` and ``Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0``
+  environments.
+
+Fixed
+^^^^^
+
+* Fixed kitless launch handling for explicit ``--viz none`` requests.
+* Fixed benchmark and environment scripts (``scripts/benchmarks/benchmark_{rsl_rl,rlgames,non_rl}.py``,
+  ``scripts/environments/{list_envs,random_agent,zero_agent,export_IODescriptors}.py``) failing with
+  ``gymnasium.error.NameNotFound`` for ``-Warp-v0`` task variants. Added the conditional
+  ``isaaclab_tasks_experimental`` import that the RL training scripts already use.
+* Fixed the default number of environments for the UR10e Deploy GearAssembly
+  tasks so their training configs use less GPU memory.
+* Reported a clear error when ``--visualizer kit`` is used with the
+  ``ovphysx`` preset, since OvPhysX cannot run alongside the Kit visualizer
+  in the same process.
+* Fixed DexSuite point-cloud sampling in Newton replicated scenes to read
+  object geometry from clone-plan source prims.
+* Fixed config loading for Franka relative IK stack environments importing
+  forbidden backend modules by replacing legacy OpenXR ``teleop_devices`` with
+  keyboard and spacemouse entries.
+
+
 1.10.1 (2026-05-21)
 ~~~~~~~~~~~~~~~~~~~
 

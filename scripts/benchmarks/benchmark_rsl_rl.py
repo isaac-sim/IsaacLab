@@ -15,7 +15,7 @@ import time
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 from scripts.benchmarks.early_stop import (
     RslRlEarlyStopWrapper,
@@ -72,7 +72,6 @@ cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-hydra_args = fold_preset_tokens(hydra_args)
 sys.argv = [sys.argv[0]] + hydra_args
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -98,7 +97,9 @@ import isaaclab_tasks  # noqa: F401
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab.app import launch_simulation
+
+from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 

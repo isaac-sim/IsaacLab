@@ -364,7 +364,7 @@ class JobCfg:
         assert "runner_args" in cfg, "No runner arguments specified."
         """
         Task is the desired task to train on. For example:
-        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-TheiaTiny-v0"])
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
         """
         assert "--task" in cfg["runner_args"], "No task specified."
         """

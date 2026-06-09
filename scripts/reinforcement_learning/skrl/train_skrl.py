@@ -66,14 +66,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         choices=["AMP", "PPO", "IPPO", "MAPPO"],
         help="The RL algorithm used for training the skrl agent.",
     )
-    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+    from isaaclab_tasks.utils import setup_preset_cli
 
     add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args;
-    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse.
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
-    set_hydra_args(fold_preset_tokens(hydra_args))
+    set_hydra_args(hydra_args)
     return args_cli
 
 
@@ -99,12 +99,13 @@ def run(argv: list[str]) -> None:
     """Train a skrl agent."""
     import skrl
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)
 

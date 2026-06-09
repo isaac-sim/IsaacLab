@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_ppisp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Extension providing a renderer-backend-agnostic PPISP pipeline that converts HDR scene-linear color to LDR RGBA at the end of a render tick."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]

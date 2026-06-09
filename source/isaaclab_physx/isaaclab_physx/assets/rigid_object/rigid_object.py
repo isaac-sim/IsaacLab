@@ -17,16 +17,18 @@ from pxr import UsdPhysics
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
+from isaaclab_physx.cloner import queue_physx_replication
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.api as physx
+    import omni.physics.tensors as physx
 
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
@@ -65,6 +67,8 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
 
     """
     Properties
@@ -902,20 +906,9 @@ class RigidObject(BaseRigidObject):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        matches = resolve_matching_prims_from_source(self.cfg.prim_path)
-        if not matches:
-            raise RuntimeError(f"No prim found at '{self.cfg.prim_path}'.")
-        asset_prim, root_expr = matches[0]
+        asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
         walk_root = asset_prim.GetPath().pathString
-        root_prims = get_all_matching_child_prims(
-            walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
-        )
-        if len(root_prims) != 1:
-            matched = [p.GetPath().pathString for p in root_prims]
-            raise RuntimeError(
-                f"Expected exactly one RigidBodyAPI prim under '{walk_root}'"
-                f" (resolved from '{self.cfg.prim_path}'), found {len(root_prims)}: {matched}."
-            )
+        root_prims = get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
         root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         # -- object view
         self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))

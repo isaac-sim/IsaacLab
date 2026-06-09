@@ -28,7 +28,7 @@ After the simulation app starts, :class:`~isaaclab.app.app_launcher.AppLauncher`
 settings via :meth:`~isaaclab.app.app_launcher.AppLauncher.apply_rtx_determinism_settings`.
 
 **Strict PyTorch determinism** (calling :meth:`~isaaclab.utils.seed.configure_seed` with
-``torch_deterministic=True`` when you pass ``--deterministic``) is wired into the RL training scripts
+``torch_deterministic=True`` when you pass ``--deterministic``) is wired into the RL training entrypoints
 for **RL-Games**, **skrl**, **RSL-RL**, and **Stable-Baselines3**: each calls
 :meth:`~isaaclab.utils.seed.configure_seed` after constructing its framework runner or agent object
 so library initialization is not disturbed, then training proceeds with the requested global RNG and
@@ -40,8 +40,8 @@ To enable deterministic RTX settings from the app launcher, pass ``--determinist
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
-    --task Isaac-Cartpole-RGB-v0 --enable_cameras --headless --deterministic
+  ./isaaclab.sh train --rl_library rl_games \
+    --task Isaac-Cartpole-Camera --enable_cameras --headless --deterministic
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 

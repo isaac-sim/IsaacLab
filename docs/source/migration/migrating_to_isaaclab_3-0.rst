@@ -34,6 +34,42 @@ For the full behavior of visualizer resolution, with the visualizer CLI arg, vis
 and ``--headless``, see :ref:`visualization-common-modes`.
 
 
+Reinforcement Learning CLI Entrypoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 provides unified reinforcement learning entrypoints for training
+and play. Instead of launching library-specific scripts under
+``scripts/reinforcement_learning/<library>/``, select the library with
+``--rl_library``.
+
+.. code-block:: bash
+
+   # Isaac Lab 2.x/deprecated
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless
+
+   # Isaac Lab 3.0
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless
+
+The same pattern applies to the play workflow:
+
+.. code-block:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
+
+Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
+``sb3``, and ``rlinf``. The old per-library ``train.py`` and ``play.py`` scripts
+remain available as deprecated compatibility entrypoints and emit a
+``DeprecationWarning`` when used.
+
+For distributed launchers that execute a Python script directly, use the unified
+script path and pass ``--rl_library`` to it:
+
+.. code-block:: bash
+
+   python -m torch.distributed.run --nproc_per_node=2 scripts/reinforcement_learning/train.py \
+      --rl_library rsl_rl --task Isaac-Cartpole --headless --distributed
+
+
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -599,18 +635,19 @@ when no CLI override is given. Other fields are named presets selectable with
    @configclass
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton_mjwarp
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
+The legacy ``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
+   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
@@ -646,8 +683,8 @@ subclass that carries both a PhysX and a Newton variant.
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
-               cone="pyramidal", ls_parallel=True,
-               integrator="implicitfast", impratio=1,
+               cone="pyramidal", integrator="implicitfast",
+               impratio=1,
            ),
            num_substeps=1,
            debug_mode=False,
@@ -671,7 +708,8 @@ Key Newton solver parameters:
    * - ``nconmax``
      - Max contacts per env
    * - ``ls_iterations``
-     - Linear solver iterations (higher = more stable, slower)
+     - Iterative line search cap; stops early when convergence is reached.
+       Tune alongside outer solver iterations for runtime and convergence.
    * - ``cone``
      - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
    * - ``integrator``
@@ -1619,7 +1657,8 @@ automatically by the importer based on the robot name and cannot be overridden.
      /output/dir \
      --fix-base \
      --joint-stiffness 100.0 \
-     --joint-damping 1.0
+     --joint-damping 1.0 \
+     --viz kit
 
 .. note::
 
@@ -1773,7 +1812,8 @@ are no longer available.
      ../mujoco_menagerie/unitree_h1/h1.xml \
      source/isaaclab_assets/data/Robots/Unitree/h1.usd \
      --merge-mesh \
-     --self-collision
+     --self-collision \
+     --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 

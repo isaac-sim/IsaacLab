@@ -216,7 +216,7 @@ will automatically be created for the actor. This avoids the need to separately 
 |     super().set_up_scene(scene)                                              |     # add ground plane                                                 |
 |                                                                              |     spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg() |
 |     self._cartpoles = ArticulationView(                                      |     # clone, filter, and replicate                                     |
-|                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     self.scene.clone_environments(copy_from_source=False)              |
+|                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     # assets are built inside ReplicateSession                         |
 |                  name="cartpole_view", reset_xform_properties=False          |     self.scene.filter_collisions(global_prim_paths=[])                 |
 |     )                                                                        |     # add articulation to scene                                        |
 |     scene.add(self._cartpoles)                                               |     self.scene.articulations["cartpole"] = self.cartpole               |
@@ -400,7 +400,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
     ##
 
     gym.register(
-        id="Isaac-Cartpole-Direct-v0",
+        id="Isaac-Cartpole-Direct",
         entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
         disable_env_checker=True,
         kwargs={
@@ -633,8 +633,8 @@ Adding actors to the scene has been replaced by ``self.scene.articulations["cart
 |     super().set_up_scene(scene)                           |     spawn_ground_plane(prim_path="/World/ground",        |
 |     self._cartpoles = ArticulationView(                   |         cfg=GroundPlaneCfg())                            |
 |         prim_paths_expr="/World/envs/.*/Cartpole",        |     # clone, filter, and replicate                       |
-|         name="cartpole_view",                             |     self.scene.clone_environments(                       |
-|         reset_xform_properties=False                      |         copy_from_source=False)                          |
+|         name="cartpole_view",                             |     # assets are built inside ReplicateSession           |
+|         reset_xform_properties=False                      |                                                          |
 |     )                                                     |     self.scene.filter_collisions(                        |
 |     scene.add(self._cartpoles)                            |         global_prim_paths=[])                            |
 |     return                                                |     # add articulation to scene                          |
@@ -983,7 +983,7 @@ To launch a training in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
+   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct --headless
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
@@ -992,7 +992,7 @@ To launch inferencing in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+   ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 .. _`OmniIsaacGymEnvs`: https://github.com/isaac-sim/OmniIsaacGymEnvs

@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+3.0.3 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an actionable install error when the optional ``ovphysx`` runtime wheel
+  is missing from the :mod:`isaaclab_ovphysx` backend.
+
+
+3.0.2 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install ``ovphysx==0.4.13``
+  instead of accepting newer breaking releases.
+
+
+3.0.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_ovphysx.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
 3.0.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 

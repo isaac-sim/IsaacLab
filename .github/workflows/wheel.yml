@@ -51,14 +51,18 @@ jobs:
           )
 
           render_table() {
-            local files="$1" entry regex desc count sample
+            local files="$1" entry regex desc matched count sample
             echo "| Pattern | What it covers | Matched files |"
             echo "|---|---|---|"
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex desc <<< "$entry"
-              count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
-              if [ "$count" -gt 0 ]; then
-                sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+              # Feed grep/head from a here-string rather than `printf ... |` so that
+              # an early-closing reader (head) cannot SIGPIPE an upstream printf and
+              # trip `set -o pipefail` when the file list is large.
+              matched=$(grep -E "$regex" <<< "$files" || true)
+              if [ -n "$matched" ]; then
+                count=$(wc -l <<< "$matched")
+                sample=$(head -3 <<< "$matched" | paste -sd ', ' -)
                 [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
                 echo "| \`$regex\` | $desc | $sample |"
               else
@@ -71,7 +75,7 @@ jobs:
             local files="$1" entry regex
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex _ <<< "$entry"
-              if printf '%s\n' "$files" | grep -qE "$regex"; then
+              if grep -qE "$regex" <<< "$files"; then
                 return 0
               fi
             done

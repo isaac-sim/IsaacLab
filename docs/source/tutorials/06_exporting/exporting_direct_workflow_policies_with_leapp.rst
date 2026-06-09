@@ -8,6 +8,9 @@ LEAPP. If your policy is manager-based, use the
 :doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`
 instead.
 
+For background on LEAPP concepts, supported node patterns, state feedback, and
+runtime validation, see the `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`__.
+
 
 Overview
 ~~~~~~~~
@@ -23,7 +26,8 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-Before exporting, install LEAPP into the Isaac Lab Python environment:
+This export flow requires ``leapp>=0.5.2``. Before exporting, install LEAPP into
+the Isaac Lab Python environment:
 
 .. tab-set::
    :sync-group: os
@@ -55,7 +59,7 @@ tutorial environment into the task package:
       .. code-block:: bash
 
          cp scripts/tutorials/06_deploy/anymal_c_env.py \
-            source/isaaclab_tasks/isaaclab_tasks/direct/anymal_c/anymal_c_env.py
+            source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -63,7 +67,7 @@ tutorial environment into the task package:
       .. code-block:: batch
 
          copy scripts\tutorials\06_deploy\anymal_c_env.py ^
-            source\isaaclab_tasks\isaaclab_tasks\direct\anymal_c\anymal_c_env.py
+            source\isaaclab_tasks\isaaclab_tasks\contrib\anymal_c_direct\anymal_c_env.py
 
 After your environment includes the required LEAPP input, output, and state
 annotations, export a trained policy with:
@@ -236,6 +240,6 @@ into deployment systems.
 .. note::
 
    Refer to the `LEAPP semantic annotation guide
-   <https://github.com/nvidia-isaac/leapp/blob/main/docs/5_semantic_data_annotation.md>`_
-   and `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
+   <https://nvidia-isaac.github.io/leapp/guides/semantics.html>`_
+   and `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
    for details on authoring semantic annotations.

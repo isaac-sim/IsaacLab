@@ -8,6 +8,7 @@ from __future__ import annotations
 import inspect
 import logging
 import math
+import sys
 import warnings
 import weakref
 from abc import abstractmethod
@@ -86,6 +87,9 @@ class DirectRLEnv(gym.Env):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # The env remains closed until initialization completes.
+        self._is_closed = True
+
         # check that the config is valid
         cfg.validate()
         # Resolve any preset-wrapper fields to their default variant so that downstream
@@ -96,7 +100,6 @@ class DirectRLEnv(gym.Env):
         # store the render mode
         self.render_mode = render_mode
         # initialize internal variables
-        self._is_closed = False
         self._physics_handles_decimation = False
 
         # set the seed for the environment
@@ -118,6 +121,7 @@ class DirectRLEnv(gym.Env):
         except Exception:
             self.sim.clear_instance()
             raise
+        self._is_closed = False
 
     def _init_sim(self, render_mode: str | None = None, **kwargs):
         """Complete environment initialization after the SimulationContext is created.
@@ -287,11 +291,9 @@ class DirectRLEnv(gym.Env):
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
-    def __del__(self):
+    def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        import sys
-
-        if not sys.is_finalizing():
+        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """
@@ -555,6 +557,11 @@ class DirectRLEnv(gym.Env):
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 
+            # Drop cached observation tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_buf", None), dict):
+                self.obs_buf.clear()
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -564,6 +571,15 @@ class DirectRLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             self.sim.clear_instance()
+
+            # Drop the observation/action space objects. gymnasium's wrapper chain keeps
+            # the env referenced past close, so without this they leak — and for image
+            # observations each space holds a large gym.spaces.Box bounds array.
+            self.single_observation_space = None
+            self.single_action_space = None
+            self.observation_space = None
+            self.action_space = None
+            self.state_space = None
 
             # destroy the window
             if self._window is not None:

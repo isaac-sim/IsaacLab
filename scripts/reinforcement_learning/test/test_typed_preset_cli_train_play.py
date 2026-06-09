@@ -9,22 +9,22 @@ unified train/play entrypoint.
 The four supported RL libraries (rl_games, rsl_rl, sb3, skrl) each have a
 ``train_<library>.py`` / ``play_<library>.py`` script that the unified
 ``scripts/reinforcement_learning/{train,play}.py`` dispatchers route to via
-``--rl_library``. Each entrypoint must wire the typed preset CLI
-(``setup_preset_cli`` + ``fold_preset_tokens`` from
-:mod:`isaaclab_tasks.utils.preset_cli`) so that user-typed ``physics=NAME``
-/ ``renderer=NAME`` / ``presets=NAME`` tokens are folded into the canonical
-form Hydra consumes. Without the fold, those tokens hit Hydra as a struct
-override against a non-existent top-level key and raise
-``Key 'physics' is not in struct`` -- the original symptom of the #5715
-regression.
+``--rl_library``. Each entrypoint must wire :func:`setup_preset_cli` and pass
+its remainder through to Hydra so that user-typed ``physics=NAME`` /
+``renderer=NAME`` / ``presets=NAME`` tokens reach
+:func:`~isaaclab_tasks.utils.hydra.register_task`, which parses them directly.
+If an entrypoint dropped the remainder (or routed the token to Hydra as a raw
+override), the token would hit Hydra as a struct override against a
+non-existent top-level key and raise ``Key 'physics' is not in struct`` -- the
+original symptom of the #5715 regression.
 
 This test invokes each entrypoint via the unified dispatcher with
 ``physics=does_not_exist`` and asserts:
 
-* the Hydra struct error is **absent** (would indicate the fold did not
-  run), and
-* the resolver's own ``Unknown preset(s)`` error is **present** (the
-  fold ran and the resolver received the canonical token).
+* the Hydra struct error is **absent** (would indicate the token was not
+  routed to ``register_task``), and
+* the resolver's own ``Unknown preset(s)`` error is **present** (the token
+  reached the resolver).
 
 Resolve fails before any Kit/sim launch, so each subprocess exits in a
 few seconds without needing GPU.
@@ -57,11 +57,10 @@ _ENTRYPOINT_CASES = [
 def test_typed_preset_reaches_resolver(action: str, library: str) -> None:
     """``physics=<unknown>`` must reach the resolver, not crash Hydra's struct check.
 
-    Confirms that the dispatched entrypoint wired ``setup_preset_cli`` +
-    ``fold_preset_tokens`` correctly: the typed selector got rewritten into
-    the canonical ``presets=<csv>`` form before Hydra received it, and the
-    resolver then surfaced its own ``Unknown preset(s)`` error against the
-    deliberately invalid name.
+    Confirms that the dispatched entrypoint wired ``setup_preset_cli`` and
+    passed its remainder through, so the typed selector reached
+    ``register_task``, which surfaced its own ``Unknown preset(s)`` error
+    against the deliberately invalid name.
     """
     dispatcher = REPO_ROOT / "scripts" / "reinforcement_learning" / f"{action}.py"
     assert dispatcher.exists(), f"missing dispatcher: {dispatcher}"
@@ -71,7 +70,7 @@ def test_typed_preset_reaches_resolver(action: str, library: str) -> None:
         str(dispatcher),
         "--rl_library",
         library,
-        "--task=Isaac-Ant-v0",
+        "--task=Isaac-Ant",
         "physics=does_not_exist",
         "--headless",
     ]
@@ -89,13 +88,13 @@ def test_typed_preset_reaches_resolver(action: str, library: str) -> None:
     label = f"{action}.py --rl_library {library}"
     assert "is not in struct" not in combined, (
         f"{label}: Hydra's struct-override error reached the user, meaning the typed preset "
-        f"selector was NOT folded before Hydra processed it. The entrypoint must call "
-        f"setup_preset_cli + fold_preset_tokens before set_hydra_args / sys.argv assignment.\n"
+        f"selector was routed to Hydra as a raw override instead of register_task. The entrypoint "
+        f"must call setup_preset_cli and pass its remainder through to set_hydra_args / sys.argv.\n"
         f"--- stderr tail ---\n{result.stderr[-2000:]}\n"
         f"--- stdout tail ---\n{result.stdout[-2000:]}\n"
     )
     assert "Unknown preset(s): does_not_exist" in combined, (
-        f"{label}: resolver's 'Unknown preset(s)' error did not appear. Either the fold did not "
+        f"{label}: resolver's 'Unknown preset(s)' error did not appear. Either the token did not "
         f"reach the resolver, or the script exited earlier with a different error.\n"
         f"--- stderr tail ---\n{result.stderr[-2000:]}\n"
         f"--- stdout tail ---\n{result.stdout[-2000:]}\n"

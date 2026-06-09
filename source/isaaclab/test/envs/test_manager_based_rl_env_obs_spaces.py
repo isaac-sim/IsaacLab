@@ -18,11 +18,8 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_camera_env_cfg import (
-    CartpoleDepthCameraEnvCfg,
-    CartpoleRGBCameraEnvCfg,
-)
-from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
+from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -32,7 +29,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     Before the fix, only the last term in each non-concatenated group would be present
     in the observation space Dict. This test ensures all terms are correctly included.
     """
-    from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_joint_pos_env_cfg import (
+    from isaaclab_tasks.contrib.stack.config.franka.stack_joint_pos_env_cfg import (
         FrankaCubeStackEnvCfg,
     )
 
@@ -109,12 +106,16 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
 
 
 @pytest.mark.parametrize(
-    "env_cfg_cls",
-    [CartpoleRGBCameraEnvCfg, CartpoleDepthCameraEnvCfg, AnymalCRoughEnvCfg],
+    ("env_cfg_cls", "presets"),
+    [
+        (CartpoleCameraEnvCfg, ("rgb",)),
+        (CartpoleCameraEnvCfg, ("depth",)),
+        (AnymalCRoughEnvCfg, ()),
+    ],
     ids=["RGB", "Depth", "RayCaster"],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
+def test_obs_space_follows_clip_contraint(env_cfg_cls, presets, device):
     """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
@@ -122,7 +123,7 @@ def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
     # configure the env -- resolve Hydra presets so _Preset fields become plain values
     from isaaclab_tasks.utils.hydra import resolve_presets
 
-    env_cfg = resolve_presets(env_cfg_cls())
+    env_cfg = resolve_presets(env_cfg_cls(), presets)
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
     env_cfg.sim.device = device

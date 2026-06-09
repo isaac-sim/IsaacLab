@@ -37,7 +37,7 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 
 
 def main():

@@ -144,18 +144,18 @@ For environments that need to support both backends, use
         renderer_cfg=MultiBackendRendererCfg(),  # selects RTX or Newton Warp via presets= CLI arg
     )
 
-The active preset is selected at launch via the ``presets=`` CLI argument:
+The active preset is selected at launch via ``physics=``, ``renderer=``, or ``presets=`` CLI arguments:
 
 .. code-block:: bash
 
    # Use Newton Warp renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=newton_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx_renderer
 
    # Use default (Isaac RTX)
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0
+   python train.py task=Isaac-Cartpole-Camera-Direct
 
 
 Accessing camera data
@@ -173,8 +173,8 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
 
 .. code-block:: shell
 
-    python scripts/reinforcement_learning/rl_games/train.py \
-        --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+    ./isaaclab.sh train --rl_library rl_games \
+        --task=Isaac-Cartpole-Camera-Direct --headless --enable_cameras
 
 
 Annotators (RTX only)

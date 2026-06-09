@@ -25,30 +25,30 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            python scripts/reinforcement_learning/sb3/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
-The above command will run the training script with the task ``Isaac-Cartpole-v0`` in headless mode, and set the
+The above command will run training with the task ``Isaac-Cartpole`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
 
 .. note::
@@ -67,7 +67,7 @@ Callables
 It is possible to modify functions and classes in the configuration files by using the syntax ``module:attribute_name``.
 For example, in the Cartpole environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
     :start-at: class ObservationsCfg
     :end-at: policy: PolicyCfg = PolicyCfg()
@@ -87,7 +87,7 @@ Dictionaries
 ^^^^^^^^^^^^
 Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
     :lines: 90-114
     :emphasize-lines: 11
@@ -106,21 +106,21 @@ Particular care should be taken when modifying the parameters using command line
 perform intermediate computations based on other parameters. These computations will not be updated when the parameters
 are modified.
 
-For example, for the configuration of the Cartpole camera depth environment:
+For example, for the configuration of the Cartpole camera environment:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py
     :language: python
-    :start-at: class CartpoleDepthCameraEnvCfg
-    :end-at: tiled_camera.width
-    :emphasize-lines: 10, 15
+    :start-at: class CartpoleTiledCameraCfg
+    :end-at: observation_space = [3, 100, 100]
+    :emphasize-lines: 12, 44
 
 If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.observation_space=[80,128,1]`` must be updated and given as input as well.
+``env.observation_space=[3,100,128]`` must be updated and given as input as well.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py
     :language: python
     :start-at: class LocomotionVelocityRoughEnvCfg
     :emphasize-lines: 23, 29, 31
@@ -216,7 +216,7 @@ override is given:
 .. code-block:: bash
 
     # Use Newton physics backend
-    python train.py --task=Isaac-Reach-Franka-v0 env.physics=newton_mjwarp
+    python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -236,10 +236,10 @@ disabled unless explicitly selected:
 .. code-block:: bash
 
     # camera is None -- no camera overhead
-    python train.py --task=Isaac-Reach-Franka-v0
+    python train.py --task=Isaac-Reach-Franka
 
     # activate camera with the "large" preset
-    python train.py --task=Isaac-Reach-Franka-v0 env.scene.camera=large
+    python train.py --task=Isaac-Reach-Franka env.scene.camera=large
 
 
 .. _hydra-backend-solver-presets:
@@ -299,13 +299,13 @@ is currently beta.
 .. code-block:: bash
 
     # Select the Kamino solver preset everywhere it is defined
-    python train.py --task=Isaac-Cartpole-v0 presets=newton_kamino
+    python train.py --task=Isaac-Cartpole presets=newton_kamino
 
     # Select the Kamino solver preset for a specific physics config path
-    python train.py --task=Isaac-Cartpole-v0 env.sim.physics=newton_kamino
+    python train.py --task=Isaac-Cartpole env.sim.physics=newton_kamino
 
-The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct-v0``,
-``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. Passing
+The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct``,
+``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. Passing
 ``presets=newton_kamino`` to a task without a ``newton_kamino`` preset does not enable Kamino;
 add and validate a task-specific preset first.
 
@@ -413,13 +413,13 @@ to make intent explicit on the command line.
      - OV RTX renderer
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
-Pass ``--task=<task-name> --help`` to a training script to see all presets available
+Pass ``--task=<task-name> --help`` to a training command to see all presets available
 for that task, grouped by selector type:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Cartpole-Camera-Presets-Direct-v0 --help
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Camera-Direct --help
 
 .. note::
 
@@ -438,10 +438,10 @@ Using Presets
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 physics=newton_mjwarp
 
     # Switch to Newton renderer for camera environments
-    python train.py --task=Isaac-Cartpole-Camera-Presets-Direct-v0 renderer=newton_renderer
+    python train.py --task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
     # Combine typed selectors -- each one applies to its own PresetCfg type
-    python train.py --task=Isaac-Cartpole-Camera-Presets-Direct-v0 \
+    python train.py --task=Isaac-Cartpole-Camera-Direct \
         physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 **Path presets** -- select a specific preset for one config path:
@@ -493,7 +493,7 @@ Real-World Example
 The ANYmal-C locomotion environment shows both ``PresetCfg`` and ``preset()``
 working together:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_c/rough_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
     :lines: 21-42
 

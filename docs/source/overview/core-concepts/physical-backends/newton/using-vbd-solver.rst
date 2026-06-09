@@ -30,13 +30,13 @@ deformable tasks:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka-v0 --num_envs 1 --visualizer kit
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
 For the surface-deformable cloth variant, use:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka-v0 --num_envs 1 --visualizer kit
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
 
 Both tasks configure MJWarp for the rigid Franka and VBD for the deformable
 object through
@@ -69,11 +69,11 @@ normal Newton fields:
 The Franka soft-body task defines a ``newton_mjwarp_vbd`` preset that couples
 MJWarp and VBD:
 
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift_franka_soft/franka_soft_env_cfg.py
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
     :start-at: class PhysicsCfg
     :end-at: default = newton_mjwarp_vbd
-    :emphasize-lines: 4-32
+    :emphasize-lines: 3-15
 
 The important pieces are:
 
@@ -91,17 +91,17 @@ You can select the deformable Newton preset globally:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Lift-Soft-Franka-v0 presets=newton_mjwarp_vbd
+    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
 
 or select the physics field directly:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Lift-Soft-Franka-v0 env.sim.physics=newton_mjwarp_vbd
+    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
 
 Use the direct path override when only one task field should use the VBD preset.
-Use ``presets=newton_mjwarp_vbd`` when you want every matching preset field in
-the task config to resolve to that preset. Isaac Lab training scripts accept
+Use ``physics=newton_mjwarp_vbd`` when you want every matching preset field in
+the task config to resolve to that preset. Isaac Lab training commands accept
 these Hydra overrides after the regular command line flags; no separator is
 needed for the examples above.
 

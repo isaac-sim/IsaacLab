@@ -19,12 +19,12 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 The Base Code
 ~~~~~~~~~~~~~
 
-For this tutorial, we start from the direct workflow Humanoid environment defined in ``isaaclab_tasks.direct.humanoid`` module.
+For this tutorial, we start from the direct workflow Humanoid environment defined in ``isaaclab_tasks.core.locomotion.humanoid`` module.
 
-.. dropdown:: Code for humanoid_env.py
+.. dropdown:: Code for humanoid_direct_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/humanoid/humanoid_env.py
+   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/humanoid_direct_env.py
       :language: python
       :linenos:
 
@@ -37,8 +37,8 @@ Duplicating the file and registering a new task
 
 To avoid modifying the code of the existing task, we will make a copy of the file containing the Python
 code and perform the modification on this copy. Then, in the Isaac Lab project
-``source/isaaclab_tasks/isaaclab_tasks/direct/humanoid``
-folder we make a copy of the ``humanoid_env.py`` file and rename it to ``h1_env.py``.
+``source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid``
+folder we make a copy of the ``humanoid_direct_env.py`` file and rename it to ``h1_env.py``.
 
 Open the ``h1_env.py`` file in a code editor and replace all the humanoid task name (``HumanoidEnv``) and its configuration
 (``HumanoidEnvCfg``) instances to ``H1Env`` and ``H1EnvCfg`` respectively.
@@ -75,7 +75,7 @@ Since the Unitree H1 robot is included in the Isaac Lab assets extension (``isaa
 and do the replacement directly (under the ``H1EnvCfg.robot`` property), as shown below. Note that we also need to modify the
 ``joint_gears`` property as it holds robot-specific configuration values.
 
-.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py>`__
+.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <../../../../source/isaaclab_tasks/isaaclab_tasks/core/franka_cabinet/franka_cabinet_env.py>`__
 
 .. hint::
 
@@ -111,7 +111,7 @@ After the minor modification has been done, and similar to the previous tutorial
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-H1-Direct-v0 --headless
+  ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0 --headless
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
@@ -119,7 +119,7 @@ where you started the simulation.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
+  ./isaaclab.sh play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
 .. figure:: ../../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center

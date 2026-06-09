@@ -1,6 +1,80 @@
 Changelog
 ---------
 
+1.1.5 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
+1.1.4 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Fabric topology rebuild logging to debug level when tiled camera
+  visualizer updates refresh view mappings.
+
+Fixed
+^^^^^
+
+* Fixed excessive PhysX tensor warnings from Ant tasks with ``JointWrenchSensor``
+  by sourcing scene-data transforms for articulation links from Isaac Lab
+  articulation views instead of a global PhysX rigid-body view.
+
+
+1.1.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin used by the optional ``[newton]`` extra from ``v1.2.0`` to ``v1.2.1rc2``.
+
+
+1.1.2 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_physx.sim.views.FabricFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
+1.1.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
+  :class:`~isaaclab_physx.sensors.Pva`, and :class:`~isaaclab_physx.sensors.JointWrenchSensor`
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each sensor's ``reset()`` now marks
+  the reset envs as up to date after zeroing ``_data``, so an immediate read returns those
+  zeros rather than re-fetching a physics buffer that has not been stepped since the reset.
+* Fixed PhysX scene-data rigid-body view creation to use exact rigid-body prim
+  paths, avoiding spurious warnings for assets whose joint prims share body names.
+* Restored wildcard PhysX scene-data rigid-body view patterns to keep Newton
+  visualizers updating live PhysX transforms.
+* Fixed PhysX tensor imports when using wheel-installed Isaac Sim packages.
+
+
 1.1.0 (2026-05-21)
 ~~~~~~~~~~~~~~~~~~
 

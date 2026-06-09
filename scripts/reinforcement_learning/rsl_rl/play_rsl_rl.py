@@ -17,6 +17,7 @@ import torch
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -33,10 +34,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     setup_preset_cli,
 )
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -87,7 +85,7 @@ if args_cli.external_callback:
 # The remaining arguments are the arguments that were not consumed by both this scripts
 # argparser and (optionally) the external callback function.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining_args)
+sys.argv = [sys.argv[0]] + remaining_args
 
 # Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")

@@ -1,6 +1,61 @@
 Changelog
 ---------
 
+0.4.5 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton deformable clone replication and Fabric particle sync setup.
+
+
+0.4.4 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed RLinf optional dependency installation on DGX Spark and aarch64 by
+  replacing ``decord`` with ``decord2`` in the ``rlinf`` extras.
+
+
+0.4.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed deformable Newton test presets to rely on iterative MuJoCo Warp line search.
+
+
+0.4.2 (2026-06-04)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the TacSL visuotactile sensor demo, documentation, and tests to use
+  current PhysX configuration and wrench APIs.
+
+
+0.4.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--rl_model_path`` CLI flag to ``play.py`` for evaluating RL-finetuned checkpoints.
+  The base model architecture is loaded via ``--model_path`` and the RL-trained weights
+  (``full_weights.pt``) are overlaid from the checkpoint directory.
+
+Fixed
+^^^^^
+
+* Fixed Newton replicated-scene setup for deformable VBD managers to use
+  clone-plan source prims.
+
+
 0.4.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 
