@@ -127,6 +127,13 @@ class SchemaFragment:
     # -- Class metadata (not dataclass fields) --
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
+    _non_usd_fields: ClassVar[frozenset[str]] = frozenset()
+    """Names of dataclass fields that are *not* USD attributes and must not be authored.
+
+    :func:`~isaaclab.sim.schemas.apply_namespaced` skips these (in addition to :attr:`func`) when
+    writing ``<namespace>:<attr>`` values. Subclasses that carry bookkeeping/non-USD fields must
+    list them here so they opt out explicitly instead of leaking as USD attributes.
+    """
 
     func: Callable | str = "isaaclab.sim.schemas:apply_namespaced"
     """Callable (or its ``module:attr`` import string) that applies this fragment to a prim.

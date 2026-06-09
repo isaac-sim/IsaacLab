@@ -236,12 +236,20 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid (mirrors the legacy ``define_``/``modify_`` writers so an
+    # invalid path fails loudly instead of silently no-op'ing and still returning True)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
     namespace = type(cfg)._usd_namespace
     applied = type(cfg)._usd_applied_schema
     if applied and applied not in prim.GetAppliedSchemas():
         prim.AddAppliedSchema(applied)
+    # ``func`` plus any subclass-declared bookkeeping fields are not USD attributes. Reading the
+    # set from the class keeps the policy explicit, so a future non-USD field is opted out by
+    # declaring it rather than by silently leaking as a ``<namespace>:<attr>`` write.
+    non_usd_fields = getattr(type(cfg), "_non_usd_fields", frozenset()) | {"func"}
     for f in dataclasses.fields(cfg):
-        if f.name == "func":
+        if f.name in non_usd_fields:
             continue
         value = getattr(cfg, f.name)
         if value is None:
@@ -443,12 +451,18 @@ def apply_rigid_body_properties(
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid (mirrors the legacy ``define_rigid_body_properties`` writer)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
     if not UsdPhysics.RigidBodyAPI(prim):
         UsdPhysics.RigidBodyAPI.Apply(prim)
+    # aggregate per-fragment results so a fragment applier that reports failure is not masked by
+    # the always-applied anchor (keeps the boolean contract consistent with ``modify_*`` writers)
+    success = True
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, prim_path, stage)
-    return True
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):

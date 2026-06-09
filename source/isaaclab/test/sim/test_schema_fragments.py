@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
+
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -167,3 +169,73 @@ def test_public_imports():
         apply_namespaced,
         apply_rigid_body_properties,
     )
+
+
+# -------------------------------------------------------------------------------------
+# Review follow-ups -- prim-validity guard, aggregated return, explicit non-USD fields
+# -------------------------------------------------------------------------------------
+
+
+def test_apply_namespaced_raises_on_invalid_prim():
+    from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_namespaced
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    # no prim authored at this path -> GetPrimAtPath returns an invalid prim
+    with pytest.raises(ValueError):
+        apply_namespaced(UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), "/World/DoesNotExist", stage)
+
+
+def test_apply_rigid_body_properties_raises_on_invalid_prim():
+    from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    with pytest.raises(ValueError):
+        apply_rigid_body_properties("/World/DoesNotExist", [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)], stage)
+
+
+def test_apply_rigid_body_properties_aggregates_fragment_results():
+    from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/Agg")
+
+    # a fragment whose applier reports failure must make the aggregate return False
+    failing = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    failing.func = lambda cfg, prim_path, stage=None: False
+    assert apply_rigid_body_properties("/World/Agg", [failing], stage) is False
+
+    # all-succeeding fragments return True
+    ok = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    assert apply_rigid_body_properties("/World/Agg", [ok], stage) is True
+
+
+def test_apply_namespaced_skips_declared_non_usd_fields():
+    from typing import ClassVar
+
+    from isaaclab.sim.schemas import RigidBodyFragment, apply_namespaced
+    from isaaclab.utils import configclass
+
+    @configclass
+    class _BookkeepingFragment(RigidBodyFragment):
+        _usd_namespace: ClassVar[str | None] = "physics"
+        _usd_applied_schema: ClassVar[str | None] = None
+        _non_usd_fields: ClassVar[frozenset] = frozenset({"bookkeeping"})
+        rigid_body_enabled: bool | None = None
+        bookkeeping: str | None = None
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/BK")
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    apply_namespaced(_BookkeepingFragment(rigid_body_enabled=True, bookkeeping="ignore-me"), "/World/BK", stage)
+    # the USD field is authored ...
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    # ... but the declared non-USD field must NOT be written as a USD attribute
+    assert not prim.GetAttribute("physics:bookkeeping").HasAuthoredValue()
