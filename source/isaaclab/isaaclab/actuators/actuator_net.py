@@ -111,13 +111,15 @@ class _GRUActuatorMixin:
     """Shared machinery for the GRU-based actuator models.
 
     Loads the TorchScript GRU network, allocates the recurrent input and hidden-state buffers, and
-    runs inference. As with :class:`ActuatorNetLSTM`, the network consumes the joint position error
-    and joint velocity; unlike the LSTM, an optional ``(mean, std)`` normalization may be applied to
-    each input and to the output (``None`` selects the identity transform). The concrete actuator
-    classes combine this mixin with an explicit (:class:`IdealPDActuator`) or implicit
-    (:class:`ImplicitActuator`) base to define their effort semantics.
+    runs inference. The network consumes a fixed input of joint position, position error, and
+    velocity. An optional ``(mean, std)`` normalization may be applied to each input and to the
+    output (``None`` selects the identity transform). The concrete actuator classes combine this
+    mixin with an explicit (:class:`IdealPDActuator`) or implicit (:class:`ImplicitActuator`) base
+    to define their effort semantics.
     """
 
+    # number of fixed network inputs: [position, position_error, velocity]
+    _NUM_INPUTS = 3
     # standard-deviation floor used when normalizing to avoid division by tiny values
     _GRU_STD_FLOOR = 1.0e-8
 
@@ -126,7 +128,7 @@ class _GRUActuatorMixin:
 
         Raises:
             ValueError: If the TorchScript module does not expose a ``.gru`` submodule, or if its
-                input dimension is not 2 (joint position error and velocity).
+                input dimension is not 3 (joint position, position error, and velocity).
         """
         # load the TorchScript network
         file_bytes = read_file(self.cfg.network_file)
@@ -134,25 +136,30 @@ class _GRUActuatorMixin:
         if not hasattr(self.network, "gru"):
             raise ValueError(f"The network file '{self.cfg.network_file}' must expose a TorchScript '.gru' submodule.")
 
-        # infer dimensions from the GRU weights (the input is [position_error, velocity])
+        # infer dimensions from the GRU weights (the input is [position, position_error, velocity])
         gru_state = self.network.gru.state_dict()
+        if any("reverse" in key for key in gru_state):
+            raise ValueError(
+                f"The network file '{self.cfg.network_file}' uses a bidirectional GRU, which is not supported."
+            )
         input_dim = int(gru_state["weight_ih_l0"].shape[1])
         hidden_dim = int(gru_state["weight_hh_l0"].shape[1])
-        num_layers = sum(1 for key in gru_state if key.startswith("weight_ih_l"))
-        if input_dim != 2:
+        num_layers = sum(1 for key in gru_state if key.startswith("weight_ih_l") and "reverse" not in key)
+        if input_dim != self._NUM_INPUTS:
             raise ValueError(
-                f"The network file '{self.cfg.network_file}' must take 2 inputs (joint position error and"
-                f" joint velocity), but its GRU expects {input_dim}."
+                f"The network file '{self.cfg.network_file}' must take {self._NUM_INPUTS} inputs (joint position,"
+                f" position error, and velocity), but its GRU expects {input_dim}."
             )
 
         # resolve (mean, std) normalization for the inputs and output (identity when unset)
+        self._position_norm = self._resolve_normalization(self.cfg.position_normalization, "position_normalization")
         self._pos_error_norm = self._resolve_normalization(self.cfg.pos_error_normalization, "pos_error_normalization")
         self._vel_norm = self._resolve_normalization(self.cfg.vel_normalization, "vel_normalization")
         self._output_norm = self._resolve_normalization(self.cfg.output_normalization, "output_normalization")
 
         # recurrent input and hidden-state buffers
         batch = self._num_envs * self.num_joints
-        self.sea_input = torch.zeros(batch, 1, 2, device=self._device)
+        self.sea_input = torch.zeros(batch, 1, self._NUM_INPUTS, device=self._device)
         self.sea_hidden_state = torch.zeros(num_layers, batch, hidden_dim, device=self._device)
         # per-env view for resets (shares storage)
         self.sea_hidden_state_per_env = self.sea_hidden_state.view(
@@ -171,17 +178,22 @@ class _GRUActuatorMixin:
         """
         if stats is None:
             return 0.0, 1.0
-        mean, std = stats
-        if float(std) < self._GRU_STD_FLOOR:
+        mean, std = float(stats[0]), float(stats[1])
+        if std < 0.0:
+            raise ValueError(
+                f"Actuator '{self.cfg.network_file}' has {name} std={std}; the standard deviation must be"
+                " non-negative. Check the (mean, std) ordering."
+            )
+        if std < self._GRU_STD_FLOOR:
             logger.warning(
                 "Actuator '%s' has %s std=%s below the floor %s; flooring it, which can amplify the"
-                " normalized values. Set a positive std or leave the field unset for identity.",
+                " normalized values. Set a larger std or leave the field unset for identity.",
                 self.cfg.network_file,
                 name,
                 std,
                 self._GRU_STD_FLOOR,
             )
-        return float(mean), max(float(std), self._GRU_STD_FLOOR)
+        return mean, max(std, self._GRU_STD_FLOOR)
 
     def _reset_gru_state(self, env_ids: Sequence[int]):
         """Zero the GRU hidden state for the specified environments.
@@ -211,27 +223,30 @@ class _GRUActuatorMixin:
         """
         if control_action.joint_positions is None:
             raise ValueError("GRU actuator input requires control_action.joint_positions to be set.")
-        # normalized [position_error, velocity] inputs
+        # normalized [position, position_error, velocity] inputs
+        position = joint_pos.flatten()
         pos_error = (control_action.joint_positions - joint_pos).flatten()
-        self.sea_input[:, 0, 0] = (pos_error - self._pos_error_norm[0]) / self._pos_error_norm[1]
-        self.sea_input[:, 0, 1] = (joint_vel.flatten() - self._vel_norm[0]) / self._vel_norm[1]
+        velocity = joint_vel.flatten()
+        self.sea_input[:, 0, 0] = (position - self._position_norm[0]) / self._position_norm[1]
+        self.sea_input[:, 0, 1] = (pos_error - self._pos_error_norm[0]) / self._pos_error_norm[1]
+        self.sea_input[:, 0, 2] = (velocity - self._vel_norm[0]) / self._vel_norm[1]
 
         # run inference, then denormalize and guard against a non-finite output
         with torch.inference_mode():
             output, self.sea_hidden_state[:] = self.network(self.sea_input, self.sea_hidden_state)
-        output = output * self._output_norm[1] + self._output_norm[0]
-        # a non-finite prediction carries no usable actuation, so command zero effort this step
-        output = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
-        return output.reshape(self._num_envs, self.num_joints)
+            output = output * self._output_norm[1] + self._output_norm[0]
+            # a non-finite prediction carries no usable actuation, so command zero effort this step
+            output = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
+            return output.reshape(self._num_envs, self.num_joints)
 
 
 class ActuatorNetGRU(_GRUActuatorMixin, IdealPDActuator):
     """Explicit actuator model based on a recurrent neural network (GRU).
 
     The GRU network predicts the *total* joint effort [N·m or N, depending on joint type] from the
-    joint position error and joint velocity. Unlike the analytical models, no PD gains are applied;
-    the hidden state of the recurrent network captures the actuator history. The predicted effort is
-    clipped to the actuator's effort limit via :meth:`~isaaclab.actuators.ActuatorBase._clip_effort`.
+    joint position, position error, and velocity. Unlike the analytical models, no PD gains are
+    applied; the hidden state of the recurrent network captures the actuator history. The predicted
+    effort is clipped to the actuator's effort limit via :meth:`~isaaclab.actuators.ActuatorBase._clip_effort`.
 
     This model derives from :class:`IdealPDActuator`, whose simple symmetric ``±effort_limit``
     saturation matches a learned total-torque source without requiring the velocity-dependent

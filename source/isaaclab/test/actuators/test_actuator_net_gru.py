@@ -30,7 +30,7 @@ def sim(request):
 
 
 """
-Helpers: scriptable GRU modules that satisfy the network contract ([pos_error, vel] -> effort).
+Helpers: scriptable GRU modules satisfying the contract ([position, position_error, velocity] -> effort).
 """
 
 
@@ -39,12 +39,13 @@ class _TinyGRUNet(torch.nn.Module):
 
     Mirrors the runtime GRU produced by the actuator-model exporter: a ``.gru`` submodule
     (``torch.nn.GRU``, ``batch_first``) followed by a linear head, with recurrent dropout only when
-    stacking layers. ``forward(x, hidden)`` consumes ``x`` of shape (batch, 1, 2) -- the joint
-    position error and velocity -- and ``hidden`` of shape (num_layers, batch, hidden_dim), and
-    returns ``(output, new_hidden)`` where ``output`` has shape (batch, 1, output_size).
+    stacking layers. ``forward(x, hidden)`` consumes ``x`` of shape (batch, 1, 3) -- the joint
+    position, position error, and velocity -- and ``hidden`` of shape (num_layers, batch,
+    hidden_dim), and returns ``(output, new_hidden)`` where ``output`` has shape (batch, 1,
+    output_size).
     """
 
-    def __init__(self, input_dim: int = 2, hidden_dim: int = 4, num_layers: int = 1, dropout: float = 0.0):
+    def __init__(self, input_dim: int = 3, hidden_dim: int = 4, num_layers: int = 1, dropout: float = 0.0):
         super().__init__()
         recurrent_dropout = dropout if num_layers > 1 else 0.0
         self.gru = torch.nn.GRU(input_dim, hidden_dim, num_layers, dropout=recurrent_dropout, batch_first=True)
@@ -55,7 +56,7 @@ class _TinyGRUNet(torch.nn.Module):
         return self.head(out), new_hidden
 
 
-def _make_network_file(tmp_path, input_dim: int = 2, hidden_dim: int = 4, num_layers: int = 1) -> str:
+def _make_network_file(tmp_path, input_dim: int = 3, hidden_dim: int = 4, num_layers: int = 1) -> str:
     """Build, script, and save a tiny GRU network, returning the saved file path."""
     torch.manual_seed(0)
     module = _TinyGRUNet(input_dim=input_dim, hidden_dim=hidden_dim, num_layers=num_layers)
@@ -86,7 +87,7 @@ def _make_bad_network_file(tmp_path) -> str:
 def _make_runtime_gru_file(tmp_path, hidden_dim: int = 64, num_layers: int = 2) -> str:
     """Build, script, and save a production-sized multi-layer GRU (the real export architecture)."""
     torch.manual_seed(0)
-    module = _TinyGRUNet(input_dim=2, hidden_dim=hidden_dim, num_layers=num_layers, dropout=0.1)
+    module = _TinyGRUNet(input_dim=3, hidden_dim=hidden_dim, num_layers=num_layers, dropout=0.1)
     module.eval()
     scripted = torch.jit.script(module)
     file_path = str(tmp_path / f"runtime_gru_{hidden_dim}_{num_layers}.pt")
@@ -97,7 +98,7 @@ def _make_runtime_gru_file(tmp_path, hidden_dim: int = 64, num_layers: int = 2) 
 def _make_nan_network_file(tmp_path) -> str:
     """Build and save a GRU network whose head emits non-finite output (poisoned head params)."""
     torch.manual_seed(0)
-    module = _TinyGRUNet(input_dim=2)
+    module = _TinyGRUNet(input_dim=3)
     with torch.no_grad():
         module.head.weight.fill_(float("nan"))
         module.head.bias.fill_(float("nan"))
@@ -115,7 +116,9 @@ def _reference_effort(network_file, des_pos, joint_pos, joint_vel, hidden_dim=4,
     net = torch.jit.load(network_file, map_location=device).eval()
     batch = num_envs * num_joints
     hidden = torch.zeros(num_layers, batch, hidden_dim, device=device)
-    x = torch.stack([(des_pos - joint_pos).flatten(), joint_vel.flatten()], dim=1).reshape(batch, 1, 2)
+    x = torch.stack([joint_pos.flatten(), (des_pos - joint_pos).flatten(), joint_vel.flatten()], dim=1).reshape(
+        batch, 1, 3
+    )
     with torch.inference_mode():
         out, _ = net(x, hidden)
     return out.reshape(num_envs, num_joints)
@@ -130,25 +133,29 @@ Test ActuatorNetGRU (explicit, full-torque).
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_actuator_net_gru_compute(sim, num_envs, num_joints, device, tmp_path):
-    """ActuatorNetGRU.compute returns the expected control action shape and clipping."""
+    """ActuatorNetGRU.compute returns the network effort (matching a reference forward), nulls pos/vel."""
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = list(range(num_joints))
-    effort_limit = 5.0
 
     network_file = _make_network_file(tmp_path)
 
-    actuator_cfg = ActuatorNetGRUCfg(joint_names_expr=joint_names, network_file=network_file, effort_limit=effort_limit)
+    # large effort limit so the applied effort is the un-clipped network output
+    actuator_cfg = ActuatorNetGRUCfg(joint_names_expr=joint_names, network_file=network_file, effort_limit=1.0e6)
     actuator = actuator_cfg.class_type(
         actuator_cfg, joint_names=joint_names, joint_ids=joint_ids, num_envs=num_envs, device=device
     )
 
     joint_pos = torch.rand(num_envs, num_joints, device=device)
     joint_vel = torch.rand(num_envs, num_joints, device=device)
+    des_pos = torch.rand(num_envs, num_joints, device=device)
     control_action = ArticulationActions(
-        joint_positions=torch.rand(num_envs, num_joints, device=device),
+        joint_positions=des_pos,
         joint_velocities=torch.rand(num_envs, num_joints, device=device),
         joint_efforts=None,
     )
+
+    # independent reference forward of the same network with identity normalization
+    reference = _reference_effort(network_file, des_pos, joint_pos, joint_vel)
 
     out = actuator.compute(control_action, joint_pos, joint_vel)
 
@@ -156,10 +163,9 @@ def test_actuator_net_gru_compute(sim, num_envs, num_joints, device, tmp_path):
     assert out.joint_efforts.shape == (num_envs, num_joints)
     assert out.joint_positions is None
     assert out.joint_velocities is None
-    # applied effort is clipped within the symmetric effort limit
-    assert torch.all(actuator.applied_effort <= effort_limit + 1e-5)
-    assert torch.all(actuator.applied_effort >= -effort_limit - 1e-5)
+    # the returned effort matches the reference forward (catches input-assembly/order bugs)
     torch.testing.assert_close(out.joint_efforts, actuator.applied_effort)
+    torch.testing.assert_close(out.joint_efforts, reference)
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
@@ -263,9 +269,10 @@ def test_actuator_net_gru_output_normalization(sim, num_envs, num_joints, device
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_actuator_net_gru_input_normalization(sim, num_envs, num_joints, device, tmp_path):
-    """Input normalization writes ``(x - mean) / std`` for the position error and velocity."""
+    """Input normalization writes ``(x - mean) / std`` for position, position error, and velocity."""
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = list(range(num_joints))
+    pos_norm = (0.2, 3.0)
     pos_err_norm = (0.5, 2.0)
     vel_norm = (-1.0, 4.0)
 
@@ -275,6 +282,7 @@ def test_actuator_net_gru_input_normalization(sim, num_envs, num_joints, device,
         joint_names_expr=joint_names,
         network_file=network_file,
         effort_limit=1.0e6,
+        position_normalization=pos_norm,
         pos_error_normalization=pos_err_norm,
         vel_normalization=vel_norm,
     )
@@ -286,8 +294,9 @@ def test_actuator_net_gru_input_normalization(sim, num_envs, num_joints, device,
     actuator.compute(ArticulationActions(joint_positions=des_pos, joint_velocities=joint_vel), joint_pos, joint_vel)
 
     pos_error = (des_pos - joint_pos).flatten()
-    torch.testing.assert_close(actuator.sea_input[:, 0, 0], (pos_error - pos_err_norm[0]) / pos_err_norm[1])
-    torch.testing.assert_close(actuator.sea_input[:, 0, 1], (joint_vel.flatten() - vel_norm[0]) / vel_norm[1])
+    torch.testing.assert_close(actuator.sea_input[:, 0, 0], (joint_pos.flatten() - pos_norm[0]) / pos_norm[1])
+    torch.testing.assert_close(actuator.sea_input[:, 0, 1], (pos_error - pos_err_norm[0]) / pos_err_norm[1])
+    torch.testing.assert_close(actuator.sea_input[:, 0, 2], (joint_vel.flatten() - vel_norm[0]) / vel_norm[1])
 
 
 @pytest.mark.parametrize("num_envs", [2])
@@ -448,11 +457,24 @@ def test_actuator_net_gru_missing_gru_submodule_raises(sim, device, tmp_path):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_actuator_net_gru_input_dim_mismatch_raises(sim, device, tmp_path):
-    """A network whose GRU does not take exactly 2 inputs raises ValueError at init."""
+    """A network whose GRU does not take exactly 3 inputs raises ValueError at init."""
     joint_names = ["joint_0"]
-    network_file = _make_network_file(tmp_path, input_dim=3)
+    network_file = _make_network_file(tmp_path, input_dim=2)
 
     cfg = ActuatorNetGRUCfg(joint_names_expr=joint_names, network_file=network_file)
+    with pytest.raises(ValueError):
+        cfg.class_type(cfg, joint_names=joint_names, joint_ids=[0], num_envs=1, device=device)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_actuator_net_gru_negative_std_raises(sim, device, tmp_path):
+    """A negative normalization std raises ValueError at init (rather than being floored)."""
+    joint_names = ["joint_0"]
+    network_file = _make_network_file(tmp_path)
+
+    cfg = ActuatorNetGRUCfg(
+        joint_names_expr=joint_names, network_file=network_file, pos_error_normalization=(0.0, -2.0)
+    )
     with pytest.raises(ValueError):
         cfg.class_type(cfg, joint_names=joint_names, joint_ids=[0], num_envs=1, device=device)
 

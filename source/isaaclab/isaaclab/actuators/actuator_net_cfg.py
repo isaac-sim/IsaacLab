@@ -87,9 +87,15 @@ class ActuatorNetGRUCfg(IdealPDActuatorCfg):
 
     The loaded module must expose a ``.gru`` submodule (used to introspect the hidden and layer
     dimensions) and implement ``forward(x, hidden) -> (output, hidden)``, where ``x`` has shape
-    (batch, 1, 2) carrying the joint position error and joint velocity, ``hidden`` has shape
+    (batch, 1, 3) carrying the joint position, position error, and velocity, ``hidden`` has shape
     (num_layers, batch, hidden_dim), and ``batch = num_envs * num_joints``. The ``output`` reshapes
     to (num_envs, num_joints).
+    """
+
+    position_normalization: tuple[float, float] | None = None
+    """``(mean, std)`` applied to the joint position input as ``(x - mean) / std``.
+
+    ``None`` (the default) disables normalization (identity).
     """
 
     pos_error_normalization: tuple[float, float] | None = None
@@ -130,9 +136,15 @@ class ActuatorNetGRUResidualCfg(ImplicitActuatorCfg):
 
     The loaded module must expose a ``.gru`` submodule (used to introspect the hidden and layer
     dimensions) and implement ``forward(x, hidden) -> (output, hidden)``, where ``x`` has shape
-    (batch, 1, 2) carrying the joint position error and joint velocity, ``hidden`` has shape
+    (batch, 1, 3) carrying the joint position, position error, and velocity, ``hidden`` has shape
     (num_layers, batch, hidden_dim), and ``batch = num_envs * num_joints``. The ``output`` reshapes
     to (num_envs, num_joints).
+    """
+
+    position_normalization: tuple[float, float] | None = None
+    """``(mean, std)`` applied to the joint position input as ``(x - mean) / std``.
+
+    ``None`` (the default) disables normalization (identity).
     """
 
     pos_error_normalization: tuple[float, float] | None = None
