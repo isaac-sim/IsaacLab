@@ -32,26 +32,28 @@ import torch
 def _soft_dtw_autograd(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
     """Compute SoftDTW using Torch ops that preserve autograd."""
     batch_size, len_x, len_y = D.shape
-    inf = torch.full((batch_size,), float("inf"), device=D.device, dtype=D.dtype)
-    prev_row = [inf] * (len_y + 2)
-    prev_row[0] = torch.zeros((batch_size,), device=D.device, dtype=D.dtype)
+    R = torch.full((batch_size, len_x + 2, len_y + 2), float("inf"), device=D.device, dtype=D.dtype)
+    R[:, 0, 0] = 0
 
+    band_size = int(bandwidth) if bandwidth > 0 else max(len_x, len_y)
     for i in range(1, len_x + 1):
-        curr_row = [inf] * (len_y + 2)
-        for j in range(1, len_y + 1):
-            if 0 < bandwidth < abs(i - j):
-                continue
+        j_start = max(1, i - band_size)
+        j_end = min(len_y, i + band_size) + 1
+
+        for j in range(j_start, j_end):
+            r0 = R[:, i - 1, j - 1]
+            r1 = R[:, i - 1, j]
+            r2 = R[:, i, j - 1]
 
             if gamma == 0:
-                softmin = torch.minimum(torch.minimum(prev_row[j - 1], prev_row[j]), curr_row[j - 1])
+                softmin = torch.minimum(torch.minimum(r0, r1), r2)
             else:
-                previous_costs = torch.stack((prev_row[j - 1], prev_row[j], curr_row[j - 1]))
+                previous_costs = torch.stack((r0, r1, r2))
                 softmin = -gamma * torch.logsumexp(-previous_costs / gamma, dim=0)
 
-            curr_row[j] = D[:, i - 1, j - 1] + softmin
-        prev_row = curr_row
+            R[:, i, j] = D[:, i - 1, j - 1] + softmin
 
-    return prev_row[len_y]
+    return R[:, len_x, len_y]
 
 
 def _soft_dtw_no_grad(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
@@ -120,7 +122,13 @@ def _soft_dtw_variable_y_no_grad(
 
 
 def _soft_dtw(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.Tensor:
-    """Compute SoftDTW from a batched pairwise distance matrix using Torch ops."""
+    """Compute batched SoftDTW from a pairwise distance tensor.
+
+    Args:
+        D: Pairwise distance tensor of shape ``(batch, len_x, len_y)``.
+        gamma: SoftDTW smoothing parameter. Set to 0 to compute hard DTW.
+        bandwidth: Optional Sakoe-Chiba bandwidth. Values <= 0 disable the band constraint.
+    """
     if torch.is_grad_enabled() and D.requires_grad:
         return _soft_dtw_autograd(D, gamma, bandwidth)
     return _soft_dtw_no_grad(D, gamma, bandwidth)

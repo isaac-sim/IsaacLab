@@ -72,3 +72,17 @@ def test_soft_dtw_forward_with_lengths_matches_unpadded_calls():
         )
 
     assert torch.allclose(actual, expected, atol=1e-6)
+
+
+def test_soft_dtw_backward_produces_finite_gradients():
+    soft_dtw = _load_soft_dtw_module()
+    criterion = soft_dtw.SoftDTW(use_cuda=False, device="cpu", gamma=0.01)
+
+    torch.manual_seed(17)
+    x = torch.randn((2, 4, 3), dtype=torch.float32, requires_grad=True)
+    y = torch.randn((2, 5, 3), dtype=torch.float32)
+
+    criterion(x, y).sum().backward()
+
+    assert x.grad is not None
+    assert torch.isfinite(x.grad).all()
