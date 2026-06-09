@@ -69,10 +69,10 @@ def _assert_export_contains_env_roots_and_children(exported: str, env_indices: r
     assert exported.count('def Camera "Camera"') == len(env_indices)
 
 
-def _assert_export_omits_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environments and their unique children are omitted from the stage export."""
+def _assert_export_omits_env_children(exported: str, env_indices: range | list[int]) -> None:
+    """Listed environments keep their roots but omit prototype children from the stage export."""
     for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' not in exported
+        assert f'def Xform "env_{env_idx}"' in exported
         assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
@@ -106,15 +106,15 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
     assert 'def RenderVar "HdrColor"' in render_scope
 
 
-def test_export_stage_full_when_cloning_disabled():
-    """Disabling OVRTX cloning exports every environment."""
+def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
+    """Listing every env root as a source preserves the full stage content."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
 
     exported = export_stage_to_string(
         stage,
         num_envs=num_envs,
-        use_ovrtx_cloning=False,
+        source_paths=tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
     )
 
     _assert_export_contains_env_roots_and_children(exported, range(num_envs))
@@ -128,7 +128,7 @@ def test_export_stage_full_when_single_env():
     exported = export_stage_to_string(
         stage,
         num_envs=num_envs,
-        use_ovrtx_cloning=True,
+        source_paths=("/World/envs/env_0",),
     )
 
     _assert_export_contains_env_roots_and_children(exported, range(num_envs))
@@ -142,12 +142,11 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
     exported = export_stage_to_string(
         stage,
         num_envs=num_envs,
-        use_ovrtx_cloning=True,
         source_paths=("/World/envs/env_0",),
     )
 
     _assert_export_contains_env_roots_and_children(exported, [0])
-    _assert_export_omits_env_roots_and_children(exported, range(1, num_envs))
+    _assert_export_omits_env_children(exported, range(1, num_envs))
 
 
 def test_export_stage_heterogeneous_keeps_multiple_sources():
@@ -158,19 +157,17 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
     exported = export_stage_to_string(
         stage,
         num_envs=num_envs,
-        use_ovrtx_cloning=True,
         source_paths=("/World/envs/env_0/Object_env0_only", "/World/envs/env_3/Object_env3_only"),
     )
 
-    # Only the prims are exported:
+    # Only the source subtrees are exported:
     assert 'def Xform "env_0"' in exported
     assert 'def Xform "Object_env0_only"' in exported
     assert 'def Xform "env_3"' in exported
     assert 'def Xform "Object_env3_only"' in exported
 
-    # The rest of the envs are omitted:
-    assert 'def Xform "env_1"' not in exported
-    assert 'def Xform "env_2"' not in exported
+    # Other env roots remain, but their prototype children are omitted.
+    _assert_export_omits_env_children(exported, [1, 2])
     assert 'def Xform "Robot"' not in exported
     assert 'def Camera "Camera"' not in exported
 
@@ -188,7 +185,6 @@ def test_export_stage_restores_active_state():
     export_stage_to_string(
         stage,
         num_envs=num_envs,
-        use_ovrtx_cloning=True,
         source_paths=("/World/envs/env_0",),
     )
 
