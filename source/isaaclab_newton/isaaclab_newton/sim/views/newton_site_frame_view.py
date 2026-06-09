@@ -321,7 +321,13 @@ class NewtonSiteFrameView(BaseFrameView):
                 return body_patterns, wp.transform(pos, quat), False, env_ids
             body_prim = body_prim.GetParent()
 
-        ref_prim = stage.GetPrimAtPath(source_root) if source_root is not None else None
+        ref_path = source_root
+        if source_root is not None and destination_template is not None and "{}" in destination_template:
+            destination_prefix, _ = destination_template.split("{}", 1)
+            if destination_prefix and source_root.startswith(destination_prefix):
+                source_instance = source_root[len(destination_prefix) :].split("/", 1)[0]
+                ref_path = destination_prefix + source_instance
+        ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
         return None, wp.transform(pos, quat), source_root is not None, env_ids
 
