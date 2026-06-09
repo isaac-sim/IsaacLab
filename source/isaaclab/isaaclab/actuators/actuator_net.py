@@ -9,6 +9,7 @@ Currently, the following models are supported:
 
 * Multi-Layer Perceptron (MLP)
 * Long Short-Term Memory (LSTM)
+* Gated Recurrent Unit (GRU), both explicit full-torque and implicit-PD residual variants
 
 """
 
@@ -22,10 +23,15 @@ import torch
 from isaaclab.utils.assets import read_file
 from isaaclab.utils.types import ArticulationActions
 
-from .actuator_pd import DCMotor
+from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
 if TYPE_CHECKING:
-    from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_net_cfg import (
+        ActuatorNetGRUCfg,
+        ActuatorNetGRUResidualCfg,
+        ActuatorNetLSTMCfg,
+        ActuatorNetMLPCfg,
+    )
 
 
 class ActuatorNetLSTM(DCMotor):
@@ -95,6 +101,209 @@ class ActuatorNetLSTM(DCMotor):
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
         control_action.joint_velocities = None
+        return control_action
+
+
+class _GRUActuatorMixin:
+    """Shared machinery for the GRU-based actuator models.
+
+    Loads the TorchScript GRU network, allocates the recurrent input and hidden-state buffers, and
+    runs inference. As with :class:`ActuatorNetLSTM`, the network consumes the joint position error
+    and joint velocity; unlike the LSTM, an optional ``(mean, std)`` normalization may be applied to
+    each input and to the output (``None`` selects the identity transform). The concrete actuator
+    classes combine this mixin with an explicit (:class:`IdealPDActuator`) or implicit
+    (:class:`ImplicitActuator`) base to define their effort semantics.
+    """
+
+    # standard-deviation floor used when normalizing to avoid division by tiny values
+    _GRU_STD_FLOOR = 1.0e-8
+
+    def _init_gru_runtime(self) -> None:
+        """Load the network and allocate the GRU buffers and normalization statistics.
+
+        Raises:
+            ValueError: If the TorchScript module does not expose a ``.gru`` submodule, or if its
+                input dimension is not 2 (joint position error and velocity).
+        """
+        # load the TorchScript network
+        file_bytes = read_file(self.cfg.network_file)
+        self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
+        if not hasattr(self.network, "gru"):
+            raise ValueError(f"The network file '{self.cfg.network_file}' must expose a TorchScript '.gru' submodule.")
+
+        # infer dimensions from the GRU weights (the input is [position_error, velocity])
+        gru_state = self.network.gru.state_dict()
+        input_dim = int(gru_state["weight_ih_l0"].shape[1])
+        hidden_dim = int(gru_state["weight_hh_l0"].shape[1])
+        num_layers = sum(1 for key in gru_state if key.startswith("weight_ih_l"))
+        if input_dim != 2:
+            raise ValueError(
+                f"The network file '{self.cfg.network_file}' must take 2 inputs (joint position error and"
+                f" joint velocity), but its GRU expects {input_dim}."
+            )
+
+        # resolve (mean, std) normalization for the inputs and output (identity when unset)
+        self._pos_error_norm = self._resolve_normalization(self.cfg.pos_error_normalization)
+        self._vel_norm = self._resolve_normalization(self.cfg.vel_normalization)
+        self._output_norm = self._resolve_normalization(self.cfg.output_normalization)
+
+        # recurrent input and hidden-state buffers
+        batch = self._num_envs * self.num_joints
+        self.sea_input = torch.zeros(batch, 1, 2, device=self._device)
+        self.sea_hidden_state = torch.zeros(num_layers, batch, hidden_dim, device=self._device)
+        # per-env view for resets (shares storage)
+        self.sea_hidden_state_per_env = self.sea_hidden_state.view(
+            num_layers, self._num_envs, self.num_joints, hidden_dim
+        )
+
+    def _resolve_normalization(self, stats: tuple[float, float] | None) -> tuple[float, float]:
+        """Return the ``(mean, std)`` to apply, defaulting to identity and flooring the std."""
+        if stats is None:
+            return 0.0, 1.0
+        mean, std = stats
+        return float(mean), max(float(std), self._GRU_STD_FLOOR)
+
+    def _reset_gru_state(self, env_ids: Sequence[int]):
+        """Zero the GRU hidden state for the specified environments.
+
+        Args:
+            env_ids: The environment indices whose hidden state should be reset.
+        """
+        with torch.no_grad():
+            self.sea_hidden_state_per_env[:, env_ids] = 0.0
+
+    def _predict_gru_effort(
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+    ) -> torch.Tensor:
+        """Assemble the network input, run inference, and return the denormalized effort.
+
+        Args:
+            control_action: The joint action instance holding the desired joint positions.
+            joint_pos: The current joint positions. Shape is (num_envs, num_joints).
+            joint_vel: The current joint velocities. Shape is (num_envs, num_joints).
+
+        Returns:
+            The predicted effort [N·m or N, depending on joint type]. Shape is
+            (num_envs, num_joints).
+
+        Raises:
+            ValueError: If ``control_action.joint_positions`` is None.
+        """
+        if control_action.joint_positions is None:
+            raise ValueError("GRU actuator input requires control_action.joint_positions to be set.")
+        # normalized [position_error, velocity] inputs
+        pos_error = (control_action.joint_positions - joint_pos).flatten()
+        self.sea_input[:, 0, 0] = (pos_error - self._pos_error_norm[0]) / self._pos_error_norm[1]
+        self.sea_input[:, 0, 1] = (joint_vel.flatten() - self._vel_norm[0]) / self._vel_norm[1]
+
+        # run inference, then denormalize and guard against a non-finite output
+        with torch.inference_mode():
+            output, self.sea_hidden_state[:] = self.network(self.sea_input, self.sea_hidden_state)
+        output = output * self._output_norm[1] + self._output_norm[0]
+        # a non-finite prediction carries no usable actuation, so command zero effort this step
+        output = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
+        return output.reshape(self._num_envs, self.num_joints)
+
+
+class ActuatorNetGRU(_GRUActuatorMixin, IdealPDActuator):
+    """Explicit actuator model based on a recurrent neural network (GRU).
+
+    The GRU network predicts the *total* joint effort [N·m or N, depending on joint type] from the
+    joint position error and joint velocity. Unlike the analytical models, no PD gains are applied;
+    the hidden state of the recurrent network captures the actuator history. The predicted effort is
+    clipped to the actuator's effort limit via :meth:`~isaaclab.actuators.ActuatorBase._clip_effort`.
+
+    This model derives from :class:`IdealPDActuator`, whose simple symmetric ``±effort_limit``
+    saturation matches a learned total-torque source without requiring the velocity-dependent
+    torque-speed parameters of a DC motor.
+
+    Note:
+        The recurrent hidden state encodes the actuator history and is only cleared by
+        :meth:`reset`. Callers must reset the relevant environments on episode boundaries
+        (and after any control gap, e.g. a hardware reconnect) so the first post-reset effort is
+        not computed against stale temporal context.
+    """
+
+    cfg: ActuatorNetGRUCfg
+    """The configuration of the actuator model."""
+
+    def __init__(self, cfg: ActuatorNetGRUCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
+        self._init_gru_runtime()
+
+    """
+    Operations.
+    """
+
+    def reset(self, env_ids: Sequence[int]):
+        self._reset_gru_state(env_ids)
+
+    def compute(
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+    ) -> ArticulationActions:
+        self.computed_effort = self._predict_gru_effort(control_action, joint_pos, joint_vel)
+        # clip the computed effort based on the motor limits
+        self.applied_effort = self._clip_effort(self.computed_effort)
+        control_action.joint_efforts = self.applied_effort
+        control_action.joint_positions = None
+        control_action.joint_velocities = None
+        return control_action
+
+
+class ActuatorNetGRUResidual(_GRUActuatorMixin, ImplicitActuator):
+    """Implicit-PD actuator model with an added recurrent (GRU) residual effort.
+
+    This model behaves like an :class:`ImplicitActuator` -- the physics engine applies the PD
+    control using the configured stiffness and damping -- but augments the feed-forward effort
+    term with a *residual* effort [N·m or N, depending on joint type] predicted by a recurrent
+    (GRU) network. The residual is added to any existing feed-forward effort, and the approximate
+    total effort is stored for reward computation while the desired joint positions and velocities
+    are preserved so the engine can compute the PD term.
+
+    Note:
+        As with any :class:`ImplicitActuator`, the effort actually applied by the engine is the
+        feed-forward effort plus the engine-side PD term, and it is bounded by the simulation
+        effort limit (``effort_limit_sim``) rather than by :meth:`~isaaclab.actuators.ActuatorBase._clip_effort`
+        (which only populates the reported :attr:`applied_effort`). Set ``effort_limit_sim`` to a
+        finite value to bound the residual feed-forward. The hidden state is cleared only by
+        :meth:`reset`; reset the relevant environments on episode boundaries (and after any control
+        gap) to avoid stale recurrent context.
+    """
+
+    cfg: ActuatorNetGRUResidualCfg
+    """The configuration of the actuator model."""
+
+    def __init__(self, cfg: ActuatorNetGRUResidualCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
+        self._init_gru_runtime()
+
+    """
+    Operations.
+    """
+
+    def reset(self, env_ids: Sequence[int]):
+        super().reset(env_ids)
+        self._reset_gru_state(env_ids)
+
+    def compute(
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+    ) -> ArticulationActions:
+        # add the GRU residual to the feed-forward effort
+        residual = self._predict_gru_effort(control_action, joint_pos, joint_vel)
+        if control_action.joint_efforts is None:
+            control_action.joint_efforts = residual
+        else:
+            control_action.joint_efforts = control_action.joint_efforts + residual
+
+        # approximate total effort for reward telemetry (engine applies the PD term)
+        error_pos = control_action.joint_positions - joint_pos
+        if control_action.joint_velocities is not None:
+            error_vel = control_action.joint_velocities - joint_vel
+        else:
+            error_vel = -joint_vel
+        self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
+        self.applied_effort = self._clip_effort(self.computed_effort)
+        # positions/velocities are preserved so the engine computes the PD term
         return control_action
 
 

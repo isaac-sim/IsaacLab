@@ -6,8 +6,12 @@
 __all__ = [
     "ActuatorBase",
     "ActuatorBaseCfg",
+    "ActuatorNetGRU",
+    "ActuatorNetGRUResidual",
     "ActuatorNetLSTM",
     "ActuatorNetMLP",
+    "ActuatorNetGRUCfg",
+    "ActuatorNetGRUResidualCfg",
     "ActuatorNetLSTMCfg",
     "ActuatorNetMLPCfg",
     "DCMotor",
@@ -24,8 +28,8 @@ __all__ = [
 
 from .actuator_base import ActuatorBase
 from .actuator_base_cfg import ActuatorBaseCfg
-from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
-from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+from .actuator_net import ActuatorNetGRU, ActuatorNetGRUResidual, ActuatorNetLSTM, ActuatorNetMLP
+from .actuator_net_cfg import ActuatorNetGRUCfg, ActuatorNetGRUResidualCfg, ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from .actuator_pd import (
     DCMotor,
     DelayedPDActuator,
