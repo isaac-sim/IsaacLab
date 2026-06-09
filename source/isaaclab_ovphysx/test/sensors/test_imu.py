@@ -70,6 +70,8 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
 
+pytestmark = pytest.mark.device_split
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
