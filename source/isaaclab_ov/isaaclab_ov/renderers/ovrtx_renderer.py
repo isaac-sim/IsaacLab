@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+from itertools import compress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -51,6 +52,7 @@ except ModuleNotFoundError as exc:
         "(or, manually: pip install --extra-index-url https://pypi.nvidia.com -e 'source/isaaclab_ov[ovrtx]')."
     ) from exc
 
+from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -130,6 +132,67 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
     return _RTX_MINIMAL_MODES[filtered_data_types[0]]
 
 
+def _write_file(output_dir: Path, file_name: str, content: str) -> None:
+    """Write ``content`` to ``output_dir / file_name``.
+
+    Creates ``output_dir`` and any missing parents when needed.
+
+    Args:
+        output_dir: Directory that receives the file.
+        file_name: Base name of the file to write.
+        content: Text content written with UTF-8 encoding.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / file_name
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        file.write(content)
+        logger.info("Wrote USD file: %s", output_path)
+
+
+def _create_homogeneous_clone_plan(num_envs: int) -> ClonePlan:
+    """Create a homogeneous fallback plan that replicates ``env_0`` to every environment."""
+    return ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, num_envs), dtype=torch.bool, device="cpu"),
+    )
+
+
+def _resolve_clone_plan(num_envs: int) -> ClonePlan:
+    """Resolve clone plan for local use.
+
+    If no clone plan is published by the scene or it has no active rows, returns a homogeneous clone plan.
+    If the clone plan has some inactive rows, returns a copy of the published clone plan with only the active rows.
+    If the clone plan has all active rows, returns the published clone plan (shallow copy).
+    """
+    published_clone_plan = SimulationContext.instance().get_clone_plan()
+
+    if published_clone_plan is None:
+        logger.warning("No clone plan is published by the scene; returning homogeneous clone plan")
+        return _create_homogeneous_clone_plan(num_envs)
+
+    active_rows = published_clone_plan.clone_mask.any(dim=1)
+
+    # If no rows are active, return a homogeneous clone plan.
+    if not active_rows.any():
+        logger.warning("Clone plan has no active rows, returning homogeneous clone plan")
+        return _create_homogeneous_clone_plan(num_envs)
+
+    # If some rows are inactive, return a copy of the published clone plan with only the active rows.
+    if not active_rows.all():
+        logger.warning("Clone plan has some inactive rows; returning a copy with only active rows")
+        active = active_rows.tolist()
+        return ClonePlan(
+            sources=tuple(compress(published_clone_plan.sources, active)),
+            destinations=tuple(compress(published_clone_plan.destinations, active)),
+            clone_mask=published_clone_plan.clone_mask[active_rows],
+        )
+
+    # If all rows are active, return the published clone plan (shallow copy).
+    return published_clone_plan
+
+
 class OVRTXRenderData:
     """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
 
@@ -197,14 +260,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
-
-        self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning
-
-        if self._use_ovrtx_cloning:
-            clone_plan = SimulationContext.instance().get_clone_plan()
-            if clone_plan and not clone_plan.clone_mask.all().item():
-                logger.warning("OVRTX cloning disabled because the simulation uses a heterogeneous env setup")
-                self._use_ovrtx_cloning = False
+        self._clone_plan: ClonePlan | None = None
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
@@ -246,16 +302,27 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
-        Adds cloning attributes and exports the stage to a string held on the renderer until
+        Adds scene partition attributes and exports the stage to a string held on the renderer until
         :meth:`create_render_data` is called.
         """
         if stage is None:
             return
 
-        logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
-        create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning)
+        # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
+        if self.cfg.temp_usd_dir is not None:
+            _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
 
-        self._exported_usd_string = export_stage_to_string(stage, num_envs, self._use_ovrtx_cloning)
+        logger.info("Preparing stage (%d envs)...", num_envs)
+        create_scene_partition_attributes(stage, num_envs)
+
+        # Resolve the clone plan for local use.
+        self._clone_plan = _resolve_clone_plan(num_envs)
+
+        self._exported_usd_string = export_stage_to_string(
+            stage,
+            num_envs,
+            source_paths=self._clone_plan.sources,
+        )
 
     def _initialize_from_spec(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
@@ -294,12 +361,7 @@ class OVRTXRenderer(BaseRenderer):
 
             # If temp_usd_dir is set, write the combined USD stage to a temporary file.
             if self.cfg.temp_usd_dir is not None:
-                temp_usd_dir = Path(self.cfg.temp_usd_dir)
-                temp_usd_dir.mkdir(parents=True, exist_ok=True)
-                temp_usd_path = temp_usd_dir / "ovrtx_renderer_stage.usda"
-                with open(temp_usd_path, "w", encoding="utf-8") as f:
-                    f.write(combined_usd_string)
-                    logger.info("Wrote combined USD stage to %s", temp_usd_path)
+                _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
 
             logger.info("Loading USD into OvRTX...")
             try:
@@ -309,9 +371,8 @@ class OVRTXRenderer(BaseRenderer):
                 logger.exception("Error loading USD: %s", e)
                 raise
 
-            if self._use_ovrtx_cloning and num_envs > 1:
-                logger.info("Using OVRTX internal cloning")
-                self._clone_environments_in_ovrtx(num_envs)
+            if num_envs > 1:
+                self._clone_sources_in_ovrtx()
                 self._update_scene_partitions_after_clone(num_envs)
 
             self._initialized_scene = True
@@ -341,17 +402,39 @@ class OVRTXRenderer(BaseRenderer):
 
             self._setup_object_bindings()
 
-    def _clone_environments_in_ovrtx(self, num_envs: int):
-        """Clone base environment (env_0) to all other environments using OvRTX."""
-        logger.info("Cloning base environment to %d targets...", num_envs - 1)
-        source_path = "/World/envs/env_0"
-        target_paths = [f"/World/envs/env_{i}" for i in range(1, num_envs)]
-        try:
-            self._renderer.clone_usd(source_path, target_paths)
-            logger.info("Cloned %d environments successfully", len(target_paths))
-        except Exception as e:
-            logger.error("Failed to clone environments: %s", e)
-            raise RuntimeError(f"OvRTX environment cloning failed: {e}")
+    def _clone_sources_in_ovrtx(self):
+        """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
+        clone_plan = self._clone_plan
+        if clone_plan is None:
+            raise RuntimeError("Clone plan is required when using OVRTX cloning")
+
+        logger.info("Cloning sources in OVRTX...")
+
+        num_envs = clone_plan.clone_mask.shape[1]
+        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
+
+        num_cloned_sources = 0
+
+        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
+
+            target_paths = []
+            for env_id in target_env_ids:
+                resolved_destination = destination.format(env_id)
+                if resolved_destination != source:
+                    target_paths.append(resolved_destination)
+
+            if target_paths:
+                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
+                try:
+                    self._renderer.clone_usd(source, target_paths)
+                    num_cloned_sources += 1
+                except Exception as e:
+                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+
+        logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
     def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
