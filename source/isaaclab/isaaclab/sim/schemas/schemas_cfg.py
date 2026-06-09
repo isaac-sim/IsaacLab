@@ -584,10 +584,7 @@ class MeshCollisionBaseCfg:
     """
 
     # -- Class metadata (not dataclass fields) --
-    # The standard ``UsdPhysics.MeshCollisionAPI`` is always applied by the writer when a
-    # mesh-collision cfg is supplied; ``_usd_applied_schema`` here records the standard
-    # API name so subclasses that author no PhysX namespace can rely on the writer's
-    # standard-vs-PhysX gating logic. PhysX-cooking subclasses override this.
+    # Records the standard API name for the writer's standard-vs-PhysX gating; cooking subclasses override.
     _usd_applied_schema: ClassVar[str | None] = "MeshCollisionAPI"
     # Base class authors no PhysX-namespaced fields, so no namespace is defined.
     _usd_namespace: ClassVar[str | None] = None

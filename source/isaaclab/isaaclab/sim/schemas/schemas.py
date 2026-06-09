@@ -516,8 +516,7 @@ def apply_mesh_collision_properties(prim_path: str, fragments, stage: Usd.Stage 
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
 
-    # resolve the approximation token shared across the fragment list: the last fragment whose
-    # ``mesh_approximation_name`` is set to a non-"none" value wins; otherwise "none".
+    # resolve the shared approximation token: last fragment with a non-"none" name wins
     approximation_name = "none"
     for cfg in fragments:
         name = getattr(cfg, "mesh_approximation_name", None)

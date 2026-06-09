@@ -293,11 +293,9 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
 # -------------------------------------------------------------------------------------
 # Mesh-collision cooking fragments (single-namespace; Newton cooking add-on schemas).
 #
-# Each fragment owns the ``newton`` namespace + its applied schema and is dispatched through the
-# generic ``apply_namespaced`` applier by the family writer
-# ``isaaclab.sim.schemas.apply_mesh_collision_properties``. They author no ``mesh_approximation_name``
-# of their own (the ``physics:approximation`` token is set by the PhysX/USD fragment present in the
-# same list), so they only tune Newton-native cooking attributes.
+# Each fragment owns the ``newton`` namespace + its applied schema, dispatched via ``apply_namespaced``.
+# They author no ``mesh_approximation_name`` (the token is set by the PhysX/USD fragment in the same
+# list), so they only tune Newton-native cooking attributes.
 # -------------------------------------------------------------------------------------
 
 

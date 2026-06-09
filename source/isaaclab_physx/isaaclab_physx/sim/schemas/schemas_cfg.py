@@ -539,12 +539,10 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
 # -------------------------------------------------------------------------------------
 # Mesh-collision cooking fragments (single-namespace; PhysX cooking add-on schemas).
 #
-# Each fragment owns one ``physx*Collision:*`` namespace + applied schema, and carries a
-# ``mesh_approximation_name`` whose default encodes the ``physics:approximation`` token its
-# cooking schema implies. The token is written by the family writer
-# ``isaaclab.sim.schemas.apply_mesh_collision_properties`` (which scans the fragment list and
-# validates the name against ``MESH_APPROXIMATION_TOKENS``); the tuning attributes are written by
-# the generic ``apply_namespaced`` applier.
+# Each fragment owns one ``physx*Collision:*`` namespace + applied schema; its
+# ``mesh_approximation_name`` default encodes the ``physics:approximation`` token its cooking
+# schema implies. The token is written by the family writer
+# ``isaaclab.sim.schemas.apply_mesh_collision_properties``; tuning attrs go via ``apply_namespaced``.
 # -------------------------------------------------------------------------------------
 
 
