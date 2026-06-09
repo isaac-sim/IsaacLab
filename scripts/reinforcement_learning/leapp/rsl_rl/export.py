@@ -26,8 +26,14 @@ if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
 import cli_args  # isort: skip
 
 
+RSL_RL_MIN_VERSION = "5.0.1"
 _RUNTIME_IMPORTS_LOADED = False
 
+# Keep heavy/runtime-sensitive imports out of module import time. The CLI needs
+# to parse launcher arguments and start Isaac Sim/Kit before importing torch,
+# LEAPP, RSL-RL, and task modules; importing them earlier has caused launcher
+# import-order failures. ``_load_runtime_dependencies()`` populates these
+# globals immediately before export execution.
 torch = None
 leapp = None
 annotate = None
@@ -43,6 +49,7 @@ ensure_env_spec_id = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
+installed_version = None
 
 
 def create_arg_parser() -> argparse.ArgumentParser:
@@ -117,6 +124,7 @@ def _load_runtime_dependencies() -> None:
     global annotate, leapp, torch
     global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
     global ensure_env_spec_id, get_published_pretrained_checkpoint, handle_deprecated_rsl_rl_cfg, hydra_task_config
+    global installed_version
     global patch_env_for_export, retrieve_file_path
 
     if _RUNTIME_IMPORTS_LOADED:
@@ -130,6 +138,7 @@ def _load_runtime_dependencies() -> None:
 
     import gymnasium as gym_module
     import torch as torch_module
+    from packaging import version as packaging_version_module
     from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
     from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
 
@@ -152,6 +161,13 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
 
+    installed_version = metadata.version("rsl-rl-lib")
+    if packaging_version_module.parse(installed_version) < packaging_version_module.parse(RSL_RL_MIN_VERSION):
+        print(
+            f"[WARNING] LEAPP RSL-RL export is validated with rsl-rl-lib {RSL_RL_MIN_VERSION} or newer. "
+            f"Installed version is '{installed_version}'."
+        )
+
     torch = torch_module
     leapp = leapp_module
     annotate = annotate_module
@@ -170,25 +186,43 @@ def _load_runtime_dependencies() -> None:
     _RUNTIME_IMPORTS_LOADED = True
 
 
-installed_version = metadata.version("rsl-rl-lib")
-
-
-def get_actor_memory_module(policy_nn):
-    """Return the actor-side recurrent memory module when the policy exposes one."""
-    if hasattr(policy_nn, "memory_a"):
-        return policy_nn.memory_a
-    if hasattr(policy_nn, "memory_s"):
-        return policy_nn.memory_s
+def get_actor_memory_module(policy):
+    """Return the actor-side RNN module for supported RSL-RL recurrent policies."""
+    if hasattr(policy, "rnn"):
+        return policy.rnn
     return None
 
 
-def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dtype):
+def is_actor_recurrent_policy(policy) -> bool:
+    """Return whether the actor policy has a supported recurrent state container."""
+    return bool(getattr(policy, "is_recurrent", False) and get_actor_memory_module(policy) is not None)
+
+
+def get_actor_hidden_state(policy):
+    """Return the actor-side recurrent hidden state for supported RSL-RL policy APIs."""
+    if hasattr(policy, "get_hidden_state"):
+        return policy.get_hidden_state()
+    memory = get_actor_memory_module(policy)
+    return None if memory is None else getattr(memory, "hidden_state", None)
+
+
+def set_actor_hidden_state(policy, actor_hidden) -> None:
+    """Assign the actor-side recurrent hidden state for supported RSL-RL policy APIs."""
+    memory = get_actor_memory_module(policy)
+    if memory is not None:
+        memory.hidden_state = actor_hidden
+
+
+def ensure_actor_hidden_state_initialized(policy, batch_size: int, device, dtype):
     """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
-    actor_state, _ = policy_nn.get_hidden_states()
+    # ``torch`` is a lazy runtime global populated by ``_load_runtime_dependencies()``
+    # after Isaac Sim launches and before export calls this helper.
+    assert torch is not None
+    actor_state = get_actor_hidden_state(policy)
     if actor_state is not None:
         return actor_state
 
-    memory = get_actor_memory_module(policy_nn)
+    memory = get_actor_memory_module(policy)
     if memory is None or not hasattr(memory, "rnn"):
         return None
 
@@ -199,7 +233,7 @@ def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device, dt
         actor_state = (zeros.clone(), zeros.clone())
     else:
         actor_state = zeros
-    memory.hidden_state = actor_state
+    set_actor_hidden_state(policy, actor_state)
     return actor_state
 
 
@@ -298,7 +332,6 @@ def export_rsl_rl_agent(
         runner.load(resume_path)
 
         policy = runner.get_inference_policy(device=env.unwrapped.device)
-        policy_nn = getattr(policy, "__self__", None)
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
@@ -316,25 +349,23 @@ def export_rsl_rl_agent(
 
         for _ in range(max(args_cli.validation_steps, 2)):
             with torch.inference_mode():
-                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
+                if is_actor_recurrent_policy(policy):
                     actor_hidden = ensure_actor_hidden_state_initialized(
-                        policy_nn,
+                        policy,
                         batch_size=env.num_envs,
                         device=env.unwrapped.device,
-                        dtype=next(policy_nn.parameters()).dtype,
+                        dtype=next(policy.parameters()).dtype,
                     )
                     registered_state = annotate.state_tensors(
                         policy_node_name,
                         state_dict_from_actor_hidden(actor_hidden),
                     )
-                    actor_memory = get_actor_memory_module(policy_nn)
-                    if actor_memory is not None:
-                        actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
+                    set_actor_hidden_state(policy, actor_hidden_from_registered(registered_state, actor_hidden))
 
                 actions = policy(obs)
 
-                if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
-                    actor_hidden_after = policy_nn.get_hidden_states()[0]
+                if is_actor_recurrent_policy(policy):
+                    actor_hidden_after = get_actor_hidden_state(policy)
                     annotate.update_state(
                         policy_node_name,
                         state_dict_from_actor_hidden(actor_hidden_after),
