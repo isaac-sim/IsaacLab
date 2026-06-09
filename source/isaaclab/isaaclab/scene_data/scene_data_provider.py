@@ -60,10 +60,8 @@ class SceneDataProvider:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        try:
-            from isaaclab.sensors.contact_sensor import BaseContactSensor
-        except ImportError:
-            return {}
+        from isaaclab.sensors.contact_sensor import BaseContactSensor
+
         return {
             name: sensor
             for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
