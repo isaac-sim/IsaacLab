@@ -1011,10 +1011,7 @@ def modify_fixed_tendon_properties(
                     camel_case=False,
                 )
     else:
-        # NOTE: This ``mjc:*`` branch (for the ``MjcTendon`` prim type) is a future split
-        #   candidate -- it could become a separate Mjc tendon fragment + applier in
-        #   isaaclab_newton, mirroring the PhysX/Mjc split done for other families. It is
-        #   kept inline here for now so the schema-fragment migration stays additive.
+        # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
         # only stiffness and damping in the cfg map to mjc attributes
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(

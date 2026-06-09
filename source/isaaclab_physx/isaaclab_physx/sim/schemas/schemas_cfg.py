@@ -992,8 +992,7 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     """
 
-    # ``func`` is overridden because the existing writer iterates the multi-instance
-    # ``PhysxTendonAxisRootAPI:<inst>`` schemas; the generic ``apply_namespaced`` cannot.
+    # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
 
     tendon_enabled: bool | None = None
@@ -1038,9 +1037,8 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
     """
 
-    # ``func`` is overridden because the existing writer iterates the multi-instance
-    # ``PhysxTendonAttachmentRootAPI:<inst>`` / ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas;
-    # the generic ``apply_namespaced`` cannot.
+    # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
+    # schemas, which the generic ``apply_namespaced`` cannot.
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
 
     tendon_enabled: bool | None = None

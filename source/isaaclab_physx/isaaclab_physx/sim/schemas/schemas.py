@@ -69,8 +69,7 @@ def apply_fixed_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> b
         True if the properties were successfully set, False otherwise.
     """
     legacy = schemas_cfg.PhysxFixedTendonPropertiesCfg(**_strip_fragment_fields(cfg))
-    # ``modify_fixed_tendon_properties`` is wrapped by ``apply_nested`` and returns ``None``;
-    # report success explicitly to honor the documented ``bool`` contract.
+    # ``apply_nested`` wrapper returns ``None``; report success explicitly for the ``bool`` contract.
     modify_fixed_tendon_properties(prim_path, legacy, stage)
     return True
 
@@ -94,7 +93,6 @@ def apply_spatial_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) ->
         True if the properties were successfully set, False otherwise.
     """
     legacy = schemas_cfg.PhysxSpatialTendonPropertiesCfg(**_strip_fragment_fields(cfg))
-    # ``modify_spatial_tendon_properties`` is wrapped by ``apply_nested`` and returns ``None``;
-    # report success explicitly to honor the documented ``bool`` contract.
+    # ``apply_nested`` wrapper returns ``None``; report success explicitly for the ``bool`` contract.
     modify_spatial_tendon_properties(prim_path, legacy, stage)
     return True
