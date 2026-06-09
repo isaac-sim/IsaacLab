@@ -17,7 +17,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 
-from pxr import UsdGeom
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import ClonePlan, make_clone_plan, sequential, usd_replicate
@@ -74,6 +74,31 @@ def test_usd_replicate_with_positions_and_mask(sim):
     xform = UsdGeom.Xformable(prim)
     ops = xform.GetOrderedXformOps()
     assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
+
+
+def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatch):
+    """Fabric notice suspension no-ops when Carbonite bindings exist but ``usdrt`` does not."""
+    import builtins
+
+    import isaaclab.cloner.cloner_utils as cloner_utils
+
+    class _FakeBindings:
+        def validate_with(self, fabric_id: int) -> bool:
+            raise AssertionError("missing usdrt should prevent fabric-id lookup")
+
+    monkeypatch.setattr(cloner_utils._fabric_notices, "get_bindings", lambda: _FakeBindings())
+
+    real_import = builtins.__import__
+
+    def _import_without_usdrt(name, *args, **kwargs):
+        if name == "usdrt":
+            raise ModuleNotFoundError("No module named 'usdrt'", name="usdrt")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _import_without_usdrt)
+
+    with cloner_utils.disabled_fabric_change_notifies(Usd.Stage.CreateInMemory()):
+        pass
 
 
 def test_usd_replicate_depth_order_parent_child(sim):
