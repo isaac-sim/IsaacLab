@@ -334,6 +334,10 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
+   * - ``Isaac-Reach-Franka-IK-Abs-v0``
+     - Controllers
+     - Right
+     - **Arm:** right controller grip pose drives end-effector. No gripper.
    * - ``Isaac-PickPlace-GR1T2-Abs-v0``
      - Hand tracking
      - Both
@@ -492,9 +496,6 @@ follows.
    * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** absolute IK end-effector control. Gripper disabled.
    * - ``Isaac-Reach-Franka-IK-Rel-v0``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
