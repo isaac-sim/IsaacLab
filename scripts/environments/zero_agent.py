@@ -32,6 +32,8 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 add_launcher_args(parser)
+# simple agents should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = setup_preset_cli(parser)
 sys.argv = [sys.argv[0]] + hydra_args
 

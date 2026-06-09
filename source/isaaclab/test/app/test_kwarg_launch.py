@@ -244,18 +244,31 @@ def _new_launcher_for_experience_check():
 
 def test_rejects_isaacsim_full_streaming_experience_with_livestream(tmp_path, monkeypatch: pytest.MonkeyPatch):
     experience = tmp_path / "isaacsim.exp.full.streaming.kit"
-    experience.touch()
+    experience.write_text('[dependencies]\n"isaacsim.exp.full" = {}\n', encoding="utf-8")
     monkeypatch.setenv("EXP_PATH", str(tmp_path))
     launcher = _new_launcher_for_experience_check()
     launcher._livestream = 2
 
-    with pytest.raises(ValueError, match="known to hang"):
+    with pytest.raises(ValueError, match="depends on 'isaacsim.exp.full'"):
+        launcher._resolve_experience_file({"experience": str(experience)})
+
+
+def test_rejects_custom_experience_with_isaacsim_full_dependency_and_livestream(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    experience = tmp_path / "merged.kit"
+    experience.write_text('[dependencies]\n"isaaclab.python" = {}\n"isaacsim.exp.full" = {}\n', encoding="utf-8")
+    monkeypatch.setenv("EXP_PATH", str(tmp_path))
+    launcher = _new_launcher_for_experience_check()
+    launcher._livestream = 2
+
+    with pytest.raises(ValueError, match="depends on 'isaacsim.exp.full'"):
         launcher._resolve_experience_file({"experience": str(experience)})
 
 
 def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_path, monkeypatch: pytest.MonkeyPatch):
     experience = tmp_path / "isaacsim.exp.full.streaming.kit"
-    experience.touch()
+    experience.write_text('[dependencies]\n"isaacsim.exp.full" = {}\n', encoding="utf-8")
     monkeypatch.setenv("EXP_PATH", str(tmp_path))
     launcher = _new_launcher_for_experience_check()
     launcher._livestream = 0
