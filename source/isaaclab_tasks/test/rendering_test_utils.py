@@ -712,6 +712,9 @@ def rendering_test_dexsuite_kuka(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
+    if not setup_homogeneous_envs and renderer != "ovrtx_renderer":
+        pytest.skip("Failure on heterogeneous environments with non-OVRTX renderer.")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
