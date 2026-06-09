@@ -506,6 +506,8 @@ management). If ``grpc_port`` is already active, Isaac Lab reuses that server. I
 starting a new server, initialization fails with a clear port-conflict error.
 
 
+Note, the timeline UI elements are for .rrd recording playback timeline scrubbing.
+
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
 
