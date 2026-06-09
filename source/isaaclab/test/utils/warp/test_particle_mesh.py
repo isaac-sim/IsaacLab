@@ -220,6 +220,19 @@ class TestParticleMeshCounterRobustness:
         points = torch.tensor([[[0.0, 0, 0], [0.5, 0, 0]]], device=device)
         assert counter.count(points, torch.zeros(1, 1, 3, device=device))[0, 0].item() == 1.0
 
+    def test_prebuilt_mesh_without_winding_support_is_rebuilt(self, device):
+        """A pre-built mesh lacking winding support is rebuilt, so counts stay correct."""
+        verts, faces = make_box_region_mesh((0.1, 0.1, 0.1))
+        wp_device = wp.device_from_torch(torch.device(device))
+        # Built WITHOUT support_winding_number: querying it directly would return zero counts.
+        mesh = wp.Mesh(
+            points=wp.array(verts, dtype=wp.vec3, device=wp_device),
+            indices=wp.array(faces.flatten(), dtype=wp.int32, device=wp_device),
+        )
+        counter = ParticleMeshCounter([mesh], num_envs=1, device=device)
+        points = torch.tensor([[[0.0, 0, 0], [0.5, 0, 0]]], device=device)
+        assert counter.count(points, torch.zeros(1, 1, 3, device=device))[0, 0].item() == 1.0
+
     def test_invalid_inputs_raise(self):
         """Empty mesh list and malformed input shapes raise ValueError."""
         with pytest.raises(ValueError):
@@ -231,6 +244,8 @@ class TestParticleMeshCounterRobustness:
             counter.count(torch.zeros(3, 4, 3), torch.zeros(1, 3, 3))  # wrong num_envs
         with pytest.raises(ValueError):
             counter.count(torch.zeros(2, 4, 3), torch.zeros(1, 5, 3))  # bad region shape
+        with pytest.raises(ValueError):
+            counter.count(torch.zeros(2, 4, 3), torch.zeros(5, 3))  # malformed 2-D region shape
 
 
 class TestRegionMeshFactories:
@@ -250,3 +265,17 @@ class TestRegionMeshFactories:
     def test_frustum_rejects_too_few_segments(self):
         with pytest.raises(ValueError):
             make_frustum_region_mesh(0.02, 0.04, -0.01, 0.03, num_segments=2)
+
+    def test_box_rejects_non_positive_half_extents(self):
+        with pytest.raises(ValueError):
+            make_box_region_mesh((0.1, 0.0, 0.1))
+        with pytest.raises(ValueError):
+            make_box_region_mesh((-0.1, 0.1, 0.1))
+
+    def test_frustum_rejects_non_positive_radius(self):
+        with pytest.raises(ValueError):
+            make_frustum_region_mesh(0.0, 0.04, -0.01, 0.03)
+
+    def test_frustum_rejects_inverted_z(self):
+        with pytest.raises(ValueError):
+            make_frustum_region_mesh(0.02, 0.04, 0.03, -0.01)

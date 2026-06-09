@@ -80,6 +80,7 @@ def count_particles_in_meshes_kernel(
         region_tf = wp.transform(region_pos[region_id, env_id], region_quat[region_id, env_id])
         point_local = wp.transform_point(wp.transform_inverse(region_tf), point)
         query = wp.mesh_query_point_sign_winding_number(region_mesh_ids[region_id], point_local, max_query_dist)
+        # Warp convention: a negative winding-number sign means the point is inside the mesh.
         if query.result and query.sign < 0.0:
             flag = wp.float32(1.0)
     inside[env_id, particle_id, region_id] = flag
@@ -96,6 +97,10 @@ class ParticleMeshCounter:
     Positions and region transforms must be expressed in a *common* frame (typically the per-env
     frame or the world frame). The counter does not assume any particular frame.
 
+    Note on input layouts: region transforms are region-major (``(num_regions, num_envs, ...)``)
+    while particle positions are env-major (``(num_envs, num_particles, 3)``). Keep this
+    transposition in mind when assembling inputs.
+
     Example:
         .. code-block:: python
 
@@ -107,8 +112,9 @@ class ParticleMeshCounter:
     Args:
         region_meshes: One entry per region, each either a built :class:`warp.Mesh` or a
             ``(vertices, indices)`` pair. ``vertices`` is shape ``(num_vertices, 3)`` [m]; ``indices``
-            is the flattened or ``(num_faces, 3)`` triangle index array. Pre-built meshes are used
-            as-is and should be created with ``support_winding_number=True``.
+            is the flattened or ``(num_faces, 3)`` triangle index array. A pre-built mesh is rebuilt
+            on :paramref:`device` with winding-number support, so it need not have been created with
+            ``support_winding_number=True``.
         num_envs: Number of environments.
         device: Torch device string the counter operates on (e.g. ``"cuda:0"`` or ``"cpu"``).
         max_query_dist: Maximum distance for the closest-point search [m]. Defaults to a large value
@@ -192,19 +198,22 @@ class ParticleMeshCounter:
             :paramref:`return_mask` is ``True``, a tuple of the counts and the boolean containment
             mask of shape ``(num_envs, num_particles, num_regions)``.
         """
-        inside = self.compute_inside_mask(particle_positions, region_positions, region_orientations)
+        inside = self._compute_inside_mask(particle_positions, region_positions, region_orientations)
         counts = inside.sum(dim=1)
         if return_mask:
             return counts, inside > 0.5
         return counts
 
-    def compute_inside_mask(
+    def _compute_inside_mask(
         self,
         particle_positions: torch.Tensor,
         region_positions: torch.Tensor,
         region_orientations: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Compute the per-particle containment mask for every region.
+        """Compute the per-particle containment mask for every region (internal helper).
+
+        Returns the reused internal buffer; the public :meth:`count` (with
+        ``return_mask=True``) is the supported way to obtain a standalone mask.
 
         Args:
             particle_positions: Particle positions in a common frame, shape
@@ -248,10 +257,18 @@ class ParticleMeshCounter:
     """Helper functions."""
 
     def _as_winding_mesh(self, mesh: wp.Mesh | tuple[np.ndarray, np.ndarray]) -> wp.Mesh:
-        """Return a winding-number-capable :class:`warp.Mesh` for ``mesh``."""
+        """Build a winding-number-capable :class:`warp.Mesh` on the counter's device.
+
+        ``mesh_query_point_sign_winding_number`` silently returns wrong signs for a
+        mesh built without ``support_winding_number=True``, and Warp does not expose
+        that flag on an existing :class:`warp.Mesh`. A pre-built mesh is therefore
+        rebuilt from its points and indices so the winding-number BVH is guaranteed
+        to exist; region meshes are built once, so this cost is paid only at setup.
+        """
         if isinstance(mesh, wp.Mesh):
-            return mesh
-        vertices, indices = mesh
+            vertices, indices = mesh.points.numpy(), mesh.indices.numpy()
+        else:
+            vertices, indices = mesh
         vertices = np.asarray(vertices, dtype=np.float32).reshape(-1, 3)
         indices = np.asarray(indices, dtype=np.int32).reshape(-1)
         return wp.Mesh(
@@ -265,7 +282,9 @@ class ParticleMeshCounter:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Validate and broadcast region transforms to ``(num_regions, num_envs, {3,4})``."""
         region_pos = region_positions.to(device=self._device, dtype=torch.float32)
-        if region_pos.dim() == 2:
+        # Only broadcast the (num_regions, 3) form; an ill-shaped 2-D input falls through to the
+        # shape check below so it raises a clear ValueError instead of a raw expand() error.
+        if region_pos.dim() == 2 and tuple(region_pos.shape) == (self._num_regions, 3):
             region_pos = region_pos.unsqueeze(1).expand(self._num_regions, self._num_envs, 3)
         if tuple(region_pos.shape) != (self._num_regions, self._num_envs, 3):
             raise ValueError(
@@ -278,7 +297,7 @@ class ParticleMeshCounter:
             region_quat[..., 3] = 1.0
         else:
             region_quat = region_orientations.to(device=self._device, dtype=torch.float32)
-            if region_quat.dim() == 2:
+            if region_quat.dim() == 2 and tuple(region_quat.shape) == (self._num_regions, 4):
                 region_quat = region_quat.unsqueeze(1).expand(self._num_regions, self._num_envs, 4)
             if tuple(region_quat.shape) != (self._num_regions, self._num_envs, 4):
                 raise ValueError(
@@ -312,6 +331,8 @@ def make_box_region_mesh(
         ``(12, 3)`` int32.
     """
     hx, hy, hz = (float(half_extents[0]), float(half_extents[1]), float(half_extents[2]))
+    if hx <= 0.0 or hy <= 0.0 or hz <= 0.0:
+        raise ValueError(f"`half_extents` must be positive, got {(hx, hy, hz)}.")
     cx, cy, cz = (float(center[0]), float(center[1]), float(center[2]))
     vertices = np.array(
         [
@@ -373,6 +394,10 @@ def make_frustum_region_mesh(
     n = int(num_segments)
     if n < 3:
         raise ValueError(f"`num_segments` must be >= 3, got {num_segments}.")
+    if radius_bottom <= 0.0 or radius_top <= 0.0:
+        raise ValueError(f"Radii must be positive, got bottom={radius_bottom}, top={radius_top}.")
+    if z_bottom >= z_top:
+        raise ValueError(f"`z_bottom` must be < `z_top`, got {z_bottom} >= {z_top}.")
     angles = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False)
     cos_a, sin_a = np.cos(angles), np.sin(angles)
     bottom = np.stack([radius_bottom * cos_a, radius_bottom * sin_a, np.full(n, z_bottom)], axis=1)
