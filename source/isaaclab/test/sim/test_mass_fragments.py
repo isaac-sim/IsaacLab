@@ -54,8 +54,7 @@ def test_apply_namespaced_writes_only_set_fields():
     UsdPhysics.MassAPI.Apply(prim)
     apply_namespaced(MassCfg(mass=3.0), "/World/Body", stage)
     assert abs(prim.GetAttribute("physics:mass").Get() - 3.0) < 1e-6
-    # ``density`` is a MassAPI fallback attr (so HasAttribute is True), but the None field
-    # must not be authored by apply_namespaced.
+    # None field must not be authored (density exists as a MassAPI fallback attr)
     assert not prim.GetAttribute("physics:density").HasAuthoredValue()
 
 
