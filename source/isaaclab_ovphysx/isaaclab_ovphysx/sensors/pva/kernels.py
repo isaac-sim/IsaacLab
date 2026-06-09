@@ -8,22 +8,20 @@ import warp as wp
 
 @wp.kernel
 def pva_update_kernel(
-    # indexing
+    # inputs
     env_mask: wp.array(dtype=wp.bool),
-    # rigid-body view data
     transforms: wp.array(dtype=wp.transformf),
     velocities: wp.array(dtype=wp.spatial_vectorf),
     coms: wp.array(dtype=wp.transformf),
-    # sensor config (per-env)
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
     gravity_vec_w: wp.array(dtype=wp.vec3f),
-    # previous velocities (read + write)
     prev_lin_vel_w: wp.array(dtype=wp.vec3f),
     prev_ang_vel_w: wp.array(dtype=wp.vec3f),
-    # scalar
     inv_dt: wp.float32,
-    # outputs (written in-place)
+    # timestamp guard (see #4970): skip envs not stepped since reset.
+    timestamp: wp.array(dtype=wp.float32),
+    # outputs
     out_pos_w: wp.array(dtype=wp.vec3f),
     out_quat_w: wp.array(dtype=wp.quatf),
     out_lin_vel_b: wp.array(dtype=wp.vec3f),
@@ -34,6 +32,11 @@ def pva_update_kernel(
 ):
     idx = wp.tid()
     if not env_mask[idx]:
+        return
+
+    # Skip envs that have not been stepped since their last reset: OVPhysX velocities still
+    # hold pre-reset values, so finite-difference velocity and acceleration would be spurious (#4970).
+    if timestamp[idx] == 0.0:
         return
 
     # 1. Extract body pose

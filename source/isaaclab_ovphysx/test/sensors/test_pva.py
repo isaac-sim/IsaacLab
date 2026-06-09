@@ -8,7 +8,7 @@
 """Real-backend tests for the OVPhysX PVA sensor.
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_pva.py
-but runs kitless under ./scripts/run_ovphysx.sh — no AppLauncher needed.
+but runs kitless under ./isaaclab.sh -p -m pytest — no AppLauncher needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
 omni.client (which works standalone in Kit's Python).
@@ -16,7 +16,7 @@ omni.client (which works standalone in Kit's Python).
 Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
 ``test_indirect_attachment``) are skipped pending a USD-converted pendulum
 asset. URDF→USD conversion requires the Kit URDF importer extension, which
-is not loaded under the kitless launcher.
+is not loaded under the direct ./isaaclab.sh -p runner.
 
 Process-global wheel state: like the IMU test, this file mixes procedural
 USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
@@ -61,12 +61,16 @@ from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E402
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.utils.configclass import configclass  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -159,6 +163,23 @@ def _make_pva(prim_path: str, offset: PvaCfg.OffsetCfg | None = None) -> Pva:
     if offset is not None:
         cfg.offset = offset
     return Pva(cfg)
+
+
+@configclass
+class _StaleResetSceneCfg(InteractiveSceneCfg):
+    """Minimal scene for the post-reset staleness regression test."""
+
+    cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.25, 0.25, 0.25),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+    )
+    pva_cube: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/cube")
 
 
 # ---------------------------------------------------------------------------
@@ -655,6 +676,39 @@ def test_reset(sim_ctx, device):
 
 
 @pytest.mark.parametrize("device", _DEVICES)
+def test_no_stale_data_after_scene_reset(sim_ctx, device):
+    """Test ``scene.reset(env_ids)`` does not expose stale native velocity through ``pva.data``."""
+    scene_cfg = _StaleResetSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+    scene = InteractiveScene(scene_cfg)
+    sim_ctx.reset()
+    scene.reset()
+
+    sensor: Pva = scene["pva_cube"]
+
+    # Let the cube fall so the native rigid-body velocity buffer becomes non-zero.
+    for _ in range(30):
+        scene.write_data_to_sim()
+        sim_ctx.step()
+        scene.update(dt=sim_ctx.get_physics_dt())
+
+    assert torch.any(sensor.data.lin_acc_b.torch != 0), "expected non-zero data before reset"
+    assert torch.any(sensor.data.lin_vel_b.torch != 0), "expected non-zero velocity before reset"
+
+    # Reset without another physics step. The public accessor must keep reset outputs
+    # instead of lazy-refetching stale native velocity.
+    scene.reset(env_ids=torch.tensor([0], device=device))
+
+    post_reset_lin_acc = sensor.data.lin_acc_b.torch
+    post_reset_ang_acc = sensor.data.ang_acc_b.torch
+    post_reset_lin_vel = sensor.data.lin_vel_b.torch
+    post_reset_ang_vel = sensor.data.ang_vel_b.torch
+    torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
+    torch.testing.assert_close(post_reset_ang_acc, torch.zeros_like(post_reset_ang_acc))
+    torch.testing.assert_close(post_reset_lin_vel, torch.zeros_like(post_reset_lin_vel))
+    torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
+
+
+@pytest.mark.parametrize("device", _DEVICES)
 def test_indirect_attachment_usd(sim_ctx, device):
     """Test that a PVA attached to a non-physics Xform under a rigid ancestor matches a direct attachment.
 
@@ -790,7 +844,7 @@ def test_sensor_print(sim_ctx, device):
 _PENDULUM_SKIP_REASON = (
     "Blocked on a USD-converted pendulum asset (the PhysX test loads"
     " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-    " which is not loaded under the kitless ./scripts/run_ovphysx.sh launcher). Re-enable"
+    " which is not loaded under the direct ./isaaclab.sh -p runner). Re-enable"
     " once a pre-converted USD pendulum is available, and port the assertion body from"
     " source/isaaclab_physx/test/sensors/test_pva.py."
 )

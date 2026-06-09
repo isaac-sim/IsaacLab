@@ -11,9 +11,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import UsdGeom
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
@@ -139,23 +138,7 @@ class Pva(BasePva):
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
-        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if prim is None:
-            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
-
-        ancestor_prim = sim_utils.get_first_matching_ancestor_prim(
-            prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
-        )
-        if ancestor_prim is None:
-            raise RuntimeError(f"Failed to find a rigid body ancestor prim at path expression: {self.cfg.prim_path}")
-
-        if ancestor_prim == prim:
-            self._rigid_parent_expr = self.cfg.prim_path
-            fixed_pos_b, fixed_quat_b = None, None
-        else:
-            relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
-            self._rigid_parent_expr = self.cfg.prim_path.replace("/" + relative_path, "")
-            fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
+        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
 
         # Translate the regex-style path expression to an ovphysx fnmatch glob.
         pattern = self._rigid_parent_expr.replace(".*", "*")
@@ -203,9 +186,11 @@ class Pva(BasePva):
         # ``_*_view`` are float32 aliases of the structured-dtype buffers below.
         self._pose_binding.read(self._transforms_view)
         self._vel_binding.read(self._velocities_view)
-        # COM is CPU-resident in ovphysx; stage on CPU, then copy into the GPU buffer.
-        self._com_binding.read(self._coms_cpu_view)
-        wp.copy(self._coms_gpu_view, self._coms_cpu_view)
+        # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
+        # For GPU simulations, stage on CPU then copy into the kernel buffer.
+        self._com_binding.read(self._coms_read_view)
+        if self._coms_read_view is not self._coms_gpu_view:
+            wp.copy(self._coms_gpu_view, self._coms_read_view)
 
         wp.launch(
             pva_update_kernel,
@@ -221,6 +206,7 @@ class Pva(BasePva):
                 self._prev_lin_vel_w,
                 self._prev_ang_vel_w,
                 1.0 / self._dt,
+                self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
@@ -271,7 +257,10 @@ class Pva(BasePva):
             device=self._device,
             copy=False,
         )
-        self._coms_cpu_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu")
+        if self._device == "cpu":
+            self._coms_read_view = self._coms_gpu_view
+        else:
+            self._coms_read_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu", pinned=True)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
