@@ -50,7 +50,7 @@ _REPRESENTATIVE_TASKS = [
     "Isaac-Humanoid-v0",
     "Isaac-Velocity-Flat-Anymal-D-v0",
     "Isaac-Reach-Franka-v0",
-    "Isaac-Lift-Cube-Franka-v0",
+    "Isaac-Lift-Cube-Franka",
     "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0",
     "Isaac-Navigation-Flat-Anymal-C-v0",
     "Isaac-Stack-Cube-Franka-v0",

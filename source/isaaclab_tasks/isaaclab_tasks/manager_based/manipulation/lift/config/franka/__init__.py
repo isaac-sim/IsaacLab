@@ -15,7 +15,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-v0",
+    id="Isaac-Lift-Cube-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCubeLiftEnvCfg",
@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-Play-v0",
+    id="Isaac-Lift-Cube-Franka-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCubeLiftEnvCfg_PLAY",

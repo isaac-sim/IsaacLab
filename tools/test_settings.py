@@ -140,7 +140,7 @@ TEST_RL_ENVS = [
     "Isaac-Ant-v0",
     "Isaac-Cartpole-v0",
     # manipulation
-    "Isaac-Lift-Cube-Franka-v0",
+    "Isaac-Lift-Cube-Franka",
     "Isaac-Open-Drawer-Franka-v0",
     # dexterous manipulation
     "Isaac-Repose-Cube-Allegro-v0",
