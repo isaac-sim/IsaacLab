@@ -26,6 +26,44 @@ def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) 
     return env_ids[row_mask]
 
 
+def _source_is_nested_destination_instance(source: str, destination_template: str) -> bool:
+    """Return True when ``source`` is a concrete nested instance of ``destination_template``.
+
+    Env-origin positions belong on clone roots such as ``/World/envs/env_{}``.
+    Rows such as ``/World/envs/env_{}/Camera`` already carry a local transform
+    copied from their source prim and must not receive the env origin as their
+    local translate.
+    """
+    if "{}" not in destination_template:
+        return False
+
+    prefix, _, suffix = destination_template.partition("{}")
+    if not suffix:
+        return False
+
+    source = source.rstrip("/") or "/"
+    prefix = prefix.rstrip("/") if prefix != "/" else prefix
+    suffix = suffix.rstrip("/")
+    if not source.startswith(prefix) or not source.endswith(suffix):
+        return False
+
+    slot_end = len(source) - len(suffix)
+    slot_value = source[len(prefix) : slot_end]
+    return bool(slot_value) and "/" not in slot_value.strip("/")
+
+
+def _author_xform_op_order(prim_spec: Sdf.PrimSpec, prim_path: str, authored_op_names: Sequence[str]) -> None:
+    """Preserve copied xform ops and append newly-authored ops to ``xformOpOrder``."""
+    op_order = prim_spec.GetAttributeAtPath(prim_path + ".xformOpOrder") or Sdf.AttributeSpec(
+        prim_spec, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
+    )
+    ordered_ops = list(op_order.default) if op_order.default is not None else []
+    for op_name in authored_op_names:
+        if op_name not in ordered_ops:
+            ordered_ops.append(op_name)
+    op_order.default = Vt.TokenArray(ordered_ops)
+
+
 class UsdReplicateContext:
     """Queue and apply USD replication work for one stage."""
 
@@ -81,11 +119,14 @@ class UsdReplicateContext:
             quaternions: Optional per-environment orientations in xyzw order.
         """
         for i, source in enumerate(sources):
+            # Clone-plan positions are env-root origins. Nested rows already have their
+            # local transform authored in the source prim, so keep that local transform.
+            row_positions = None if _source_is_nested_destination_instance(source, destinations[i]) else positions
             self.queue(
                 source,
                 destinations[i],
                 _select_env_ids(env_ids, mask, i),
-                positions=positions,
+                positions=row_positions,
                 quaternions=quaternions,
             )
 
@@ -140,10 +181,7 @@ class UsdReplicateContext:
                                 o_attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(float(q[0]), float(q[1]), float(q[2])))
                                 op_names.append("xformOp:orient")
                             if op_names:
-                                op_order = ps.GetAttributeAtPath(dp + ".xformOpOrder") or Sdf.AttributeSpec(
-                                    ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
-                                )
-                                op_order.default = Vt.TokenArray(op_names)
+                                _author_xform_op_order(ps, dp, op_names)
 
 
 def queue_usd_replication(cfg: Any) -> None:

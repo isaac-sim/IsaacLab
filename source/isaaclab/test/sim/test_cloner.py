@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from pxr import UsdGeom
+from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
@@ -96,6 +96,68 @@ def test_usd_replicate_with_positions_and_mask(sim):
     xform = UsdGeom.Xformable(prim)
     ops = xform.GetOrderedXformOps()
     assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
+
+
+def _define_ordered_camera(stage, path, translate=(0.57, -0.8, 0.5)):
+    camera = UsdGeom.Camera.Define(stage, path)
+    xformable = UsdGeom.Xformable(camera.GetPrim())
+    xformable.ClearXformOpOrder()
+    translate_op = xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+    orient_op = xformable.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+    scale_op = xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
+    translate_op.Set(Gf.Vec3d(*translate))
+    orient_op.Set(Gf.Quatd(0.6124, Gf.Vec3d(0.3536, 0.3536, 0.6124)))
+    scale_op.Set(Gf.Vec3d(1.0, 1.0, 1.0))
+    return camera.GetPrim()
+
+
+def _xform_op_names(prim):
+    return [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
+
+
+def test_usd_replicate_preserves_copied_xform_order_when_authoring_position(sim):
+    """Authoring a translate override must not drop copied orient/scale ops from xformOpOrder."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/template", "Xform")
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+    sim_utils.create_prim("/World/envs/env_1", "Xform")
+    _define_ordered_camera(stage, "/World/template/Camera")
+
+    positions = torch.tensor([[0.0, 0.0, 0.0], [1.5, -1.5, 0.0]], dtype=torch.float32, device=sim.cfg.device)
+    usd_replicate(
+        stage,
+        sources=["/World/template/Camera"],
+        destinations=["/World/envs/env_{}/Camera"],
+        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
+        positions=positions,
+    )
+
+    prim = stage.GetPrimAtPath("/World/envs/env_1/Camera")
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(1.5, -1.5, 0.0)
+    assert _xform_op_names(prim) == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+
+def test_usd_replicate_preserves_nested_env_row_local_camera_xform(sim):
+    """Env-origin positions must not overwrite local camera offsets on nested clone rows."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+    sim_utils.create_prim("/World/envs/env_1", "Xform")
+    _define_ordered_camera(stage, "/World/envs/env_0/Camera")
+
+    positions = torch.tensor([[0.0, 0.0, 0.0], [1.5, -1.5, 0.0]], dtype=torch.float32, device=sim.cfg.device)
+    usd_replicate(
+        stage,
+        sources=["/World/envs/env_0/Camera"],
+        destinations=["/World/envs/env_{}/Camera"],
+        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
+        positions=positions,
+    )
+
+    prim = stage.GetPrimAtPath("/World/envs/env_1/Camera")
+    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(0.57, -0.8, 0.5)
+    assert _xform_op_names(prim) == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
 
 def test_usd_replicate_context_queue_and_replicate(sim):
