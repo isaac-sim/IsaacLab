@@ -122,18 +122,20 @@ class SchemaFragment:
     .. note::
         A fragment present in a spawner slot means its schema is applied. ``None`` fields are
         left unchanged on the prim (partial update).
+
+    .. important::
+        Every dataclass field other than :attr:`func` is authored as a USD attribute
+        ``<_usd_namespace>:<camelCase(field)>``. A fragment must not carry non-USD/bookkeeping
+        fields -- such state belongs on the spawner cfg or as a writer keyword argument (this is
+        why ``fix_root_link`` / ``ensure_drives_exist`` are not fragment fields). The generic
+        applier (:func:`~isaaclab.sim.schemas.apply_namespaced`) enforces the invariant: it raises
+        when a fragment has no ``_usd_namespace``, and unsupported (non-scalar) value types raise
+        when written.
     """
 
     # -- Class metadata (not dataclass fields) --
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
-    _non_usd_fields: ClassVar[frozenset[str]] = frozenset()
-    """Names of dataclass fields that are *not* USD attributes and must not be authored.
-
-    :func:`~isaaclab.sim.schemas.apply_namespaced` skips these (in addition to :attr:`func`) when
-    writing ``<namespace>:<attr>`` values. Subclasses that carry bookkeeping/non-USD fields must
-    list them here so they opt out explicitly instead of leaking as USD attributes.
-    """
 
     func: Callable | str = "isaaclab.sim.schemas:apply_namespaced"
     """Callable (or its ``module:attr`` import string) that applies this fragment to a prim.

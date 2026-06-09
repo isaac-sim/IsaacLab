@@ -242,14 +242,23 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
     namespace = type(cfg)._usd_namespace
     applied = type(cfg)._usd_applied_schema
+    # Invariant: every fragment field (other than ``func``) is authored as a namespaced USD
+    # attribute, so a fragment with fields must declare where they go. A missing namespace means a
+    # misconfigured fragment (e.g. a non-USD/bookkeeping field slipped in) -- fail loudly rather
+    # than silently writing to a ``None:`` namespace.
+    if namespace is None:
+        raise ValueError(
+            f"Fragment '{type(cfg).__name__}' has no '_usd_namespace' set. Every fragment field is"
+            " authored as '<namespace>:<attr>', so a USD namespace is required; non-USD state must"
+            " live on the spawner cfg or be passed as a writer keyword argument, not as a fragment"
+            " field."
+        )
     if applied and applied not in prim.GetAppliedSchemas():
         prim.AddAppliedSchema(applied)
-    # ``func`` plus any subclass-declared bookkeeping fields are not USD attributes. Reading the
-    # set from the class keeps the policy explicit, so a future non-USD field is opted out by
-    # declaring it rather than by silently leaking as a ``<namespace>:<attr>`` write.
-    non_usd_fields = getattr(type(cfg), "_non_usd_fields", frozenset()) | {"func"}
     for f in dataclasses.fields(cfg):
-        if f.name in non_usd_fields:
+        # ``func`` is the single permitted non-USD field; every other field is a USD attribute.
+        # Unsupported (non-scalar) value types raise in ``safe_set_attribute_on_usd_prim``.
+        if f.name == "func":
             continue
         value = getattr(cfg, f.name)
         if value is None:

@@ -172,7 +172,7 @@ def test_public_imports():
 
 
 # -------------------------------------------------------------------------------------
-# Review follow-ups -- prim-validity guard, aggregated return, explicit non-USD fields
+# Review follow-ups -- prim-validity guard, aggregated return, namespace invariant guard
 # -------------------------------------------------------------------------------------
 
 
@@ -215,27 +215,23 @@ def test_apply_rigid_body_properties_aggregates_fragment_results():
     assert apply_rigid_body_properties("/World/Agg", [ok], stage) is True
 
 
-def test_apply_namespaced_skips_declared_non_usd_fields():
+def test_apply_namespaced_raises_without_namespace():
     from typing import ClassVar
 
     from isaaclab.sim.schemas import RigidBodyFragment, apply_namespaced
     from isaaclab.utils import configclass
 
     @configclass
-    class _BookkeepingFragment(RigidBodyFragment):
-        _usd_namespace: ClassVar[str | None] = "physics"
-        _usd_applied_schema: ClassVar[str | None] = None
-        _non_usd_fields: ClassVar[frozenset] = frozenset({"bookkeeping"})
+    class _NoNamespaceFragment(RigidBodyFragment):
+        # deliberately leaves ``_usd_namespace`` as None, violating the fragment invariant that
+        # every field is authored as a namespaced USD attribute
+        _usd_namespace: ClassVar[str | None] = None
         rigid_body_enabled: bool | None = None
-        bookkeeping: str | None = None
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    prim = _make_xform(stage, "/World/BK")
+    prim = _make_xform(stage, "/World/NoNs")
     UsdPhysics.RigidBodyAPI.Apply(prim)
-    apply_namespaced(_BookkeepingFragment(rigid_body_enabled=True, bookkeeping="ignore-me"), "/World/BK", stage)
-    # the USD field is authored ...
-    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
-    # ... but the declared non-USD field must NOT be written as a USD attribute
-    assert not prim.GetAttribute("physics:bookkeeping").HasAuthoredValue()
+    with pytest.raises(ValueError):
+        apply_namespaced(_NoNamespaceFragment(rigid_body_enabled=True), "/World/NoNs", stage)
