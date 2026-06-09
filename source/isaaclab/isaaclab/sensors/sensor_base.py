@@ -472,6 +472,12 @@ class SensorBase(ABC):
             return target_expr, None, None
 
         relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
-        rigid_parent_expr = target_expr.replace("/" + relative_path, "")
+        suffix = "/" + relative_path
+        if not target_expr.endswith(suffix):
+            raise RuntimeError(
+                f"Failed to build rigid body ancestor expression: target expression {target_expr!r} does not end "
+                f"with relative path {relative_path!r}."
+            )
+        rigid_parent_expr = target_expr[: -len(suffix)]
         fixed_pos_b, fixed_quat_b = resolve_prim_pose(prim, ancestor_prim)
         return rigid_parent_expr, fixed_pos_b, fixed_quat_b
