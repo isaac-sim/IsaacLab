@@ -66,7 +66,7 @@ def _soft_dtw_no_grad(D: torch.Tensor, gamma: float, bandwidth: float) -> torch.
         i = torch.arange(max(1, diag - len_y), min(len_x, diag - 1) + 1, device=D.device)
         j = diag - i
 
-        if 0 < bandwidth:
+        if bandwidth > 0:
             keep = torch.abs(i - j) <= bandwidth
             i = i[keep]
             j = j[keep]
@@ -100,7 +100,7 @@ def _soft_dtw_variable_y_no_grad(
         i = torch.arange(max(1, diag - len_y), min(len_x, diag - 1) + 1, device=D.device)
         j = diag - i
 
-        if 0 < bandwidth:
+        if bandwidth > 0:
             keep = torch.abs(i - j) <= bandwidth
             i = i[keep]
             j = j[keep]

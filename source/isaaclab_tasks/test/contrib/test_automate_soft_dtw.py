@@ -11,13 +11,7 @@ import torch
 
 
 def _load_soft_dtw_module():
-    module_path = (
-        Path(__file__).parents[2]
-        / "isaaclab_tasks"
-        / "contrib"
-        / "automate"
-        / "soft_dtw_cuda.py"
-    )
+    module_path = Path(__file__).parents[2] / "isaaclab_tasks" / "contrib" / "automate" / "soft_dtw_cuda.py"
     spec = importlib.util.spec_from_file_location("automate_soft_dtw_under_test", module_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
