@@ -24,6 +24,7 @@ from ..utils import (
     create_prim,
     find_global_fixed_joint_prim,
     get_all_matching_child_prims,
+    get_first_matching_child_prim,
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
@@ -267,32 +268,6 @@ Articulation root properties.
 """
 
 
-def _find_articulation_root_prim(prim: Usd.Prim) -> Usd.Prim | None:
-    """Return the first prim at or under ``prim`` that already has ``UsdPhysics.ArticulationRootAPI``.
-
-    USD assets author the articulation root on a child prim (the root link / fixed joint), so the
-    search descends the subtree like the legacy ``@apply_nested`` writer. Nested articulation roots
-    are not allowed, so the search stops at the first match per branch. Instanced prims are skipped
-    (their prototypes cannot be authored on). Returns ``None`` when no prim in the subtree carries
-    the articulation root.
-
-    Args:
-        prim: The root of the subtree to search.
-
-    Returns:
-        The prim that owns ``UsdPhysics.ArticulationRootAPI``, or ``None`` if none is found.
-    """
-    queue = [prim]
-    while queue:
-        current = queue.pop(0)
-        if current.IsInstance():
-            continue
-        if current.HasAPI(UsdPhysics.ArticulationRootAPI):
-            return current
-        queue.extend(current.GetChildren())
-    return None
-
-
 def apply_articulation_root_properties(
     prim_path: str,
     fragments,
@@ -335,19 +310,22 @@ def apply_articulation_root_properties(
     """
     if stage is None:
         stage = get_current_stage()
-    input_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
-    if not input_prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
     # USD assets author the ArticulationRootAPI on a child prim, and nested roots are not allowed,
     # so tune the single existing root in place (matching the legacy @apply_nested writer) rather
-    # than stamping a duplicate on the input prim. Only define a fresh root on the input prim when
-    # the subtree has none (e.g. primitive or programmatic spawns). This keeps exactly one
-    # ArticulationRootAPI in the tree.
-    articulation_prim = _find_articulation_root_prim(input_prim)
+    # than stamping a duplicate on the input prim. ``get_first_matching_child_prim`` validates the
+    # path and descends depth-first; instance proxies are not traversed because the root cannot be
+    # authored onto a prototype's descendants.
+    articulation_prim = get_first_matching_child_prim(
+        prim_path,
+        lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+        stage,
+        traverse_instance_prims=False,
+    )
+    # only define a fresh root on the input prim when the subtree has none (e.g. primitive or
+    # programmatic spawns). This keeps exactly one ArticulationRootAPI in the tree.
     if articulation_prim is None:
-        UsdPhysics.ArticulationRootAPI.Apply(input_prim)
-        articulation_prim = input_prim
+        articulation_prim = stage.GetPrimAtPath(prim_path)
+        UsdPhysics.ArticulationRootAPI.Apply(articulation_prim)
     root_path = articulation_prim.GetPath().pathString
     # dispatch each fragment via its own applier to the resolved root prim (backend funcs live in
     # backend packages, so core never imports a backend)
