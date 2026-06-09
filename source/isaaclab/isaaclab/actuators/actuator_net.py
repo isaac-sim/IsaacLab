@@ -15,6 +15,7 @@ Currently, the following models are supported:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
         ActuatorNetLSTMCfg,
         ActuatorNetMLPCfg,
     )
+
+logger = logging.getLogger(__name__)
 
 
 class ActuatorNetLSTM(DCMotor):
@@ -143,9 +146,9 @@ class _GRUActuatorMixin:
             )
 
         # resolve (mean, std) normalization for the inputs and output (identity when unset)
-        self._pos_error_norm = self._resolve_normalization(self.cfg.pos_error_normalization)
-        self._vel_norm = self._resolve_normalization(self.cfg.vel_normalization)
-        self._output_norm = self._resolve_normalization(self.cfg.output_normalization)
+        self._pos_error_norm = self._resolve_normalization(self.cfg.pos_error_normalization, "pos_error_normalization")
+        self._vel_norm = self._resolve_normalization(self.cfg.vel_normalization, "vel_normalization")
+        self._output_norm = self._resolve_normalization(self.cfg.output_normalization, "output_normalization")
 
         # recurrent input and hidden-state buffers
         batch = self._num_envs * self.num_joints
@@ -156,11 +159,28 @@ class _GRUActuatorMixin:
             num_layers, self._num_envs, self.num_joints, hidden_dim
         )
 
-    def _resolve_normalization(self, stats: tuple[float, float] | None) -> tuple[float, float]:
-        """Return the ``(mean, std)`` to apply, defaulting to identity and flooring the std."""
+    def _resolve_normalization(self, stats: tuple[float, float] | None, name: str) -> tuple[float, float]:
+        """Return the ``(mean, std)`` to apply, defaulting to identity and flooring the std.
+
+        Args:
+            stats: The ``(mean, std)`` pair, or None for the identity transform.
+            name: The configuration field name, used for the warning message.
+
+        Returns:
+            The resolved ``(mean, std)`` with the std floored to avoid division by tiny values.
+        """
         if stats is None:
             return 0.0, 1.0
         mean, std = stats
+        if float(std) < self._GRU_STD_FLOOR:
+            logger.warning(
+                "Actuator '%s' has %s std=%s below the floor %s; flooring it, which can amplify the"
+                " normalized values. Set a positive std or leave the field unset for identity.",
+                self.cfg.network_file,
+                name,
+                std,
+                self._GRU_STD_FLOOR,
+            )
         return float(mean), max(float(std), self._GRU_STD_FLOOR)
 
     def _reset_gru_state(self, env_ids: Sequence[int]):
@@ -236,6 +256,7 @@ class ActuatorNetGRU(_GRUActuatorMixin, IdealPDActuator):
     """
 
     def reset(self, env_ids: Sequence[int]):
+        super().reset(env_ids)
         self._reset_gru_state(env_ids)
 
     def compute(
