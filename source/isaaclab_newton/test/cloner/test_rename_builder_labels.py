@@ -21,7 +21,7 @@ import unittest
 
 import newton
 import torch
-from isaaclab_newton.cloner.newton_replicate import _BUILTIN_LABEL_TYPES, _rename_builder_labels
+from isaaclab_newton.cloner.replicate import _BUILTIN_LABEL_TYPES, _rename_builder_labels
 from newton.solvers import SolverMuJoCo
 
 _TENDON_FREQ = "mujoco:tendon"

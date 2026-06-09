@@ -19,9 +19,11 @@ from pxr import UsdShade
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
+from isaaclab_physx.cloner import queue_physx_replication
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .deformable_object_data import DeformableObjectData
@@ -80,6 +82,8 @@ class DeformableObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
         # Register custom vec6f type for nodal state validation.
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
         # initialize deformable type to None, should be set to either surface or volume on initialization

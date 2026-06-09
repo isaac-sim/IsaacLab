@@ -16,12 +16,18 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import newton
+import numpy as np
 from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import (
+    apply_viewer_visible_worlds,
+    log_geo_with_expanded_plane_scale,
+    resolve_visible_env_indices,
+)
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -108,11 +114,84 @@ class NewtonViewerViser(ViewerViser):
                 record_to_viser=record_to_viser,
             )
         self._metadata = metadata or {}
+        self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
 
     @property
     def share_url(self) -> str | None:
         """Return the public share URL created by Viser, if any."""
         return self._share_url
+
+    def clear_model(self) -> None:
+        """Clear cached static plane-grid signatures with the viewer model."""
+        cache = getattr(self, "_isaaclab_plane_grid_cache", None)
+        if cache is not None:
+            cache.clear()
+        return super().clear_model()
+
+    @staticmethod
+    def _array_signature(array) -> tuple[tuple[int, ...], bytes] | None:
+        """Return a stable signature for small transform/scale arrays."""
+        if array is None:
+            return None
+        array_np = np.ascontiguousarray(np.asarray(array, dtype=np.float32))
+        return tuple(int(dim) for dim in array_np.shape), array_np.tobytes()
+
+    def _log_plane_instances(
+        self,
+        name: str,
+        plane_info: dict[str, float | bool],
+        xforms,
+        scales,
+        hidden: bool = False,
+    ) -> None:
+        """Avoid removing/re-adding unchanged Viser plane grids every frame."""
+        cache = getattr(self, "_isaaclab_plane_grid_cache", None)
+        if hidden or xforms is None:
+            if cache is not None:
+                cache.pop(name, None)
+            return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
+
+        xforms_np = self._to_numpy(xforms)
+        if xforms_np is None or len(xforms_np) == 0:
+            if cache is not None:
+                cache.pop(name, None)
+            return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
+
+        scales_np = self._to_numpy(scales) if scales is not None else None
+        signature = (
+            float(plane_info["width"]),
+            float(plane_info["length"]),
+            self._array_signature(xforms_np),
+            self._array_signature(scales_np),
+        )
+        if cache is not None and cache.get(name) == signature and name in self._plane_handles:
+            return None
+        if cache is not None:
+            cache[name] = signature
+        return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
+
+    def log_geo(
+        self,
+        name: str,
+        geo_type: int,
+        geo_scale: tuple[float, ...],
+        geo_thickness: float,
+        geo_is_solid: bool,
+        geo_src=None,
+        hidden: bool = False,
+    ):
+        """Log geometry, preserving large render extents for infinite ground planes."""
+        return log_geo_with_expanded_plane_scale(
+            super().log_geo,
+            newton.GeoType.PLANE,
+            name,
+            geo_type,
+            geo_scale,
+            geo_thickness,
+            geo_is_solid,
+            geo_src,
+            hidden,
+        )
 
 
 class ViserVisualizer(BaseVisualizer):

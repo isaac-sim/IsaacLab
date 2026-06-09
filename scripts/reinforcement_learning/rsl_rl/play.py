@@ -45,7 +45,6 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    fold_preset_tokens,
     get_checkpoint_path,
     setup_preset_cli,
 )
@@ -99,7 +98,7 @@ if args_cli.external_callback:
 # intersection are pre-fold (the callback reads the user's original sys.argv), so
 # preset tokens like ``physics=NAME`` compare correctly here. Fold runs after.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining_args)
+sys.argv = [sys.argv[0]] + remaining_args
 
 # Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")

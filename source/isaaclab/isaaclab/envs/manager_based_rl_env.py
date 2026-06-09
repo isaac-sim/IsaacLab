@@ -317,6 +317,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             del self.reward_manager
             del self.termination_manager
             del self.curriculum_manager
+            # Drop the observation/action space objects. gymnasium's wrapper chain keeps
+            # the env referenced past close, so without this they leak — and for image
+            # observations each space holds a large gym.spaces.Box bounds array.
+            self.single_observation_space = None
+            self.single_action_space = None
+            self.observation_space = None
+            self.action_space = None
             # call the parent class to close the environment
             super().close()
 

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.sensors import Camera
 from isaaclab.utils.math import quat_apply
@@ -51,8 +52,10 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
         self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         self._tiled_camera = Camera(self.cfg.tiled_camera)
-        # clone and replicate (no need to filter for this environment)
-        self.scene.clone_environments(copy_from_source=False)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object

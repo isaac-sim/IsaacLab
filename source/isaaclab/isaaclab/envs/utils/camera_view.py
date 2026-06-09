@@ -92,7 +92,20 @@ def find_camera_by_prim_path(camera_sensors: dict[str, Camera], cam_prim_path: s
             f"cam_prim_path={cam_prim_path!r} matched USD camera prims, but no Isaac Lab Camera sensor owns them. "
             "Add the camera to scene.sensors or leave tiled_cam_prim_path unset to use generated tiled cameras."
         )
-    raise RuntimeError(f"No Isaac Lab Camera sensor matched cam_prim_path={cam_prim_path!r}.")
+    if not camera_sensors:
+        raise RuntimeError(
+            f"No Isaac Lab Camera sensors are registered in the scene, so tiled_cam_prim_path={cam_prim_path!r} "
+            "cannot be used. Use an environment that defines Camera sensors, or leave tiled_cam_prim_path unset "
+            "to use generated tiled cameras."
+        )
+    available_paths = {
+        getattr(camera.cfg, "prim_path", None) for camera in camera_sensors.values() if getattr(camera, "cfg", None)
+    }
+    raise RuntimeError(
+        f"No Isaac Lab Camera sensor matched cam_prim_path={cam_prim_path!r}. "
+        f"Available Camera sensor prim paths: {sorted(path for path in available_paths if path)}. "
+        "Leave tiled_cam_prim_path unset to use generated tiled cameras."
+    )
 
 
 def ensure_camera_initialized(camera: Camera) -> None:
@@ -223,9 +236,14 @@ def prim_world_positions(
 ) -> torch.Tensor:
     """Return world-space translations for concrete prim paths resolved from env ids.
 
-    Uses ``FrameView`` first so PhysX/Fabric-backed transforms are current; falls
-    back to USD only if the backend view cannot be constructed.
+    Uses scene articulation state first when the target is an asset/body path,
+    then falls back to ``FrameView`` and USD for arbitrary prim paths.
     """
+    if scene is not None:
+        positions_tensor = _scene_articulation_positions(scene, prim_path_template, env_indices)
+        if positions_tensor is not None:
+            return positions_tensor
+
     xform_cache = UsdGeom.XformCache()
     positions = []
     try:
@@ -240,11 +258,6 @@ def prim_world_positions(
         return torch.tensor(positions, dtype=torch.float32)
     except Exception:
         positions.clear()
-
-    if scene is not None:
-        positions_tensor = _scene_articulation_positions(scene, prim_path_template, env_indices)
-        if positions_tensor is not None:
-            return positions_tensor
 
     for env_id in env_indices:
         prim_path = env_path_from_template(prim_path_template, env_id)

@@ -138,10 +138,10 @@ TESTS_TO_SKIP = [
 
 TEST_RL_ENVS = [
     # classic control
-    "Isaac-Ant-v0",
+    "Isaac-Ant",
     "Isaac-Cartpole",
     # manipulation
-    "Isaac-Lift-Cube-Franka-v0",
+    "Isaac-Lift-Cube-Franka",
     "Isaac-Open-Drawer-Franka-v0",
     # dexterous manipulation
     "Isaac-Repose-Cube-Allegro-v0",

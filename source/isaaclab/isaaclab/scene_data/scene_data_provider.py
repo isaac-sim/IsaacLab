@@ -56,6 +56,18 @@ class SceneDataProvider:
             if isinstance(sensor, Camera)
         }
 
+    def get_contact_sensors(self) -> dict[str, Any]:
+        """Return Isaac Lab contact sensors keyed by scene sensor name."""
+        if self._interactive_scene is None:
+            return {}
+        from isaaclab.sensors.contact_sensor import BaseContactSensor
+
+        return {
+            name: sensor
+            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
+            if isinstance(sensor, BaseContactSensor)
+        }
+
     @property
     def transform_count(self) -> int:
         """Number of transforms available from the sim backend."""

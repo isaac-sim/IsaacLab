@@ -8,11 +8,17 @@ This script demonstrates different legged robots.
 
 .. code-block:: bash
 
-    # Usage with the default PhysX backend (launches Isaac Sim Kit).
+    # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/quadrupeds.py
 
-    # Usage with the kit-less Newton (MJWarp) backend.
+    # Usage with Newton visualizer and default PhysX physics.
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --visualizer newton
+
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/quadrupeds.py --physics newton_mjwarp
+
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
+    ./isaaclab.sh -p scripts/demos/quadrupeds.py --visualizer newton --physics newton_mjwarp
 
 """
 
@@ -21,15 +27,15 @@ This script demonstrates different legged robots.
 import argparse
 from typing import TYPE_CHECKING
 
+from isaaclab.app import add_launcher_args, launch_simulation
+
 parser = argparse.ArgumentParser(
     description="This script demonstrates different legged robots.",
     conflict_handler="resolve",
 )
-from isaaclab.app import add_launcher_args, launch_simulation
-
 parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 add_launcher_args(parser)
-# parse the arguments
+parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 import numpy as np
@@ -50,7 +56,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
 
-def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
+def define_origins(num_origins: int, spacing: float) -> torch.Tensor:
     """Defines the origins of the scene."""
     # create tensor based on number of environments
     env_origins = torch.zeros(num_origins, 3)
@@ -62,10 +68,10 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
     env_origins[:, 2] = 0.0
     # return the origins
-    return env_origins.tolist()
+    return env_origins
 
 
-def design_scene() -> tuple[dict, list[list[float]]]:
+def design_scene() -> tuple[dict, torch.Tensor]:
     """Designs the scene."""
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
@@ -83,6 +89,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot")
     anymal_b = anymal_b_cfg.class_type(anymal_b_cfg)
+
     # Origin 2 with Anymal C
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
@@ -132,18 +139,16 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
-    sim_time = 0.0
     count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while not sim.visualizers or any(v.is_running() and not v.is_closed for v in sim.visualizers):
-        # reset
+    while sim.is_headless_or_exist_active_visualizer():
+        # Reset robots every 200 steps.
         if count % 200 == 0:
             # reset counters
-            sim_time = 0.0
             count = 0
             # reset robots
             for index, robot in enumerate(entities.values()):
@@ -154,16 +159,14 @@ def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tenso
                 root_vel = robot.data.default_root_vel.torch.clone()
                 robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
                 # joint state
-                joint_pos, joint_vel = (
-                    robot.data.default_joint_pos.torch.clone(),
-                    robot.data.default_joint_vel.torch.clone(),
-                )
+                joint_pos = robot.data.default_joint_pos.torch.clone()
                 robot.write_joint_position_to_sim_index(position=joint_pos)
+                joint_vel = robot.data.default_joint_vel.torch.clone()
                 robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
                 # reset the internal state
                 robot.reset()
-            print("[INFO]: Resetting robots state...")
-        # apply default actions to the quadrupedal robots
+            print("[INFO]: Reset robots' state...")
+        # Apply default actions to the quadrupedal robots.
         for robot in entities.values():
             # generate random joint positions
             joint_pos_target = robot.data.default_joint_pos.torch + torch.randn_like(robot.data.joint_pos.torch) * 0.1
@@ -173,8 +176,7 @@ def run_simulator(sim, entities: dict[str, "Articulation"], origins: torch.Tenso
             robot.write_data_to_sim()
         # perform step
         sim.step()
-        # update sim-time
-        sim_time += sim_dt
+        # update counter
         count += 1
         # update buffers
         for robot in entities.values():
@@ -185,16 +187,11 @@ def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         dt = 1 / 200
-        sim = sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(
-                dt=dt,
-                device=args_cli.device,
-                physics=physics_cfg,
-            )
-        )
+        sim_cfg: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=dt, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         scene_entities, scene_origins = design_scene()
-        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        scene_origins = scene_origins.to(sim.device)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene_entities, scene_origins)

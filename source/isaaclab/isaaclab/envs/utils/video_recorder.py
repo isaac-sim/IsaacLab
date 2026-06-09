@@ -71,6 +71,14 @@ def _resolve_video_backend(
     # Prefer the visualizer backend when --visualizer is active alongside --video.
     visualizer_types: list[str] = scene.sim.resolve_visualizer_types() if backend_source == "visualizer" else []
     if visualizer_types:
+        supported_visualizers = [viz for viz in ("kit", "newton") if viz in visualizer_types]
+        if len(supported_visualizers) > 1:
+            logger.warning(
+                "[VideoRecorder] Multiple video-capable visualizers are active (%s), but --video records one "
+                "env.render() stream. Using Kit because it has priority. Run with only --viz newton to record "
+                "a Newton GL video.",
+                supported_visualizers,
+            )
         # kit takes priority when multiple visualizers are active
         for preferred in ("kit", "newton"):
             if preferred in visualizer_types:
