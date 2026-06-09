@@ -17,6 +17,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
+from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
@@ -467,7 +468,21 @@ class NewtonSiteFrameView(BaseFrameView):
         """Device where arrays are allocated."""
         return self._device
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+    # ------------------------------------------------------------------
+    # Writer factory hooks (pass-through; Newton has no separate Fabric storage)
+    # ------------------------------------------------------------------
+
+    def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        return _NewtonWorldSpaceWriter(self)
+
+    def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        return _NewtonLocalSpaceWriter(self)
+
+    # ------------------------------------------------------------------
+    # Backend hooks
+    # ------------------------------------------------------------------
+
+    def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations."""
         state = NewtonManager.get_state_0()
         site_indices = self._site_indices if indices is None else indices
@@ -486,7 +501,7 @@ class NewtonSiteFrameView(BaseFrameView):
             return self._pos_ta, self._quat_ta
         return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
-    def set_world_poses(
+    def _apply_world_pose_write(
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
@@ -498,7 +513,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
         state = NewtonManager.get_state_0()
         if positions is None or orientations is None:
-            cur_pos_ta, cur_quat_ta = self.get_world_poses(indices)
+            cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
             if positions is None:
                 positions = cur_pos_ta.warp
             if orientations is None:
@@ -513,7 +528,7 @@ class NewtonSiteFrameView(BaseFrameView):
             device=self._device,
         )
 
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+    def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get body-local positions and orientations."""
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
@@ -531,7 +546,7 @@ class NewtonSiteFrameView(BaseFrameView):
             return self._local_pos_ta, self._local_quat_ta
         return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
-    def set_local_poses(
+    def _apply_local_pose_write(
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
@@ -542,7 +557,7 @@ class NewtonSiteFrameView(BaseFrameView):
             return
 
         if translations is None or orientations is None:
-            cur_pos_ta, cur_quat_ta = self.get_local_poses(indices)
+            cur_pos_ta, cur_quat_ta = self._get_local_poses_impl(indices)
             if translations is None:
                 translations = cur_pos_ta.warp
             if orientations is None:
@@ -561,7 +576,7 @@ class NewtonSiteFrameView(BaseFrameView):
     # Scales
     # ------------------------------------------------------------------
 
-    def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
+    def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         """Get per-site world xform scales.
 
         These are transform scales, matching the USD FrameView scale API.  They
@@ -580,15 +595,15 @@ class NewtonSiteFrameView(BaseFrameView):
         )
         return ProxyArray(out)
 
-    def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
+    def _get_local_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         """Get per-site local xform scales.
 
         These are transform scales, matching the USD FrameView scale API.  They
         are intentionally separate from Newton collision shape geometry sizes.
         """
-        return self.get_world_scales(indices)
+        return self._get_world_scales_impl(indices)
 
-    def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+    def _apply_world_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set per-site world xform scales.
 
         These update transform scale state only; use deprecated ``set_scales`` if
@@ -604,13 +619,13 @@ class NewtonSiteFrameView(BaseFrameView):
             device=self._device,
         )
 
-    def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+    def _apply_local_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set per-site local xform scales.
 
         These update transform scale state only; use deprecated ``set_scales`` if
         legacy Newton collision shape geometry-scale behavior is required.
         """
-        self.set_world_scales(scales, indices)
+        self._apply_world_scale_write(scales, indices)
 
     def _get_legacy_shape_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get Newton legacy geometry scales from collision shapes."""
@@ -646,5 +661,48 @@ class NewtonSiteFrameView(BaseFrameView):
         return self._get_legacy_shape_scales(indices)
 
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Newton legacy: set_scales writes collision shape geometry scales."""
+        """Newton legacy: deprecated set_scales writes collision shape geometry scales.
+
+        Newton's legacy ``set_scales`` path is *not* routed through the
+        :class:`FrameViewSpaceWriterBase` API because it targets a different state
+        (collision-shape geometry sizes) than the transform-scale state that
+        the writer's :meth:`~FrameViewSpaceWriterBase.set_scales` operates on.
+        """
         self._set_legacy_shape_scales(scales, indices)
+
+
+# ----------------------------------------------------------------------
+# Pass-through writer classes
+# ----------------------------------------------------------------------
+
+
+class _NewtonWorldSpaceWriter(FrameViewWorldSpaceWriter):
+    """Newton world-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_world_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_world_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _NewtonLocalSpaceWriter(FrameViewLocalSpaceWriter):
+    """Newton local-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_local_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_local_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_local_scales_impl(indices)  # type: ignore[attr-defined]

@@ -160,7 +160,8 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     # Write to Fabric -- move to (99, 99, 99)
     new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 99.0, 99.0, 99.0], device=device)
-    view.set_world_poses(positions=new_pos)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_pos)
 
     # Verify Fabric has the new position
     fab_pos, _ = view.get_world_poses()
@@ -199,7 +200,8 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     # First write -- initializes Fabric.
     initial = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[initial, 1.0, 2.0, 3.0], device=device)
-    view.set_world_poses(positions=initial)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=initial)
 
     # Simulate topology change: recompute per-selection fabric indices and rebuild
     # every indexed array, mirroring the lazy paths in the ``_get_*_array`` accessors.
@@ -216,7 +218,8 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new, 4.0, 5.0, 6.0], device=device)
-    view.set_world_poses(positions=new)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new)
 
     ret_pos, _ = view.get_world_poses()
     pos_torch = torch.as_tensor(ret_pos, device=device)
@@ -296,13 +299,14 @@ def test_set_local_via_fabric_path(device, view_factory):
     # Trigger lazy `_initialize_fabric()` so subsequent calls take the Fabric path.
     view.get_world_poses()
 
-    # Now set_local_poses should take the Fabric path
+    # Now write via the writer scope (Fabric path).
     new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
     ori = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
     new_local_ori = wp.from_torch(ori)
 
-    view.set_local_poses(translations=new_local_pos, orientations=new_local_ori)
+    with view.xform_space_writer("local") as w:
+        w.set_poses(positions=new_local_pos, orientations=new_local_ori)
 
     # Verify: world = parent(0,0,1) + local(1,2,3) = (1,2,4)
     world_pos, _ = view.get_world_poses()
@@ -342,13 +346,8 @@ def test_local_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-    view.set_local_scales(new_scales)
-
-    # Local writes mark world matrices stale; the renderer-facing world is
-    # recomputed lazily by Kit's next ``update_world_xforms`` tick (the
-    # ``_local_sel_rw`` selection has worldMatrix=RO, so that recompute is
-    # safe and the lazy design is correct).
-    assert view._dirty.name == "WORLD"
+    with view.xform_space_writer("local") as w:
+        w.set_scales(new_scales)
 
     ret_scales = view.get_local_scales()
     scales_torch = ret_scales.torch
@@ -367,13 +366,8 @@ def test_world_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 5.0, 6.0, 7.0], device=device)
-    view.set_world_scales(new_scales)
-
-    # World writes mark local matrices stale; they are recomputed lazily on the
-    # next ``get_local_*`` call.  The renderer-facing world write is protected
-    # by ``_world_sel_rw`` having localMatrix=RO, so Kit's next
-    # ``update_world_xforms`` tick will not clobber it from a stale local.
-    assert view._dirty.name == "LOCAL"
+    with view.xform_space_writer("world") as w:
+        w.set_scales(new_scales)
 
     ret_scales = view.get_world_scales()
     scales_torch = ret_scales.torch
@@ -431,7 +425,8 @@ def test_set_local_then_get_world_with_rotated_parent(device):
     new_local = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local, 1.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
-    view.set_local_poses(translations=new_local, orientations=identity_quat)
+    with view.xform_space_writer("local") as w:
+        w.set_poses(positions=new_local, orientations=identity_quat)
 
     world_pos, _ = view.get_world_poses()
     expected = torch.tensor([[0.0, 1.0, 1.0]], dtype=torch.float32, device=device)
@@ -452,7 +447,8 @@ def test_set_world_then_get_local_with_rotated_parent(device):
 
     new_world = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_world, 5.0, 0.0, 2.0], device=device)
-    view.set_world_poses(positions=new_world)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_world)
 
     local_pos, _ = view.get_local_poses()
     expected = torch.tensor([[0.0, -5.0, 1.0]], dtype=torch.float32, device=device)
@@ -508,33 +504,23 @@ def test_initial_seed_with_scaled_parent(device):
 
 
 # ------------------------------------------------------------------
-# Multi-view per stage: per-view dirty-flag isolation
+# Multi-view per stage: per-view single-writer isolation
 # ------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_multi_view_per_view_dirty_isolation(device):
-    """Two ``FabricFrameView`` instances on the same stage must not clear each other's
-    pending local→world sync.
+def test_multi_view_writer_isolation(device):
+    """Two ``FabricFrameView`` instances on the same stage have independent writer scopes.
 
-    Background: an earlier implementation stored the world-dirty flag at the class
-    level keyed by ``stage_id``.  With two views on the same stage, view B reading
-    worlds would clear the flag set by view A's ``set_local_poses``, leaving A's
-    world matrices silently stale because A's per-view sync kernel never fired.
-
-    This test sets up two views over disjoint child prims (under different parent
-    sub-trees of the same stage), interleaves their writes and reads, and verifies:
-
-    * view A's ``set_local_poses`` only dirties view A
-    * view B's ``get_world_poses`` does not clear view A's flag
-    * after both views' world reads, each one's worlds reflect its own latest local
-    * neither view's reads/writes corrupt the other view's poses
+    Each view's ``_active_writer`` is per-instance, so view B's read or writer
+    scope must not interfere with view A's pending writes.  Verifies that
+    writes through one view do not corrupt the other view's poses, and that
+    each view can hold its own writer scope concurrently with reads on the
+    other view.
     """
     _skip_if_unavailable(device)
     stage = sim_utils.get_current_stage()
 
-    # Two disjoint sub-trees under the same stage.  Use different parent names so
-    # the regex patterns for the two views don't accidentally overlap.
     sim_utils.create_prim("/World/EnvA_0", "Xform", translation=(0.0, 0.0, 1.0), stage=stage)
     sim_utils.create_prim("/World/EnvA_0/ChildA", "Camera", translation=(0.1, 0.0, 0.0), stage=stage)
     sim_utils.create_prim("/World/EnvB_0", "Xform", translation=(0.0, 0.0, 2.0), stage=stage)
@@ -544,8 +530,6 @@ def test_multi_view_per_view_dirty_isolation(device):
     view_a = FrameView("/World/EnvA_.*/ChildA", device=device)
     view_b = FrameView("/World/EnvB_.*/ChildB", device=device)
 
-    # Initial reads -- triggers Fabric init + the seed-time ``_dirty = WORLD``
-    # path on both views, then clears it.
     expected_a0 = torch.tensor([[0.1, 0.0, 1.0]], dtype=torch.float32, device=device)
     expected_b0 = torch.tensor([[0.2, 0.0, 2.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(
@@ -554,42 +538,30 @@ def test_multi_view_per_view_dirty_isolation(device):
     torch.testing.assert_close(
         torch.as_tensor(view_b.get_world_poses()[0], device=device), expected_b0, atol=1e-5, rtol=0
     )
-    assert view_a._dirty.name == "NONE"
-    assert view_b._dirty.name == "NONE"
 
-    # Write a new local pose on view A only.
+    # Write a new local pose on view A only via a writer scope.
     new_local_a = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_a, 1.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
-    view_a.set_local_poses(translations=new_local_a, orientations=identity_quat)
+    with view_a.xform_space_writer("local") as w:
+        w.set_poses(positions=new_local_a, orientations=identity_quat)
 
-    # Local writes are lazy: view A is dirty (WORLD), view B must not be touched.
-    assert view_a._dirty.name == "WORLD", "set_local_poses must mark its own view dirty"
-    assert view_b._dirty.name == "NONE", "set_local_poses on view A must not dirty view B"
-
-    # Read worlds from view B FIRST.  This must not clear view A's dirty flag.
+    # View B remains undisturbed.
     torch.testing.assert_close(
         torch.as_tensor(view_b.get_world_poses()[0], device=device), expected_b0, atol=1e-5, rtol=0
     )
-    assert view_b._dirty.name == "NONE"
-    assert view_a._dirty.name == "WORLD", "view B's read must not clear view A's dirty flag"
 
-    # Now read view A's worlds -- triggers the per-view local->world flush.
+    # View A's world reflects the new local.
     expected_a1 = torch.tensor([[1.0, 0.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(
         torch.as_tensor(view_a.get_world_poses()[0], device=device), expected_a1, atol=1e-5, rtol=0
     )
-    assert view_a._dirty.name == "NONE"
 
-    # Symmetric pass: write on B, ensure A is undisturbed.
+    # Write a new local pose on view B; view A unaffected.
     new_local_b = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_b, 3.0, 0.0, 0.0], device=device)
-    view_b.set_local_poses(translations=new_local_b, orientations=identity_quat)
-    assert view_a._dirty.name == "NONE"
-    assert view_b._dirty.name == "WORLD"
-
-    # A's worlds must still read back the post-flush value from above; no cross-view
-    # stomp on the world matrix.
+    with view_b.xform_space_writer("local") as w:
+        w.set_poses(positions=new_local_b, orientations=identity_quat)
     torch.testing.assert_close(
         torch.as_tensor(view_a.get_world_poses()[0], device=device), expected_a1, atol=1e-5, rtol=0
     )
@@ -597,8 +569,16 @@ def test_multi_view_per_view_dirty_isolation(device):
     torch.testing.assert_close(
         torch.as_tensor(view_b.get_world_poses()[0], device=device), expected_b1, atol=1e-5, rtol=0
     )
-    assert view_a._dirty.name == "NONE"
-    assert view_b._dirty.name == "NONE"
+
+    # Single-active-writer is per-view: opening a writer on A leaves B free.
+    with view_a.xform_space_writer("world"):
+        assert view_a._active_writer is not None
+        assert view_b._active_writer is None
+        # B can still open its own writer concurrently.
+        with view_b.xform_space_writer("world"):
+            assert view_b._active_writer is not None
+    assert view_a._active_writer is None
+    assert view_b._active_writer is None
 
 
 # ------------------------------------------------------------------
@@ -622,7 +602,8 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
 
     new_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_pos, 10.0, 20.0, 30.0], device=device)
-    view.set_world_poses(positions=new_pos)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_pos)
 
     ret_pos, _ = view.get_world_poses()
     pos_torch = torch.as_tensor(ret_pos, device=device)
@@ -652,7 +633,8 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
 
     new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 99.0, 99.0, 99.0], device=device)
-    view.set_world_poses(positions=new_pos)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_pos)
 
     # USD must not have moved at all -- equality, not approximate.
     t_after = UsdGeom.XformCache().GetLocalToWorldTransform(prim).ExtractTranslation()
@@ -679,7 +661,8 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-    view.set_world_scales(new_scales)
+    with view.xform_space_writer("world") as w:
+        w.set_scales(new_scales)
 
     ret_scales = view.get_world_scales()
     scales_torch = ret_scales.torch
@@ -688,7 +671,7 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
 
 
 # ------------------------------------------------------------------
-# Interleaved set_world_poses / set_local_poses tests
+# Sequential writer scopes (interleaved world / local writes via two scopes)
 # ------------------------------------------------------------------
 
 
@@ -715,29 +698,29 @@ def _build_two_child_view(device: str) -> "FrameView":
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_interleaved_set_world_then_set_local_partial_indices(device):
-    """set_world_poses on index 0, then set_local_poses on index 1 -- both must be correct.
-
-    This exercises the dirty-flag flush: after set_world_poses marks _dirty == LOCAL,
-    set_local_poses must flush stale locals before writing index 1, ensuring index 0's
-    local is correctly derived from its new world pose.
-    """
+def test_sequential_world_then_local_scopes_partial_indices(device):
+    """A world writer scope (idx 0), then a local writer scope (idx 1).  Both correct."""
     view = _build_two_child_view(device)
 
-    # Step 1: set world pose on index 0 only
     new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 5.0, 0.0, 2.0], device=device)
     idx0 = wp.from_torch(torch.tensor([0], dtype=torch.int32, device=device))
-    view.set_world_poses(positions=new_world_pos, indices=idx0)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_world_pos, indices=idx0)
 
-    # Step 2: set local pose on index 1 only
     new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
     idx1 = wp.from_torch(torch.tensor([1], dtype=torch.int32, device=device))
-    view.set_local_poses(translations=new_local_pos, orientations=identity_quat, indices=idx1)
+    with view.xform_space_writer("local") as w:
+        w.set_poses(positions=new_local_pos, orientations=identity_quat, indices=idx1)
 
-    # Verify index 0's world pose is still (5, 0, 2)
+    # Verify index 0's world pose is still (5, 0, 2) -- index 1's local-scope write
+    # derives world from the just-written local; index 0 was outside the derived
+    # set on entry but the world-scope already wrote it and the second scope
+    # re-derives world from local for all prims (including idx 0).  After the
+    # second scope, idx 0's local was derived from its world (= (0, -5, 1)),
+    # so re-deriving world = parent * local lands back on (5, 0, 2).
     world_pos, _ = view.get_world_poses(indices=idx0)
     torch.testing.assert_close(
         torch.as_tensor(world_pos, device=device),
@@ -746,7 +729,7 @@ def test_interleaved_set_world_then_set_local_partial_indices(device):
         rtol=0,
     )
 
-    # Verify index 0's local pose (derived from world):
+    # Index 0's local (derived from its world):
     # local = Rᵀ · (child_world_pos - parent_pos) = Rz(-90)·(5, 0, 1) = (0, -5, 1)
     local_pos_0, _ = view.get_local_poses(indices=idx0)
     torch.testing.assert_close(
@@ -756,7 +739,7 @@ def test_interleaved_set_world_then_set_local_partial_indices(device):
         rtol=0,
     )
 
-    # Verify index 1's world pose (derived from local):
+    # Index 1's world (derived from local):
     # world = parent_world * local = Rz(90)·(1, 0, 0) + parent_pos = (0, 1, 0) + (0, 0, 1) = (0, 1, 1)
     world_pos_1, _ = view.get_world_poses(indices=idx1)
     torch.testing.assert_close(
@@ -768,28 +751,24 @@ def test_interleaved_set_world_then_set_local_partial_indices(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_interleaved_set_local_then_set_world_partial_indices(device):
-    """set_local_poses on index 0, then set_world_poses on index 1 -- both must be correct.
-
-    The reverse direction of the above: after set_local_poses marks _dirty = WORLD,
-    set_world_poses must flush stale worlds before writing index 1.
-    """
+def test_sequential_local_then_world_scopes_partial_indices(device):
+    """A local writer scope (idx 0), then a world writer scope (idx 1).  Both correct."""
     view = _build_two_child_view(device)
 
-    # Step 1: set local pose on index 0 only
     new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 2.0, 3.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
     idx0 = wp.from_torch(torch.tensor([0], dtype=torch.int32, device=device))
-    view.set_local_poses(translations=new_local_pos, orientations=identity_quat, indices=idx0)
+    with view.xform_space_writer("local") as w:
+        w.set_poses(positions=new_local_pos, orientations=identity_quat, indices=idx0)
 
-    # Step 2: set world pose on index 1 only
     new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 10.0, 20.0, 30.0], device=device)
     idx1 = wp.from_torch(torch.tensor([1], dtype=torch.int32, device=device))
-    view.set_world_poses(positions=new_world_pos, indices=idx1)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_world_pos, indices=idx1)
 
-    # Verify index 0's world pose (derived from local):
+    # Index 0's world (derived from local):
     # world = Rz(90)·(2, 3, 0) + (0, 0, 1) = (-3, 2, 0) + (0, 0, 1) = (-3, 2, 1)
     world_pos_0, _ = view.get_world_poses(indices=idx0)
     torch.testing.assert_close(
@@ -799,7 +778,7 @@ def test_interleaved_set_local_then_set_world_partial_indices(device):
         rtol=0,
     )
 
-    # Verify index 1's world pose is still (10, 20, 30)
+    # Index 1's world is still (10, 20, 30).
     world_pos_1, _ = view.get_world_poses(indices=idx1)
     torch.testing.assert_close(
         torch.as_tensor(world_pos_1, device=device),
@@ -808,7 +787,7 @@ def test_interleaved_set_local_then_set_world_partial_indices(device):
         rtol=0,
     )
 
-    # Verify index 1's local (derived from world):
+    # Index 1's local (derived from world):
     # local = Rᵀ·(world - parent) = Rz(-90)·(10, 20, 29) = (20, -10, 29)
     local_pos_1, _ = view.get_local_poses(indices=idx1)
     torch.testing.assert_close(
@@ -819,57 +798,194 @@ def test_interleaved_set_local_then_set_world_partial_indices(device):
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_interleaved_set_emits_warning(device, caplog):
-    """Interleaving set_world_poses and set_local_poses logs a one-time warning.
-
-    With the lazy design, a set_world_poses leaves localMatrix stale; a subsequent
-    set_local_poses on a different (possibly disjoint) index subset must flush the
-    stale local first to avoid silent inconsistency.  That extra kernel launch is
-    a performance hazard and is flagged once per view instance.
-    """
-    view = _build_two_child_view(device)
-
-    # First set_world_poses -- no warning (first user setter).
-    new_world = wp.zeros((2, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=2, inputs=[new_world, 1.0, 2.0, 3.0], device=device)
-    view.set_world_poses(positions=new_world)
-
-    # Now set_local_poses -- should trigger warning about interleaving.
-    new_local = wp.zeros((2, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=2, inputs=[new_local, 0.0, 0.0, 0.0], device=device)
-    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=torch.float32, device=device))
-
-    with caplog.at_level("WARNING", logger="isaaclab_physx.sim.views.fabric_frame_view"):
-        caplog.clear()
-        view.set_local_poses(translations=new_local, orientations=identity_quat)
-
-    assert any("interleaving" in r.message.lower() for r in caplog.records), (
-        f"Expected interleave warning, got: {[r.message for r in caplog.records]}"
-    )
-
-    # Second interleave -- warning should NOT repeat (one-time only).
-    caplog.clear()
-    view.set_world_poses(positions=new_world)
-    assert not any("interleaving" in r.message.lower() for r in caplog.records), (
-        "Warning should only fire once per view instance"
-    )
+# ------------------------------------------------------------------
+# FrameViewSpaceWriterBase contract tests
+# ------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_no_warning_when_using_single_setter(device, caplog):
-    """Calling only set_world_poses (or only set_local_poses) should never warn."""
-    view = _build_two_child_view(device)
+def test_world_writer_writes_world_and_derives_local(device, view_factory):
+    """A world writer's set_poses + set_scales updates cached Fabric world AND derives local on exit."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init
 
-    new_world = wp.zeros((2, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=2, inputs=[new_world, 1.0, 2.0, 3.0], device=device)
+    new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 1.0, 2.0, 4.0], device=device)
+    new_scales = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
 
-    with caplog.at_level("WARNING", logger="isaaclab_physx.sim.views.fabric_frame_view"):
-        caplog.clear()
-        view.set_world_poses(positions=new_world)
-        view.set_world_poses(positions=new_world)
-        view.set_world_poses(positions=new_world)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_pos)
+        w.set_scales(new_scales)
 
-    assert not any("interleaving" in r.message.lower() for r in caplog.records), (
-        f"Unexpected interleave warning with single setter: {[r.message for r in caplog.records]}"
-    )
+    # Cached world reflects the writes (parent is at (0, 0, 1) so child world pos
+    # is whatever we wrote).
+    expected_world = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
+    cached_world = _read_fabric_world_matrix_translation(view)
+    torch.testing.assert_close(cached_world, expected_world, atol=1e-5, rtol=0)
+
+    expected_scale = torch.tensor([[2.0, 3.0, 4.0]], dtype=torch.float32, device=device)
+    cached_scale = _read_fabric_world_matrix_scale(view)
+    torch.testing.assert_close(cached_scale, expected_scale, atol=1e-5, rtol=0)
+
+    # Local derived: with parent at (0, 0, 1) (identity rotation, unit scale),
+    # local translation = world - parent = (1, 2, 3).
+    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
+    cached_local = _read_fabric_local_matrix_translation(view)
+    torch.testing.assert_close(cached_local, expected_local, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_local_writer_writes_local_and_derives_world(device, view_factory):
+    """A local writer's set_poses updates cached Fabric local AND derives world on exit."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()
+
+    new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 1.0, 2.0, 3.0], device=device)
+    identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
+
+    with view.xform_space_writer("local") as w:
+        w.set_poses(positions=new_pos, orientations=identity_quat)
+
+    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
+    cached_local = _read_fabric_local_matrix_translation(view)
+    torch.testing.assert_close(cached_local, expected_local, atol=1e-5, rtol=0)
+
+    # World derived: with parent at (0, 0, 1), world = parent + local = (1, 2, 4).
+    expected_world = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
+    cached_world = _read_fabric_world_matrix_translation(view)
+    torch.testing.assert_close(cached_world, expected_world, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_writer_single_derivation_per_scope(device, view_factory, monkeypatch):
+    """Multiple set_* calls inside one scope produce exactly one derive-kernel launch."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()
+
+    calls = 0
+    original = view._recompute_local_from_world_all
+
+    def counted():
+        nonlocal calls
+        calls += 1
+        original()
+
+    monkeypatch.setattr(view, "_recompute_local_from_world_all", counted)
+
+    new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 1.0, 2.0, 4.0], device=device)
+    new_scales = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
+
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_pos)
+        w.set_scales(new_scales)
+        assert calls == 0  # no derive yet
+
+    assert calls == 1  # exactly one derive on exit
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_writer_single_active_invariant(device, view_factory):
+    """Only one writer scope may be active per view at a time."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()
+
+    with view.xform_space_writer("world"):
+        with pytest.raises(RuntimeError, match="already has an active xform_space_writer"):
+            view.xform_space_writer("world").__enter__()
+        with pytest.raises(RuntimeError, match="already has an active xform_space_writer"):
+            view.xform_space_writer("local").__enter__()
+    # After the outer scope exits, the lock is released and a new scope succeeds.
+    with view.xform_space_writer("local"):
+        pass
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_writer_restores_hierarchy_change_tracking(device, view_factory):
+    """``__exit__`` restores the prior ``track_*_xform_changes`` state (don't re-enable paused listeners)."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()
+    h = view._fabric_hierarchy
+
+    # Case 1: pre-paused local stays paused after exit.
+    h.track_local_xform_changes(False)
+    assert not h.tracking_local_xform_changes
+    with view.xform_space_writer("world"):
+        pass
+    assert not h.tracking_local_xform_changes, "writer must not re-enable a pre-paused local listener"
+
+    # Case 2: pre-enabled local stays enabled after exit.
+    h.track_local_xform_changes(True)
+    with view.xform_space_writer("world"):
+        pass
+    assert h.tracking_local_xform_changes, "writer must restore the pre-enabled local listener"
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_writer_invalid_space_raises(device, view_factory):
+    """``xform_space_writer`` with an invalid space raises ``ValueError``."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    with pytest.raises(ValueError, match="Invalid space"):
+        view.xform_space_writer("foo")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_writer_empty_scope_does_no_derivation(device, view_factory, monkeypatch):
+    """Entering and exiting a writer scope without any ``set_*`` call must not launch the derive kernel."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()
+
+    calls = 0
+    original = view._recompute_local_from_world_all
+
+    def counted():
+        nonlocal calls
+        calls += 1
+        original()
+
+    monkeypatch.setattr(view, "_recompute_local_from_world_all", counted)
+
+    with view.xform_space_writer("world"):
+        pass
+
+    assert calls == 0
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_view_getter_inside_scope_raises(device, view_factory):
+    """View-level getters raise ``RuntimeError`` while a writer scope is active."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+    view.get_world_poses()
+
+    with view.xform_space_writer("world"):
+        with pytest.raises(RuntimeError, match="xform_space_writer"):
+            view.get_world_poses()
+        with pytest.raises(RuntimeError, match="xform_space_writer"):
+            view.get_local_poses()
+        with pytest.raises(RuntimeError, match="xform_space_writer"):
+            view.get_world_scales()
+        with pytest.raises(RuntimeError, match="xform_space_writer"):
+            view.get_local_scales()
+    # After the scope exits, view getters work again.
+    view.get_world_poses()
+
+
+def test_set_world_scales_method_no_longer_exists():
+    """``set_world_scales`` / ``set_local_scales`` were deleted from this PR's surface."""
+    # The deprecated set_world_poses / set_local_poses shims remain (with warnings),
+    # but the never-shipped set_world_scales / set_local_scales were removed.
+    from isaaclab.sim.views import BaseFrameView  # noqa: PLC0415
+
+    assert not hasattr(BaseFrameView, "set_world_scales")
+    assert not hasattr(BaseFrameView, "set_local_scales")

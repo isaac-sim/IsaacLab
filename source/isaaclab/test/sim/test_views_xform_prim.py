@@ -226,8 +226,10 @@ def test_nested_hierarchy_world_poses(device):
     frames_view = FrameView("/World/Frame_.*", device=device)
     targets_view = FrameView("/World/Frame_.*/Target", device=device)
 
-    frames_view.set_local_poses(translations=torch.tensor(frame_positions, device=device))
-    targets_view.set_local_poses(translations=torch.tensor(target_positions, device=device))
+    with frames_view.xform_space_writer("local") as w:
+        w.set_poses(positions=torch.tensor(frame_positions, device=device))
+    with targets_view.xform_space_writer("local") as w:
+        w.set_poses(positions=torch.tensor(target_positions, device=device))
 
     world_pos = targets_view.get_world_poses()[0].torch
     expected = torch.tensor(
@@ -265,7 +267,8 @@ def test_set_local_scales_then_get_world_scales(device):
 
     view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
     local_scales = wp.array([wp.vec3f(3.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
-    view.set_local_scales(local_scales)
+    with view.xform_space_writer("local") as w:
+        w.set_scales(local_scales)
 
     world_scales = view.get_world_scales().torch
     expected = torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device)
@@ -280,7 +283,8 @@ def test_set_world_scales_then_get_local_scales(device):
 
     view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
     world_scales = wp.array([wp.vec3f(6.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
-    view.set_world_scales(world_scales)
+    with view.xform_space_writer("world") as w:
+        w.set_scales(world_scales)
 
     local_scales = view.get_local_scales().torch
     expected = torch.tensor([[3.0, 1.0, 1.0]], dtype=torch.float32, device=device)
@@ -341,7 +345,8 @@ def test_with_franka_robots(device):
 
     new_pos = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
     new_quat = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device)
-    view.set_world_poses(positions=new_pos, orientations=new_quat)
+    with view.xform_space_writer("world") as w:
+        w.set_poses(positions=new_pos, orientations=new_quat)
 
     ret_pos = view.get_world_poses()[0].torch
     torch.testing.assert_close(ret_pos, new_pos, atol=1e-5, rtol=0)

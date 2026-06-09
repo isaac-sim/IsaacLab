@@ -177,7 +177,8 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_world_poses(new_positions, orientations)
+            with xform_view.xform_space_writer("world") as w:
+                w.set_poses(new_positions, orientations)
         if is_newton:
             torch.cuda.synchronize()
         timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
@@ -213,7 +214,8 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_local_poses(new_translations, orientations_local)
+            with xform_view.xform_space_writer("local") as w:
+                w.set_poses(new_translations, orientations_local)
         if is_newton:
             torch.cuda.synchronize()
         timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
@@ -247,7 +249,8 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_world_scales(new_world_scales)
+            with xform_view.xform_space_writer("world") as w:
+                w.set_scales(new_world_scales)
         if is_newton:
             torch.cuda.synchronize()
         timing_results["set_world_scales"] = (time.perf_counter() - start_time) / num_iterations
@@ -279,7 +282,8 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_local_scales(new_local_scales)
+            with xform_view.xform_space_writer("local") as w:
+                w.set_scales(new_local_scales)
         if is_newton:
             torch.cuda.synchronize()
         timing_results["set_local_scales"] = (time.perf_counter() - start_time) / num_iterations
@@ -302,7 +306,8 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_world_poses(new_positions, orientations)
+            with xform_view.xform_space_writer("world") as w:
+                w.set_poses(new_positions, orientations)
             xform_view.get_world_poses()
         if is_newton:
             torch.cuda.synchronize()

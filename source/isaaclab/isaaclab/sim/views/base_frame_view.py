@@ -9,22 +9,46 @@ from __future__ import annotations
 
 import abc
 import warnings
+from typing import TYPE_CHECKING, Literal
 
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
+if TYPE_CHECKING:
+    from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter
+
 
 class BaseFrameView(abc.ABC):
-    """Abstract interface for reading and writing world-space transforms of multiple prims.
+    """Abstract interface for reading and writing transforms of multiple prims.
 
     Backend-specific implementations (USD/Fabric, Newton GPU state, etc.) subclass
     this to provide efficient batched pose queries.  The factory
     :class:`~isaaclab.sim.views.FrameView` selects the correct
     implementation at runtime based on the active physics backend.
 
-    All getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
+    All getters return :class:`~isaaclab.utils.warp.ProxyArray`.  All writes go
+    through :meth:`xform_space_writer` -- the recommended API:
+
+    .. code-block:: python
+
+        with view.xform_space_writer("world") as writer:
+            writer.set_poses(positions=p, orientations=o)
+            writer.set_scales(scales=s)
+        # Derived-space matrices are recomputed and the writer scope is closed.
+
+    Only one writer scope may be active per view at a time.  While a writer
+    scope is active, the view-level getters
+    (:meth:`get_world_poses`, :meth:`get_local_poses`,
+    :meth:`get_world_scales`, :meth:`get_local_scales`) raise
+    :class:`RuntimeError` -- use the writer's :meth:`~FrameViewSpaceWriterBase.get_poses`
+    or :meth:`~FrameViewSpaceWriterBase.get_scales` inside the scope, or exit the
+    scope first.
     """
+
+    # Class-level default; instance-level value is set by the writer's
+    # __enter__ / __exit__ to track the active scope on this view.
+    _active_writer: FrameViewSpaceWriterBase | None = None
 
     @property
     @abc.abstractmethod
@@ -38,7 +62,61 @@ class BaseFrameView(abc.ABC):
         """Device where arrays are allocated (``"cpu"`` or ``"cuda:0"``)."""
         ...
 
+    # ------------------------------------------------------------------
+    # Write scope -- recommended API for all transform writes.
+    # ------------------------------------------------------------------
+
+    def xform_space_writer(self, space: Literal["world", "local"]) -> FrameViewSpaceWriterBase:
+        """Open a write scope on this view (recommended write API).
+
+        Args:
+            space: ``"world"`` or ``"local"``.
+
+        Returns:
+            An :class:`~isaaclab.sim.views.FrameViewWorldSpaceWriter` or
+            :class:`~isaaclab.sim.views.FrameViewLocalSpaceWriter` context manager.
+
+        Raises:
+            ValueError: If *space* is neither ``"world"`` nor ``"local"``.
+            RuntimeError: On ``__enter__``, if another writer is already active
+                on this view.
+
+        Example:
+            .. code-block:: python
+
+                with view.xform_space_writer("world") as w:
+                    w.set_poses(positions=p, orientations=o)
+                    w.set_scales(scales=s)
+        """
+        if space == "world":
+            return self._make_world_space_writer()
+        if space == "local":
+            return self._make_local_space_writer()
+        raise ValueError(f"Invalid space {space!r}; expected 'world' or 'local'.")
+
     @abc.abstractmethod
+    def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        """Backend hook: return a fresh :class:`FrameViewWorldSpaceWriter` for this view."""
+        ...
+
+    @abc.abstractmethod
+    def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        """Backend hook: return a fresh :class:`FrameViewLocalSpaceWriter` for this view."""
+        ...
+
+    def _assert_no_active_writer(self, method_name: str) -> None:
+        """Raise :class:`RuntimeError` if a writer scope is currently active on this view."""
+        if self._active_writer is not None:
+            raise RuntimeError(
+                f"{type(self).__name__}.{method_name}() is not allowed while an xform_space_writer "
+                f"scope is active ({type(self._active_writer).__name__}). Use the writer's "
+                f"get_poses / get_scales inside the scope, or exit the scope first."
+            )
+
+    # ------------------------------------------------------------------
+    # Public getters -- guarded; delegate to backend ``_*_impl`` hooks.
+    # ------------------------------------------------------------------
+
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations for prims in the view.
 
@@ -47,58 +125,30 @@ class BaseFrameView(abc.ABC):
 
         Returns:
             A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
+            wrappers.
+
+        Raises:
+            RuntimeError: If a writer scope is active on this view.
         """
-        ...
+        self._assert_no_active_writer("get_world_poses")
+        return self._get_world_poses_impl(indices)
 
-    @abc.abstractmethod
-    def set_world_poses(
-        self,
-        positions: wp.array | None = None,
-        orientations: wp.array | None = None,
-        indices: wp.array | None = None,
-    ) -> None:
-        """Set world-space positions and/or orientations for prims in the view.
-
-        Args:
-            positions: World-space positions ``(M, 3)``. ``None`` leaves positions unchanged.
-            orientations: World-space quaternions ``(M, 4)``. ``None`` leaves orientations unchanged.
-            indices: Subset of prims to update.  ``None`` means all prims.
-        """
-        ...
-
-    @abc.abstractmethod
     def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get local-space positions and orientations for prims in the view.
+        """Get local-space translations and orientations for prims in the view.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
             A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
+            wrappers.
+
+        Raises:
+            RuntimeError: If a writer scope is active on this view.
         """
-        ...
+        self._assert_no_active_writer("get_local_poses")
+        return self._get_local_poses_impl(indices)
 
-    @abc.abstractmethod
-    def set_local_poses(
-        self,
-        translations: wp.array | None = None,
-        orientations: wp.array | None = None,
-        indices: wp.array | None = None,
-    ) -> None:
-        """Set local-space translations and/or orientations for prims in the view.
-
-        Args:
-            translations: Local-space translations ``(M, 3)``. ``None`` leaves translations unchanged.
-            orientations: Local-space quaternions ``(M, 4)``. ``None`` leaves orientations unchanged.
-            indices: Subset of prims to update.  ``None`` means all prims.
-        """
-        ...
-
-    @abc.abstractmethod
     def get_local_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get local-space scales for prims in the view.
 
@@ -106,21 +156,14 @@ class BaseFrameView(abc.ABC):
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
+
+        Raises:
+            RuntimeError: If a writer scope is active on this view.
         """
-        ...
+        self._assert_no_active_writer("get_local_scales")
+        return self._get_local_scales_impl(indices)
 
-    @abc.abstractmethod
-    def set_local_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set local-space scales for prims in the view.
-
-        Args:
-            scales: Scales ``(M, 3)`` as ``wp.array``.
-            indices: Subset of prims to update.  ``None`` means all prims.
-        """
-        ...
-
-    @abc.abstractmethod
     def get_world_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get world-space (composed) scales for prims in the view.
 
@@ -136,26 +179,106 @@ class BaseFrameView(abc.ABC):
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` wrapping a ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
+
+        Raises:
+            RuntimeError: If a writer scope is active on this view.
         """
+        self._assert_no_active_writer("get_world_scales")
+        return self._get_world_scales_impl(indices)
+
+    # ------------------------------------------------------------------
+    # Backend hooks for the public getters above.
+    # ------------------------------------------------------------------
+
+    @abc.abstractmethod
+    def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        """Backend implementation of :meth:`get_world_poses`."""
         ...
 
     @abc.abstractmethod
-    def set_world_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set world-space (composed) scales for prims in the view.
+    def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        """Backend implementation of :meth:`get_local_poses`."""
+        ...
 
-        Args:
-            scales: Scales ``(M, 3)`` as ``wp.array``.
-            indices: Subset of prims to update.  ``None`` means all prims.
-        """
+    @abc.abstractmethod
+    def _get_local_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Backend implementation of :meth:`get_local_scales`."""
+        ...
+
+    @abc.abstractmethod
+    def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Backend implementation of :meth:`get_world_scales`."""
         ...
 
     # ------------------------------------------------------------------
-    # Deprecated -- use get/set_local_scales or get/set_world_scales
+    # Deprecated pose setters -- route through the writer scope.
     # ------------------------------------------------------------------
 
-    _get_scales_deprecated_warned: bool = False
+    _set_world_poses_deprecated_warned: bool = False
+    _set_local_poses_deprecated_warned: bool = False
     _set_scales_deprecated_warned: bool = False
+    _get_scales_deprecated_warned: bool = False
+
+    def set_world_poses(
+        self,
+        positions: wp.array | None = None,
+        orientations: wp.array | None = None,
+        indices: wp.array | None = None,
+    ) -> None:
+        """Set world-space positions and/or orientations for prims in the view.
+
+        .. deprecated::
+            Use ``with view.xform_space_writer("world") as w: w.set_poses(...)`` instead.
+            This method opens a single-statement writer scope internally.
+
+        Args:
+            positions: World-space positions ``(M, 3)``. ``None`` leaves positions unchanged.
+            orientations: World-space quaternions ``(M, 4)``. ``None`` leaves orientations unchanged.
+            indices: Subset of prims to update.  ``None`` means all prims.
+        """
+        if not BaseFrameView._set_world_poses_deprecated_warned:
+            BaseFrameView._set_world_poses_deprecated_warned = True
+            warnings.warn(
+                'set_world_poses() is deprecated. Use \'with view.xform_space_writer("world") as w:'
+                " w.set_poses(...)' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        with self.xform_space_writer("world") as writer:
+            writer.set_poses(positions, orientations, indices)
+
+    def set_local_poses(
+        self,
+        translations: wp.array | None = None,
+        orientations: wp.array | None = None,
+        indices: wp.array | None = None,
+    ) -> None:
+        """Set local-space translations and/or orientations for prims in the view.
+
+        .. deprecated::
+            Use ``with view.xform_space_writer("local") as w: w.set_poses(...)`` instead.
+            This method opens a single-statement writer scope internally.
+
+        Args:
+            translations: Local-space translations ``(M, 3)``. ``None`` leaves translations unchanged.
+            orientations: Local-space quaternions ``(M, 4)``. ``None`` leaves orientations unchanged.
+            indices: Subset of prims to update.  ``None`` means all prims.
+        """
+        if not BaseFrameView._set_local_poses_deprecated_warned:
+            BaseFrameView._set_local_poses_deprecated_warned = True
+            warnings.warn(
+                'set_local_poses() is deprecated. Use \'with view.xform_space_writer("local") as w:'
+                " w.set_poses(...)' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        with self.xform_space_writer("local") as writer:
+            writer.set_poses(translations, orientations, indices)
+
+    # ------------------------------------------------------------------
+    # Deprecated -- use writer scope or get_local_scales / get_world_scales.
+    # ------------------------------------------------------------------
 
     def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get scales for prims in the view.
@@ -170,6 +293,9 @@ class BaseFrameView(abc.ABC):
 
         Returns:
             A ``ProxyArray`` of shape ``(M, 3)``.
+
+        Raises:
+            RuntimeError: If a writer scope is active on this view.
         """
         if not BaseFrameView._get_scales_deprecated_warned:
             BaseFrameView._get_scales_deprecated_warned = True
@@ -178,15 +304,17 @@ class BaseFrameView(abc.ABC):
                 DeprecationWarning,
                 stacklevel=2,
             )
+        self._assert_no_active_writer("get_scales")
         return self._get_scales_impl(indices)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set scales for prims in the view.
 
         .. deprecated::
-            Use :meth:`set_local_scales` or :meth:`set_world_scales` instead.
-            This method delegates to :meth:`_set_scales_impl` which preserves
-            each backend's legacy behavior.
+            Use ``with view.xform_space_writer("world" | "local") as w: w.set_scales(...)`` instead.
+            This method delegates to :meth:`_set_scales_impl` which opens the
+            backend's legacy space (world for Fabric, local for USD) and calls
+            ``writer.set_scales``.
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
@@ -195,7 +323,8 @@ class BaseFrameView(abc.ABC):
         if not BaseFrameView._set_scales_deprecated_warned:
             BaseFrameView._set_scales_deprecated_warned = True
             warnings.warn(
-                "set_scales() is deprecated. Use set_local_scales() or set_world_scales() instead.",
+                'set_scales() is deprecated. Use \'with view.xform_space_writer("world" or'
+                ' "local") as w: w.set_scales(...)\' instead.',
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -203,10 +332,10 @@ class BaseFrameView(abc.ABC):
 
     @abc.abstractmethod
     def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
-        """Backend-specific implementation for deprecated get_scales()."""
+        """Backend-specific implementation for deprecated :meth:`get_scales`."""
         ...
 
     @abc.abstractmethod
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Backend-specific implementation for deprecated set_scales()."""
+        """Backend-specific implementation for deprecated :meth:`set_scales`."""
         ...
