@@ -26,7 +26,7 @@ def _make_xform(stage, path="/World/Body"):
 
 
 # -------------------------------------------------------------------------------------
-# Task 1 -- SchemaFragment base, RigidBodyFragment marker, UsdPhysicsRigidBodyCfg
+# SchemaFragment base, RigidBodyFragment marker, UsdPhysicsRigidBodyCfg
 # -------------------------------------------------------------------------------------
 
 
@@ -42,7 +42,7 @@ def test_fragment_metadata_defaults():
 
 
 # -------------------------------------------------------------------------------------
-# Task 2 -- apply_namespaced generic applier
+# apply_namespaced generic applier
 # -------------------------------------------------------------------------------------
 
 
@@ -62,7 +62,7 @@ def test_apply_namespaced_writes_only_set_fields():
 
 
 # -------------------------------------------------------------------------------------
-# Task 3 -- PhysxRigidBodyCfg (isaaclab_physx)
+# PhysxRigidBodyCfg (isaaclab_physx)
 # -------------------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ def test_physx_rigid_body_fragment_writes_physx_namespace():
 
 
 # -------------------------------------------------------------------------------------
-# Task 4 -- MujocoRigidBodyCfg (isaaclab_newton)
+# MujocoRigidBodyCfg (isaaclab_newton)
 # -------------------------------------------------------------------------------------
 
 
@@ -101,7 +101,7 @@ def test_mujoco_rigid_body_fragment_writes_mjc_namespace():
 
 
 # -------------------------------------------------------------------------------------
-# Task 5 -- apply_rigid_body_properties dispatch (implicit anchor + multi-namespace)
+# apply_rigid_body_properties dispatch (implicit anchor + multi-namespace)
 # -------------------------------------------------------------------------------------
 
 
@@ -132,7 +132,7 @@ def test_apply_rigid_body_properties_composes_namespaces():
 
 
 # -------------------------------------------------------------------------------------
-# Task 6 -- spawner slot accepts a fragment list + transition routing
+# spawner slot accepts a fragment list + transition routing
 # -------------------------------------------------------------------------------------
 
 
@@ -154,7 +154,7 @@ def test_spawn_shape_with_rigid_fragment_list():
 
 
 # -------------------------------------------------------------------------------------
-# Task 8 -- public imports
+# public imports
 # -------------------------------------------------------------------------------------
 
 
