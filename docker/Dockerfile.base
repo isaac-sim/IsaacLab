@@ -159,25 +159,23 @@ RUN chmod 755 \
 # copy the rest of the files
 COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
 
-# Pre-create the docker-compose named-volume mount points that live outside
-# ${DOCKER_USER_HOME} and hand them to the non-root runtime user. A fresh named
-# volume inherits ownership from the image directory at its mount path; if that
-# directory is missing or root-owned, the volume comes up root-owned and the
-# isaaclab user cannot write it (e.g. PermissionError creating logs/, or
-# omni.datastore lock failures under kit/cache). The ${DOCKER_USER_HOME} mount
-# points are already covered by the recursive chown above.
-RUN mkdir -p \
-        ${ISAACLAB_PATH}/logs \
-        ${ISAACLAB_PATH}/data_storage \
-        ${ISAACLAB_PATH}/docs/_build \
-        ${ISAACSIM_ROOT_PATH}/kit/cache \
-        ${ISAACSIM_ROOT_PATH}/kit/logs/Kit/Isaac-Sim \
- && chown -R isaaclab:isaaclab \
-        ${ISAACLAB_PATH}/logs \
-        ${ISAACLAB_PATH}/data_storage \
-        ${ISAACLAB_PATH}/docs/_build \
-        ${ISAACSIM_ROOT_PATH}/kit/cache \
-        ${ISAACSIM_ROOT_PATH}/kit/logs
+# Pre-create every docker-compose named-volume mount point and hand it to the
+# non-root runtime user. docker-compose.yaml is the single source of truth for
+# the list; docker/utils/volume_mounts.py parses it so the paths are not
+# duplicated here. A fresh named volume inherits ownership from the image
+# directory at its mount path; if that directory is missing or root-owned, the
+# volume comes up root-owned and the isaaclab user cannot write it (e.g.
+# PermissionError creating logs/, or omni.datastore lock failures under
+# kit/cache). pipefail + the non-empty guard make a parse failure abort the
+# build rather than silently shipping an unprepared mount point.
+RUN set -o pipefail \
+ && export DOCKER_ISAACSIM_ROOT_PATH="${ISAACSIM_ROOT_PATH}" \
+           DOCKER_ISAACLAB_PATH="${ISAACLAB_PATH}" \
+           DOCKER_USER_HOME="${DOCKER_USER_HOME}" \
+ && dirs="$(${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/docker/utils/volume_mounts.py | grep '^/')" \
+ && test -n "${dirs}" \
+ && mkdir -p ${dirs} \
+ && chown -R isaaclab:isaaclab ${dirs}
 
 USER isaaclab
 

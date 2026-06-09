@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import importlib.util
 import re
 from pathlib import Path
 
@@ -10,6 +11,15 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
+
+
+def _load_module(name: str, path: Path):
+    """Import a module by file path (``docker`` is not an importable package here)."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 # Collect every Dockerfile.* from the entire repository tree.
 DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
@@ -99,140 +109,67 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
 # mount path on first mount. If that directory is missing or root-owned, the
 # volume comes up root-owned and the non-root ``isaaclab`` runtime user cannot
 # write it (e.g. ``PermissionError`` creating ``logs/`` or ``omni.datastore``
-# lock failures under ``kit/cache``). The tests below statically guarantee every
-# such mount point is both created in the image and owned by ``isaaclab``.
+# lock failures under ``kit/cache``). The image build therefore pre-creates and
+# chowns every named-volume mount point, driven by a single source of truth:
+# docker-compose.yaml, parsed by docker/utils/volume_mounts.py. These tests
+# validate the parser and that each non-root Dockerfile wires it in.
 # --------------------------------------------------------------------------- #
 
-COMPOSE_FILE = DOCKER_DIR / "docker-compose.yaml"
-ENV_BASE_FILE = DOCKER_DIR / ".env.base"
-
-_VAR_RE = re.compile(r"\$\{(\w+)\}")
+NONROOT_VOLUME_DOCKERFILES = ["Dockerfile.base", "Dockerfile.curobo"]
 
 
-def _load_env_base() -> dict[str, str]:
-    """Parse ``docker/.env.base`` into a ``{KEY: VALUE}`` map (quotes stripped)."""
-    env: dict[str, str] = {}
-    for raw in ENV_BASE_FILE.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        env[key.strip()] = value.strip().strip('"').strip("'")
-    return env
+def _volume_mounts_module():
+    """Load the parser the image build uses; skip the test if PyYAML is unavailable.
 
-
-def _path_var_map() -> dict[str, str]:
-    """Resolve the path vars shared by docker-compose and the Dockerfiles.
-
-    The Dockerfile ENV names (``ISAACLAB_PATH`` ...) take their values from build
-    args wired to the ``DOCKER_*`` vars in ``.env.base``, so both files resolve
-    to the same concrete paths.
+    The Docker image build exercises this parser for real, so a test environment
+    without PyYAML simply skips the parser unit tests rather than failing.
     """
-    env = _load_env_base()
-    sim_root = env["DOCKER_ISAACSIM_ROOT_PATH"]
-    lab_path = env["DOCKER_ISAACLAB_PATH"]
-    user_home = env["DOCKER_USER_HOME"]
-    return {
-        "DOCKER_ISAACSIM_ROOT_PATH": sim_root,
-        "DOCKER_ISAACLAB_PATH": lab_path,
-        "DOCKER_USER_HOME": user_home,
-        "ISAACSIM_ROOT_PATH": sim_root,
-        "ISAACLAB_PATH": lab_path,
-        "HOME": user_home,
-    }
+    pytest.importorskip("yaml")
+    return _load_module("volume_mounts", DOCKER_DIR / "utils" / "volume_mounts.py")
 
 
-def _expand(path: str, var_map: dict[str, str]) -> str:
-    """Expand ``${VAR}`` references and strip any trailing slash."""
-    return _VAR_RE.sub(lambda m: var_map.get(m.group(1), m.group(0)), path).rstrip("/")
+def test_compose_volume_targets_parse():
+    """The parser returns every ``type: volume`` mount point from docker-compose.yaml.
 
-
-def _is_within(child: str, parent: str) -> bool:
-    """True if ``child`` equals ``parent`` or is nested under it."""
-    return child == parent or child.startswith(parent + "/")
-
-
-def _compose_volume_targets(var_map: dict[str, str]) -> list[str]:
-    """Return every ``type: volume`` target path in docker-compose.yaml, expanded."""
-    targets = []
-    in_volume = False
-    for raw in COMPOSE_FILE.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if line.startswith("- type:"):
-            in_volume = line.endswith("volume")
-        elif in_volume and line.startswith("target:"):
-            targets.append(_expand(line.split("target:", 1)[1].strip(), var_map))
-            in_volume = False
-    return targets
-
-
-def _command_path_args(dockerfile_text: str, command_re: str) -> list[str]:
-    """Collect the absolute/``${VAR}`` path tokens of each matching RUN command.
-
-    Line continuations are joined first; tokens are read up to the next shell
-    separator (``&&``, ``||``, ``;`` or newline) so each command's args stay
-    distinct.
+    Includes the directories that triggered the original regression so a compose
+    edit that drops them is caught here.
     """
-    joined = re.sub(r"\\\s*\n", " ", dockerfile_text)
-    tokens: list[str] = []
-    for match in re.finditer(command_re, joined):
-        segment = re.split(r"&&|\|\||;|\n", joined[match.end() :], maxsplit=1)[0]
-        tokens += [t for t in segment.split() if t.startswith(("$", "/"))]
-    return tokens
-
-
-def _mkdir_targets(text: str, var_map: dict[str, str]) -> list[str]:
-    return [_expand(t, var_map) for t in _command_path_args(text, r"\bmkdir\b(?:\s+-\w+)*")]
-
-
-def _chown_isaaclab_roots(text: str, var_map: dict[str, str]) -> list[str]:
-    return [_expand(t, var_map) for t in _command_path_args(text, r"\bchown\s+-R\s+isaaclab:isaaclab\b")]
-
-
-def test_base_compose_volume_mount_points_are_writable():
-    """Every docker-compose named volume mounts onto an isaaclab-owned image dir.
-
-    Guards the regression where ``kit/cache`` (root-owned) and ``logs`` (absent
-    in the image) came up root-owned on a fresh volume, blocking training.
-    """
-    var_map = _path_var_map()
-    text = _find_dockerfile("Dockerfile.base").read_text(encoding="utf-8")
-    mkdirs = _mkdir_targets(text, var_map)
-    chown_roots = _chown_isaaclab_roots(text, var_map)
-    targets = _compose_volume_targets(var_map)
+    targets = _volume_mounts_module().named_volume_targets(DOCKER_DIR / "docker-compose.yaml")
 
     assert targets, "no named-volume targets parsed from docker-compose.yaml"
+    for required in (
+        "${DOCKER_ISAACSIM_ROOT_PATH}/kit/cache",
+        "${DOCKER_ISAACLAB_PATH}/logs",
+        "${DOCKER_ISAACLAB_PATH}/data_storage",
+        "${DOCKER_ISAACLAB_PATH}/docs/_build",
+    ):
+        assert required in targets, f"{required} missing from parsed volume targets: {targets}"
 
-    problems = []
-    for target in targets:
-        created = any(_is_within(m, target) for m in mkdirs)
-        owned = any(_is_within(target, root) for root in chown_roots)
-        if not (created and owned):
-            problems.append({"target": target, "created_in_image": created, "owned_by_isaaclab": owned})
-    assert not problems, "volume mount points not guaranteed writable by isaaclab:\n" + "\n".join(map(str, problems))
+
+def test_resolved_targets_are_absolute_paths(monkeypatch):
+    """With the build's environment, every target resolves to an absolute path."""
+    monkeypatch.setenv("DOCKER_ISAACSIM_ROOT_PATH", "/isaac-sim")
+    monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
+    monkeypatch.setenv("DOCKER_USER_HOME", "/root")
+
+    resolved = _volume_mounts_module().resolved_targets(DOCKER_DIR / "docker-compose.yaml")
+
+    assert resolved, "no resolved targets"
+    assert all(p.startswith("/") and "$" not in p for p in resolved), resolved
+    assert "/isaac-sim/kit/cache" in resolved
+    assert "/workspace/isaaclab/logs" in resolved
 
 
-@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
-def test_created_dirs_outside_home_are_owned_by_runtime_user(dockerfile_name: str):
-    """Dirs created under the Sim/Lab roots (outside ``$HOME``) must be chowned.
+@pytest.mark.parametrize("dockerfile_name", NONROOT_VOLUME_DOCKERFILES)
+def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str):
+    """Each non-root Dockerfile derives its mount points from the parser, with a guard.
 
-    ``$HOME`` is already handled by the recursive ``chown`` of the runtime home;
-    anything created under the root-owned Isaac Sim tree (e.g. ``kit/cache``) is
-    not, so it must be handed to ``isaaclab`` explicitly.
+    Guards the wiring: the build must call ``volume_mounts.py`` and abort (the
+    ``test -n`` guard) if the parse yields nothing, rather than re-hardcoding the
+    list or silently skipping preparation.
     """
-    var_map = _path_var_map()
-    home = var_map["DOCKER_USER_HOME"]
-    managed_roots = (var_map["ISAACSIM_ROOT_PATH"], var_map["ISAACLAB_PATH"])
     text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
-    mkdirs = _mkdir_targets(text, var_map)
-    chown_roots = _chown_isaaclab_roots(text, var_map)
 
-    problems = []
-    for created_dir in mkdirs:
-        if not any(_is_within(created_dir, root) for root in managed_roots):
-            continue  # unrelated system dir (e.g. /var/run/...)
-        if _is_within(created_dir, home):
-            continue  # covered by the recursive chown of the runtime home
-        if not any(_is_within(created_dir, root) for root in chown_roots):
-            problems.append(created_dir)
-    assert not problems, f"{dockerfile_name}: dirs created but not chowned to isaaclab: {problems}"
+    assert "docker/utils/volume_mounts.py" in text
+    assert "chown -R isaaclab:isaaclab ${dirs}" in text
+    assert 'test -n "${dirs}"' in text
