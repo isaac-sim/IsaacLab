@@ -310,25 +310,20 @@ def apply_articulation_root_properties(
     """
     if stage is None:
         stage = get_current_stage()
-    # USD assets author the ArticulationRootAPI on a child prim, and nested roots are not allowed,
-    # so tune the single existing root in place (matching the legacy @apply_nested writer) rather
-    # than stamping a duplicate on the input prim. ``get_first_matching_child_prim`` validates the
-    # path and descends depth-first; instance proxies are not traversed because the root cannot be
-    # authored onto a prototype's descendants.
+    # tune the existing root in place (it may live on a child prim); instance proxies can't be
+    # authored on, so don't traverse them
     articulation_prim = get_first_matching_child_prim(
         prim_path,
         lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
         stage,
         traverse_instance_prims=False,
     )
-    # only define a fresh root on the input prim when the subtree has none (e.g. primitive or
-    # programmatic spawns). This keeps exactly one ArticulationRootAPI in the tree.
+    # no existing root in the subtree: define one on the input prim
     if articulation_prim is None:
         articulation_prim = stage.GetPrimAtPath(prim_path)
         UsdPhysics.ArticulationRootAPI.Apply(articulation_prim)
     root_path = articulation_prim.GetPath().pathString
-    # dispatch each fragment via its own applier to the resolved root prim (backend funcs live in
-    # backend packages, so core never imports a backend)
+    # dispatch each fragment to the resolved root via its own applier
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
         func(cfg, root_path, stage)
