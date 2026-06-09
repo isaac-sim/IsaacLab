@@ -1,0 +1,7 @@
+Fixed
+^^^^^
+
+* Fixed intermittent ``getenv`` SIGSEGVs in Docker CI by copying the
+  Carbonite ``libcarb.env.shim.so`` out of the Isaac Sim install tree and
+  preloading it via ``/etc/ld.so.preload`` at image-build time, instead of
+  vendoring a prebuilt shim binary in the repo.

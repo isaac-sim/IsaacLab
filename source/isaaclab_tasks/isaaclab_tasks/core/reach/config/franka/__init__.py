@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-v0",
+    id="Isaac-Reach-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-Play-v0",
+    id="Isaac-Reach-Franka-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -45,7 +45,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-OSC-v0",
+    id="Isaac-Reach-Franka-OSC",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -55,7 +55,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-OSC-Play-v0",
+    id="Isaac-Reach-Franka-OSC-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

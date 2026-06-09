@@ -300,13 +300,13 @@ for the lift-cube environment:
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
 .. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
-.. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/joint_pos_env_cfg.py>`__
-.. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`__
+.. |reach-franka-link| replace:: `Isaac-Reach-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/joint_pos_env_cfg.py>`__
+.. |reach-ur10-link| replace:: `Isaac-Reach-UR10 <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`__
 .. |deploy-reach-ur10e-link| replace:: `Isaac-Deploy-Reach-UR10e-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
-.. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`__
+.. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`__
 .. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_abs_env_cfg.py>`__
 .. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`__
-.. |lift-soft-franka-link| replace:: `Isaac-Lift-Soft-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift_franka_soft/franka_soft_env_cfg.py>`__
+.. |lift-soft-franka-link| replace:: `Isaac-Lift-Soft-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`__
 .. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`__
 .. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/franka_cabinet/franka_cabinet_env.py>`__
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/config/allegro_hand/allegro_env_cfg.py>`__
@@ -484,10 +484,12 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | (Manager-based only)         |
     |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=** ``physx``,      |
     |                              |                                              |                                                                              | ``newton_mjwarp``            |
+    |                              |                                              |                                                                              | (Manager-based only)         |
     |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             | **physics=** ``physx``,      |
@@ -1068,11 +1070,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Lift-Cloth-Franka-v0
+    * - Isaac-Lift-Cloth-Franka
       -
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vdb``
+      - **physics=** ``newton_mjwarp_vbd``
     * - Isaac-Lift-Cube-Franka-IK-Abs-v0
       -
       - Manager Based
@@ -1083,8 +1085,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       -
-    * - Isaac-Lift-Cube-Franka-v0
-      - Isaac-Lift-Cube-Franka-Play-v0
+    * - Isaac-Lift-Cube-Franka
+      - Isaac-Lift-Cube-Franka-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
@@ -1093,7 +1095,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
-    * - Isaac-Lift-Soft-Franka-v0
+    * - Isaac-Lift-Soft-Franka
       -
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1178,13 +1180,13 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-OSC-v0
-      - Isaac-Reach-Franka-OSC-Play-v0
+    * - Isaac-Reach-Franka-OSC
+      - Isaac-Reach-Franka-OSC-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-v0
-      - Isaac-Reach-Franka-Play-v0
+    * - Isaac-Reach-Franka
+      - Isaac-Reach-Franka-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
@@ -1198,8 +1200,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Reach-UR10-v0
-      - Isaac-Reach-UR10-Play-v0
+    * - Isaac-Reach-UR10
+      - Isaac-Reach-UR10-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``

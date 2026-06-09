@@ -13,48 +13,59 @@ and out-of-bounds recovery inside an interactive simulation loop.
 
 .. code-block:: bash
 
-    # Usage
-    ./isaaclab.sh -p scripts/demos/bin_packing.py --num_envs 32
+    # Usage with default PhysX physics and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/bin_packing.py
+
+    # Usage with Newton visualizer and default PhysX physics.
+    ./isaaclab.sh -p scripts/demos/bin_packing.py --visualizer newton
+
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/bin_packing.py --physics newton_mjwarp
+
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
+    ./isaaclab.sh -p scripts/demos/bin_packing.py --visualizer newton --physics newton_mjwarp
 
 """
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
-
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Demo usage of RigidObjectCollection through bin packing example")
+parser = argparse.ArgumentParser(
+    description="Demo usage of RigidObjectCollection through bin packing example",
+    conflict_handler="resolve",
+)
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import math
 
 import torch
 
+##
+# Pre-defined configs
+##
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationContext
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.assets import RigidObjectCollection
 
 ##
 # Scene Configuration
@@ -131,7 +142,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         # Instantiate four grocery variants per layer and replicate across all layers in each environment.
         rigid_objects={
             f"Object_{label}_Layer{layer}": RigidObjectCfg(
-                prim_path=f"/World/envs/env_.*/Object_{label}_Layer{layer}",
+                prim_path=f"/World/envs/env_.*/Groceries/Object_{label}_Layer{layer}",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(x, y, 0.2 + (layer) * 0.2)),
                 spawn=GROCERIES.get(f"OBJECT_{label}"),
             )
@@ -263,7 +274,7 @@ def build_grocery_defaults(
 ##
 
 
-def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
     """Runs the simulation loop that coordinates spawn randomization and stepping.
 
     Returns:
@@ -295,8 +306,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     # Precompute a helper mask to toggle objects between active and cached sets.
     # Precompute XY bounds [[x_min,y_min],[x_max,y_max]]
     bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device, dtype=spawn_poses_w.dtype)
-    # Simulation loop
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         # Reset
         if count % 250 == 0:
             # reset counter
@@ -343,27 +354,32 @@ def main() -> None:
     Returns:
         None: The function drives the simulation for its side-effects.
     """
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view((2.5, 0.0, 4.0), (0.0, 0.0, 2.0))
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # The default newton mjwarp solver configuration needs to be tuned for this demo.
+        if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
+            physics_cfg.solver_cfg.nconmax = 128
+            physics_cfg.solver_cfg.naconmax = 2048
+            physics_cfg.solver_cfg.njmax = 512
 
-    # Design scene
-    scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=True)
-    with Timer("[INFO] Time to create scene: "):
-        scene = InteractiveScene(scene_cfg)
+        # Load kit helper
+        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view((2.5, 0.0, 4.0), (0.0, 0.0, 2.0))
 
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+        # Design scene
+        scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=True)
+        with Timer("[INFO] Time to create scene: "):
+            scene = scene_cfg.class_type(scene_cfg)
+
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     # run the main execution
     main()
-    # close sim app
-    simulation_app.close()

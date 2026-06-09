@@ -3,9 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from .interactive_scene import InteractiveScene
 
 
 @configclass
@@ -67,6 +73,12 @@ class InteractiveSceneCfg:
 
     """
 
+    class_type: type[InteractiveScene] | str = "{DIR}.interactive_scene:InteractiveScene"
+    """The class to use for the interactive scene.
+
+    Defaults to :class:`isaaclab.scene.InteractiveScene`.
+    """
+
     num_envs: int = MISSING
     """Number of environment instances handled by the scene."""
 
@@ -112,15 +124,8 @@ class InteractiveSceneCfg:
     """
 
     clone_in_fabric: bool = False
-    """Enable/disable cloning in fabric. Default is False.
+    """Deprecated legacy Fabric cloning flag. Default is False.
 
-    Omniverse Fabric is a more optimized method for performing cloning in scene creation. This reduces the time
-    taken to create the scene. However, it limits flexibility in accessing the stage through USD APIs and instead,
-    the stage must be accessed through USDRT.
-
-    .. note::
-        Cloning in fabric can only be enabled if :attr:`replicated_physics` is also enabled.
-        If :attr:`replicated_physics` is ``False``, cloning in Fabric will automatically
-        default to ``False``.
-
+    Queued replication no longer forwards this flag to the PhysX replicator;
+    ``useFabricForReplication`` is always ``False``.
     """

@@ -1,6 +1,105 @@
 Changelog
 ---------
 
+4.0.0 (2026-06-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the reach Gym environment IDs to drop the ``-v0`` version suffix. The
+  robot name is kept in the ID and the manager-based workflow carries no workflow suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Reach-Franka-v0`` → ``Isaac-Reach-Franka``.
+  * ``Isaac-Reach-Franka-Play-v0`` → ``Isaac-Reach-Franka-Play``.
+  * ``Isaac-Reach-Franka-OSC-v0`` → ``Isaac-Reach-Franka-OSC``.
+  * ``Isaac-Reach-Franka-OSC-Play-v0`` → ``Isaac-Reach-Franka-OSC-Play``.
+  * ``Isaac-Reach-UR10-v0`` → ``Isaac-Reach-UR10``.
+  * ``Isaac-Reach-UR10-Play-v0`` → ``Isaac-Reach-UR10-Play``.
+* Renamed the RSL-RL experiment name for the Franka reach task from ``franka_reach`` to
+  ``reach_franka`` so it matches the other Franka reach agent configs and the UR10 reach task.
+* **Breaking:** Moved the reach pose-tracking reward terms ``position_command_error``,
+  ``position_command_error_tanh`` and ``orientation_command_error`` to the shared
+  :mod:`isaaclab.envs.mdp` terms and removed the ``isaaclab_tasks.core.reach.mdp`` package. Import
+  these terms from :mod:`isaaclab.envs.mdp` instead, e.g. replace
+  ``import isaaclab_tasks.core.reach.mdp as mdp`` with ``import isaaclab.envs.mdp as mdp``.
+
+
+3.0.0 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validation for the typed preset selectors ``physics=NAME`` and
+  ``renderer=NAME`` during Hydra resolution. A typed selector is now enforced
+  to resolve against a config of that type (a
+  :class:`~isaaclab.physics.PhysicsCfg` / renderer config) at least once;
+  selecting one on a task that only exposes the name as an unrelated preset
+  (e.g. a scalar or sensor variant) raises a descriptive :class:`ValueError`
+  instead of silently leaving the backend unchanged. The free-form
+  ``presets=NAME`` broadcast is trusted and not enforced.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Grouped the ant and humanoid locomotion tasks under a new
+  :mod:`isaaclab_tasks.core.locomotion` package, each as a subpackage
+  (:mod:`isaaclab_tasks.core.locomotion.ant` and :mod:`isaaclab_tasks.core.locomotion.humanoid`).
+  The two subpackages share the direct-workflow base environment
+  (:mod:`isaaclab_tasks.core.locomotion.locomotion_direct_env`, previously
+  ``isaaclab_tasks.core.direct_locomotion.locomotion_env``) and the manager-workflow MDP terms
+  (:mod:`isaaclab_tasks.core.locomotion.mdp`, previously
+  ``isaaclab_tasks.core.manager_humanoid.mdp``).
+* **Breaking:** Merged the direct-workflow and manager-based-workflow ant and humanoid task
+  packages into the per-task subpackages above; the former ``isaaclab_tasks.core.direct_ant``,
+  ``isaaclab_tasks.core.manager_ant``, ``isaaclab_tasks.core.direct_humanoid`` and
+  ``isaaclab_tasks.core.manager_humanoid`` packages were removed. Module files now carry a
+  ``_direct_`` or ``_manager_`` infix to disambiguate the two workflows. Update imports, e.g.:
+
+  * ``from isaaclab_tasks.core.direct_ant.ant_env import AntEnv`` →
+    ``from isaaclab_tasks.core.locomotion.ant.ant_direct_env import AntEnv``.
+  * ``from isaaclab_tasks.core.manager_humanoid.humanoid_env_cfg import HumanoidEnvCfg`` →
+    ``from isaaclab_tasks.core.locomotion.humanoid.humanoid_manager_env_cfg import HumanoidEnvCfg``.
+
+  The near-identical per-workflow ``rsl_rl_ppo_cfg`` modules were consolidated; each subpackage's
+  ``agents.rsl_rl_ppo_cfg`` now exposes a manager-based runner cfg (:class:`AntPPORunnerCfg` /
+  :class:`HumanoidPPORunnerCfg`) and a direct-workflow subclass (:class:`AntDirectPPORunnerCfg` /
+  :class:`HumanoidDirectPPORunnerCfg`).
+* **Breaking:** Renamed the ant and humanoid Gym environment IDs to drop the ``-v0`` version suffix
+  and mark the direct-workflow tasks with an explicit ``-Direct`` suffix. The manager-based workflow
+  is the default and carries no workflow suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Ant-Direct-v0`` → ``Isaac-Ant-Direct``.
+  * ``Isaac-Ant-v0`` → ``Isaac-Ant``.
+  * ``Isaac-Humanoid-Direct-v0`` → ``Isaac-Humanoid-Direct``.
+  * ``Isaac-Humanoid-v0`` → ``Isaac-Humanoid``.
+* **Breaking:** Renamed the cart double pendulum Gym environment ID to drop the ``-v0`` version
+  suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Cart-Double-Pendulum-Direct-v0`` → ``Isaac-Cart-Double-Pendulum-Direct``.
+* Changed :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_camera_env.CartpoleCameraEnv`
+  to route image normalization through
+  :func:`isaaclab.utils.images.normalize_camera_image` and defer the normalize past the
+  frame-stack buffer for RGB-like data types, improving cartpole-camera frame-stacking
+  throughput.
+* **Breaking:** Removed ``isaaclab_tasks.utils.fold_preset_tokens``.
+  :func:`~isaaclab_tasks.utils.preset_cli.setup_preset_cli` now returns the
+  ``physics=`` / ``renderer=`` / ``presets=`` tokens verbatim, and
+  :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly.
+  Scripts assign the remainder to ``sys.argv`` unchanged (drop the
+  ``fold_preset_tokens(...)`` wrapper).
+
+Removed
+^^^^^^^
+
+* Removed the unused ``rew_scale_cart_pos`` field from
+  :class:`~isaaclab_tasks.core.cart_double_pendulum.cart_double_pendulum_env_cfg.CartDoublePendulumEnvCfg`.
+  It defaulted to ``0`` and was never applied to any reward term, so removing it does not change
+  training behavior.
+
+
 2.0.3 (2026-06-05)
 ~~~~~~~~~~~~~~~~~~
 

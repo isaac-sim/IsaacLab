@@ -144,6 +144,26 @@ def test_rendering_context_authors_visible_usd_point_instancer(sim):
     assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 1]
 
 
+def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototypes(sim):
+    """Omitted marker indices should not preserve initialization prototype placeholders."""
+    from pxr import UsdGeom
+
+    sim._has_offscreen_render = True
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/default_marker_indices",
+        markers={
+            "frame": sim_utils.SphereCfg(radius=0.1),
+            "line": sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        },
+    )
+    test_marker = VisualizationMarkers(config)
+
+    test_marker.visualize(translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device))
+
+    instancer = UsdGeom.PointInstancer(sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path))
+    assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 0]
+
+
 def test_usd_marker(sim):
     """Test with marker from a USD."""
     # create a marker
@@ -253,6 +273,7 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
 
         def __init__(self):
             self.calls = []
+            self.show_contacts = False
 
         def is_paused(self):
             return False
@@ -262,6 +283,9 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
 
         def log_state(self, state):
             self.calls.append(("log_state", state))
+
+        def log_arrows(self, name, starts, ends, colors):
+            pass
 
         def end_frame(self):
             self.calls.append(("end_frame",))
@@ -275,6 +299,10 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
         @staticmethod
         def get_num_envs() -> int:
             return 4
+
+        @staticmethod
+        def get_contacts():
+            return None
 
     def _fake_render_markers(viewer, visible_env_ids, num_envs):
         marker_calls.append((viewer, visible_env_ids, num_envs))

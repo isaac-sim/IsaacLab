@@ -28,6 +28,7 @@ from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -556,6 +557,14 @@ def render_synthetic_gaussian_scene(
             renderer_cfg=renderer_cfg,
         )
         camera = Camera(cfg)
+        # Camera is constructed after the scene's ReplicateSession has exited, so its
+        # queued USD replication needs an explicit drain (Path B). Reuse the scene's
+        # env positions so env_origins stays consistent.
+        published = sim.get_clone_plan()
+        positions = published.positions if published is not None else None
+        src, dst = "/World/envs/env_0", "/World/envs/env_{}"
+        camera_plan = cloner.ClonePlan.from_env_0(src, dst, num_envs, str(sim.device), positions)
+        cloner.replicate(camera_plan, stage=sim.stage)
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()

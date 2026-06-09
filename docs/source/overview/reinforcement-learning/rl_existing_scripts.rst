@@ -119,7 +119,7 @@ RSL-RL
 ------
 
 -  Training an agent with
-   `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Reach-Franka-v0``:
+   `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Reach-Franka``:
 
    .. tab-set::
       :sync-group: os
@@ -132,13 +132,13 @@ RSL-RL
             # install python module (for rsl-rl)
             ./isaaclab.sh -i rsl_rl
             # run command for training
-            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --headless
+            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka --headless
             # run command for training with Newton backend
-            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --headless physics=newton_mjwarp
+            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka --headless physics=newton_mjwarp
             # run command for playing with 32 environments
-            ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+            ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
             # run command for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+            ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --headless --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -148,13 +148,13 @@ RSL-RL
             :: install python module (for rsl-rl)
             isaaclab.bat -i rsl_rl
             :: run command for training
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --headless
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka --headless
             :: run command for training with Newton backend
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --headless physics=newton_mjwarp
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka --headless physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
             :: run command for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --headless --video --video_length 200
 
 -  Training and distilling an agent with
    `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Velocity-Flat-Anymal-D-v0``:
@@ -198,7 +198,7 @@ SKRL
 ----
 
 -  Training an agent with
-   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
+   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka``:
 
    .. tab-set::
 
@@ -215,13 +215,13 @@ SKRL
                      # install python module (for skrl)
                      ./isaaclab.sh -i skrl
                      # run command for training
-                     ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka-v0 --headless
+                     ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka --headless
                      # run command for training with Newton backend
-                     ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka-v0 --headless physics=newton_mjwarp
+                     ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka --headless physics=newton_mjwarp
                      # run command for playing with 32 environments
-                     ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                      # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                     ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+                     ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --headless --video --video_length 200
 
                .. tab-item:: :icon:`fa-brands fa-windows` Windows
                   :sync: windows
@@ -231,13 +231,13 @@ SKRL
                      :: install python module (for skrl)
                      isaaclab.bat -i skrl
                      :: run command for training
-                     isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka-v0 --headless
+                     isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka --headless
                      :: run command for training with Newton backend
-                     isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka-v0 --headless physics=newton_mjwarp
+                     isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka --headless physics=newton_mjwarp
                      :: run command for playing with 32 environments
-                     isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                      :: run command for recording video of a trained agent (requires installing `ffmpeg`)
-                     isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+                     isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka --headless --video --video_length 200
 
       .. tab-item:: JAX
 
@@ -285,13 +285,13 @@ SKRL
          .. code:: bash
 
             # run command for training
-            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
+            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka --headless --ml_framework jax
             # run command for training with Newton backend
-            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax presets=newton_mjwarp
+            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka --headless --ml_framework jax presets=newton_mjwarp
             # run command for playing with 32 environments
-            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
             # run command for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
+            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --headless --ml_framework jax --video --video_length 200
 
    - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
 

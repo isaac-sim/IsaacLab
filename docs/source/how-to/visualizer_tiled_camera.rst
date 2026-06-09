@@ -59,11 +59,7 @@ To run the tutorial with the args for this example, use:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-     --enable_cameras \
-     --task Isaac-Velocity-Rough-Anymal-D-v0 \
-     --num_envs 256 \
-     --viz kit
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --enable_cameras --task Isaac-Velocity-Rough-Anymal-D-v0 --num_envs 256 --viz kit
 
 Within the script, you’ll find the ``KitVisualizerCfg`` configuration used to
 generate this example. You can use this config as a template for your own use
@@ -110,10 +106,7 @@ To launch this example, run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-     --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 \
-     --num_envs 25 \
-     --viz newton
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 --num_envs 25 --viz newton
 
 Within the script, the ``NewtonVisualizerCfg`` is configured to stream images from the
 existing camera sensor located at

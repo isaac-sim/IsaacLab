@@ -33,7 +33,6 @@ with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab_tasks.utils import (
     add_launcher_args,
-    fold_preset_tokens,
     launch_simulation,
     resolve_task_config,
     setup_preset_cli,
@@ -122,7 +121,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.task = _resolve_task(args_cli)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main():

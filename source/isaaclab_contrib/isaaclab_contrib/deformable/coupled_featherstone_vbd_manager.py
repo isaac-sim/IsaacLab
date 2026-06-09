@@ -23,6 +23,7 @@ from .deformable_object import (
     add_deformable_entry_to_builder,
     clear_deformable_builder_hooks,
     install_deformable_builder_hooks,
+    setup_registered_deformable_fabric_sync,
 )
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledFeatherstoneVBDSolverCfg
@@ -145,41 +146,7 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
                 model.shape_material_mu.fill_(float(model_cfg.shape_material_mu))
 
         # Setup USD/Fabric sync for Kit viewport deformable rendering
-        if not cls._clone_physics_only and cls._deformable_registry:
-            import re
-
-            import usdrt
-
-            if NewtonManager._usdrt_stage is None:
-                NewtonManager._usdrt_stage = get_current_stage(fabric=True)
-
-            stage = get_current_stage()
-            for entry in cls._deformable_registry:
-                for inst_idx, offset in enumerate(entry.particle_offsets):
-                    # Resolve regex pattern to concrete instance path of visual mesh
-                    resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-                    resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
-                    vis_prim = stage.GetPrimAtPath(resolved_vis)
-
-                    if not vis_prim or not vis_prim.IsValid():
-                        logger.warning("[setup_fabric_particle_sync] vis prim not found at %s", resolved_vis)
-                        continue
-
-                    # Create per-instance particle offset and count attributes on the visual mesh
-                    # prim so the Fabric sync kernel can find the right slice of particle_q
-                    # and iterate only over this body's particles (counts vary across bodies).
-                    fab_prim = NewtonManager._usdrt_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
-                    fab_prim.CreateAttribute(
-                        NewtonManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-                    )
-                    fab_prim.GetAttribute(NewtonManager._newton_particle_offset_attr).Set(offset)
-                    fab_prim.CreateAttribute(
-                        NewtonManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-                    )
-                    fab_prim.GetAttribute(NewtonManager._newton_particle_count_attr).Set(entry.particles_per_body)
-
-            cls._mark_particles_dirty()
-            cls.sync_particles_to_usd()
+        setup_registered_deformable_fabric_sync(cls)
 
     @classmethod
     def instantiate_builder_from_stage(cls):
