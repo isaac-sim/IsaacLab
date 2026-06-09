@@ -28,9 +28,12 @@ run_cartpole_env_visualizers_tiled_camera_motion = _viz_utils.run_cartpole_env_v
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.flaky(max_runs=2, min_passes=1)]
 
 
-def test_visualizer_tiled_integration_newton(caplog: pytest.LogCaptureFixture) -> None:
+def test_visualizer_tiled_integration_newton(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Cartpole env + tiled Kit/Newton visualizers on Newton MJWarp."""
     run_cartpole_env_visualizers_tiled_camera_motion("newton", caplog)
+    _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+3.0.3 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an actionable install error when the optional ``ovphysx`` runtime wheel
+  is missing from the :mod:`isaaclab_ovphysx` backend.
+
+
+3.0.2 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install ``ovphysx==0.4.13``
+  instead of accepting newer breaking releases.
+
+
 3.0.1 (2026-06-03)
 ~~~~~~~~~~~~~~~~~~
 

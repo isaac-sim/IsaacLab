@@ -11,60 +11,22 @@ from collections.abc import Sequence
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab import cloner
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectMARLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import sample_uniform
 
-from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
-
-
-@configclass
-class CartDoublePendulumEnvCfg(DirectMARLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    possible_agents = ["cart", "pendulum"]
-    action_spaces = {"cart": 1, "pendulum": 1}
-    observation_spaces = {"cart": 4, "pendulum": 3}
-    state_space = -1
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
-
-    # robot
-    robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-    pendulum_dof_name = "pole_to_pendulum"
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
-    initial_pendulum_angle_range = [-0.25, 0.25]  # the range in which the pendulum angle is sampled from on reset [rad]
-
-    # action scales
-    cart_action_scale = 100.0  # [N]
-    pendulum_action_scale = 50.0  # [Nm]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_cart_pos = 0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_pos = -1.0
-    rew_scale_pole_vel = -0.01
-    rew_scale_pendulum_pos = -1.0
-    rew_scale_pendulum_vel = -0.01
+from isaaclab_tasks.core.cart_double_pendulum.cart_double_pendulum_env_cfg import CartDoublePendulumEnvCfg
 
 
 class CartDoublePendulumEnv(DirectMARLEnv):
+    """Multi-agent cart-double-pendulum balancing environment.
+
+    Two agents (``cart`` and ``pendulum``) cooperate to keep the double pendulum upright. They
+    share a common termination signal but observe and are rewarded independently.
+    """
+
     cfg: CartDoublePendulumEnvCfg
 
     def __init__(self, cfg: CartDoublePendulumEnvCfg, render_mode: str | None = None, **kwargs):
@@ -81,8 +43,10 @@ class CartDoublePendulumEnv(DirectMARLEnv):
         self.robot = Articulation(self.cfg.robot_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
@@ -131,13 +95,11 @@ class CartDoublePendulumEnv(DirectMARLEnv):
         total_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
-            self.cfg.rew_scale_cart_pos,
             self.cfg.rew_scale_cart_vel,
             self.cfg.rew_scale_pole_pos,
             self.cfg.rew_scale_pole_vel,
             self.cfg.rew_scale_pendulum_pos,
             self.cfg.rew_scale_pendulum_vel,
-            self.joint_pos[:, self._cart_dof_idx[0]],
             self.joint_vel[:, self._cart_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
             self.joint_vel[:, self._pole_dof_idx[0]],
@@ -201,6 +163,7 @@ class CartDoublePendulumEnv(DirectMARLEnv):
 
 @torch.jit.script
 def normalize_angle(angle):
+    """Wrap an angle [rad] to the range ``[-pi, pi]``."""
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
@@ -208,13 +171,11 @@ def normalize_angle(angle):
 def compute_rewards(
     rew_scale_alive: float,
     rew_scale_terminated: float,
-    rew_scale_cart_pos: float,
     rew_scale_cart_vel: float,
     rew_scale_pole_pos: float,
     rew_scale_pole_vel: float,
     rew_scale_pendulum_pos: float,
     rew_scale_pendulum_vel: float,
-    cart_pos: torch.Tensor,
     cart_vel: torch.Tensor,
     pole_pos: torch.Tensor,
     pole_vel: torch.Tensor,
@@ -222,6 +183,7 @@ def compute_rewards(
     pendulum_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
 ):
+    """Compute the per-agent rewards for the cart-double-pendulum task."""
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
     rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)

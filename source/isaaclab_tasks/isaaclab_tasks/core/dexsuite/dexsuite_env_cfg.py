@@ -439,7 +439,6 @@ class PhysicsCfg(PresetCfg):
             update_data_interval=2,
             iterations=100,
             ls_iterations=15,
-            ls_parallel=False,
             use_mujoco_contacts=False,
             ccd_iterations=35,
         ),

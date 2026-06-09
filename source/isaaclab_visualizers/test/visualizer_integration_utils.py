@@ -61,6 +61,7 @@ _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 # When True, tests also fail on WARNING-level records from visualizer-related loggers.
 ASSERT_VISUALIZER_WARNINGS = False
 
+_NEWTON_IMGUI_BUNDLE_PRINT_WARNING = "Warning: imgui_bundle not found"
 _MAX_FRAME_CHECK_STEPS = 5
 """Steps for Rerun / Viser smoke tests."""
 
@@ -219,6 +220,19 @@ def _assert_no_visualizer_log_issues(caplog: pytest.LogCaptureFixture, *, fail_o
         assert not warning_logs, "Visualizer-related warning logs: " + "; ".join(
             f"{r.name}: {r.getMessage()}" for r in warning_logs
         )
+
+
+def assert_no_newton_imgui_bundle_warning(capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture) -> None:
+    """Fail when Newton reports that its imgui HUD dependency is missing."""
+    captured = capsys.readouterr()
+    captured_output = captured.out + captured.err
+    printed_warning = _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in captured_output
+    logged_warnings = [record for record in caplog.records if _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in record.getMessage()]
+    assert not printed_warning and not logged_warnings, (
+        "Newton viewer reported that imgui_bundle could not be imported, which disables HUD controls. "
+        f"Captured output: {captured_output!r}. "
+        "Captured logs: " + "; ".join(f"{record.name}: {record.getMessage()}" for record in logged_warnings)
+    )
 
 
 def _configure_sim_for_visualizer_test(env: CartpoleCameraEnv) -> None:

@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+0.4.5 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton deformable clone replication and Fabric particle sync setup.
+
+
+0.4.4 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed RLinf optional dependency installation on DGX Spark and aarch64 by
+  replacing ``decord`` with ``decord2`` in the ``rlinf`` extras.
+
+
+0.4.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed deformable Newton test presets to rely on iterative MuJoCo Warp line search.
+
+
+0.4.2 (2026-06-04)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the TacSL visuotactile sensor demo, documentation, and tests to use
+  current PhysX configuration and wrench APIs.
+
+
 0.4.1 (2026-06-02)
 ~~~~~~~~~~~~~~~~~~
 

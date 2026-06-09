@@ -15,7 +15,7 @@ import time
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 from scripts.benchmarks.early_stop import (
     RslRlEarlyStopWrapper,
@@ -72,7 +72,6 @@ cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-hydra_args = fold_preset_tokens(hydra_args)
 sys.argv = [sys.argv[0]] + hydra_args
 if args_cli.video:
     args_cli.enable_cameras = True

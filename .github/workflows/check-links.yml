@@ -104,6 +104,12 @@ jobs:
           --exclude 'docs\.ray\.io'
           --exclude 'docs\.conda\.io'
           --exclude 'stackoverflow\.com'
+          --exclude 'docs\.isaacsim\.omniverse\.nvidia\.com'
+          --exclude 'download\.isaacsim\.omniverse\.nvidia\.com/isaaclab/images'
+          --exclude 'dx\.doi\.org/10\.1109/JRA\.1987\.1087068'
+          --exclude 'andrew\.cmu\.edu/course/10-703/textbook/BartoSutton\.pdf'
+          --exclude 'www\.nvidia\.com/en-us/security'
+          --exclude 'bostondynamics\.com/reinforcement-learning-researcher-kit'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20

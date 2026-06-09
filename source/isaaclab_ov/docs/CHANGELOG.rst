@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.4.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
+0.4.3 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer to raise a clear, actionable error when the optional
+  ``ovrtx`` runtime wheel is not installed, pointing users to
+  ``./isaaclab.sh -i 'ov[ovrtx]'`` instead of a cryptic ``No module named 'ovrtx'``.
+
+
 0.4.2 (2026-06-02)
 ~~~~~~~~~~~~~~~~~~
 

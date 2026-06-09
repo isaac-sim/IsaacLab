@@ -166,7 +166,7 @@ understanding where time is spent during initialization.
 
    # Basic usage — reports top 30 functions per phase
    ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
-       --task Isaac-Ant-v0 \
+       --task Isaac-Ant \
        --num_envs 4096 \
        --headless \
        --benchmark_backend summary
@@ -205,7 +205,7 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
-       --task Isaac-Ant-v0 \
+       --task Isaac-Ant \
        --num_envs 4096 \
        --headless \
        --benchmark_backend omniperf \

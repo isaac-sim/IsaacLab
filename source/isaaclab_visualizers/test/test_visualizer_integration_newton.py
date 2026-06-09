@@ -28,9 +28,12 @@ run_cartpole_env_visualizers_motion_with_play_pause = _viz_utils.run_cartpole_en
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.flaky(max_runs=2, min_passes=1)]
 
 
-def test_cartpole_env_visualizers_motion_with_play_pause_newton(caplog: pytest.LogCaptureFixture) -> None:
+def test_cartpole_env_visualizers_motion_with_play_pause_newton(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Cartpole env + all non-tiled visualizers on Newton MJWarp."""
     run_cartpole_env_visualizers_motion_with_play_pause("newton", caplog)
+    _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
 if __name__ == "__main__":

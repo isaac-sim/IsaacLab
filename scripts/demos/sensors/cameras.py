@@ -243,7 +243,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             rgb_images = [scene["camera"].data.output["rgb"][0, ..., :3], scene["tiled_camera"].data.output["rgb"][0]]
             save_images_grid(
                 rgb_images,
-                subtitles=["Camera"],
+                subtitles=["Camera", "TiledCamera"],
                 title="RGB Image: Cam0",
                 filename=os.path.join(output_dir, "rgb", f"{count:04d}.jpg"),
             )
@@ -257,7 +257,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             save_images_grid(
                 depth_images,
                 cmap="turbo",
-                subtitles=["Camera", "RaycasterCamera"],
+                subtitles=["Camera", "TiledCamera", "RaycasterCamera"],
                 title="Depth Image: Cam0",
                 filename=os.path.join(output_dir, "distance_to_camera", f"{count:04d}.jpg"),
             )

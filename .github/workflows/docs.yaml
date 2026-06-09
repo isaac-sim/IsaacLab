@@ -49,15 +49,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Setup python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.12"
-        architecture: x64
 
     - name: Install dev requirements
-      working-directory: ./docs
-      run: pip install -r requirements.txt
+      run: |
+        uv venv
+        uv pip install -r docs/requirements.txt
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Build current version docs
       working-directory: ./docs
@@ -80,15 +81,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Setup python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.12"
-        architecture: x64
 
     - name: Install dev requirements
-      working-directory: ./docs
-      run: pip install -r requirements.txt
+      run: |
+        uv venv
+        uv pip install -r docs/requirements.txt
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs
       working-directory: ./docs

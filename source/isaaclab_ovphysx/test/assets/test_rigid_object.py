@@ -11,7 +11,7 @@
 
 Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
-``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
+The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
 first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
 process restart.  Full coverage therefore requires two separate pytest
 invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
@@ -32,9 +32,8 @@ import torch
 import warp as wp
 from flaky import flaky
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
@@ -55,6 +54,8 @@ from isaaclab.utils.math import (  # noqa: E402
 )
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 _logger = logging.getLogger(__name__)
 

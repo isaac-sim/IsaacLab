@@ -49,7 +49,7 @@ Stage in memory can be toggled by setting the :attr:`isaaclab.sim.SimulationCfg.
     env = ManagerBasedRLEnv(cfg=cfg)
 
 When using stage in memory without an existing RL environment class, wrap the stage creation steps
-in a :py:keyword:`with` statement to set the stage context. The stage is automatically attached
+in a ``with`` statement to set the stage context. The stage is automatically attached
 to the USD context when ``SimulationContext`` is created with ``create_stage_in_memory=True``.
 
 **Using Stage in Memory with a manual scene setup**
@@ -79,8 +79,8 @@ Limitations
 
 .. code-block:: none
 
-    1.  Isaac-Ant-Direct-v0
-    2.  Isaac-Ant-v0
+    1.  Isaac-Ant-Direct
+    2.  Isaac-Ant
     3.  Isaac-Cartpole-Direct
     4.  Isaac-Cartpole-Showcase-Direct
     5.  Isaac-Cartpole
@@ -88,8 +88,8 @@ Limitations
     21. Isaac-Factory-NutThread-Direct-v0
     22. Isaac-Factory-PegInsert-Direct-v0
     23. Isaac-Franka-Cabinet-Direct-v0
-    24. Isaac-Humanoid-Direct-v0
-    25. Isaac-Humanoid-v0
+    24. Isaac-Humanoid-Direct
+    25. Isaac-Humanoid
     26. Isaac-Quadcopter-Direct-v0
     27. Isaac-Repose-Cube-Allegro-Direct-v0
     28. Isaac-Repose-Cube-Allegro-NoVelObs-v0
