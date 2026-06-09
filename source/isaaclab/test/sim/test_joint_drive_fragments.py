@@ -139,9 +139,9 @@ def test_physx_joint_fragment_converts_max_velocity_by_joint_type():
     apply_physx_joint(PhysxJointCfg(max_joint_velocity=10.0), rev.GetPath().pathString, stage)
     assert rev.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(10.0 * 180.0 / math.pi, rel=1e-6)
     # linear (prismatic) joint: written unchanged
-    pris = _make_prismatic_joint(stage)
-    apply_physx_joint(PhysxJointCfg(max_joint_velocity=10.0), pris.GetPath().pathString, stage)
-    assert pris.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(10.0, rel=1e-6)
+    prismatic = _make_prismatic_joint(stage)
+    apply_physx_joint(PhysxJointCfg(max_joint_velocity=10.0), prismatic.GetPath().pathString, stage)
+    assert prismatic.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(10.0, rel=1e-6)
 
 
 def test_physx_joint_fragment_max_velocity_alias():
@@ -217,6 +217,37 @@ def test_apply_joint_drive_properties_without_drive_does_not_apply_drive_api():
     assert not bool(UsdPhysics.DriveAPI(prim, "angular"))
     # revolute joint -> rad/s to deg/s conversion via apply_physx_joint
     assert prim.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(5.0 * 180.0 / math.pi, rel=1e-6)
+
+
+def test_apply_joint_drive_properties_skips_tendon_child_joint():
+    """A tendon-child joint (``PhysxTendonAxisAPI`` without the root API) must be skipped wholesale
+    by the dispatch loop: no fragment -- drive, physxJoint, or mjc -- may author on it, matching the
+    legacy :func:`modify_joint_drive_properties` writer (which skipped the whole prim)."""
+    from isaaclab_physx.sim.schemas import PhysxJointCfg
+
+    from pxr import PhysxSchema
+
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    joint = _make_revolute_joint(stage)
+    PhysxSchema.PhysxTendonAxisAPI.Apply(joint, "axis0")  # tendon child: axis API, no root API
+    applied = str(joint.GetAppliedSchemas())
+    assert "PhysxTendonAxisAPI" in applied and "PhysxTendonAxisRootAPI" not in applied
+
+    apply_joint_drive_properties(
+        "/World/Articulation",
+        [
+            UsdPhysicsDriveCfg(drive_type="acceleration", max_force=80.0, stiffness=10.0, damping=0.1),
+            PhysxJointCfg(max_joint_velocity=5.0),
+        ],
+        stage,
+    )
+    # neither the presence-gated DriveAPI nor the physxJoint fragment may author on a tendon child
+    assert not bool(UsdPhysics.DriveAPI(joint, "angular"))
+    assert not joint.GetAttribute("physxJoint:maxJointVelocity").HasAuthoredValue()
 
 
 def test_apply_joint_drive_properties_ensure_drives_exist_seeds_stiffness():

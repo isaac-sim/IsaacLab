@@ -1019,8 +1019,13 @@ def apply_joint_drive_properties(
         if not is_joint:
             all_prims += child_prim.GetChildren()
             continue
-        # ensure_drives_exist: seed a minimal stiffness on a fully-passive drive before dispatch.
-        # Done after the fragment dispatch so that an authored stiffness/damping always wins.
+        # skip tendon-child joints (PhysxTendonAxisAPI without the root API) wholesale: no fragment
+        # may author on them, matching the legacy modify_joint_drive_properties writer. apply_drive
+        # guards itself too, but the physxJoint/mjc fragments would otherwise leak onto them.
+        applied_schemas_str = str(child_prim.GetAppliedSchemas())
+        if "PhysxTendonAxisAPI" in applied_schemas_str and "PhysxTendonAxisRootAPI" not in applied_schemas_str:
+            all_prims += child_prim.GetChildren()
+            continue
         # dispatch each fragment via its func
         success = False
         for cfg in fragments:
