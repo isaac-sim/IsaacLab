@@ -87,6 +87,9 @@ class DirectRLEnv(gym.Env):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # The env remains closed until initialization completes.
+        self._is_closed = True
+
         # check that the config is valid
         cfg.validate()
         # Resolve any preset-wrapper fields to their default variant so that downstream
@@ -97,7 +100,6 @@ class DirectRLEnv(gym.Env):
         # store the render mode
         self.render_mode = render_mode
         # initialize internal variables
-        self._is_closed = False
         self._physics_handles_decimation = False
 
         # set the seed for the environment
@@ -119,6 +121,7 @@ class DirectRLEnv(gym.Env):
         except Exception:
             self.sim.clear_instance()
             raise
+        self._is_closed = False
 
     def _init_sim(self, render_mode: str | None = None, **kwargs):
         """Complete environment initialization after the SimulationContext is created.
@@ -288,9 +291,9 @@ class DirectRLEnv(gym.Env):
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
-    def __del__(self, _sys_is_finalizing=sys.is_finalizing):
+    def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        if not _sys_is_finalizing():
+        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """

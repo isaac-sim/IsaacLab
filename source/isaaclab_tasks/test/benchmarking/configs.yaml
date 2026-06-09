@@ -61,7 +61,7 @@ fast:
       episode_length: 875
     upper_thresholds:
       duration: 1800
-  sb3:Isaac-Lift-Cube-Franka-v0:
+  sb3:Isaac-Lift-Cube-Franka:
     max_iterations: 150
     lower_thresholds:
       reward: 1.5
@@ -159,7 +159,7 @@ full:
       episode_length: 400
     upper_thresholds:
       duration: 1000
-  Isaac-Lift-Cube-Franka-v0:
+  Isaac-Lift-Cube-Franka:
     max_iterations: 300
     lower_thresholds:
       reward: 90
