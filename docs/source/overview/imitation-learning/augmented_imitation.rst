@@ -395,6 +395,9 @@ Example usage for the cube stacking task:
     --num_rollouts 15 \
     --rendering_mode performance
 
+.. tip::
+   Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.
+
 .. note::
    This script can take over a day or even longer to run (depending on the hardware being used). This behavior is expected.
 
