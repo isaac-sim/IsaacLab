@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import fnmatch
 import logging
 from types import SimpleNamespace
 from typing import Any
@@ -119,90 +118,17 @@ class _OvPhysxRayCasterMixin:
             copy=False,
         )
 
-        offset_pos, offset_quat = self._resolve_offsets_in_binding_order(body_glob, fixed_pos_b, fixed_quat_b)
-        self._offset_pos_wp = wp.array(offset_pos, dtype=wp.vec3f, device=self._device)
-        self._offset_quat_contiguous = torch.tensor(offset_quat, dtype=torch.float32, device=self._device)
-        self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
-        self._mesh_view_bufs = {}
-
-    def _resolve_offsets_in_binding_order(
-        self: Any,
-        body_glob: str,
-        fixed_pos_b: tuple[float, float, float] | None,
-        fixed_quat_b: tuple[float, float, float, float] | None,
-    ) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float, float]]]:
-        """Build sensor-to-body offsets in OVPhysX binding-row order."""
         if fixed_pos_b is None or fixed_quat_b is None:
             fixed_pos_b = (0.0, 0.0, 0.0)
             fixed_quat_b = (0.0, 0.0, 0.0, 1.0)
-
-        binding_paths = self._get_binding_prim_paths(body_glob)
-        offsets_by_body_path = self._resolve_sensor_offsets_by_body_path()
-        if offsets_by_body_path:
-            missing_paths = [path for path in binding_paths if path not in offsets_by_body_path]
-            extra_paths = [path for path in offsets_by_body_path if path not in binding_paths]
-            if not missing_paths and not extra_paths:
-                return (
-                    [offsets_by_body_path[path][0] for path in binding_paths],
-                    [offsets_by_body_path[path][1] for path in binding_paths],
-                )
-            if len(offsets_by_body_path) == 1:
-                self._validate_binding_paths_match_glob(body_glob, binding_paths)
-                source_pos_b, source_quat_b = next(iter(offsets_by_body_path.values()))
-                return [source_pos_b] * self._view_count, [source_quat_b] * self._view_count
-            raise RuntimeError(
-                "OVPhysX RayCaster sensor prims do not match RIGID_BODY_POSE binding rows for "
-                f"pattern {body_glob!r}. Missing binding paths: {missing_paths}; extra sensor bodies: {extra_paths}."
-            )
-
-        self._validate_binding_paths_match_glob(body_glob, binding_paths)
-        return [fixed_pos_b] * self._view_count, [fixed_quat_b] * self._view_count
-
-    def _get_binding_prim_paths(self: Any, body_glob: str) -> list[str]:
-        """Return validated OVPhysX binding prim paths."""
-        prim_paths = getattr(self._ovphysx_body_view, "prim_paths", None)
-        if prim_paths is None:
-            raise RuntimeError(
-                "OVPhysX RIGID_BODY_POSE binding for pattern "
-                f"{body_glob!r} does not expose prim_paths; cannot align RayCaster offsets to binding rows."
-            )
-        binding_paths = list(prim_paths)
-        if len(binding_paths) != self._view_count:
-            raise RuntimeError(
-                "OVPhysX RIGID_BODY_POSE binding for pattern "
-                f"{body_glob!r} returned {len(binding_paths)} prim_paths for {self._view_count} rows."
-            )
-        return binding_paths
-
-    def _resolve_sensor_offsets_by_body_path(
-        self: Any,
-    ) -> dict[str, tuple[tuple[float, float, float], tuple[float, float, float, float]]]:
-        """Resolve authored sensor offsets keyed by rigid-body prim path."""
-        offsets_by_body_path = {}
-        for prim in sim_utils.find_matching_prims(self.cfg.prim_path):
-            body = _find_physics_ancestor(prim)
-            if body is None:
-                raise RuntimeError(
-                    f"Cannot track non-physics RayCaster prim {prim.GetPath().pathString!r} with OVPhysX."
-                )
-            body_path = body.GetPath().pathString
-            if body_path in offsets_by_body_path:
-                raise RuntimeError(
-                    f"Multiple OVPhysX RayCaster sensor prims resolve to rigid body {body_path!r}; "
-                    "cannot map one sensor offset per RIGID_BODY_POSE row."
-                )
-            offsets_by_body_path[body_path] = sim_utils.resolve_prim_pose(prim, body)
-        return offsets_by_body_path
-
-    @staticmethod
-    def _validate_binding_paths_match_glob(body_glob: str, binding_paths: list[str]) -> None:
-        """Validate that every OVPhysX binding row belongs to the requested body glob."""
-        unexpected_paths = [path for path in binding_paths if not fnmatch.fnmatchcase(path, body_glob)]
-        if unexpected_paths:
-            raise RuntimeError(
-                "OVPhysX RIGID_BODY_POSE binding returned paths outside RayCaster body pattern "
-                f"{body_glob!r}: {unexpected_paths}."
-            )
+        offset_pos = [fixed_pos_b] * self._view_count
+        offset_quat = [fixed_quat_b] * self._view_count
+        self._offset_pos_wp = wp.array(offset_pos[: self._view_count], dtype=wp.vec3f, device=self._device)
+        self._offset_quat_contiguous = torch.tensor(
+            offset_quat[: self._view_count], dtype=torch.float32, device=self._device
+        )
+        self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
+        self._mesh_view_bufs = {}
 
     def _initialize_static_pose_tracking(self: Any, prims) -> None:
         """Cache authored USD poses for non-physics sensor frames.
