@@ -87,19 +87,27 @@ def _make_kit_visualizer_cfg(env_cfg):
     return visualizer_cfg
 
 
-def _make_newton_visualizer_cfg():
-    """Stream existing Galbot wrist cameras into the Newton tiled camera panel."""
+def _make_newton_visualizer_cfg(env_cfg):
+    """Create the Newton tiled-camera visualizer for the selected task."""
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
     visualizer_cfg = NewtonVisualizerCfg()
     visualizer_cfg.tiled_cam_view = True
     visualizer_cfg.tiled_cam_num = 12
+
+    ego_cam_cfg = getattr(env_cfg.scene, "ego_cam", None)
+    if ego_cam_cfg is not None:
+        visualizer_cfg.tiled_cam_prim_path = _resolve_env_regex_path(ego_cam_cfg.prim_path)
+        visualizer_cfg.tiled_cam_eye = None
+        visualizer_cfg.tiled_cam_target_prim_path = None
+        return visualizer_cfg
+
     # Here are other robot mounted camera options for this environment
     # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/left_arm_camera_sim_view_frame/left_camera"
     # visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/right_camera"
-    visualizer_cfg.tiled_cam_prim_path = "/World/envs/env_.*/Robot/head_camera_sim_view_frame/head_camera"
-    visualizer_cfg.tiled_cam_eye = None
-    visualizer_cfg.tiled_cam_target_prim_path = None
+    visualizer_cfg.tiled_cam_prim_path = None
+    visualizer_cfg.tiled_cam_eye = (3.0, 3.0, 3.0)
+    visualizer_cfg.tiled_cam_target_prim_path = "/World/envs/*/Robot/base"
     return visualizer_cfg
 
 
@@ -108,7 +116,7 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
     visualizers = _requested_visualizers(args_cli)
     args_cli.visualizer = visualizers
     env_cfg.sim.visualizer_cfgs = [
-        _make_kit_visualizer_cfg(env_cfg) if visualizer == "kit" else _make_newton_visualizer_cfg()
+        _make_kit_visualizer_cfg(env_cfg) if visualizer == "kit" else _make_newton_visualizer_cfg(env_cfg)
         for visualizer in visualizers
     ]
 
