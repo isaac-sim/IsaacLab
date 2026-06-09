@@ -40,23 +40,6 @@ def _find_physics_ancestor(prim):
     return None
 
 
-def _body_expr_from_sensor_expr(sensor_expr: str, first_sensor_prim, first_body_prim) -> str:
-    """Convert a sensor/target prim-path expression to its matching body-path expression.
-
-    When the sensor lives as a USD child of a rigid body (the common case --
-    ``.../Robot/base/sensor``), this strips the trailing path segment so a single
-    ovphysx ``create_tensor_binding`` call resolves to the parent body view.
-    """
-    sensor_path = first_sensor_prim.GetPath().pathString
-    body_path = first_body_prim.GetPath().pathString
-    if sensor_path == body_path:
-        return sensor_expr
-    suffix = sensor_path[len(body_path) :]
-    if suffix and sensor_expr.endswith(suffix):
-        return sensor_expr[: -len(suffix)]
-    return body_path
-
-
 def _ovphysx_body_glob(body_expr: str) -> str:
     """Convert internal env regex/template expressions to ovphysx glob syntax.
 
@@ -89,29 +72,23 @@ class _OvPhysxRayCasterMixin:
         """Resolve sensor prims to either a live ovphysx binding or a static snapshot."""
         from isaaclab_ovphysx import tensor_types as TT  # noqa: PLC0415
 
-        prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-        if len(prims) == 0:
-            raise RuntimeError(f"No sensor prims matched: {self.cfg.prim_path}")
-
         # Generic base-class hooks read ``self._view.count``; point that
         # adapter at the sensor itself rather than constructing a separate
         # view object (matches the PhysX trick).
         self._view = self
 
-        body = _find_physics_ancestor(prims[0])
-        if body is None:
-            self._initialize_static_pose_tracking(prims)
-            return
+        try:
+            body_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
+        except RuntimeError:
+            prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            if len(prims) == 0:
+                raise
+            body = _find_physics_ancestor(prims[0])
+            if body is None:
+                self._initialize_static_pose_tracking(prims)
+                return
+            raise
 
-        requested_prim_path = getattr(self, "_requested_prim_path", self.cfg.prim_path)
-        # If ``BaseRayCaster`` redirected the configured body path to a spawned
-        # child sensor prim, the original body expression is the parent of the
-        # current ``cfg.prim_path``.
-        body_expr = (
-            requested_prim_path
-            if self.cfg.prim_path != requested_prim_path
-            else _body_expr_from_sensor_expr(self.cfg.prim_path, prims[0], body)
-        )
         body_glob = _ovphysx_body_glob(body_expr)
 
         physx = OvPhysxManager.get_physx_instance()
@@ -141,20 +118,11 @@ class _OvPhysxRayCasterMixin:
             copy=False,
         )
 
-        offset_pos = []
-        offset_quat = []
-        for prim in prims:
-            body_prim = _find_physics_ancestor(prim)
-            p, q = sim_utils.resolve_prim_pose(prim, body_prim)
-            offset_pos.append(p)
-            offset_quat.append(q)
-        # Under OVPhysX ``clone_usd=True`` only env_0 carries USD prims (the
-        # env_1..N bodies are physics-layer clones created by physx.clone()),
-        # so a single discovered prim must be broadcast to ``self._view_count``
-        # offset rows. Same broadcast PhysX applies.
-        if len(offset_pos) == 1 and self._view_count > 1:
-            offset_pos = offset_pos * self._view_count
-            offset_quat = offset_quat * self._view_count
+        if fixed_pos_b is None or fixed_quat_b is None:
+            fixed_pos_b = (0.0, 0.0, 0.0)
+            fixed_quat_b = (0.0, 0.0, 0.0, 1.0)
+        offset_pos = [fixed_pos_b] * self._view_count
+        offset_quat = [fixed_quat_b] * self._view_count
         self._offset_pos_wp = wp.array(offset_pos[: self._view_count], dtype=wp.vec3f, device=self._device)
         self._offset_quat_contiguous = torch.tensor(
             offset_quat[: self._view_count], dtype=torch.float32, device=self._device
