@@ -236,16 +236,12 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid (mirrors the legacy ``define_``/``modify_`` writers so an
-    # invalid path fails loudly instead of silently no-op'ing and still returning True)
+    # fail loudly on an invalid path (matches the legacy define_/modify_ writers)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
     namespace = type(cfg)._usd_namespace
     applied = type(cfg)._usd_applied_schema
-    # Invariant: every fragment field (other than ``func``) is authored as a namespaced USD
-    # attribute, so a fragment with fields must declare where they go. A missing namespace means a
-    # misconfigured fragment (e.g. a non-USD/bookkeeping field slipped in) -- fail loudly rather
-    # than silently writing to a ``None:`` namespace.
+    # every fragment field is a namespaced USD attribute, so a namespace is required
     if namespace is None:
         raise ValueError(
             f"Fragment '{type(cfg).__name__}' has no '_usd_namespace' set. Every fragment field is"
@@ -256,8 +252,7 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
     if applied and applied not in prim.GetAppliedSchemas():
         prim.AddAppliedSchema(applied)
     for f in dataclasses.fields(cfg):
-        # ``func`` is the single permitted non-USD field; every other field is a USD attribute.
-        # Unsupported (non-scalar) value types raise in ``safe_set_attribute_on_usd_prim``.
+        # ``func`` is the only non-USD field; non-scalar values raise in the setter
         if f.name == "func":
             continue
         value = getattr(cfg, f.name)
@@ -460,13 +455,12 @@ def apply_rigid_body_properties(
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid (mirrors the legacy ``define_rigid_body_properties`` writer)
+    # fail loudly on an invalid path (matches the legacy define_rigid_body_properties writer)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
     if not UsdPhysics.RigidBodyAPI(prim):
         UsdPhysics.RigidBodyAPI.Apply(prim)
-    # aggregate per-fragment results so a fragment applier that reports failure is not masked by
-    # the always-applied anchor (keeps the boolean contract consistent with ``modify_*`` writers)
+    # aggregate per-fragment results so a reported failure is not masked by the always-applied anchor
     success = True
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
