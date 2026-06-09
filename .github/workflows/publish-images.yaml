@@ -11,7 +11,7 @@ on:
   # publishable branch. main is intentionally excluded: main images are built
   # by postmerge-ci.yml on push instead.
   schedule:
-    - cron: '0 3 * * *'  # 7pm PST / 8pm PDT
+    - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
   workflow_dispatch:
     inputs:
       branch:
