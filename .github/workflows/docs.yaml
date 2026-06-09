@@ -22,7 +22,7 @@ on:
   # Nightly multi-version rebuild + deploy from develop tip. Picks up every
   # develop commit accumulated since the previous nightly in a single run.
   schedule:
-    - cron: '0 3 * * *'  # 7pm PST / 8pm PDT
+    - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
   workflow_dispatch:
 
 concurrency:
