@@ -98,7 +98,11 @@ def main():
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
         elif args_cli.checkpoint is None:
-            checkpoint_path = get_checkpoint_path(log_root_path, ".*", r"model.*\.zip", sort_alpha=False)
+            # prefer the final model (``model.zip``); fall back to the latest periodic checkpoint when it has
+            # not been written yet (e.g. short or interrupted runs)
+            checkpoint_path = get_checkpoint_path(
+                log_root_path, ".*", r"model_.*\.zip", sort_alpha=False, preferred_checkpoint=r"model\.zip"
+            )
         else:
             checkpoint_path = args_cli.checkpoint
         log_dir = os.path.dirname(checkpoint_path)
