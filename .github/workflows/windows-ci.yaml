@@ -123,6 +123,34 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_PATH -Value "$HOME\.local\bin"
 
+      # Diagnostic only: proves whether the failure is DNS/reachability vs a
+      # missing package, decoupled from pip. pypi.nvidia.com is the public
+      # control (should resolve); artifactory.nvidia.com is the internal index.
+      - name: Probe index reachability (diagnostic)
+        if: always()
+        continue-on-error: true
+        shell: powershell
+        run: |
+          Write-Host "runner=$env:COMPUTERNAME  RUNNER_NAME=$env:RUNNER_NAME"
+          Write-Host "proxies: HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY NO_PROXY=$env:NO_PROXY http_proxy=$env:http_proxy https_proxy=$env:https_proxy"
+          Write-Host "DNS servers:"
+          Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.InterfaceAlias): $($_.ServerAddresses -join ', ')" }
+          foreach ($h in @("artifactory.nvidia.com", "urm.nvidia.com", "pypi.nvidia.com")) {
+            Write-Host "=== $h ==="
+            try {
+              $ips = [System.Net.Dns]::GetHostAddresses($h)
+              Write-Host "DNS OK -> $(( $ips | ForEach-Object { $_.IPAddressToString }) -join ', ')"
+            } catch {
+              Write-Host "DNS FAIL -> $($_.Exception.Message)"
+            }
+            try {
+              $r = Test-NetConnection -ComputerName $h -Port 443 -WarningAction SilentlyContinue
+              Write-Host "TCP 443 reachable -> $($r.TcpTestSucceeded)"
+            } catch {
+              Write-Host "TCP 443 test error -> $($_.Exception.Message)"
+            }
+          }
+
       # Shared setup. Hard fail aborts the job (no continue-on-error) since
       # downstream steps all depend on this venv.
       - name: Setup venv + install develop-aligned Isaac Sim + isaaclab + test deps
