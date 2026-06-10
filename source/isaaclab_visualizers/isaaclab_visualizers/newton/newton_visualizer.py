@@ -793,10 +793,11 @@ class NewtonVisualizer(BaseVisualizer):
             eye: Camera eye position.
             target: Camera look-at target.
         """
-        if not self._is_initialized:
-            logger.debug("[NewtonVisualizer] set_camera_view() ignored because visualizer is not initialized.")
-            return
-        self._apply_camera_pose((tuple(eye), tuple(target)))
+        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
+        target_t = (float(target[0]), float(target[1]), float(target[2]))
+        self.cfg.eye = eye_t
+        self.cfg.lookat = target_t
+        self._apply_camera_pose((eye_t, target_t))
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""

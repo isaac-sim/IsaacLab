@@ -188,7 +188,7 @@ def _rename_builder_labels(
     destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
-) -> None:
+) -> list[tuple[str, str, int]]:
     """Rename builder labels/keys from source roots to destination roots.
 
     Walks both built-in label arrays (see :data:`_BUILTIN_LABEL_TYPES`) and any
@@ -205,7 +205,13 @@ def _rename_builder_labels(
         destinations: Destination prim path templates.
         env_ids: Environment ids corresponding to mapping columns.
         mapping: Boolean source-to-environment mapping matrix.
+
+    Returns:
+        Fabric body binding records as ``(fabric_body_path, body_index)``.
     """
+    fabric_body_bindings: list[tuple[str, int]] = []
+    bound_body_indices: set[int] = set()
+
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
         # Canonicalize the source root (drop any trailing ``/``) so the
@@ -215,7 +221,7 @@ def _rename_builder_labels(
         # Map Newton world IDs (sequential) to destination paths using env_ids
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
-        def _rename_pair(values, worlds):
+        def _rename_pair(values, worlds, *, collect_body_bindings: bool = False):
             if len(values) != len(worlds):
                 raise ValueError(f"label/world column length mismatch: {len(values)} vs {len(worlds)}")
             for k in range(len(values)):
@@ -239,7 +245,11 @@ def _rename_builder_labels(
                 #                        when src_root is "/Sources/protoA" -> skip.
                 if suffix and not suffix.startswith("/"):
                     continue
-                values[k] = world_roots[world_id] + suffix
+                renamed_value = world_roots[world_id] + suffix
+                if collect_body_bindings:
+                    fabric_body_bindings.append((renamed_value, k))
+                    bound_body_indices.add(k)
+                values[k] = renamed_value
 
         # Pass 1: built-in label arrays. Each has a paired ``*_world`` int column.
         # Use ``is None`` (not ``or``) so an empty-but-defined ``*_label`` column
@@ -252,7 +262,7 @@ def _rename_builder_labels(
             worlds_arr = getattr(builder, f"{t}_world", None)
             if labels is None or worlds_arr is None:
                 continue
-            _rename_pair(labels, worlds_arr)
+            _rename_pair(labels, worlds_arr, collect_body_bindings=t == "body")
 
         # Pass 2: string-typed custom-attribute columns (e.g. ``mujoco:tendon_label``)
         # paired with a world companion declared via ``references="world"``. Index
@@ -273,6 +283,12 @@ def _rename_builder_labels(
             if not values or not worlds:
                 continue
             _rename_pair(values, worlds)
+
+    for index, label in enumerate(builder.body_label):
+        if index not in bound_body_indices:
+            fabric_body_bindings.append((label, index))
+
+    return fabric_body_bindings
 
 
 class NewtonReplicateContext:
@@ -397,9 +413,10 @@ class NewtonReplicateContext:
             up_axis=self.up_axis,
             simplify_meshes=self.simplify_meshes,
         )
-        _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+        fabric_body_bindings = _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
         if self.commit_to_manager:
             NewtonManager._cl_site_index_map = site_index_map
+            NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
             NewtonManager._world_xforms = world_xforms
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
