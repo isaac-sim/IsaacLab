@@ -57,11 +57,6 @@ parser.add_argument(
     action="store_true",
     help="Use the pre-trained checkpoint from Nucleus.",
 )
-parser.add_argument(
-    "--use_last_checkpoint",
-    action="store_true",
-    help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
@@ -103,11 +98,7 @@ def main():
                 return
         elif args_cli.checkpoint is None:
             run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")
-            if args_cli.use_last_checkpoint:
-                checkpoint_file = ".*"
-            else:
-                checkpoint_file = f"{agent_cfg['params']['config']['name']}.pth"
-            resume_path = get_checkpoint_path(log_root_path, run_dir, checkpoint_file, other_dirs=["nn"])
+            resume_path = get_checkpoint_path(log_root_path, run_dir, other_dirs=["nn"])
         else:
             resume_path = retrieve_file_path(args_cli.checkpoint)
         log_dir = os.path.dirname(os.path.dirname(resume_path))

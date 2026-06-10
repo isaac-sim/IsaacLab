@@ -191,7 +191,11 @@ def parse_env_cfg(
 
 
 def get_checkpoint_path(
-    log_path: str, run_dir: str = ".*", checkpoint: str = ".*", other_dirs: list[str] = None, sort_alpha: bool = True
+    log_path: str,
+    run_dir: str = ".*",
+    checkpoint: str | None = None,
+    other_dirs: list[str] = None,
+    sort_alpha: bool = True,
 ) -> str:
     """Get path to the model checkpoint in input directory.
 
@@ -207,8 +211,8 @@ def get_checkpoint_path(
             recent directory created inside :attr:`log_path`.
         other_dirs: The intermediate directories between the run directory and the checkpoint file. Defaults to
             None, which implies that checkpoint file is directly under the run directory.
-        checkpoint: The regex expression for the model checkpoint file. Defaults to the most recent
-            torch-model saved in the :attr:`run_dir` directory.
+        checkpoint: The regex expression for the model checkpoint file. Defaults to None, which selects the latest
+            checkpoint saved in the :attr:`run_dir` directory.
         sort_alpha: Whether to sort the runs by alphabetical order. Defaults to True.
             If False, the folders in :attr:`run_dir` are sorted by the last modified time.
 
@@ -239,13 +243,14 @@ def get_checkpoint_path(
     except IndexError:
         raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
 
+    checkpoint_pattern = checkpoint if checkpoint is not None else ".*"
     # list all model checkpoints in the directory
-    model_checkpoints = [f for f in os.listdir(run_path) if re.match(checkpoint, f)]
+    model_checkpoints = [f for f in os.listdir(run_path) if re.match(checkpoint_pattern, f)]
     # check if any checkpoints are present
     if len(model_checkpoints) == 0:
-        raise ValueError(f"No checkpoints in the directory: '{run_path}' match '{checkpoint}'.")
-    # sort alphabetically while ensuring that *_10 comes after *_9
-    model_checkpoints.sort(key=lambda m: f"{m:0>15}")
+        raise ValueError(f"No checkpoints in the directory: '{run_path}' match '{checkpoint_pattern}'.")
+    # sort naturally so numbered checkpoints such as *_10 come after *_9 even with long filename prefixes
+    model_checkpoints.sort(key=lambda m: [int(token) if token.isdigit() else token for token in re.split(r"(\d+)", m)])
     # get latest matched checkpoint file
     checkpoint_file = model_checkpoints[-1]
 
