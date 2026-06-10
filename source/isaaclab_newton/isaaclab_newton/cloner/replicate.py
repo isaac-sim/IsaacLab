@@ -27,8 +27,8 @@ def _relative_clone_xform(
     quaternions: torch.Tensor,
 ) -> wp.transform:
     """Return the transform that moves a source-world prototype into a target world."""
-    source_world_xform = wp.transform(positions[source_world_index].tolist(), quaternions[source_world_index].tolist())
-    target_world_xform = wp.transform(positions[target_world_index].tolist(), quaternions[target_world_index].tolist())
+    source_world_xform = wp.transform(positions[source_world_index], quaternions[source_world_index])
+    target_world_xform = wp.transform(positions[target_world_index], quaternions[target_world_index])
     return wp.transform_multiply(target_world_xform, wp.transform_inverse(source_world_xform))
 
 
@@ -135,7 +135,7 @@ def _build_newton_builder_from_mapping(
         # begin a new world context (Newton assigns world ID = col)
         builder.begin_world()
 
-        world_xform = wp.transform(positions[col].tolist(), quaternions[col].tolist())
+        world_xform = wp.transform(positions[col], quaternions[col])
         world_xforms.append(world_xform)
 
         # Per-world bodyless sites are placed in each world's (global) frame.
