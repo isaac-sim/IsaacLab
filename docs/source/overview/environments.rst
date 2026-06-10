@@ -187,7 +187,7 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |surface-gripper|       | |long-suction-link|          | Stack three cubes (bottom to top: blue, red, green)                         |                              |
     |                         |                              | with the UR10 arm and long surface gripper                                  |                              |
-    |                         | |short-suction-link|         | or short surface gripper.                                                   |                              |
+    |                         | |short-suction-link|         | or short surface gripper (cpu only).                                        |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``physx``,      |
     |                         |                              |                                                                             | ``newton_mjwarp``            |
