@@ -1,11 +1,11 @@
-.. _isaaclab-installation-root:
-
 .. seealso::
 
    Installation docs are the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/overview/developer-guide/agent_skills`.
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
+.. _isaaclab-installation-root:
 
 Local Installation
 ==================

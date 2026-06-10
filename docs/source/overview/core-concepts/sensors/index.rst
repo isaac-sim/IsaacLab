@@ -8,7 +8,7 @@ Sensors
    This section is the source of truth for the ``isaaclab-using-sensors-actuators`` agent skill
    (`skills/user/use-sensors-actuators/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/use-sensors-actuators/SKILL.md>`__).
    When you change these pages, update the skill so agent guidance stays in sync. See
-   :doc:`/overview/developer-guide/agent_skills`.
+   :doc:`/source/overview/developer-guide/agent_skills`.
 
 In this section, we will overview the various sensor APIs provided by Isaac Lab.
 

@@ -8,7 +8,7 @@ Debugging and Training Guide
    (`skills/user/train-rl-agents/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/train-rl-agents/SKILL.md>`__,
    `skills/user/debug-rl-training/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/debug-rl-training/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/overview/developer-guide/agent_skills`.
+   :doc:`/source/overview/developer-guide/agent_skills`.
 
 In this tutorial, we'll guide developers working with Isaac Lab to understand the
 impact of various parameters on training time, GPU utilization, and memory usage.

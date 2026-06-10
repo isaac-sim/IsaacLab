@@ -13,7 +13,7 @@ Task Design Workflows
    (`skills/user/create-environments/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/create-environments/SKILL.md>`__,
    `skills/user/plan-manipulation-tasks/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/plan-manipulation-tasks/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/overview/developer-guide/agent_skills`.
+   :doc:`/source/overview/developer-guide/agent_skills`.
 
 A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it.
 
