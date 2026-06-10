@@ -417,7 +417,7 @@ class DirectRLEnvWarp(DirectRLEnv):
             )  # Creates a tensor and discards it. Not graphable unless training loop reuses the same pointer.
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
+        # note: hoisted out of the decimation loop; is_rendering does live settings lookups
         is_rendering = self.sim.is_rendering
 
         # perform physics stepping
