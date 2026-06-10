@@ -42,6 +42,7 @@ os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 
 try:
+    import ovrtx
     from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 except ModuleNotFoundError as exc:
     if exc.name != "ovrtx":
