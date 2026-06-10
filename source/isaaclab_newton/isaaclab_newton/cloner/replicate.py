@@ -20,18 +20,6 @@ from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab_newton.physics import NewtonManager
 
 
-def _relative_clone_xform(
-    source_world_index: int,
-    target_world_index: int,
-    positions: torch.Tensor,
-    quaternions: torch.Tensor,
-) -> wp.transform:
-    """Return the transform that moves a source-world prototype into a target world."""
-    source_world_xform = wp.transform(positions[source_world_index], quaternions[source_world_index])
-    target_world_xform = wp.transform(positions[target_world_index], quaternions[target_world_index])
-    return wp.transform_multiply(target_world_xform, wp.transform_inverse(source_world_xform))
-
-
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -150,9 +138,10 @@ def _build_newton_builder_from_mapping(
             proto = protos[source]
             offset = builder.shape_count
 
+            source_world_index = source_world_indices[int(row)]
+            source_world_xform = wp.transform(positions[source_world_index], quaternions[source_world_index])
             builder.add_builder(
-                proto,
-                xform=_relative_clone_xform(source_world_indices[int(row)], col, positions, quaternions),
+                proto, xform=wp.transform_multiply(world_xform, wp.transform_inverse(source_world_xform))
             )
 
             # Compute final shape indices for sites in this proto
