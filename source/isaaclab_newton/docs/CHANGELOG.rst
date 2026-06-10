@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.13.2 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
 0.13.1 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~~
 

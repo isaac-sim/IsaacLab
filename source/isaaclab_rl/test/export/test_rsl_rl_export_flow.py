@@ -16,9 +16,12 @@ import os
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
+
+torch = pytest.importorskip("torch")
 
 # Root of the repository (three levels up from this file).
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -136,17 +139,68 @@ def _leapp_log_tail(export_dir: str) -> str:
 def _load_export_module():
     """Load the LEAPP RSL-RL export script as an importable module."""
     module = sys.modules.get(_EXPORT_MODULE_NAME)
-    if module is not None:
+    if module is not None and hasattr(module, "ensure_actor_hidden_state_initialized"):
         return module
 
+    sys.modules.pop(_EXPORT_MODULE_NAME, None)
     spec = importlib.util.spec_from_file_location(_EXPORT_MODULE_NAME, _EXPORT_SCRIPT)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not create module spec for {_EXPORT_SCRIPT}")
 
     module = importlib.util.module_from_spec(spec)
     sys.modules[_EXPORT_MODULE_NAME] = module
-    spec.loader.exec_module(module)
+    original_modules = {
+        name: sys.modules.get(name) for name in ("isaaclab", "isaaclab.app", "isaaclab_tasks", "isaaclab_tasks.utils")
+    }
+    isaaclab_module = types.ModuleType("isaaclab")
+    isaaclab_app_module = types.ModuleType("isaaclab.app")
+    isaaclab_tasks_module = types.ModuleType("isaaclab_tasks")
+    isaaclab_tasks_utils_module = types.ModuleType("isaaclab_tasks.utils")
+
+    class _AppLauncher:
+        @staticmethod
+        def add_app_launcher_args(parser):
+            return None
+
+    setattr(isaaclab_app_module, "AppLauncher", _AppLauncher)
+    setattr(isaaclab_tasks_utils_module, "fold_preset_tokens", lambda args: args)
+    setattr(isaaclab_tasks_utils_module, "setup_preset_cli", lambda parser, argv=None: parser.parse_known_args(argv))
+    sys.modules["isaaclab"] = isaaclab_module
+    sys.modules["isaaclab.app"] = isaaclab_app_module
+    sys.modules["isaaclab_tasks"] = isaaclab_tasks_module
+    sys.modules["isaaclab_tasks.utils"] = isaaclab_tasks_utils_module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        for name, original_module in original_modules.items():
+            if original_module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original_module
+    setattr(module, "torch", torch)
     return module
+
+
+class _ModularRNN(torch.nn.Module):
+    """Minimal RSL-RL 5.x RNN wrapper shape."""
+
+    def __init__(self):
+        super().__init__()
+        self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
+        self.hidden_state = None
+
+
+class _ModularRecurrentPolicy(torch.nn.Module):
+    """Minimal RSL-RL 5.x RNNModel shape."""
+
+    is_recurrent = True
+
+    def __init__(self):
+        super().__init__()
+        self.rnn = _ModularRNN()
+
+    def get_hidden_state(self):
+        return self.rnn.hidden_state
 
 
 @contextlib.contextmanager
@@ -240,6 +294,26 @@ def _run_export_batch_entrypoint() -> None:
     if not tasks:
         raise ValueError("Expected at least one task for --export-flow-batch")
     _run_export_batch(tasks)
+
+
+def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
+    """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
+    export_module = _load_export_module()
+    policy = _ModularRecurrentPolicy()
+
+    actor_state = export_module.ensure_actor_hidden_state_initialized(
+        policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32
+    )
+    registered_state = tuple(tensor + 1.0 for tensor in actor_state)
+    export_module.set_actor_hidden_state(
+        policy,
+        export_module.actor_hidden_from_registered(registered_state, actor_state),
+    )
+
+    assert export_module.is_actor_recurrent_policy(policy)
+    assert export_module.get_actor_memory_module(policy) is policy.rnn
+    assert export_module.get_actor_hidden_state(policy) is registered_state
+    assert policy.rnn.hidden_state is registered_state
 
 
 @pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)

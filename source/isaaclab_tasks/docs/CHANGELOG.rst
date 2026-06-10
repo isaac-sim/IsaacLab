@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.10.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ANYmal-C navigation task's ``newton_mjwarp`` preset so physics and contact sensors resolve to Newton together.
+* Increased the AutoMate assembly and disassembly PhysX GPU collision stack to avoid dropped contacts at the default 128 environments.
+* Updated AutoMate run helpers and docs to reject placeholder assembly IDs before launching simulation.
+
+
 1.10.3 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~~
 

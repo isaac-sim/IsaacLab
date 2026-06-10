@@ -8,6 +8,9 @@ LEAPP. If your policy is manager-based, use the
 :doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`
 instead.
 
+For background on LEAPP concepts, supported node patterns, state feedback, and
+runtime validation, see the `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`__.
+
 
 Overview
 ~~~~~~~~
@@ -23,7 +26,8 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-Before exporting, install LEAPP into the Isaac Lab Python environment:
+This export flow requires ``leapp>=0.5.2``. Before exporting, install LEAPP into
+the Isaac Lab Python environment:
 
 .. tab-set::
    :sync-group: os

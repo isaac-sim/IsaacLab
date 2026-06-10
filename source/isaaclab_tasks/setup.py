@@ -24,7 +24,6 @@ INSTALL_REQUIRES = [
     "protobuf>=4.25.8,!=5.26.0",
     # basic logger
     "tensorboard",
-    "numba>=0.63.1",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]

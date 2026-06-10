@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.1 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
 0.4.0 (2026-06-02)
 ~~~~~~~~~~~~~~~~~~
 
