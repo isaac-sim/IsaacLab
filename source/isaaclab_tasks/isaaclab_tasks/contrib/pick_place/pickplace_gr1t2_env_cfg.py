@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import os
 import tempfile
 
@@ -25,8 +26,16 @@ from isaaclab.utils.configclass import configclass
 from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
+
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -602,8 +611,10 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             anchor_pos=(0.0, 0.0, 0.0),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        # Only configure the teleop pipeline when isaacteleop is available.
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

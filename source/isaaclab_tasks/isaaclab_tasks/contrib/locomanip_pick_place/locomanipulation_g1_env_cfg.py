@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
+import logging
+
+from isaaclab_teleop import XrAnchorRotationMode, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -17,6 +19,15 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.action_cfg import AgileBasedLowerBodyActionCfg
@@ -437,8 +448,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         self.xr.fixed_anchor_height = True
         self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_locomanipulation_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        # IsaacTeleop-based teleoperation pipeline (only when isaacteleop is available).
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_g1_locomanipulation_pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

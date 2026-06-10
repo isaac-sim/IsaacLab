@@ -2,11 +2,11 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import logging
 import os
 import tempfile
 
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -25,6 +25,15 @@ from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
+
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 from . import mdp
 
@@ -598,8 +607,10 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
             anchor_pos=(0.0, 0.0, 0.0),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_inspire_pickplace_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        # Only configure the teleop pipeline when isaacteleop is available.
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_g1_inspire_pickplace_pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
