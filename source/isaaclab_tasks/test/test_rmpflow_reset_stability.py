@@ -43,7 +43,10 @@ _SETTLE_TOL = 0.3
 
 # Per-task budget for total |Δjoint| (rad) drift away from the reset pose after settling.
 # Values sit comfortably above the corrected behavior yet far below the multi-radian divergence
-# the orientation-convention bug produced. The suction task carries a larger null-space residual.
+# the orientation-convention bug produced (~12 rad on the Agibot right arm). The wide separation
+# between corrected drift and the bug's divergence leaves room to tighten these once the corrected
+# per-task drift is characterized more precisely. The suction task carries a larger null-space
+# residual, hence its higher budget.
 _RMPFLOW_TASKS = [
     ("Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0", 1.5),
     ("Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0", 1.5),
@@ -71,7 +74,9 @@ def test_rmpflow_reset_pose_is_stable(task_name: str, drift_tol: float):
 
     try:
         robot = env.unwrapped.scene["robot"]
-        # Joints actively controlled by the RMPFlow arm action term.
+        # Joints actively controlled by the RMPFlow arm action term. The action term has no public
+        # accessor for its resolved joint indices, so read the private attribute directly; switch to
+        # a public property here if one is ever added.
         arm_joint_ids = env.unwrapped.action_manager.get_term("arm_action")._joint_ids
         if isinstance(arm_joint_ids, slice):
             arm_joint_ids = list(range(robot.num_joints))
