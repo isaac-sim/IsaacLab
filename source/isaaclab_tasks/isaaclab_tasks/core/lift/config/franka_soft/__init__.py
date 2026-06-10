@@ -5,15 +5,14 @@
 
 import gymnasium as gym
 
-from . import agents
+from isaaclab_tasks.core.lift.config.franka_soft import agents
 
 ##
 # Register Gym environments.
 ##
 
-
 gym.register(
-    id="Isaac-Lift-Soft-Franka-v0",
+    id="Isaac-Lift-Soft-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,7 +22,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Lift-Cloth-Franka-v0",
+    id="Isaac-Lift-Cloth-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

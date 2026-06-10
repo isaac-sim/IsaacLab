@@ -56,9 +56,8 @@ import pytest
 import torch
 import warp as wp
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
@@ -82,6 +81,8 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit  # noqa: E402
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 
 _OMNI_PHYSX_SCHEMAS_GAP_REASON = (

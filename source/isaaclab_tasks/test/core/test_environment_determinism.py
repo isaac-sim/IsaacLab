@@ -37,7 +37,7 @@ def setup_environment():
     "task_name",
     [
         "Isaac-Open-Drawer-Franka-v0",
-        "Isaac-Lift-Cube-Franka-v0",
+        "Isaac-Lift-Cube-Franka",
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
