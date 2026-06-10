@@ -319,7 +319,6 @@ _TERRAINS = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @flaky(max_runs=5, min_passes=1)
-@pytest.mark.isaacsim_ci
 def test_cube_contact_time(device):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     _run_contact_sensor_test(CUBE_CFG, _SIM_DT, device, _TERRAINS, _DURATIONS)
@@ -327,7 +326,6 @@ def test_cube_contact_time(device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @flaky(max_runs=5, min_passes=1)
-@pytest.mark.isaacsim_ci
 def test_sphere_contact_time(device):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     _run_contact_sensor_test(SPHERE_CFG, _SIM_DT, device, _TERRAINS, _DURATIONS)
@@ -335,7 +333,6 @@ def test_sphere_contact_time(device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 6, 24])
-@pytest.mark.isaacsim_ci
 def test_cube_stack_contact_filtering(device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
@@ -397,7 +394,6 @@ def test_cube_stack_contact_filtering(device, num_envs):
         assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
 
 
-@pytest.mark.isaacsim_ci
 def test_no_contact_reporting():
     """Test that OVPhysX contact sensor returns zero forces when no filter is configured.
 
@@ -463,7 +459,6 @@ def test_no_contact_reporting():
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.isaacsim_ci
 def test_multi_body_per_sensor_indexing(device, num_envs):
     """Ground-truth body-index check for a single sensor that resolves to two bodies.
 
@@ -526,7 +521,6 @@ def test_multi_body_per_sensor_indexing(device, num_envs):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_sensor_print(device):
     """Test sensor print is working correctly."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
@@ -549,7 +543,6 @@ def test_sensor_print(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_contact_sensor_threshold(device):
     """Test that the contact sensor USD threshold attribute is set to 0.0."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
@@ -594,7 +587,6 @@ def test_contact_sensor_threshold(device):
 )
 @pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -0.1), (0.0, -10.0, -0.1)])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_friction_reporting(device, grav_dir):
     """Test friction force reporting for contact sensors.
 
@@ -655,7 +647,6 @@ def test_friction_reporting(device, grav_dir):
     )
 )
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_invalid_prim_paths_config(device):
     """Test that a ValueError is raised when track_friction_forces=True and filter_prim_paths_expr is empty."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device)
@@ -690,7 +681,6 @@ def test_invalid_prim_paths_config(device):
     )
 )
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_invalid_max_contact_points_config(device):
     """Test that a ValueError is raised when track_friction_forces=True and max_contact_data_count_per_prim=0."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device)
