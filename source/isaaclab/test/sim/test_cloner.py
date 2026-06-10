@@ -33,6 +33,7 @@ from isaaclab.cloner import (
     queue_usd_replication,
     replicate,
     resolve_clone_plan_source,
+    resolve_source_env_id,
     sequential,
     split_clone_template,
     usd_replicate,
@@ -61,8 +62,31 @@ def test_split_clone_template():
     """Split clone destination templates around their clone slot."""
     assert split_clone_template("/World/envs/env_{}/Robot") == ("/World/envs/env_", "/Robot")
     assert split_clone_template("/World/scenes/{}/") == ("/World/scenes/", "")
-    with pytest.raises(ValueError, match="must contain"):
+    with pytest.raises(ValueError, match=r"Clone destination template must contain exactly one '\{\}'"):
         split_clone_template("/World/envs/env_0/Robot")
+    with pytest.raises(ValueError, match=r"Clone destination template must contain exactly one '\{\}'"):
+        split_clone_template("/World/envs/{}/Robot/{}")
+    with pytest.raises(ValueError, match=r"Clone destination template must contain exactly one '\{\}'"):
+        split_clone_template("/World/envs/{}{}/Robot")
+
+
+def test_resolve_source_env_id():
+    """Parse the source env id from paths via destination templates."""
+    object_tmpl = "/World/envs/env_{}/Object"
+    robot_tmpl = "/World/envs/env_{}/Robot"
+
+    assert resolve_source_env_id("/World/envs/env_0/Object", object_tmpl) == 0
+    assert resolve_source_env_id("/World/envs/env_1/Object", object_tmpl) == 1
+    assert resolve_source_env_id("/World/envs/env_0/Robot/base", robot_tmpl) == 0
+
+    custom_tmpl = "/World/scenes/instance_{}/Robot"
+    assert resolve_source_env_id("/World/scenes/instance_2/Robot", custom_tmpl) == 2
+    assert resolve_source_env_id("/World/scenes/instance_2/Robot/ee_link", custom_tmpl) == 2
+
+    with pytest.raises(RuntimeError, match="does not match destination template"):
+        resolve_source_env_id("/World/other/env_0/Object", object_tmpl)
+    with pytest.raises(RuntimeError, match="does not match destination template"):
+        resolve_source_env_id("/World/envs/env_0/Object", robot_tmpl)
 
 
 def test_usd_replicate_with_positions_and_mask(sim):

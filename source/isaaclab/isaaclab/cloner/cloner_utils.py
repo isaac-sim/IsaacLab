@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 def split_clone_template(destination_template: str) -> tuple[str, str]:
     """Split a clone destination template around its clone slot.
 
-    The ``"{}"`` slot represents one concrete environment/instance path segment.
+    The ``"{}"`` slot represents one concrete environment/instance path segment. A destination path template
+    must contain exactly one clone slot.
 
     Args:
         destination_template: Destination path template with ``"{}"`` for the instance id.
@@ -38,12 +39,13 @@ def split_clone_template(destination_template: str) -> tuple[str, str]:
         The ``(prefix, suffix)`` around the clone slot.
 
     Raises:
-        ValueError: If ``destination_template`` does not contain a clone slot.
+        ValueError: If ``destination_template`` does not contain exactly one clone slot.
     """
     destination_template = destination_template.rstrip("/") or "/"
-    prefix, slot, suffix = destination_template.partition("{}")
-    if slot != "{}":
-        raise ValueError(f"Clone destination template must contain '{{}}': {destination_template!r}.")
+    slot_count = destination_template.count("{}")
+    if slot_count != 1:
+        raise ValueError(f"Clone destination template must contain exactly one '{{}}': {destination_template!r}.")
+    prefix, _, suffix = destination_template.partition("{}")
     return prefix, suffix
 
 
@@ -74,6 +76,32 @@ def get_suffix(path_expr: str, destination_template: str) -> str | None:
         return None
     suffix = path_expr[match.end() :]
     return None if suffix and not suffix.startswith("/") else suffix
+
+
+def resolve_source_env_id(source: str, destination_template: str) -> int:
+    """Return the env id encoded in a source path's clone slot.
+
+    Args:
+        source: Source prim path used for cloning.
+        destination_template: Per-row destination template with one ``"{}"`` slot.
+
+    Returns:
+        Env id parsed from the ``"{}"`` slot in ``source``.
+
+    Raises:
+        RuntimeError: If ``source`` does not match ``destination_template`` or the slot
+            is not a numeric env id.
+    """
+    prefix, suffix = split_clone_template(destination_template)
+    normalized_source = source.rstrip("/") or "/"
+    pattern = re.compile(rf"^{re.escape(prefix)}([^/]+){re.escape(suffix)}(?:/.*)?$")
+    match = pattern.match(normalized_source)
+    if match is None:
+        raise RuntimeError(f"Source path {source!r} does not match destination template {destination_template!r}.")
+    try:
+        return int(match.group(1))
+    except ValueError as exc:
+        raise RuntimeError(f"Clone slot {match.group(1)!r} from {source!r} is not a numeric env id.") from exc
 
 
 def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:

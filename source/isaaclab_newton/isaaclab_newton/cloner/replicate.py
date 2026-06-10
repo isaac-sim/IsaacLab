@@ -15,6 +15,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
+from isaaclab.cloner.cloner_utils import resolve_source_env_id
 from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 
 from isaaclab_newton.physics import NewtonManager
@@ -23,6 +24,7 @@ from isaaclab_newton.physics import NewtonManager
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
@@ -35,6 +37,7 @@ def _build_newton_builder_from_mapping(
     Args:
         stage: USD stage containing source assets.
         sources: Source prim paths used for cloning.
+        destinations: Destination path templates with one ``"{}"`` slot per source row.
         env_ids: Environment ids for destination worlds.
         mapping: Boolean source-to-environment mapping matrix.
         positions: Optional per-environment world positions.
@@ -62,10 +65,6 @@ def _build_newton_builder_from_mapping(
         ignore_paths=["/World/envs", *sources],
         schema_resolvers=schema_resolvers,
     )
-
-    # The prototype is built from env_0 in absolute world coordinates.
-    # add_builder xforms are deltas from env_0 so positions don't get double-counted.
-    env0_pos = positions[0]
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
@@ -120,26 +119,34 @@ def _build_newton_builder_from_mapping(
     for col, _ in enumerate(env_ids.tolist()):
         # begin a new world context (Newton assigns world ID = col)
         builder.begin_world()
-        # ``add_builder`` xforms are deltas from env_0 (the proto is baked in env_0's
-        # absolute coords), while bodyless world sites and ``world_xforms`` live in the
-        # global frame and therefore use the env's absolute transform.
-        delta_pos = (positions[col] - env0_pos).tolist()
-        env_xform = wp.transform(delta_pos, quaternions[col].tolist())
+
         world_xform = wp.transform(positions[col].tolist(), quaternions[col].tolist())
         world_xforms.append(world_xform)
+
         # Per-world bodyless sites are placed in each world's (global) frame.
         for label, xform in world_sites.items():
             if label not in local_site_map:
                 local_site_map[label] = [[] for _ in range(num_worlds)]
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
             local_site_map[label][col].append(site_idx)
+
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            proto = protos[sources[row]]
+            source = sources[int(row)]
+            destination = destinations[int(row)]
+            proto = protos[source]
             offset = builder.shape_count
-            builder.add_builder(
-                proto,
-                xform=env_xform,
-            )
+
+            src_env_id = resolve_source_env_id(source, destination)
+
+            xform = None
+
+            # If source and destination env are identical, no xform is needed
+            if src_env_id != col:
+                src_world_xform = wp.transform(positions[src_env_id].tolist(), quaternions[src_env_id].tolist())
+                xform = wp.transform_multiply(world_xform, wp.transform_inverse(src_world_xform))
+
+            builder.add_builder(proto, xform=xform)
+
             # Compute final shape indices for sites in this proto
             for label, proto_shape_indices in proto_sites.get(id(proto), {}).items():
                 if label not in local_site_map:
@@ -406,6 +413,7 @@ class NewtonReplicateContext:
         builder, stage_info, site_index_map, world_xforms = _build_newton_builder_from_mapping(
             stage=self.stage,
             sources=sources,
+            destinations=destinations,
             env_ids=env_ids,
             mapping=mapping,
             positions=positions,

@@ -17,6 +17,7 @@ __all__ = [
     "REPLICATION_QUEUE",
     "replicate",
     "resolve_clone_plan_source",
+    "resolve_source_env_id",
     "split_clone_template",
     "queue_usd_replication",
     "sequential",
@@ -35,6 +36,7 @@ from .cloner_utils import (
     iter_clone_plan_matches,
     make_clone_plan,
     resolve_clone_plan_source,
+    resolve_source_env_id,
     split_clone_template,
 )
 from .replicate_session import (
