@@ -21,6 +21,28 @@ from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab_newton.physics import NewtonManager
 
 
+def _relative_clone_xform(
+    source: str,
+    destination: str,
+    target_world_index: int,
+    env_id_to_world_index: dict[int, int],
+    positions: torch.Tensor,
+    quaternions: torch.Tensor,
+) -> wp.transform:
+    """Return the transform that moves a source-env prototype into a target world."""
+    source_env_id = resolve_source_env_id(source, destination)
+    source_world_index = env_id_to_world_index.get(source_env_id)
+    if source_world_index is None:
+        raise RuntimeError(
+            f"Source path {source!r} resolved to env id {source_env_id}, which is not present in env_ids "
+            f"{sorted(env_id_to_world_index)}."
+        )
+
+    source_world_xform = wp.transform(positions[source_world_index].tolist(), quaternions[source_world_index].tolist())
+    target_world_xform = wp.transform(positions[target_world_index].tolist(), quaternions[target_world_index].tolist())
+    return wp.transform_multiply(target_world_xform, wp.transform_inverse(source_world_xform))
+
+
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -114,6 +136,8 @@ def _build_newton_builder_from_mapping(
     # cloned env, mirroring the legacy ``_replicate_from_stage`` path.
     world_xforms: list[wp.transform] = []
 
+    env_id_to_world_index = {int(env_id): index for index, env_id in enumerate(env_ids.tolist())}
+
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
     for col, _ in enumerate(env_ids.tolist()):
@@ -136,16 +160,10 @@ def _build_newton_builder_from_mapping(
             proto = protos[source]
             offset = builder.shape_count
 
-            src_env_id = resolve_source_env_id(source, destination)
-
-            xform = None
-
-            # If source and destination env are identical, no xform is needed
-            if src_env_id != col:
-                src_world_xform = wp.transform(positions[src_env_id].tolist(), quaternions[src_env_id].tolist())
-                xform = wp.transform_multiply(world_xform, wp.transform_inverse(src_world_xform))
-
-            builder.add_builder(proto, xform=xform)
+            builder.add_builder(
+                proto,
+                xform=_relative_clone_xform(source, destination, col, env_id_to_world_index, positions, quaternions),
+            )
 
             # Compute final shape indices for sites in this proto
             for label, proto_shape_indices in proto_sites.get(id(proto), {}).items():
