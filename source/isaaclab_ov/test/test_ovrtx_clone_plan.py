@@ -80,10 +80,10 @@ def _assert_export_contains_env_roots_and_children(exported: str, env_indices: r
     assert exported.count('def Camera "Camera"') == len(env_indices)
 
 
-def _assert_export_omits_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
+def _assert_export_contains_env_roots_but_omits_children(exported: str, env_indices: range | list[int]) -> None:
     """Listed environments and their unique children are omitted from the stage export."""
     for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' not in exported
+        assert f'def Xform "env_{env_idx}"' in exported
         assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
@@ -329,7 +329,6 @@ def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: 
     stage = _make_multi_env_stage(2)
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
-    renderer.cfg.use_ovrtx_cloning = False
     expected_pre_export = stage.ExportToString()
 
     renderer.prepare_stage(stage, 2)
@@ -364,7 +363,6 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     """_initialize_from_spec writes the combined stage when temp_usd_dir is set."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
-    renderer.cfg.use_ovrtx_cloning = False
     renderer._exported_usd_string = "#usda 1.0\n"
 
     open_calls: list[str] = []
@@ -391,7 +389,6 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
 
     stage = _make_multi_env_stage(num_envs)
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer.cfg.use_ovrtx_cloning = True
 
     renderer.prepare_stage(stage, 4)
 
@@ -400,21 +397,5 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
 
     # Only the env_0 prototype subtree is exported.
     _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
-    _assert_export_omits_env_roots_and_children(renderer._exported_usd_string, [1, 2, 3])
+    _assert_export_contains_env_roots_but_omits_children(renderer._exported_usd_string, [1, 2, 3])
 
-
-def test_prepare_stage_skips_clone_plan_when_cloning_disabled(monkeypatch: pytest.MonkeyPatch):
-    """When use_ovrtx_cloning is False, prepare_stage exports the full stage without a clone plan."""
-    _patch_simulation_context(monkeypatch, _create_homogeneous_clone_plan(4))
-
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer.cfg.use_ovrtx_cloning = False
-
-    renderer.prepare_stage(stage, num_envs)
-
-    assert renderer._clone_plan is None
-
-    # The full stage is exported.
-    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, range(num_envs))
