@@ -12,7 +12,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.math import convert_quat, matrix_from_quat
+from isaaclab.utils.math import matrix_from_quat
 
 from .rmp_flow_cfg import RmpFlowControllerCfg  # noqa: F401
 from .utils import import_lula, resolve_rmpflow_path
@@ -100,9 +100,8 @@ class _LulaRmpFlow:
         else:
             self._policy.clear_end_effector_position_attractor()
         if target_orientation is not None:
-            # lula expects a rotation matrix; IsaacLab quaternions are (w, x, y, z)
-            quat_xyzw = convert_quat(torch.as_tensor(target_orientation, dtype=torch.float64), to="xyzw")
-            rot = matrix_from_quat(quat_xyzw).numpy()
+            # lula expects a rotation matrix; IsaacLab quaternions are already (x, y, z, w) convention.
+            rot = matrix_from_quat(torch.as_tensor(target_orientation, dtype=torch.float64)).numpy()
             self._policy.set_end_effector_orientation_attractor(self._lula.Rotation3(rot))
         else:
             self._policy.clear_end_effector_orientation_attractor()

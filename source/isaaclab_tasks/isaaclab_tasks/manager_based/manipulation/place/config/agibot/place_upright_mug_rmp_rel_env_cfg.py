@@ -159,6 +159,10 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
 
         self.events = EventCfgPlaceUprightMug()
 
+        # set viewer to see the robot and objects on the table
+        self.viewer.eye = [1.8, -1.8, 1.8]
+        self.viewer.lookat = [0.3, 0.0, 0.8]
+
         # Set Agibot as robot
         self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = (-0.60, 0.0, 0.0)
@@ -196,7 +200,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
             body_name="gripper_center",
             controller=AGIBOT_LEFT_ARM_RMPFLOW_CFG,
             scale=1.0,
-            body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, -0.7071, 0.0, 0.7071]),
+            body_offset=RMPFlowActionCfg.OffsetCfg(rot=[0.0, -0.7071, 0.0, 0.7071]),
             use_relative_mode=self.use_relative_mode,
         )
 

@@ -251,6 +251,10 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
         # MDP settings
 
+        # set viewer to see the robot and objects on the table
+        self.viewer.eye = [1.8, 0.0, 1.8]
+        self.viewer.lookat = [0.3, 0.0, 0.8]
+
         # Set events
         self.events = EventCfg()
         self.observations.policy = ObservationGalbotLeftArmGripperCfg().PolicyCfg()
