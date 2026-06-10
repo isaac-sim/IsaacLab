@@ -145,7 +145,10 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           if (-not $env:ISAACSIM_ARTIFACTORY_READONLY_USERNAME -or -not $env:ISAACSIM_ARTIFACTORY_READONLY_PASSWORD) {
-            throw "ISAACSIM_ARTIFACTORY_READONLY_USERNAME/PASSWORD secrets are not set; cannot reach the internal Isaac Sim index"
+            # Don't hard-fail: fork PRs don't receive secrets, but the index fetch
+            # below still exercises URL/DNS reachability. Auth-dependent failures
+            # surface later on in-repo runs where the secrets are present.
+            Write-Host "::warning::ISAACSIM_ARTIFACTORY_READONLY_* not set (expected on fork PRs); proceeding unauthenticated"
           }
           # --seed because the wheel-builder step runs `python -m pip install build wheel`.
           uv venv --python 3.12 --seed env_isaaclab_uv
@@ -157,15 +160,15 @@ jobs:
           # credentials when echoing index URLs.
           $u = [uri]::EscapeDataString($env:ISAACSIM_ARTIFACTORY_READONLY_USERNAME)
           $p = [uri]::EscapeDataString($env:ISAACSIM_ARTIFACTORY_READONLY_PASSWORD)
-          $swIndex = "https://${u}:${p}@artifactory.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple"
-          $ctIndex = "https://${u}:${p}@artifactory.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
+          $swIndex = "https://${u}:${p}@artifactory.nvidia.com/artifactory/sw-isaacsim-pypi-local/"
+          $ctIndex = "https://${u}:${p}@artifactory.nvidia.com/artifactory/ct-omniverse-pypi-local/"
 
           # Pull Isaac Sim from the internal Artifactory index at the build aligned
           # with omni_isaac_sim develop, so native Windows tests the same Sim as the
           # Linux/ARM develop container instead of the older public pip release.
           # The resolver authenticates via the ISAACSIM_ARTIFACTORY_READONLY_* env vars.
           $pin = python tools/resolve_isaacsim_develop.py `
-            --index-url "https://artifactory.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple/isaacsim/" `
+            --index-url "https://artifactory.nvidia.com/artifactory/sw-isaacsim-pypi-local/isaacsim/" `
             --python-tag cp312 --platform-tag win_amd64 `
             --verify-branch develop --version-prefix 6.0.0 --allow-unverified
           if ($LASTEXITCODE -ne 0) { throw "resolve_isaacsim_develop.py failed (exit $LASTEXITCODE)" }
