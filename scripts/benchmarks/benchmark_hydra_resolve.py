@@ -65,7 +65,7 @@ QUICK_CASES = (
     Case("cartpole_manager", "Isaac-Cartpole"),
     Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
     Case("anymal_rough", "Isaac-Velocity-Rough-Anymal-C-v0"),
-    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka-v0"),
+    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka"),
     Case(
         "cartpole_camera_newton_ovrtx",
         "Isaac-Cartpole-Camera-Direct",
@@ -83,7 +83,7 @@ BROAD_CASES = (
     Case("ant_manager", "Isaac-Ant"),
     Case("humanoid_manager", "Isaac-Humanoid", "rsl_rl_cfg_entry_point"),
     Case("franka_reach", "Isaac-Reach-Franka"),
-    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka-v0", "sb3_cfg_entry_point"),
+    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka", "sb3_cfg_entry_point"),
     Case("kuka_allegro_lift", "Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point"),
     Case(
         "kuka_allegro_lift_single_camera",

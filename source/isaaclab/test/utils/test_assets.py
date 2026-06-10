@@ -58,6 +58,41 @@ def test_find_asset_dependencies_collects_mdl_texture_resources(tmp_path):
     }
 
 
+def test_find_asset_dependencies_collects_mdl_relative_import_modules(tmp_path):
+    """Test collecting sibling MDL modules imported by material files."""
+    mdl_path = tmp_path / "material.mdl"
+    mdl_path.write_text(
+        """
+        import .::OmniUe4Function;
+        import .::OmniUe4Translucent::*;
+        import .::Shared::OmniUe4Base::*;
+        import .::Helpers::make_color;
+        import ..::Common::Surface::*;
+        export using .::Local::Palette import *;
+        using ..::Shared::Functions import make_color, make_normal;
+        import ::nvidia::core_definitions::*;
+        export material Example(*) = OmniPBR();
+        // import .::CommentedLine;
+        /* import .::CommentedBlock; */
+        string ignored = "import .::QuotedString;";
+        """,
+        encoding="utf-8",
+    )
+
+    assert assets_utils._find_asset_dependencies(str(mdl_path)) == {
+        "OmniUe4Function.mdl",
+        "OmniUe4Translucent.mdl",
+        "Shared/OmniUe4Base.mdl",
+        "Helpers.mdl",
+        "Helpers/make_color.mdl",
+        "../Common/Surface.mdl",
+        "Local.mdl",
+        "Local/Palette.mdl",
+        "../Shared.mdl",
+        "../Shared/Functions.mdl",
+    }
+
+
 def test_find_asset_dependencies_missing_mdl_does_not_log_traceback(tmp_path, caplog):
     """Test unavailable MDL dependencies do not emit tracebacks in training logs."""
     missing_mdl = tmp_path / "missing.mdl"

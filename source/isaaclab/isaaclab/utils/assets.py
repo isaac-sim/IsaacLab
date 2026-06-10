@@ -28,6 +28,11 @@ _UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
 _USD_EXTENSIONS = {".usd", ".usda", ".usdc", ".usdz"}
 _MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
 _MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
+_MDL_IMPORT_RE = re.compile(r"\bimport\s+([^;]+);")
+_MDL_USING_IMPORT_RE = re.compile(r"\busing\s+(.+?)\s+import\s+[^;]+;")
+_MDL_RELATIVE_IMPORT_RE = re.compile(
+    r"(?P<prefix>(?:\.\.::)+|\.::)(?P<module>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?P<wildcard>::\*)?"
+)
 
 
 def _parse_kit_asset_root() -> str:
@@ -198,8 +203,8 @@ def _find_asset_dependencies(local_asset_path: str) -> set[str]:
     """Collect external asset dependencies from a local asset file.
 
     USD layers are parsed with OpenUSD. MDL files are scanned for quoted texture
-    resources because those references are resolved later by the MDL compiler and
-    are not reported by USD dependency discovery.
+    resources and relative module imports because those references are resolved
+    later by the MDL compiler and are not reported by USD dependency discovery.
     """
     suffix = os.path.splitext(local_asset_path)[1].lower()
 
@@ -211,12 +216,7 @@ def _find_asset_dependencies(local_asset_path: str) -> set[str]:
             logger.warning("Failed to open MDL file: %s (%s)", local_asset_path, e)
             return set()
 
-        refs = set()
-        for match in _MDL_RESOURCE_RE.finditer(source):
-            ref = match.group(1)
-            if ref and _MDL_TEXTURE_RE.search(ref.strip()):
-                refs.add(ref.strip())
-        return refs
+        return _find_mdl_dependencies(source)
 
     if suffix not in _USD_EXTENSIONS:
         return set()
@@ -240,6 +240,48 @@ def _find_asset_dependencies(local_asset_path: str) -> set[str]:
         return path
 
     UsdUtils.ModifyAssetPaths(layer, _collect)
+
+    return refs
+
+
+def _find_mdl_dependencies(source: str) -> set[str]:
+    """Collect local asset dependencies from MDL source text."""
+    refs = set()
+
+    for match in _MDL_RESOURCE_RE.finditer(source):
+        ref = match.group(1)
+        if ref and _MDL_TEXTURE_RE.search(ref.strip()):
+            refs.add(ref.strip())
+
+    source_code = _MDL_RESOURCE_RE.sub("", source)
+    for match in _MDL_USING_IMPORT_RE.finditer(source_code):
+        refs.update(_find_mdl_import_dependencies(match.group(1)))
+    source_code = _MDL_USING_IMPORT_RE.sub("", source_code)
+    for match in _MDL_IMPORT_RE.finditer(source_code):
+        refs.update(_find_mdl_import_dependencies(match.group(1)))
+
+    return refs
+
+
+def _find_mdl_import_dependencies(import_clause: str) -> set[str]:
+    """Collect local MDL modules referenced by an import clause."""
+    refs = set()
+
+    for match in _MDL_RELATIVE_IMPORT_RE.finditer(import_clause):
+        prefix = match.group("prefix")
+        package_prefix = [".."] * prefix.count("..::")
+        components = [component for component in match.group("module").split("::") if component]
+        if not components:
+            continue
+
+        if match.group("wildcard") is not None:
+            candidate_lengths = (len(components),)
+        else:
+            # ``import .::A::B;`` can mean module ``A::B`` or symbol ``B`` from module ``A``.
+            candidate_lengths = range(1, len(components) + 1)
+
+        for length in candidate_lengths:
+            refs.add(posixpath.join(*(package_prefix + components[:length])) + ".mdl")
 
     return refs
 

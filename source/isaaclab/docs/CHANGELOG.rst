@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+6.6.2 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rigid-body ancestor resolution for sensor paths whose terminal child path
+  is repeated earlier in the prim path.
+* Fixed :func:`isaaclab.sim.build_simulation_context` silently ignoring the
+  ``device`` kwarg when ``sim_cfg`` is also provided. Most test callers pass
+  both kwargs together; the helper now applies the explicit ``device`` over
+  ``sim_cfg.device`` so the caller's choice wins. Without this, warp kernel
+  launches in :mod:`isaaclab_newton.assets.articulation` raised device
+  mismatch errors on non-default GPUs (``env_ids`` allocated on the test's
+  device while the articulation's resolved device came from the untouched
+  ``sim_cfg`` default ``cuda:0``).
+* Fixed :func:`~isaaclab.cloner.disabled_fabric_change_notifies` to no-op
+  when ``usdrt`` is unavailable in kitless runtimes.
+* Fixed :func:`~isaaclab.cloner.usd.usd_replicate` authoring environment grid
+  positions on nested replicated prims (e.g. cameras), overwriting their local
+  transforms.
+* Fixed livestream launch handling to reject Isaac Sim full-app experiences
+  that depend on ``isaacsim.exp.full`` and to ensure Kit-backed examples open
+  a Kit visualizer by default when needed.
+
+
+6.6.1 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab[all]`` extra to include ``isaaclab_ppisp`` as a peer extension.
+* Fixed LEAPP export of :func:`isaaclab.envs.mdp.projected_gravity` to expose
+  root orientation as the graph input and compute projected gravity inside the
+  exported graph.
+* Fixed local asset retrieval for MDL files that import sibling MDL modules, such as Hospital materials importing OmniUe4 modules.
+* Prevented environment destructors from emitting cleanup tracebacks after Python import shutdown begins.
+* Fixed the ``isaaclab.python.kit`` GUI experience failing to start with a Kit
+  dependency-solver error on Isaac Sim builds that do not ship
+  ``isaacsim.robot.experimental.wheeled_robots`` or
+  ``isaacsim.robot.wheeled_robots.nodes``. These extensions are not imported by
+  Isaac Lab and are now declared optional, so the experience loads regardless of
+  the Isaac Sim build.
+
+
 6.6.0 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~
 
