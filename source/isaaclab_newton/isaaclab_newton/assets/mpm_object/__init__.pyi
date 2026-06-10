@@ -4,8 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "mpm",
-    "materials",
+    "MPMObject",
+    "MPMObjectCfg",
+    "MPMObjectData",
 ]
 
-from . import materials, mpm
+from .mpm_object import MPMObject
+from .mpm_object_cfg import MPMObjectCfg
+from .mpm_object_data import MPMObjectData

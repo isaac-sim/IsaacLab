@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "mpm",
-    "materials",
-]
+"""Newton MPM particle spawner utilities."""
 
-from . import materials, mpm
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

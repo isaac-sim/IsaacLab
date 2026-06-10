@@ -94,6 +94,22 @@ solver actually needs it:
   notification before delegating to the base manager.
 * ``start_simulation()`` or ``instantiate_builder_from_stage()``: customize model
   building or post-finalize setup.
+* ``_register_builder_attributes(builder)``: register solver-specific Newton
+  custom attributes (particle, shape, body) on the builder before particles or
+  finalize run. The active manager class invokes this hook from
+  ``create_builder()``, ``start_simulation()``, and
+  ``instantiate_builder_from_stage()``.
+  :class:`~isaaclab_newton.physics.NewtonMPMManager` is the in-tree example —
+  it registers ``mpm:young_modulus`` and the rest of the implicit MPM
+  particle attributes.
+* ``_prepare_builder_for_finalize(builder)``: normalize imported or replicated
+  builder data right before ``ModelBuilder.finalize()``.
+  :class:`~isaaclab_newton.physics.NewtonMPMManager` uses this to clear mass and
+  inertia on kinematic bodies so implicit MPM treats them as massless colliders.
+* ``_supports_cuda_graph_capture()``: return ``False`` to opt the solver out of
+  CUDA graph capture and fall back to eager execution. Defaults to ``True``;
+  :class:`~isaaclab_newton.physics.NewtonMPMManager` returns ``True`` only for a
+  fixed grid, since sparse/dense MPM grids reallocate as particles move.
 * ``_solver_specific_clear()``: release any class-level state owned by the
   solver manager.
 
