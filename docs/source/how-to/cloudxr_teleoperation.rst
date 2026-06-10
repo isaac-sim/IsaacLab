@@ -495,7 +495,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` and the XR
+For a fully headless experience, replace ``--visualizer kit`` with ``--viz none`` and the XR
 teleop session will run automatically.
 
 .. admonition:: Next Steps

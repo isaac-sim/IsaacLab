@@ -52,7 +52,7 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
          # OVRTX rendering (kit-less, no Kit visualizer)
          ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
-           --headless --enable_cameras --num_envs=16 --max_iterations=10 \
+           --enable_cameras --num_envs=16 --max_iterations=10 \
            physics=newton_mjwarp renderer=ovrtx_renderer presets=simple_shading_diffuse_mdl
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
