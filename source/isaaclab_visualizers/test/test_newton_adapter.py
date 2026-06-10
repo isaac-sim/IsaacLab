@@ -111,6 +111,43 @@ def test_newton_visualizer_cfg_exposes_particle_options():
     assert cfg.particle_color == (0.1, 0.2, 0.3)
 
 
+def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+
+    visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
+
+    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+    assert visualizer._resolve_initial_camera_pose() == ((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+
+
+def test_newton_visualizer_set_camera_view_updates_active_viewer():
+    """NewtonVisualizer should honor SimulationContext camera updates."""
+
+    class _FakeCamera:
+        def __init__(self):
+            self.pos = None
+            self.look_at_calls = []
+
+        def look_at(self, target):
+            self.look_at_calls.append(tuple(target))
+
+    class _FakeViewer:
+        def __init__(self):
+            self.camera = _FakeCamera()
+
+    viewer = _FakeViewer()
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+    visualizer._viewer = viewer
+
+    visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
+
+    assert (viewer.camera.pos.x, viewer.camera.pos.y, viewer.camera.pos.z) == (1.0, 2.0, 3.0)
+    assert viewer.camera.look_at_calls == [(0.0, 0.0, 1.0)]
+    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+
+
 def test_newton_viewer_particle_color_override(monkeypatch):
     from newton.viewer import ViewerGL
 

@@ -492,9 +492,6 @@ follows.
    * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** absolute IK end-effector control. Gripper disabled.
    * - ``Isaac-Reach-Franka-IK-Rel-v0``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.

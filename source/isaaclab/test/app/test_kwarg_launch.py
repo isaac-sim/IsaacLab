@@ -9,6 +9,7 @@ import pytest
 
 import isaaclab.app.app_launcher as app_launcher_module
 from isaaclab.app import AppLauncher
+from isaaclab.app.sim_launcher import _ensure_livestream_kit_visualizer
 
 
 @pytest.mark.usefixtures("mocker")
@@ -22,6 +23,21 @@ def test_livestream_launch_with_kwargs(mocker):
 
     # close the app on exit
     app.close()
+
+
+def test_livestream_injects_kit_visualizer_when_missing():
+    args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=False)
+
+    _ensure_livestream_kit_visualizer(args)
+
+    assert args.visualizer == ["kit"]
+
+
+def test_livestream_rejects_disabled_visualizers():
+    args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=True)
+
+    with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
+        _ensure_livestream_kit_visualizer(args)
 
 
 class _DummySettings:
@@ -214,3 +230,49 @@ def test_invalid_visualizer_intent_rejected(monkeypatch: pytest.MonkeyPatch):
     launcher = AppLauncher.__new__(AppLauncher)
     with pytest.raises(ValueError, match="visualizer_intent"):
         launcher._resolve_visualizer_settings({"visualizer_intent": {"has_any_visualizers": "yes"}})
+
+
+def _new_launcher_for_experience_check():
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._enable_cameras = False
+    launcher._headless = False
+    launcher._xr = False
+    launcher._apply_rtx_determinism = False
+    launcher.is_isaac_sim_version_5 = lambda: False
+    return launcher
+
+
+def test_rejects_isaacsim_full_streaming_experience_with_livestream(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    experience = tmp_path / "isaacsim.exp.full.streaming.kit"
+    experience.write_text('[dependencies]\n"isaacsim.exp.full" = {}\n', encoding="utf-8")
+    monkeypatch.setenv("EXP_PATH", str(tmp_path))
+    launcher = _new_launcher_for_experience_check()
+    launcher._livestream = 2
+
+    with pytest.raises(ValueError, match="depends on 'isaacsim.exp.full'"):
+        launcher._resolve_experience_file({"experience": str(experience)})
+
+
+def test_rejects_custom_experience_with_isaacsim_full_dependency_and_livestream(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    experience = tmp_path / "merged.kit"
+    experience.write_text('[dependencies]\n"isaaclab.python" = {}\n"isaacsim.exp.full" = {}\n', encoding="utf-8")
+    monkeypatch.setenv("EXP_PATH", str(tmp_path))
+    launcher = _new_launcher_for_experience_check()
+    launcher._livestream = 2
+
+    with pytest.raises(ValueError, match="depends on 'isaacsim.exp.full'"):
+        launcher._resolve_experience_file({"experience": str(experience)})
+
+
+def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    experience = tmp_path / "isaacsim.exp.full.streaming.kit"
+    experience.write_text('[dependencies]\n"isaacsim.exp.full" = {}\n', encoding="utf-8")
+    monkeypatch.setenv("EXP_PATH", str(tmp_path))
+    launcher = _new_launcher_for_experience_check()
+    launcher._livestream = 0
+
+    launcher._resolve_experience_file({"experience": str(experience)})
+
+    assert launcher._sim_experience_file == str(experience)

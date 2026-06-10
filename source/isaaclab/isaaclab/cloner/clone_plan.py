@@ -61,9 +61,10 @@ class ClonePlan:
             device: Torch device for the mask and env id buffers.
             positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
         """
+        from .cloner_utils import split_clone_template  # noqa: PLC0415
         from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
 
-        prefix, _, _ = destination.partition("{}")
+        prefix, _ = split_clone_template(destination)
         cfg_rows: dict[int, tuple[int, ...]] = {
             id(cfg): (0,) for cfg, _ in REPLICATION_QUEUE if cfg.prim_path.startswith(prefix)
         }

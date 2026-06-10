@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.15.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton rigid-object deprecated root state writers to call keyword-only
+  pose and velocity helpers correctly.
+* Fixed Newton RTX/Fabric body binding to derive per-body Fabric bindings from
+  clone-plan source rows while labels are rewritten, avoiding invalid Fabric
+  attribute writes without cloning USD specs for each environment.
+
+
 0.15.4 (2026-06-09)
 ~~~~~~~~~~~~~~~~~~~
 
