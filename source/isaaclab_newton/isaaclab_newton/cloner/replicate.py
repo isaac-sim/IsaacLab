@@ -5,21 +5,32 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import torch
-import warp as wp
-from newton import ModelBuilder, solvers
+from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
 from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim import SimulationContext
 
+from isaaclab_newton.cloner.newton_clone_utils import (
+    build_source_builders,
+    rename_builder_labels,
+    replicate_builder_mapping,
+)
 from isaaclab_newton.physics import NewtonManager
+
+if TYPE_CHECKING:
+    _MappingBatch: TypeAlias = tuple[
+        tuple[str, ...], tuple[str, ...], torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None
+    ]
+else:
+    _MappingBatch = tuple
 
 
 def _build_newton_builder_from_mapping(
@@ -33,25 +44,7 @@ def _build_newton_builder_from_mapping(
     up_axis: str = "Z",
     simplify_meshes: bool = True,
 ) -> tuple[ModelBuilder, object, dict, list]:
-    """Build a Newton model builder from clone mapping inputs.
-
-    Args:
-        stage: USD stage containing source assets.
-        sources: Source prim paths used for cloning.
-        destinations: Destination path templates with one ``"{}"`` slot per source row.
-        env_ids: Environment ids for destination worlds.
-        mapping: Boolean source-to-environment mapping matrix.
-        positions: Optional per-environment world positions.
-        quaternions: Optional per-environment orientations in xyzw order.
-        up_axis: Up axis for the Newton model builder.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
-
-    Returns:
-        Tuple of the populated Newton model builder, stage metadata returned
-        by ``add_usd``, a site index map for
-        :attr:`NewtonManager._cl_site_index_map`, and the absolute per-world
-        transforms for :attr:`NewtonManager._world_xforms`.
-    """
+    """Build a Newton model builder from clone mapping inputs."""
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
@@ -59,8 +52,7 @@ def _build_newton_builder_from_mapping(
         quaternions[:, 3] = 1.0
 
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-    sim_ctx = SimulationContext.instance()
-    manager_cls = sim_ctx.physics_manager if sim_ctx is not None else NewtonManager
+    manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
@@ -72,241 +64,41 @@ def _build_newton_builder_from_mapping(
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
     # can skip them via ignore_paths.
-    import re
+    deformable_patterns = tuple(
+        re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in NewtonManager._deformable_registry
+    )
+    deformable_ignore_paths = []
+    if deformable_patterns:
+        for source in sources:
+            for child in Usd.PrimRange(stage.GetPrimAtPath(source)):
+                child_path = str(child.GetPath())
+                if any(pattern.fullmatch(child_path) for pattern in deformable_patterns):
+                    deformable_ignore_paths.append(child_path)
 
-    _deformable_ignore_paths: list[str] = []
-    if hasattr(NewtonManager, "_deformable_registry"):
-        for entry in NewtonManager._deformable_registry:
-            pat = re.compile(entry.prim_path.replace(".*", "[^/]*") + "$")
-            for src_path in sources:
-                # Check if any prim under this source matches the deformable pattern
-                prim = stage.GetPrimAtPath(src_path)
-                if prim.IsValid():
-                    for child in Usd.PrimRange(prim):
-                        child_path = str(child.GetPath())
-                        if pat.match(child_path):
-                            _deformable_ignore_paths.append(child_path)
+    source_builders = build_source_builders(
+        stage,
+        sources,
+        lambda: manager_cls.create_builder(up_axis=up_axis),
+        schema_resolvers,
+        ignore_paths=deformable_ignore_paths or None,
+        simplify_meshes=simplify_meshes,
+    )
 
-    protos: dict[str, ModelBuilder] = {}
-    for src_path in sources:
-        p = manager_cls.create_builder(up_axis=up_axis)
-        solvers.SolverMuJoCo.register_custom_attributes(p)
-        p.add_usd(
-            stage,
-            root_path=src_path,
-            load_visual_shapes=True,
-            skip_mesh_approximation=True,
-            schema_resolvers=schema_resolvers,
-            ignore_paths=_deformable_ignore_paths if _deformable_ignore_paths else None,
-        )
-        if simplify_meshes:
-            p.approximate_meshes("convex_hull", keep_visual_shapes=True)
-        protos[src_path] = p
+    # Inject registered sites into source builders (and global sites into main builder).
+    global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
-    # Inject registered sites into prototypes (and global sites into main builder)
-    global_sites, proto_sites, world_sites = NewtonManager._cl_inject_sites(builder, protos)
+    replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
+    local_site_map, world_xforms = replicate_builder_mapping(
+        *replicate_args,
+        source_site_indices=source_sites,
+        env_root_sites=root_sites,
+        per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
+        post_replicate_hooks=NewtonManager._post_replicate_hooks,
+    )
 
-    # Global sites: (int, None)
-    global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
-
-    # Local sites: per-world sublists, populated in the loop below
-    num_worlds = mapping.size(1)
-    local_site_map: dict[str, list[list[int]]] = {}
-    # Absolute per-world transforms (env-root local-to-world). Consumed by
-    # FrameView to place non-physics frames (e.g. cameras) relative to each
-    # cloned env, mirroring the legacy ``_replicate_from_stage`` path.
-    world_xforms: list[wp.transform] = []
-
-    # Heterogeneous clone-plan rows spawn their prototype in the first active environment
-    # for that row, then reuse that prototype for every other active environment.
-    # NOTE: None is used to indicate that the source does not map to any environment.
-    source_world_indices = []
-    for mapping_row in mapping:
-        nz = torch.nonzero(mapping_row, as_tuple=True)[0]
-        source_world_indices.append(int(nz[0]) if nz.numel() > 0 else None)
-
-    # create a separate world for each environment (heterogeneous spawning)
-    # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
-    for col, _ in enumerate(env_ids.tolist()):
-        # begin a new world context (Newton assigns world ID = col)
-        builder.begin_world()
-
-        world_xform = wp.transform(positions[col], quaternions[col])
-        world_xforms.append(world_xform)
-
-        # Per-world bodyless sites are placed in each world's (global) frame.
-        for label, xform in world_sites.items():
-            if label not in local_site_map:
-                local_site_map[label] = [[] for _ in range(num_worlds)]
-            site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
-            local_site_map[label][col].append(site_idx)
-
-        for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            source = sources[int(row)]
-            proto = protos[source]
-            offset = builder.shape_count
-
-            source_world_index = source_world_indices[int(row)]
-            source_world_xform = wp.transform(positions[source_world_index], quaternions[source_world_index])
-            builder.add_builder(
-                proto, xform=wp.transform_multiply(world_xform, wp.transform_inverse(source_world_xform))
-            )
-
-            # Compute final shape indices for sites in this proto
-            for label, proto_shape_indices in proto_sites.get(id(proto), {}).items():
-                if label not in local_site_map:
-                    local_site_map[label] = [[] for _ in range(num_worlds)]
-                for proto_shape_idx in proto_shape_indices:
-                    local_site_map[label][col].append(offset + proto_shape_idx)
-
-        # Emit registered MPM particle objects into this Newton world.
-        if NewtonManager._mpm_object_registry:
-            from isaaclab_newton.assets.mpm_object.mpm_object import add_registered_mpm_objects_to_builder
-
-            add_registered_mpm_objects_to_builder(builder, col, positions[col].tolist(), quaternions[col].tolist())
-
-        # Run per-world builder hooks (e.g. deformable body registration).
-        if hasattr(NewtonManager, "_per_world_builder_hooks"):
-            for hook in NewtonManager._per_world_builder_hooks:
-                hook(builder, col, positions[col].tolist(), quaternions[col].tolist())
-
-        # end the world context
-        builder.end_world()
-
-    # Run post-replicate hooks (e.g. builder.color() for deformable coloring).
-    if hasattr(NewtonManager, "_post_replicate_hooks"):
-        for hook in NewtonManager._post_replicate_hooks:
-            hook(builder)
-
-    site_index_map = {
-        **global_site_map,
-        **{label: (None, per_world) for label, per_world in local_site_map.items()},
-    }
-
+    site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
+    site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     return builder, stage_info, site_index_map, world_xforms
-
-
-# Built-in label arrays that ``_rename_builder_labels`` rewrites in Pass 1.
-# Each type ``t`` has a paired ``<t>_label`` (or ``<t>_key``) string column
-# and a ``<t>_world`` int column on Newton's ``ModelBuilder``. Exposed as a
-# module-level constant so tests can import it instead of duplicating.
-_BUILTIN_LABEL_TYPES: tuple[str, ...] = (
-    "body",
-    "joint",
-    "shape",
-    "articulation",
-    "constraint_mimic",
-    "equality_constraint",
-)
-
-
-def _rename_builder_labels(
-    builder: ModelBuilder,
-    sources: Sequence[str],
-    destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-) -> list[tuple[str, str, int]]:
-    """Rename builder labels/keys from source roots to destination roots.
-
-    Walks both built-in label arrays (see :data:`_BUILTIN_LABEL_TYPES`) and any
-    string-typed custom-attribute column whose frequency declares a sibling
-    world column (``references="world"``).
-    The boundary-safe match (exact source root, or source root followed by ``/``)
-    makes the rewrite a no-op for strings that are not paths under the source.
-    Non-path custom string columns are passed through untouched and any future
-    solver-registered string column is handled automatically without changes here.
-
-    Args:
-        builder: Newton model builder to update in-place.
-        sources: Source prim root paths.
-        destinations: Destination prim path templates.
-        env_ids: Environment ids corresponding to mapping columns.
-        mapping: Boolean source-to-environment mapping matrix.
-
-    Returns:
-        Fabric body binding records as ``(fabric_body_path, body_index)``.
-    """
-    fabric_body_bindings: list[tuple[str, int]] = []
-    bound_body_indices: set[int] = set()
-
-    # per-source, per-world renaming (strict prefix swap), compact style preserved
-    for i, src_path in enumerate(sources):
-        # Canonicalize the source root (drop any trailing ``/``) so the
-        # boundary-safe match logic in ``_rename_pair`` is unambiguous.
-        src_root = src_path.rstrip("/")
-        world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
-        # Map Newton world IDs (sequential) to destination paths using env_ids
-        world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
-
-        def _rename_pair(values, worlds, *, collect_body_bindings: bool = False):
-            if len(values) != len(worlds):
-                raise ValueError(f"label/world column length mismatch: {len(values)} vs {len(worlds)}")
-            for k in range(len(values)):
-                v = values[k]
-                if not isinstance(v, str):
-                    continue
-                world_id = int(worlds[k])
-                if world_id not in world_roots:
-                    continue
-                # Gate on an explicit prefix test before slicing. ``str.removeprefix``
-                # is tempting but conflates "match with empty suffix" and "no match"
-                # (both return a string starting with "/"), so a label already
-                # rewritten in an earlier source-iteration would be re-prepended to
-                # the next iteration's dst root.
-                if not v.startswith(src_root):
-                    continue
-                suffix = v[len(src_root) :]
-                # ``suffix == ""``     -> exact source-root match (rewrite to dst root).
-                # ``suffix[0] == "/"`` -> child path under source.
-                # otherwise           -> boundary-bleed sibling like "/Sources/protoAB/x"
-                #                        when src_root is "/Sources/protoA" -> skip.
-                if suffix and not suffix.startswith("/"):
-                    continue
-                renamed_value = world_roots[world_id] + suffix
-                if collect_body_bindings:
-                    fabric_body_bindings.append((renamed_value, k))
-                    bound_body_indices.add(k)
-                values[k] = renamed_value
-
-        # Pass 1: built-in label arrays. Each has a paired ``*_world`` int column.
-        # Use ``is None`` (not ``or``) so an empty-but-defined ``*_label`` column
-        # is recognized — falling through to ``*_key`` would over-match a
-        # builder that legitimately exposes both attributes.
-        for t in _BUILTIN_LABEL_TYPES:
-            labels = getattr(builder, f"{t}_label", None)
-            if labels is None:
-                labels = getattr(builder, f"{t}_key", None)
-            worlds_arr = getattr(builder, f"{t}_world", None)
-            if labels is None or worlds_arr is None:
-                continue
-            _rename_pair(labels, worlds_arr, collect_body_bindings=t == "body")
-
-        # Pass 2: string-typed custom-attribute columns (e.g. ``mujoco:tendon_label``)
-        # paired with a world companion declared via ``references="world"``. Index
-        # world companions by frequency for O(1) lookup, then walk the str columns.
-        custom = builder.custom_attributes
-        world_by_freq: dict[str, ModelBuilder.CustomAttribute] = {}
-        for attr in custom.values():
-            if getattr(attr, "references", None) == "world":
-                world_by_freq[attr.frequency] = attr
-        for attr in custom.values():
-            if attr.dtype is not str:
-                continue
-            world_attr = world_by_freq.get(attr.frequency)
-            if world_attr is None:
-                continue
-            values = attr.values
-            worlds = world_attr.values
-            if not values or not worlds:
-                continue
-            _rename_pair(values, worlds)
-
-    for index, label in enumerate(builder.body_label):
-        if index not in bound_body_indices:
-            fabric_body_bindings.append((label, index))
-
-    return fabric_body_bindings
 
 
 class NewtonReplicateContext:
@@ -342,16 +134,7 @@ class NewtonReplicateContext:
             simplify_meshes = cfg.simplify_meshes if isinstance(cfg, NewtonCfg) else True
         self.simplify_meshes = simplify_meshes
         self.commit_to_manager = commit_to_manager
-        self._queue: list[
-            tuple[
-                tuple[str, ...],
-                tuple[str, ...],
-                torch.Tensor,
-                torch.Tensor,
-                torch.Tensor | None,
-                torch.Tensor | None,
-            ]
-        ] = []
+        self._queue: list[_MappingBatch] = []
 
     def queue_mapping(
         self,
@@ -388,9 +171,7 @@ class NewtonReplicateContext:
             raise ValueError(f"Queued Newton mappings must use the same {name} tensor.")
         return current
 
-    def _merged_mapping(
-        self,
-    ) -> tuple[tuple[str, ...], tuple[str, ...], torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
+    def _merged_mapping(self) -> _MappingBatch:
         """Merge queued mapping batches into the legacy flat mapping shape."""
         if not self._queue:
             raise RuntimeError("Cannot replicate without queued Newton mappings.")
@@ -438,7 +219,7 @@ class NewtonReplicateContext:
             up_axis=self.up_axis,
             simplify_meshes=self.simplify_meshes,
         )
-        fabric_body_bindings = _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+        fabric_body_bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping)
         if self.commit_to_manager:
             NewtonManager._cl_site_index_map = site_index_map
             NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
@@ -492,13 +273,6 @@ def newton_physics_replicate(
     ctx = NewtonReplicateContext(
         stage, device=device, up_axis=up_axis, simplify_meshes=simplify_meshes, commit_to_manager=True
     )
-    ctx.queue_mapping(
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=positions,
-        quaternions=quaternions,
-    )
+    ctx.queue_mapping(sources, destinations, env_ids, mapping, positions=positions, quaternions=quaternions)
     builder, stage_info, _site_index_map = ctx.replicate()
     return builder, stage_info

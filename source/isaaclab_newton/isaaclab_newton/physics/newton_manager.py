@@ -10,11 +10,13 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import logging
+import re
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 # Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
@@ -34,6 +36,8 @@ from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
 
+from pxr import UsdGeom
+
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
@@ -41,6 +45,9 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+
+from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
@@ -304,6 +311,9 @@ class NewtonManager(PhysicsManager):
     _cl_site_index_map: dict[str, _SiteEntry] = {}
     _cl_fabric_body_bindings: list[tuple[str, int]] | None = None
     _world_xforms: list[wp.transform] | None = None
+    _deformable_registry: list = []
+    _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
+    _post_replicate_hooks: list[Callable[[ModelBuilder], None]] = []
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -766,6 +776,9 @@ class NewtonManager(PhysicsManager):
         NewtonManager._particles_dirty = False
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
+        NewtonManager._deformable_registry = []
+        NewtonManager._per_world_builder_hooks = []
+        NewtonManager._post_replicate_hooks = []
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
@@ -902,72 +915,72 @@ class NewtonManager(PhysicsManager):
     def _cl_inject_sites(
         cls,
         main_builder: ModelBuilder,
-        proto_builders: dict[str, ModelBuilder],
+        source_builders: dict[str, ModelBuilder],
     ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
-        """Inject registered sites into prototype builders before replication.
+        """Inject registered sites into source builders before replication.
 
-        Non-global sites are matched against prototype body labels using
+        Non-global sites are matched against source builder body labels using
         :func:`resolve_matching_names` (regex). Global sites
         (``body_pattern is None``) are added to *main_builder* with
         ``body=-1``.
 
-        Returns proto-local shape indices so that ``newton_replicate`` can
+        Returns source-builder-local shape indices so that ``newton_replicate`` can
         compute final indices during replication without a second pattern match.
 
         Pending requests are cleared after processing.
 
         Args:
             main_builder: Top-level builder that receives global sites.
-            proto_builders: ``{src_path: ModelBuilder}`` prototype builders.
+            source_builders: ``{source_path: ModelBuilder}`` source builders.
 
         Returns:
-            Tuple of ``(global_sites, proto_sites, world_sites)`` where
-            *global_sites* maps ``{label: main_builder_shape_idx}``,
-            *proto_sites* maps ``{id(proto): {label: [proto_local_shape_idx, ...]}}``,
-            and *world_sites* maps ``{label: env_root_relative_transform}``.
+            Tuple of ``(global_site_indices, source_site_indices, env_root_sites)`` where
+            *global_site_indices* maps ``{label: main_builder_shape_idx}``,
+            *source_site_indices* maps ``{id(source_builder): {label: [source_local_shape_idx, ...]}}``,
+            and *env_root_sites* maps ``{label: env_root_relative_transform}``.
         """
-        global_sites: dict[str, int] = {}
-        proto_sites: dict[int, dict[str, list[int]]] = {}
+        global_site_indices: dict[str, int] = {}
+        source_site_indices: dict[int, dict[str, list[int]]] = {}
 
-        world_sites: dict[str, wp.transform] = {}
+        env_root_sites: dict[str, wp.transform] = {}
 
         for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
             if per_world:
-                world_sites[label] = xform
+                env_root_sites[label] = xform
                 continue
             if body_pattern is None:
                 site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
-                global_sites[label] = site_idx
+                global_site_indices[label] = site_idx
                 continue
 
             any_matched = False
-            for src_prefix, proto in proto_builders.items():
-                body_labels = list(proto.body_label)
+            for _source_path, source_builder in source_builders.items():
+                body_labels = list(source_builder.body_label)
                 matched_indices, matched_names = resolve_matching_names(
                     body_pattern, body_labels, raise_when_no_match=False
                 )
-                if not matched_indices:  # Pattern has no matches in this prototype
+                if not matched_indices:  # Pattern has no matches in this source builder
                     continue
 
                 any_matched = True
-                proto_id = id(proto)
+                source_builder_id = id(source_builder)
                 site_indices: list[int] = []
                 for body_idx, body_name in zip(matched_indices, matched_names):
                     site_label = f"{body_name}/{label}"
-                    proto_site_idx = proto.add_site(body=body_idx, xform=xform, label=site_label)
-                    site_indices.append(proto_site_idx)
-                    logger.debug(f"Injected site '{site_label}' into prototype")
-                proto_sites.setdefault(proto_id, {})[label] = site_indices
+                    source_site_idx = source_builder.add_site(body=body_idx, xform=xform, label=site_label)
+                    site_indices.append(source_site_idx)
+                    logger.debug(f"Injected site '{site_label}' into source builder")
+                source_site_indices.setdefault(source_builder_id, {})[label] = site_indices
 
             if not any_matched:
                 raise ValueError(
-                    f"Site '{label}' with body_pattern '{body_pattern}' matched no prototype bodies "
-                    f"across {len(proto_builders)} prototype(s). "
-                    f"Check that the pattern matches a body label in the prototype builder."
+                    f"Site '{label}' with body_pattern '{body_pattern}' matched no source-builder bodies "
+                    f"across {len(source_builders)} source builder(s). "
+                    f"Check that the pattern matches a body label in a source builder."
                 )
 
         cls._cl_pending_sites.clear()
-        return global_sites, proto_sites, world_sites
+        return global_site_indices, source_site_indices, env_root_sites
 
     @classmethod
     def _cl_inject_sites_fallback(cls) -> None:
@@ -1219,70 +1232,47 @@ class NewtonManager(PhysicsManager):
             # No env Xforms — flat loading
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
             NewtonManager._world_xforms = [wp.transform()]
-            if cls._mpm_object_registry:
-                from isaaclab_newton.assets.mpm_object.mpm_object import add_registered_mpm_objects_to_builder
-
-                add_registered_mpm_objects_to_builder(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
+            for hook in cls._per_world_builder_hooks:
+                hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
             builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
 
-            # Build a prototype from the first env (all envs assumed identical)
             _, proto_path = env_paths[0]
-            proto = cls.create_builder(up_axis=up_axis)
-            proto.add_usd(
-                stage,
-                root_path=proto_path,
-                schema_resolvers=schema_resolvers,
-            )
+            source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
+            source_builders[proto_path].add_usd(stage, root_path=proto_path, schema_resolvers=schema_resolvers)
 
-            # Inject registered sites into the proto before replication
-            global_sites, proto_sites, world_sites = cls._cl_inject_sites(builder, {proto_path: proto})
-            global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
-            num_worlds = len(env_paths)
-            local_site_map: dict[str, list[list[int]]] = {}
-            site_entries = proto_sites.get(id(proto), {})
-            world_xforms: list[wp.transform] = []
-
-            # Add each env as a separate Newton world
+            global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
             xform_cache = UsdGeom.XformCache()
-            for col, (_, env_path) in enumerate(env_paths):
-                builder.begin_world()
-                offset = builder.shape_count
+            poses = []
+            for _, env_path in env_paths:
                 world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
                 translation = world_xform.ExtractTranslation()
                 rotation = world_xform.ExtractRotationQuat()
-                pos = (translation[0], translation[1], translation[2])
-                quat = (
-                    rotation.GetImaginary()[0],
-                    rotation.GetImaginary()[1],
-                    rotation.GetImaginary()[2],
-                    rotation.GetReal(),
+                imag = rotation.GetImaginary()
+                poses.append(
+                    (
+                        (translation[0], translation[1], translation[2]),
+                        (imag[0], imag[1], imag[2], rotation.GetReal()),
+                    )
                 )
-                env_xform = wp.transform(pos, quat)
-                world_xforms.append(env_xform)
-                builder.add_builder(proto, xform=env_xform)
-                for label, xform in world_sites.items():
-                    if label not in local_site_map:
-                        local_site_map[label] = [[] for _ in range(num_worlds)]
-                    site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(env_xform, xform), label=label)
-                    local_site_map[label][col].append(site_idx)
-                for label, proto_shape_indices in site_entries.items():
-                    if label not in local_site_map:
-                        local_site_map[label] = [[] for _ in range(num_worlds)]
-                    for proto_shape_idx in proto_shape_indices:
-                        local_site_map[label][col].append(offset + proto_shape_idx)
-                if cls._mpm_object_registry:
-                    from isaaclab_newton.assets.mpm_object.mpm_object import add_registered_mpm_objects_to_builder
 
-                    add_registered_mpm_objects_to_builder(builder, col, list(pos), list(quat))
-                builder.end_world()
+            positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
+            quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
+            mapping = torch.ones((1, len(env_paths)), dtype=torch.bool)
+            replicate_args = (builder, (proto_path,), mapping, positions, quaternions, source_builders)
+            local_site_map, world_xforms = replicate_builder_mapping(
+                *replicate_args,
+                source_site_indices=source_site_indices,
+                env_root_sites=env_root_sites,
+                per_world_builder_hooks=cls._per_world_builder_hooks,
+            )
 
-            NewtonManager._cl_site_index_map = {
-                **global_site_map,
-                **{label: (None, per_world) for label, per_world in local_site_map.items()},
-            }
+            NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}
+            NewtonManager._cl_site_index_map.update(
+                (label, (None, per_world)) for label, per_world in local_site_map.items()
+            )
             NewtonManager._world_xforms = world_xforms
             NewtonManager._num_envs = len(env_paths)
 
@@ -1773,8 +1763,7 @@ class NewtonManager(PhysicsManager):
         built. This is the entry point that makes :meth:`get_model` /
         :meth:`get_state` work uniformly across both sim backends.
 
-        The shadow model is built by walking the USD stage via
-        :meth:`_build_visualization_model_from_stage` and finalizing the resulting
+        The shadow model is built by walking the USD stage and finalizing the resulting
         :class:`~newton.ModelBuilder`. Per-frame body transforms are pushed into
         ``_state_0.body_q`` by :meth:`update_visualization_state` using the new
         :class:`~isaaclab.scene_data.SceneDataProvider`.
@@ -1794,16 +1783,28 @@ class NewtonManager(PhysicsManager):
             )
             return
 
-        try:
-            builder = cls._build_visualization_model_from_stage(stage)
-        except Exception:
-            logger.exception(
-                "[NewtonManager] Failed to build a Newton ModelBuilder from the USD stage "
-                "for visualization (sim backend is PhysX)."
+        up_axis_token = UsdGeom.GetStageUpAxis(stage)
+        up_axis = Axis.from_string(str(up_axis_token))
+
+        env_pattern = re.compile(r"^env_(\d+)$")
+        env_paths = sorted(
+            (int(match.group(1)), child.GetPath().pathString)
+            for child in stage.GetPrimAtPath("/World/envs").GetChildren()
+            if (match := env_pattern.match(child.GetName()))
+        )
+        if not env_paths:
+            logger.error(
+                "[NewtonManager] No /World/envs/env_<id> prims found; cannot build a "
+                "Newton visualization model from the cloned Isaac Lab scene."
             )
             return
 
-        if builder is None or builder.body_count == 0:
+        NewtonManager._num_envs = len(env_paths)
+        builder = build_visualization_builder_from_stage_envs(
+            stage, env_paths, PhysicsManager._sim.get_clone_plan(), up_axis=up_axis
+        )
+
+        if builder.body_count == 0:
             logger.error(
                 "[NewtonManager] USD stage walk produced no Newton bodies; the shadow "
                 "Newton model for visualization will be empty. Common causes: the cloned "
@@ -1827,141 +1828,6 @@ class NewtonManager(PhysicsManager):
             )
             NewtonManager._model = None
             NewtonManager._state_0 = None
-
-    @classmethod
-    def _build_visualization_model_from_stage(cls, stage) -> ModelBuilder | None:
-        """Build a fresh Newton ``ModelBuilder`` from the USD stage for visualization.
-
-        Walks IsaacLab's ``/World/envs/env_<id>`` convention and adds each env as
-        its own Newton world. When the env subtree is identical across envs (the
-        common cloned-scene case) a single env_0 prototype is built once and
-        replicated via :meth:`ModelBuilder.add_builder`; otherwise each env is
-        ingested independently with :meth:`ModelBuilder.add_usd`.
-
-        This routine is intentionally independent of
-        :meth:`instantiate_builder_from_stage` (which targets the live-sim path
-        and uses a different naming convention and writes into ``cls._builder``
-        and ``cls._cl_site_index_map``). The visualization shadow path must not
-        pollute those live-sim slots. ``cls._num_envs`` is populated here too so
-        :meth:`get_num_envs` returns the env count when the sim backend is PhysX
-        (the live-sim path never runs in that configuration, so there is no slot
-        to collide with).
-
-        Args:
-            stage: USD stage to inspect.
-
-        Returns:
-            A populated :class:`~newton.ModelBuilder`, or ``None`` when no
-            ``/World/envs/env_<id>`` prims exist on the stage.
-        """
-        import re
-
-        from pxr import UsdGeom
-
-        up_axis_token = UsdGeom.GetStageUpAxis(stage)
-        up_axis = Axis.from_string(str(up_axis_token))
-        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-
-        env_pattern = re.compile(r"^env_(\d+)$")
-        env_paths: list[tuple[int, str]] = []
-        envs_root = stage.GetPrimAtPath("/World/envs")
-        if envs_root and envs_root.IsValid():
-            for child in envs_root.GetChildren():
-                if match := env_pattern.match(child.GetName()):
-                    env_paths.append((int(match.group(1)), child.GetPath().pathString))
-        env_paths.sort(key=lambda x: x[0])
-
-        builder = ModelBuilder(up_axis=up_axis)
-
-        if not env_paths:
-            # Fallback: ingest the whole stage as a single world.
-            builder.add_usd(stage, schema_resolvers=schema_resolvers)
-            NewtonManager._num_envs = 1
-            return builder
-
-        NewtonManager._num_envs = len(env_paths)
-
-        # Ingest stage-level (non-env) geometry into the global world (``current_world == -1``)
-        # so visualization sees the ground plane, ceilings, fixed props, etc. The legacy
-        # cloner-based prebuild did this via ``add_usd(stage, ignore_paths=["/World/envs"], ...)``
-        # before adding the per-env worlds; without this, renderers/visualizers driven off the
-        # shadow Newton model are missing every shape authored outside the env hierarchy.
-        builder.add_usd(
-            stage,
-            ignore_paths=[r"/World/envs($|/.*)"],
-            schema_resolvers=schema_resolvers,
-        )
-
-        # Build env_0 as a prototype, then replicate across envs.
-        proto_env_path = env_paths[0][1]
-        proto = ModelBuilder(up_axis=up_axis)
-        proto.add_usd(
-            stage,
-            root_path=proto_env_path,
-            schema_resolvers=schema_resolvers,
-        )
-
-        xform_cache = UsdGeom.XformCache()
-
-        # ``add_builder`` copies the prototype's ``body_label`` (and sibling label arrays)
-        # verbatim into each replicated world, so all worlds end up with prim paths under
-        # the prototype env (e.g. ``/World/envs/env_0/...``). The visualization sync uses
-        # these labels to map PhysX transforms (which carry distinct per-env paths) into
-        # ``state.body_q``; without rewriting, ``paths.index()`` resolves every match to
-        # world 0 and worlds 1..N never receive fresh poses. Rewrite the newly-added
-        # labels after each ``add_builder`` so each world references its own env prim path.
-        label_attrs = ("body_label", "articulation_label", "joint_label", "shape_label")
-        label_starts = {attr: len(getattr(builder, attr)) for attr in label_attrs}
-
-        # ``proto.add_usd`` ingests env_0's bodies at their absolute world positions
-        # (``UsdPhysics.LoadUsdPhysicsFromRange`` reports world-space transforms), so
-        # ``proto.body_q`` already encodes env_0's world transform. ``add_builder``
-        # composes its ``xform`` onto every imported body, so passing each env's
-        # absolute world transform here would double the offset; the correct xform is
-        # the env's pose relative to the prototype (identity for env_0, env_X * env_0^-1
-        # for the rest). Dynamic bodies are overwritten in ``update_visualization_state``
-        # via the PhysX sync, but static bodies (e.g. the table) keep this initial pose
-        # and render at the wrong position when env_0 is not at the world origin.
-        proto_world_gf = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(proto_env_path))
-        proto_translation = proto_world_gf.ExtractTranslation()
-        proto_rotation = proto_world_gf.ExtractRotationQuat()
-        proto_world_tf = wp.transform(
-            (proto_translation[0], proto_translation[1], proto_translation[2]),
-            (
-                proto_rotation.GetImaginary()[0],
-                proto_rotation.GetImaginary()[1],
-                proto_rotation.GetImaginary()[2],
-                proto_rotation.GetReal(),
-            ),
-        )
-        proto_world_tf_inv = wp.transform_inverse(proto_world_tf)
-
-        for _, env_path in env_paths:
-            world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
-            translation = world_xform.ExtractTranslation()
-            rotation = world_xform.ExtractRotationQuat()
-            env_world_tf = wp.transform(
-                (translation[0], translation[1], translation[2]),
-                (
-                    rotation.GetImaginary()[0],
-                    rotation.GetImaginary()[1],
-                    rotation.GetImaginary()[2],
-                    rotation.GetReal(),
-                ),
-            )
-            relative_tf = wp.transform_multiply(env_world_tf, proto_world_tf_inv)
-            builder.begin_world()
-            builder.add_builder(proto, xform=relative_tf)
-            if env_path != proto_env_path:
-                for attr in label_attrs:
-                    labels = getattr(builder, attr)
-                    for i in range(label_starts[attr], len(labels)):
-                        labels[i] = labels[i].replace(proto_env_path, env_path, 1)
-            for attr in label_attrs:
-                label_starts[attr] = len(getattr(builder, attr))
-            builder.end_world()
-
-        return builder
 
     @classmethod
     def get_scene_data_provider(cls) -> SceneDataProvider:

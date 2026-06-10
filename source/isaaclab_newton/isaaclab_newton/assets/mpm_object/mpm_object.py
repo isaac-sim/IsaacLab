@@ -104,6 +104,8 @@ class MPMObject(BaseDeformableObject):
         queue_newton_physics_replication(cfg)
         self._registry_entry = MPMObjectRegistryEntry(self.cfg)
         SimulationManager._mpm_object_registry.append(self._registry_entry)
+        if add_registered_mpm_objects_to_builder not in SimulationManager._per_world_builder_hooks:
+            SimulationManager._per_world_builder_hooks.append(add_registered_mpm_objects_to_builder)
         self._physics_ready_handle = None
 
     @property
