@@ -1659,15 +1659,274 @@ class NewtonManager(PhysicsManager):
             NewtonManager._model = None
             NewtonManager._state_0 = None
 
+    _VISUALIZATION_LABEL_ATTRS = ("body_label", "articulation_label", "joint_label", "shape_label")
+
+    @staticmethod
+    def _visualization_world_transform(stage, xform_cache, path: str) -> wp.transform | None:
+        prim = stage.GetPrimAtPath(path)
+        if not prim or not prim.IsValid():
+            return None
+
+        world_gf = xform_cache.GetLocalToWorldTransform(prim)
+        translation = world_gf.ExtractTranslation()
+        rotation = world_gf.ExtractRotationQuat()
+        return wp.transform(
+            (translation[0], translation[1], translation[2]),
+            # Warp quaternions use xyzw layout; USD exposes real + imaginary accessors.
+            (
+                rotation.GetImaginary()[0],
+                rotation.GetImaginary()[1],
+                rotation.GetImaginary()[2],
+                rotation.GetReal(),
+            ),
+        )
+
+    @classmethod
+    def _visualization_relative_transform(
+        cls, stage, xform_cache, source_path: str, destination_path: str
+    ) -> wp.transform | None:
+        source_tf = cls._visualization_world_transform(stage, xform_cache, source_path)
+        destination_tf = cls._visualization_world_transform(stage, xform_cache, destination_path)
+        if source_tf is None or destination_tf is None:
+            return None
+        return wp.transform_multiply(destination_tf, wp.transform_inverse(source_tf))
+
+    @classmethod
+    def _visualization_destination_for_env(
+        cls, stage, xform_cache, destination_template: str, env_id: int, env_path: str
+    ) -> str:
+        """Return the best-effort ClonePlan destination path for an env.
+
+        The returned path may not exist; callers must validate it before using
+        it for transforms.
+        """
+        destination_root = destination_template.format(env_id)
+        if cls._visualization_world_transform(stage, xform_cache, destination_root) is not None:
+            return destination_root
+
+        env_name = env_path.rsplit("/", 1)[-1]
+        if env_name != str(env_id):
+            named_destination_root = destination_template.format(env_name)
+            if cls._visualization_world_transform(stage, xform_cache, named_destination_root) is not None:
+                return named_destination_root
+
+        return destination_root
+
+    @staticmethod
+    def _rewrite_visualization_label_prefix(label: str, source_root: str, destination_root: str) -> str:
+        stripped_source = source_root.rstrip("/")
+        stripped_destination = destination_root.rstrip("/")
+        if label in (source_root, stripped_source):
+            return stripped_destination
+        prefix = stripped_source + "/"
+        if label.startswith(prefix):
+            return stripped_destination + label[len(stripped_source) :]
+        return label
+
+    @classmethod
+    def _rewrite_visualization_labels(
+        cls, builder: ModelBuilder, label_starts: dict[str, int], source_root: str, destination_root: str
+    ) -> None:
+        for attr in cls._VISUALIZATION_LABEL_ATTRS:
+            labels = getattr(builder, attr)
+            for i in range(label_starts[attr], len(labels)):
+                labels[i] = cls._rewrite_visualization_label_prefix(labels[i], source_root, destination_root)
+
+    @staticmethod
+    def _visualization_builder_has_geometry(builder: ModelBuilder) -> bool:
+        return (
+            builder.body_count > 0 or builder.shape_count > 0 or builder.joint_count > 0 or builder.particle_count > 0
+        )
+
+    @staticmethod
+    def _clone_plan_selects_visualization_source(clone_mask, source_index: int, env_id: int) -> bool:
+        if len(clone_mask.shape) != 2:
+            logger.warning(
+                "[NewtonManager] ClonePlan clone_mask must be 2D for visualization, got shape %s.",
+                tuple(clone_mask.shape),
+            )
+            return False
+        if source_index >= clone_mask.shape[0]:
+            logger.warning(
+                "[NewtonManager] ClonePlan source index %d exceeds clone_mask row count %d; "
+                "skipping it in visualization.",
+                source_index,
+                clone_mask.shape[0],
+            )
+            return False
+        if env_id >= clone_mask.shape[1]:
+            logger.warning(
+                "[NewtonManager] ClonePlan env id %d exceeds clone_mask column count %d; skipping it in visualization.",
+                env_id,
+                clone_mask.shape[1],
+            )
+            return False
+        return bool(clone_mask[source_index, env_id].item())
+
+    @classmethod
+    def _add_clone_plan_visualization_worlds(
+        cls,
+        stage,
+        builder: ModelBuilder,
+        up_axis: Axis,
+        schema_resolvers: list[object],
+        env_paths: list[tuple[int, str]],
+        clone_plan,
+        xform_cache,
+    ) -> None:
+        source_builders: dict[str, ModelBuilder | None] = {}
+        clone_mask = clone_plan.clone_mask
+
+        for env_id, env_path in env_paths:
+            builder.begin_world()
+            added_any = False
+            for source_index, (source_root, destination_template) in enumerate(
+                zip(clone_plan.sources, clone_plan.destinations, strict=True)
+            ):
+                if "{}" not in destination_template:
+                    continue
+                if not cls._clone_plan_selects_visualization_source(clone_mask, source_index, env_id):
+                    continue
+
+                destination_root = cls._visualization_destination_for_env(
+                    stage, xform_cache, destination_template, env_id, env_path
+                )
+                asset_builder = cls._get_clone_plan_visualization_source_builder(
+                    stage, up_axis, schema_resolvers, source_builders, source_root, xform_cache
+                )
+                if asset_builder is None or not cls._visualization_builder_has_geometry(asset_builder):
+                    continue
+
+                relative_tf = cls._visualization_relative_transform(stage, xform_cache, source_root, destination_root)
+                if relative_tf is None:
+                    logger.warning(
+                        "[NewtonManager] ClonePlan destination prim %s is missing; skipping %s in visualization.",
+                        destination_root,
+                        source_root,
+                    )
+                    continue
+
+                label_starts = {attr: len(getattr(builder, attr)) for attr in cls._VISUALIZATION_LABEL_ATTRS}
+                builder.add_builder(asset_builder, xform=relative_tf)
+                cls._rewrite_visualization_labels(builder, label_starts, source_root, destination_root)
+                added_any = True
+
+            if not added_any:
+                logger.debug(
+                    "[NewtonManager] ClonePlan added no geometry for %s; falling back to direct env import.",
+                    env_path,
+                )
+                builder.add_usd(
+                    stage,
+                    root_path=env_path,
+                    schema_resolvers=schema_resolvers,
+                )
+            builder.end_world()
+
+    @classmethod
+    def _get_clone_plan_visualization_source_builder(
+        cls,
+        stage,
+        up_axis: Axis,
+        schema_resolvers: list[object],
+        source_builders: dict[str, ModelBuilder | None],
+        source_root: str,
+        xform_cache,
+    ) -> ModelBuilder | None:
+        if source_root in source_builders:
+            return source_builders[source_root]
+
+        if cls._visualization_world_transform(stage, xform_cache, source_root) is None:
+            logger.warning(
+                "[NewtonManager] ClonePlan source prim %s is missing; skipping it in visualization.",
+                source_root,
+            )
+            source_builders[source_root] = None
+        else:
+            source_builder = ModelBuilder(up_axis=up_axis)
+            source_builder.add_usd(
+                stage,
+                root_path=source_root,
+                schema_resolvers=schema_resolvers,
+            )
+            source_builders[source_root] = source_builder
+
+        return source_builders[source_root]
+
+    @classmethod
+    def _add_env0_prototype_visualization_worlds(
+        cls,
+        stage,
+        builder: ModelBuilder,
+        up_axis: Axis,
+        schema_resolvers: list[object],
+        env_paths: list[tuple[int, str]],
+        xform_cache,
+    ) -> None:
+        # Build env_0 as a prototype, then replicate across envs.
+        proto_env_path = env_paths[0][1]
+        proto = ModelBuilder(up_axis=up_axis)
+        proto.add_usd(
+            stage,
+            root_path=proto_env_path,
+            schema_resolvers=schema_resolvers,
+        )
+
+        # ``add_builder`` copies the prototype's ``body_label`` (and sibling label arrays)
+        # verbatim into each replicated world, so all worlds end up with prim paths under
+        # the prototype env (e.g. ``/World/envs/env_0/...``). The visualization sync uses
+        # these labels to map PhysX transforms (which carry distinct per-env paths) into
+        # ``state.body_q``; without rewriting, ``paths.index()`` resolves every match to
+        # world 0 and worlds 1..N never receive fresh poses. Rewrite the newly-added
+        # labels after each ``add_builder`` so each world references its own env prim path.
+        label_starts = {attr: len(getattr(builder, attr)) for attr in cls._VISUALIZATION_LABEL_ATTRS}
+
+        # ``proto.add_usd`` ingests env_0's bodies at their absolute world positions
+        # (``UsdPhysics.LoadUsdPhysicsFromRange`` reports world-space transforms), so
+        # ``proto.body_q`` already encodes env_0's world transform. ``add_builder``
+        # composes its ``xform`` onto every imported body, so passing each env's
+        # absolute world transform here would double the offset; the correct xform is
+        # the env's pose relative to the prototype (identity for env_0, env_X * env_0^-1
+        # for the rest). Dynamic bodies are overwritten in ``update_visualization_state``
+        # via the PhysX sync, but static bodies (e.g. the table) keep this initial pose
+        # and render at the wrong position when env_0 is not at the world origin.
+        proto_world_tf = cls._visualization_world_transform(stage, xform_cache, proto_env_path)
+        if proto_world_tf is None:
+            logger.warning(
+                "[NewtonManager] Prototype env prim %s is missing; skipping visualization world replication.",
+                proto_env_path,
+            )
+            return
+        proto_world_tf_inv = wp.transform_inverse(proto_world_tf)
+
+        for _, env_path in env_paths:
+            env_world_tf = cls._visualization_world_transform(stage, xform_cache, env_path)
+            if env_world_tf is None:
+                logger.warning(
+                    "[NewtonManager] Env prim %s is missing; skipping it in visualization.",
+                    env_path,
+                )
+                continue
+
+            relative_tf = wp.transform_multiply(env_world_tf, proto_world_tf_inv)
+            builder.begin_world()
+            builder.add_builder(proto, xform=relative_tf)
+            if env_path != proto_env_path:
+                cls._rewrite_visualization_labels(builder, label_starts, proto_env_path, env_path)
+            for attr in cls._VISUALIZATION_LABEL_ATTRS:
+                label_starts[attr] = len(getattr(builder, attr))
+            builder.end_world()
+
     @classmethod
     def _build_visualization_model_from_stage(cls, stage) -> ModelBuilder | None:
         """Build a fresh Newton ``ModelBuilder`` from the USD stage for visualization.
 
         Walks IsaacLab's ``/World/envs/env_<id>`` convention and adds each env as
-        its own Newton world. When the env subtree is identical across envs (the
-        common cloned-scene case) a single env_0 prototype is built once and
-        replicated via :meth:`ModelBuilder.add_builder`; otherwise each env is
-        ingested independently with :meth:`ModelBuilder.add_usd`.
+        its own Newton world. When a ClonePlan is available, each world is
+        assembled from the selected planned source rows so heterogeneous cloned
+        assets render with the same source choices as PhysX. Without a ClonePlan,
+        a single env_0 prototype is built once and replicated via
+        :meth:`ModelBuilder.add_builder`.
 
         This routine is intentionally independent of
         :meth:`instantiate_builder_from_stage` (which targets the live-sim path
@@ -1723,75 +1982,39 @@ class NewtonManager(PhysicsManager):
             schema_resolvers=schema_resolvers,
         )
 
-        # Build env_0 as a prototype, then replicate across envs.
-        proto_env_path = env_paths[0][1]
-        proto = ModelBuilder(up_axis=up_axis)
-        proto.add_usd(
-            stage,
-            root_path=proto_env_path,
-            schema_resolvers=schema_resolvers,
-        )
-
         xform_cache = UsdGeom.XformCache()
+        clone_plan = None
+        try:
+            from isaaclab.sim import SimulationContext
 
-        # ``add_builder`` copies the prototype's ``body_label`` (and sibling label arrays)
-        # verbatim into each replicated world, so all worlds end up with prim paths under
-        # the prototype env (e.g. ``/World/envs/env_0/...``). The visualization sync uses
-        # these labels to map PhysX transforms (which carry distinct per-env paths) into
-        # ``state.body_q``; without rewriting, ``paths.index()`` resolves every match to
-        # world 0 and worlds 1..N never receive fresh poses. Rewrite the newly-added
-        # labels after each ``add_builder`` so each world references its own env prim path.
-        label_attrs = ("body_label", "articulation_label", "joint_label", "shape_label")
-        label_starts = {attr: len(getattr(builder, attr)) for attr in label_attrs}
-
-        # ``proto.add_usd`` ingests env_0's bodies at their absolute world positions
-        # (``UsdPhysics.LoadUsdPhysicsFromRange`` reports world-space transforms), so
-        # ``proto.body_q`` already encodes env_0's world transform. ``add_builder``
-        # composes its ``xform`` onto every imported body, so passing each env's
-        # absolute world transform here would double the offset; the correct xform is
-        # the env's pose relative to the prototype (identity for env_0, env_X * env_0^-1
-        # for the rest). Dynamic bodies are overwritten in ``update_visualization_state``
-        # via the PhysX sync, but static bodies (e.g. the table) keep this initial pose
-        # and render at the wrong position when env_0 is not at the world origin.
-        proto_world_gf = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(proto_env_path))
-        proto_translation = proto_world_gf.ExtractTranslation()
-        proto_rotation = proto_world_gf.ExtractRotationQuat()
-        proto_world_tf = wp.transform(
-            (proto_translation[0], proto_translation[1], proto_translation[2]),
-            (
-                proto_rotation.GetImaginary()[0],
-                proto_rotation.GetImaginary()[1],
-                proto_rotation.GetImaginary()[2],
-                proto_rotation.GetReal(),
-            ),
-        )
-        proto_world_tf_inv = wp.transform_inverse(proto_world_tf)
-
-        for _, env_path in env_paths:
-            world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
-            translation = world_xform.ExtractTranslation()
-            rotation = world_xform.ExtractRotationQuat()
-            env_world_tf = wp.transform(
-                (translation[0], translation[1], translation[2]),
-                (
-                    rotation.GetImaginary()[0],
-                    rotation.GetImaginary()[1],
-                    rotation.GetImaginary()[2],
-                    rotation.GetReal(),
-                ),
+            sim = SimulationContext.instance()
+            clone_plan = sim.get_clone_plan() if sim is not None else None
+        except (ImportError, AttributeError):
+            logger.debug(
+                "[NewtonManager] ClonePlan unavailable for visualization; falling back to env_0 prototype.",
+                exc_info=True,
             )
-            relative_tf = wp.transform_multiply(env_world_tf, proto_world_tf_inv)
-            builder.begin_world()
-            builder.add_builder(proto, xform=relative_tf)
-            if env_path != proto_env_path:
-                for attr in label_attrs:
-                    labels = getattr(builder, attr)
-                    for i in range(label_starts[attr], len(labels)):
-                        labels[i] = labels[i].replace(proto_env_path, env_path, 1)
-            for attr in label_attrs:
-                label_starts[attr] = len(getattr(builder, attr))
-            builder.end_world()
 
+        if clone_plan is not None:
+            cls._add_clone_plan_visualization_worlds(
+                stage,
+                builder,
+                up_axis,
+                schema_resolvers,
+                env_paths,
+                clone_plan,
+                xform_cache,
+            )
+            return builder
+
+        cls._add_env0_prototype_visualization_worlds(
+            stage,
+            builder,
+            up_axis,
+            schema_resolvers,
+            env_paths,
+            xform_cache,
+        )
         return builder
 
     @classmethod
