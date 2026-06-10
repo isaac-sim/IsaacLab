@@ -333,12 +333,13 @@ absolute-difference images.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-       --renderer newton --visualizer none --max_steps 60
+       --renderer newton --max_steps 60
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
-contains multiple PPISP-bound cameras. Images are written to
-``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
+contains multiple PPISP-bound cameras. If a config or command selects a visualizer,
+force-disable all visualizers with ``--visualizer none`` or ``--viz none``. Images are
+written to ``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
 
 Known limitations
 ^^^^^^^^^^^^^^^^^
