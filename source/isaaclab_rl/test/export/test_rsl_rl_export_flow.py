@@ -89,8 +89,8 @@ TASKS = [
     "Isaac-Lift-Cube-Franka",
     "Isaac-Lift-Cube-Franka-Play",
     # Manipulation Cabinet
-    "Isaac-Open-Drawer-Franka-v0",
-    "Isaac-Open-Drawer-Franka-Play-v0",
+    "Isaac-Open-Drawer-Franka",
+    "Isaac-Open-Drawer-Franka-Play",
     # Dexsuite
     "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0",
     "Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0",

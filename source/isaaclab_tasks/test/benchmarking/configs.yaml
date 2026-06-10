@@ -47,7 +47,7 @@ fast:
       episode_length: 600 #700
     upper_thresholds:
       duration: 500
-  skrl:Isaac-Shadow-Hand-Over-Direct:
+  skrl:Isaac-Shadow-Handover-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 30
@@ -115,7 +115,7 @@ full:
     upper_thresholds:
       duration: 2500
   # Classic control tasks
-  Isaac-Cart-Double-Pendulum-Direct:
+  Isaac-Pendulum-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 400
@@ -152,7 +152,7 @@ full:
     upper_thresholds:
       duration: 4000
   # Manipulation tasks - Franka
-  Isaac-Franka-Cabinet-Direct:
+  Isaac-Open-Drawer-Franka-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 2000
@@ -166,7 +166,7 @@ full:
       episode_length: 100
     upper_thresholds:
       duration: 1000
-  Isaac-Open-Drawer-Franka-v0:
+  Isaac-Open-Drawer-Franka:
     max_iterations: 200
     lower_thresholds:
       reward: 60
@@ -225,14 +225,14 @@ full:
     upper_thresholds:
       duration: 1500
   # Dexterous manipulation - Allegro hand
-  Isaac-Repose-Cube-Allegro-Direct:
+  Isaac-Reorient-Cube-Allegro-Direct:
     max_iterations: 500
     lower_thresholds:
       reward: 200
       episode_length: 150
     upper_thresholds:
       duration: 1500
-  Isaac-Repose-Cube-Allegro*:
+  Isaac-Reorient-Cube-Allegro*:
     max_iterations: 500
     lower_thresholds:
       reward: 15
@@ -240,35 +240,35 @@ full:
     upper_thresholds:
       duration: 1500
   # Dexterous manipulation - Shadow hand
-  Isaac-Repose-Cube-Shadow-Direct:
+  Isaac-Reorient-Cube-Shadow-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 300
     upper_thresholds:
       duration: 10000
-  Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct:
+  Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 50
     upper_thresholds:
       duration: 15000
-  Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct:
+  Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 100
     upper_thresholds:
       duration: 30000
-  Isaac-Repose-Cube-Shadow-Vision-Direct:
+  Isaac-Reorient-Cube-Shadow-Camera-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 400
     upper_thresholds:
       duration: 40000
-  Isaac-Shadow-Hand-Over-Direct:
+  Isaac-Shadow-Handover-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000

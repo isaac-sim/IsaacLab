@@ -14,10 +14,10 @@ import gymnasium as gym
 ##
 
 inhand_task_entry = "isaaclab_tasks_experimental.direct.inhand_manipulation"
-stable_agents = "isaaclab_tasks.core.inhand.allegro_hand.agents"
+stable_agents = "isaaclab_tasks.core.reorient.config.allegro_hand.agents"
 
 gym.register(
-    id="Isaac-Repose-Cube-Allegro-Direct-Warp-v0",
+    id="Isaac-Reorient-Cube-Allegro-Direct-Warp-v0",
     entry_point=f"{inhand_task_entry}.inhand_manipulation_warp_env:InHandManipulationWarpEnv",
     disable_env_checker=True,
     kwargs={
