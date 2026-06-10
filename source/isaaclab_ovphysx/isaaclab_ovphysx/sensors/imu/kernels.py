@@ -16,50 +16,52 @@ def imu_update_kernel(
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
     gravity_bias_w: wp.array(dtype=wp.vec3f),
-    # previous velocities (read + write)
-    prev_lin_vel_w: wp.array(dtype=wp.vec3f),
-    # scalar
     inv_dt: wp.float32,
-    # timestamp guard (see #4970): skip envs not stepped since reset.
     timestamp: wp.array(dtype=wp.float32),
+    # inputs / outputs
+    prev_lin_vel_w: wp.array(dtype=wp.vec3f),
     # outputs
     out_ang_vel_b: wp.array(dtype=wp.vec3f),
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
 ):
+    """Update the IMU sensor data.
+
+    Args:
+        env_mask: Mask of environments to update.
+        transforms: Transforms of the bodies.
+        velocities: Velocities of the bodies.
+        coms: COMs of the bodies.
+        offset_pos_b: Offset positions of the sensors.
+        offset_quat_b: Offset quaternions of the sensors.
+        gravity_bias_w: Gravity bias in the world frame.
+        inv_dt: Inverse of the time step.
+        timestamp: Timestamp of the environment.
+        prev_lin_vel_w: Previous linear velocity in the world frame.
+        out_ang_vel_b: Output angular velocity in the body frame.
+        out_lin_acc_b: Output linear acceleration in the body frame.
+    """
     idx = wp.tid()
     if not env_mask[idx]:
         return
 
     # Skip envs that have not been stepped since their last reset: OVPhysX velocities still
-    # hold pre-reset values, so the finite-difference acceleration would be spurious (#4970).
+    # hold pre-reset values, so the finite-difference acceleration would be spurious.
     if timestamp[idx] == 0.0:
         return
 
-    # 1. Extract body orientation
     body_quat = wp.transform_get_rotation(transforms[idx])
 
-    # 2. Apply sensor offset to get sensor orientation
-    sensor_quat = body_quat * offset_quat_b[idx]
-
-    # 3. Extract lin/ang velocity
     lin_vel_w = wp.spatial_top(velocities[idx])
     ang_vel_w = wp.spatial_bottom(velocities[idx])
 
-    # 4. COM correction: lin_vel += cross(ang_vel, quat_rotate(body_quat, offset_pos - com_pos))
     com_pos_b = wp.transform_get_translation(coms[idx])
     lever_arm = wp.quat_rotate(body_quat, offset_pos_b[idx] - com_pos_b)
     lin_vel_w = lin_vel_w + wp.cross(ang_vel_w, lever_arm)
-
-    # 5. Numerical differentiation for linear acceleration (world frame)
     lin_acc_w = (lin_vel_w - prev_lin_vel_w[idx]) * inv_dt + gravity_bias_w[idx]
 
-    # 6. Rotate world -> body using sensor orientation
-    ang_vel_b = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
-    lin_acc_b = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
-
-    # 7. Store results
-    out_ang_vel_b[idx] = ang_vel_b
-    out_lin_acc_b[idx] = lin_acc_b
+    sensor_quat = body_quat * offset_quat_b[idx]
+    out_ang_vel_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
+    out_lin_acc_b[idx] = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
 
     # Update previous velocity
     prev_lin_vel_w[idx] = lin_vel_w
@@ -72,6 +74,14 @@ def imu_reset_kernel(
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
     prev_lin_vel_w: wp.array(dtype=wp.vec3f),
 ):
+    """Reset the IMU sensor data.
+
+    Args:
+        env_mask: Mask of environments to reset.
+        out_ang_vel_b: Output angular velocity in the body frame.
+        out_lin_acc_b: Output linear acceleration in the body frame.
+        prev_lin_vel_w: Previous linear velocity in the world frame.
+    """
     idx = wp.tid()
     if not env_mask[idx]:
         return
