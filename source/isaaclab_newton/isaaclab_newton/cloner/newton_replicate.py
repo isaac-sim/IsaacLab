@@ -20,18 +20,20 @@ from isaaclab_newton.physics import NewtonManager
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
+    destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
     positions: torch.Tensor | None = None,
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     simplify_meshes: bool = True,
-) -> tuple[ModelBuilder, object, dict]:
+) -> tuple[ModelBuilder, object, dict, list[wp.transform]]:
     """Build a Newton model builder from clone mapping inputs.
 
     Args:
         stage: USD stage containing source assets.
         sources: Source prim paths used for cloning.
+        destinations: Destination path templates with one ``"{}"`` slot per source row.
         env_ids: Environment ids for destination worlds.
         mapping: Boolean source-to-environment mapping matrix.
         positions: Optional per-environment world positions.
@@ -41,8 +43,8 @@ def _build_newton_builder_from_mapping(
 
     Returns:
         Tuple of the populated Newton model builder, stage metadata returned
-        by ``add_usd``, and a site index map for
-        :attr:`NewtonManager._cl_site_index_map`.
+        by ``add_usd``, a site index map for :attr:`NewtonManager._cl_site_index_map`,
+        and per-world transforms.
     """
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
@@ -58,10 +60,6 @@ def _build_newton_builder_from_mapping(
         ignore_paths=["/World/envs", *sources],
         schema_resolvers=schema_resolvers,
     )
-
-    # The prototype is built from env_0 in absolute world coordinates.
-    # add_builder xforms are deltas from env_0 so positions don't get double-counted.
-    env0_pos = positions[0]
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
@@ -107,26 +105,40 @@ def _build_newton_builder_from_mapping(
     num_worlds = mapping.size(1)
     local_site_map: dict[str, list[list[int]]] = {}
 
+    # Heterogeneous clone-plan rows spawn their prototype in the first active environment
+    # for that row, then reuse that prototype for every other active environment.
+    source_world_indices = [int(torch.nonzero(mapping[row], as_tuple=True)[0][0]) for row in range(mapping.size(0))]
+
+    # World xforms used by downstream consumers (e.g. fabric binding).
+    world_xforms: list[wp.transform] = []
+
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
     for col, _ in enumerate(env_ids.tolist()):
         # begin a new world context (Newton assigns world ID = col)
         builder.begin_world()
-        # add all active sources for this world
-        delta_pos = (positions[col] - env0_pos).tolist()
-        env_xform = wp.transform(positions[col].tolist(), quaternions[col].tolist())
+
+        world_xform = wp.transform(positions[col], quaternions[col])
+        world_xforms.append(world_xform)
+
+        # Per-world bodyless sites are placed in each world's (global) frame.
         for label, xform in world_sites.items():
             if label not in local_site_map:
                 local_site_map[label] = [[] for _ in range(num_worlds)]
-            site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(env_xform, xform), label=label)
+            site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
             local_site_map[label][col].append(site_idx)
+
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            proto = protos[sources[row]]
+            source = sources[int(row)]
+            proto = protos[source]
             offset = builder.shape_count
+
+            source_world_index = source_world_indices[int(row)]
+            source_world_xform = wp.transform(positions[source_world_index], quaternions[source_world_index])
             builder.add_builder(
-                proto,
-                xform=wp.transform(delta_pos, quaternions[col].tolist()),
+                proto, xform=wp.transform_multiply(world_xform, wp.transform_inverse(source_world_xform))
             )
+
             # Compute final shape indices for sites in this proto
             for label, proto_shape_indices in proto_sites.get(id(proto), {}).items():
                 if label not in local_site_map:
@@ -152,7 +164,7 @@ def _build_newton_builder_from_mapping(
         **{label: (None, per_world) for label, per_world in local_site_map.items()},
     }
 
-    return builder, stage_info, site_index_map
+    return builder, stage_info, site_index_map, world_xforms
 
 
 # Built-in label arrays that ``_rename_builder_labels`` rewrites in Pass 1.
@@ -297,9 +309,10 @@ def newton_physics_replicate(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
-    builder, stage_info, site_index_map = _build_newton_builder_from_mapping(
+    builder, stage_info, site_index_map, world_xforms = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
+        destinations=destinations,
         env_ids=env_ids,
         mapping=mapping,
         positions=positions,
@@ -309,9 +322,7 @@ def newton_physics_replicate(
     )
     _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     NewtonManager._cl_site_index_map = site_index_map
-    NewtonManager._world_xforms = [
-        wp.transform(positions[col].tolist(), quaternions[col].tolist()) for col in range(mapping.size(1))
-    ]
+    NewtonManager._world_xforms = world_xforms
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
     return builder, stage_info
@@ -349,9 +360,10 @@ def newton_visualizer_prebuild(
     Returns:
         Tuple of finalized Newton model and state.
     """
-    builder, _, _site_index_map = _build_newton_builder_from_mapping(
+    builder, _, _site_index_map, _world_xforms = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
+        destinations=destinations,
         env_ids=env_ids,
         mapping=mapping,
         positions=positions,
