@@ -188,19 +188,12 @@ jobs:
         compression-level: 9
 
   combine-compat-results:
+    name: Report Compatibility Results
     needs: [test-isaaclab-tasks-compat, test-general-compat]
     runs-on: ubuntu-latest
     if: always()
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: false
-        sparse-checkout: .github/actions
-        sparse-checkout-cone-mode: true
-
     - name: Create Reports Directory
       run: |
         mkdir -p reports
@@ -213,18 +206,13 @@ jobs:
         merge-multiple: true
       continue-on-error: true
 
-    - name: Combine All Test Results
-      uses: ./.github/actions/combine-results
-      with:
-        tests-dir: "reports"
-        output-file: "reports/combined-compat-results.xml"
-
-    - name: Upload Combined Test Results
+    - name: Upload Test Results
       uses: actions/upload-artifact@v7
       if: always()
       with:
-        name: daily-compat-${{ github.run_id }}-combined-test-results
-        path: reports/combined-compat-results.xml
+        name: daily-compat-${{ github.run_id }}-test-results
+        path: reports/**/*.xml
+        if-no-files-found: warn
         retention-days: 30
         compression-level: 9
 
@@ -233,7 +221,7 @@ jobs:
       if: always()
       with:
         name: IsaacLab Compatibility Test Results (${{ github.event_name }})
-        path: reports/combined-compat-results.xml
+        path: reports/**/*.xml
         reporter: java-junit
         max-annotations: '50'
         report-title: "IsaacLab Compatibility Test Results - ${{ github.event_name }} - ${{ github.ref_name }}"
@@ -244,14 +232,6 @@ jobs:
     if: always()
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: false
-        sparse-checkout: .github/actions
-        sparse-checkout-cone-mode: true
-
     - name: Create Compatibility Report
       run: |
         TRIGGER_INFO="**Trigger:** ${{ github.event_name }}"
@@ -268,7 +248,7 @@ jobs:
         echo "- Results: ${{ needs.combine-compat-results.result }}" >> compatibility-report.md
         echo "" >> compatibility-report.md
         echo "### Artifacts:" >> compatibility-report.md
-        echo "- [Combined Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> compatibility-report.md
+        echo "- [Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> compatibility-report.md
         echo "" >> compatibility-report.md
         echo "---" >> compatibility-report.md
         echo "*This report was generated automatically by the daily compatibility workflow.*" >> compatibility-report.md
