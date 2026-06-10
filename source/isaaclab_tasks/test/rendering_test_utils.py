@@ -712,12 +712,6 @@ def rendering_test_dexsuite_kuka(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
-    if not setup_homogeneous_envs and physics_backend == "newton":
-        if renderer == "newton_warp" and data_type == "rgb":
-            pytest.skip("Random color bug in Newton Warp renderer to be investigated.")
-        if renderer == "isaacsim_rtx_renderer":
-            pytest.skip("Object missing bug in Isaac Sim RTX renderer to be investigated.")
-
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
