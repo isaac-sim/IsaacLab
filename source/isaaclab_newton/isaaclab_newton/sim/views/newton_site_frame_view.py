@@ -14,7 +14,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import get_suffix, iter_clone_plan_matches
+from isaaclab.cloner.cloner_utils import get_suffix, iter_clone_plan_matches, split_clone_template
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.utils.string import resolve_matching_names
@@ -323,8 +323,8 @@ class NewtonSiteFrameView(BaseFrameView):
 
         ref_path = source_root
         if source_root is not None and destination_template is not None:
-            instance_template = destination_template.partition("{}")[0] + "{}"
-            source_suffix = get_suffix(source_root, instance_template)
+            template_prefix, _ = split_clone_template(destination_template)
+            source_suffix = get_suffix(source_root, template_prefix + "{}")
             if source_suffix is not None:
                 ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
