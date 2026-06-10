@@ -1004,6 +1004,20 @@ Optimize XR Performance
    materials, or when you have already configured ``sim.dt`` and ``sim.render_interval`` and
    still see dropped frames.
 
+   .. admonition:: Known issue
+      :class: important
+
+      Starting an XR session while RTX - Minimal is already the active renderer is a known
+      issue: robot control inputs may never be applied and teleoperation stays non-functional,
+      with no error reported. Switching to RTX - Minimal *after* the XR session has started and
+      teleoperation is confirmed working is not affected.
+
+      As a workaround, start under the default renderer before switching to RTX - Minimal:
+
+      #. Launch Isaac Lab with the default renderer and start the XR session.
+      #. Confirm that teleoperation is working (the robot responds to your hand motions).
+      #. Switch the viewport renderer to **RTX - Minimal** as described below.
+
    To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
    select **RTX - Minimal**:
 
