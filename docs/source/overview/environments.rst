@@ -308,9 +308,9 @@ for the lift-cube environment:
 .. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`__
 .. |lift-soft-franka-link| replace:: `Isaac-Lift-Soft-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`__
 .. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`__
-.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/franka_cabinet/franka_cabinet_env.py>`__
-.. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/config/allegro_hand/allegro_env_cfg.py>`__
-.. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/allegro_hand/allegro_hand_env_cfg.py>`__
+.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/franka_cabinet/franka_cabinet_env.py>`__
+.. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/allegro_hand/allegro_hand_manager_env_cfg.py>`__
+.. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/allegro_hand/allegro_hand_direct_env_cfg.py>`__
 .. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_joint_pos_env_cfg.py>`__
 .. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
 .. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_env_cfg.py>`__
@@ -323,10 +323,10 @@ for the lift-cube environment:
 .. |galbot_stack-link| replace:: `Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
 .. |kuka-allegro-lift-link| replace:: `Isaac-Dexsuite-Kuka-Allegro-Lift-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
 .. |kuka-allegro-reorient-link| replace:: `Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
-.. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/shadow_hand_env_cfg.py>`__
-.. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/shadow_hand_env_cfg.py>`__
-.. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/shadow_hand_env_cfg.py>`__
-.. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/shadow_hand_vision_env.py>`__
+.. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/shadow_hand/shadow_hand_env_cfg.py>`__
+.. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/shadow_hand/shadow_hand_env_cfg.py>`__
+.. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/shadow_hand/shadow_hand_env_cfg.py>`__
+.. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/inhand/shadow_hand/shadow_hand_vision_env.py>`__
 .. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
 .. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
 .. |reach_openarm_bi-link| replace:: `Isaac-Reach-OpenArm-Bi-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
@@ -365,9 +365,9 @@ For example:
 .. |factory-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
 .. |factory-nut| image:: ../_static/tasks/factory/nut_thread.jpg
 
-.. |factory-peg-link| replace:: `Isaac-Factory-PegInsert-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
-.. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
-.. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
+.. |factory-peg-link| replace:: `Isaac-Factory-PegInsert-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
+.. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
+.. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/factory/factory_env_cfg.py>`__
 
 AutoMate
 ~~~~~~~~
@@ -424,8 +424,8 @@ We provide environments for both disassembly and assembly.
 .. |assembly| image:: ../_static/tasks/automate/00004.jpg
 .. |disassembly| image:: ../_static/tasks/automate/01053_disassembly.jpg
 
-.. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/automate/assembly_env_cfg.py>`__
-.. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/automate/disassembly_env_cfg.py>`__
+.. |assembly-link| replace:: `Isaac-AutoMate-Assembly-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/automate/assembly_env_cfg.py>`__
+.. |disassembly-link| replace:: `Isaac-AutoMate-Disassembly-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/automate/disassembly_env_cfg.py>`__
 
 FORGE
 ~~~~~~~~
@@ -460,9 +460,9 @@ These tasks share the same task configurations and control options. You can swit
 .. |forge-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
 .. |forge-nut| image:: ../_static/tasks/factory/nut_thread.jpg
 
-.. |forge-peg-link| replace:: `Isaac-Forge-PegInsert-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
-.. |forge-gear-link| replace:: `Isaac-Forge-GearMesh-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
-.. |forge-nut-link| replace:: `Isaac-Forge-NutThread-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
+.. |forge-peg-link| replace:: `Isaac-Forge-PegInsert-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
+.. |forge-gear-link| replace:: `Isaac-Forge-GearMesh-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
+.. |forge-nut-link| replace:: `Isaac-Forge-NutThread-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/forge/forge_env_cfg.py>`__
 
 
 Locomotion
@@ -545,8 +545,8 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-anymal-c-link| replace:: `Isaac-Velocity-Flat-Anymal-C-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-c-link| replace:: `Isaac-Velocity-Rough-Anymal-C-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`__
 
-.. |velocity-flat-anymal-c-direct-link| replace:: `Isaac-Velocity-Flat-Anymal-C-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
-.. |velocity-rough-anymal-c-direct-link| replace:: `Isaac-Velocity-Rough-Anymal-C-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
+.. |velocity-flat-anymal-c-direct-link| replace:: `Isaac-Velocity-Flat-Anymal-C-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
+.. |velocity-rough-anymal-c-direct-link| replace:: `Isaac-Velocity-Rough-Anymal-C-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
 
 .. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-Anymal-D-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-Anymal-D-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`__
@@ -670,9 +670,9 @@ Others
     |                | |humanoid_amp_walk-link|  |                                                                             |                              |
     +----------------+---------------------------+-----------------------------------------------------------------------------+------------------------------+
 
-.. |humanoid_amp_dance-link| replace:: `Isaac-Humanoid-AMP-Dance-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
-.. |humanoid_amp_run-link| replace:: `Isaac-Humanoid-AMP-Run-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
-.. |humanoid_amp_walk-link| replace:: `Isaac-Humanoid-AMP-Walk-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
+.. |humanoid_amp_dance-link| replace:: `Isaac-Humanoid-AMP-Dance-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
+.. |humanoid_amp_run-link| replace:: `Isaac-Humanoid-AMP-Run-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
+.. |humanoid_amp_walk-link| replace:: `Isaac-Humanoid-AMP-Walk-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/humanoid_amp_env_cfg.py>`__
 
 .. |humanoid_amp| image:: ../_static/tasks/others/humanoid_amp.jpg
 
@@ -834,7 +834,7 @@ Environments based on fixed-arm manipulation tasks.
 
 .. |shadow-hand-over| image:: ../_static/tasks/manipulation/shadow_hand_over.jpg
 
-.. |shadow-hand-over-direct-link| replace:: `Isaac-Shadow-Hand-Over-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand_over/shadow_hand_over_env.py>`__
+.. |shadow-hand-over-direct-link| replace:: `Isaac-Shadow-Hand-Over-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/hand_over/hand_over_env.py>`__
 
 |
 
@@ -882,12 +882,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rlinf** (PPO)
       -
-    * - Isaac-AutoMate-Assembly-Direct-v0
+    * - Isaac-AutoMate-Assembly-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-AutoMate-Disassembly-Direct-v0
+    * - Isaac-AutoMate-Disassembly-Direct
       -
       - Direct
       - **rl_games** (PPO)
@@ -1005,52 +1005,52 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       -
-    * - Isaac-Factory-GearMesh-Direct-v0
+    * - Isaac-Factory-GearMesh-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Factory-NutThread-Direct-v0
+    * - Isaac-Factory-NutThread-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Factory-PegInsert-Direct-v0
+    * - Isaac-Factory-PegInsert-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Forge-GearMesh-Direct-v0
+    * - Isaac-Forge-GearMesh-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Forge-NutThread-Direct-v0
+    * - Isaac-Forge-NutThread-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Forge-PegInsert-Direct-v0
+    * - Isaac-Forge-PegInsert-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Franka-Cabinet-Direct-v0
+    * - Isaac-Franka-Cabinet-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Humanoid-AMP-Dance-Direct-v0
+    * - Isaac-Humanoid-AMP-Dance-Direct
       -
       - Direct
       - **skrl** (AMP)
       -
-    * - Isaac-Humanoid-AMP-Run-Direct-v0
+    * - Isaac-Humanoid-AMP-Run-Direct
       -
       - Direct
       - **skrl** (AMP)
       -
-    * - Isaac-Humanoid-AMP-Walk-Direct-v0
+    * - Isaac-Humanoid-AMP-Walk-Direct
       -
       - Direct
       - **skrl** (AMP)
@@ -1210,39 +1210,39 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Repose-Cube-Allegro-Direct-v0
+    * - Isaac-Repose-Cube-Allegro-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Repose-Cube-Allegro-v0
-      - Isaac-Repose-Cube-Allegro-Play-v0
+    * - Isaac-Repose-Cube-Allegro
+      - Isaac-Repose-Cube-Allegro-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Repose-Cube-Shadow-Direct-v0
+    * - Isaac-Repose-Cube-Shadow-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0
+    * - Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0
+    * - Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct
       -
       - Direct
       - **rl_games** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0
-      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0
+    * - Isaac-Repose-Cube-Shadow-Vision-Direct
+      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play
       - Direct
       - **rl_games** (VISION), **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
           | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
-    * - Isaac-Shadow-Hand-Over-Direct-v0
+    * - Isaac-Shadow-Hand-Over-Direct
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1357,7 +1357,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Anymal-C-Direct-v0
+    * - Isaac-Velocity-Flat-Anymal-C-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1417,7 +1417,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Anymal-C-Direct-v0
+    * - Isaac-Velocity-Rough-Anymal-C-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

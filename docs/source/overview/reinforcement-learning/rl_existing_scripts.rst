@@ -47,19 +47,19 @@ structure**: you must pass the same preset to both the training and play command
 Using a different preset (or none) at play time will cause a model-architecture
 mismatch when loading the checkpoint.
 
-For example, ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` defaults to RGB + depth
+For example, ``Isaac-Repose-Cube-Shadow-Vision-Direct`` defaults to RGB + depth
 + segmentation inputs but can be switched to RGB-only with ``presets=rgb``:
 
 .. code:: bash
 
    # Train with RGB-only observations
    ./isaaclab.sh train --rl_library rsl_rl \
-       --task Isaac-Repose-Cube-Shadow-Vision-Direct-v0 --headless \
+       --task Isaac-Repose-Cube-Shadow-Vision-Direct --headless \
        --enable_cameras presets=rgb
 
    # Play — must use the same preset to load the matching checkpoint
    ./isaaclab.sh play --rl_library rsl_rl \
-       --task Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 \
+       --task Isaac-Repose-Cube-Shadow-Vision-Direct-Play \
        --enable_cameras presets=rgb
 
 Other available presets for this environment: ``albedo``,
@@ -293,7 +293,7 @@ SKRL
             # run command for recording video of a trained agent (requires installing `ffmpeg`)
             ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --headless --ml_framework jax --video --video_length 200
 
-   - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
+   - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct`` with skrl:
 
    .. tab-set::
       :sync-group: os
@@ -306,9 +306,9 @@ SKRL
             # install python module (for skrl)
             ./isaaclab.sh -i skrl
             # run command for training with the MAPPO algorithm (IPPO is also supported)
-            ./isaaclab.sh train --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+            ./isaaclab.sh train --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct --headless --algorithm MAPPO
             # run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-            ./isaaclab.sh play --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+            ./isaaclab.sh play --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -318,9 +318,9 @@ SKRL
             :: install python module (for skrl)
             isaaclab.bat -i skrl
             :: run command for training with the MAPPO algorithm (IPPO is also supported)
-            isaaclab.bat train --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+            isaaclab.bat train --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct --headless --algorithm MAPPO
             :: run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-            isaaclab.bat play --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+            isaaclab.bat play --rl_library skrl --task Isaac-Shadow-Hand-Over-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
 Stable-Baselines3
 -----------------

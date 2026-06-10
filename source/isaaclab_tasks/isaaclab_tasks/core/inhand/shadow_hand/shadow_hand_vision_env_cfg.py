@@ -10,11 +10,10 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.core.inhand.shadow_hand.feature_extractor import FeatureExtractorCfg
+from isaaclab_tasks.core.inhand.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-
-from .feature_extractor import FeatureExtractorCfg
-from .shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
 @configclass
@@ -140,7 +139,7 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
                 "Depth-only camera data type is intended for benchmarking only. "
                 "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
                 "Disable the feature extractor with 'feature_extractor.enabled=False' "
-                "(e.g. use Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0), "
+                "(e.g. use Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct), "
                 "or choose a data type that includes colour, e.g. presets=rgb."
             )
 

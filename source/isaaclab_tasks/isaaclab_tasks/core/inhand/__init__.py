@@ -3,7 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""In-hand object reorientation environment.
+"""In-hand object reorientation task family (allegro hand and shadow hand).
+
+This package consolidates the direct-workflow and manager-based-workflow in-hand
+manipulation tasks, where a dexterous hand reorients an object to match a goal
+orientation. The shared direct base environment lives in
+:mod:`~isaaclab_tasks.core.inhand.inhand_direct_env` and the shared manager-based
+base configuration in :mod:`~isaaclab_tasks.core.inhand.inhand_manager_env_cfg`.
+Robot-specific tasks are organized into the ``allegro_hand`` and ``shadow_hand``
+subpackages.
 
 These environments are based on the `dexterous cube manipulation`_ environments
 provided in IsaacGymEnvs repository from NVIDIA. However, they contain certain

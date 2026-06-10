@@ -32,7 +32,7 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
-    # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
+    # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 5.0,
@@ -786,8 +786,8 @@ def rendering_test_shadow_hand(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
-    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
-    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
+    from isaaclab_tasks.core.inhand.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
+    from isaaclab_tasks.core.inhand.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 

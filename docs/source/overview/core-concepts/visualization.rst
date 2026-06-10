@@ -288,7 +288,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Repose-Cube-Shadow-Vision-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -304,7 +304,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Repose-Cube-Shadow-Vision-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -320,7 +320,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Repose-Cube-Shadow-Vision-Direct \
      --enable_cameras \
      --visualizer kit \
      --video \

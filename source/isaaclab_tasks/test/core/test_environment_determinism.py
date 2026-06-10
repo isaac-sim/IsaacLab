@@ -62,8 +62,8 @@ def test_locomotion_env_determinism(task_name, device):
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Repose-Cube-Allegro-v0",
-        # "Isaac-Repose-Cube-Allegro-Direct-v0",  # FIXME: @kellyg, any idea why it is not deterministic?
+        "Isaac-Repose-Cube-Allegro",
+        # "Isaac-Repose-Cube-Allegro-Direct",  # FIXME: @kellyg, any idea why it is not deterministic?
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])

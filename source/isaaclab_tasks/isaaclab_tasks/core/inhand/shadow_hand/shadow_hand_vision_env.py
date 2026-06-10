@@ -16,15 +16,14 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.sensors import Camera
 from isaaclab.utils.math import quat_apply
 
-from isaaclab_tasks.core.inhand_manipulation.inhand_manipulation_env import InHandManipulationEnv, unscale
-
-from .feature_extractor import FeatureExtractor
+from isaaclab_tasks.core.inhand.inhand_direct_env import InHandDirectEnv, unscale
+from isaaclab_tasks.core.inhand.shadow_hand.feature_extractor import FeatureExtractor
 
 if TYPE_CHECKING:
-    from .shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
+    from isaaclab_tasks.core.inhand.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
 
-class ShadowHandVisionEnv(InHandManipulationEnv):
+class ShadowHandVisionEnv(InHandDirectEnv):
     cfg: ShadowHandVisionEnvCfg
 
     def __init__(self, cfg: ShadowHandVisionEnvCfg, render_mode: str | None = None, **kwargs):

@@ -14,7 +14,7 @@ import gymnasium as gym
 ##
 
 inhand_task_entry = "isaaclab_tasks_experimental.direct.inhand_manipulation"
-stable_agents = "isaaclab_tasks.core.allegro_hand.agents"
+stable_agents = "isaaclab_tasks.core.inhand.allegro_hand.agents"
 
 gym.register(
     id="Isaac-Repose-Cube-Allegro-Direct-Warp-v0",
@@ -22,8 +22,8 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.allegro_hand_warp_env_cfg:AllegroHandWarpEnvCfg",
-        "rl_games_cfg_entry_point": f"{stable_agents}:rl_games_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{stable_agents}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{stable_agents}.rsl_rl_ppo_cfg:AllegroHandPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{stable_agents}:skrl_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{stable_agents}:skrl_direct_ppo_cfg.yaml",
     },
 )

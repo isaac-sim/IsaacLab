@@ -5,7 +5,7 @@
 
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.core.inhand.inhand_env_cfg as inhand_env_cfg
+from isaaclab_tasks.core.inhand.inhand_manager_env_cfg import InHandObjectEnvCfg
 
 ##
 # Pre-defined configs
@@ -14,7 +14,7 @@ from isaaclab_assets import ALLEGRO_HAND_CFG  # isort: skip
 
 
 @configclass
-class AllegroCubeEnvCfg(inhand_env_cfg.InHandObjectEnvCfg):
+class AllegroCubeEnvCfg(InHandObjectEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

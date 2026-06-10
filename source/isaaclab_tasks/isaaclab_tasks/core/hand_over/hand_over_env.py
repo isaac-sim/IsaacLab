@@ -19,13 +19,13 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
-from .shadow_hand_over_env_cfg import ShadowHandOverEnvCfg
+from isaaclab_tasks.core.hand_over.hand_over_env_cfg import HandOverEnvCfg
 
 
-class ShadowHandOverEnv(DirectMARLEnv):
-    cfg: ShadowHandOverEnvCfg
+class HandOverEnv(DirectMARLEnv):
+    cfg: HandOverEnvCfg
 
-    def __init__(self, cfg: ShadowHandOverEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: HandOverEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.num_hand_dofs = self.right_hand.num_joints

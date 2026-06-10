@@ -1,0 +1,2 @@
+Internal: updated the experimental Allegro warp task's agent-config references to the
+consolidated ``isaaclab_tasks.core.inhand.allegro_hand.agents`` location and infixed filenames.

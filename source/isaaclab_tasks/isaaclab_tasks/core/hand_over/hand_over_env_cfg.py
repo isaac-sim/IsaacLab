@@ -19,7 +19,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
+from isaaclab_tasks.core.inhand.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
@@ -29,7 +29,7 @@ from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 class EventCfg:
     """Configuration for randomization (PhysX path).
 
-    Note: this config is currently not wired into ``ShadowHandOverEnvCfg.events`` -
+    Note: this config is currently not wired into ``HandOverEnvCfg.events`` -
     it is kept as a reference for future event-randomization work. The event
     terms here use PhysX-only APIs (rigid-body materials, fixed tendons), so
     they would need a Newton variant before being enabled in the env.
@@ -265,7 +265,7 @@ class PhysicsCfg(PresetCfg):
 
 
 @configclass
-class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
+class HandOverEnvCfg(DirectMARLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 7.5

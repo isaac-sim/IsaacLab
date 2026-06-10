@@ -15,11 +15,11 @@ from . import agents
 # Register Gym environments.
 ##
 
-inhand_task_entry = "isaaclab_tasks.core.inhand_manipulation"
+inhand_direct_entry = "isaaclab_tasks.core.inhand.inhand_direct_env:InHandDirectEnv"
 
 gym.register(
-    id="Isaac-Repose-Cube-Shadow-Direct-v0",
-    entry_point=f"{inhand_task_entry}.inhand_manipulation_env:InHandManipulationEnv",
+    id="Isaac-Repose-Cube-Shadow-Direct",
+    entry_point=inhand_direct_entry,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_env_cfg:ShadowHandEnvCfg",
@@ -30,8 +30,8 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0",
-    entry_point=f"{inhand_task_entry}.inhand_manipulation_env:InHandManipulationEnv",
+    id="Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct",
+    entry_point=inhand_direct_entry,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_env_cfg:ShadowHandOpenAIEnvCfg",
@@ -42,8 +42,8 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0",
-    entry_point=f"{inhand_task_entry}.inhand_manipulation_env:InHandManipulationEnv",
+    id="Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct",
+    entry_point=inhand_direct_entry,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_env_cfg:ShadowHandOpenAIEnvCfg",
@@ -56,7 +56,7 @@ gym.register(
 # -------
 
 gym.register(
-    id="Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+    id="Isaac-Repose-Cube-Shadow-Vision-Direct",
     entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
     disable_env_checker=True,
     kwargs={
@@ -67,7 +67,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0",
+    id="Isaac-Repose-Cube-Shadow-Vision-Direct-Play",
     entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
     disable_env_checker=True,
     kwargs={
@@ -78,7 +78,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0",
+    id="Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct",
     entry_point=f"{__name__}.shadow_hand_vision_env:ShadowHandVisionEnv",
     disable_env_checker=True,
     kwargs={

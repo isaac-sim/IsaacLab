@@ -144,7 +144,7 @@ TEST_RL_ENVS = [
     "Isaac-Lift-Cube-Franka",
     "Isaac-Open-Drawer-Franka-v0",
     # dexterous manipulation
-    "Isaac-Repose-Cube-Allegro-v0",
+    "Isaac-Repose-Cube-Allegro",
     # locomotion
     "Isaac-Velocity-Flat-Unitree-Go2-v0",
     "Isaac-Velocity-Rough-Anymal-D-v0",

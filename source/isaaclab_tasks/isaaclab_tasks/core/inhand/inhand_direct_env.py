@@ -22,11 +22,11 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.allegro_hand.allegro_hand_env_cfg import AllegroHandEnvCfg
-    from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+    from isaaclab_tasks.core.inhand.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
+    from isaaclab_tasks.core.inhand.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
-class InHandManipulationEnv(DirectRLEnv):
+class InHandDirectEnv(DirectRLEnv):
     cfg: AllegroHandEnvCfg | ShadowHandEnvCfg
 
     def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):

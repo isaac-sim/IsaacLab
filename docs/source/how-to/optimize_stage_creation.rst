@@ -91,12 +91,11 @@ Limitations
     24. Isaac-Humanoid-Direct
     25. Isaac-Humanoid
     26. Isaac-Quadcopter-Direct-v0
-    27. Isaac-Repose-Cube-Allegro-Direct-v0
-    28. Isaac-Repose-Cube-Allegro-NoVelObs-v0
-    29. Isaac-Repose-Cube-Allegro-v0
-    30. Isaac-Repose-Cube-Shadow-Direct-v0
-    31. Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0
-    32. Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0
+    27. Isaac-Repose-Cube-Allegro-Direct
+    28. Isaac-Repose-Cube-Allegro
+    29. Isaac-Repose-Cube-Shadow-Direct
+    30. Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct
+    31. Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct
 
 **Stage in Memory**
 
