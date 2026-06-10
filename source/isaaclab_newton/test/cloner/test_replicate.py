@@ -6,7 +6,7 @@
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.cloner.replicate import _relative_clone_xform
+from isaaclab_newton.cloner.replicate import _relative_clone_xform, _source_world_indices
 
 
 def _default_quaternions(count: int) -> torch.Tensor:
@@ -23,20 +23,26 @@ def _rotation(transform: wp.transform) -> list[float]:
     return [float(value) for value in wp.transform_get_rotation(transform)]
 
 
-def test_relative_clone_xform_uses_source_env_pose():
-    """A prototype parsed from env_2 and cloned into env_7 moves by env_7 * inverse(env_2)."""
+def test_source_world_indices_use_first_active_world():
+    """Clone rows use their first active mapping column as the prototype source world."""
+    mapping = torch.tensor(
+        [
+            [False, True, True],
+            [False, False, False],
+            [True, False, True],
+        ],
+        dtype=torch.bool,
+    )
+
+    assert _source_world_indices(mapping) == [1, -1, 0]
+
+
+def test_relative_clone_xform_uses_source_world_pose():
+    """A prototype parsed from world 0 and cloned into world 1 moves by world_1 * inverse(world_0)."""
     positions = torch.tensor([[2.0, 0.0, 0.0], [7.0, 0.0, 0.0]], dtype=torch.float32)
     quaternions = _default_quaternions(2)
-    env_id_to_world_index = {2: 0, 7: 1}
 
-    xform = _relative_clone_xform(
-        "/World/envs/env_2/Object",
-        "/World/envs/env_{}/Object",
-        1,
-        env_id_to_world_index,
-        positions,
-        quaternions,
-    )
+    xform = _relative_clone_xform(0, 1, positions, quaternions)
 
     assert _translation(xform) == pytest.approx([5.0, 0.0, 0.0])
     assert _rotation(xform) == pytest.approx([0.0, 0.0, 0.0, 1.0])
@@ -46,33 +52,8 @@ def test_relative_clone_xform_identity_for_source_world():
     """Cloning a prototype into the world that already owns it produces identity."""
     positions = torch.tensor([[2.0, 0.0, 0.0], [7.0, 0.0, 0.0]], dtype=torch.float32)
     quaternions = _default_quaternions(2)
-    env_id_to_world_index = {2: 0, 7: 1}
 
-    xform = _relative_clone_xform(
-        "/World/envs/env_2/Object",
-        "/World/envs/env_{}/Object",
-        0,
-        env_id_to_world_index,
-        positions,
-        quaternions,
-    )
+    xform = _relative_clone_xform(0, 0, positions, quaternions)
 
     assert _translation(xform) == pytest.approx([0.0, 0.0, 0.0])
     assert _rotation(xform) == pytest.approx([0.0, 0.0, 0.0, 1.0])
-
-
-def test_relative_clone_xform_requires_source_env_in_mapping():
-    """The source env id recovered from the path must be present in the queued env ids."""
-    positions = torch.tensor([[2.0, 0.0, 0.0], [7.0, 0.0, 0.0]], dtype=torch.float32)
-    quaternions = _default_quaternions(2)
-    env_id_to_world_index = {2: 0, 7: 1}
-
-    with pytest.raises(RuntimeError, match="not present in env_ids"):
-        _relative_clone_xform(
-            "/World/envs/env_9/Object",
-            "/World/envs/env_{}/Object",
-            1,
-            env_id_to_world_index,
-            positions,
-            quaternions,
-        )

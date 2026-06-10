@@ -15,32 +15,34 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.cloner.cloner_utils import resolve_source_env_id
 from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 
 from isaaclab_newton.physics import NewtonManager
 
 
 def _relative_clone_xform(
-    source: str,
-    destination: str,
+    source_world_index: int,
     target_world_index: int,
-    env_id_to_world_index: dict[int, int],
     positions: torch.Tensor,
     quaternions: torch.Tensor,
 ) -> wp.transform:
-    """Return the transform that moves a source-env prototype into a target world."""
-    source_env_id = resolve_source_env_id(source, destination)
-    source_world_index = env_id_to_world_index.get(source_env_id)
-    if source_world_index is None:
-        raise RuntimeError(
-            f"Source path {source!r} resolved to env id {source_env_id}, which is not present in env_ids "
-            f"{sorted(env_id_to_world_index)}."
-        )
-
+    """Return the transform that moves a source-world prototype into a target world."""
     source_world_xform = wp.transform(positions[source_world_index].tolist(), quaternions[source_world_index].tolist())
     target_world_xform = wp.transform(positions[target_world_index].tolist(), quaternions[target_world_index].tolist())
     return wp.transform_multiply(target_world_xform, wp.transform_inverse(source_world_xform))
+
+
+def _source_world_indices(mapping: torch.Tensor) -> list[int]:
+    """Return the source world column for each clone row.
+
+    Heterogeneous clone-plan rows spawn their prototype in the first active environment
+    for that row, then reuse that prototype for every other active environment.
+    """
+    source_world_indices: list[int] = []
+    for row in range(mapping.size(0)):
+        active_worlds = torch.nonzero(mapping[row], as_tuple=True)[0]
+        source_world_indices.append(int(active_worlds[0]) if active_worlds.numel() > 0 else -1)
+    return source_world_indices
 
 
 def _build_newton_builder_from_mapping(
@@ -136,7 +138,7 @@ def _build_newton_builder_from_mapping(
     # cloned env, mirroring the legacy ``_replicate_from_stage`` path.
     world_xforms: list[wp.transform] = []
 
-    env_id_to_world_index = {int(env_id): index for index, env_id in enumerate(env_ids.tolist())}
+    source_world_indices = _source_world_indices(mapping)
 
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
@@ -156,13 +158,12 @@ def _build_newton_builder_from_mapping(
 
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             source = sources[int(row)]
-            destination = destinations[int(row)]
             proto = protos[source]
             offset = builder.shape_count
 
             builder.add_builder(
                 proto,
-                xform=_relative_clone_xform(source, destination, col, env_id_to_world_index, positions, quaternions),
+                xform=_relative_clone_xform(source_world_indices[int(row)], col, positions, quaternions),
             )
 
             # Compute final shape indices for sites in this proto
