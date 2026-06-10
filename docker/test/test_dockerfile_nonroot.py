@@ -16,6 +16,7 @@ DOCKER_DIR = REPO_ROOT / "docker"
 def _load_module(name: str, path: Path):
     """Import a module by file path (``docker`` is not an importable package here)."""
     spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None, f"cannot load module at {path}"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -164,12 +165,12 @@ def test_resolved_targets_are_absolute_paths(monkeypatch):
 def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str):
     """Each non-root Dockerfile derives its mount points from the parser, with a guard.
 
-    Guards the wiring: the build must call ``volume_mounts.py`` and abort (the
-    ``test -n`` guard) if the parse yields nothing, rather than re-hardcoding the
-    list or silently skipping preparation.
+    Guards the wiring: the build must call ``volume_mounts.py`` under
+    ``set -o pipefail`` (so a parse failure aborts the build) rather than
+    re-hardcoding the list or silently skipping preparation.
     """
     text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
 
+    assert "set -o pipefail" in text
     assert "docker/utils/volume_mounts.py" in text
     assert "chown -R isaaclab:isaaclab ${dirs}" in text
-    assert 'test -n "${dirs}"' in text
