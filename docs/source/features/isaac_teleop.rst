@@ -503,6 +503,14 @@ follows.
      - **Arm:** relative IK end-effector control. Gripper disabled.
 
 
+.. note::
+
+   Humanoid arms (e.g. Galbot, Agibot) have joint limits that inverse kinematics must respect.
+   The differential IK controller ignores these limits, so RMPFlow is preferred for teleoperating
+   them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
+   responding when the commanded target pose is unreachable within those limits -- this is expected,
+   not a bug.
+
 .. _isaac-teleop-switching-input-mode:
 
 Switch Between Controllers and Hand Tracking
