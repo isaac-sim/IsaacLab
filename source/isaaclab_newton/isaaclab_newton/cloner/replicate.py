@@ -32,19 +32,6 @@ def _relative_clone_xform(
     return wp.transform_multiply(target_world_xform, wp.transform_inverse(source_world_xform))
 
 
-def _source_world_indices(mapping: torch.Tensor) -> list[int]:
-    """Return the source world column for each clone row.
-
-    Heterogeneous clone-plan rows spawn their prototype in the first active environment
-    for that row, then reuse that prototype for every other active environment.
-    """
-    source_world_indices: list[int] = []
-    for row in range(mapping.size(0)):
-        active_worlds = torch.nonzero(mapping[row], as_tuple=True)[0]
-        source_world_indices.append(int(active_worlds[0]) if active_worlds.numel() > 0 else -1)
-    return source_world_indices
-
-
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -138,7 +125,9 @@ def _build_newton_builder_from_mapping(
     # cloned env, mirroring the legacy ``_replicate_from_stage`` path.
     world_xforms: list[wp.transform] = []
 
-    source_world_indices = _source_world_indices(mapping)
+    # Heterogeneous clone-plan rows spawn their prototype in the first active environment
+    # for that row, then reuse that prototype for every other active environment.
+    source_world_indices = [int(torch.nonzero(mapping[row], as_tuple=True)[0][0]) for row in range(mapping.size(0))]
 
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping

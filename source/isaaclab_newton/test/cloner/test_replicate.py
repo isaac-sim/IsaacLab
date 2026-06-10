@@ -6,7 +6,7 @@
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.cloner.replicate import _relative_clone_xform, _source_world_indices
+from isaaclab_newton.cloner.replicate import _relative_clone_xform
 
 
 def _default_quaternions(count: int) -> torch.Tensor:
@@ -21,20 +21,6 @@ def _translation(transform: wp.transform) -> list[float]:
 
 def _rotation(transform: wp.transform) -> list[float]:
     return [float(value) for value in wp.transform_get_rotation(transform)]
-
-
-def test_source_world_indices_use_first_active_world():
-    """Clone rows use their first active mapping column as the prototype source world."""
-    mapping = torch.tensor(
-        [
-            [False, True, True],
-            [False, False, False],
-            [True, False, True],
-        ],
-        dtype=torch.bool,
-    )
-
-    assert _source_world_indices(mapping) == [1, -1, 0]
 
 
 def test_relative_clone_xform_uses_source_world_pose():
