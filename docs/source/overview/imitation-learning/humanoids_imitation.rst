@@ -169,7 +169,6 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
-   --headless \
    --num_envs 20 \
    --generation_num_trials 1000 \
    --input_file ./datasets/dataset_annotated_gr1.hdf5 \
@@ -306,7 +305,6 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --visualizer kit \
       --enable_cameras \
       --device cpu \
-      --headless \
       --generation_num_trials 1000 \
       --num_envs 5 \
       --input_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 \
@@ -473,7 +471,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cpu --headless --num_envs 20 --generation_num_trials 1000 \
+   --device cpu --num_envs 20 --generation_num_trials 1000 \
    --input_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --output_file ./datasets/generated_dataset_g1_locomanip.hdf5
 
 
