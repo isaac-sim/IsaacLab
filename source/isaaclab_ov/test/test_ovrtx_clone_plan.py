@@ -398,4 +398,3 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
     # Only the env_0 prototype subtree is exported.
     _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
     _assert_export_contains_env_roots_but_omits_children(renderer._exported_usd_string, [1, 2, 3])
-
