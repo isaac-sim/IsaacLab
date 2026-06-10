@@ -77,7 +77,7 @@ def test_rmpflow_reset_pose_is_stable(task_name: str, drift_tol: float):
             arm_joint_ids = list(range(robot.num_joints))
 
         env.reset()
-        q_reset = robot.data.joint_pos[0, arm_joint_ids].clone()
+        q_reset = robot.data.joint_pos.torch[0, arm_joint_ids].clone()
 
         # Zero action => zero relative delta => "hold current pose" command.
         zero_action = torch.zeros((env.unwrapped.num_envs, env.action_space.shape[-1]), device=device)
@@ -86,8 +86,8 @@ def test_rmpflow_reset_pose_is_stable(task_name: str, drift_tol: float):
             for step in range(_SETTLE_STEPS):
                 env.step(zero_action)
                 if step == _SETTLE_STEPS - _SETTLE_WINDOW - 1:
-                    q_window_start = robot.data.joint_pos[0, arm_joint_ids].clone()
-        q_final = robot.data.joint_pos[0, arm_joint_ids].clone()
+                    q_window_start = robot.data.joint_pos.torch[0, arm_joint_ids].clone()
+        q_final = robot.data.joint_pos.torch[0, arm_joint_ids].clone()
 
         # 1) The arm has settled: it is effectively motionless over the final window.
         settle_motion = float((q_final - q_window_start).abs().sum())
