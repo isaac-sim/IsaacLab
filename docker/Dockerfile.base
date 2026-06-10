@@ -197,6 +197,25 @@ RUN chmod 755 \
 # copy the rest of the files
 COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
 
+# Pre-create every docker-compose named-volume mount point and hand it to the
+# non-root runtime user. docker-compose.yaml is the single source of truth for
+# the list; docker/utils/volume_mounts.py parses it so the paths are not
+# duplicated here. A fresh named volume inherits ownership from the image
+# directory at its mount path; if that directory is missing or root-owned, the
+# volume comes up root-owned and the isaaclab user cannot write it (e.g.
+# PermissionError creating logs/, or omni.datastore lock failures under
+# kit/cache). set -o pipefail makes a parse failure abort the build:
+# volume_mounts.py exits non-zero on an empty/unresolved list and grep exits
+# non-zero if no paths are produced, so the build fails here rather than
+# silently shipping an unprepared mount point.
+RUN set -o pipefail \
+ && export DOCKER_ISAACSIM_ROOT_PATH="${ISAACSIM_ROOT_PATH}" \
+           DOCKER_ISAACLAB_PATH="${ISAACLAB_PATH}" \
+           DOCKER_USER_HOME="${DOCKER_USER_HOME}" \
+ && dirs="$(${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/docker/utils/volume_mounts.py | grep '^/')" \
+ && mkdir -p ${dirs} \
+ && chown -R isaaclab:isaaclab ${dirs}
+
 USER isaaclab
 
 # make working directory as the Isaac Lab directory

@@ -37,7 +37,7 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView
 
-_RUNNING_CI = (
+_RUNNING_CI = bool(
     os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI")
 )
 
@@ -208,6 +208,71 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
         # update articulation
         articulation.update(sim.cfg.dt)
         surface_gripper.update(sim.cfg.dt)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(
+    _RUNNING_CI,
+    reason="Isaac Sim SurfaceGripperView initialization can deadlock in CI; keep CUDA fail-fast coverage only.",
+)
+def test_close_and_open_command(sim, num_articulations, device, add_ground_plane) -> None:
+    """Test that the close/open commands actually drive the surface gripper status.
+
+    This is a regression test for the command plumbing: a single ``close`` command must move the
+    gripper out of the *open* state into a *closing* (or *closed*) state, and a subsequent ``open``
+    command must bring it back to the *open* state.
+
+    .. note::
+        The shared ``test_gripper.usd`` does not contain a separate grippable rigid body (the cube
+        at the attachment point is a link of the gripper articulation), so the gripper cannot latch
+        onto anything and will not reach the *closed* state. We therefore only assert that the
+        command takes effect (the status leaves *open*), which is the deterministic behavior.
+
+    Args:
+        num_articulations: The number of articulations to initialize.
+        device: The device to run the test on.
+        add_ground_plane: Whether to add a ground plane to the simulation.
+    """
+    if has_kit() and get_isaac_sim_version().major < 5:
+        return
+    surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
+    surface_gripper, articulation, _ = generate_surface_gripper(
+        surface_gripper_cfg, articulation_cfg, num_articulations, device
+    )
+
+    sim.reset()
+
+    assert surface_gripper.is_initialized
+    # after a reset the gripper is open (-1.0)
+    assert torch.all(wp.to_torch(surface_gripper.state) == -1.0)
+
+    # send a single close command (the action term is edge-triggered, so commands are sent once)
+    close_cmd = wp.array([1.0] * num_articulations, dtype=wp.float32, device=device)
+    surface_gripper.set_grippers_command_index(close_cmd)
+    surface_gripper.write_data_to_sim()
+    # step the simulation so the gripper reacts to the command
+    for _ in range(3):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        surface_gripper.update(sim.cfg.dt)
+    # the close command must take effect: status is "closing" (0.0) or "closed" (1.0), never "open" (-1.0)
+    state_after_close = wp.to_torch(surface_gripper.state)
+    assert torch.all(state_after_close >= 0.0), f"close command had no effect, state={state_after_close.tolist()}"
+
+    # send a single open command; the gripper must return to the open state
+    open_cmd = wp.array([-1.0] * num_articulations, dtype=wp.float32, device=device)
+    surface_gripper.set_grippers_command_index(open_cmd)
+    surface_gripper.write_data_to_sim()
+    for _ in range(3):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        surface_gripper.update(sim.cfg.dt)
+    # the open command must take effect: status is back to "open" (-1.0)
+    state_after_open = wp.to_torch(surface_gripper.state)
+    assert torch.all(state_after_open == -1.0), f"open command had no effect, state={state_after_open.tolist()}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

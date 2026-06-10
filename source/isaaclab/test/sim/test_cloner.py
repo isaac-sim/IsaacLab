@@ -34,6 +34,7 @@ from isaaclab.cloner import (
     replicate,
     resolve_clone_plan_source,
     sequential,
+    split_clone_template,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
@@ -54,6 +55,14 @@ def _drain_replication_queue():
     REPLICATION_QUEUE.clear()
     yield
     REPLICATION_QUEUE.clear()
+
+
+def test_split_clone_template():
+    """Split clone destination templates around their clone slot."""
+    assert split_clone_template("/World/envs/env_{}/Robot") == ("/World/envs/env_", "/Robot")
+    assert split_clone_template("/World/scenes/{}/") == ("/World/scenes/", "")
+    with pytest.raises(ValueError, match="must contain"):
+        split_clone_template("/World/envs/env_0/Robot")
 
 
 def test_usd_replicate_with_positions_and_mask(sim):
@@ -118,6 +127,48 @@ def test_usd_replicate_context_queue_and_replicate(sim):
 
     assert stage.GetPrimAtPath("/World/envs/env_0/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
+
+
+def test_usd_replicate_nested_asset_preserves_local_offset_with_positions(sim):
+    """Grid positions are authored on env roots but not on nested replicated assets."""
+    camera_offset = (0.57, -0.8, 0.5)
+    num_envs = 2
+    env_ids = torch.arange(num_envs, dtype=torch.long)
+    positions, _ = grid_transforms(num_envs, 3.0, device=sim.cfg.device)
+
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+    sim_utils.create_prim("/World/envs/env_0/Camera", "Camera", translation=camera_offset)
+
+    stage = sim_utils.get_current_stage()
+    usd_replicate(
+        stage,
+        sources=["/World/envs/env_0"],
+        destinations=["/World/envs/env_{}"],
+        env_ids=env_ids,
+        positions=positions,
+    )
+    usd_replicate(
+        stage,
+        sources=["/World/envs/env_0/Camera"],
+        destinations=["/World/envs/env_{}/Camera"],
+        env_ids=env_ids,
+        positions=positions,
+    )
+
+    for env_idx in range(num_envs):
+        env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+        assert env_prim.IsValid()
+        env_translate = env_prim.GetAttribute("xformOp:translate").Get()
+        assert env_translate is not None
+        expected_env_pos = positions[env_idx].tolist()
+        assert (env_translate[0], env_translate[1], env_translate[2]) == pytest.approx(expected_env_pos)
+
+        camera_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}/Camera")
+        assert camera_prim.IsValid()
+        camera_translate = camera_prim.GetAttribute("xformOp:translate").Get()
+        assert camera_translate is not None
+        assert (camera_translate[0], camera_translate[1], camera_translate[2]) == pytest.approx(camera_offset)
 
 
 def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatch):

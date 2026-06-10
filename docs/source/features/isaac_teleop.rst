@@ -479,6 +479,12 @@ follows.
      - **Arm:** end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+
+       **Note:** With the RMPFlow controller, avoid colliding with
+       the cubes during teleoperation: contact forces cause the
+       controller to overtune and the arm to drift. Move the
+       end-effector close to and just above the cube, stop, then
+       close the suction cup.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -492,13 +498,18 @@ follows.
    * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** absolute IK end-effector control. Gripper disabled.
    * - ``Isaac-Reach-Franka-IK-Rel-v0``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
 
+
+.. note::
+
+   Humanoid arms (e.g. Galbot, Agibot) have joint limits that inverse kinematics must respect.
+   The differential IK controller ignores these limits, so RMPFlow is preferred for teleoperating
+   them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
+   responding when the commanded target pose is unreachable within those limits -- this is expected,
+   not a bug.
 
 .. _isaac-teleop-switching-input-mode:
 

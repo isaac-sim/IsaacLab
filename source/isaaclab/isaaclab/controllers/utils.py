@@ -8,12 +8,24 @@
 This module provides utility functions to help with controller implementations.
 """
 
+import contextlib
+import glob
 import logging
 import os
 import re
+import sys
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# NOTE: As of Isaac Sim 6.0, ``isaacsim.robot_motion.lula`` (and ``isaacsim.robot_motion.motion_generation``)
+# are deprecated -- ``lula`` has been subsumed by cuMotion (``isaacsim.robot_motion.cumotion``), which is
+# built on the new experimental motion-generation API and is the long-term replacement for RMPFlow here.
+# ``lula`` is still shipped (under ``extsDeprecated`` in pip installs) so this controller keeps working,
+
+_LULA_EXT_NAME = "isaacsim.robot_motion.lula"
+_RMPFLOW_EXT_PREFIX = "rmpflow_ext:"
+_RMPFLOW_EXT_NAME = "isaacsim.robot_motion.motion_generation"
 
 
 def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool = True) -> tuple[str, str]:
@@ -136,3 +148,101 @@ def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verb
 
     with open(urdf_path, "w") as file:
         file.write(content)
+
+
+def resolve_rmpflow_path(path: str) -> str:
+    """Resolve a sentinel ``rmpflow_ext:`` path to an absolute filesystem path.
+
+    Paths stored in :class:`~isaaclab.controllers.rmp_flow_cfg.RmpFlowControllerCfg`
+    that begin with ``"rmpflow_ext:"`` are relative to the
+    ``isaacsim.robot_motion.motion_generation`` extension directory.  This avoids
+    importing ``isaacsim`` in the cfg file (which is loaded without Kit).
+    """
+    if path.startswith(_RMPFLOW_EXT_PREFIX):
+        rel = path[len(_RMPFLOW_EXT_PREFIX) :]
+        # imported lazily so the module loads without Kit (e.g. the kitless Newton visualizer)
+        from isaacsim.core.experimental.utils.app import get_extension_path
+
+        ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
+        return os.path.join(ext_dir, rel)
+    return path
+
+
+def find_lula_prebundle_dir() -> str | None:
+    """Locate the ``pip_prebundle`` directory shipping the ``lula`` module, or ``None`` if not found.
+
+    ``lula`` is prebundled inside the ``isaacsim.robot_motion.lula`` extension, under the Isaac Sim
+    install directory exposed via the ``ISAAC_PATH`` environment variable (importing ``isaacsim`` sets
+    it as a side effect). The extension lives under different sub-trees depending on the install:
+    ``exts/<name>`` for binary installs, ``extscache/<name>-<version>`` for pip caches, and
+    ``extsDeprecated/<name>`` for the Isaac Sim 6.0 pip packages (where the Kit resolver reports it as
+    unavailable even though the prebundled module is present). All layouts are searched.
+    """
+    isaac_path = os.environ.get("ISAAC_PATH")
+    if not isaac_path:
+        with contextlib.suppress(ImportError):
+            import isaacsim  # noqa: F401  (sets ``os.environ["ISAAC_PATH"]`` as a side effect)
+        isaac_path = os.environ.get("ISAAC_PATH")
+    if not isaac_path:
+        return None
+    candidates = [os.path.join(isaac_path, "exts", _LULA_EXT_NAME, "pip_prebundle")]
+    for parent in ("extscache", "extsDeprecated", "exts"):
+        candidates.extend(sorted(glob.glob(os.path.join(isaac_path, parent, f"{_LULA_EXT_NAME}*", "pip_prebundle"))))
+    for prebundle in candidates:
+        if os.path.isdir(prebundle):
+            return prebundle
+    return None
+
+
+def import_lula():
+    """Import and return the ``lula`` library, making it importable across backends.
+
+    ``lula`` ships as a prebundled module of the ``isaacsim.robot_motion.lula`` Isaac Sim extension.
+    Resolution proceeds in order: import directly when the ``pip_prebundle`` paths are already on
+    :data:`sys.path` (e.g. when launched via ``isaaclab.sh``); otherwise locate the prebundle directory
+    and add it to :data:`sys.path` (works under both Kit and the kitless Newton visualizer); and only as
+    a last resort ask a running Kit app to enable the owning extension. The prebundle is tried before
+    :func:`enable_extension` on purpose -- in Isaac Sim 6.0 the extension is deprecated and unresolvable
+    by Kit, so enabling it first would log a spurious "failed to resolve extension dependencies" error
+    even though ``lula`` itself loads fine from the prebundle.
+    """
+    try:
+        import lula
+
+        return lula
+    except ModuleNotFoundError:
+        pass
+
+    # Locate the prebundle and add it ourselves -- works under both Kit and kitless, and avoids asking
+    # Kit to enable the (in 6.0, deprecated and unresolvable) extension.
+    prebundle = find_lula_prebundle_dir()
+    if prebundle is not None and prebundle not in sys.path:
+        sys.path.insert(0, prebundle)
+        try:
+            import lula
+
+            return lula
+        except ModuleNotFoundError:
+            pass
+
+    # Last resort: under a running Kit app, enabling the owning extension registers its prebundle.
+    try:
+        from isaacsim.core.experimental.utils.app import enable_extension
+    except (ImportError, ModuleNotFoundError):
+        pass
+    else:
+        enable_extension(_LULA_EXT_NAME)
+        try:
+            import lula
+
+            return lula
+        except ModuleNotFoundError:
+            pass
+
+    raise ModuleNotFoundError(
+        "Could not import 'lula', which is required by the RMPFlow controller. It ships with the"
+        f" '{_LULA_EXT_NAME}' Isaac Sim extension, which was not found in this Isaac Sim install."
+        " The Isaac Sim 6.0 pip packages (early developer release) do not yet include this"
+        " extension; use a binary Isaac Sim install, or select a task that does not rely on"
+        " RMPFlow."
+    )

@@ -6,11 +6,9 @@
 name: Publish Docker Images
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - release/**
+  # Image publishing is owned by the nightly cron (registered on the default
+  # branch, main). No push triggers — pushes to develop / release no longer publish.
+  workflow_dispatch:
 
 # Concurrency control to prevent parallel runs
 concurrency:
@@ -78,9 +76,9 @@ jobs:
     - name: Login to NGC
       run: |
         # Only attempt NGC login if API key is available
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+        if [ -n "$NGC_API_KEY" ]; then
           echo "🔵 Logging into NGC registry..."
-          if ! docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io; then
+          if ! echo "$NGC_API_KEY" | docker login -u '$oauthtoken' --password-stdin nvcr.io; then
             echo "🔴 Failed to log into NGC registry"
             exit 1
           fi
@@ -103,11 +101,12 @@ jobs:
 
         # Build the list of tags based on the branch.
         #
-        # Tagging scheme:
+        # Tagging scheme (immutable tag uses the full commit SHA so it matches
+        # the nightly cron's tags on main; see publish-images.yaml there):
         #   - Push to develop:    $IMAGE:latest-develop                          (moves to newest develop build)
-        #                         $IMAGE:latest-develop-<run#>-<sha-stub>        (immutable per-build)
+        #                         $IMAGE:latest-develop-<full-sha>               (immutable per-commit)
         #   - Push to release/X:  $IMAGE:latest-release-X                        (moves to newest build on that release branch)
-        #                         $IMAGE:latest-release-X-<run#>-<sha-stub>      (immutable per-build)
+        #                         $IMAGE:latest-release-X-<full-sha>             (immutable per-commit)
         #   - Push to main:       $IMAGE:latest                                  (moves to newest main build)
         #                         $IMAGE:v<VERSION>                              (from the VERSION file, e.g. v3.0.0)
         TAGS=()
@@ -115,7 +114,7 @@ jobs:
         case "$BRANCH_NAME" in
           develop)
             TAGS+=("$IMAGE:latest-develop")
-            TAGS+=("$IMAGE:latest-develop-${{ github.run_number }}-${SHA:0:8}")
+            TAGS+=("$IMAGE:latest-develop-$SHA")
             ;;
           main)
             TAGS+=("$IMAGE:latest")
@@ -131,7 +130,7 @@ jobs:
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
             TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX")
-            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-${{ github.run_number }}-${SHA:0:8}")
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA")
             ;;
           *)
             echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."

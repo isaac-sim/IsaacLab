@@ -118,7 +118,6 @@ Launch *N* workers, where *n* indicates each worker index:
      --seed=<n> \
      --task=Isaac-Reorient-Cube-Shadow-Direct \
      --num_envs=8192 \
-     --headless \
      --track \
      --wandb-name=idx<n> \
      --wandb-entity=<**entity**> \

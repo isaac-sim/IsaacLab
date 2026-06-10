@@ -11,7 +11,7 @@ import contextlib
 import ctypes
 import logging
 from abc import abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -284,6 +284,7 @@ class NewtonManager(PhysicsManager):
     _LocalSite = tuple[None, list[list[int]]]
     _SiteEntry = _GlobalSite | _LocalSite
     _cl_site_index_map: dict[str, _SiteEntry] = {}
+    _cl_fabric_body_bindings: list[tuple[str, int]] | None = None
     _world_xforms: list[wp.transform] | None = None
 
     @classmethod
@@ -692,6 +693,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
         NewtonManager._cl_site_index_map = {}
+        NewtonManager._cl_fabric_body_bindings = None
         NewtonManager._world_xforms = None
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
@@ -1017,30 +1019,43 @@ class NewtonManager(PhysicsManager):
         if not cls._clone_physics_only:
             import usdrt
 
-            body_paths = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
-            if not body_paths:
-                logger.warning(
-                    "NewtonManager: model has no rigid bodies (body_label/body_key is empty). "
-                    "USD/Fabric body sync for RTX is skipped. "
-                    "Particle-only scenes (e.g. cloth) must register their own USD mesh update."
-                )
-                NewtonManager._usdrt_stage = None
-            else:
-                NewtonManager._usdrt_stage = get_current_stage(fabric=True)
-                for i, prim_path in enumerate(body_paths):
-                    prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
-                    prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-                    prim.GetAttribute(cls._newton_index_attr).Set(i)
-                    # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
-                    # applies Inverse propagation (preserves Newton's world
-                    # transforms and derives local) instead of Forward.
-                    prim.AddAppliedSchema("PhysicsRigidBodyAPI")
-                    xformable_prim = usdrt.Rt.Xformable(prim)
-                    if not xformable_prim.HasWorldXform():
-                        xformable_prim.SetWorldXformFromUsd()
+            body_paths = list(cls._model.body_label)
+            NewtonManager._usdrt_stage = get_current_stage(fabric=True)
+            body_bindings = NewtonManager._cl_fabric_body_bindings
+            if body_bindings is None:
+                # Non-replicated Newton stages do not pass through NewtonReplicateContext.
+                body_bindings = [(body_path, i) for i, body_path in enumerate(body_paths)]
 
-                cls._mark_transforms_dirty()
-                cls.sync_transforms_to_usd()
+            fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
+            )
+
+            NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
+
+            cls._mark_transforms_dirty()
+            cls.sync_transforms_to_usd()
+
+    @staticmethod
+    def _initialize_fabric_body_prims(stage, fabric_hierarchy, usdrt, body_bindings: Sequence[tuple[str, int]]) -> None:
+        """Initialize Fabric body prims used by Newton transform sync."""
+        for prim_path, body_index in body_bindings:
+            prim = stage.GetPrimAtPath(prim_path)
+            if prim.IsValid():
+                xformable_prim = usdrt.Rt.Xformable(prim)
+                xformable_prim.SetWorldXformFromUsd()
+            else:
+                prim = stage.DefinePrim(prim_path, "Xform")
+                xformable_prim = usdrt.Rt.Xformable(prim)
+                xformable_prim.CreateFabricHierarchyWorldMatrixAttr()
+
+            prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
+            prim.GetAttribute(NewtonManager._newton_index_attr).Set(body_index)
+            # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode applies
+            # Inverse propagation (preserves Newton's world transforms and derives
+            # local) instead of Forward.
+            prim.AddAppliedSchema("PhysicsRigidBodyAPI")
+
+        fabric_hierarchy.update_world_xforms()
 
     @classmethod
     def instantiate_builder_from_stage(cls):

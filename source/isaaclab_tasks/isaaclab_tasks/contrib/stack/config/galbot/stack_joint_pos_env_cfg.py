@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import logging
+
 from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -22,7 +23,20 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
-from isaaclab_tasks.contrib.stack.stack_env_cfg import ObservationsCfg, StackEnvCfg
+from isaaclab_tasks.contrib.stack.stack_env_cfg import (
+    ObservationsCfg,
+    StackEnvCfg,
+    raise_if_surface_gripper_on_newton,
+)
+
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 ##
 # Pre-defined configs
@@ -237,6 +251,10 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
         # MDP settings
 
+        # set viewer to see the robot and objects on the table
+        self.viewer.eye = [1.8, 0.0, 1.8]
+        self.viewer.lookat = [0.3, 0.0, 0.8]
+
         # Set events
         self.events = EventCfg()
         self.observations.policy = ObservationGalbotLeftArmGripperCfg().PolicyCfg()
@@ -324,15 +342,20 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # IsaacTeleop-based teleoperation pipeline (left hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
 
 
 @configclass
 class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
+    def validate_config(self):
+        # The right-arm suction cup uses a PhysX-only surface gripper.
+        raise_if_surface_gripper_on_newton(self)
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -365,8 +388,9 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
         # IsaacTeleop-based teleoperation pipeline (right hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
