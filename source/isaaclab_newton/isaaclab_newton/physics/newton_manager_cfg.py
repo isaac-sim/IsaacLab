@@ -164,3 +164,7 @@ class NewtonCfg(PhysicsCfg):
                 self.collision_decimation,
                 self.num_substeps,
             )
+
+    def provides_implicit_damping(self) -> bool:
+        # Newton's symplectic integrator has no implicit damping.
+        return False

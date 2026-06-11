@@ -39,26 +39,22 @@ class CartpoleCameraEnv(CartpoleEnv):
 
     @staticmethod
     def _resolve_frame_stack_default(camera_cfg, physics_cfg) -> int:
-        """Default frame-stack size for the physics + renderer + data-type combo.
+        """Default frame-stack size from the backend capability flags.
 
-        Newton has no implicit damping, so the policy needs a temporal cue to infer velocity.
-        Returns ``2`` when the render carries none, else ``1``:
-
-        - Non-Newton (PhysX / OV-PhysX): damping suffices -> ``1``.
-        - Newton + Warp (no temporal AA) -> ``2``.
-        - Newton + RTX: ``rgb`` gets it from DLSS -> ``1``; ``depth`` / ``albedo`` /
-          ``simple_shading`` bypass DLSS -> ``2``.
+        Stack ``2`` frames when the policy needs a temporal cue to infer velocity but the
+        observation carries none -- the physics backend has no implicit damping AND the
+        renderer provides no temporal data for this data type. Otherwise ``1``. The capability
+        lives on the backend configs, not here:
+        :meth:`~isaaclab.physics.physics_manager_cfg.PhysicsCfg.provides_implicit_damping` and
+        :meth:`~isaaclab.renderers.renderer_cfg.RendererCfg.provides_temporal_camera_data`.
         """
-        from isaaclab_newton.physics import NewtonCfg
-        from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-        if not isinstance(physics_cfg, NewtonCfg):
+        if physics_cfg is None or physics_cfg.provides_implicit_damping():
             return 1
-        if isinstance(getattr(camera_cfg, "renderer_cfg", None), NewtonWarpRendererCfg):
-            return 2
+        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
         data_types = getattr(camera_cfg, "data_types", None) or []
         data_type = data_types[0] if data_types else ""
-        return 2 if data_type.startswith(("depth", "albedo", "simple_shading")) else 1
+        has_temporal = renderer_cfg is not None and renderer_cfg.provides_temporal_camera_data(data_type)
+        return 1 if has_temporal else 2
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         # Flatten preset wrappers so the frame-stack resolution below sees concrete types.

@@ -26,6 +26,11 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
+    def provides_temporal_camera_data(self, data_type: str) -> bool:
+        # OV-RTX, like Isaac RTX, temporally accumulates only the rgb/rgba beauty buffer
+        # (DLSS); the other AOVs bypass it.
+        return data_type in ("rgb", "rgba")
+
     temp_usd_dir: str | None = None
     """Directory for temporary combined USD files (scene + injected cameras).
     Used by the OVRTX renderer when building the render scope; must be writable.
