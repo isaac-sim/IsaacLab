@@ -489,6 +489,11 @@
     "comment": "NVIDIA"
   },
   {
+    "package": "cuda-toolkit",
+    "license": "UNKNOWN",
+    "comment": "NVIDIA"
+  },
+  {
     "package": "omniverseclient",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
     "comment": "NVIDIA"
