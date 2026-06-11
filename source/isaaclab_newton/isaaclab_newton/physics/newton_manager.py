@@ -257,6 +257,9 @@ class NewtonManager(PhysicsManager):
     # Per-world reset masks (allocated in start_simulation, consumed in step)
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
+    # Set by ``invalidate_fk`` and consumed by ``NewtonKaminoManager.step`` / ``forward``
+    # so the Kamino solver reset only runs on steps where a reset actually occurred.
+    _kamino_needs_reset: bool = False
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
@@ -776,6 +779,7 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
+        NewtonManager._kamino_needs_reset = False
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._newton_stage_path = None
@@ -1063,6 +1067,9 @@ class NewtonManager(PhysicsManager):
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
 
+        # Flag a pending Kamino solver reset; consumed by NewtonKaminoManager.
+        NewtonManager._kamino_needs_reset = True
+
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
                 _or_reset_masks_from_mask,
@@ -1114,8 +1121,12 @@ class NewtonManager(PhysicsManager):
             cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
             NewtonManager._pending_extended_state_attributes = set()
         cls._prepare_builder_for_finalize(cls._builder)
+        # Kamino works in maximal coordinates, so joints need not form a strict tree;
+        # skip the tree-joint validation for Kamino only.
+        _solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        _skip_joint_validation = getattr(_solver_cfg, "solver_type", "") == "kamino"
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
-            NewtonManager._model = cls._builder.finalize(device=device)
+            NewtonManager._model = cls._builder.finalize(device=device, skip_validation_joints=_skip_joint_validation)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
