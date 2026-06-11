@@ -19,7 +19,7 @@ training scenes and real operating environments and improve zero-shot transfer. 
 to evaluate policies in reconstructed simulation scenes that better reflect target deployment spaces.
 
 Some sample assets compatible with COMPASS training are available in the
-`PhysicalAI-Robotics-NuRec dataset on Hugging Face <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2>`_.
+`PhysicalAI-Robotics-NuRec dataset on Hugging Face <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`_.
 
 Real2Sim Assets
 ~~~~~~~~~~~~~~~
@@ -36,7 +36,6 @@ scenes produced with this workflow; two examples are shown below.
 
    * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_galileo.gif
           :alt: Galileo Real2Sim NuRec asset
-          :target: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2/nova_carter-galileo
           :class: nurec-gif-cover
           :align: center
 
@@ -46,7 +45,6 @@ scenes produced with this workflow; two examples are shown below.
           | Sensor Rig: 4 x `Stereo Camera <https://leopardimaging.com/wp-content/uploads/2024/07/LI-AR0234CS-STEREO-GMSL2-30_Datasheet_V1.8.pdf>`_
      - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_living_room.gif
           :alt: Living Room Real2Sim NuRec asset
-          :target: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2/hand_hold-endeavor-livingroom
           :class: nurec-gif-cover
           :align: center
 
@@ -68,7 +66,6 @@ assets available in Isaac Sim.
 
    * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/xgrid_wormhole_with_sim_objects.gif
           :alt: Wormhole XGRIDS reconstruction
-          :target: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2/xgrid-wormhole
           :class: nurec-gif-cover
           :align: center
 
