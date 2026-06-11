@@ -30,8 +30,8 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.replicator.behavior" = {}
 "isaacsim.robot.policy.examples" = {}
 "isaacsim.robot.schema" = {}
-"isaacsim.robot.experimental.wheeled_robots" = {}
-"isaacsim.robot.wheeled_robots.nodes" = {}
+"isaacsim.robot.experimental.wheeled_robots" = { optional = true }
+"isaacsim.robot.wheeled_robots.nodes" = { optional = true }
 "isaacsim.sensors.experimental.physics" = {}
 "isaacsim.sensors.experimental.rtx" = {}
 "isaacsim.simulation_app" = {}
@@ -307,6 +307,6 @@ fabricUseGPUInterop = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

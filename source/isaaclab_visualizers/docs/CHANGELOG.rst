@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.1.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton visualizer configuration options for showing particles and
+  setting their color.
+
+Fixed
+^^^^^
+
+* Fixed ``set_camera_view`` updates for the Newton visualizer.
+
+
+0.1.4 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.newton.NewtonVisualizer.set_camera_view` so
+  the Newton visualizer follows :meth:`~isaaclab.sim.SimulationContext.set_camera_view`
+  camera updates.
+
+
 0.1.3 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 

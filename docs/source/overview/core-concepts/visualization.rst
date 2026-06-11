@@ -288,7 +288,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -304,7 +304,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -320,7 +320,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer kit \
      --video \
@@ -505,6 +505,11 @@ Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no exte
 management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
 starting a new server, initialization fails with a clear port-conflict error.
 
+To save a replay, set ``record_to_rrd`` to the output ``.rrd`` path. Enable
+``keep_historical_data`` and ``keep_scalar_history`` when you want transform and scalar history to be available
+for timeline scrubbing. After the run, open the Rerun web viewer and press ``Ctrl+O`` to load the saved ``.rrd`` file.
+
+Note, the timeline UI elements are for .rrd recording playback timeline scrubbing.
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~

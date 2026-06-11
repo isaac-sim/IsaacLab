@@ -131,5 +131,6 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
 Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` or
 ``isaaclab.bat -p`` to run python scripts. You can use the default python executable in your
-environment by running ``python`` or ``python3``. However, for the rest of the documentation,
-we will assume that you are using ``./isaaclab.sh -p`` or ``isaaclab.bat -p`` to run python scripts.
+environment by running ``python`` or ``python3``. Updated how-to guides use ``python`` directly;
+older pages may still show ``./isaaclab.sh -p`` or ``isaaclab.bat -p``, which are equivalent when
+your virtual environment is active.

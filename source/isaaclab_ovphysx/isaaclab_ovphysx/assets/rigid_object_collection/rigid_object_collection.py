@@ -24,6 +24,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, resolve_view_ids
+from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -74,7 +75,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        for rigid_body_cfg in self.cfg.rigid_objects.values():
+        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 rigid_body_cfg.spawn.func(
@@ -87,6 +88,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            queue_ovphysx_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list: list[str] = []
         # one fused TensorBinding per tensor type, populated in _initialize_impl

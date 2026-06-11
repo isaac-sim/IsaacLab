@@ -25,28 +25,28 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run training with the task ``Isaac-Cartpole`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
@@ -216,7 +216,7 @@ override is given:
 .. code-block:: bash
 
     # Use Newton physics backend
-    python train.py --task=Isaac-Reach-Franka-v0 env.physics=newton_mjwarp
+    python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -236,10 +236,10 @@ disabled unless explicitly selected:
 .. code-block:: bash
 
     # camera is None -- no camera overhead
-    python train.py --task=Isaac-Reach-Franka-v0
+    python train.py --task=Isaac-Reach-Franka
 
     # activate camera with the "large" preset
-    python train.py --task=Isaac-Reach-Franka-v0 env.scene.camera=large
+    python train.py --task=Isaac-Reach-Franka env.scene.camera=large
 
 
 .. _hydra-backend-solver-presets:

@@ -1,6 +1,127 @@
 Changelog
 ---------
 
+6.6.2 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rigid-body ancestor resolution for sensor paths whose terminal child path
+  is repeated earlier in the prim path.
+* Fixed :func:`isaaclab.sim.build_simulation_context` silently ignoring the
+  ``device`` kwarg when ``sim_cfg`` is also provided. Most test callers pass
+  both kwargs together; the helper now applies the explicit ``device`` over
+  ``sim_cfg.device`` so the caller's choice wins. Without this, warp kernel
+  launches in :mod:`isaaclab_newton.assets.articulation` raised device
+  mismatch errors on non-default GPUs (``env_ids`` allocated on the test's
+  device while the articulation's resolved device came from the untouched
+  ``sim_cfg`` default ``cuda:0``).
+* Fixed :func:`~isaaclab.cloner.disabled_fabric_change_notifies` to no-op
+  when ``usdrt`` is unavailable in kitless runtimes.
+* Fixed :func:`~isaaclab.cloner.usd.usd_replicate` authoring environment grid
+  positions on nested replicated prims (e.g. cameras), overwriting their local
+  transforms.
+* Fixed livestream launch handling to reject Isaac Sim full-app experiences
+  that depend on ``isaacsim.exp.full`` and to ensure Kit-backed examples open
+  a Kit visualizer by default when needed.
+
+
+6.6.1 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab[all]`` extra to include ``isaaclab_ppisp`` as a peer extension.
+* Fixed LEAPP export of :func:`isaaclab.envs.mdp.projected_gravity` to expose
+  root orientation as the graph input and compute projected gravity inside the
+  exported graph.
+* Fixed local asset retrieval for MDL files that import sibling MDL modules, such as Hospital materials importing OmniUe4 modules.
+* Prevented environment destructors from emitting cleanup tracebacks after Python import shutdown begins.
+* Fixed the ``isaaclab.python.kit`` GUI experience failing to start with a Kit
+  dependency-solver error on Isaac Sim builds that do not ship
+  ``isaacsim.robot.experimental.wheeled_robots`` or
+  ``isaacsim.robot.wheeled_robots.nodes``. These extensions are not imported by
+  Isaac Lab and are now declared optional, so the experience loads regardless of
+  the Isaac Sim build.
+
+
+6.6.0 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.scene.InteractiveSceneCfg.class_type` so scene configs
+  can instantiate custom scene classes.
+* Added :meth:`~isaaclab.sim.SimulationContext.is_headless_or_exist_active_visualizer`
+  to let kitless and external-visualizer demos share a visualizer-aware stepping
+  condition.
+* Added :data:`~isaaclab.cloner.REPLICATION_QUEUE` and the free function
+  :func:`~isaaclab.cloner.replicate`, the explicit registry-and-drain pair
+  that backends now hook into for replication.
+* Added :meth:`~isaaclab.cloner.ClonePlan.from_env_0` for direct envs that
+  clone a single env-0 prototype across every env.
+* Added :attr:`~isaaclab.cloner.CloneCfg.clone_regex` as the single source
+  of truth for the env-namespace convention (default ``"/World/envs/env_.*"``).
+
+Changed
+^^^^^^^
+
+* Updated demo scripts to support selectable PhysX or Newton MJWarp physics
+  backends and Kit or Newton visualizers.
+* **Breaking:** Rewrote :class:`~isaaclab.cloner.ReplicateSession` as a thin
+  context manager around :func:`~isaaclab.cloner.make_clone_plan` and
+  :func:`~isaaclab.cloner.replicate`. The no-arg form and the cached
+  ``plan`` / ``cfg_rows`` / ``replicate_on_exit`` fields are gone. Direct
+  envs migrate to ``cloner.replicate(cloner.ClonePlan.from_env_0(...))``.
+* **Breaking:** Changed :func:`~isaaclab.cloner.make_clone_plan` to take
+  ``cfgs`` and absorb the cfg-driven planning logic previously inside
+  :class:`~isaaclab.scene.InteractiveScene`, returning a self-contained
+  :class:`~isaaclab.cloner.ClonePlan`.
+* **Breaking:** :func:`~isaaclab.cloner.replicate` and
+  :class:`~isaaclab.cloner.ReplicateSession` now require an explicit
+  ``stage=`` keyword; the :class:`~isaaclab.cloner.ClonePlan` is
+  stage-agnostic.
+* Changed :attr:`~isaaclab.scene.InteractiveScene.env_origins` to read from
+  the published :class:`~isaaclab.cloner.ClonePlan`, making the plan the
+  single source of truth for env placement.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.cloner.replicate_session_defaults`` and
+  ``isaaclab.cloner.replicate_session``. Use
+  :data:`~isaaclab.cloner.REPLICATION_QUEUE` and
+  :func:`~isaaclab.cloner.replicate` instead.
+* **Breaking:** Removed :meth:`InteractiveScene.clone_environments`; direct
+  envs should use ``cloner.replicate(cloner.ClonePlan.from_env_0(...))``.
+* **Breaking:** Removed :attr:`InteractiveScene.env_ns` and
+  :attr:`InteractiveScene.env_regex_ns`; read
+  :attr:`~isaaclab.cloner.CloneCfg.clone_regex` instead.
+
+Fixed
+^^^^^
+
+* Fixed remote asset mirroring to include textures referenced by downloaded MDL materials.
+* Fixed :data:`~isaaclab.cloner.REPLICATION_QUEUE` leaking stale entries
+  when a backend or asset construction raised mid-session.
+
+
+6.5.0 (2026-06-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the pose-tracking reward terms :func:`~isaaclab.envs.mdp.rewards.position_command_error`,
+  :func:`~isaaclab.envs.mdp.rewards.position_command_error_tanh` and
+  :func:`~isaaclab.envs.mdp.rewards.orientation_command_error` to the shared MDP reward terms. They
+  track a body pose against a pose command and complement the existing velocity-tracking terms. The
+  reach task previously defined these locally.
+
+
 6.4.0 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 

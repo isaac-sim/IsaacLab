@@ -27,6 +27,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
+from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .rigid_object_data import RigidObjectData
@@ -62,6 +63,7 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_ovphysx_replication(cfg)
         # Bindings are created lazily (on first access) to avoid allocating
         # handles for tensor types the user never queries.
         self._bindings: dict[int, Any] = {}

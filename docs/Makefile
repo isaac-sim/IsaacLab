@@ -10,7 +10,7 @@ BUILDDIR      = _build
 
 .PHONY: multi-docs
 multi-docs:
-	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" -j auto $(SPHINXOPTS)
+	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" --jobs=auto $(SPHINXOPTS)
 	@cp _redirect/index.html $(BUILDDIR)/index.html
 
 .PHONY: current-docs

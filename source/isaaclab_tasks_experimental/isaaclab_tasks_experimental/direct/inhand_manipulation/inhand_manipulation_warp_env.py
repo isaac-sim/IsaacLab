@@ -14,6 +14,7 @@ import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation  # , RigidObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
@@ -673,8 +674,10 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self.object = Articulation(self.cfg.object_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate (no need to filter for this environment)
-        self.scene.clone_environments(copy_from_source=False)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.articulations["object"] = self.object

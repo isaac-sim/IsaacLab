@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+0.15.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton rigid-object deprecated root state writers to call keyword-only
+  pose and velocity helpers correctly.
+* Fixed Newton RTX/Fabric body binding to derive per-body Fabric bindings from
+  clone-plan source rows while labels are rewritten, avoiding invalid Fabric
+  attribute writes without cloning USD specs for each environment.
+
+
+0.15.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+* Fixed incorrect camera pose in :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`.
+
+
+0.15.3 (2026-06-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale Newton sensor site registrations leaking across simulation context teardown.
+
+
 0.15.2 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,90 @@
 Changelog
 ---------
 
+5.0.1 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``rendering_test_utils`` to use a shared :func:`_make_sensor_data_type_params` helper
+  for building the physics backend, renderer, and camera sensor data type test matrix, making it
+  easier to extend with additional data types.
+
+Fixed
+^^^^^
+
+* Fixed native keyboard, gamepad, and SpaceMouse teleoperation for the Franka reach tasks. These
+  devices emit a 6D SE(3) delta command, which only matches the relative-IK action space, so they
+  are now configured on ``Isaac-Reach-Franka-IK-Rel-v0`` instead of the shared ``ReachEnvCfg`` base.
+  Previously the absolute-IK variant (``Isaac-Reach-Franka-IK-Abs-v0``, 7D pose action) and the
+  joint-position variant inherited these devices and raised an invalid action shape error when
+  teleoperated.
+* Fixed the tiled camera visualizer tutorial to use the current launcher imports
+  and select task-appropriate camera sources for Kit and Newton visualizers.
+
+
+5.0.0 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Consolidated the rigid and soft Franka lifting tasks into a single
+  :mod:`isaaclab_tasks.core.lift` package. The former ``isaaclab_tasks.core.lift_franka_soft``
+  package moved under :mod:`isaaclab_tasks.core.lift.config.franka_soft`, alongside the existing
+  rigid ``franka`` config, to keep the rigid and soft variants separated. Update imports such as
+  ``from isaaclab_tasks.core.lift_franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg`` to
+  ``from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg``.
+  The deformable MDP terms were merged into the shared :mod:`isaaclab_tasks.core.lift.mdp` package
+  (rather than a separate per-variant ``mdp``); import them from there, e.g.
+  ``from isaaclab_tasks.core.lift.mdp import deformable_lifted``.
+* **Breaking:** Renamed the lift Gym environment IDs to drop the ``-v0`` version suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Lift-Cube-Franka-v0`` → ``Isaac-Lift-Cube-Franka``.
+  * ``Isaac-Lift-Cube-Franka-Play-v0`` → ``Isaac-Lift-Cube-Franka-Play``.
+  * ``Isaac-Lift-Soft-Franka-v0`` → ``Isaac-Lift-Soft-Franka``.
+  * ``Isaac-Lift-Cloth-Franka-v0`` → ``Isaac-Lift-Cloth-Franka``.
+
+Fixed
+^^^^^
+
+* Increased the AutoMate assembly and disassembly PhysX GPU collision stack to avoid dropped contacts at the default 128 environments.
+* Updated AutoMate run helpers and docs to reject placeholder assembly IDs before launching simulation.
+* Renamed the ``Isaac-Lift-Cloth-Franka`` physics preset from the misspelled ``newton_mjwarp_vdb``
+  to ``newton_mjwarp_vbd``, matching the soft-body task and the underlying VBD solver. The cloth
+  ``RewardsCfg``, which duplicated the soft task's rewards verbatim, is now inherited instead of
+  redefined.
+* Removed AutoMate's Numba dependency by replacing the SoftDTW helper with a
+  Torch implementation.
+
+
+4.0.0 (2026-06-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the reach Gym environment IDs to drop the ``-v0`` version suffix. The
+  robot name is kept in the ID and the manager-based workflow carries no workflow suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Reach-Franka-v0`` → ``Isaac-Reach-Franka``.
+  * ``Isaac-Reach-Franka-Play-v0`` → ``Isaac-Reach-Franka-Play``.
+  * ``Isaac-Reach-Franka-OSC-v0`` → ``Isaac-Reach-Franka-OSC``.
+  * ``Isaac-Reach-Franka-OSC-Play-v0`` → ``Isaac-Reach-Franka-OSC-Play``.
+  * ``Isaac-Reach-UR10-v0`` → ``Isaac-Reach-UR10``.
+  * ``Isaac-Reach-UR10-Play-v0`` → ``Isaac-Reach-UR10-Play``.
+* Renamed the RSL-RL experiment name for the Franka reach task from ``franka_reach`` to
+  ``reach_franka`` so it matches the other Franka reach agent configs and the UR10 reach task.
+* **Breaking:** Moved the reach pose-tracking reward terms ``position_command_error``,
+  ``position_command_error_tanh`` and ``orientation_command_error`` to the shared
+  :mod:`isaaclab.envs.mdp` terms and removed the ``isaaclab_tasks.core.reach.mdp`` package. Import
+  these terms from :mod:`isaaclab.envs.mdp` instead, e.g. replace
+  ``import isaaclab_tasks.core.reach.mdp as mdp`` with ``import isaaclab.envs.mdp as mdp``.
+
+
 3.0.0 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 

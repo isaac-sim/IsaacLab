@@ -515,6 +515,9 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
                 env_fmt + "/Object",
             ),
             clone_mask=torch.cat([robot_mask, object_mask], dim=0),
+            env_ids=env_ids,
+            positions=None,
+            cfg_rows={},
         )
     )
     sim_utils.update_stage()
