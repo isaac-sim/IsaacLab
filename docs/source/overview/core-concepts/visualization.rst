@@ -85,6 +85,10 @@ To run in headless mode, omit the ``--viz`` argument:
 
     ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0
 
+.. note::
+
+    The ``--headless`` argument is deprecated.
+    For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
 
 .. _visualization-configuration:
@@ -139,8 +143,9 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 - ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
 - If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 - ``--viz none`` explicitly disables all visualizers.
+- If ``--headless`` is passed, it overrides ``--viz`` and disables visualizers.
 
-For the migration-focused summary, see
+For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 Partial Visualization
@@ -182,6 +187,12 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
    * - ``--viz none``
      - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Run headless with all visualizers disabled.
+   * - ``--headless``
+     - any
+     - Run headless with deprecation warning.
+   * - ``--headless --viz <names>``
+     - any
+     - Run headless; ``--headless`` takes precedence.
 
 Camera Modes
 ~~~~~~~~~~~~
@@ -658,4 +669,4 @@ See Also
 - :doc:`/source/overview/core-concepts/renderers` — renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/overview/core-concepts/scene_data_providers` — how scene data flows from physics to visualizers
 - :doc:`/source/overview/core-concepts/physical-backends/newton/index` — Newton backend guide
-- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide for Isaac Lab 3.0 changes
+- :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide with ``--headless`` deprecation details
