@@ -129,14 +129,14 @@ class RigidObjectData(BaseRigidObjectData):
         """Run forward kinematics if the root state has changed since the last FK update.
 
         Newton's ``state.body_q`` (per-body world transforms) is updated by ``eval_fk``,
-        invoked here through ``SimulationManager.forward()``. After a manual root write
+        invoked here through the active manager's ``forward()``. After a manual root write
         that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to
         ``-1.0`` to force a refresh on the next read of any property that depends on
         body poses (``body_link_pose_w``, ``body_com_pose_w`` and the composite body
         state buffers).
         """
         if self._fk_timestamp < self._sim_timestamp:
-            SimulationManager.forward()
+            (SimulationManager._active_cls or SimulationManager).forward()
             self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(

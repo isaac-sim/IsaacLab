@@ -257,9 +257,17 @@ class NewtonManager(PhysicsManager):
     # Per-world reset masks (allocated in start_simulation, consumed in step)
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
-    # Set by ``invalidate_fk`` and consumed by ``NewtonKaminoManager.step`` / ``forward``
-    # so the Kamino solver reset only runs on steps where a reset actually occurred.
-    _kamino_needs_reset: bool = False
+
+    # Host-side flag mirroring the reset masks. Set by :meth:`invalidate_fk`
+    # whenever joint / root state is written, cleared once the masks are consumed
+    # by :meth:`forward` or :meth:`step`.
+    _reset_pending: bool = False
+
+    # Concrete manager subclass that is actually driving the simulation (e.g.
+    # ``NewtonKaminoManager``). Recorded in :meth:`initialize` because the base
+    # class is referenced as a bare literal in data containers; lazy FK refresh
+    # must dispatch through this to reach the active backend's ``forward()``.
+    _active_cls: type[NewtonManager] | None = None
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
@@ -334,6 +342,8 @@ class NewtonManager(PhysicsManager):
             sim_context: Parent simulation context.
         """
         super().initialize(sim_context)
+
+        NewtonManager._active_cls = cls
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -667,9 +677,10 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline or cls._needs_fk_before_step:
             eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, cls._fk_reset_mask)
 
-        # Zero both masks after consumption
+        # Zero both masks after consumption and clear the pending flag.
         NewtonManager._world_reset_mask.zero_()
         NewtonManager._fk_reset_mask.zero_()
+        NewtonManager._reset_pending = False
 
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
@@ -779,7 +790,8 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
-        NewtonManager._kamino_needs_reset = False
+        NewtonManager._reset_pending = False
+        NewtonManager._active_cls = None
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._newton_stage_path = None
@@ -1050,8 +1062,8 @@ class NewtonManager(PhysicsManager):
         """Mark environments as needing FK recomputation and solver reset.
 
         Called by asset write methods that modify joint coordinates or root
-        transforms. The masks are consumed in :meth:`step` before physics
-        stepping.
+        transforms. The masks are consumed in :meth:`forward` or :meth:`step`
+        (whichever runs first), gated by the :attr:`_reset_pending` flag set here.
 
         Args:
             env_mask: Boolean mask of dirtied environments. Shape ``(num_envs,)``.
@@ -1067,8 +1079,8 @@ class NewtonManager(PhysicsManager):
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
 
-        # Flag a pending Kamino solver reset; consumed by NewtonKaminoManager.
-        NewtonManager._kamino_needs_reset = True
+        # Mark a reset as pending so the next forward()/step() runs FK once.
+        NewtonManager._reset_pending = True
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
@@ -1121,8 +1133,7 @@ class NewtonManager(PhysicsManager):
             cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
             NewtonManager._pending_extended_state_attributes = set()
         cls._prepare_builder_for_finalize(cls._builder)
-        # Kamino works in maximal coordinates, so joints need not form a strict tree;
-        # skip the tree-joint validation for Kamino only.
+        # Kamino works in maximal coordinates, so skip the tree-joint validation for Kamino only.
         _solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
         _skip_joint_validation = getattr(_solver_cfg, "solver_type", "") == "kamino"
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
