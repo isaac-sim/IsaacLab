@@ -152,9 +152,8 @@ class DisplayPortPlug(RigidObjectCfg):
             max_contact_impulse=None,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
-        # Tight DP mate (~0.5 mm clearance per side); a larger contact_offset
-        # keeps the blade shell permanently overlapping the cavity walls.
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0003, rest_offset=0.0),
+        # Body5 clearance to blade is ~0.27mm — contact_offset must stay below that.
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=0.0),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_PLUG_ROOT_POS, rot=_DEFAULT_PLUG_ROT)
 
@@ -185,7 +184,7 @@ class DisplayPortSocket(RigidObjectCfg):
             max_contact_impulse=1e32,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=None),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0003, rest_offset=0.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=0.0),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_SOCKET_ROOT_POS, rot=_DEFAULT_SOCKET_ROT)
 
