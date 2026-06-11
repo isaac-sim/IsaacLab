@@ -13,7 +13,7 @@ on:
 # Concurrency control to prevent parallel runs
 concurrency:
   group: publish-images-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

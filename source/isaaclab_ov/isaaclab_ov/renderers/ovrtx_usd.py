@@ -5,6 +5,8 @@
 
 """USD manipulation for OVRTX: Render scope building, camera injection, and stage prim activation."""
 
+from __future__ import annotations
+
 import logging
 import math
 
@@ -178,13 +180,8 @@ def build_render_product_as_string(
 def create_scene_partition_attributes(
     stage,
     num_envs: int = 1,
-    use_ovrtx_cloning: bool = True,
 ) -> None:
     """Create scene partition attributes for env roots and cameras.
-
-    If use_ovrtx_cloning is True, only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
-    OVRTX clones env_0 internally and _update_scene_partitions_after_clone sets partition attributes on the clones.
-    So we only need to set attributes on env_0 here.
 
     Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by name, so this works regardless of
     where the camera is placed in the hierarchy.
@@ -192,10 +189,10 @@ def create_scene_partition_attributes(
     Args:
         stage: USD stage to modify.
         num_envs: Number of environments.
-        use_ovrtx_cloning: Whether OVRTX cloning is enabled.
     """
-    env_indices = [0] if use_ovrtx_cloning else range(num_envs)
-    for env_idx in env_indices:
+    # Collect the attribute paths and scene partition tokens to update.
+    attr_updates: list[tuple[Sdf.Path, str]] = []
+    for env_idx in range(num_envs):
         env_path = f"/World/envs/env_{env_idx}"
         env_prim = stage.GetPrimAtPath(env_path)
         if not env_prim.IsValid():
@@ -203,52 +200,125 @@ def create_scene_partition_attributes(
             continue
 
         scene_partition = f"env_{env_idx}"
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-        logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
 
         for prim in Usd.PrimRange(env_prim):
             if prim.GetPath() == env_prim.GetPath():
+                attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
+            elif prim.IsA(UsdGeom.Camera):
+                attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
+            else:
                 continue
+            attr_updates.append((attr_path, scene_partition))
 
-            if not prim.IsA(UsdGeom.Camera):
-                continue
+    root_layer = stage.GetRootLayer()
+    type_name = Sdf.ValueTypeNames.Token
+    variability = Sdf.VariabilityUniform
+    is_custom = True
 
-            prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-            logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
+    # Create the attributes and set the default values.
+    with Sdf.ChangeBlock():
+        for attr_path, scene_partition in attr_updates:
+            Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
+            root_layer.GetAttributeAtPath(attr_path).default = scene_partition
+            logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
 
 
-def export_stage_to_string(stage, num_envs: int, use_ovrtx_cloning: bool = True) -> str:
-    """Export the stage to a string; when num_envs > 1, only env_0 is exported for OVRTX cloning.
+def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
+    """Collect child prims under ``parent_prim`` for deactivation.
 
-    When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
-    them after, so the exported content contains only env_0. The stage is modified in place.
+    For each child:
+
+    * If the child is a source, keep the full subtree and stop descending.
+    * If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+    * Otherwise, deactivate the child prim (including descendants).
+
+    Args:
+        parent_prim: Parent prim whose children are considered.
+        source_paths: The paths to the cloning sources.
+
+    Returns:
+        Paths of prims to deactivate on the root layer.
+    """
+    prim_paths: list[Sdf.Path] = []
+
+    for child in parent_prim.GetChildren():
+        child_path = child.GetPath()
+
+        # If the child is a source, keep it and stop walking down the tree.
+        if child_path in source_paths:
+            continue
+
+        # If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+        if any(source.HasPrefix(child_path) for source in source_paths):
+            prim_paths.extend(_collect_prims_to_deactivate(child, source_paths))
+            continue
+
+        # Otherwise, deactivate the child prim (including descendants).
+        if child.IsActive():
+            prim_paths.append(child_path)
+
+    return prim_paths
+
+
+def _set_prims_active_on_layer(layer: Sdf.Layer, prim_paths: list[Sdf.Path], active: bool) -> None:
+    """Activate or deactivate prims on the given layer.
+
+    Args:
+        layer: Layer to modify the prims on.
+        prim_paths: Paths of prims to activate or deactivate.
+        active: Whether to activate or deactivate the prims.
+    """
+    action_str = "Activated" if active else "Deactivated"
+
+    with Sdf.ChangeBlock():
+        for prim_path in prim_paths:
+            # If a prim already exists at the given path it will be returned unmodified.
+            prim_spec = Sdf.CreatePrimInLayer(layer, prim_path)
+            prim_spec.active = active
+            logger.debug("%s prim: %s", action_str, prim_path)
+
+    logger.info("%s %d prims in total", action_str, len(prim_paths))
+
+
+def export_stage_to_string(stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...]) -> str:
+    """Export the USD stage as a USDA string for OVRTX loading.
+
+    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives only
+    the prototype geometry it will replicate with ``clone_usd``.
 
     Args:
         stage: USD stage to export.
-        num_envs: Number of environments.
-        use_ovrtx_cloning: Whether OVRTX cloning is enabled.
+        num_envs: Number of parallel environments on the stage.
+        source_paths: The paths to source prims to keep in the exported stage.
 
     Returns:
-        The exported stage as a string.
+        USDA text of the (possibly trimmed) stage.
     """
-    deactivated_prims = []
-    if use_ovrtx_cloning and num_envs > 1:
-        logger.info("Deactivating %d environment roots...", num_envs - 1)
-        for env_idx in range(1, num_envs):
-            env_path = f"/World/envs/env_{env_idx}"
-            prim = stage.GetPrimAtPath(env_path)
-            if prim.IsValid() and prim.IsActive():
-                prim.SetActive(False)
-                deactivated_prims.append(prim)
-                logger.debug("Deactivated environment root: %s", env_path)
+    if num_envs <= 1:
+        return stage.ExportToString()
 
-        logger.info("Deactivated %d environment roots in total", len(deactivated_prims))
+    envs_path = Sdf.Path("/World/envs")
+    envs_prim = stage.GetPrimAtPath(envs_path)
+    if not envs_prim.IsValid():
+        raise RuntimeError(f"Failed to get prim at path: {envs_path}")
+
+    source_path_set = frozenset(map(Sdf.Path, source_paths))
+    prim_paths: list[Sdf.Path] = []
+
+    for child in envs_prim.GetChildren():
+        # All env roots will be kept in the stage. If an env root is a source, keep the full subtree and don't walk down
+        # the subtree, otherwise walk down the subtree to collect descendant prims that are not sources to deactivate.
+        child_path = child.GetPath()
+        if child_path not in source_path_set:
+            prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
+
+    root_layer = stage.GetRootLayer()
+
+    # Temporarily deactivate the prims so that the stage is exported without them.
+    _set_prims_active_on_layer(root_layer, prim_paths, active=False)
 
     try:
         return stage.ExportToString()
     finally:
-        if deactivated_prims:
-            logger.info("Reactivating %d environment roots...", len(deactivated_prims))
-            for prim in deactivated_prims:
-                if prim.IsValid():
-                    prim.SetActive(True)
+        # Restore the active state of the prims.
+        _set_prims_active_on_layer(root_layer, prim_paths, active=True)

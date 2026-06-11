@@ -12,8 +12,6 @@ from dataclasses import MISSING, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaacteleop.teleop_session_manager import DeadlinePacingConfig, RetargetingExecutionConfig
-
 from isaaclab.utils.configclass import configclass
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID
@@ -29,7 +27,7 @@ CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
 
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
-    from isaacteleop.teleop_session_manager import PluginConfig
+    from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig
 
 
 @configclass
@@ -97,16 +95,16 @@ class IsaacTeleopCfg:
     sim_device: str = "cuda:0"
     """Torch device string for placing output action tensors."""
 
-    retargeting_execution: RetargetingExecutionConfig = field(
-        default_factory=lambda: RetargetingExecutionConfig(
-            mode="pipelined",
-            pacing=DeadlinePacingConfig(safety_margin_s=0.025),
-        )
-    )
+    retargeting_execution: RetargetingExecutionConfig | None = None
     """IsaacTeleop retargeting execution settings.
 
-    Isaac Lab opts into IsaacTeleop's pipelined execution by default. Set this
-    to ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
+    Left as ``None`` by default so that importing and constructing this config
+    never requires the optional ``isaacteleop`` package (e.g. on platforms where
+    it is not installed). When ``None``, Isaac Lab resolves it at session start to
+    IsaacTeleop's pipelined, deadline-paced default
+    (``RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))``),
+    where ``isaacteleop`` is guaranteed to be available. Set this explicitly to
+    ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
     retargeting while debugging or comparing behavior.
     """
 

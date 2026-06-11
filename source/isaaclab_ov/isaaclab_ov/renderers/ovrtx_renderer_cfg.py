@@ -27,17 +27,11 @@ class OVRTXRendererCfg(RendererCfg):
     """Type identifier for OVRTX renderer."""
 
     temp_usd_dir: str | None = None
-    """Directory for temporary combined USD files (scene + injected cameras).
-    Used by the OVRTX renderer when building the render scope; must be writable.
-    """
+    """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 
-    use_ovrtx_cloning: bool = True
-    """When True, export only env_0 and use OVRTX ``clone_usd``. When False, export full multi-environment stage.
-
-    OVRTX cloning is only supported in OVRTX 0.3.0 or newer.
-
-    If the simulation uses a heterogeneous env setup, the renderer disables this path and exports the full
-    multi-environment stage instead (same effect as setting this to ``False`` for that run).
+    When set, the renderer writes ``pre_ovrtx_renderer_stage.usda`` (raw stage before
+    partition attributes and export trimming) and ``ovrtx_renderer_stage.usda`` (exported
+    stage plus injected render products) under this directory. Must be writable.
     """
 
     log_level: str = "verbose"
