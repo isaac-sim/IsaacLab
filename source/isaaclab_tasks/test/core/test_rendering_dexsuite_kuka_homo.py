@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rendering correctness tests for Dexsuite Kuka-Allegro Lift backend combinations."""
+"""Rendering correctness tests for Dexsuite KukaAllegro Lift backend combinations."""
 
 # Launch Isaac Sim Simulator first for kit-based combinations.
 from isaaclab.app import AppLauncher

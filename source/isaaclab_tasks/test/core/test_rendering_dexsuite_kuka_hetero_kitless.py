@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kit-less rendering correctness tests for Dexsuite Kuka-Allegro Lift backend combinations."""
+"""Kit-less rendering correctness tests for Dexsuite KukaAllegro Lift backend combinations."""
 
 from pathlib import Path
 
@@ -29,5 +29,5 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def test_rendering_dexsuite_kuka_hetero_kitless(physics_backend, renderer, data_type):
-    """Camera output must match golden images (Dexsuite Kuka-Allegro Lift, single camera)."""
+    """Camera output must match golden images (Dexsuite KukaAllegro Lift, single camera)."""
     rendering_test_dexsuite_kuka(physics_backend, renderer, data_type, False, _COMPARISON_SCORES)

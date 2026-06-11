@@ -31,7 +31,7 @@ The environments are then registered in the `isaaclab_tasks/locomotion/velocity/
 
 ```python
 gym.register(
-    id="Isaac-Velocity-Rough-Anymal-C-v0",
+    id="Isaac-Velocity-Rough-AnymalC-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -43,7 +43,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Anymal-C-v0",
+    id="Isaac-Velocity-Flat-AnymalC-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

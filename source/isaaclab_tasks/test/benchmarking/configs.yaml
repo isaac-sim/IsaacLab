@@ -54,7 +54,7 @@ fast:
       episode_length: 250
     upper_thresholds:
       duration: 600
-  rsl_rl:Isaac-Velocity-Rough-Anymal-C-v0:
+  rsl_rl:Isaac-Velocity-Rough-AnymalC-v0:
     max_iterations: 300
     lower_thresholds:
       reward: 7
@@ -68,7 +68,7 @@ fast:
       episode_length: 150
     upper_thresholds:
       duration: 2000
-  rsl_rl:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
+  rsl_rl:Isaac-Lift-KukaAllegro:
     max_iterations: 300 # 200
     lower_thresholds:
       reward: 0.4 # 0.7
@@ -209,7 +209,7 @@ full:
       episode_length: 150
     upper_thresholds:
       duration: 1500
-  Isaac-Reach-OpenArm-Bi-v0:
+  Isaac-Reach-OpenArmBi-v0:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25
@@ -275,15 +275,15 @@ full:
       episode_length: 150
     upper_thresholds:
       duration: 10000
-  # Dexterous manipulation - Kuka-Allegro
-  Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
+  # Dexterous manipulation - KukaAllegro
+  Isaac-Lift-KukaAllegro:
     max_iterations: 500
     lower_thresholds:
       reward: 50
       episode_length: 200
     upper_thresholds:
       duration: 2000
-  Isaac-Dexsuite-Kuka-Allegro-Reorient-v0:
+  Isaac-Reorient-KukaAllegro:
     max_iterations: 500
     lower_thresholds:
       reward: 50
@@ -355,35 +355,35 @@ full:
       episode_length: 700
     upper_thresholds:
       duration: 3000
-  Isaac-Velocity-Flat-Spot-v0:
+  Isaac-Velocity-Flat-Spot:
     max_iterations: 1000
     lower_thresholds:
       reward: 150
       episode_length: 700
     upper_thresholds:
       duration: 6000
-  Isaac-Velocity-Flat-Digit-v0:
+  Isaac-Velocity-Flat-Digit:
     max_iterations: 1000
     lower_thresholds:
       reward: 10
       episode_length: 700
     upper_thresholds:
       duration: 3000
-  Isaac-Velocity-Flat-G1-v0:
+  Isaac-Velocity-Flat-G1:
     max_iterations: 1000
     lower_thresholds:
       reward: 10
       episode_length: 700
     upper_thresholds:
       duration: 3500
-  Isaac-Velocity-Flat-Unitree-Go1-v0:
+  Isaac-Velocity-Flat-UnitreeGo1-v0:
     max_iterations: 1000
     lower_thresholds:
       reward: 15
       episode_length: 700
     upper_thresholds:
       duration: 3000
-  Isaac-Velocity-Flat-Unitree-Go2-v0:
+  Isaac-Velocity-Flat-UnitreeGo2:
     max_iterations: 1000
     lower_thresholds:
       reward: 15
@@ -398,28 +398,28 @@ full:
       episode_length: 700
     upper_thresholds:
       duration: 6000
-  Isaac-Velocity-Rough-Digit-v0:
+  Isaac-Velocity-Rough-Digit:
     max_iterations: 1000
     lower_thresholds:
       reward: 5
       episode_length: 700
     upper_thresholds:
       duration: 6000
-  Isaac-Velocity-Rough-G1-v0:
+  Isaac-Velocity-Rough-G1:
     max_iterations: 1000
     lower_thresholds:
       reward: 5
       episode_length: 700
     upper_thresholds:
       duration: 6000
-  Isaac-Velocity-Rough-Unitree-Go1-v0:
+  Isaac-Velocity-Rough-UnitreeGo1-v0:
     max_iterations: 1000
     lower_thresholds:
       reward: 7
       episode_length: 700
     upper_thresholds:
       duration: 6000
-  Isaac-Velocity-Rough-Unitree-Go2-v0:
+  Isaac-Velocity-Rough-UnitreeGo2:
     max_iterations: 1000
     lower_thresholds:
       reward: 7

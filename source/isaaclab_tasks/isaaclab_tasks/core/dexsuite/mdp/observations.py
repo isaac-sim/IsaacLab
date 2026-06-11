@@ -18,26 +18,6 @@ if TYPE_CHECKING:
     from isaaclab.sensors import Camera
 
 
-def object_pos_b(
-    env: ManagerBasedRLEnv,
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-):
-    """Object position in the robot's root frame.
-
-    Args:
-        env: The environment.
-        robot_cfg: Scene entity for the robot (reference frame). Defaults to ``SceneEntityCfg("robot")``.
-        object_cfg: Scene entity for the object. Defaults to ``SceneEntityCfg("object")``.
-
-    Returns:
-        Tensor of shape ``(num_envs, 3)``: object position [x, y, z] expressed in the robot root frame.
-    """
-    robot: RigidObject = env.scene[robot_cfg.name]
-    object: RigidObject = env.scene[object_cfg.name]
-    return quat_apply_inverse(robot.data.root_quat_w.torch, object.data.root_pos_w.torch - robot.data.root_pos_w.torch)
-
-
 def object_quat_b(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -232,31 +212,3 @@ class vision_camera(ManagerTermBase):
         images = torch.tanh(images / 2) * 2
         images -= torch.mean(images, dim=(1, 2), keepdim=True)
         return images
-
-    def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
-        import matplotlib
-        import numpy as np
-        from PIL import Image
-
-        a = images.detach().cpu().numpy()
-        n, h, w, c = a.shape
-        s = int(np.ceil(np.sqrt(n)))
-        canvas = np.full((s * h, s * w, 3), 255, np.uint8)
-        turbo = matplotlib.colormaps["turbo"]
-        for i in range(n):
-            r, col = divmod(i, s)
-            img = a[i]
-            if c == 1:
-                d = img[..., 0]
-                d = (d - d.min()) / (np.ptp(d) + 1e-8)
-                rgb = (turbo(d)[..., :3] * 255).astype(np.uint8)
-            else:
-                x = img if img.max() > 1 else img * 255
-                rgb = np.clip(x, 0, 255).astype(np.uint8)
-            canvas[r * h : (r + 1) * h, col * w : (col + 1) * w] = rgb
-        Image.fromarray(canvas).save(save_path)
-
-
-def time_left(env: ManagerBasedRLEnv):
-    time_left_frac = 1 - env.episode_length_buf / env.max_episode_length
-    return time_left_frac.view(env.num_envs, -1)

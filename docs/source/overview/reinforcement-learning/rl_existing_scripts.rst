@@ -157,7 +157,7 @@ RSL-RL
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
 -  Training and distilling an agent with
-   `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Velocity-Flat-Anymal-D-v0``:
+   `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Velocity-Flat-AnymalD``:
 
    .. tab-set::
       :sync-group: os
@@ -170,13 +170,13 @@ RSL-RL
             # install python module (for rsl-rl)
             ./isaaclab.sh -i rsl_rl
             # run command for rl training of the teacher agent
-            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0
+            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
             # run command for rl training of the teacher agent with Newton backend
-            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 physics=newton_mjwarp
+            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
             # run command for distilling the teacher agent into a student agent
-            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
             # run command for playing the student with 64 environments
-            ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+            ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -186,13 +186,13 @@ RSL-RL
             :: install python module (for rsl-rl)
             isaaclab.bat -i rsl_rl
             :: run command for rl training of the teacher agent
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
             :: run command for rl training of the teacher agent with Newton backend
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 physics=newton_mjwarp
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
             :: run command for distilling the teacher agent into a student agent
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
             :: run command for playing the student with 64 environments
-            isaaclab.bat play --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+            isaaclab.bat play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
 SKRL
 ----
@@ -327,7 +327,7 @@ Stable-Baselines3
 
 -  Training an agent with
    `Stable-Baselines3 <https://stable-baselines3.readthedocs.io/en/master/index.html>`__
-   on ``Isaac-Velocity-Flat-Unitree-A1-v0``:
+   on ``Isaac-Velocity-Flat-UnitreeA1-v0``:
 
    .. tab-set::
       :sync-group: os
@@ -340,13 +340,13 @@ Stable-Baselines3
             # install python module (for stable-baselines3)
             ./isaaclab.sh -i sb3
             # run command for training
-            ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0
+            ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0
             # run command for training with Newton backend
-            ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 physics=newton_mjwarp
+            ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 physics=newton_mjwarp
             # run command for playing with 32 environments
-            ./isaaclab.sh play --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            ./isaaclab.sh play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             # run command for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh play --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --video --video_length 200
+            ./isaaclab.sh play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -356,13 +356,13 @@ Stable-Baselines3
             :: install python module (for stable-baselines3)
             isaaclab.bat -i sb3
             :: run command for training
-            isaaclab.bat train --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0
+            isaaclab.bat train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0
             :: run command for training with Newton backend
-            isaaclab.bat train --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 physics=newton_mjwarp
+            isaaclab.bat train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            isaaclab.bat play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             :: run command for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat play --rl_library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --video --video_length 200
+            isaaclab.bat play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --video --video_length 200
 
 RLinf
 -----

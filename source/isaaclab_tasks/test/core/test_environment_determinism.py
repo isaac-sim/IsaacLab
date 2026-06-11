@@ -49,8 +49,8 @@ def test_manipulation_env_determinism(task_name, device):
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Velocity-Flat-Anymal-D-v0",
-        "Isaac-Velocity-Rough-Anymal-D-v0",
+        "Isaac-Velocity-Flat-AnymalD",
+        "Isaac-Velocity-Rough-AnymalD",
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])

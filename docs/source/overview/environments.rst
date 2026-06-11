@@ -321,15 +321,15 @@ for the lift-cube environment:
 .. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
 .. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
 .. |galbot_stack-link| replace:: `Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
-.. |kuka-allegro-lift-link| replace:: `Isaac-Dexsuite-Kuka-Allegro-Lift-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
-.. |kuka-allegro-reorient-link| replace:: `Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
+.. |kuka-allegro-lift-link| replace:: `Isaac-Lift-KukaAllegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
+.. |kuka-allegro-reorient-link| replace:: `Isaac-Reorient-KukaAllegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
 .. |cube-shadow-link| replace:: `Isaac-Reorient-Cube-Shadow-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-lstm-link| replace:: `Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-vis-link| replace:: `Isaac-Reorient-Cube-Shadow-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_camera_env.py>`__
 .. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
 .. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
-.. |reach_openarm_bi-link| replace:: `Isaac-Reach-OpenArm-Bi-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
+.. |reach_openarm_bi-link| replace:: `Isaac-Reach-OpenArmBi-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
 .. |reach_openarm_uni-link| replace:: `Isaac-Reach-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
 .. |lift_openarm_uni-link| replace:: `Isaac-Lift-Cube-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/openarm/joint_pos_env_cfg.py>`__
 .. |cabi_openarm_uni-link| replace:: `Isaac-Open-Drawer-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/cabinet/config/openarm/joint_pos_env_cfg.py>`__
@@ -539,37 +539,37 @@ Environments based on legged locomotion tasks.
     | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     | **physics=** ``physx``       |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
 
-.. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-AnymalB-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-AnymalB-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/rough_env_cfg.py>`__
 
-.. |velocity-flat-anymal-c-link| replace:: `Isaac-Velocity-Flat-Anymal-C-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-c-link| replace:: `Isaac-Velocity-Rough-Anymal-C-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-c-link| replace:: `Isaac-Velocity-Flat-AnymalC-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-c-link| replace:: `Isaac-Velocity-Rough-AnymalC-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`__
 
-.. |velocity-flat-anymal-c-direct-link| replace:: `Isaac-Velocity-Flat-Anymal-C-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
-.. |velocity-rough-anymal-c-direct-link| replace:: `Isaac-Velocity-Rough-Anymal-C-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
+.. |velocity-flat-anymal-c-direct-link| replace:: `Isaac-Velocity-Flat-AnymalC-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
+.. |velocity-rough-anymal-c-direct-link| replace:: `Isaac-Velocity-Rough-AnymalC-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
 
-.. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-Anymal-D-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-Anymal-D-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-AnymalD <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-AnymalD <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-a1-link| replace:: `Isaac-Velocity-Flat-Unitree-A1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-a1-link| replace:: `Isaac-Velocity-Rough-Unitree-A1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-a1-link| replace:: `Isaac-Velocity-Flat-UnitreeA1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-a1-link| replace:: `Isaac-Velocity-Rough-UnitreeA1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-go1-link| replace:: `Isaac-Velocity-Flat-Unitree-Go1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go1-link| replace:: `Isaac-Velocity-Rough-Unitree-Go1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go1-link| replace:: `Isaac-Velocity-Flat-UnitreeGo1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go1-link| replace:: `Isaac-Velocity-Rough-UnitreeGo1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-Unitree-Go2-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-Unitree-Go2-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-UnitreeGo2 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-UnitreeGo2 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py>`__
 
-.. |velocity-flat-spot-link| replace:: `Isaac-Velocity-Flat-Spot-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/spot/flat_env_cfg.py>`__
+.. |velocity-flat-spot-link| replace:: `Isaac-Velocity-Flat-Spot <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/spot/flat_env_cfg.py>`__
 
-.. |velocity-flat-h1-link| replace:: `Isaac-Velocity-Flat-H1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/flat_env_cfg.py>`__
-.. |velocity-rough-h1-link| replace:: `Isaac-Velocity-Rough-H1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/rough_env_cfg.py>`__
+.. |velocity-flat-h1-link| replace:: `Isaac-Velocity-Flat-H1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/flat_env_cfg.py>`__
+.. |velocity-rough-h1-link| replace:: `Isaac-Velocity-Rough-H1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/rough_env_cfg.py>`__
 
-.. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/flat_env_cfg.py>`__
-.. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/rough_env_cfg.py>`__
+.. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/flat_env_cfg.py>`__
+.. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/g1/rough_env_cfg.py>`__
 
-.. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`__
-.. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`__
+.. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`__
+.. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`__
 .. |tracking-loco-manip-digit-link| replace:: `Isaac-Tracking-LocoManip-Digit-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`__
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
@@ -612,7 +612,7 @@ Navigation
     |                |                     |                                                                             | ``newton_mjwarp``            |
     +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
 
-.. |anymal_c_nav-link| replace:: `Isaac-Navigation-Flat-Anymal-C-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`__
+.. |anymal_c_nav-link| replace:: `Isaac-Navigation-Flat-AnymalC-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`__
 
 .. |anymal_c_nav| image:: ../_static/tasks/navigation/anymal_c_nav.jpg
 
@@ -986,15 +986,15 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
-      - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
+    * - Isaac-Lift-KukaAllegro
+      - Isaac-Lift-KukaAllegro-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``, ``state``
-    * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
-      - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
+    * - Isaac-Reorient-KukaAllegro
+      - Isaac-Reorient-KukaAllegro-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp``, ``physx``
@@ -1105,8 +1105,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Navigation-Flat-Anymal-C-v0
-      - Isaac-Navigation-Flat-Anymal-C-Play-v0
+    * - Isaac-Navigation-Flat-AnymalC-v0
+      - Isaac-Navigation-Flat-AnymalC-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
@@ -1190,8 +1190,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-OpenArm-Bi-v0
-      - Isaac-Reach-OpenArm-Bi-Play-v0
+    * - Isaac-Reach-OpenArmBi-v0
+      - Isaac-Reach-OpenArmBi-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
@@ -1352,118 +1352,118 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Anymal-B-v0
-      - Isaac-Velocity-Flat-Anymal-B-Play-v0
+    * - Isaac-Velocity-Flat-AnymalB-v0
+      - Isaac-Velocity-Flat-AnymalB-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Anymal-C-Direct
+    * - Isaac-Velocity-Flat-AnymalC-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Flat-Anymal-C-v0
-      - Isaac-Velocity-Flat-Anymal-C-Play-v0
+    * - Isaac-Velocity-Flat-AnymalC-v0
+      - Isaac-Velocity-Flat-AnymalC-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Anymal-D-v0
-      - Isaac-Velocity-Flat-Anymal-D-Play-v0
+    * - Isaac-Velocity-Flat-AnymalD
+      - Isaac-Velocity-Flat-AnymalD-Play
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
-    * - Isaac-Velocity-Flat-Cassie-v0
-      - Isaac-Velocity-Flat-Cassie-Play-v0
+    * - Isaac-Velocity-Flat-Cassie
+      - Isaac-Velocity-Flat-Cassie-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Digit-v0
-      - Isaac-Velocity-Flat-Digit-Play-v0
+    * - Isaac-Velocity-Flat-Digit
+      - Isaac-Velocity-Flat-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-G1-v0
-      - Isaac-Velocity-Flat-G1-Play-v0
+    * - Isaac-Velocity-Flat-G1
+      - Isaac-Velocity-Flat-G1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-H1-v0
-      - Isaac-Velocity-Flat-H1-Play-v0
+    * - Isaac-Velocity-Flat-H1
+      - Isaac-Velocity-Flat-H1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Spot-v0
-      - Isaac-Velocity-Flat-Spot-Play-v0
+    * - Isaac-Velocity-Flat-Spot
+      - Isaac-Velocity-Flat-Spot-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Unitree-A1-v0
-      - Isaac-Velocity-Flat-Unitree-A1-Play-v0
+    * - Isaac-Velocity-Flat-UnitreeA1-v0
+      - Isaac-Velocity-Flat-UnitreeA1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Unitree-Go1-v0
-      - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
+    * - Isaac-Velocity-Flat-UnitreeGo1-v0
+      - Isaac-Velocity-Flat-UnitreeGo1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Unitree-Go2-v0
-      - Isaac-Velocity-Flat-Unitree-Go2-Play-v0
+    * - Isaac-Velocity-Flat-UnitreeGo2
+      - Isaac-Velocity-Flat-UnitreeGo2-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Anymal-B-v0
-      - Isaac-Velocity-Rough-Anymal-B-Play-v0
+    * - Isaac-Velocity-Rough-AnymalB-v0
+      - Isaac-Velocity-Rough-AnymalB-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Anymal-C-Direct
+    * - Isaac-Velocity-Rough-AnymalC-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Rough-Anymal-C-v0
-      - Isaac-Velocity-Rough-Anymal-C-Play-v0
+    * - Isaac-Velocity-Rough-AnymalC-v0
+      - Isaac-Velocity-Rough-AnymalC-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Anymal-D-v0
-      - Isaac-Velocity-Rough-Anymal-D-Play-v0
+    * - Isaac-Velocity-Rough-AnymalD
+      - Isaac-Velocity-Rough-AnymalD-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Cassie-v0
-      - Isaac-Velocity-Rough-Cassie-Play-v0
+    * - Isaac-Velocity-Rough-Cassie
+      - Isaac-Velocity-Rough-Cassie-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Digit-v0
-      - Isaac-Velocity-Rough-Digit-Play-v0
+    * - Isaac-Velocity-Rough-Digit
+      - Isaac-Velocity-Rough-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-G1-v0
-      - Isaac-Velocity-Rough-G1-Play-v0
+    * - Isaac-Velocity-Rough-G1
+      - Isaac-Velocity-Rough-G1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-H1-v0
-      - Isaac-Velocity-Rough-H1-Play-v0
+    * - Isaac-Velocity-Rough-H1
+      - Isaac-Velocity-Rough-H1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Unitree-A1-v0
-      - Isaac-Velocity-Rough-Unitree-A1-Play-v0
+    * - Isaac-Velocity-Rough-UnitreeA1-v0
+      - Isaac-Velocity-Rough-UnitreeA1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Unitree-Go1-v0
-      - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
+    * - Isaac-Velocity-Rough-UnitreeGo1-v0
+      - Isaac-Velocity-Rough-UnitreeGo1-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-Unitree-Go2-v0
-      - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
+    * - Isaac-Velocity-Rough-UnitreeGo2
+      - Isaac-Velocity-Rough-UnitreeGo2-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``

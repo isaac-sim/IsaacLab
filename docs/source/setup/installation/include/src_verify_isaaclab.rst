@@ -84,14 +84,14 @@ These commands do not select a visualizer, so they run without a viewer for fast
 
       .. code:: bash
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Velocity-Rough-AnymalC-v0
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Velocity-Rough-AnymalC-v0
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be.
 Take a look at our :ref:`how-to` like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.

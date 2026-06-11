@@ -17,7 +17,7 @@ This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in th
 
 Running this script demonstrates two ways to use tiled cameras:
 
-- configured tiled cameras pointed at and following moving Anymal-D robots shown in the Kit visualizer
+- configured tiled cameras pointed at and following moving AnymalD robots shown in the Kit visualizer
 - streaming from existing wrist-mounted robot cameras shown in the Newton visualizer
 
 Note: Visualizer tiled cameras are currently supported only in the Kit and Newton visualizers.
@@ -32,7 +32,7 @@ Either visualizer can be used to run either example.
       :linenos:
 
 
-Example One: Following Anymal-D Robots
+Example One: Following AnymalD Robots
 --------------------------------------
 
 The Kit Visualizer shows the tiled camera view in a separate tab inside the main
@@ -41,15 +41,15 @@ toggle between the interactive viewport and the visualizer tiled camera view.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
-   :alt: Kit visualizer interactive viewport for Anymal-D robots
+   :alt: Kit visualizer interactive viewport for AnymalD robots
 
    Kit visualizer showing the default interactive viewport.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_tiled_view.jpg
    :width: 100%
-   :alt: Kit visualizer tiled camera view for Anymal-D robots
+   :alt: Kit visualizer tiled camera view for AnymalD robots
 
-   Kit visualizer showing the tiled camera view generated for selected Anymal-D
+   Kit visualizer showing the tiled camera view generated for selected AnymalD
    robots.
 
 Note, you can also display the main visualizer camera and the tiled camera view side by
@@ -59,7 +59,7 @@ To run the tutorial with the args for this example, use:
 
 .. code-block:: bash
 
-   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --enable_cameras --task Isaac-Velocity-Rough-Anymal-D-v0 --num_envs 256 --viz kit
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --enable_cameras --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
 Within the script, you’ll find the ``KitVisualizerCfg`` configuration used to
 generate this example. You can use this config as a template for your own use

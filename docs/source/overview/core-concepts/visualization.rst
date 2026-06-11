@@ -41,7 +41,7 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Warp-based rendering, browser-based, share URL, visualization markers
 
 
-*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+*The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
 
 .. figure:: ../../_static/visualizers/ov_viz.jpg
    :width: 100%

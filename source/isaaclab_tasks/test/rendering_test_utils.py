@@ -714,8 +714,8 @@ def rendering_test_dexsuite_kuka(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
-        DexsuiteKukaAllegroLiftEnvCfg,
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
+        DexsuiteKukaAllegroLiftCameraEnvCfg,
     )
 
     override_arg = f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera"
@@ -725,7 +725,7 @@ def rendering_test_dexsuite_kuka(
     if setup_homogeneous_envs:
         override_arg += ",cube"
 
-    env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
+    env_cfg = DexsuiteKukaAllegroLiftCameraEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [override_arg])
 
     env_cfg.scene.num_envs = 4

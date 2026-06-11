@@ -472,7 +472,7 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
     first use, so no implementation modules are imported eagerly.
 
     Args:
-        task_name: Task name (e.g., "Isaac-Velocity-Flat-Anymal-C-v0").
+        task_name: Task name (e.g., "Isaac-Velocity-Flat-AnymalC-v0").
         agent_cfg_entry_point: Agent config entry point key (e.g., "rsl_rl_cfg_entry_point").
 
     Returns:

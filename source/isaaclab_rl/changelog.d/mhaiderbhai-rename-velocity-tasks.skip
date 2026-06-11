@@ -1,0 +1,1 @@
+Test-only: updated the core locomotion-velocity task IDs (dropped -v0) in the rsl_rl export and leapp proxy tests.

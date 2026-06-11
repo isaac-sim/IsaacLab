@@ -56,7 +56,7 @@ and work transparently with Newton:
 isaaclab_assets
 ^^^^^^^^^^^^^^^
 
-* Quadrupeds: Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree
+* Quadrupeds: AnymalB, AnymalC, AnymalD, Unitree A1, Unitree Go1, Unitree
   Go2, Spot
 * Humanoids: Unitree H1, Unitree G1, Cassie
 * Arms and hands: Franka, UR10, Allegro Hand, Shadow Hand
@@ -75,9 +75,9 @@ Direct workflows:
 Manager-based workflows:
 
 * Classic: Cartpole, Ant, Humanoid
-* Locomotion velocity, flat terrain: A1, Anymal-B, Anymal-C, Anymal-D, Cassie,
+* Locomotion velocity, flat terrain: A1, AnymalB, AnymalC, AnymalD, Cassie,
   Unitree G1, Go1, Go2, Unitree H1, Spot
-* Locomotion velocity, rough terrain: Anymal-C, Cassie, Go1, Go2
+* Locomotion velocity, rough terrain: AnymalC, Cassie, Go1, Go2
 * Manipulation: reach (Franka, UR10), cabinet, dexsuite
 * Manipulation lift with deformable objects: Franka soft-body lift, Franka cloth
   lift (via coupled MJWarp + VBD)

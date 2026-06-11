@@ -63,13 +63,13 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
 
-TASK = "Isaac-Velocity-Rough-H1-v0"
+TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
 
 
 class H1RoughDemo:
     """This class provides an interactive demo for the H1 rough terrain environment.
-    It loads a pre-trained checkpoint for the Isaac-Velocity-Rough-H1-v0 task, trained with RSL RL
+    It loads a pre-trained checkpoint for the Isaac-Velocity-Rough-H1 task, trained with RSL RL
     and defines a set of keyboard commands for directing motion of selected robots.
 
     A robot can be selected from the scene through a mouse click. Once selected, the following
