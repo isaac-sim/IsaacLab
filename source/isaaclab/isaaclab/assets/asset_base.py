@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -112,10 +113,11 @@ class AssetBase(ABC):
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
-    def __del__(self):
+    def __del__(self, _sys=sys):
         """Unsubscribe from the callbacks."""
         # clear events handles
-        self._clear_callbacks()
+        if not _sys.is_finalizing() and _sys.meta_path is not None:
+            self._clear_callbacks()
 
     """
     Properties
