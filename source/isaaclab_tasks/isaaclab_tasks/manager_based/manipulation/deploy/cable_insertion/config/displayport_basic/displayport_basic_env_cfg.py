@@ -53,14 +53,6 @@ SOCKET_HEIGHT = 0.15  # metres above ground
 PLUG_CLEARANCE = 0.02  # metres above socket opening
 
 
-# Lazy-loaded custom spawner that applies physics APIs to the root prim.
-# Referenced as a string so pxr is not imported at config-resolution time.
-_SPAWNER = (
-    "isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion"
-    ".config.displayport_basic.spawners:spawn_usd_with_physics"
-)
-
-
 ##
 # Asset Configurations
 ##
@@ -72,16 +64,13 @@ class DisplayPortPlug(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortPlug"
     spawn = sim_utils.UsdFileCfg(
-        func=_SPAWNER,
+        # func=_SPAWNER,  # old: custom spawner needed for old assets (deinstance, strip physics scenes)
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_plug.usd"),
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),
-        # The simready asset's raw geometry is in INCHES; its root carries an
-        # `xformOp:scale:meter_normalization=(0.0254,...)` (inch->metre). Isaac
-        # Lab's create_prim REPLACES that op with cfg.scale, so cfg.scale must be
-        # 0.0254 to reproduce the asset's intended real size (mating cavity
-        # ~16.7 mm = real DisplayPort). Earlier values were wrong: 1.0 -> 40x too
-        # big (~1.5 m); 0.01 -> 39% of true size (~6.6 mm cavity).
-        scale=(0.0254, 0.0254, 0.0254),
+        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),  # old: inches, needs scale=0.0254
+        # usd_path="/home/shauryad/workspaces/rl_policy/physical-ai-skill-hub-dev/outputs/plug/conform/fet001-minimal/plug_material_physics.usd",  # old: absolute path, convexHull
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed.usd"),
+        # pipeline output post-processed by finalize_dp_assets.py: metres, single root RB, convexDecomposition.
+        scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -123,13 +112,14 @@ class DisplayPortSocket(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortSocket"
     spawn = sim_utils.UsdFileCfg(
-        func=_SPAWNER,
+        # func=_SPAWNER,  # old: custom spawner needed for old assets
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584N111_Displayport Cord_socket_screws_removed_material_physics.usd"),
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_socket.usd"),
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),
-        # See plug note: asset geometry is in inches; cfg.scale restores the
-        # importer's inch->metre normalization (0.0254) clobbered by create_prim.
-        scale=(0.0254, 0.0254, 0.0254),
+        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, needs scale=0.0254
+        # usd_path="/home/shauryad/workspaces/rl_policy/physical-ai-skill-hub-dev/outputs/socket/conform/fet001-minimal/socket_material_physics.usd",  # old: absolute path
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed.usd"),
+        # pipeline output post-processed by finalize_dp_assets.py: metres, kinematic root, all bodies enabled.
+        scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -163,7 +153,8 @@ class DisplayPortSocket(RigidObjectCfg):
 class DisplayportBasicSceneCfg(InteractiveSceneCfg):
     """Minimal scene: DisplayPort plug + socket, ground, and light. No robot."""
 
-    replicate_physics = False
+    # replicate_physics = False  # old: required when spawner patched de-instanced geometry at runtime
+    replicate_physics = True
 
     ground = AssetBaseCfg(
         prim_path="/World/ground",
