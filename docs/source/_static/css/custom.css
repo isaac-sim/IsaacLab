@@ -118,7 +118,6 @@ a {
     width: min(100%, 480px);
 }
 
-
 /* Keep sphinx-copybutton visible on code blocks (not only on hover). */
 button.copybtn {
     opacity: 1;
