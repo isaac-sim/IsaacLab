@@ -234,6 +234,9 @@ class NewtonManager(PhysicsManager):
     _solver: SolverBase | None = None
     _use_single_state: bool | None = None
     """Use only one state for both input and output for solver stepping. Requires solver support."""
+    _reset_passive_joints: bool = False
+    """Whether joint writes set only actuated joints, so passive joints must be resolved by a
+    solver reset (``forward()``) before joint state is consistent on read (e.g. Kamino)."""
     _state_0: State = None
     _state_1: State = None
     _control: Control = None
@@ -767,6 +770,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._model = None
         NewtonManager._solver = None
         NewtonManager._use_single_state = None
+        NewtonManager._reset_passive_joints = False
         NewtonManager._state_0 = None
         NewtonManager._state_1 = None
         NewtonManager._control = None

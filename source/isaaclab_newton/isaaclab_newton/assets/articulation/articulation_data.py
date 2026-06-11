@@ -1029,6 +1029,8 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
+        if (SimulationManager._active_cls or SimulationManager)._reset_passive_joints:
+            self._ensure_fk_fresh()
         return self._joint_pos_ta
 
     @property
@@ -1038,6 +1040,8 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
+        if (SimulationManager._active_cls or SimulationManager)._reset_passive_joints:
+            self._ensure_fk_fresh()
         return self._joint_vel_ta
 
     @property

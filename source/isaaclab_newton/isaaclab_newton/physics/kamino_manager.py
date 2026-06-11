@@ -168,6 +168,7 @@ class NewtonKaminoManager(NewtonManager):
         NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
+        NewtonManager._reset_passive_joints = True
 
     @classmethod
     def _capture_or_defer_cuda_graph(cls) -> None:
