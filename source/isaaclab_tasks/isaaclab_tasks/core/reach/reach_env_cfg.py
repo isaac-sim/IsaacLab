@@ -80,7 +80,7 @@ class TableCfg(PresetCfg):
         articulation_root_prim_path="",
     )
 
-    newton_kamino = newton_mjwarp
+    newton_kamino: ArticulationCfg = newton_mjwarp
     default = physx
 
 

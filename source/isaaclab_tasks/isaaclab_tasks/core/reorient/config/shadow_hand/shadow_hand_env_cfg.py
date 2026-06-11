@@ -266,7 +266,7 @@ class ShadowHandSceneCfg(PresetCfg):
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
     default: InteractiveSceneCfg = physx
-    newton_kamino = newton_mjwarp
+    newton_kamino: InteractiveSceneCfg = newton_mjwarp
 
 
 @configclass
