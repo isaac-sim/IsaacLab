@@ -141,11 +141,18 @@ class RigidObjectData(BaseRigidObjectData):
     def reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached rigid object properties.
 
+        Writing a root pose moves the body, so the composite root state buffers go stale.
+
         Args:
-            from_link: Whether the root link pose was written. Defaults to True.
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
+        # The root com pose is derived from the root link pose, so only invalidate it when the link
+        # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
         if from_link:
             self._root_com_pose_w.timestamp = -1.0
+        # The composite root state buffers always go stale on a pose write.
         for attr_name in (
             "_root_state_w",
             "_root_link_state_w",
@@ -158,11 +165,18 @@ class RigidObjectData(BaseRigidObjectData):
     def reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached rigid object properties.
 
+        Writing a root velocity changes the body velocities, so the composite root state buffers go stale.
+
         Args:
-            from_com: Whether the root center-of-mass velocity was written. Defaults to True.
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
         """
+        # The root link velocity is derived from the root com velocity, so only invalidate it when the
+        # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
         if from_com:
             self._root_link_vel_w.timestamp = -1.0
+        # The composite root state buffers always go stale on a velocity write.
         for attr_name in (
             "_root_state_w",
             "_root_link_state_w",

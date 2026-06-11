@@ -136,14 +136,21 @@ class RigidObjectData(BaseRigidObjectData):
             SimulationManager.forward()
             self._fk_timestamp = self._sim_timestamp
 
-    def reset_pose(self, env_ids: wp.array | None = None, env_mask: wp.array | None = None) -> None:
+    def reset_pose(
+        self, env_ids: wp.array | None = None, env_mask: wp.array | None = None, from_link: bool = True
+    ) -> None:
         """Reset pose-dependent cached rigid object properties.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
-        self._root_com_pose_w.timestamp = -1.0
+        # Only invalidate the derived root com pose when it was not the quantity just written.
+        if from_link:
+            self._root_com_pose_w.timestamp = -1.0
         # Force refresh on all the root states
         if self._root_state_w is not None:
             self._root_state_w.timestamp = -1.0
@@ -156,14 +163,21 @@ class RigidObjectData(BaseRigidObjectData):
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
-    def reset_velocity(self, env_ids: wp.array | None = None, env_mask: wp.array | None = None) -> None:
+    def reset_velocity(
+        self, env_ids: wp.array | None = None, env_mask: wp.array | None = None, from_com: bool = True
+    ) -> None:
         """Reset velocity-dependent cached rigid object properties.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
         """
-        self._root_link_vel_w.timestamp = -1.0
+        # Only invalidate the derived root link velocity when it was not the quantity just written.
+        if from_com:
+            self._root_link_vel_w.timestamp = -1.0
         self._body_link_vel_w.timestamp = -1.0
         # Force a refresh on all the root states
         if self._root_state_w is not None:

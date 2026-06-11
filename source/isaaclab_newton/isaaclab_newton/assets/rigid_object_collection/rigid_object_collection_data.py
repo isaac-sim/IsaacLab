@@ -129,14 +129,20 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
+        from_link: bool = True,
     ) -> None:
         """Reset pose-dependent cached rigid object collection properties.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            from_link: Set ``True`` when the body link poses were written so the derived body
+                center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
+                the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
         """
-        self._body_com_pose_w.timestamp = -1.0
+        # Only invalidate the derived body com poses when they were not the quantity just written.
+        if from_link:
+            self._body_com_pose_w.timestamp = -1.0
         # Force refresh on all the body com states
         if self._body_state_w is not None:
             self._body_state_w.timestamp = -1.0
@@ -153,14 +159,20 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
+        from_com: bool = True,
     ) -> None:
         """Reset velocity-dependent cached rigid object collection properties.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
+                link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
+                velocities were written directly so they are not clobbered. Defaults to True.
         """
-        self._body_link_vel_w.timestamp = -1.0
+        # Only invalidate the derived body link velocities when they were not the quantity just written.
+        if from_com:
+            self._body_link_vel_w.timestamp = -1.0
         # Force refresh on all the body com states
         if self._body_state_w is not None:
             self._body_state_w.timestamp = -1.0

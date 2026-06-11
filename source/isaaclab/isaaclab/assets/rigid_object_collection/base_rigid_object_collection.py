@@ -192,6 +192,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_poses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body poses over selected environment and body indices into the simulation.
 
@@ -209,6 +210,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -219,6 +221,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_poses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body poses over selected environment and body mask into the simulation.
 
@@ -236,6 +239,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -246,6 +250,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_poses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
 
@@ -263,6 +268,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -273,6 +279,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_poses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment and body mask into the simulation.
 
@@ -290,6 +297,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -300,6 +308,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_poses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
@@ -318,6 +327,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -328,6 +338,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_poses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment and body mask into the simulation.
 
@@ -346,6 +357,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -356,6 +368,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_velocities: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
 
@@ -376,6 +389,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -386,6 +400,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_velocities: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body velocity over selected environment and body mask into the simulation.
 
@@ -406,6 +421,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -416,6 +432,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_velocities: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
 
@@ -436,6 +453,7 @@ class BaseRigidObjectCollection(AssetBase):
                 (len(env_ids), len(body_ids), 6) or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -446,6 +464,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_velocities: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body mask into the simulation.
 
@@ -466,6 +485,7 @@ class BaseRigidObjectCollection(AssetBase):
                 (num_instances, num_bodies, 6) or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -476,6 +496,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_velocities: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
 
@@ -496,6 +517,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -506,6 +528,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_velocities: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment and body mask into the simulation.
 
@@ -526,6 +549,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 

@@ -182,9 +182,15 @@ class ArticulationData(BaseArticulationData):
     def reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached articulation properties.
 
+        Writing a root or joint pose moves the body kinematic chain, so every buffer derived from
+        body poses (the body-frame poses and the composite root/body state buffers) goes stale.
+
         Args:
-            from_link: Whether to reset the pose from the link frame. Defaults to True.
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
+        # Body poses and the composite state buffers always go stale on a pose write.
         attr_names = [
             "_body_link_pose_w",
             "_body_com_pose_w",
@@ -195,6 +201,8 @@ class ArticulationData(BaseArticulationData):
             "_body_link_state_w_buf",
             "_body_com_state_w_buf",
         ]
+        # The root com pose is derived from the root link pose, so only invalidate it when the link
+        # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
         if from_link:
             attr_names.append("_root_com_pose_w")
         for attr_name in attr_names:
@@ -205,9 +213,15 @@ class ArticulationData(BaseArticulationData):
     def reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
 
+        Writing a root or joint velocity changes the body velocities, so every buffer derived from
+        them (the body velocities and the composite root/body state buffers) goes stale.
+
         Args:
-            from_com: Whether to reset the velocity from the com frame. Defaults to True.
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
         """
+        # Body velocities and the composite state buffers always go stale on a velocity write.
         attr_names = [
             "_body_com_vel_w",
             "_body_link_vel_w",
@@ -218,6 +232,8 @@ class ArticulationData(BaseArticulationData):
             "_body_link_state_w_buf",
             "_body_com_state_w_buf",
         ]
+        # The root link velocity is derived from the root com velocity, so only invalidate it when the
+        # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
         if from_com:
             attr_names.append("_root_link_vel_w")
         for attr_name in attr_names:

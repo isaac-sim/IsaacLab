@@ -144,7 +144,9 @@ class ArticulationData(BaseArticulationData):
         """Reset pose-dependent cached articulation properties.
 
         Args:
-            from_link: Whether to reset the pose from the link frame. Defaults to True.
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
         # Reset the root com pose only if needed.
         if from_link:
@@ -179,7 +181,9 @@ class ArticulationData(BaseArticulationData):
         """Reset velocity-dependent cached articulation properties.
 
         Args:
-            from_com: Whether to reset the velocity from the com frame. Defaults to True.
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
         """
         if from_com:
             self._root_link_vel_w.timestamp = -1.0

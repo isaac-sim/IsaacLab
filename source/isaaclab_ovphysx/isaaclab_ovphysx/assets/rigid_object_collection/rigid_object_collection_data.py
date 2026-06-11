@@ -148,11 +148,18 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached rigid object collection properties.
 
+        Writing body poses moves the bodies, so the composite body state buffers go stale.
+
         Args:
-            from_link: Whether body link poses were written. Defaults to True.
+            from_link: Set ``True`` when the body link poses were written so the derived body
+                center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
+                the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
         """
+        # The body com poses are derived from the body link poses, so only invalidate them when the link
+        # poses were the quantity written (otherwise we would clobber the freshly-written com poses).
         if from_link:
             self._body_com_pose_w.timestamp = -1.0
+        # The composite body state buffers always go stale on a pose write.
         for attr_name in (
             "_body_state_w",
             "_body_link_state_w",
@@ -165,11 +172,18 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached rigid object collection properties.
 
+        Writing body velocities changes the body velocities, so the composite body state buffers go stale.
+
         Args:
-            from_com: Whether body center-of-mass velocities were written. Defaults to True.
+            from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
+                link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
+                velocities were written directly so they are not clobbered. Defaults to True.
         """
+        # The body link velocities are derived from the body com velocities, so only invalidate them when
+        # the com velocities were the quantity written (otherwise we would clobber the freshly-written value).
         if from_com:
             self._body_link_vel_w.timestamp = -1.0
+        # The composite body state buffers always go stale on a velocity write.
         for attr_name in (
             "_body_state_w",
             "_body_link_state_w",

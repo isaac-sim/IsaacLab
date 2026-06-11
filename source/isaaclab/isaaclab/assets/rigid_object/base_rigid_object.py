@@ -187,6 +187,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
@@ -203,6 +204,7 @@ class BaseRigidObject(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or
                 (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -212,6 +214,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
@@ -228,6 +231,7 @@ class BaseRigidObject(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or
                 (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -237,6 +241,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
@@ -253,6 +258,7 @@ class BaseRigidObject(AssetBase):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or
                 (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -262,6 +268,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -278,6 +285,7 @@ class BaseRigidObject(AssetBase):
             root_pose: Root link poses in simulation frame. Shape is (num_instances, 7) or
                 (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -287,6 +295,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
@@ -304,6 +313,7 @@ class BaseRigidObject(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or
                 (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -313,6 +323,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -330,6 +341,7 @@ class BaseRigidObject(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7) or
                 (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -339,6 +351,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -358,6 +371,7 @@ class BaseRigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -367,6 +381,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -386,6 +401,7 @@ class BaseRigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -395,6 +411,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -414,6 +431,7 @@ class BaseRigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -423,6 +441,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -442,6 +461,7 @@ class BaseRigidObject(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -451,6 +471,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
@@ -470,6 +491,7 @@ class BaseRigidObject(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -479,6 +501,7 @@ class BaseRigidObject(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
@@ -498,6 +521,7 @@ class BaseRigidObject(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data buffers after the write. Defaults to False.
         """
         raise NotImplementedError()
 

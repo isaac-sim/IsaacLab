@@ -129,7 +129,9 @@ class RigidObjectData(BaseRigidObjectData):
         """Reset pose-dependent cached rigid object properties.
 
         Args:
-            from_link: Whether the root link pose was written. Defaults to True.
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
         if from_link:
             self._root_com_pose_w.timestamp = -1.0
@@ -146,7 +148,9 @@ class RigidObjectData(BaseRigidObjectData):
         """Reset velocity-dependent cached rigid object properties.
 
         Args:
-            from_com: Whether the root center-of-mass velocity was written. Defaults to True.
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
         """
         if from_com:
             self._root_link_vel_w.timestamp = -1.0

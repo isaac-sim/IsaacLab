@@ -136,7 +136,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """Reset pose-dependent cached rigid object collection properties.
 
         Args:
-            from_link: Whether body link poses were written. Defaults to True.
+            from_link: Set ``True`` when the body link poses were written so the derived body
+                center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
+                the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
         """
         if from_link:
             self._body_com_pose_w.timestamp = -1.0
@@ -153,7 +155,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """Reset velocity-dependent cached rigid object collection properties.
 
         Args:
-            from_com: Whether body center-of-mass velocities were written. Defaults to True.
+            from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
+                link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
+                velocities were written directly so they are not clobbered. Defaults to True.
         """
         if from_com:
             self._body_link_vel_w.timestamp = -1.0

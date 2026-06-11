@@ -532,9 +532,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps
+        # Invalidate dependent timestamps. The com poses were just written, so they must not be invalidated.
         if not skip_forward:
-            self.data.reset_pose(env_ids=env_ids)
+            self.data.reset_pose(env_ids=env_ids, from_link=False)
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -572,8 +572,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask = self._ALL_ENV_MASK
             env_ids = self._ALL_ENV_INDICES
         self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        # The com poses were just written, so they must not be invalidated.
         if not skip_forward:
-            self.data.reset_pose(env_ids=env_ids)
+            self.data.reset_pose(env_ids=env_ids, from_link=False)
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -748,10 +749,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps
+        # Invalidate dependent timestamps. The link velocities were just written, so they must not be
+        # invalidated. ``reset_velocity`` already triggers the simulation-side FK invalidation.
         if not skip_forward:
-            self.data.reset_velocity(env_ids=env_ids)
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+            self.data.reset_velocity(env_ids=env_ids, from_com=False)
 
     def write_body_link_velocity_to_sim_mask(
         self,
@@ -793,8 +794,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_link_velocity_to_sim_index(
             body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
         )
+        # The link velocities were just written, so they must not be invalidated.
         if not skip_forward:
-            self.data.reset_velocity(env_ids=env_ids)
+            self.data.reset_velocity(env_ids=env_ids, from_com=False)
 
     """
     Operations - Setters.
