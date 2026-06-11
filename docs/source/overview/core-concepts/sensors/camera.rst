@@ -174,7 +174,7 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
 .. code-block:: shell
 
     ./isaaclab.sh train --rl_library rl_games \
-        --task=Isaac-Cartpole-Camera-Presets-Direct-v0 --headless --enable_cameras
+        --task=Isaac-Cartpole-Camera-Presets-Direct-v0 --enable_cameras
 
 
 Annotators (RTX only)

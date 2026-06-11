@@ -48,6 +48,11 @@ Local Installation
 System Requirements
 -------------------
 
+.. warning::
+
+   Windows support is still being completed, so some workflows may not work as expected.
+   For the most reliable installation and runtime experience, we recommend using Ubuntu 24.04.
+
 General Requirements
 ~~~~~~~~~~~~~~~~~~~~
 

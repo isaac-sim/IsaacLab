@@ -113,7 +113,6 @@ Measure environment stepping performance without training:
        --task Isaac-Cartpole-v0 \
        --num_envs 4096 \
        --num_frames 100 \
-       --headless \
        --benchmark_backend json \
        --output_path ./results
 
@@ -132,7 +131,6 @@ Measure training performance with RSL-RL:
        --task Isaac-Cartpole-v0 \
        --num_envs 4096 \
        --max_iterations 500 \
-       --headless \
        --benchmark_backend json \
        --output_path ./results
 
@@ -168,7 +166,6 @@ understanding where time is spent during initialization.
    ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
        --task Isaac-Ant-v0 \
        --num_envs 4096 \
-       --headless \
        --benchmark_backend summary
 
 The script profiles five phases independently:
@@ -207,7 +204,6 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
    ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
        --task Isaac-Ant-v0 \
        --num_envs 4096 \
-       --headless \
        --benchmark_backend omniperf \
        --whitelist_config scripts/benchmarks/startup_whitelist.yaml
 
@@ -263,9 +259,6 @@ Common Arguments
    * - ``--output_path``
      - ``./``
      - Directory for output files
-   * - ``--headless``
-     - ``false``
-     - Run without rendering
 
 Non-RL Benchmark Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -411,7 +411,6 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --headless \
          --num_envs 1000 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -424,7 +423,6 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --enable_cameras \
-         --headless \
          --num_envs 300 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \

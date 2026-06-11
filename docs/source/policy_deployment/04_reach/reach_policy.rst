@@ -457,7 +457,7 @@ Once you confirm the environment looks correct, stop training with ``Ctrl+C`` an
 Step 2: Full-Scale Training
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Launch full training with many parallel environments in headless mode:
+Launch full training with many parallel environments:
 
 .. tab-set::
 
@@ -467,7 +467,6 @@ Launch full training with many parallel environments in headless mode:
 
             ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
-                --headless \
                 --num_envs 4096 \
                 --video --video_length 720 --video_interval 72000
 
@@ -477,13 +476,11 @@ Launch full training with many parallel environments in headless mode:
 
             ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
-                --headless \
                 --num_envs 4096 \
                 --video --video_length 720 --video_interval 72000
 
 **Command breakdown:**
 
-- ``--headless``: Disables visualization for maximum training speed
 - ``--num_envs 4096``: Runs 4096 parallel environments for efficient data collection
 - ``--video``: Records videos to monitor training progress
 - ``--video_length 720``: Each video captures exactly one full episode (``episode_length_s / (sim.dt * decimation)`` = ``12.0 / (1/120 * 2)`` = 720 steps)

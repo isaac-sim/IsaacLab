@@ -12,9 +12,8 @@ The performance of the PhysX simulation can be affected by various factors, incl
 of objects in the scene, the complexity of the physics simulation, and the hardware being used.
 Here are some tips to improve performance:
 
-1. **Use Headless Mode**: Running the simulation in headless mode can significantly improve performance, especially
-   when rendering is not required. You can enable headless mode by using the ``--headless`` flag when running the
-   simulator.
+1. **Disable Unneeded Visualization**: Running the simulation without visualization can significantly improve performance,
+   especially when rendering is not required.
 2. **Avoid Unnecessary Collisions**: If possible, reduce the number of object overlaps to reduce overhead in the simulation.
    Excessive contacts and collisions in the simulation can be expensive in the collision phase in the simulation.
 3. **Use Simplified Physics**: Consider using simplified physics collision geometries or lowering simulation fidelity

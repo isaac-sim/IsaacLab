@@ -45,10 +45,10 @@ and play. Instead of launching library-specific scripts under
 .. code-block:: bash
 
    # Isaac Lab 2.x/deprecated
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
 
    # Isaac Lab 3.0
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --headless
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0
 
 The same pattern applies to the play workflow:
 

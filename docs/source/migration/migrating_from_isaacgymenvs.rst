@@ -916,7 +916,7 @@ To launch a training in Isaac Lab, use the command:
 
 .. code-block:: bash
 
-   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct-v0 --headless
+   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct-v0
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~

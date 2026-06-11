@@ -265,7 +265,6 @@ These friction values were determined through iterative visual comparison:
 
                ./isaaclab.sh train --rl_library rsl_rl \
                    --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-                   --headless \
                    --video --video_length 800 --video_interval 5000
 
        .. tab-item:: Flexiv Rizon 4s
@@ -274,7 +273,6 @@ These friction values were determined through iterative visual comparison:
 
                ./isaaclab.sh train --rl_library rsl_rl \
                    --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
-                   --headless \
                    --video --video_length 800 --video_interval 5000
 
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
@@ -699,7 +697,6 @@ Now launch the full training run with more parallel environments in headless mod
 
             ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
-                --headless \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -709,7 +706,6 @@ Now launch the full training run with more parallel environments in headless mod
 
             ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
-                --headless \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -719,13 +715,11 @@ Now launch the full training run with more parallel environments in headless mod
 
             ./isaaclab.sh train --rl_library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
-                --headless \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
 **Command breakdown:**
 
-- ``--headless``: Disables visualization for maximum training speed
 - ``--num_envs 256``: Runs 256 parallel environments for efficient training
 - ``--video_length 200``: Each video captures approximately one full episode (``episode_length_s / (sim.dt * decimation)`` = ``6.66 / (1/1000 * 33)`` ≈ 200 steps)
 - ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations), producing ~10 videos over full training
@@ -825,7 +819,6 @@ CUDA Out of Memory
 
        ./isaaclab.sh train --rl_library rsl_rl \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
 
    **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
@@ -856,7 +849,6 @@ CUDA Out of Memory
 
        ./isaaclab.sh train --rl_library rsl_rl \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
            --num_envs 256
 
    You can always evaluate the trained policy later with visualization.
