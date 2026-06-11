@@ -127,6 +127,39 @@ def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> se
     return {str(v).strip().lower() for v in visualizers if str(v).strip()}
 
 
+def _get_livestream_mode(launcher_args: argparse.Namespace | dict | None) -> int:
+    """Return effective livestream mode using the same CLI-over-env precedence as AppLauncher."""
+    livestream_arg = _get_arg(launcher_args, "livestream", -1)
+    if livestream_arg is not None and int(livestream_arg) >= 0:
+        return int(livestream_arg)
+    return int(os.environ.get("LIVESTREAM", 0))
+
+
+def _ensure_livestream_kit_visualizer(launcher_args: argparse.Namespace | dict | None) -> None:
+    """Request the Kit visualizer when livestreaming needs a video-producing viewport."""
+    if launcher_args is None or _get_livestream_mode(launcher_args) == 0:
+        return
+
+    visualizer_explicit = bool(_get_arg(launcher_args, "visualizer_explicit", False))
+    visualizers = _get_arg(launcher_args, "visualizer")
+    if visualizer_explicit and (visualizers is None or "none" in _get_visualizer_types(launcher_args)):
+        raise ValueError("Livestreaming requires the Kit visualizer. Remove '--viz none' or pass '--viz kit'.")
+
+    visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in visualizer_types:
+        return
+
+    requested_visualizers = []
+    if visualizers:
+        requested_visualizers = (
+            [visualizer.strip() for visualizer in visualizers.split(",")]
+            if isinstance(visualizers, str)
+            else [str(visualizer).strip() for visualizer in visualizers if str(visualizer).strip()]
+        )
+    requested_visualizers.append("kit")
+    _set_arg(launcher_args, "visualizer", requested_visualizers)
+
+
 def _get_visualizer_intent(cfg) -> dict[str, bool]:
     """Compute upstream visualizer intent from ``cfg.sim.visualizer_cfgs``."""
     visualizer_cfgs = getattr(getattr(cfg, "sim", None), "visualizer_cfgs", None)
@@ -323,6 +356,7 @@ def launch_simulation(
     config_scan = scan(cfg, _get_arg(launcher_args, "physics"))
     effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
+    _ensure_livestream_kit_visualizer(launcher_args)
     visualizer_types = _get_visualizer_types(launcher_args)
 
     # ovrtx + Kit visualizer share conflicting RTX hydra libraries under different USD

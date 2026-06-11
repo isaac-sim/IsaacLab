@@ -44,7 +44,6 @@ The following command shows how to capture a profile for the ``Isaac-Cartpole`` 
        -o my_profile \
        ./isaaclab.sh train --rl_library rsl_rl \
            --task=Isaac-Cartpole \
-           --headless \
            --max_iterations=3
 
 Flags:

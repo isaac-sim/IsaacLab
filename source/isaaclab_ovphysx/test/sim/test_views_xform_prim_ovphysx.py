@@ -12,9 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
@@ -24,6 +23,8 @@ from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
+
+pytestmark = pytest.mark.device_split
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])

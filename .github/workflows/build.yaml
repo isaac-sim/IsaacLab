@@ -57,7 +57,7 @@ on:
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -543,6 +543,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
+        extra-pip-packages: "ovrtx ovphysx"
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the

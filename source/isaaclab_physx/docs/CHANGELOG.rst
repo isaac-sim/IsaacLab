@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.1.5 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
 1.1.4 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 

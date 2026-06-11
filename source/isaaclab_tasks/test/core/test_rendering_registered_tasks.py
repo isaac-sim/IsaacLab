@@ -74,7 +74,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
     pytest.param(
-        "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
         None,
         "shadow_hand",
         # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently

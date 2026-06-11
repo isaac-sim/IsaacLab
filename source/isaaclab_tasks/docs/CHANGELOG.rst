@@ -1,6 +1,65 @@
 Changelog
 ---------
 
+5.0.1 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``rendering_test_utils`` to use a shared :func:`_make_sensor_data_type_params` helper
+  for building the physics backend, renderer, and camera sensor data type test matrix, making it
+  easier to extend with additional data types.
+
+Fixed
+^^^^^
+
+* Fixed native keyboard, gamepad, and SpaceMouse teleoperation for the Franka reach tasks. These
+  devices emit a 6D SE(3) delta command, which only matches the relative-IK action space, so they
+  are now configured on ``Isaac-Reach-Franka-IK-Rel-v0`` instead of the shared ``ReachEnvCfg`` base.
+  Previously the absolute-IK variant (``Isaac-Reach-Franka-IK-Abs-v0``, 7D pose action) and the
+  joint-position variant inherited these devices and raised an invalid action shape error when
+  teleoperated.
+* Fixed the tiled camera visualizer tutorial to use the current launcher imports
+  and select task-appropriate camera sources for Kit and Newton visualizers.
+
+
+5.0.0 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Consolidated the rigid and soft Franka lifting tasks into a single
+  :mod:`isaaclab_tasks.core.lift` package. The former ``isaaclab_tasks.core.lift_franka_soft``
+  package moved under :mod:`isaaclab_tasks.core.lift.config.franka_soft`, alongside the existing
+  rigid ``franka`` config, to keep the rigid and soft variants separated. Update imports such as
+  ``from isaaclab_tasks.core.lift_franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg`` to
+  ``from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg``.
+  The deformable MDP terms were merged into the shared :mod:`isaaclab_tasks.core.lift.mdp` package
+  (rather than a separate per-variant ``mdp``); import them from there, e.g.
+  ``from isaaclab_tasks.core.lift.mdp import deformable_lifted``.
+* **Breaking:** Renamed the lift Gym environment IDs to drop the ``-v0`` version suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Lift-Cube-Franka-v0`` → ``Isaac-Lift-Cube-Franka``.
+  * ``Isaac-Lift-Cube-Franka-Play-v0`` → ``Isaac-Lift-Cube-Franka-Play``.
+  * ``Isaac-Lift-Soft-Franka-v0`` → ``Isaac-Lift-Soft-Franka``.
+  * ``Isaac-Lift-Cloth-Franka-v0`` → ``Isaac-Lift-Cloth-Franka``.
+
+Fixed
+^^^^^
+
+* Increased the AutoMate assembly and disassembly PhysX GPU collision stack to avoid dropped contacts at the default 128 environments.
+* Updated AutoMate run helpers and docs to reject placeholder assembly IDs before launching simulation.
+* Renamed the ``Isaac-Lift-Cloth-Franka`` physics preset from the misspelled ``newton_mjwarp_vdb``
+  to ``newton_mjwarp_vbd``, matching the soft-body task and the underlying VBD solver. The cloth
+  ``RewardsCfg``, which duplicated the soft task's rewards verbatim, is now inherited instead of
+  redefined.
+* Removed AutoMate's Numba dependency by replacing the SoftDTW helper with a
+  Torch implementation.
+
+
 4.0.0 (2026-06-07)
 ~~~~~~~~~~~~~~~~~~
 

@@ -60,7 +60,7 @@ PER_TEST_TIMEOUTS = {
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
-    "test_shadow_hand_vision_presets.py": 5000,
+    "test_shadow_hand_camera_presets.py": 5000,
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
     # For some reason kitless rendering tests take much longer on CI than local machines.
@@ -142,9 +142,9 @@ TEST_RL_ENVS = [
     "Isaac-Cartpole",
     # manipulation
     "Isaac-Lift-Cube-Franka",
-    "Isaac-Open-Drawer-Franka-v0",
+    "Isaac-Open-Drawer-Franka",
     # dexterous manipulation
-    "Isaac-Repose-Cube-Allegro-v0",
+    "Isaac-Reorient-Cube-Allegro",
     # locomotion
     "Isaac-Velocity-Flat-Unitree-Go2-v0",
     "Isaac-Velocity-Rough-Anymal-D-v0",

@@ -1,0 +1,4 @@
+CI-only:
+develop / release pushes no longer trigger the multi-version docs deploy or Docker image publish — both are owned by the nightly cron (registered on main).
+Docs pushes and PRs still build current-docs for validation; Docker images build on demand via workflow_dispatch.
+Immutable Docker tags now use the full commit SHA (e.g. isaac-lab:latest-develop-<full-sha>, latest-release-X-<full-sha>) instead of the old <run#>-<sha8> suffix, matching the nightly cron's tags; the moving latest-develop / latest-release-X tags are unchanged. No user-facing change to the published docs site.
