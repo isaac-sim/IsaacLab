@@ -507,5 +507,15 @@
     "package": "pytetwild",
     "license": "Mozilla Public License 2.0 (MPL 2.0)",
     "comment": "MPL-2.0 / OSRB"
+  },
+  {
+    "package": "distlib",
+    "license": "Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "ovrtx",
+    "license": null,
+    "comment": "NVIDIA"
   }
 ]

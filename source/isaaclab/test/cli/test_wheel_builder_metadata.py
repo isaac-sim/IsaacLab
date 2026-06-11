@@ -77,6 +77,7 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     assert core_pins == [expected_pin]
 
     optional_dependencies = generated["project"]["optional-dependencies"]
-    for extra_name in ("rsl-rl", "rl-all"):
+    # RSL-RL ships in its own ``rsl-rl`` extra and in the aggregate ``all`` extra.
+    for extra_name in ("rsl-rl", "all"):
         rsl_rl_pins = [dep for dep in optional_dependencies[extra_name] if dep.startswith("rsl-rl-lib==")]
         assert rsl_rl_pins == [expected_pin]

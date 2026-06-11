@@ -86,7 +86,11 @@ dependencies = [
     "rsl-rl-lib==5.0.1",
     "onnxscript>=0.5",
     # ----- Newton (default physics engine, installed everywhere) -----
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@v1.2.1rc2",
+    # Loose lower bound keeps the published wheel resolvable: a bare install
+    # picks the newest Newton, while co-installing isaacsim narrows it to the
+    # exact version isaacsim pins (currently 1.2.0). The dev workspace pins the
+    # git prerelease via [tool.uv.sources] below.
+    "newton[sim]>=1.2.0",
     "PyOpenGL-accelerate>=3.1.0",
 ]
 
@@ -102,32 +106,21 @@ test = [
     # numba compatibility (numba subclasses Tracer at import time)
     "coverage>=7.6.1",
 ]
-# RL frameworks (rsl_rl is in the core deps above as the default).
+# RL frameworks. RSL-RL is the default and ships in the core deps above; install
+# whichever framework you train with via its own self-contained extra.
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 rl-games = [
-    "aiohttp==3.13.3",
+    "aiohttp>=3.12.14",
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
     "gym",
     "standard-distutils",
 ]
 rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
-rl-all = [
-    "stable-baselines3>=2.6",
-    "tqdm",
-    "rich",
-    "skrl>=2.1.0",
-    "aiohttp==3.13.3",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-    "gym",
-    "standard-distutils",
-    "rsl-rl-lib==5.0.1",
-    "onnxscript>=0.5",
-]
 # Newton interactive viewer GUI (the Newton physics engine itself is a core dep).
 newton = [
     "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.15.0",
+    "typing-extensions>=4.12.2",
 ]
 # Other visualizer backends.
 viser = ["viser>=1.0.16"]
@@ -168,41 +161,22 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Everything optional in one shot. Excludes ``teleop``: dex-retargeting pins
+# Everything that can co-resolve with ``isaacsim`` in one shot (the documented
+# ``[all,isaacsim]`` install). Excludes ``teleop``: dex-retargeting pins
 # lxml>=5.2.2 while mimic's nvidia-srl-usd-to-urdf pins lxml<5.0.0, so the two
 # cannot co-resolve. Install the teleop stack on its own with ``--extra teleop``.
+# Also excludes packages whose pins are incompatible with isaacsim's: ``ov``
+# (ovphysx/ovrtx cap packaging<24 vs isaacsim's packaging==26.0), ``viser``
+# (websockets>=13.1 vs isaacsim's websockets==12.0), and mimic's
+# nvidia-srl-usd-to-urdf (numpy<2 vs isaacsim's numpy==2.3.1). Install those on
+# their own with ``--extra ov`` / ``--extra viser`` / ``--extra mimic``.
 all = [
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,newton,rerun,rlinf]",
+    # mimic, minus the USD-to-URDF converter (nvidia-srl-usd-to-urdf pins
+    # numpy<2, which clashes with isaacsim's numpy==2.3.1).
     "isaaclab-mimic",
-    "stable-baselines3>=2.6",
-    "tqdm",
-    "rich",
-    "skrl>=2.1.0",
-    "aiohttp==3.13.3",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-    "gym",
-    "standard-distutils",
-    "rsl-rl-lib==5.0.1",
-    "onnxscript>=0.5",
-    "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.15.0",
-    "viser>=1.0.16",
-    "rerun-sdk>=0.29.0",
-    "pyarrow==22.0.0",
-    "ovphysx==0.4.13",
-    "ovrtx>=0.3.0,<0.4.0",
     "ipywidgets>=8.1.5",
-    "nvidia-srl-usd-to-urdf ; platform_machine != 'aarch64'",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
-    "ray[default]>=2.47.0",
-    "av>=12.3.0",
-    "numpydantic>=1.7.0",
-    "albumentations>=1.4.18",
-    "decord2",
-    "dm_tree>=0.1.8",
-    "diffusers>=0.35.0",
-    "timm>=1.0.14",
-    "peft>=0.17.0",
-    "pandas",
 ]
 
 # Extras shipped in the published wheel but intentionally excluded from the uv
@@ -213,7 +187,7 @@ all = [
 # wheel's extras defined in this single file while leaving ``uv lock`` solvable.
 # ``tools/wheel_builder/gen_pyproject.py`` merges these into the wheel metadata.
 [tool.isaaclab.wheel-extras]
-isaacsim = ["isaacsim[all,extscache]>=6.0.0"]
+isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 
 [tool.ruff]
 line-length = 120
@@ -412,6 +386,10 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
+# The dev workspace tracks the Newton prerelease; the published wheel keeps the
+# loose ``newton[sim]>=1.2.0`` spec from [project.dependencies] so it stays
+# resolvable against isaacsim.
+newton = { git = "https://github.com/newton-physics/newton.git", tag = "v1.2.1rc2" }
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },

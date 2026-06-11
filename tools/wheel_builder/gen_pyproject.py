@@ -40,6 +40,41 @@ def _is_workspace_member(requirement: str) -> bool:
     return _requirement_name(requirement).startswith("isaaclab")
 
 
+_project_name = _requirement_name(project["name"])
+_optional = project.get("optional-dependencies", {})
+_self_ref_pattern = re.compile(r"^\s*([A-Za-z0-9._-]+)\s*\[([^\]]+)\]\s*$")
+
+
+def _self_ref_extras(requirement: str) -> list[str] | None:
+    """Return the referenced extra names for a bare self-reference.
+
+    A self-reference looks like ``isaaclab-dev[sb3,skrl]`` (the root project's own
+    name with extras and no version specifier or marker). Returns ``None`` for any
+    other requirement, including third-party extras such as ``ray[default]>=2``.
+    """
+    match = _self_ref_pattern.match(requirement)
+    if match is None or _requirement_name(match.group(1)) != _project_name:
+        return None
+    return [extra.strip() for extra in match.group(2).split(",")]
+
+
+def _expand_self_refs(requirements: list[str], seen: set[str] | None = None) -> list[str]:
+    """Inline self-referential extras into their concrete requirements."""
+    seen = set() if seen is None else seen
+    expanded = []
+    for requirement in requirements:
+        extras = _self_ref_extras(requirement)
+        if extras is None:
+            expanded.append(requirement)
+            continue
+        for extra in extras:
+            if extra in seen:
+                continue
+            seen.add(extra)
+            expanded.extend(_expand_self_refs(_optional.get(extra, []), seen))
+    return expanded
+
+
 def _dedup(requirements: list[str]) -> list[str]:
     """Drop duplicate requirements by distribution name, preserving order."""
     seen = set()
@@ -53,7 +88,7 @@ def _dedup(requirements: list[str]) -> list[str]:
 
 
 # Required dependencies: third-party only (strip workspace members), deduped.
-deps = _dedup([d for d in project["dependencies"] if not _is_workspace_member(d)])
+deps = _dedup([d for d in _expand_self_refs(project["dependencies"]) if not _is_workspace_member(d)])
 
 # Optional dependencies: per extra, strip workspace members and dedup.
 # Wheel-only extras (e.g. isaacsim) live under [tool.isaaclab.wheel-extras]; they
@@ -61,7 +96,7 @@ deps = _dedup([d for d in project["dependencies"] if not _is_workspace_member(d)
 wheel_extras = root.get("tool", {}).get("isaaclab", {}).get("wheel-extras", {})
 opt_deps = {}
 for name, dep_list in {**project.get("optional-dependencies", {}), **wheel_extras}.items():
-    opt_deps[name] = _dedup([d for d in dep_list if not _is_workspace_member(d)])
+    opt_deps[name] = _dedup([d for d in _expand_self_refs(dep_list) if not _is_workspace_member(d)])
 
 # Write pyproject.toml
 lines = []

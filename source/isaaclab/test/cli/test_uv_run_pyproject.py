@@ -49,7 +49,6 @@ def test_uv_run_exposes_centralized_feature_extras():
         "skrl",
         "rl-games",
         "rsl-rl",
-        "rl-all",
         "newton",
         "viser",
         "rerun",

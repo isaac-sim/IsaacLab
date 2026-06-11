@@ -742,11 +742,12 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         _install_root_extra("newton")
     elif feature_name == "rl":
         extra = selector if selector else "all"
-        # rl[all] maps to the root 'rl-all' extra; other selectors map by name
+        # rl[all] installs every RL framework extra; other selectors map by name
         # (rsl_rl -> rsl-rl, skrl, sb3, rl-games).
-        root_extra = "rl-all" if extra == "all" else extra.replace("_", "-")
+        frameworks = {"sb3", "skrl", "rl-games", "rsl-rl"} if extra == "all" else {extra.replace("_", "-")}
         print_info(f"Installing RL framework extras: {extra}...")
-        _install_root_extra(root_extra)
+        for framework in sorted(frameworks):
+            _install_root_extra(framework)
     elif feature_name == "visualizer":
         extra = selector if selector else "all"
         backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
