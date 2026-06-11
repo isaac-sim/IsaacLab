@@ -53,7 +53,7 @@ scenes produced with this workflow; two examples are shown below.
           **Living Room**
 
           | Embodiment: Hand-Held
-          | Sensor Rig: 1 x Stereo Camera
+          | Sensor Rig: 1 x `Stereo Camera <https://leopardimaging.com/wp-content/uploads/2024/07/LI-AR0234CS-STEREO-GMSL2-30_Datasheet_V1.8.pdf>`_
 
 XGRIDS Assets
 ~~~~~~~~~~~~~
