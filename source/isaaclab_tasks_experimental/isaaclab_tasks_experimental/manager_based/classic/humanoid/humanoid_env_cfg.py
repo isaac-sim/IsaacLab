@@ -217,7 +217,6 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
                     nconmax=25,
                     ls_iterations=15,
                     cone="pyramidal",
-                    ls_parallel=True,
                     update_data_interval=2,
                     impratio=1,
                     integrator="implicitfast",

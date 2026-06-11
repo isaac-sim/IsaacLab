@@ -19,6 +19,7 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -28,10 +29,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -71,7 +69,7 @@ args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.video:
     args_cli.enable_cameras = True
 
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 
 def main():
@@ -105,11 +103,12 @@ def main():
                 return
         elif args_cli.checkpoint is None:
             run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")
-            if args_cli.use_last_checkpoint:
-                checkpoint_file = ".*"
-            else:
-                checkpoint_file = f"{agent_cfg['params']['config']['name']}.pth"
-            resume_path = get_checkpoint_path(log_root_path, run_dir, checkpoint_file, other_dirs=["nn"])
+            # prefer the best-reward checkpoint (``<name>.pth``); fall back to the latest checkpoint when it has
+            # not been written yet (e.g. short runs). With --use_last_checkpoint, skip the preference entirely.
+            best_checkpoint = None if args_cli.use_last_checkpoint else f"{agent_cfg['params']['config']['name']}.pth"
+            resume_path = get_checkpoint_path(
+                log_root_path, run_dir, ".*", other_dirs=["nn"], preferred_checkpoint=best_checkpoint
+            )
         else:
             resume_path = retrieve_file_path(args_cli.checkpoint)
         log_dir = os.path.dirname(os.path.dirname(resume_path))

@@ -33,60 +33,67 @@ _stub_getattr, _stub_dir, __all__ = lazy_export()
 # Names that moved out of this package into ``isaaclab_physx.sim.schemas``.
 # Resolved lazily on first access so importing ``isaaclab.sim`` does not
 # require ``isaaclab_physx`` to be installed.
-_PHYSX_FORWARDS_SCHEMAS = frozenset({
-    "RigidBodyPropertiesCfg",
-    "JointDrivePropertiesCfg",
-    "PhysxRigidBodyPropertiesCfg",
-    "PhysxJointDrivePropertiesCfg",
-    "CollisionPropertiesCfg",
-    "PhysxCollisionPropertiesCfg",
-    "DeformableBodyPropertiesCfg",
-    "PhysxDeformableCollisionPropertiesCfg",
-    "PhysxDeformableBodyPropertiesCfg",
-    "ArticulationRootPropertiesCfg",
-    "PhysxArticulationRootPropertiesCfg",
-    "MeshCollisionPropertiesCfg",
-    "ConvexHullPropertiesCfg",
-    "ConvexDecompositionPropertiesCfg",
-    "TriangleMeshPropertiesCfg",
-    "TriangleMeshSimplificationPropertiesCfg",
-    "SDFMeshPropertiesCfg",
-    "PhysxConvexHullPropertiesCfg",
-    "PhysxConvexDecompositionPropertiesCfg",
-    "PhysxTriangleMeshPropertiesCfg",
-    "PhysxTriangleMeshSimplificationPropertiesCfg",
-    "PhysxSDFMeshPropertiesCfg",
-    "FixedTendonPropertiesCfg",
-    "SpatialTendonPropertiesCfg",
-    "PhysxFixedTendonPropertiesCfg",
-    "PhysxSpatialTendonPropertiesCfg",
-})
+_PHYSX_FORWARDS_SCHEMAS = frozenset(
+    {
+        "RigidBodyPropertiesCfg",
+        "JointDrivePropertiesCfg",
+        "PhysxRigidBodyPropertiesCfg",
+        "PhysxJointDrivePropertiesCfg",
+        "CollisionPropertiesCfg",
+        "PhysxCollisionPropertiesCfg",
+        "DeformableBodyPropertiesCfg",
+        "PhysxDeformableCollisionPropertiesCfg",
+        "PhysxDeformableBodyPropertiesCfg",
+        "ArticulationRootPropertiesCfg",
+        "PhysxArticulationRootPropertiesCfg",
+        "MeshCollisionPropertiesCfg",
+        "ConvexHullPropertiesCfg",
+        "ConvexDecompositionPropertiesCfg",
+        "TriangleMeshPropertiesCfg",
+        "TriangleMeshSimplificationPropertiesCfg",
+        "SDFMeshPropertiesCfg",
+        "PhysxConvexHullPropertiesCfg",
+        "PhysxConvexDecompositionPropertiesCfg",
+        "PhysxTriangleMeshPropertiesCfg",
+        "PhysxTriangleMeshSimplificationPropertiesCfg",
+        "PhysxSDFMeshPropertiesCfg",
+        "FixedTendonPropertiesCfg",
+        "SpatialTendonPropertiesCfg",
+        "PhysxFixedTendonPropertiesCfg",
+        "PhysxSpatialTendonPropertiesCfg",
+    }
+)
 
 # Names that moved out of this package into ``isaaclab_physx.sim.spawners.materials``.
-_PHYSX_FORWARDS_MATERIALS = frozenset({
-    "DeformableBodyMaterialCfg",
-    "RigidBodyMaterialCfg",
-    "SurfaceDeformableBodyMaterialCfg",
-    "PhysxRigidBodyMaterialCfg",
-    "PhysxDeformableBodyMaterialCfg",
-    "PhysxSurfaceDeformableBodyMaterialCfg",
-})
+_PHYSX_FORWARDS_MATERIALS = frozenset(
+    {
+        "DeformableBodyMaterialCfg",
+        "RigidBodyMaterialCfg",
+        "SurfaceDeformableBodyMaterialCfg",
+        "PhysxRigidBodyMaterialCfg",
+        "PhysxDeformableBodyMaterialCfg",
+        "PhysxSurfaceDeformableBodyMaterialCfg",
+    }
+)
 
 _PHYSX_FORWARDS = _PHYSX_FORWARDS_SCHEMAS | _PHYSX_FORWARDS_MATERIALS
 
 # Names that moved out of this package into ``isaaclab_newton.sim.schemas``.
 # Resolved lazily on first access so importing ``isaaclab.sim`` does not
 # require ``isaaclab_newton`` to be installed.
-_NEWTON_FORWARDS = frozenset({
-    "MujocoRigidBodyPropertiesCfg",
-    "MujocoJointDrivePropertiesCfg",
-    "NewtonRigidBodyPropertiesCfg",
-    "NewtonJointDrivePropertiesCfg",
-    "NewtonCollisionPropertiesCfg",
-    "NewtonMeshCollisionPropertiesCfg",
-    "NewtonMaterialPropertiesCfg",
-    "NewtonArticulationRootPropertiesCfg",
-})
+_NEWTON_FORWARDS = frozenset(
+    {
+        "MujocoRigidBodyPropertiesCfg",
+        "MujocoJointDrivePropertiesCfg",
+        "NewtonRigidBodyPropertiesCfg",
+        "NewtonJointDrivePropertiesCfg",
+        "NewtonCollisionPropertiesCfg",
+        "NewtonMeshCollisionPropertiesCfg",
+        "NewtonMaterialPropertiesCfg",
+        "NewtonArticulationRootPropertiesCfg",
+        "NewtonSDFCollisionPropertiesCfg",
+    }
+)
 
 
 def __getattr__(name):

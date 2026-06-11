@@ -11,13 +11,13 @@ import json
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -37,6 +37,21 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+_PPISP_IMPORT_ERROR_MESSAGE = (
+    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
+    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "isaaclab-ppisp extension from the Isaac Lab source checkout."
+)
+
+
+def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
+    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
+    # unrelated missing modules should surface unchanged for easier debugging.
+    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
+        raise exc
+    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
+
 
 # RTX simple-shading constants.
 #
@@ -106,16 +121,19 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
 
-        First resolves ``spec.cfg.isp_cfg`` (sentinel discovery + normalization)
-        via :func:`isaaclab_ppisp.resolve_and_normalize` so :mod:`isaaclab` does
-        not need to know about PPISP. Then, when an ISP is configured, pins
+        When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
+        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
+        :mod:`isaaclab` does not need to know about PPISP. Then pins
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         RTX's physical-camera exposure model does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
         """
-        if not spec.camera_prim_paths:
+        if not spec.camera_prim_paths or spec.cfg.isp_cfg is None:
             return
-        from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+        try:
+            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+        except ModuleNotFoundError as exc:
+            _raise_missing_ppisp_error(exc)
 
         spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
         if spec.cfg.isp_cfg is None:
@@ -160,10 +178,40 @@ class IsaacRtxRenderer(BaseRenderer):
 
         return specs
 
-    def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """No-op for Isaac RTX - uses USD scene directly without export.
+    def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
+        """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
+
+        For each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
+        non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
+        RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
+        geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
-        pass
+        root_layer = stage.GetRootLayer()
+        token_type = Sdf.ValueTypeNames.Token
+        with Sdf.ChangeBlock():
+            for env_idx in range(num_envs):
+                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+                if not env_prim.IsValid():
+                    continue
+                token = f"env_{env_idx}"
+                for prim in Usd.PrimRange(env_prim):
+                    if prim == env_prim:
+                        attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
+                    elif prim.IsA(UsdGeom.Camera):
+                        attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
+                    else:
+                        continue
+                    # Idempotent: a different renderer backend sharing this stage may have already
+                    # authored this attribute. Re-creating an existing spec raises, so only create
+                    # it when absent, then (re)assign the per-env token either way.
+                    attr_spec = root_layer.GetAttributeAtPath(attr_path)
+                    if attr_spec is None:
+                        Sdf.JustCreatePrimAttributeInLayer(
+                            root_layer, attr_path, token_type, Sdf.VariabilityUniform, True
+                        )
+                        attr_spec = root_layer.GetAttributeAtPath(attr_path)
+                    attr_spec.default = token
 
     def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
@@ -310,7 +358,10 @@ class IsaacRtxRenderer(BaseRenderer):
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
+            try:
+                from isaaclab_ppisp import PpispPipeline
+            except ModuleNotFoundError as exc:
+                _raise_missing_ppisp_error(exc)
 
             ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg, stage=stage)
 

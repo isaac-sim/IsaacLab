@@ -157,6 +157,7 @@ Guidelines for modifications:
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
+* Rebecca Zhang
 * Renaud Poncelet
 * René Zurbrügg
 * Richard Schmitt
@@ -164,6 +165,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ruben D'Sa
+* Ruben Grandia
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta

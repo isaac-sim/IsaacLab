@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import warp as wp
 
+from pxr import UsdGeom
+
+import isaaclab.sim as sim_utils
+
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
@@ -50,6 +54,18 @@ class SceneDataProvider:
             name: sensor
             for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
             if isinstance(sensor, Camera)
+        }
+
+    def get_contact_sensors(self) -> dict[str, Any]:
+        """Return Isaac Lab contact sensors keyed by scene sensor name."""
+        if self._interactive_scene is None:
+            return {}
+        from isaaclab.sensors.contact_sensor import BaseContactSensor
+
+        return {
+            name: sensor
+            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
+            if isinstance(sensor, BaseContactSensor)
         }
 
     @property
@@ -425,10 +441,6 @@ def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
     if stage is None:
         return None
 
-    from pxr import UsdGeom
-
-    import isaaclab.sim as isaaclab_sim
-
     shared_paths: list[str] = []
     instances: dict[str, list[tuple[int, str]]] = {}
     num_envs = -1
@@ -475,7 +487,7 @@ def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
             prim = stage.GetPrimAtPath(prim_path)
             if not prim.IsValid():
                 continue
-            pos, ori = isaaclab_sim.resolve_prim_pose(prim)
+            pos, ori = sim_utils.resolve_prim_pose(prim)
             per_world_pos[world_id] = [float(pos[0]), float(pos[1]), float(pos[2])]
             per_world_ori[world_id] = [float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3])]
         positions.append(per_world_pos)

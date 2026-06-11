@@ -25,6 +25,14 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 _UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
+_USD_EXTENSIONS = {".usd", ".usda", ".usdc", ".usdz"}
+_MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
+_MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
+_MDL_IMPORT_RE = re.compile(r"\bimport\s+([^;]+);")
+_MDL_USING_IMPORT_RE = re.compile(r"\busing\s+(.+?)\s+import\s+[^;]+;")
+_MDL_RELATIVE_IMPORT_RE = re.compile(
+    r"(?P<prefix>(?:\.\.::)+|\.::)(?P<module>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?P<wildcard>::\*)?"
+)
 
 
 def _parse_kit_asset_root() -> str:
@@ -142,21 +150,23 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             target_path = os.path.join(download_dir, cur_rel)
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
+            is_root_asset = local_root is None
             if not os.path.isfile(target_path) or force_download:
                 result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
-                if result != omni.client.Result.OK and force_download:
-                    raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+                if result != omni.client.Result.OK:
+                    if force_download or is_root_asset:
+                        raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+                    logger.debug("Skipping unavailable dependency: %s", cur_url)
+                    continue
 
             if local_root is None:
                 local_root = target_path
 
-            # recurse into USD dependencies (sublayers, references, payloads, textures, etc.)
-            suffix = os.path.splitext(target_path)[1].lower()
-            if suffix in {".usd", ".usda", ".usdc", ".usdz"}:
-                for ref in _find_usd_dependencies(target_path):
-                    ref_url = _resolve_reference_url(cur_url, ref)
-                    if ref_url and ref_url not in visited:
-                        to_visit.append(ref_url)
+            # recurse into dependencies (USD references, payloads, MDL textures, etc.)
+            for ref in _find_asset_dependencies(target_path):
+                ref_url = _resolve_reference_url(cur_url, ref)
+                if ref_url and ref_url not in visited:
+                    to_visit.append(ref_url)
 
         return os.path.abspath(local_root)
     else:
@@ -189,42 +199,89 @@ def read_file(path: str) -> io.BytesIO:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-def _find_usd_dependencies(local_usd_path: str) -> set[str]:
-    """Use UsdUtils to collect all asset dependencies from a USD file.
+def _find_asset_dependencies(local_asset_path: str) -> set[str]:
+    """Collect external asset dependencies from a local asset file.
 
-    This uses :func:`UsdUtils.ComputeAllDependencies` — the same approach as
-    ``isaacsim.storage.native`` — to discover sublayers, references, payloads,
-    and non-layer assets (textures, etc.) without maintaining a hardcoded list
-    of file extensions.
-
-    Args:
-        local_usd_path: Path to a local USD file.
-
-    Returns:
-        Set of asset path strings as they appear in the USD layer (unresolved).
+    USD layers are parsed with OpenUSD. MDL files are scanned for quoted texture
+    resources and relative module imports because those references are resolved
+    later by the MDL compiler and are not reported by USD dependency discovery.
     """
+    suffix = os.path.splitext(local_asset_path)[1].lower()
+
+    if suffix == ".mdl":
+        try:
+            with open(local_asset_path, encoding="utf-8") as f:
+                source = f.read()
+        except OSError as e:
+            logger.warning("Failed to open MDL file: %s (%s)", local_asset_path, e)
+            return set()
+
+        return _find_mdl_dependencies(source)
+
+    if suffix not in _USD_EXTENSIONS:
+        return set()
+
     from pxr import Sdf, UsdUtils  # noqa: PLC0415
 
     try:
-        layer = Sdf.Layer.FindOrOpen(local_usd_path)
+        layer = Sdf.Layer.FindOrOpen(local_asset_path)
     except Exception:
-        logger.warning("Failed to open USD layer: %s", local_usd_path, exc_info=True)
+        logger.warning("Failed to open USD layer: %s", local_asset_path, exc_info=True)
         return set()
 
     if layer is None:
         return set()
 
-    # Collect every asset path referenced from this layer.
-    # UsdUtils.ModifyAssetPaths walks sublayers, references, payloads,
-    # variant selections, and attribute values — exactly the set we need.
     refs: set[str] = set()
 
     def _collect(path: str) -> str:
         if path:
             refs.add(path)
-        return path  # return unchanged — we are only reading, not modifying
+        return path
 
     UsdUtils.ModifyAssetPaths(layer, _collect)
+
+    return refs
+
+
+def _find_mdl_dependencies(source: str) -> set[str]:
+    """Collect local asset dependencies from MDL source text."""
+    refs = set()
+
+    for match in _MDL_RESOURCE_RE.finditer(source):
+        ref = match.group(1)
+        if ref and _MDL_TEXTURE_RE.search(ref.strip()):
+            refs.add(ref.strip())
+
+    source_code = _MDL_RESOURCE_RE.sub("", source)
+    for match in _MDL_USING_IMPORT_RE.finditer(source_code):
+        refs.update(_find_mdl_import_dependencies(match.group(1)))
+    source_code = _MDL_USING_IMPORT_RE.sub("", source_code)
+    for match in _MDL_IMPORT_RE.finditer(source_code):
+        refs.update(_find_mdl_import_dependencies(match.group(1)))
+
+    return refs
+
+
+def _find_mdl_import_dependencies(import_clause: str) -> set[str]:
+    """Collect local MDL modules referenced by an import clause."""
+    refs = set()
+
+    for match in _MDL_RELATIVE_IMPORT_RE.finditer(import_clause):
+        prefix = match.group("prefix")
+        package_prefix = [".."] * prefix.count("..::")
+        components = [component for component in match.group("module").split("::") if component]
+        if not components:
+            continue
+
+        if match.group("wildcard") is not None:
+            candidate_lengths = (len(components),)
+        else:
+            # ``import .::A::B;`` can mean module ``A::B`` or symbol ``B`` from module ``A``.
+            candidate_lengths = range(1, len(components) + 1)
+
+        for length in candidate_lengths:
+            refs.add(posixpath.join(*(package_prefix + components[:length])) + ".mdl")
 
     return refs
 

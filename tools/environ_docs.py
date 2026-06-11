@@ -35,7 +35,6 @@ _PHYSICS_BACKEND_MIRROR_NAMES = frozenset(
         "newton_kamino",
         "newton_mjwarp",
         "newton_mjwarp_vbd",
-        "newton_mjwarp_vdb",
         "ovphysx",
         "physx",
         *PresetTarget.all_legacy_aliases().keys(),
@@ -237,7 +236,10 @@ def get_workflow(entry_point: str) -> str:
 
 def find_inference_task_name(task_id: str, registry_ids: set[str]) -> str | None:
     """Return the inference/play task ID paired with *task_id*, if registered."""
-    base = task_id.rsplit("-", 1)[0]
+    # Strip a trailing version segment (``-vN``) when present; versionless IDs
+    # (e.g. ``Isaac-Cartpole-Direct``) keep their full name as the pairing base.
+    head, sep, tail = task_id.rpartition("-")
+    base = head if (sep and tail.startswith("v") and tail[1:].isdigit()) else task_id
     for suffix in _INFERENCE_TASK_SUFFIXES:
         candidate = f"{base}{suffix}"
         if candidate in registry_ids:

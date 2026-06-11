@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab"
-version = "6.1.0"
+version = "6.6.2"
 description = "Extension providing main framework interfaces and abstractions for robot learning."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -92,6 +92,7 @@ all = [
     "isaaclab_ov",
     "isaaclab_ovphysx",
     "isaaclab_physx[newton]",
+    "isaaclab_ppisp",
     "isaaclab_rl[all]",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",

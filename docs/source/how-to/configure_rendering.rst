@@ -31,7 +31,7 @@ Rendering modes can be selected in 2 ways.
 
    .. code-block:: bash
 
-     ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+      python scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
 
 
 Note, the ``rendering_mode`` defaults to ``balanced``.

@@ -43,9 +43,9 @@ from isaaclab.app import AppLauncher
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
 
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.core.direct_cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
-from isaaclab_tasks.core.manager_cartpole.cartpole_env_cfg import CartpolePhysicsCfg
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
 
 # TODO: Several test cases currently show flakiness with frozen bodies. Remove the test-level retry once fixed.
 
@@ -61,6 +61,7 @@ _VIS_DEBUG_IMAGE_DIR = Path("logs/viz_integration_captures")
 # When True, tests also fail on WARNING-level records from visualizer-related loggers.
 ASSERT_VISUALIZER_WARNINGS = False
 
+_NEWTON_IMGUI_BUNDLE_PRINT_WARNING = "Warning: imgui_bundle not found"
 _MAX_FRAME_CHECK_STEPS = 5
 """Steps for Rerun / Viser smoke tests."""
 
@@ -219,6 +220,19 @@ def _assert_no_visualizer_log_issues(caplog: pytest.LogCaptureFixture, *, fail_o
         assert not warning_logs, "Visualizer-related warning logs: " + "; ".join(
             f"{r.name}: {r.getMessage()}" for r in warning_logs
         )
+
+
+def assert_no_newton_imgui_bundle_warning(capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture) -> None:
+    """Fail when Newton reports that its imgui HUD dependency is missing."""
+    captured = capsys.readouterr()
+    captured_output = captured.out + captured.err
+    printed_warning = _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in captured_output
+    logged_warnings = [record for record in caplog.records if _NEWTON_IMGUI_BUNDLE_PRINT_WARNING in record.getMessage()]
+    assert not printed_warning and not logged_warnings, (
+        "Newton viewer reported that imgui_bundle could not be imported, which disables HUD controls. "
+        f"Captured output: {captured_output!r}. "
+        "Captured logs: " + "; ".join(f"{record.name}: {record.getMessage()}" for record in logged_warnings)
+    )
 
 
 def _configure_sim_for_visualizer_test(env: CartpoleCameraEnv) -> None:
@@ -1189,13 +1203,13 @@ def _make_cartpole_camera_env(
     visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
 ) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
-    env_cfg_root = CartpoleCameraPresetsEnvCfg()
+    env_cfg_root = CartpoleCameraEnvCfg()
     env_cfg = getattr(env_cfg_root, "default", None)
     if env_cfg is None:
         env_cfg = getattr(type(env_cfg_root), "default", None)
     if env_cfg is None:
         raise RuntimeError(
-            "CartpoleCameraPresetsEnvCfg does not expose a 'default' preset config. "
+            "CartpoleCameraEnvCfg does not expose a 'default' preset config. "
             f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
         )
     env_cfg = copy.deepcopy(env_cfg)

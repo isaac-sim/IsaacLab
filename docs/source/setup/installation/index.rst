@@ -99,9 +99,9 @@ Other notable limitations with respect to Isaac Lab include...
 
 #. :ref:`Running Cosmos Transfer1 <running-cosmos>` is not currently supported on the DGX Spark.
 
-#. Newton VBD deformable support is limited on DGX Spark due to the availability of the
-   ``pytetwild`` library on ARM (aarch64). ``pytetwild`` is required for automatic
-   tetrahedral mesh generation of volume deformables.
+#. Newton VBD deformable support is limited on DGX Spark because no pre-built
+   ``pytetwild`` wheel is available for ARM (aarch64). ``pytetwild`` is required for
+   automatic tetrahedral mesh generation of volume deformables.
 
 .. note::
 
@@ -152,6 +152,8 @@ Use this table to decide:
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Binary + Source     | |:inbox_tray:| binary        | |:floppy_disk:| source (git) | Users preferring binary       | Easy       |
 |                     | download                     |                              | install of Isaac Sim          |            |
+|                     |                              |                              | *(conda/uv/venv unsupported;  |            |
+|                     |                              |                              | use bundled Python or pip)*   |            |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Full Source Build   | |:floppy_disk:| source (git) | |:floppy_disk:| source (git) | Developers modifying both     | Advanced   |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+

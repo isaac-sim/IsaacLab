@@ -7,11 +7,13 @@ Isaac Lab uses a pluggable renderer architecture to support different rendering 
 The :class:`~isaaclab.renderers.BaseRenderer` abstract base class defines the interface that all renderer
 implementations must follow.
 
-Isaac Lab supports two rendering backends:
+Isaac Lab supports three rendering backends:
 
-- **RTX renderer** (``IsaacRtxRendererCfg`` / ``OVRTXRendererCfg``) — NVIDIA's Omniverse RTX
-  rendering pipeline. Requires Isaac Sim. Best for photorealistic rendering, full camera sensor
-  support (RGB, depth, semantic segmentation, etc.), and production quality outputs.
+- **Isaac RTX renderer** (``IsaacRtxRendererCfg``) — NVIDIA's Omniverse RTX rendering pipeline
+  running inside Isaac Sim. Requires Isaac Sim. Best for photorealistic rendering, full camera
+  sensor support (RGB, depth, semantic segmentation, etc.), and production quality outputs.
+- **OVRTX renderer** (``OVRTXRendererCfg``) — A standalone RTX path-tracing renderer provided by
+  the ``isaaclab_ov`` extension. Delivers RTX-quality rendering.
 - **Newton Warp renderer** (``NewtonWarpRendererCfg``) — A lightweight GPU-accelerated renderer
   built on NVIDIA Warp. Works with the Newton physics backend and does **not** require Isaac Sim
   (kit-less mode). Ideal for training workflows where full RTX fidelity is not needed.
@@ -25,7 +27,8 @@ Choosing a renderer backend
 | Isaac RTX           | Yes                           | Full sensor fidelity, RTX       |
 |                     |                               | photorealism, PhysX backend     |
 +---------------------+-------------------------------+---------------------------------+
-| OVRTX               | Yes (+ ``isaaclab_ov``)       | Alternative RTX pipeline        |
+| OVRTX               | No (kit-less; needs           | RTX-quality rendering without   |
+|                     | ``isaaclab_ov`` + ``ovrtx``)  | requiring Isaac Sim             |
 +---------------------+-------------------------------+---------------------------------+
 | Newton Warp         | No (kit-less)                 | Newton backend, fast training   |
 +---------------------+-------------------------------+---------------------------------+
@@ -111,22 +114,30 @@ Core concepts
 Installing the OVRTX renderer
 ------------------------------
 
-The OVRTX renderer is provided by the ``isaaclab_ov`` extension and requires the
-`ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package (hosted on
-``pypi.nvidia.com``).
+The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
+source package ships with the core install, but the renderer's ``ovrtx`` runtime
+wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, hosted on
+``pypi.nvidia.com``) is **not** installed by default. You must request it
+explicitly — OVRTX does **not** require Isaac Sim.
 
-Install via the Isaac Lab CLI:
-
-.. code-block:: bash
-
-   # Install isaaclab_ov (and its ovrtx dependency) alongside the core package
-   ./isaaclab.sh -i ov
-
-Or install manually with pip:
+Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com -e source/isaaclab_ov
+   # Install the ovrtx runtime wheel on top of an existing install
+   ./isaaclab.sh -i ov[ovrtx]
+
+.. note::
+
+   The bare ``ov`` token does **not** install any runtime wheel (the source
+   packages are already part of the core install). Use ``ov[ovrtx]`` (or ``ov[all]``)
+   to pull in the ``ovrtx`` dependency.
+
+Or install manually with pip (note the ``[ovrtx]`` extra and the extra index URL):
+
+.. code-block:: bash
+
+   pip install --extra-index-url https://pypi.nvidia.com -e "source/isaaclab_ov[ovrtx]"
 
 - **Opaque render data**: The render data object returned by :meth:`~isaaclab.renderers.BaseRenderer.create_render_data` is passed to
   subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it

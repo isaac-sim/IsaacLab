@@ -41,7 +41,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client>`__; see :ref:`connection guide <connect-quest-pico>`
+     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)
@@ -479,6 +479,12 @@ follows.
      - **Arm:** end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+
+       **Note:** With the RMPFlow controller, avoid colliding with
+       the cubes during teleoperation: contact forces cause the
+       controller to overtune and the arm to drift. Move the
+       end-effector close to and just above the cube, stop, then
+       close the suction cup.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -492,13 +498,18 @@ follows.
    * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** absolute IK end-effector control. Gripper disabled.
    * - ``Isaac-Reach-Franka-IK-Rel-v0``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
 
+
+.. note::
+
+   Humanoid arms (e.g. Galbot, Agibot) have joint limits that inverse kinematics must respect.
+   The differential IK controller ignores these limits, so RMPFlow is preferred for teleoperating
+   them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
+   responding when the commanded target pose is unreachable within those limits -- this is expected,
+   not a bug.
 
 .. _isaac-teleop-switching-input-mode:
 
@@ -992,6 +1003,20 @@ Optimize XR Performance
    in real time -- for example on lower-spec GPUs, in scenes with many lights or complex
    materials, or when you have already configured ``sim.dt`` and ``sim.render_interval`` and
    still see dropped frames.
+
+   .. admonition:: Known issue
+      :class: important
+
+      Starting an XR session while RTX - Minimal is already the active renderer is a known
+      issue: robot control inputs may never be applied and teleoperation stays non-functional,
+      with no error reported. Switching to RTX - Minimal *after* the XR session has started and
+      teleoperation is confirmed working is not affected.
+
+      As a workaround, start under the default renderer before switching to RTX - Minimal:
+
+      #. Launch Isaac Lab with the default renderer and start the XR session.
+      #. Confirm that teleoperation is working (the robot responds to your hand motions).
+      #. Switch the viewport renderer to **RTX - Minimal** as described below.
 
    To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
    select **RTX - Minimal**:

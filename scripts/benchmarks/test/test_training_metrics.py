@@ -43,7 +43,7 @@ def test_log_rl_training_metrics_skips_missing_short_run_scalars(
         log_data={},
         reward_tag=reward_tag,
         episode_length_tag=episode_length_tag,
-        task="Isaac-Ant-v0",
+        task="Isaac-Ant",
         workflow=workflow,
         should_check_convergence=True,
     )
@@ -77,7 +77,7 @@ def test_log_rl_training_metrics_logs_present_normal_run_scalars(
         },
         reward_tag=reward_tag,
         episode_length_tag=episode_length_tag,
-        task="Isaac-Ant-v0",
+        task="Isaac-Ant",
         workflow=workflow,
     )
 

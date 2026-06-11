@@ -67,14 +67,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
-    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+    from isaaclab_tasks.utils import setup_preset_cli
 
     add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args;
-    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse.
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
-    set_hydra_args(fold_preset_tokens(hydra_args))
+    set_hydra_args(hydra_args)
     return args_cli
 
 
@@ -85,11 +85,12 @@ def run(argv: list[str]) -> None:
     from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
     from stable_baselines3.common.vec_env import VecNormalize
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import resolve_task_config
 
     signal.signal(signal.SIGINT, _cleanup_pbar)
 

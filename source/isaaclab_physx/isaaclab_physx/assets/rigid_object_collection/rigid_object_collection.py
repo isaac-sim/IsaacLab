@@ -15,15 +15,17 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.physics.tensors.api as physx
+import omni.physics.tensors as physx
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
+from isaaclab_physx.cloner import queue_physx_replication
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .kernels import resolve_view_ids
@@ -78,7 +80,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        for rigid_body_cfg in self.cfg.rigid_objects.values():
+        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
@@ -92,6 +94,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            queue_usd_replication(cfg.rigid_objects[rigid_body_name])
+            queue_physx_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list = []
 
@@ -1119,7 +1123,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Clone to make contiguous (now row-major num_bodies x num_instances), then flatten
         return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances,))
 
-    def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
+    def reshape_data_to_view_3d(
+        self, data: wp.array | torch.Tensor, data_dim: int, device: str | None = "cpu"
+    ) -> wp.array | torch.Tensor:
         """Reshapes and arranges 3D data to (num_bodies * num_instances, data_dim).
 
         Our internal methods consume and return data arranged as ``(num_instances, num_bodies, data_dim)``::
@@ -1136,11 +1142,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             data: The data to be formatted for the view. Shape is (num_instances, num_bodies, data_dim).
+                Supports Warp arrays and torch tensors.
             data_dim: The trailing dimension size.
+            device: The target device for the output.
 
         Returns:
             The data formatted for the view. Shape is (num_bodies * num_instances, data_dim).
+            Torch inputs return torch tensors, and Warp inputs return Warp arrays.
         """
+        if isinstance(data, torch.Tensor):
+            if device is None:
+                device = data.device
+            return data.transpose(0, 1).reshape(self.num_bodies * self.num_instances, data_dim).to(device).contiguous()
+
         element_size = wp.types.type_size_in_bytes(data.dtype)
         row_size = element_size * data_dim
         strided_view = wp.array(

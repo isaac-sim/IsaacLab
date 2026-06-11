@@ -34,7 +34,7 @@ Direct Warp Environments
 - ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
 - ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
 - ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
-- ``Isaac-Repose-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube repose
+- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
 
 
 Manager-Based Warp Environments
@@ -71,12 +71,12 @@ Quick Start
 .. code-block:: bash
 
     # Direct workflow
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
     # Manager-based workflow
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -103,7 +103,7 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - Stable Step (us)
      - Warp Step (us)
      - Change
-   * - Cartpole-Direct
+   * - Isaac-Cartpole-Direct
      - Direct
      - 5,274
      - 4,331
@@ -273,7 +273,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/stable
 
@@ -282,7 +281,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/warp
 

@@ -18,6 +18,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from . import stack_joint_pos_env_cfg
 
@@ -104,7 +105,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             body_name="right_suction_cup_tcp_link",
             controller=GALBOT_RIGHT_ARM_RMPFLOW_CFG,
             scale=1.0,
-            body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
             use_relative_mode=self.use_relative_mode,
         )
 
@@ -132,8 +132,9 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
         self.decimation = 6
         self.episode_length_s = 30.0
 
-        # Enable CCD to avoid tunneling
-        self.sim.physics = PhysxCfg(enable_ccd=True)
+        # Enable CCD for PhysX only. Newton backends do not expose this field.
+        if isinstance(self.sim.physics, PhysxCfg):
+            self.sim.physics.enable_ccd = True
 
 
 ##
@@ -141,6 +142,24 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackEnvCfg):
+    def validate_config(self):
+        """Check for invalid renderer/data-type combinations after preset resolution."""
+
+        warp_supported = {"rgb", "depth", "distance_to_image_plane"}
+        for cam_attr in ("right_wrist_cam", "left_wrist_cam", "ego_cam", "front_cam"):
+            cam = getattr(self.scene, cam_attr, None)
+            if cam is None:
+                continue
+            renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
+            if renderer_type == "newton_warp":
+                unsupported = set(cam.data_types) - warp_supported
+                if unsupported:
+                    raise ValueError(
+                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                        f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
+                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
+                    )
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -152,10 +171,11 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
+            renderer_cfg=MultiBackendRendererCfg(),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
+            offset=CameraCfg.OffsetCfg(rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
         )
 
         self.scene.left_wrist_cam = CameraCfg(
@@ -164,10 +184,11 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
+            renderer_cfg=MultiBackendRendererCfg(),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
+            offset=CameraCfg.OffsetCfg(rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
         )
 
         # Set ego view camera
@@ -177,10 +198,11 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
+            renderer_cfg=MultiBackendRendererCfg(),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
+            offset=CameraCfg.OffsetCfg(rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
         )
 
         # Set front view camera
@@ -190,6 +212,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
+            renderer_cfg=MultiBackendRendererCfg(),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),

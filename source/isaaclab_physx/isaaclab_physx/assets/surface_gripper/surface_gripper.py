@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from typing import TYPE_CHECKING
 
@@ -17,7 +18,10 @@ from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+
+from isaaclab_physx.cloner import queue_physx_replication
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -97,6 +101,9 @@ class SurfaceGripper(AssetBase):
         # flag for whether the sensor is initialized
         self._is_initialized = False
         self._debug_vis_handle = None
+
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
 
         # register various callback functions
         self._register_callbacks()
@@ -469,6 +476,10 @@ class SurfaceGripper(AssetBase):
             )
         gripper_prim = gripper_prims[0]
         self._prim_expr = root_expr + gripper_prim.GetPath().pathString[len(walk_root) :]
+        # ``GripperView`` (XformPrim.resolve_paths) requires explicit regex (".*") and rejects the
+        # legacy "*" wildcard that the clone-plan destination glob (e.g. "/World/envs/env_*") can
+        # carry. Convert any bare "*" to ".*" (a "*" already preceded by "." is left untouched).
+        self._prim_expr = re.sub(r"(?<!\.)\*", ".*", self._prim_expr)
         env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)

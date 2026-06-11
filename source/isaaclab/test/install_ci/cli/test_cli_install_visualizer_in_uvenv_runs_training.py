@@ -140,7 +140,7 @@ class Test_Cli_Install_Visualizer_In_Uvenv_Runs_Training(UV_Mixin):
                     "-p",
                     "scripts/reinforcement_learning/rsl_rl/train.py",
                     "--task",
-                    "Isaac-Cartpole-Direct-v0",
+                    "Isaac-Cartpole-Direct",
                     "--num_envs",
                     "64",
                     "presets=newton_mjwarp",

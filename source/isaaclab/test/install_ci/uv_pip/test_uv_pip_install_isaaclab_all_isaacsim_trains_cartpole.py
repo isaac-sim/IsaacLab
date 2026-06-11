@@ -15,7 +15,7 @@ Setup:
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct-v0 --num_envs 16
+    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5 --headless
 """
 
@@ -31,7 +31,7 @@ _TRAIN_CMD = [
     "--rl_library",
     "rsl_rl",
     "--task",
-    "Isaac-Cartpole-Direct-v0",
+    "Isaac-Cartpole-Direct",
     "--num_envs",
     "16",
     "presets=newton_mjwarp",

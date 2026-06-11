@@ -17,10 +17,10 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import ContactSensor
 
 # ---------------------------------------------------------------------------
 # feet_air_time

@@ -13,10 +13,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
@@ -187,6 +189,62 @@ def color_registered_deformables(builder) -> None:
         builder.color()
 
 
+def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
+    """Bind registered deformable visual meshes to their Newton particle slices in Fabric."""
+    if manager_cls._clone_physics_only or not manager_cls._deformable_registry:
+        return
+
+    import re
+
+    import usdrt
+
+    from isaaclab.sim.utils.stage import get_current_stage
+
+    if SimulationManager._usdrt_stage is None:
+        SimulationManager._usdrt_stage = get_current_stage(fabric=True)
+    fabric_stage = SimulationManager._usdrt_stage
+    if fabric_stage is None:
+        logger.warning("[setup_fabric_particle_sync] Fabric stage is unavailable.")
+        return
+
+    stage = get_current_stage()
+    synced_any = False
+    for entry in manager_cls._deformable_registry:
+        for inst_idx, offset in enumerate(entry.particle_offsets):
+            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
+            resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
+            vis_prim = stage.GetPrimAtPath(resolved_vis)
+
+            if not vis_prim or not vis_prim.IsValid():
+                logger.warning("[setup_fabric_particle_sync] vis prim not found at %s", resolved_vis)
+                continue
+
+            fab_prim = fabric_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
+            if not fab_prim or not fab_prim.IsValid():
+                logger.warning("[setup_fabric_particle_sync] Fabric prim not found at %s", resolved_vis)
+                continue
+
+            offset_attr = fab_prim.CreateAttribute(
+                SimulationManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True
+            )
+            count_attr = fab_prim.CreateAttribute(
+                SimulationManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
+            )
+            if not offset_attr.IsValid() or not count_attr.IsValid():
+                logger.warning(
+                    "[setup_fabric_particle_sync] Fabric particle attributes not created at %s", resolved_vis
+                )
+                continue
+
+            offset_attr.Set(int(offset))
+            count_attr.Set(int(entry.particles_per_body))
+            synced_any = True
+
+    if synced_any:
+        manager_cls._mark_particles_dirty()
+        manager_cls.sync_particles_to_usd()
+
+
 def install_deformable_builder_hooks() -> None:
     """Install deformable builder hooks without removing hooks owned by other extensions."""
     SimulationManager._deformable_registry = []
@@ -241,6 +299,8 @@ class DeformableObject(BaseDeformableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_newton_physics_replication(cfg)
 
         # initialize deformable type to None, should be set to either surface or volume on initialization
         self._deformable_type: str | None = None

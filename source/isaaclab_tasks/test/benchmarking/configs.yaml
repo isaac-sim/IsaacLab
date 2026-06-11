@@ -6,7 +6,7 @@
 
 # mode for very simple functional testing without checking thresholds
 fast_test:
-  rl_games:Isaac-Ant-v0:
+  rl_games:Isaac-Ant:
     max_iterations: 10
     lower_thresholds:
       reward: -99999
@@ -26,28 +26,28 @@ full_test:
 
 # mode for PR tests (default mode)
 fast:
-  rl_games:Isaac-Ant-v0:
+  rl_games:Isaac-Ant:
     max_iterations: 200
     lower_thresholds:
       reward: 45
       episode_length: 900
     upper_thresholds:
       duration: 1200 #750
-  skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
+  skrl:Isaac-Cartpole-Camera-Direct:
     max_iterations: 50
     lower_thresholds:
       reward: 190
       episode_length: 230
     upper_thresholds:
       duration: 450
-  rsl_rl:Isaac-Humanoid-v0:
+  rsl_rl:Isaac-Humanoid:
     max_iterations: 200
     lower_thresholds:
       reward: 50
       episode_length: 600 #700
     upper_thresholds:
       duration: 500
-  skrl:Isaac-Shadow-Hand-Over-Direct-v0:
+  skrl:Isaac-Shadow-Handover-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 30
@@ -61,7 +61,7 @@ fast:
       episode_length: 875
     upper_thresholds:
       duration: 1800
-  sb3:Isaac-Lift-Cube-Franka-v0:
+  sb3:Isaac-Lift-Cube-Franka:
     max_iterations: 150
     lower_thresholds:
       reward: 1.5
@@ -86,28 +86,28 @@ fast:
 # mode for nightly CI
 full:
   # Locomotion tasks - basic
-  Isaac-Ant-Direct-v0:
+  Isaac-Ant-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 7000
       episode_length: 700
     upper_thresholds:
       duration: 500
-  Isaac-Ant-v0:
+  Isaac-Ant:
     max_iterations: 1000
     lower_thresholds:
       reward: 100
       episode_length: 700
     upper_thresholds:
       duration: 800
-  Isaac-Humanoid-Direct-v0:
+  Isaac-Humanoid-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 2000
       episode_length: 600
     upper_thresholds:
       duration: 1000
-  Isaac-Humanoid-v0:
+  Isaac-Humanoid:
     max_iterations: 1000
     lower_thresholds:
       reward: 100
@@ -115,21 +115,21 @@ full:
     upper_thresholds:
       duration: 2500
   # Classic control tasks
-  Isaac-Cart-Double-Pendulum-Direct-v0:
+  Isaac-Pendulum-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 400
       episode_length: 150
     upper_thresholds:
       duration: 500
-  Isaac-Cartpole-Direct-v0:
+  Isaac-Cartpole-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 200
       episode_length: 150
     upper_thresholds:
       duration: 500
-  Isaac-Cartpole-v0:
+  Isaac-Cartpole:
     max_iterations: 1000
     lower_thresholds:
       reward: 3
@@ -137,42 +137,14 @@ full:
     upper_thresholds:
       duration: 1500
   # Vision-based cartpole tasks
-  Isaac-Cartpole-Depth-Camera-Direct-v0:
+  Isaac-Cartpole-Camera-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 200
       episode_length: 150
     upper_thresholds:
       duration: 3000
-  Isaac-Cartpole-Depth-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 1
-      episode_length: 150
-    upper_thresholds:
-      duration: 3000
-  Isaac-Cartpole-RGB-Camera-Direct-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 200
-      episode_length: 150
-    upper_thresholds:
-      duration: 3000
-  Isaac-Cartpole-RGB-ResNet18-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 1
-      episode_length: 100
-    upper_thresholds:
-      duration: 4000
-  Isaac-Cartpole-RGB-TheiaTiny-v0:
-    max_iterations: 300
-    lower_thresholds:
-      reward: 1
-      episode_length: 150
-    upper_thresholds:
-      duration: 4000
-  Isaac-Cartpole-RGB-v0:
+  Isaac-Cartpole-Camera:
     max_iterations: 300
     lower_thresholds:
       reward: -2
@@ -180,21 +152,21 @@ full:
     upper_thresholds:
       duration: 4000
   # Manipulation tasks - Franka
-  Isaac-Franka-Cabinet-Direct-v0:
+  Isaac-Open-Drawer-Franka-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 2000
       episode_length: 400
     upper_thresholds:
       duration: 1000
-  Isaac-Lift-Cube-Franka-v0:
+  Isaac-Lift-Cube-Franka:
     max_iterations: 300
     lower_thresholds:
       reward: 90
       episode_length: 100
     upper_thresholds:
       duration: 1000
-  Isaac-Open-Drawer-Franka-v0:
+  Isaac-Open-Drawer-Franka:
     max_iterations: 200
     lower_thresholds:
       reward: 60
@@ -208,7 +180,7 @@ full:
       episode_length: 150
     upper_thresholds:
       duration: 1500
-  Isaac-Reach-Franka-OSC-v0:
+  Isaac-Reach-Franka-OSC:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25
@@ -245,7 +217,7 @@ full:
     upper_thresholds:
       duration: 1800
   # Manipulation tasks - UR10
-  Isaac-Reach-UR10-v0:
+  Isaac-Reach-UR10:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25
@@ -253,14 +225,14 @@ full:
     upper_thresholds:
       duration: 1500
   # Dexterous manipulation - Allegro hand
-  Isaac-Repose-Cube-Allegro-Direct-v0:
+  Isaac-Reorient-Cube-Allegro-Direct:
     max_iterations: 500
     lower_thresholds:
       reward: 200
       episode_length: 150
     upper_thresholds:
       duration: 1500
-  Isaac-Repose-Cube-Allegro-*:
+  Isaac-Reorient-Cube-Allegro*:
     max_iterations: 500
     lower_thresholds:
       reward: 15
@@ -268,35 +240,35 @@ full:
     upper_thresholds:
       duration: 1500
   # Dexterous manipulation - Shadow hand
-  Isaac-Repose-Cube-Shadow-Direct-v0:
+  Isaac-Reorient-Cube-Shadow-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 300
     upper_thresholds:
       duration: 10000
-  Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0:
+  Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 50
     upper_thresholds:
       duration: 15000
-  Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0:
+  Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 100
     upper_thresholds:
       duration: 30000
-  Isaac-Repose-Cube-Shadow-Vision-Direct-v0:
+  Isaac-Reorient-Cube-Shadow-Camera-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 400
     upper_thresholds:
       duration: 40000
-  Isaac-Shadow-Hand-Over-Direct-v0:
+  Isaac-Shadow-Handover-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
@@ -319,56 +291,56 @@ full:
     upper_thresholds:
       duration: 2000
   # Factory and forge tasks
-  Isaac-AutoMate-Assembly-Direct-v0:
+  Isaac-AutoMate-Assembly-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 100
       episode_length: 200
     upper_thresholds:
       duration: 1500
-  Isaac-AutoMate-Disassembly-Direct-v0:
+  Isaac-AutoMate-Disassembly-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 100
       episode_length: 200
     upper_thresholds:
       duration: 1500
-  Isaac-Factory-GearMesh-Direct-v0:
+  Isaac-Factory-GearMesh-Direct:
     max_iterations: 100
     lower_thresholds:
       reward: 200
       episode_length: 250
     upper_thresholds:
       duration: 6000
-  Isaac-Factory-NutThread-Direct-v0:
+  Isaac-Factory-NutThread-Direct:
     max_iterations: 100
     lower_thresholds:
       reward: 400
       episode_length: 400
     upper_thresholds:
       duration: 5000
-  Isaac-Factory-PegInsert-Direct-v0:
+  Isaac-Factory-PegInsert-Direct:
     max_iterations: 100
     lower_thresholds:
       reward: 125
       episode_length: 130
     upper_thresholds:
       duration: 4000
-  Isaac-Forge-GearMesh-Direct-v0:
+  Isaac-Forge-GearMesh-Direct:
     max_iterations: 100
     lower_thresholds:
       reward: 200
       episode_length: 250
     upper_thresholds:
       duration: 6000
-  Isaac-Forge-NutThread-Direct-v0:
+  Isaac-Forge-NutThread-Direct:
     max_iterations: 100
     lower_thresholds:
       reward: 400
       episode_length: 400
     upper_thresholds:
       duration: 5000
-  Isaac-Forge-PegInsert-Direct-v0:
+  Isaac-Forge-PegInsert-Direct:
     max_iterations: 100
     lower_thresholds:
       reward: 125

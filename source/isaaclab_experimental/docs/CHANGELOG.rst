@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+0.1.1 (2026-06-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the experimental packages eagerly importing backend modules (``pxr``,
+  ``omni``, ``carb``, ``isaacsim``, ``scipy``) at import time, which crashed when
+  a warp task's env config was loaded before ``SimulationApp`` was launched. The
+  ``managers``, ``envs``, ``envs.mdp`` and ``envs.mdp.actions`` packages now use
+  ``lazy_export`` with ``.pyi`` stubs, and the MDP term leaf modules guard runtime
+  types (``Articulation``, ``InteractiveScene``, ``ContactSensor``, action terms)
+  under ``TYPE_CHECKING`` with string ``class_type`` references.
+
+
+0.1.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for :attr:`~isaaclab.managers.EventTermCfg.resample_interval_on_reset` in the
+  experimental Warp-first event manager, allowing ``"interval"`` event terms to keep their
+  per-environment timer across resets while still firing asynchronously per environment.
+
+Fixed
+^^^^^
+
+* Fixed the Warp gravity kernels behind
+  :func:`~isaaclab_experimental.envs.mdp.projected_gravity` and
+  :func:`~isaaclab_experimental.envs.mdp.flat_orientation_l2` to read per-env
+  gravity and normalize it, instead of reading env 0's vector. Per-env gravity
+  randomization is now respected by the observation and the flat-orientation
+  reward on the Newton backend.
+
+
 0.0.5 (2026-05-18)
 ~~~~~~~~~~~~~~~~~~
 

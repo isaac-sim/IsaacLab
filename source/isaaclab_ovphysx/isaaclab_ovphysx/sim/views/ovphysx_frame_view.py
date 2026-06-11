@@ -284,7 +284,7 @@ class OvPhysxFrameView(BaseFrameView):
     Scales and visibility delegate to an internal :class:`UsdFrameView`
     (lazy-constructed on first call).
 
-    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters
+    Getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters
     accept ``wp.array``.
 
     Limitations (v1):
@@ -834,7 +834,7 @@ class OvPhysxFrameView(BaseFrameView):
             )
         return self._usd_view
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get prim scales from the USD stage's ``xformOp:scale`` attribute.
 
         .. note::
@@ -849,7 +849,7 @@ class OvPhysxFrameView(BaseFrameView):
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            ``wp.array`` of shape ``(M, 3)``.
+            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
         """
         return self._ensure_usd_view().get_scales(indices)
 

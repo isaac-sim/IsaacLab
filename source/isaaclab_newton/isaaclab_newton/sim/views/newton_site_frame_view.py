@@ -14,7 +14,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab.cloner.cloner_utils import get_suffix, iter_clone_plan_matches, split_clone_template
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.utils.string import resolve_matching_names
@@ -321,7 +321,13 @@ class NewtonSiteFrameView(BaseFrameView):
                 return body_patterns, wp.transform(pos, quat), False, env_ids
             body_prim = body_prim.GetParent()
 
-        ref_prim = stage.GetPrimAtPath(source_root) if source_root is not None else None
+        ref_path = source_root
+        if source_root is not None and destination_template is not None:
+            template_prefix, _ = split_clone_template(destination_template)
+            source_suffix = get_suffix(source_root, template_prefix + "{}")
+            if source_suffix is not None:
+                ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
+        ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
         return None, wp.transform(pos, quat), source_root is not None, env_ids
 
@@ -506,7 +512,7 @@ class NewtonSiteFrameView(BaseFrameView):
             device=self._device,
         )
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get per-site scales by reading from the first collision shape on the same body."""
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
@@ -520,7 +526,7 @@ class NewtonSiteFrameView(BaseFrameView):
             outputs=[out],
             device=self._device,
         )
-        return out
+        return ProxyArray(out)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set per-site scales by writing to all collision shapes on the same body."""

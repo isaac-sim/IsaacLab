@@ -11,7 +11,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/sb3/train.py is deprecated. Use "
     "`./isaaclab.sh train --rl_library sb3 --task <TASK>` instead. "
-    "Example: `./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )
@@ -33,6 +33,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
@@ -42,9 +43,6 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -81,7 +79,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True

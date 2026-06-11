@@ -10,6 +10,7 @@ We modified parts of the environment—such as the target’s position and orien
 import math
 from dataclasses import MISSING
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -24,8 +25,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-
-import isaaclab_tasks.core.reach.mdp as mdp
 
 ##
 # Scene definition
