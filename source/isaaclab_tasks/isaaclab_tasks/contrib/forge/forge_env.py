@@ -158,10 +158,11 @@ class ForgeEnv(FactoryEnv):
 
         * ``pos_action_bounds`` and ``rot_action_bounds`` map the normalized policy action onto the
           operational volume around the fixed asset.
-        * ``pos_threshold`` and ``rot_threshold`` clip the per-step motion of the target relative to the
-          current end-effector pose. They correspond to the action scale (lambda) in the FORGE paper,
-          which is randomized per episode as part of the dynamics randomization scheme and exposed to
-          the critic as privileged state.
+        * ``pos_action_threshold`` and ``rot_action_threshold`` clip the per-step motion of the target
+          relative to the current end-effector pose. They are applied through the per-environment
+          ``pos_threshold`` and ``rot_threshold`` tensors and correspond to the action scale (lambda)
+          in the FORGE paper, which is randomized per episode as part of the dynamics randomization
+          scheme and exposed to the critic as privileged state.
 
         Reference: Noseworthy et al., "FORGE: Force-Guided Exploration for Robust Contact-Rich
         Manipulation under Uncertainty", Sec. III-B, Eq. 6. https://arxiv.org/abs/2408.04587
