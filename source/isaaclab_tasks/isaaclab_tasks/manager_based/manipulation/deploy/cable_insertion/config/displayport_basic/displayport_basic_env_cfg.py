@@ -68,7 +68,7 @@ class DisplayPortPlug(RigidObjectCfg):
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_plug.usd"),
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),  # old: inches, needs scale=0.0254
         # usd_path="/home/shauryad/workspaces/rl_policy/physical-ai-skill-hub-dev/outputs/plug/conform/fet001-minimal/plug_material_physics.usd",  # old: absolute path, convexHull
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_watertight.usd"),
         # pipeline output post-processed by finalize_dp_assets.py: metres, single root RB, convexDecomposition.
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
@@ -92,10 +92,11 @@ class DisplayPortPlug(RigidObjectCfg):
             max_contact_impulse=None,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
-        # Tight DP mate: cavity-to-blade clearance is ~0.5 mm per side, so a 1 mm
-        # contact_offset kept the blade's contact shell permanently overlapping the
-        # cavity walls and slowly pushed the plug out. Use 0.3 mm.
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0003, rest_offset=0.0),
+        # DP blade-to-cavity clearance is ~0.27mm at the tightest body (Body5).
+        # contact_offset=0.3mm overshoots that gap → persistent shell penetration
+        # creating a net lateral force each step that eventually ejects the plug.
+        # Use 0.1mm so the contact shell stays within the cavity clearance.
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=0.0),
     )
     # NOTE: seated pose under verification (scripts/dp_verify_seated_geometry.py).
     # The dp_insertion_test.py best-of-24 solver pose was geometrically wrong
@@ -117,7 +118,7 @@ class DisplayPortSocket(RigidObjectCfg):
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_socket.usd"),
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, needs scale=0.0254
         # usd_path="/home/shauryad/workspaces/rl_policy/physical-ai-skill-hub-dev/outputs/socket/conform/fet001-minimal/socket_material_physics.usd",  # old: absolute path
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_watertight.usd"),
         # pipeline output post-processed by finalize_dp_assets.py: metres, kinematic root, all bodies enabled.
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
@@ -135,8 +136,7 @@ class DisplayPortSocket(RigidObjectCfg):
             max_contact_impulse=1e32,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=None),
-        # Match the plug's tight contact_offset (see plug note).
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0003, rest_offset=0.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=0.0),
     )
     init_state = RigidObjectCfg.InitialStateCfg(
         pos=(0.0, 0.0, SOCKET_HEIGHT),
