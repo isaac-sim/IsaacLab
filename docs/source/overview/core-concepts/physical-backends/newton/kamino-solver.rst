@@ -66,13 +66,13 @@ You can select the preset globally:
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole physics=newton_kamino
+    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole-v0 physics=newton_kamino
 
 or select the physics field directly:
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.sim.physics=newton_kamino
+    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole-v0 env.sim.physics=newton_kamino
 
 Use the direct path override when only one task field should use the Kamino preset.
 Use ``physics=newton_kamino`` when you want every matching preset field in the task config

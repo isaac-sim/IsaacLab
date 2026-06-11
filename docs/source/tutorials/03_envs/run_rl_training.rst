@@ -88,7 +88,7 @@ Rendering can still be active for sensor/camera data capture when enabled by the
 
 .. code-block:: bash
 
-  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
+  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0 --num_envs 64
 
 
 Headless execution with off-screen render
@@ -100,7 +100,7 @@ in the workflow and pass ``--video`` to record the agent behavior.
 
 .. code-block:: bash
 
-  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
+  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0 --num_envs 64 --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -116,7 +116,7 @@ training command as follows:
 
 .. code-block:: bash
 
-  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
+  ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0 --num_envs 64 --viz kit
 
 This will open the Kit visualizer window and you can see the agent training in the environment. However, this
 can slow down the training process because interactive visual feedback is enabled. As a workaround, you
@@ -142,7 +142,7 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --use_last_checkpoint --viz kit
+   ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint --viz kit
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

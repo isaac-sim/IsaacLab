@@ -205,7 +205,7 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 
 .. code-block:: bash
 
-   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
+   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct-v0
 
 .. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.jpg
     :align: center

@@ -18,13 +18,13 @@ See :doc:`/source/features/hydra` for all available names and how the selectors 
        --task <task-name> --headless physics=newton_mjwarp
 
    # Switch renderer (camera environments)
-   ./isaaclab.sh train --rl_library rsl_rl \
-       --task Isaac-Cartpole-Camera-Direct --headless \
+   ./isaaclab.sh train --rl_library rl_games \
+       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
        --enable_cameras renderer=newton_renderer
 
    # Combine selectors freely
-   ./isaaclab.sh train --rl_library rsl_rl \
-       --task Isaac-Cartpole-Camera-Direct --headless \
+   ./isaaclab.sh train --rl_library rl_games \
+       --task Isaac-Cartpole-Camera-Presets-Direct-v0 --headless \
        --enable_cameras physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 .. note::

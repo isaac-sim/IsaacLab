@@ -34,7 +34,7 @@ and kickoff training with MJWarp physics and the Newton visualizer:
 
          # Kickoff training with MJWarp physics and Newton visualizer
          ./isaaclab.sh train --rl_library rsl_rl \
-         --task=Isaac-Cartpole-Direct \
+         --task=Isaac-Cartpole-Direct-v0 \
          --num_envs=16 --max_iterations=10 \
          physics=newton_mjwarp --visualizer newton
 
@@ -49,7 +49,7 @@ and kickoff training with MJWarp physics and the Newton visualizer:
 
          :: Kickoff training with MJWarp physics and Newton visualizer
          isaaclab.bat train --rl_library rsl_rl ^
-         --task=Isaac-Cartpole-Direct ^
+         --task=Isaac-Cartpole-Direct-v0 ^
          --num_envs=16 --max_iterations=10 ^
          physics=newton_mjwarp --visualizer newton
 

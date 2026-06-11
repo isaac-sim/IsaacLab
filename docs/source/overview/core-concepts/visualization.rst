@@ -70,20 +70,20 @@ Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` ali
 .. code-block:: bash
 
     # Launch all visualizers (comma-delimited list, no spaces)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --viz kit,newton,rerun
 
     # Launch only the Newton visualizer
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --viz newton
 
     # Launch the Viser web-based visualizer
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --viz viser
 
 
 To run in headless mode, omit the ``--viz`` argument:
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0
 
 .. note::
 
@@ -230,7 +230,7 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
      - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and
        ``tiled_cam_target_prim_path`` are ignored. Note that the ``tiled_cam_prim_path`` has a default value, but different
        environments may require different paths. This mode requires an environment that registers Isaac Lab ``Camera`` sensors
-       in ``scene.sensors``. For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole``
+       in ``scene.sensors``. For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera-Presets-Direct-v0``. The plain ``Isaac-Cartpole-v0``
        task has no ``/World/envs/*/Camera`` sensor, so leave ``tiled_cam_prim_path=None`` to use generated visualizer cameras.
 
 **How to Access the Tiled Camera View in the UI**
@@ -603,7 +603,7 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
 .. code-block:: bash
 
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
 
 
 **Rerun Visualizer FPS Control**

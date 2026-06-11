@@ -88,19 +88,19 @@ Use the reinforcement learning training command with a **task name** and
 
          # Kit-less: Newton MJWarp physics + Newton visualizer
          ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole-Direct \
+           --task=Isaac-Cartpole-Direct-v0 \
            --num_envs=16 --max_iterations=10 \
            physics=newton_mjwarp --visualizer newton
 
          # With Isaac Sim: PhysX physics (default renderer)
          ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole-Direct \
+           --task=Isaac-Cartpole-Direct-v0 \
            --num_envs=4096 \
            physics=physx
 
          # Camera task: typed physics + renderer + domain preset
-         ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole-Camera-Direct \
+         ./isaaclab.sh train --rl_library rl_games \
+           --task=Isaac-Cartpole-RGB-Camera-Direct-v0 \
            physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -109,12 +109,12 @@ Use the reinforcement learning training command with a **task name** and
       .. code-block:: batch
 
          isaaclab.bat train --rl_library rsl_rl ^
-           --task=Isaac-Cartpole-Direct ^
+           --task=Isaac-Cartpole-Direct-v0 ^
            --num_envs=16 --max_iterations=10 ^
            physics=newton_mjwarp --visualizer newton
 
          isaaclab.bat train --rl_library rsl_rl ^
-           --task=Isaac-Cartpole-Direct ^
+           --task=Isaac-Cartpole-Direct-v0 ^
            --num_envs=4096 ^
            physics=physx
 
