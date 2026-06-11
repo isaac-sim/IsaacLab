@@ -53,7 +53,7 @@ Install with ``isaaclab[isaacsim,all]`` for the full workflow.
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
 
--  Install a CUDA-enabled PyTorch 2.10.0 build that matches your system architecture:
+-  Install a CUDA-enabled PyTorch 2.11.0 build that matches your system architecture:
 
    .. tab-set::
       :sync-group: pip-platform
@@ -63,21 +63,21 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
          .. code-block:: bash
 
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
          .. code-block:: bash
 
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
+            pip install -U torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu130
 
          .. note::
 

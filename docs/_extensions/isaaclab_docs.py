@@ -163,7 +163,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv pip install "isaacsim[all,extscache]==6.0.0.1" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match --prerelease=allow
-   uv pip install -U torch==2.10.0 torchvision==0.25.0 \\
+   uv pip install -U torch==2.11.0 torchvision==0.26.0 \\
      --index-url https://download.pytorch.org/whl/cu128
    ./isaaclab.sh -i
 """
@@ -181,7 +181,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv pip install "isaacsim[all,extscache]==6.0.0.1" ^
      --extra-index-url https://pypi.nvidia.com ^
      --index-strategy unsafe-best-match --prerelease=allow
-   uv pip install -U torch==2.10.0 torchvision==0.25.0 ^
+   uv pip install -U torch==2.11.0 torchvision==0.26.0 ^
      --index-url https://download.pytorch.org/whl/cu128
    isaaclab.bat -i
 """

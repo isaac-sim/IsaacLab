@@ -10,7 +10,7 @@ Setup:
     - uv pip install <wheel>[all,isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
     - uv pip install --reinstall-package torch --reinstall-package torchvision
-        torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+        torch==2.11.0 torchvision==0.26.0 --index-url <cu128|cu130>
         (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst.
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
@@ -93,7 +93,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
             )
 
             # 2. uv pip install --reinstall-package torch --reinstall-package torchvision
-            #    torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+            #    torch==2.11.0 torchvision==0.26.0 --index-url <cu128|cu130>
             #    cu128 on x86_64, cu130 on aarch64 (e.g. GB10 / DGX Spark with CUDA capability 12.x).
             #    --reinstall-package forces uv to swap the CPU torch installed above with the CUDA build.
             result = self.run_in_uv_env(
@@ -105,8 +105,8 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                     "torch",
                     "--reinstall-package",
                     "torchvision",
-                    "torch==2.10.0",
-                    "torchvision==0.25.0",
+                    "torch==2.11.0",
+                    "torchvision==0.26.0",
                     "--index-url",
                     cuda_torch_index_url(),
                 ],

@@ -31,9 +31,9 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
-    "torch>=2.10",
-    "torchvision>=0.25.0",
-    "torchaudio>=2.10",
+    "torch>=2.11",
+    "torchvision>=0.26.0",
+    "torchaudio>=2.11",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
     "protobuf>=4.25.8,!=5.26.0",
@@ -355,9 +355,9 @@ override-dependencies = ["numpy>=2"]
 # indexes below via [tool.uv.sources]). The loose specs in
 # [project.dependencies] keep the published wheel resolvable against isaacsim.
 constraint-dependencies = [
-    "torch==2.10.0",
-    "torchvision==0.25.0",
-    "torchaudio==2.10.0",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "torchaudio==2.11.0",
 ]
 # The teleop stack (dex-retargeting -> lxml>=5.2.2) cannot co-resolve with the
 # mimic stack (nvidia-srl-usd-to-urdf -> lxml<5.0.0), which is also pulled in by
