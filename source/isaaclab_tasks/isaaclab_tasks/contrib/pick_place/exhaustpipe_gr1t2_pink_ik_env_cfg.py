@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
@@ -15,15 +15,6 @@ from isaaclab_tasks.contrib.pick_place.exhaustpipe_gr1t2_base_env_cfg import (
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
     _build_gr1t2_pickplace_pipeline,
 )
-
-try:
-    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
-    from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
-
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 
 @configclass
@@ -136,10 +127,9 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
         self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # IsaacTeleop-based teleoperation pipeline (only when isaacteleop is available).
-        if _TELEOP_AVAILABLE:
-            self.isaac_teleop = IsaacTeleopCfg(
-                pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
-                sim_device=self.sim.device,
-                xr_cfg=self.xr,
-            )
+        # IsaacTeleop-based teleoperation pipeline.
+        self.isaac_teleop = IsaacTeleopCfg(
+            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            sim_device=self.sim.device,
+            xr_cfg=self.xr,
+        )
